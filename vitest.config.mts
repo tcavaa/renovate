@@ -1,9 +1,9 @@
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
-    alias: { '@': path.resolve(__dirname) },
+    alias: { '@': fileURLToPath(new URL('.', import.meta.url)) },
   },
   test: {
     environment: 'node',
@@ -28,7 +28,8 @@ export default defineConfig({
         'app/api/projects/route.ts',
         'app/api/design/projects/route.ts',
       ],
-      exclude: ['lib/calculator/constants.ts', 'lib/api/designCatalog.ts', 'lib/api/rateBook.ts'],
+      // Database and mail glue: covered by the Playwright reset flow, not unit tests.
+      exclude: ['lib/calculator/constants.ts', 'lib/api/designCatalog.ts', 'lib/api/rateBook.ts', 'lib/auth/tokens.ts'],
       thresholds: {
         lines: 80,
         functions: 80,
