@@ -174,6 +174,18 @@ The `model3dKind` options come from `ARCHETYPES` directly, so adding an archetyp
 selectable without touching the admin form. A stored kind that is no longer in the registry
 stays listed (marked `?`) rather than silently blanking the select and being lost on save.
 
+### Admin lists: filters, sort and paging live in the URL
+
+Every admin list (`/admin/products`, `categories`, `stores`, `workers`, `orders`, `users`) is
+a server component that reads its state from the query string through
+`parseListParams` in `lib/admin/list.ts` and renders `FilterBar` (client, writes the URL)
+plus `Pager` (server, links). A filtered view is therefore a URL: the dashboard's
+"needs attention" items link straight to the matching filter
+(`/admin/products?model=none&status=active`), and a colleague can be sent a filtered list.
+Adding a filter is one `where.push(...)` in the page and one field in the `FilterBar`
+config; strings live under `admin.filters` in the dictionaries. The rates table filters
+client-side because every row is an editable form.
+
 ### Key 3D-relevant columns
 
 - **`products.model3dKind`** — the archetype the layout engine places the product as

@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Check, Loader2, Plus } from 'lucide-react';
+import { Check, Loader2, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -57,17 +57,26 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
   const [adding, setAdding] = useState(false);
   const [newRate, setNewRate] = useState({ key: '', labelKa: '', phase: '11', unit: 'm2', basis: 'floor', qtyPerM2: '1', wasteFactorPct: '10', pricePerUnit: '0' });
   const [addError, setAddError] = useState<string | null>(null);
+  const [filterQ, setFilterQ] = useState('');
+  const [filterPhase, setFilterPhase] = useState('');
 
   const groups = useMemo(() => {
     const byKind = { material: [] as RateRow[], labour: [] as RateRow[] };
-    for (const r of rows) byKind[r.kind].push(r);
+    const needle = filterQ.trim().toLowerCase();
+    for (const r of rows) {
+      if (filterPhase && String(r.phase) !== filterPhase) continue;
+      if (needle && !r.labelKa.toLowerCase().includes(needle) && !r.key.toLowerCase().includes(needle)) continue;
+      byKind[r.kind].push(r);
+    }
     const phases = (list: RateRow[]) => {
       const map = new Map<number, RateRow[]>();
       for (const r of list) map.set(r.phase, [...(map.get(r.phase) ?? []), r]);
       return [...map.entries()].sort((a, b) => a[0] - b[0]);
     };
     return { material: phases(byKind.material), labour: phases(byKind.labour) };
-  }, [rows]);
+  }, [rows, filterQ, filterPhase]);
+
+  const phaseOptions = useMemo(() => [...new Set(rows.map((r) => r.phase))].sort((a, b) => a - b), [rows]);
 
   const setField = (id: number, field: keyof Draft, value: string | boolean) =>
     setDrafts((d) => ({ ...d, [id]: { ...d[id], [field]: value } }));
@@ -238,6 +247,23 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
   return (
     <div className="space-y-6">
       {rows.length === 0 && <p className="text-sm text-ink-muted">{t.admin.rateDefaultsHint}</p>}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg-surface p-3">
+        <div className="relative w-72">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+          <Input type="search" value={filterQ} onChange={(e) => setFilterQ(e.target.value)} placeholder={t.admin.filters.search} aria-label={t.admin.filters.search} className="h-9 pl-9" />
+        </div>
+        <select value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)} aria-label={t.admin.filters.phase} className="h-9 rounded-md border border-line bg-bg-surface px-2.5 text-sm">
+          <option value="">{t.admin.filters.phase}: {t.admin.filters.all}</option>
+          {phaseOptions.map((ph) => (
+            <option key={ph} value={String(ph)}>{ph} — {PHASE_NAMES[ph] ?? ''}</option>
+          ))}
+        </select>
+        {(filterQ || filterPhase) && (
+          <Button type="button" variant="ghost" size="sm" className="text-ink-muted" onClick={() => { setFilterQ(''); setFilterPhase(''); }}>
+            <X className="h-4 w-4" /> {t.admin.filters.reset}
+          </Button>
+        )}
+      </div>
       {renderGroup('material', groups.material)}
       {renderGroup('labour', groups.labour)}
 

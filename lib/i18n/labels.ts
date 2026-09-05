@@ -75,3 +75,7 @@ export function apiErrorMessage(t: Dictionary, code: string | null | undefined):
   if (!code) return t.apiErrors.UNKNOWN;
   return (t.apiErrors as unknown as AnyMap)[code] ?? code;
 }
+
+export function styleLabel(t: Dictionary, styleId: string): string {
+  return (t.styleNames as unknown as AnyMap)[styleId] ?? styleId;
+}
