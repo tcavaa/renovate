@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/mysql2';
 import mysql from 'mysql2/promise';
 import * as schema from './schema';
+import { env } from '@/lib/env';
 
 const globalForDb = globalThis as unknown as {
   pool: mysql.Pool | undefined;
@@ -9,11 +10,11 @@ const globalForDb = globalThis as unknown as {
 export const pool =
   globalForDb.pool ??
   mysql.createPool({
-    host: process.env.DATABASE_HOST ?? 'localhost',
-    port: Number(process.env.DATABASE_PORT ?? 3306),
-    user: process.env.DATABASE_USER ?? 'root',
-    password: process.env.DATABASE_PASSWORD ?? '',
-    database: process.env.DATABASE_NAME ?? 'renovate_ge',
+    host: env.DATABASE_HOST,
+    port: env.DATABASE_PORT,
+    user: env.DATABASE_USER,
+    password: env.DATABASE_PASSWORD,
+    database: env.DATABASE_NAME,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -21,7 +22,7 @@ export const pool =
     keepAliveInitialDelay: 0,
   });
 
-if (process.env.NODE_ENV !== 'production') {
+if (env.NODE_ENV !== 'production') {
   globalForDb.pool = pool;
 }
 

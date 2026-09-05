@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788648294350,
+      "tag": "0000_keen_sebastian_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1788649096712,
+      "tag": "0001_auth_tokens",
+      "breakpoints": true
+    }
+  ]
+}

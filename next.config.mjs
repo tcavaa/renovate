@@ -60,6 +60,8 @@ const assetHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Self-contained server for PM2: deploy/deploy.sh copies public/ and .next/static beside it.
+  output: 'standalone',
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
   // over it — the two sharing `.next` is what 404s every page (see CLAUDE.md).
   distDir: process.env.NEXT_DIST_DIR || '.next',

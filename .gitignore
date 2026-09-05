@@ -47,3 +47,12 @@ public/uploads/plans/*
 
 # builds made beside a running dev server (NEXT_DIST_DIR=.next-build pnpm build)
 .next-build/
+
+# --- runtime logs (see lib/log.ts) ---
+logs/*
+!logs/.gitkeep
+
+# --- test output ---
+coverage/
+playwright-report/
+test-results/

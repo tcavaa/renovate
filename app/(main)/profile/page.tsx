@@ -10,7 +10,8 @@ import {
 } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { projects } from '@/lib/db/schema';
+import { projects, users } from '@/lib/db/schema';
+import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +22,18 @@ import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ searchParams }: { searchParams: { verified?: string } }) {
   const session = await auth();
   const ka = getT();
   const locale = getLocale();
   const userId = Number(session!.user.id);
+
+  const [account] = await db
+    .select({ emailVerifiedAt: users.emailVerifiedAt, hasPassword: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const needsVerification = !!account && !account.emailVerifiedAt && !!account.hasPassword;
 
   const rows = await db
     .select()
@@ -41,6 +49,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-8">
+      <VerifyEmailBanner needsVerification={needsVerification} verifiedFlag={searchParams.verified} />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl font-bold">{ka.nav.profile}</h1>

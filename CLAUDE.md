@@ -64,6 +64,14 @@ pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write noth
 pnpm models:seed    # one product per model in both manifests; deletes every other placeable product
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
+pnpm db:migrate     # apply pending migrations from lib/db/migrations (what deploys run)
+pnpm db:migrate:baseline  # once, on a DB created with db:push before migrations existed
+pnpm db:indexes     # idempotent secondary indexes (stopgap where push is not an option)
+pnpm test           # vitest: calculator, pricing, matcher, API helpers, both save routes
+pnpm test:coverage  # same with the coverage gate CI enforces
+pnpm test:e2e       # Playwright flows against :3000 (needs the DB; not in CI)
+pnpm uploads:cleanup  # delete plan uploads no project references (--dry-run to preview)
+NEXT_DIST_DIR=.next-build pnpm build  # production build beside a live dev server
 ```
 
 `drizzle-kit push` is interactive and will hang in a non-interactive shell; for a scripted
@@ -555,6 +563,45 @@ rotating the leaf itself spins it about its middle like a revolving door.
 A `sql` template with a correlated `select count(*) ... where products.store_id = stores.id`
 inside a `.select({})` silently returns 0 for every row — it is emitted uncorrelated. Use
 `leftJoin` + `groupBy` + `count()` instead. The store list hit exactly this.
+
+## Operations
+
+Everything the app needs to run unattended on the VPS, and where each piece lives.
+
+- **Environment** is validated once at startup by `lib/env.ts` (Zod). A missing or malformed
+  variable stops the process with the variable named; production insists on a real
+  `AUTH_SECRET` and `DATABASE_PASSWORD`. Server code imports `env`, never `process.env`.
+- **Logs** are JSON lines from `lib/log.ts` to stdout and to `logs/app-YYYY-MM-DD.log`
+  (`LOG_DIR`, git-ignored). `handle()` in `lib/api/route.ts` logs every request with route,
+  status and duration, and every unhandled exception with its stack. PM2 captures stdout into
+  `logs/pm2-*.log`. There is no error tracker yet; `tail -f logs/app-*.log` is the tool.
+- **Health** is `GET /api/health`: 200 with `{ status, checks.db, uptimeSec, version }`, 503
+  when MySQL does not answer within 3 s. Unauthenticated and unthrottled — the deploy script,
+  Nginx and any uptime monitor call it.
+- **Migrations** live in `lib/db/migrations` (`drizzle-kit generate` after a schema change;
+  never edit a generated file). `pnpm db:migrate` applies them and is what
+  `deploy/deploy.sh` runs. A database created with `db:push` before migrations existed needs
+  `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only.
+- **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
+  `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
+  previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
+  GitHub Actions `Deploy` workflow runs it over SSH for every `v*` tag after CI passes;
+  `ecosystem.config.cjs` is the PM2 definition and `deploy/nginx.conf` the site config.
+- **Uploads** go through `lib/storage` (`STORAGE_DRIVER=local|s3`). Keys look like
+  `plans/<file>`; the local driver writes under `public/uploads`, the S3 driver to any
+  S3-compatible bucket (R2, MinIO) served from `S3_PUBLIC_URL`. Every upload is identified
+  by its bytes (`lib/uploads/sniff.ts`), never by the declared type.
+  `pnpm uploads:cleanup` (nightly cron) deletes plans no project references.
+- **Mail** goes through `lib/email.ts` (`MAIL_DRIVER=log|smtp`). With `log`, the reset and
+  verification links are written to the app log — that is how to find them in development.
+- **Auth**: five wrong passwords lock an account for fifteen minutes (`lib/auth/lockout.ts`,
+  in memory like the rate limiter). Password reset and e-mail verification use single-use
+  hashed tokens in `auth_tokens` (`lib/auth/tokens.ts`). Google accounts are verified on
+  creation. Verification is encouraged, not required: an unverified account still works.
+- **Tests**: Vitest covers the money engine, pricing, matching, the API helpers and both save
+  routes (coverage thresholds in `vitest.config.mts`, enforced in CI); `test:parser` and
+  `test:solver` cover the plan pipeline; Playwright (`e2e/`) drives the public pages, the
+  auth pages and the sample-plan studio journey against a running server.
 
 ## Known gaps / roadmap
 

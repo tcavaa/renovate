@@ -103,4 +103,6 @@ export const RATE_RULES = {
   parsePlan: { key: 'parse-plan', limit: 10, windowMs: 60 * 60_000 },
   /** Guest project saves insert rows. */
   saveProject: { key: 'save-project', limit: 20, windowMs: 60 * 60_000 },
+  /** Password-reset and verification mails: each one is an e-mail somebody has to receive. */
+  authMail: { key: 'auth-mail', limit: 5, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;

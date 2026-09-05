@@ -296,3 +296,20 @@ server {
 ## License
 
 Private / proprietary. © RenovateGE.
+
+## Running in production
+
+```bash
+cp .env.example /var/www/renovate/shared/.env.local   # fill in real values
+deploy/deploy.sh v1.0.0                                # clone, migrate, build, switch, health-check
+```
+
+- `ecosystem.config.cjs` — PM2 definition (standalone Next server on :3000)
+- `deploy/nginx.conf` — TLS, gzip, static files, proxy; the app sets its own security headers
+- `deploy/deploy.sh` / `deploy/rollback.sh` — release-based deploy with automatic rollback
+- `GET /api/health` — 200 when the database answers, 503 otherwise
+- Logs: `logs/app-YYYY-MM-DD.log` (JSON lines) and `logs/pm2-*.log`
+- Nightly: `pnpm uploads:cleanup` removes floor plans no project references
+
+Pushing a `v*` tag runs CI and then the deploy over SSH (see `.github/workflows/deploy.yml`
+for the four secrets it needs).

@@ -16,30 +16,7 @@ import { pickLocalizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 import type { Product } from '@/lib/db/schema';
 import type { SelectedProduct } from '@/lib/calculator/types';
-
-function categorySuggestedQty(slug: string, totals: ReturnType<typeof aggregateRoomTotals>) {
-  switch (slug) {
-    case 'floor-tiles':
-    case 'laminate':
-      return Math.round(totals.totalWetRoomM2 * 1.1) || Math.round(totals.totalFloorM2 * 1.1);
-    case 'wall-tiles':
-      return Math.round(totals.totalWetRoomM2 * 2);
-    case 'paint':
-      return Math.round(totals.totalWallM2 * 0.16);
-    case 'doors':
-      return totals.doorCount;
-    case 'windows':
-      return totals.windowCount;
-    case 'sanitary':
-      return Math.max(1, Math.round(totals.totalWetRoomM2 / 4));
-    case 'lighting':
-      return Math.max(1, Math.round(totals.totalFloorM2 / 12));
-    case 'sockets-switches':
-      return Math.max(2, Math.round(totals.totalFloorM2 / 5));
-    default:
-      return 1;
-  }
-}
+import { suggestedQuantity } from '@/lib/calculator/quantities';
 
 export default function CatalogStepPage() {
   const ka = useT();
@@ -81,7 +58,7 @@ export default function CatalogStepPage() {
       removeProduct(key);
       return;
     }
-    const qty = categorySuggestedQty(currentSlug, totals) || 1;
+    const qty = suggestedQuantity(currentSlug, totals) || 1;
     const sel: SelectedProduct = {
       productId: p.id,
       nameKa: p.nameKa,
@@ -173,7 +150,7 @@ export default function CatalogStepPage() {
                     onAction={() => handleSelect(p)}
                     qtyHint={
                       currentSlug
-                        ? `${categorySuggestedQty(currentSlug, totals)}`
+                        ? `${suggestedQuantity(currentSlug, totals)}`
                         : undefined
                     }
                   />

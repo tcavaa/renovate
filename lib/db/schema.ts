@@ -17,8 +17,27 @@ export const users = mysqlTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }),
   role: mysqlEnum('role', ['user', 'admin']).default('user').notNull(),
+  /** Set when the address was confirmed by link (or came from Google, which already did). */
+  emailVerifiedAt: timestamp('email_verified_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+/**
+ * One-time tokens for e-mail verification and password reset. Only the SHA-256 of the token
+ * is stored, so a database leak does not hand out working links; a token is spent on first
+ * use and expires on its own.
+ */
+export const authTokens = mysqlTable('auth_tokens', {
+  id: int('id').primaryKey().autoincrement(),
+  userId: int('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: mysqlEnum('kind', ['verify_email', 'reset_password']).notNull(),
+  tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  usedAt: timestamp('used_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  userKindIdx: index('auth_tokens_user_kind_idx').on(t.userId, t.kind),
+}));
 
 export const categories = mysqlTable('categories', {
   id: int('id').primaryKey().autoincrement(),

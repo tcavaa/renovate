@@ -7,6 +7,9 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { authConfig } from '@/auth.config';
+import { env } from '@/lib/env';
+import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
+import { log } from '@/lib/log';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -15,6 +18,7 @@ const credentialsSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  secret: env.AUTH_SECRET,
   providers: [
     Credentials({
       credentials: {
@@ -25,6 +29,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = credentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
+        // Five wrong passwords lock the account for fifteen minutes, whatever the IP.
+        if (isLockedOut(email)) {
+          log.warn('login refused: account locked', { email: email.toLowerCase() });
+          return null;
+        }
 
         const found = await db
           .select()
@@ -35,7 +44,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!user || !user.passwordHash) return null;
 
         const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
+        if (!ok) {
+          if (recordFailure(email)) log.warn('login: account locked after repeated failures', { userId: user.id });
+          return null;
+        }
+        clearFailures(email);
 
         return {
           id: String(user.id),
@@ -45,11 +58,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
           }),
         ]
       : []),
@@ -68,6 +81,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             email: user.email,
             name: user.name ?? user.email.split('@')[0],
             role: 'user',
+            // Google has already verified the address.
+            emailVerifiedAt: new Date(),
           });
         }
       }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { log } from '@/lib/log';
 
 /**
  * The small vocabulary every route handler shares.
@@ -34,6 +35,7 @@ export const API_ERRORS = {
   CANNOT_DELETE_SELF: 'CANNOT_DELETE_SELF',
   RATE_KEY_EXISTS: 'RATE_KEY_EXISTS',
   EMAIL_EXISTS: 'EMAIL_EXISTS',
+  INVALID_TOKEN: 'INVALID_TOKEN',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];
@@ -69,10 +71,13 @@ export function handle<R extends Request = Request>(
   fn: RouteHandler<R>
 ): RouteHandler<R> {
   return async (req, ctx) => {
+    const started = Date.now();
     try {
-      return await fn(req, ctx);
+      const response = await fn(req, ctx);
+      log.info('request', { route: label, status: response.status, ms: Date.now() - started });
+      return response;
     } catch (e) {
-      console.error(label, e);
+      log.error(`${label} failed`, { route: label, ms: Date.now() - started, err: e });
       return fail(message, 500);
     }
   };

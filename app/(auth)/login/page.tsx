@@ -92,6 +92,12 @@ export default function LoginPage() {
           </Button>
         )}
 
+        <p className="text-center text-sm">
+          <Link href="/forgot-password" className="text-ink-muted hover:text-brand hover:underline">
+            {ka.auth.forgotPassword}
+          </Link>
+        </p>
+
         <p className="text-center text-sm text-ink-muted">
           {ka.auth.noAccount}{' '}
           <Link
