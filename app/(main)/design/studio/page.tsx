@@ -1,35 +1,35 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowRight, Eye, Loader2, Move3d, RefreshCw, SquareDashed } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { DesignSteps } from '@/components/design/DesignSteps';
-import { ItemCard } from '@/components/design/ItemCard';
 import { SwapPanel } from '@/components/design/SwapPanel';
 import { FinishPanel } from '@/components/design/FinishPanel';
+import { StudioSidebar } from '@/components/design/StudioSidebar';
+import { HoverCard, type HoverCardHandle } from '@/components/design/HoverCard';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
+import { useRateBook } from '@/hooks/useRateBook';
 import { useT } from '@/lib/i18n/client';
 import { priceScene } from '@/lib/design/pricing';
-import { formatGEL, cn } from '@/lib/utils';
+import { formatGEL } from '@/lib/utils';
 import { rotateItem as rotatePlacement } from '@/lib/design/manipulate';
-import type { PlacedItem } from '@/lib/design/types';
+import type { PlacedItem, Vec2 } from '@/lib/design/types';
 import type { ViewMode } from '@/components/design/Viewer3D';
 
 /**
  * Three.js touches `window` at import time, so the viewport is client-only. The rest of the
  * studio (room list, cost bar, swap panel) renders server-side as normal.
  */
-const Viewer3D = dynamic(
-  () => import('@/components/design/Viewer3D').then((m) => m.Viewer3D),
-  {
-    ssr: false,
-    loading: () => <ViewerFallback />,
-  }
-);
+const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) => m.Viewer3D), {
+  ssr: false,
+  loading: () => <ViewerFallback />,
+});
+
+type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall' } | null;
 
 export default function StudioPage() {
   const t = useT();
@@ -37,6 +37,7 @@ export default function StudioPage() {
     plan,
     styleId,
     mode,
+    homeState,
     budgetGel,
     items,
     finishes,
@@ -51,16 +52,14 @@ export default function StudioPage() {
     setFinish,
   } = useDesignStore();
   const { products } = useDesignCatalog();
+  const { book } = useRateBook();
 
   const [showWalls, setShowWalls] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('orbit');
   const [rotateBlocked, setRotateBlocked] = useState(false);
   /** A floor or wall clicked in the 3D view; the right panel then edits that room's finish. */
-  const [selectedSurface, setSelectedSurface] = useState<{ roomId: string; surface: 'floor' | 'wall' } | null>(null);
-  const [hovered, setHovered] = useState<{
-    item: PlacedItem;
-    screen: { x: number; y: number };
-  } | null>(null);
+  const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
+  const hoverCard = useRef<HoverCardHandle>(null);
 
   const scene = useMemo(
     () => ({ styleId, mode, budgetGel, items, finishes }),
@@ -68,11 +67,47 @@ export default function StudioPage() {
   );
 
   const cost = useMemo(
-    () => (plan ? priceScene(plan, scene) : null),
-    [plan, scene]
+    () =>
+      plan
+        ? priceScene(plan, scene, {
+            homeState: homeState ?? undefined,
+            book,
+            surfaceLabels: {
+              floor: t.design.finishFloor,
+              wall: t.design.finishWall,
+              ceiling: t.design.finishCeiling,
+            },
+          })
+        : null,
+    [plan, scene, homeState, book, t]
   );
 
   const selected = items.find((i) => i.id === selectedItemId) ?? null;
+
+  // Stable handlers: the viewer keeps native listeners subscribed for the life of these.
+  const onHoverItem = useCallback((item: PlacedItem | null, screen: { x: number; y: number } | null) => {
+    if (item && screen) hoverCard.current?.show(item, screen);
+    else hoverCard.current?.hide();
+  }, []);
+  const onSelectItem = useCallback(
+    (id: string | null) => {
+      selectItem(id);
+      if (id) setSelectedSurface(null);
+    },
+    [selectItem]
+  );
+  const onSelectSurface = useCallback(
+    (sel: SurfaceSelection) => {
+      setSelectedSurface(sel);
+      if (sel) selectItem(null);
+    },
+    [selectItem]
+  );
+  const onPlaceItem = useCallback(
+    (itemId: string, position: Vec2, rotation: number, roomId: string) =>
+      placeItem(itemId, position, rotation, roomId),
+    [placeItem]
+  );
 
   /**
    * Rotating re-runs the same snapping a drag does, so a turn that would push the item into a
@@ -138,97 +173,18 @@ export default function StudioPage() {
 
       <div className="container py-6">
         <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)_320px]">
-          {/* ---- rooms ---- */}
-          <aside className="space-y-2">
-            <h2 className="font-serif text-sm font-semibold uppercase tracking-wide text-ink-muted">
-              {t.design.step2}
-            </h2>
-            <button
-              type="button"
-              onClick={() => setFocusRoom(null)}
-              className={cn(
-                'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors',
-                focusRoomId === null ? 'bg-brand text-white' : 'hover:bg-bg-base'
-              )}
-            >
-              {t.design.wholeFlat}
-              <Badge variant={focusRoomId === null ? 'outline' : 'default'}>
-                {items.length}
-              </Badge>
-            </button>
-
-            {plan.rooms.map((room) => {
-              const active = focusRoomId === room.id;
-              return (
-                <button
-                  key={room.id}
-                  type="button"
-                  onClick={() => setFocusRoom(room.id)}
-                  className={cn(
-                    'flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors',
-                    active ? 'bg-brand text-white' : 'hover:bg-bg-base'
-                  )}
-                >
-                  <span className="truncate">{room.name}</span>
-                  <Badge
-                    variant={active ? 'outline' : 'default'}
-                    className={active ? 'border-white/40 text-white' : undefined}
-                  >
-                    {itemsPerRoom.get(room.id) ?? 0}
-                  </Badge>
-                </button>
-              );
-            })}
-
-            <div className="space-y-2 pt-3">
-              <div className="flex rounded-md border border-line p-0.5">
-                {(['orbit', 'walk'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={viewMode === mode}
-                    onClick={() => setViewMode(mode)}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium transition-colors',
-                      viewMode === mode
-                        ? 'bg-brand text-white'
-                        : 'text-ink-muted hover:bg-bg-base'
-                    )}
-                  >
-                    {mode === 'orbit' ? (
-                      <Move3d className="h-3.5 w-3.5" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5" />
-                    )}
-                    {mode === 'orbit' ? t.design.orbitView : t.design.walkthrough}
-                  </button>
-                ))}
-              </div>
-
-              <Button
-                type="button"
-                variant={showWalls ? 'outline' : 'default'}
-                size="sm"
-                className="w-full"
-                aria-pressed={showWalls}
-                disabled={viewMode === 'walk'}
-                onClick={() => setShowWalls((v) => !v)}
-              >
-                <SquareDashed className="h-4 w-4" />
-                {t.design.showWalls}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => generate(products)}
-              >
-                <RefreshCw className="h-4 w-4" />
-                {t.design.regenerate}
-              </Button>
-            </div>
-          </aside>
+          <StudioSidebar
+            rooms={plan.rooms}
+            focusRoomId={focusRoomId}
+            itemsPerRoom={itemsPerRoom}
+            totalItems={items.length}
+            viewMode={viewMode}
+            showWalls={showWalls}
+            onFocusRoom={setFocusRoom}
+            onViewMode={setViewMode}
+            onToggleWalls={() => setShowWalls((v) => !v)}
+            onRegenerate={() => generate(products)}
+          />
 
           {/* ---- viewport ---- */}
           <div className="relative overflow-hidden rounded-lg border border-line bg-bg-surface shadow-card">
@@ -239,18 +195,10 @@ export default function StudioPage() {
               selectedItemId={selectedItemId}
               showWalls={showWalls}
               viewMode={viewMode}
-              onHoverItem={(item, screen) =>
-                setHovered(item && screen ? { item, screen } : null)
-              }
-              onSelectItem={(id) => {
-                selectItem(id);
-                if (id) setSelectedSurface(null);
-              }}
-              onSelectSurface={(sel) => {
-                setSelectedSurface(sel);
-                if (sel) selectItem(null);
-              }}
-              onPlaceItem={placeItem}
+              onHoverItem={onHoverItem}
+              onSelectItem={onSelectItem}
+              onSelectSurface={onSelectSurface}
+              onPlaceItem={onPlaceItem}
               className="h-[560px] w-full"
             />
 
@@ -260,39 +208,25 @@ export default function StudioPage() {
 
             {cost && (
               <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-bg-surface/95 px-4 py-2 shadow-cardHover backdrop-blur">
-                <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-                  {t.design.furnitureTotal}
-                </p>
-                <p className="font-serif text-xl font-bold text-brand-dark">
-                  {formatGEL(cost.furnitureTotal)}
-                </p>
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">{t.design.furnitureTotal}</p>
+                <p className="font-serif text-xl font-bold text-brand-dark">{formatGEL(cost.furnitureTotal)}</p>
               </div>
             )}
 
-            {hovered && (
-              <div
-                className="pointer-events-none fixed z-50"
-                style={{
-                  left: Math.min(hovered.screen.x + 16, window.innerWidth - 300),
-                  top: Math.min(hovered.screen.y + 16, window.innerHeight - 260),
-                }}
-              >
-                <ItemCard item={hovered.item} />
-              </div>
-            )}
+            <HoverCard ref={hoverCard} />
           </div>
 
-          {/* ---- selected item ---- */}
+          {/* ---- selected item / finishes ---- */}
           <aside className="flex h-[560px] flex-col gap-3">
             {selected ? (
               <SwapPanel
                 item={selected}
                 catalog={products}
                 styleId={styleId}
-                onSwap={(product) => selected && swapProduct(selected.id, product)}
+                onSwap={(product) => swapProduct(selected.id, product)}
                 onRotate={rotateSelected}
                 rotateBlocked={rotateBlocked}
-                onRemove={() => selected && removeItem(selected.id)}
+                onRemove={() => removeItem(selected.id)}
               />
             ) : (
               <FinishPanel

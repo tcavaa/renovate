@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatCard } from '@/components/ui/stat-card';
 import { UserForm } from '@/components/admin/UserForm';
 import { getT, getLocale } from '@/lib/i18n/server';
 import {
@@ -214,27 +215,3 @@ export default async function AdminUserDetailPage({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={highlight ? 'border-brand bg-brand/5' : undefined}>
-      <CardContent className="p-5">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p
-          className={`mt-2 font-serif text-2xl font-bold tabular-nums ${
-            highlight ? 'text-brand-dark' : 'text-ink'
-          }`}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}

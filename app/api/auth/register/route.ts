@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
+import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +16,9 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimited(req, RATE_RULES.register);
+    if (limited) return limited;
+
     const body = await req.json();
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {

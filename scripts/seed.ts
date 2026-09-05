@@ -4,6 +4,7 @@ config({ path: '.env.local' });
 config({ path: '.env' });
 
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { db, pool } from '../lib/db';
 import {
   categories,
@@ -247,13 +248,26 @@ async function seed() {
       .onDuplicateKeyUpdate({ set: { rating: w.rating } });
   }
 
-  console.log('— inserting admin user (admin@remonti.ge / admin12345)');
-  const passwordHash = await bcrypt.hash('admin12345', 10);
+  // The admin account comes from the environment, never from a constant in the repo: a
+  // published default password is a break-in waiting to happen. Without ADMIN_PASSWORD a
+  // random one is generated and printed exactly once; production refuses to guess.
+  const adminEmail = (process.env.ADMIN_EMAIL ?? 'admin@remonti.ge').toLowerCase();
+  let adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ADMIN_PASSWORD must be set to seed the admin account in production');
+    }
+    adminPassword = randomBytes(12).toString('base64url');
+    console.log(`— no ADMIN_PASSWORD set; generated one for ${adminEmail}: ${adminPassword}`);
+    console.log('  (set ADMIN_PASSWORD in .env.local to choose your own — this is printed only once)');
+  }
+  console.log(`— inserting admin user (${adminEmail})`);
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
   await db
     .insert(users)
     .values({
       name: 'ადმინი',
-      email: 'admin@remonti.ge',
+      email: adminEmail,
       passwordHash,
       role: 'admin',
     })

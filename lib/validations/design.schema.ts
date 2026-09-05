@@ -77,7 +77,9 @@ const sceneProductSchema = z.object({
   store: sceneStoreSchema.nullable(),
 });
 
-const placedItemSchema = z.object({
+export const itemOriginSchema = z.enum(['style', 'calculator', 'studio']);
+
+export const placedItemSchema = z.object({
   id: z.string().max(80),
   roomId: z.string().max(64),
   slot: z.string().max(40),
@@ -92,15 +94,21 @@ const placedItemSchema = z.object({
   }),
   product: sceneProductSchema.nullable(),
   pinned: z.boolean().optional(),
+  origin: itemOriginSchema.optional(),
 });
 
-const surfaceFinishSchema = z.object({
+export const surfaceFinishSchema = z.object({
   roomId: z.string().max(64),
   surface: z.enum(['floor', 'wall', 'ceiling']),
   colorHex: z.string().max(9),
   textureUrl: z.string().max(500).nullable(),
   textureScaleM: z.number().positive().max(20),
+  // A chosen finish carries its own maps; dropping them here silently re-textured saved
+  // scenes with the style's defaults when they were loaded again.
+  normalUrl: z.string().max(500).nullable().optional(),
+  roughnessUrl: z.string().max(500).nullable().optional(),
   product: sceneProductSchema.nullable(),
+  origin: itemOriginSchema.optional(),
 });
 
 export const designSceneSchema = z.object({

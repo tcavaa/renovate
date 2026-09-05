@@ -27,7 +27,19 @@ import { getArchetype } from './catalog';
 export interface PriceOptions {
   /** Only used in `full` mode; ignored for design-only projects. */
   homeState?: HomeState;
+  /** Rate book for the `full`-mode materials and labour; the shipped defaults when omitted. */
+  book?: RateBook;
+  /** Basket line labels for finishes, in the user's language. Georgian when omitted. */
+  surfaceLabels?: SurfaceLabels;
 }
+
+export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling', string>;
+
+const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
+  floor: 'იატაკის საფარი',
+  wall: 'კედლის საფარი',
+  ceiling: 'ჭერის საფარი',
+};
 
 export function priceScene(
   plan: FloorPlan,
@@ -82,7 +94,7 @@ export function priceScene(
         basketsByStore.set(key, basket);
       }
       basket.lines.push({
-        item: surfaceLabel(finish.surface),
+        item: (options.surfaceLabels ?? DEFAULT_SURFACE_LABELS)[finish.surface],
         roomName: roomName.get(finish.roomId) ?? finish.roomId,
         product: finish.product,
       });
@@ -96,8 +108,8 @@ export function priceScene(
   if (scene.mode === 'full') {
     const rooms: Room[] = planToCalculatorRooms(plan);
     const homeState = options.homeState ?? 'white_frame';
-    materialsTotal = estimateMaterialsCost(calculateMaterials(rooms, homeState));
-    labourTotal = calculateWorkerCosts(rooms, homeState).reduce((s, w) => s + w.totalGEL, 0);
+    materialsTotal = estimateMaterialsCost(calculateMaterials(rooms, homeState, options.book));
+    labourTotal = calculateWorkerCosts(rooms, homeState, options.book).reduce((s, w) => s + w.totalGEL, 0);
   }
 
   // --- delivery, once per store ---
@@ -139,12 +151,6 @@ function deliveryFeeFor(store: SceneStore | null, subtotal: number): number {
   if (!store) return 0;
   if (subtotal >= FREE_DELIVERY_THRESHOLD_GEL) return 0;
   return store.deliveryFeeGel ?? 50;
-}
-
-function surfaceLabel(surface: 'floor' | 'wall' | 'ceiling'): string {
-  if (surface === 'floor') return 'იატაკის საფარი';
-  if (surface === 'wall') return 'კედლის საფარი';
-  return 'ჭერის საფარი';
 }
 
 /**

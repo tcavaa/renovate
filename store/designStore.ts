@@ -10,6 +10,8 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { z } from 'zod';
+import { floorPlanSchema, placedItemSchema, surfaceFinishSchema } from '@/lib/validations/design.schema';
 import { defaultFinish, finishFromProduct } from '@/lib/design/surfaces';
 import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
@@ -89,6 +91,9 @@ interface DesignActions {
   reset: () => void;
   scene: () => DesignScene;
 }
+
+/** Bump when the persisted shape changes — see the Persistence section at the bottom. */
+const PERSIST_VERSION = 1;
 
 const initial: DesignState = {
   mode: 'design_only',
@@ -348,6 +353,8 @@ export const useDesignStore = create<DesignState & DesignActions>()(
     {
       name: 'renovate-design',
       storage: createJSONStorage(() => localStorage),
+      version: PERSIST_VERSION,
+      migrate: migratePersisted,
       // `scene` is a getter, not state; persisting the catalogue would go stale.
       partialize: (s) => ({
         mode: s.mode,
@@ -382,4 +389,45 @@ function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): Surfac
   return defaults.map(
     (d) => current.find((c) => c.roomId === d.roomId && c.surface === d.surface && c.product) ?? d
   );
+}
+
+// ---------------------------------------------------------------------------
+// Persistence
+// ---------------------------------------------------------------------------
+
+/**
+ * Bump when the persisted shape changes. Anything stored under an older version, or
+ * anything that fails validation, is dropped rather than rehydrated: a stale plan from a
+ * previous release would otherwise reach the layout engine and the viewer with fields
+ * missing and fail somewhere far from here.
+ */
+const persistedSchema = z.object({
+  mode: z.enum(['full', 'design_only']),
+  homeState: z.enum(['black_frame', 'white_frame', 'green_frame']).nullable(),
+  calculatorPicks: z
+    .object({
+      furniture: z.array(z.object({ roomId: z.string(), productId: z.number().int() })),
+      productIds: z.array(z.number().int()),
+    })
+    .nullable(),
+  styleId: z.enum(['modern', 'scandinavian', 'industrial', 'vintage']),
+  budgetGel: z.number().nullable(),
+  plan: floorPlanSchema.nullable(),
+  floorPlanUrl: z.string().nullable(),
+  items: z.array(placedItemSchema),
+  finishes: z.array(surfaceFinishSchema),
+  step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+});
+
+function migratePersisted(persisted: unknown, version: number): DesignState {
+  if (version !== PERSIST_VERSION) return { ...initial };
+  const parsed = persistedSchema.safeParse(persisted);
+  if (!parsed.success) return { ...initial };
+  return {
+    ...initial,
+    ...parsed.data,
+    plan: parsed.data.plan as FloorPlan | null,
+    items: parsed.data.items as PlacedItem[],
+    finishes: parsed.data.finishes as SurfaceFinish[],
+  };
 }

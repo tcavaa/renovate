@@ -17,6 +17,7 @@ import {
 import type { ProjectSummary } from '@/lib/calculator/types';
 import { MATERIAL_RATES_PER_M2 } from '@/lib/calculator/constants';
 import { formatGEL, formatNumber } from '@/lib/utils';
+import { MoneyRow } from '@/components/ui/money-row';
 
 export function SummaryCard({ summary }: { summary: ProjectSummary }) {
   const ka = useT();
@@ -201,13 +202,13 @@ export function SummaryCard({ summary }: { summary: ProjectSummary }) {
       {/* Footer totals */}
       <Card>
         <CardContent className="p-6 space-y-3">
-          <Row label={ka.summary.materials} value={summary.subtotalMaterials} />
-          <Row label={ka.summary.products} value={summary.subtotalProducts} />
-          <Row label={ka.summary.furniture} value={summary.subtotalFurniture} />
-          <Row label={ka.summary.workers} value={summary.subtotalWorkers} />
+          <MoneyRow label={ka.summary.materials} value={summary.subtotalMaterials} />
+          <MoneyRow label={ka.summary.products} value={summary.subtotalProducts} />
+          <MoneyRow label={ka.summary.furniture} value={summary.subtotalFurniture} />
+          <MoneyRow label={ka.summary.workers} value={summary.subtotalWorkers} />
           <div className="border-t border-line pt-3">
-            <Row label={ka.summary.subtotal} value={summary.grandTotal} bold />
-            <Row
+            <MoneyRow label={ka.summary.subtotal} value={summary.grandTotal} bold />
+            <MoneyRow
               label={`${ka.summary.contingency}`}
               value={summary.grandTotalWithMargin - summary.grandTotal}
               muted
@@ -252,23 +253,3 @@ function SubtotalCard({
   );
 }
 
-function Row({
-  label,
-  value,
-  bold,
-  muted,
-}: {
-  label: string;
-  value: number;
-  bold?: boolean;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className={muted ? 'text-ink-muted' : ''}>{label}</span>
-      <span className={`tabular-nums ${bold ? 'font-bold text-base' : ''} ${muted ? 'text-ink-muted' : ''}`}>
-        {formatGEL(value)}
-      </span>
-    </div>
-  );
-}

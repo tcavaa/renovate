@@ -3,6 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { auth } from '@/auth';
+import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,9 @@ const MAX_BYTES = 12 * 1024 * 1024;
 
 export async function POST(req: Request) {
   try {
+    const limited = rateLimited(req, RATE_RULES.uploadPlan);
+    if (limited) return limited;
+
     const formData = await req.formData();
     const file = formData.get('file');
 

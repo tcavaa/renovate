@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUploader } from '@/components/admin/ImageUploader';
 import { useT } from '@/lib/i18n/client';
+import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Store } from '@/lib/db/schema';
 
 export function StoreForm({ store }: { store?: Store }) {
@@ -51,7 +52,7 @@ export function StoreForm({ store }: { store?: Store }) {
     setLoading(false);
 
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/stores');
@@ -66,7 +67,7 @@ export function StoreForm({ store }: { store?: Store }) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/stores');

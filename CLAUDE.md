@@ -69,7 +69,7 @@ pnpm db:seed:rates  # create the `rates` table and fill in the calculator's defa
 `drizzle-kit push` is interactive and will hang in a non-interactive shell; for a scripted
 migration apply the DDL with `mysql` directly.
 
-Admin login after seed: `admin@remonti.ge` / `admin12345`.
+Admin login after seed: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env.local` (default email `admin@remonti.ge`; when no password is set the seed generates one and prints it once).
 
 ---
 
@@ -108,7 +108,7 @@ lib/
   design/      types.ts · styles.ts · catalog.ts (archetypes + room programs) · planParser.ts
                planGeometry.ts · planImage.ts (browser) · autoLayout.ts · matcher.ts · pricing.ts
                aiPlan.ts · planSolver.ts · measure.ts (the AI reading path)
-  design3d/    materials.ts · primitives.ts · buildScene.ts · furniture/ (per-family builders)
+  design3d/    materials.ts · primitives.ts · buildScene.ts · outline.ts
   db/          schema.ts · index.ts (mysql2 pool + drizzle)
   i18n/        ka.ts (primary) en.ts ru.ts client.tsx server.ts labels.ts index.ts
   validations/ zod schemas per entity
@@ -452,7 +452,16 @@ Each of these cost real debugging time. Don't undo them.
    outruns the object it is dragging, R3F stops delivering moves for it.
 9. **`@types/three` is pinned via a pnpm override.** drei pulls a floating newer copy, and two
    copies of the types make `camera.quaternion.setFromEuler(...)` a type error.
-
+"10. **Never dispose a GLB clone's geometry.** Furniture wrappers are `clone(true)` of a cached
+    model and share its buffers; disposing them makes every model re-upload on the next rebuild.
+    Only geometry `buildScene` created itself is tagged `ownsGeometry` and disposed.
+11. **The CSP needs `connect-src blob:`.** GLTFLoader hands the textures packed inside a GLB to
+    the browser as blob URLs and fetches them back. Without it every model loads untextured and
+    the only symptom is a console warning.
+12. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
+    size are unchanged and replaces the rest; the room shells are a separate group keyed on plan,
+    finishes and style. Rebuilding everything on every drag was the studio's biggest stutter.
+"
 ## Partner models (`scripts/convert-models.ts`)
 
 Every piece of furniture the studio can place is one of these. The asset drop's OBJ exports
@@ -563,8 +572,6 @@ inside a `.select({})` silently returns 0 for every row — it is emitted uncorr
 - Which way a chair *faces* is not derivable from geometry — set `yawDegrees` on the source
   entry by eye when one comes out backwards. The Cinquanta lamp is a 2.3 m two-arm fixture
   and reads as a pendant only in a large room.
-- `lib/design3d/furniture/` — the procedural furniture library — is dormant: nothing imports
-  it since the studio stopped drawing stand-ins. It is kept as reference, not as a fallback.
 - Floor-plan parsing has two paths: Claude reads the drawing when `ANTHROPIC_API_KEY` is set,
   and the deterministic CV parser takes over when it is not. The CV path cannot read
   dimensions, so it still asks the user for the total floor area.

@@ -7,7 +7,7 @@
  *
  * This module is pure data plus a couple of lookups — no THREE, no React. The layout engine
  * (`autoLayout.ts`) reads the placement rules; the geometry builders
- * (`lib/design3d/furniture`) read the sizes; `/api/design/suggest` reads `categorySlug` to
+ * (`lib/design3d/buildScene`) read the sizes; `/api/design/suggest` reads `categorySlug` to
  * find real products.
  */
 

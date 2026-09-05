@@ -4,9 +4,9 @@
  * The 3D studio viewport.
  *
  * The scene graph itself is built imperatively by `lib/design3d/buildScene` and mounted here
- * as a single `<primitive>`, rather than being expressed as React components. That is on
- * purpose: a furnished flat is several hundred meshes, and rebuilding a React tree of that
- * size on every product swap would be far slower than regenerating a plain Three.js group.
+ * as `<primitive>`s, rather than being expressed as React components. That is on purpose: a
+ * furnished flat is several hundred meshes, and rebuilding a React tree of that size on every
+ * product swap would be far slower than reconciling a plain Three.js group.
  *
  * React's job here is the camera, the lights, and turning pointer input into selections and
  * drags.
@@ -16,21 +16,24 @@
  *   - `walk`  — standing inside at eye height, walls and ceilings intact
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { buildScene, frameFor, type SceneUserData } from '@/lib/design3d/buildScene';
+import {
+  buildRoomShells,
+  disposeOwnedGeometry,
+  frameFor,
+  syncPlacedItems,
+  visibleRoomIds,
+  type SceneUserData,
+} from '@/lib/design3d/buildScene';
+import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
-import {
-  buildWalkable,
-  findStandingSpot,
-  roomAtPoint,
-  snapPlacement,
-  type SnapResult,
-} from '@/lib/design/manipulate';
+import { roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import type { DesignScene, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import { Headlamp, WalkControls } from './WalkControls';
 
 export type ViewMode = 'orbit' | 'walk';
 
@@ -87,7 +90,6 @@ const dragRaycaster = new THREE.Raycaster();
 const dragNdc = new THREE.Vector2();
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const dragHit = new THREE.Vector3();
-const walkEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 /** Distance the pointer must travel before a press becomes a drag rather than a tap. */
 const DRAG_THRESHOLD_PX = 5;
@@ -104,6 +106,8 @@ interface DragState {
   result: SnapResult | null;
   room: PlanRoom;
 }
+
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem'>;
 
 function SceneContent({
   plan,
@@ -125,29 +129,44 @@ function SceneContent({
 
   const walking = viewMode === 'walk';
 
+  /**
+   * The parent's callbacks, always current, without being dependencies. The drag listeners
+   * below are expensive to re-subscribe, and a parent that passes a fresh arrow function on
+   * every render would otherwise re-subscribe them on every render.
+   */
+  const callbacks = useRef<Callbacks>({});
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem };
+
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
   useEffect(() => () => materials.dispose(), [materials]);
 
-  const group = useMemo(
-    () =>
-      buildScene(plan, scene, style, materials, {
-        // Inside the flat you want the walls and the ceiling; from outside you want to see in.
-        showWalls: walking ? true : showWalls,
-        showCeiling: walking,
-        onlyRoomId: walking ? null : focusRoomId,
-      }),
-    [plan, scene, style, materials, showWalls, walking, focusRoomId]
+  const shellOptions = useMemo(
+    () => ({
+      // Inside the flat you want the walls and the ceiling; from outside you want to see in.
+      showWalls: walking ? true : showWalls,
+      showCeiling: walking,
+      onlyRoomId: walking ? null : focusRoomId,
+    }),
+    [walking, showWalls, focusRoomId]
   );
 
-  // Three.js does not free GPU buffers on its own — drop the old geometry when rebuilding.
-  useEffect(() => {
-    return () => {
-      group.traverse((child) => {
-        if (child instanceof THREE.Mesh) child.geometry.dispose();
-      });
-    };
-  }, [group]);
+  // The room shells change only with the plan, the finishes or the style — not with furniture.
+  const shell = useMemo(
+    () => buildRoomShells(plan, scene.finishes, style, materials, shellOptions),
+    [plan, scene.finishes, style, materials, shellOptions]
+  );
+  useEffect(() => () => disposeOwnedGeometry(shell), [shell]);
+
+  // The furniture lives in one long-lived group that is reconciled against the item list.
+  const itemsGroup = useMemo(() => {
+    const group = new THREE.Group();
+    group.name = 'items';
+    return group;
+  }, []);
+  useLayoutEffect(() => {
+    syncPlacedItems(itemsGroup, scene.items, visibleRoomIds(plan, shellOptions));
+  }, [itemsGroup, scene.items, plan, shellOptions]);
 
   const itemsById = useMemo(
     () => new Map(scene.items.map((item) => [item.id, item])),
@@ -158,20 +177,12 @@ function SceneContent({
   // Selection outlines
   // -------------------------------------------------------------------------
 
-  /**
-   * Selection is shown with an outline box rather than by tinting the item's material.
-   *
-   * Materials are shared between every item that uses the same colour and finish, so
-   * highlighting through them would light up *both* nightstands when you hovered one.
-   */
   const outlines = useMemo(() => ({ hover: makeOutline(), active: makeOutline() }), []);
   useEffect(() => {
     const { hover, active } = outlines;
     return () => {
-      for (const line of [hover, active]) {
-        line.geometry.dispose();
-        (line.material as THREE.Material).dispose();
-      }
+      disposeOutline(hover);
+      disposeOutline(active);
     };
   }, [outlines]);
 
@@ -220,7 +231,7 @@ function SceneContent({
    * neighbour's, so the same rule keeps exactly one of them.
    */
   useFrame(() => {
-    group.traverse((child) => {
+    shell.traverse((child) => {
       const data = child.userData as SceneUserData;
       if (data?.surface !== 'wall' || !data.outward) return;
 
@@ -316,7 +327,7 @@ function SceneContent({
     surfacePressRef.current = null;
 
     const item = itemsById.get(itemId);
-    const wrapper = group.getObjectByName(`item-${itemId}`);
+    const wrapper = itemsGroup.getObjectByName(`item-${itemId}`);
     const room = plan.rooms.find((r) => r.id === item?.roomId);
     if (!item || !wrapper || !room) {
       dragRef.current = null;
@@ -329,9 +340,7 @@ function SceneContent({
       item,
       wrapper,
       room,
-      grab: ground
-        ? { x: item.position.x - ground.x, z: item.position.z - ground.z }
-        : { x: 0, z: 0 },
+      grab: ground ? { x: item.position.x - ground.x, z: item.position.z - ground.z } : { x: 0, z: 0 },
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
@@ -355,8 +364,7 @@ function SceneContent({
       // Inside the flat, dragging the view takes priority over dragging furniture.
       if (walking) return;
 
-      const travel =
-        Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY);
+      const travel = Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY);
       if (!drag.moved) {
         if (travel < DRAG_THRESHOLD_PX) return;
         drag.moved = true;
@@ -365,7 +373,7 @@ function SceneContent({
         const orbit = orbitRef.current;
         if (orbit) orbit.enabled = false;
         canvas.style.cursor = 'grabbing';
-        onHoverItem?.(null, null);
+        callbacks.current.onHoverItem?.(null, null);
       }
 
       const ground = floorPoint(event.clientX, event.clientY, drag.item.elevationM);
@@ -376,12 +384,7 @@ function SceneContent({
       const room = roomAtPoint(plan.rooms, desired) ?? drag.room;
       drag.room = room;
 
-      const result = snapPlacement(
-        room,
-        drag.item,
-        { position: desired, rotation: drag.item.rotation },
-        scene.items
-      );
+      const result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items);
       drag.result = result;
 
       drag.wrapper.position.set(result.position.x, drag.item.elevationM, result.position.z);
@@ -396,6 +399,8 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      const { onSelectSurface, onSelectItem, onPlaceItem } = callbacks.current;
+
       // A tap on a floor or wall with no travel is a selection; a drag is orbiting.
       const press = surfacePressRef.current;
       surfacePressRef.current = null;
@@ -423,11 +428,7 @@ function SceneContent({
         onSelectItem?.(drag.itemId);
       } else {
         // Refused: put it back where it came from rather than leave it overlapping.
-        drag.wrapper.position.set(
-          drag.item.position.x,
-          drag.item.elevationM,
-          drag.item.position.z
-        );
+        drag.wrapper.position.set(drag.item.position.x, drag.item.elevationM, drag.item.position.z);
         drag.wrapper.rotation.y = drag.item.rotation;
       }
     };
@@ -440,24 +441,11 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [
-    gl,
-    walking,
-    plan.rooms,
-    scene.items,
-    floorPoint,
-    outlines,
-    onPlaceItem,
-    onSelectItem,
-    onSelectSurface,
-    onHoverItem,
-  ]);
+  }, [gl, walking, plan.rooms, scene.items, floorPoint, outlines]);
 
   return (
     <>
-      <hemisphereLight
-        args={[style.lighting.ambient, '#8A8078', style.lighting.ambientIntensity]}
-      />
+      <hemisphereLight args={[style.lighting.ambient, '#8A8078', style.lighting.ambientIntensity]} />
       <directionalLight
         castShadow
         position={[12, 18, 8]}
@@ -485,12 +473,13 @@ function SceneContent({
       )}
 
       {/*
-        The handlers live on a group React itself created, not on the <primitive>. R3F only
+        The handlers live on a group React itself created, not on the <primitive>s. R3F only
         registers objects it constructed in its interaction list, so events put directly on a
         <primitive> wrapping a foreign object never fire.
       */}
       <group onPointerMove={handleMove} onPointerOut={handleOut} onPointerDown={handleDown}>
-        <primitive object={group} />
+        <primitive object={shell} />
+        <primitive object={itemsGroup} />
       </group>
 
       <primitive object={outlines.active} />
@@ -513,228 +502,4 @@ function SceneContent({
       )}
     </>
   );
-}
-
-// ---------------------------------------------------------------------------
-// Walk-through camera
-// ---------------------------------------------------------------------------
-
-const EYE_HEIGHT_M = 1.62;
-const WALK_SPEED = 2.4;
-const RUN_SPEED = 4.4;
-const LOOK_SENSITIVITY = 0.0032;
-const PITCH_LIMIT = Math.PI / 2 - 0.08;
-const WALK_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
-
-/**
- * First-person controls for standing inside the flat.
- *
- * Deliberately not pointer-lock: a web page that swallows the cursor the moment you click is
- * hostile. Drag to look, WASD or the arrow keys to walk, shift to hurry.
- *
- * Movement is deliberately unclipped — walls and furniture do not stop the viewer. The
- * walkable area is only used to choose a sensible starting spot inside the focused room.
- */
-function WalkControls({
-  plan,
-  focusRoomId,
-  items,
-}: {
-  plan: FloorPlan;
-  focusRoomId: string | null;
-  items: PlacedItem[];
-}) {
-  const { camera, gl } = useThree();
-  const yaw = useRef(0);
-  const pitch = useRef(-0.05);
-  const keys = useRef(new Set<string>());
-  const looking = useRef(false);
-  const lastPointer = useRef({ x: 0, y: 0 });
-
-  const walkable = useMemo(() => buildWalkable(plan), [plan]);
-
-  /**
-   * The furniture is needed to pick a spot clear of it, but only at the moment we enter a
-   * room — held in a ref rather than a dependency so that swapping a product, which changes
-   * `items`, does not teleport the viewer back to the doorway mid-walk.
-   */
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
-
-  // Drop the camera into the focused room — or the largest one — when walk mode starts.
-  useEffect(() => {
-    const room =
-      plan.rooms.find((r) => r.id === focusRoomId) ??
-      [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
-    if (!room) return;
-
-    const spot = findStandingSpot(room, itemsRef.current, walkable);
-    camera.position.set(spot.position.x, EYE_HEIGHT_M, spot.position.z);
-
-    // Look back into the room. If we happened to land dead centre there is nothing to face,
-    // so fall back to the middle of the flat.
-    const target =
-      Math.hypot(spot.lookAt.x - spot.position.x, spot.lookAt.z - spot.position.z) > 0.4
-        ? spot.lookAt
-        : flatCentre(plan);
-
-    yaw.current = Math.atan2(target.x - spot.position.x, target.z - spot.position.z) + Math.PI;
-    pitch.current = -0.04;
-
-    if (camera instanceof THREE.PerspectiveCamera) {
-      // A wider lens indoors, or a normal room reads like a corridor.
-      camera.fov = 70;
-      camera.updateProjectionMatrix();
-    }
-  }, [plan, focusRoomId, camera, walkable]);
-
-  useEffect(() => {
-    const canvas = gl.domElement;
-    const pressedKeys = keys.current;
-
-    const onDown = (event: PointerEvent) => {
-      looking.current = true;
-      lastPointer.current = { x: event.clientX, y: event.clientY };
-    };
-    const onMove = (event: PointerEvent) => {
-      if (!looking.current) return;
-      const dx = event.clientX - lastPointer.current.x;
-      const dy = event.clientY - lastPointer.current.y;
-      lastPointer.current = { x: event.clientX, y: event.clientY };
-      yaw.current -= dx * LOOK_SENSITIVITY;
-      pitch.current = clamp(pitch.current - dy * LOOK_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT);
-    };
-    const onUp = () => {
-      looking.current = false;
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return;
-      const key = event.key.toLowerCase();
-      pressedKeys.add(key);
-      if (WALK_KEYS.has(key)) event.preventDefault();
-    };
-    const onKeyUp = (event: KeyboardEvent) => pressedKeys.delete(event.key.toLowerCase());
-    const onBlur = () => pressedKeys.clear();
-
-    canvas.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', onBlur);
-
-    return () => {
-      canvas.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', onBlur);
-      // Leaving walk mode with a key held would otherwise keep the camera drifting.
-      pressedKeys.clear();
-    };
-  }, [gl]);
-
-  useFrame((_, delta) => {
-    const pressed = keys.current;
-    const forward =
-      (pressed.has('w') || pressed.has('arrowup') ? 1 : 0) -
-      (pressed.has('s') || pressed.has('arrowdown') ? 1 : 0);
-    const strafe =
-      (pressed.has('d') || pressed.has('arrowright') ? 1 : 0) -
-      (pressed.has('a') || pressed.has('arrowleft') ? 1 : 0);
-
-    if (forward !== 0 || strafe !== 0) {
-      const speed = (pressed.has('shift') ? RUN_SPEED : WALK_SPEED) * Math.min(delta, 0.05);
-      const sin = Math.sin(yaw.current);
-      const cos = Math.cos(yaw.current);
-
-      const steps: Vec2[] = [
-        { x: -sin * forward * speed, z: -cos * forward * speed },
-        { x: cos * strafe * speed, z: -sin * strafe * speed },
-      ];
-      // No collision on purpose: the viewer walks straight through walls and furniture. A
-      // design tool wants to be explored, not navigated, and getting stuck in a doorway or
-      // behind a sofa reads as a bug every time. `walkable` still picks the starting spot.
-      for (const step of steps) {
-        camera.position.x += step.x;
-        camera.position.z += step.z;
-      }
-    }
-
-    camera.position.y = EYE_HEIGHT_M;
-    walkEuler.set(pitch.current, yaw.current, 0);
-    camera.quaternion.setFromEuler(walkEuler);
-  });
-
-  return null;
-}
-
-/** A dim light that follows the camera, so nothing indoors is ever pitch black. */
-function Headlamp({ color }: { color: string }) {
-  const ref = useRef<THREE.PointLight>(null);
-  useFrame(({ camera }) => {
-    ref.current?.position.copy(camera.position);
-  });
-  return <pointLight ref={ref} intensity={2.2} distance={7} decay={1.6} color={color} />;
-}
-
-function flatCentre(plan: FloorPlan): Vec2 {
-  const points = plan.rooms.flatMap((room) => room.polygon);
-  return {
-    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-    z: points.reduce((sum, p) => sum + p.z, 0) / points.length,
-  };
-}
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.tagName === 'INPUT' ||
-    target.tagName === 'TEXTAREA' ||
-    target.tagName === 'SELECT' ||
-    target.isContentEditable
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Outline helper
-// ---------------------------------------------------------------------------
-
-/** A unit wireframe box, scaled and moved to whatever needs highlighting. */
-function makeOutline(): THREE.LineSegments {
-  const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
-  const material = new THREE.LineBasicMaterial({
-    color: 0xe85d26,
-    transparent: true,
-    opacity: 0.95,
-    depthTest: false,
-  });
-  const line = new THREE.LineSegments(geometry, material);
-  line.visible = false;
-  // Drawn last and without depth testing, so the outline is never hidden by the item itself.
-  line.renderOrder = 999;
-  return line;
-}
-
-function applyOutline(
-  line: THREE.LineSegments,
-  item: PlacedItem | null | undefined,
-  color: number
-): void {
-  if (!item) {
-    line.visible = false;
-    return;
-  }
-  const pad = 0.03;
-  line.visible = true;
-  line.position.set(item.position.x, item.elevationM + item.size.height / 2, item.position.z);
-  line.rotation.y = item.rotation;
-  line.scale.set(item.size.width + pad, item.size.height + pad, item.size.depth + pad);
-  (line.material as THREE.LineBasicMaterial).color.setHex(color);
-}
-
-function clamp(value: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, value));
 }

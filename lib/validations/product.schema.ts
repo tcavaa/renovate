@@ -27,7 +27,7 @@ export const productSchema = z.object({
   // --- Design Studio ---
   // Without `styleTags`, `model3dKind` and real dimensions a product is invisible to the 3D
   // studio: the matcher selects candidates by archetype, and the layout engine reserves space
-  // by size. See lib/design/catalog.ts and lib/design3d/furniture.
+  // by size. See ARCHETYPES in lib/design/catalog.ts.
   styleTags: z
     .array(z.enum(['modern', 'scandinavian', 'industrial', 'vintage']))
     .optional()

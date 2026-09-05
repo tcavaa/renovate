@@ -78,7 +78,7 @@ export const products = mysqlTable('products', {
   tags: json('tags'),
   /** Style ids this product belongs to, e.g. ['scandinavian','modern']. See lib/design/styles.ts */
   styleTags: json('style_tags'),
-  /** Procedural archetype used to render this product in 3D. See lib/design3d/furniture. */
+  /** Archetype the layout engine places this product as. See ARCHETYPES in lib/design/catalog.ts. */
   model3dKind: varchar('model_3d_kind', { length: 64 }),
   /** Optional GLB. When set, the viewer loads it instead of the procedural mesh. */
   model3dUrl: varchar('model_3d_url', { length: 500 }),

@@ -127,7 +127,7 @@ Without `db:seed:design` the Design Studio loads but has nothing to furnish room
 
 App will be available at <http://localhost:3000>.
 
-Default admin login (after seed): **admin@remonti.ge** / **admin12345** — change immediately in production.
+Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@remonti.ge**) with the password in `ADMIN_PASSWORD`. Leave `ADMIN_PASSWORD` empty and the seed generates a random one and prints it once; in production it refuses to run without one.
 
 ---
 
@@ -184,7 +184,7 @@ renovate-ge/
 ├── lib/
 │   ├── calculator/     constants.ts, materials.ts (engine), types.ts
 │   ├── design/         planParser, planGeometry, autoLayout, matcher, manipulate, pricing, styles
-│   ├── design3d/       materials, primitives, buildScene (furniture/ is a dormant procedural library)
+│   ├── design3d/       materials, primitives, buildScene, outline
 │   ├── db/             schema.ts, index.ts (mysql pool + drizzle)
 │   ├── i18n/ka.ts      ALL Georgian strings
 │   ├── validations/    Zod schemas

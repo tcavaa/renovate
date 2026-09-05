@@ -17,6 +17,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUploader } from '@/components/admin/ImageUploader';
 import { useT } from '@/lib/i18n/client';
+import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Worker } from '@/lib/db/schema';
 
 interface Props {
@@ -68,7 +69,7 @@ export function WorkerForm({ worker }: Props) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/workers');

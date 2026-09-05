@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
+import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
 
 export default function LoginPage() {
   const router = useRouter();
   const ka = useT();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/';
+  const callbackUrl = safeCallbackUrl(searchParams.get('callbackUrl'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatCard } from '@/components/ui/stat-card';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatGEL } from '@/lib/utils';
 
@@ -156,13 +157,3 @@ export default async function AdminUsersPage({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p className="mt-2 font-serif text-2xl font-bold tabular-nums">{value}</p>
-      </CardContent>
-    </Card>
-  );
-}

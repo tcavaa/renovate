@@ -14,6 +14,7 @@ import { projects } from '@/lib/db/schema';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StatCard } from '@/components/ui/stat-card';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateLabel, statusLabel } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
@@ -194,27 +195,3 @@ function InfoRow({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={highlight ? 'border-brand bg-brand/5' : undefined}>
-      <CardContent className="p-5">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p
-          className={`mt-2 font-serif text-2xl font-bold tabular-nums ${
-            highlight ? 'text-brand-dark' : 'text-ink'
-          }`}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}

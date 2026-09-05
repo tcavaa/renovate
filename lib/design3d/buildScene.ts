@@ -2,11 +2,18 @@
  * Turns a `FloorPlan` + `DesignScene` into a Three.js scene graph.
  *
  * Walls are extruded from the room polygons with real holes cut for doors and windows, floors
- * and ceilings come from the same polygons, and furniture is instantiated from the procedural
- * library (or a GLB when a partner has supplied one).
+ * and ceilings come from the same polygons, and every piece of furniture is a partner GLB.
  *
  * Nothing here is AI-generated or cached from a server: given the same plan and scene it
  * produces the same geometry every time, in a few milliseconds, entirely on the client.
+ *
+ * The graph is built in two halves that change at different rates:
+ *
+ *   - `buildRoomShells` — floors, walls, skirting, door and window trim. Depends on the plan,
+ *     the finishes and the style; rebuilt only when one of those changes.
+ *   - `syncPlacedItems` — the furniture. Reconciled in place against the item list, so a
+ *     drag or a swap moves or replaces *one* wrapper instead of re-extruding every wall and
+ *     re-cloning every model.
  *
  * Everything selectable carries `userData` so the viewer's raycaster can map a hit back to
  * the item or surface it belongs to.
@@ -15,13 +22,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import {
-  pointOnEdge,
-  polygonBounds,
-  polygonCentroid,
-  roomEdges,
-  type PlanEdge,
-} from '@/lib/design/planGeometry';
+import { pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type {
   DesignScene,
   FloorPlan,
@@ -48,8 +49,8 @@ export interface BuildSceneOptions {
   /**
    * Ceilings are off by default and the studio does not currently expose a toggle for them:
    * a ceiling faces *down*, so from the doll's-house camera it is backface-culled and
-   * invisible anyway. The option stays for a future interior walk-through camera, which is
-   * the only place it would read.
+   * invisible anyway. The option stays for the interior walk-through camera, which is the
+   * only place it reads.
    */
   showCeiling?: boolean;
   /** Draw walls at all — off gives a doll's-house floor plan view. */
@@ -65,6 +66,28 @@ const BASEBOARD_DEPTH = 0.018;
 // Top level
 // ---------------------------------------------------------------------------
 
+/** Room shells for every room in the plan (or the one focused room). */
+export function buildRoomShells(
+  plan: FloorPlan,
+  finishes: SurfaceFinish[],
+  style: StyleDefinition,
+  materials: StyleMaterials,
+  options: BuildSceneOptions = {}
+): THREE.Group {
+  const root = new THREE.Group();
+  root.name = 'rooms';
+
+  for (const [index, room] of visibleRooms(plan, options).entries()) {
+    root.add(buildRoomShell(room, index, plan, finishes, style, materials, options));
+  }
+  return root;
+}
+
+/**
+ * Whole scene in one group — shells plus furniture. The viewer keeps the two halves apart
+ * so it can rebuild them independently; this is the convenience for anything that wants the
+ * lot at once.
+ */
 export function buildScene(
   plan: FloorPlan,
   scene: DesignScene,
@@ -74,23 +97,41 @@ export function buildScene(
 ): THREE.Group {
   const root = new THREE.Group();
   root.name = 'flat';
+  root.add(buildRoomShells(plan, scene.finishes, style, materials, options));
 
-  const rooms = options.onlyRoomId
-    ? plan.rooms.filter((r) => r.id === options.onlyRoomId)
-    : plan.rooms;
-
-  rooms.forEach((room, index) => {
-    root.add(buildRoomShell(room, index, plan, scene, style, materials, options));
-  });
-
-  const itemsByRoom = new Set(rooms.map((r) => r.id));
-  for (const item of scene.items) {
-    if (!itemsByRoom.has(item.roomId)) continue;
-    const object = buildPlacedItem(item);
-    if (object) root.add(object);
-  }
-
+  const items = new THREE.Group();
+  items.name = 'items';
+  syncPlacedItems(items, scene.items, visibleRoomIds(plan, options));
+  root.add(items);
   return root;
+}
+
+function visibleRooms(plan: FloorPlan, options: BuildSceneOptions): PlanRoom[] {
+  return options.onlyRoomId ? plan.rooms.filter((r) => r.id === options.onlyRoomId) : plan.rooms;
+}
+
+/** Which rooms' furniture should be present, or `null` for all of it. */
+export function visibleRoomIds(plan: FloorPlan, options: BuildSceneOptions): Set<string> | null {
+  return options.onlyRoomId ? new Set(visibleRooms(plan, options).map((r) => r.id)) : null;
+}
+
+/**
+ * Frees the GPU buffers of geometry this module created.
+ *
+ * Only *owned* geometry — walls, floors, trim — is disposed. Furniture meshes are clones that
+ * share their buffers with the module-level model cache, and disposing those made every
+ * model re-upload on the next rebuild. Three.js does not free GPU memory on its own, so this
+ * has to be called when a shell group is dropped.
+ */
+export function disposeOwnedGeometry(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.userData.ownsGeometry) child.geometry.dispose();
+  });
+}
+
+function own<T extends THREE.Mesh>(mesh: T): T {
+  mesh.userData.ownsGeometry = true;
+  return mesh;
 }
 
 // ---------------------------------------------------------------------------
@@ -101,7 +142,7 @@ function buildRoomShell(
   room: PlanRoom,
   index: number,
   plan: FloorPlan,
-  scene: DesignScene,
+  finishes: SurfaceFinish[],
   style: StyleDefinition,
   materials: StyleMaterials,
   options: BuildSceneOptions
@@ -113,9 +154,9 @@ function buildRoomShell(
   const bounds = polygonBounds(room.polygon);
   const edges = roomEdges(room.polygon);
 
-  const floorFinish = findFinish(scene.finishes, room.id, 'floor');
-  const wallFinish = findFinish(scene.finishes, room.id, 'wall');
-  const ceilingFinish = findFinish(scene.finishes, room.id, 'ceiling');
+  const floorFinish = findFinish(finishes, room.id, 'floor');
+  const wallFinish = findFinish(finishes, room.id, 'wall');
+  const ceilingFinish = findFinish(finishes, room.id, 'ceiling');
 
   // --- floor ---
   const floorSpec = isWet ? style.surfaces.wetFloor : style.surfaces.floor;
@@ -124,7 +165,7 @@ function buildRoomShell(
     { u: bounds.width, v: bounds.depth },
     finishOverrides(floorFinish)
   );
-  const floor = new THREE.Mesh(polygonGeometry(room.polygon, 'up'), floorMaterial);
+  const floor = own(new THREE.Mesh(polygonGeometry(room.polygon, 'up'), floorMaterial));
   floor.receiveShadow = true;
   tag(floor, { pickKind: 'surface', roomId: room.id, surface: 'floor' } satisfies SceneUserData);
   group.add(floor);
@@ -136,13 +177,9 @@ function buildRoomShell(
       { u: bounds.width, v: bounds.depth },
       finishOverrides(ceilingFinish)
     );
-    const ceiling = new THREE.Mesh(polygonGeometry(room.polygon, 'down'), ceilingMaterial);
+    const ceiling = own(new THREE.Mesh(polygonGeometry(room.polygon, 'down'), ceilingMaterial));
     ceiling.position.y = room.heightM;
-    tag(ceiling, {
-      pickKind: 'surface',
-      roomId: room.id,
-      surface: 'ceiling',
-    } satisfies SceneUserData);
+    tag(ceiling, { pickKind: 'surface', roomId: room.id, surface: 'ceiling' } satisfies SceneUserData);
     group.add(ceiling);
   }
 
@@ -170,34 +207,18 @@ function buildRoomShell(
 
       // Nudge each room's wall height by a hair so shared walls between two rooms do not
       // z-fight along their top edge when seen from above.
-      const wall = buildWall(
-        edge,
-        room.heightM + index * 0.0006,
-        plan.wallThicknessM,
-        openings,
-        wallMaterial
-      );
+      const wall = buildWall(edge, room.heightM + index * 0.0006, plan.wallThicknessM, openings, wallMaterial);
       const outward = { x: -edge.inward.x, z: -edge.inward.z };
-      tag(wall, {
-        pickKind: 'surface',
-        roomId: room.id,
-        surface: 'wall',
-        outward,
-      } satisfies SceneUserData);
+      tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward } satisfies SceneUserData);
       group.add(wall);
 
       const baseboard = buildBaseboard(edge, openings, materials.get('ceramic'));
       // Skirting belongs to its wall, so it hides and shows with it.
-      tag(baseboard, {
-        pickKind: 'surface',
-        roomId: room.id,
-        surface: 'wall',
-        outward,
-      } satisfies SceneUserData);
+      tag(baseboard, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward } satisfies SceneUserData);
       group.add(baseboard);
 
       for (const opening of openings) {
-        group.add(buildOpeningTrim(edge, opening, plan.wallThicknessM, style, materials));
+        group.add(buildOpeningTrim(edge, opening, plan.wallThicknessM, materials));
       }
     }
   }
@@ -244,10 +265,7 @@ function buildWall(
     shape.holes.push(hole);
   }
 
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: thickness,
-    bevelEnabled: false,
-  });
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
 
   // Shape space (x along the wall, y up, z through the wall) → world.
   // Using the inward normal as the extrusion axis keeps the basis right-handed; the wall is
@@ -257,14 +275,10 @@ function buildWall(
     new THREE.Vector3(0, 1, 0),
     new THREE.Vector3(edge.inward.x, 0, edge.inward.z)
   );
-  basis.setPosition(
-    edge.a.x - edge.inward.x * thickness,
-    0,
-    edge.a.z - edge.inward.z * thickness
-  );
+  basis.setPosition(edge.a.x - edge.inward.x * thickness, 0, edge.a.z - edge.inward.z * thickness);
   geometry.applyMatrix4(basis);
 
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = own(new THREE.Mesh(geometry, material));
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
@@ -277,11 +291,7 @@ function buildWall(
  * through it — which is what every wall-mounted element wants. Rotating by the edge direction
  * instead lays them across the wall at right angles.
  */
-function buildBaseboard(
-  edge: PlanEdge,
-  openings: Opening[],
-  material: THREE.Material
-): THREE.Group {
+function buildBaseboard(edge: PlanEdge, openings: Opening[], material: THREE.Material): THREE.Group {
   const group = new THREE.Group();
 
   // Build the list of gaps (doors only — windows start above the skirting).
@@ -306,11 +316,13 @@ function buildBaseboard(
     if (length < 0.05) continue;
     const midT = (start + length / 2) / edge.length;
     const point = pointOnEdge(edge, midT);
-    const board = box(length, BASEBOARD_HEIGHT, BASEBOARD_DEPTH, material, [
-      point.x + edge.inward.x * (BASEBOARD_DEPTH / 2),
-      BASEBOARD_HEIGHT / 2,
-      point.z + edge.inward.z * (BASEBOARD_DEPTH / 2),
-    ]);
+    const board = own(
+      box(length, BASEBOARD_HEIGHT, BASEBOARD_DEPTH, material, [
+        point.x + edge.inward.x * (BASEBOARD_DEPTH / 2),
+        BASEBOARD_HEIGHT / 2,
+        point.z + edge.inward.z * (BASEBOARD_DEPTH / 2),
+      ])
+    );
     board.rotation.y = edge.facing;
     group.add(board);
   }
@@ -318,12 +330,11 @@ function buildBaseboard(
   return group;
 }
 
-/** Frame around an opening, plus glazing for windows. */
+/** Frame around an opening, plus glazing for windows and a swung leaf for doors. */
 function buildOpeningTrim(
   edge: PlanEdge,
   opening: Opening,
   thickness: number,
-  style: StyleDefinition,
   materials: StyleMaterials
 ): THREE.Group {
   const group = new THREE.Group();
@@ -341,7 +352,7 @@ function buildOpeningTrim(
       point.z + edge.dir.z * alongOffset + edge.inward.z * depthOffset
     );
     mesh.rotation.y = yaw;
-    group.add(mesh);
+    group.add(own(mesh));
   };
 
   const w = opening.widthM;
@@ -353,12 +364,7 @@ function buildOpeningTrim(
 
   // Jambs
   for (const sign of [1, -1]) {
-    place(
-      box(frame, h, thickness + 0.02, frameMaterial),
-      (sign * (w + frame)) / 2,
-      sill + h / 2,
-      midWall
-    );
+    place(box(frame, h, thickness + 0.02, frameMaterial), (sign * (w + frame)) / 2, sill + h / 2, midWall);
   }
   // Head
   place(box(w + frame * 2, frame, thickness + 0.02, frameMaterial), 0, sill + h + frame / 2, midWall);
@@ -387,16 +393,14 @@ function buildOpeningTrim(
     );
     pivot.rotation.y = yaw + openAngle;
 
-    const leaf = box(leafWidth, leafHeight, 0.04, materials.get('wood'));
+    const leaf = own(box(leafWidth, leafHeight, 0.04, materials.get('wood')));
     leaf.position.set(leafWidth / 2, sill + leafHeight / 2, 0);
     pivot.add(leaf);
 
     // Handle on the far edge from the hinge, at the usual height.
-    const handle = cylinder(0.017, 0.017, 0.11, materials.get('metal'), [
-      leafWidth - 0.07,
-      sill + 1.05,
-      0.05,
-    ], 8);
+    const handle = own(
+      cylinder(0.017, 0.017, 0.11, materials.get('metal'), [leafWidth - 0.07, sill + 1.05, 0.05], 8)
+    );
     handle.rotation.x = Math.PI / 2;
     pivot.add(handle);
 
@@ -410,7 +414,10 @@ function buildOpeningTrim(
 function pickFeatureWall(room: PlanRoom, edges: PlanEdge[]): number {
   const clear = edges.filter((e) => !room.openings.some((o) => o.wallIndex === e.index));
   const pool = clear.length > 0 ? clear : edges;
-  return pool.reduce((best, e) => (e.length > (edges[best]?.length ?? 0) ? e.index : best), pool[0]?.index ?? 0);
+  return pool.reduce(
+    (best, e) => (e.length > (edges[best]?.length ?? 0) ? e.index : best),
+    pool[0]?.index ?? 0
+  );
 }
 
 /**
@@ -464,6 +471,55 @@ function findFinish(
 // ---------------------------------------------------------------------------
 
 /**
+ * Brings `container` in line with `items`.
+ *
+ * A wrapper whose product and size are unchanged is moved into place; one whose model or
+ * dimensions changed is replaced; wrappers for items that are gone (or whose room is not in
+ * view) are removed. Nothing is disposed here — model geometry belongs to the cache.
+ */
+export function syncPlacedItems(
+  container: THREE.Group,
+  items: PlacedItem[],
+  rooms: Set<string> | null
+): void {
+  const wanted = new Map<string, PlacedItem>();
+  for (const item of items) {
+    if (rooms && !rooms.has(item.roomId)) continue;
+    wanted.set(item.id, item);
+  }
+
+  for (const child of [...container.children]) {
+    const itemId = (child.userData as SceneUserData).itemId;
+    const item = itemId ? wanted.get(itemId) : undefined;
+    if (!item) {
+      container.remove(child);
+      continue;
+    }
+    if (child.userData.itemKey !== itemKey(item)) {
+      container.remove(child);
+      continue; // rebuilt below
+    }
+    child.position.set(item.position.x, item.elevationM, item.position.z);
+    child.rotation.y = item.rotation;
+    if ((child.userData as SceneUserData).roomId !== item.roomId) {
+      tag(child, { pickKind: 'item', itemId: item.id, roomId: item.roomId } satisfies SceneUserData);
+    }
+    wanted.delete(item.id);
+  }
+
+  for (const item of wanted.values()) {
+    const object = buildPlacedItem(item);
+    if (object) container.add(object);
+  }
+}
+
+/** What a wrapper was built from. If any of this changes the wrapper has to be rebuilt. */
+function itemKey(item: PlacedItem): string {
+  const s = item.size;
+  return `${item.product?.productId ?? ''}|${item.product?.model3dUrl ?? ''}|${s.width}|${s.depth}|${s.height}`;
+}
+
+/**
  * One placed product.
  *
  * Every item is a partner model — there is no procedural furniture. The wrapper is created
@@ -485,6 +541,7 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
 
   const data: SceneUserData = { pickKind: 'item', itemId: item.id, roomId: item.roomId };
   tag(wrapper, { ...data });
+  wrapper.userData.itemKey = itemKey(item);
 
   loadModel(modelUrl)
     .then((model) => {
@@ -493,7 +550,8 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
       fitToItem(model, item);
       finishModel(model);
       wrapper.add(model);
-      tag(wrapper, { ...data });
+      // The wrapper's own roomId may have moved on while the model was loading.
+      tag(model, { pickKind: 'item', itemId: item.id, roomId: (wrapper.userData as SceneUserData).roomId });
     })
     .catch(() => {
       // A missing or broken GLB leaves the slot empty. The cost bar still counts it, which
@@ -581,16 +639,6 @@ function finishModel(model: THREE.Object3D): void {
   });
 }
 
-/** Stable per-item seed so decorative randomness never reshuffles between renders. */
-function hashSeed(id: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return Math.abs(hash % 100000);
-}
-
 // ---------------------------------------------------------------------------
 // Camera framing
 // ---------------------------------------------------------------------------
@@ -620,10 +668,4 @@ export function frameFor(
     position: [centre[0] + distance * 0.72, distance * 0.86 + 1.6, centre[2] + distance * 0.72],
     target: centre,
   };
-}
-
-/** A point inside a room to stand at, for the walk-through camera. */
-export function eyePointFor(room: PlanRoom): [number, number, number] {
-  const centre = polygonCentroid(room.polygon);
-  return [centre.x, 1.6, centre.z];
 }

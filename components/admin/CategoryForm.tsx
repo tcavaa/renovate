@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
+import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Category } from '@/lib/db/schema';
 
 const CALCULATION_TYPE_KEYS = [
@@ -78,7 +79,7 @@ export function CategoryForm({ category }: Props) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/categories');
@@ -93,7 +94,7 @@ export function CategoryForm({ category }: Props) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/categories');

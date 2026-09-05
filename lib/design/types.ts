@@ -151,7 +151,7 @@ export interface PlacedItem {
   rotation: number;
   /** Footprint and height actually used, metres — from the product when known. */
   size: { width: number; depth: number; height: number };
-  /** Procedural archetype to draw. See lib/design3d/furniture. */
+  /** Archetype this slot was laid out as. See ARCHETYPES in lib/design/catalog.ts. */
   kind: string;
   /** Resolved product, or null while the slot is still unfilled. */
   product: SceneProduct | null;

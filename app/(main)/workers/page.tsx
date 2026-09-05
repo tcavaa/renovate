@@ -5,17 +5,15 @@ import { Loader2 } from 'lucide-react';
 import { WorkerList } from '@/components/workers/WorkerList';
 import { useWorkers } from '@/hooks/useWorkers';
 import { useT } from '@/lib/i18n/client';
+import { workerSpecialtyLabel } from '@/lib/i18n/labels';
 
 export default function WorkersPage() {
   const ka = useT();
   const SPECIALTIES = [
     { slug: '', label: ka.common.all },
-    { slug: 'tiling', label: 'მეფილე' },
-    { slug: 'painting', label: 'მხატვარი' },
-    { slug: 'plumbing', label: 'სანტექნიკოსი' },
-    { slug: 'electrical', label: 'ელექტრიკოსი' },
-    { slug: 'carpentry', label: 'დურგალი' },
-    { slug: 'plastering', label: 'მშტუკატურე' },
+    ...(['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const).map(
+      (slug) => ({ slug, label: workerSpecialtyLabel(ka, slug) })
+    ),
   ];
   const [specialty, setSpecialty] = useState<string>('');
   const { items, loading } = useWorkers(specialty || undefined);

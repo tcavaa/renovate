@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
+import { apiErrorMessage } from '@/lib/i18n/labels';
 
 interface Props {
   user: {
@@ -51,7 +52,7 @@ export function UserForm({ user, isSelf }: Props) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.refresh();
@@ -64,7 +65,7 @@ export function UserForm({ user, isSelf }: Props) {
     const json = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(json.error ?? 'Error');
+      setError(apiErrorMessage(ka, json.error));
       return;
     }
     router.push('/admin/users');

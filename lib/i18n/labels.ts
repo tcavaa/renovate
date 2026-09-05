@@ -63,3 +63,15 @@ export function pickLocalizedName(
   if (locale === 'en') return nameEn ?? nameKa ?? '';
   return nameEn ?? nameKa ?? '';
 }
+
+/**
+ * A `{ error }` string from the API in the user's language.
+ *
+ * Routes return codes (`STORE_HAS_PRODUCTS`), never prose, so a Georgian sentence never
+ * reaches an English screen. Anything not in the table — a Zod message, an unexpected
+ * string — is shown as-is rather than hidden, because it is still the most specific hint.
+ */
+export function apiErrorMessage(t: Dictionary, code: string | null | undefined): string {
+  if (!code) return t.apiErrors.UNKNOWN;
+  return (t.apiErrors as unknown as AnyMap)[code] ?? code;
+}

@@ -19,7 +19,9 @@ import { DesignSteps } from '@/components/design/DesignSteps';
 import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { priceScene } from '@/lib/design/pricing';
+import { useRateBook } from '@/hooks/useRateBook';
 import { formatGEL, formatM2 } from '@/lib/utils';
+import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { getStyle } from '@/lib/design/styles';
 
@@ -34,7 +36,18 @@ export default function DesignSummaryPage() {
     () => ({ styleId, mode, budgetGel, items, finishes }),
     [styleId, mode, budgetGel, items, finishes]
   );
-  const cost = useMemo(() => (plan ? priceScene(plan, scene) : null), [plan, scene]);
+  const { book } = useRateBook();
+  const cost = useMemo(
+    () =>
+      plan
+        ? priceScene(plan, scene, {
+            homeState: homeState ?? undefined,
+            book,
+            surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling },
+          })
+        : null,
+    [plan, scene, homeState, book, t]
+  );
 
   if (!plan || !cost) {
     return (
@@ -217,18 +230,18 @@ export default function DesignSummaryPage() {
                 <CardTitle className="text-base">{t.design.grandTotal}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <Row label={t.design.furnitureTotal} value={cost.furnitureTotal} />
+                <MoneyRow label={t.design.furnitureTotal} value={cost.furnitureTotal} />
                 {mode !== 'full' && cost.finishesTotal > 0 && (
-                  <Row label={t.design.finishesTotal} value={cost.finishesTotal} />
+                  <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />
                 )}
                 {mode === 'full' && (
                   <>
-                    <Row label={t.design.finishesTotal} value={cost.finishesTotal} />
-                    <Row label={t.design.materialsTotal} value={cost.materialsTotal} />
-                    <Row label={t.design.labourTotal} value={cost.labourTotal} />
+                    <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />
+                    <MoneyRow label={t.design.materialsTotal} value={cost.materialsTotal} />
+                    <MoneyRow label={t.design.labourTotal} value={cost.labourTotal} />
                   </>
                 )}
-                <Row label={t.design.delivery} value={cost.deliveryTotal} />
+                <MoneyRow label={t.design.delivery} value={cost.deliveryTotal} />
 
                 <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
                   <span className="font-semibold">{t.design.grandTotal}</span>
@@ -245,7 +258,7 @@ export default function DesignSummaryPage() {
               </CardHeader>
               <CardContent className="space-y-1.5 text-sm">
                 {cost.perRoom.map((room) => (
-                  <Row key={room.roomId} label={room.roomName} value={room.total} muted />
+                  <MoneyRow key={room.roomId} label={room.roomName} value={room.total} muted />
                 ))}
               </CardContent>
             </Card>
@@ -263,21 +276,3 @@ export default function DesignSummaryPage() {
   );
 }
 
-function Row({
-  label,
-  value,
-  muted,
-}: {
-  label: string;
-  value: number;
-  muted?: boolean;
-}) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className={muted ? 'truncate text-ink-muted' : 'text-ink-muted'}>{label}</span>
-      <span className={muted ? 'shrink-0 text-ink' : 'shrink-0 font-medium text-ink'}>
-        {formatGEL(value)}
-      </span>
-    </div>
-  );
-}
