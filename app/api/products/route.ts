@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { products, categories } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,5 +53,7 @@ export const POST = handle('POST /api/products', 'Failed to create product', asy
     coveragePerUnit: parsed.data.coveragePerUnit != null ? String(parsed.data.coveragePerUnit) : null,
     imageUrl: parsed.data.imageUrl || null,
   });
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id: inserted[0].insertId });
 });

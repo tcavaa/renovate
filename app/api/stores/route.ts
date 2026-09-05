@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { stores } from '@/lib/db/schema';
 import { storeSchema, toStoreRow } from '@/lib/validations/store.schema';
 import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,5 +26,7 @@ export const POST = handle('POST /api/stores', 'Failed to create store', async (
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   const inserted = await db.insert(stores).values(toStoreRow(parsed.data));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id: inserted[0].insertId });
 });

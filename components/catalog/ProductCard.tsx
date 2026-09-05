@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Check, Plus, Tag } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,11 +36,12 @@ export function ProductCard({
       )}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg-base">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={imageUrl}
           alt={product.nameKa}
-          className="h-full w-full object-cover"
+          fill
+          sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="object-cover"
         />
         {product.isFeatured && (
           <Badge variant="default" className="absolute left-2 top-2 shadow-sm">

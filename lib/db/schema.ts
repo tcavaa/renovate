@@ -8,6 +8,7 @@ import {
   timestamp,
   mysqlEnum,
   json,
+  index,
 } from 'drizzle-orm/mysql-core';
 
 export const users = mysqlTable('users', {
@@ -98,7 +99,12 @@ export const products = mysqlTable('products', {
   sortOrder: int('sort_order').default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  // The public catalogue lists active products by category, featured first; the studio
+  // pulls every active product in the design categories. Both filter on these columns.
+  activeCategoryIdx: index('products_active_category_idx').on(t.isActive, t.categoryId, t.isFeatured),
+  kindIdx: index('products_model3d_kind_idx').on(t.model3dKind),
+}));
 
 /**
  * The calculator's rate book — every per-m² material quantity and labour price the
@@ -144,7 +150,9 @@ export const workers = mysqlTable('workers', {
   isVerified: boolean('is_verified').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => ({
+  activeSpecialtyIdx: index('workers_active_specialty_idx').on(t.isActive, t.specialtySlug),
+}));
 
 export const projects = mysqlTable('projects', {
   id: int('id').primaryKey().autoincrement(),
@@ -174,7 +182,10 @@ export const projects = mysqlTable('projects', {
   scene: json('scene'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
-});
+}, (t) => ({
+  // Profile and admin lists: a user's projects, newest first.
+  userCreatedIdx: index('projects_user_created_idx').on(t.userId, t.createdAt),
+}));
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

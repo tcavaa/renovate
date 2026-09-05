@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { categories, products } from '@/lib/db/schema';
 import { categorySchema } from '@/lib/validations/category.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,8 @@ export const PUT = handle('PUT /api/categories/[id]', 'Failed to update category
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   await db.update(categories).set(parsed.data).where(eq(categories.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });
 
@@ -42,5 +45,7 @@ export const DELETE = handle('DELETE /api/categories/[id]', 'Failed to delete ca
   if (Number(productCount[0]?.c ?? 0) > 0) return fail(API_ERRORS.CATEGORY_HAS_PRODUCTS, 409);
 
   await db.delete(categories).where(eq(categories.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });

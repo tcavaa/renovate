@@ -5,15 +5,18 @@ export function ProductGrid({
   products,
   selectedIds,
   onSelect,
+  emptyText,
 }: {
   products: Product[];
   selectedIds?: Set<number>;
   onSelect?: (p: Product) => void;
+  /** Shown when there is nothing to list. Comes from the caller so it is translated. */
+  emptyText: string;
 }) {
   if (products.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line p-12 text-center text-ink-muted">
-        პროდუქტი ვერ მოიძებნა
+        {emptyText}
       </div>
     );
   }

@@ -1,12 +1,6 @@
 import { cookies } from 'next/headers';
-import {
-  DEFAULT_LOCALE,
-  LOCALE_COOKIE,
-  getDictionary,
-  isLocale,
-  type Dictionary,
-  type Locale,
-} from './index';
+import { DEFAULT_LOCALE, LOCALE_COOKIE, isLocale, type Dictionary, type Locale } from './index';
+import { getDictionary } from './dictionaries';
 
 export function getLocale(): Locale {
   const value = cookies().get(LOCALE_COOKIE)?.value;

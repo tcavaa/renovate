@@ -1,12 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo } from 'react';
-import {
-  LOCALE_COOKIE,
-  getDictionary,
-  type Dictionary,
-  type Locale,
-} from './index';
+import { LOCALE_COOKIE, type Dictionary, type Locale } from './index';
 
 type LocaleContextValue = {
   locale: Locale;
@@ -16,23 +11,31 @@ type LocaleContextValue = {
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
 
+/**
+ * Provides the active locale and its dictionary to client components.
+ *
+ * The dictionary arrives from the server layout as a prop rather than being looked up here,
+ * so the browser bundle carries none of the three language files.
+ */
 export function LocaleProvider({
   locale,
+  dictionary,
   children,
 }: {
   locale: Locale;
+  dictionary: Dictionary;
   children: React.ReactNode;
 }) {
   const value = useMemo<LocaleContextValue>(
     () => ({
       locale,
-      t: getDictionary(locale),
+      t: dictionary,
       setLocale: (next) => {
         document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
         window.location.reload();
       },
     }),
-    [locale]
+    [locale, dictionary]
   );
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

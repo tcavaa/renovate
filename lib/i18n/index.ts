@@ -1,7 +1,11 @@
-import { ka } from './ka';
-import { en } from './en';
-import { ru } from './ru';
 import type { Dictionary } from './ka';
+
+/**
+ * Locale metadata that is safe to import from the client.
+ *
+ * The dictionaries themselves live in `./dictionaries` (server) and reach the browser as a
+ * prop on `LocaleProvider`, so a visitor downloads one language, not three.
+ */
 
 export const LOCALES = ['ka', 'en', 'ru'] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -14,15 +18,8 @@ export const LOCALE_LABELS: Record<Locale, { native: string; flag: string }> = {
   ru: { native: 'Русский', flag: '🇷🇺' },
 };
 
-const dictionaries: Record<Locale, Dictionary> = { ka, en, ru };
-
 export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
-}
-
-export function getDictionary(locale: Locale | string | undefined): Dictionary {
-  if (isLocale(locale)) return dictionaries[locale];
-  return dictionaries[DEFAULT_LOCALE];
 }
 
 export type { Dictionary };

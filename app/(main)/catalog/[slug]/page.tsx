@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
+import type { Metadata } from 'next';
 import { ArrowLeft } from 'lucide-react';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -11,6 +13,21 @@ import { getT } from '@/lib/i18n/server';
 import { formatGEL, formatUnit } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const rows = await db
+    .select({ nameKa: products.nameKa, descriptionKa: products.descriptionKa, imageUrl: products.imageUrl })
+    .from(products)
+    .where(eq(products.slug, params.slug))
+    .limit(1);
+  const product = rows[0];
+  if (!product) return {};
+  return {
+    title: product.nameKa,
+    description: product.descriptionKa ?? undefined,
+    openGraph: product.imageUrl ? { images: [product.imageUrl] } : undefined,
+  };
+}
 
 export default async function ProductDetailPage({
   params,
@@ -52,12 +69,14 @@ export default async function ProductDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-2">
         <Card className="overflow-hidden">
-          <div className="aspect-[4/3] bg-bg-base">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+          <div className="relative aspect-[4/3] bg-bg-base">
+            <Image
               src={imageUrl}
               alt={product.nameKa}
-              className="h-full w-full object-cover"
+              fill
+              priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="object-cover"
             />
           </div>
         </Card>

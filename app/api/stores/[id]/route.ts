@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { storeSchema, toStoreRow } from '@/lib/validations/store.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,8 @@ export const PUT = handle('PUT /api/stores/[id]', 'Failed to update store', asyn
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   await db.update(stores).set(toStoreRow(parsed.data)).where(eq(stores.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });
 
@@ -44,5 +47,7 @@ export const DELETE = handle('DELETE /api/stores/[id]', 'Failed to delete store'
   if (Number(linked[0]?.count ?? 0) > 0) return fail(API_ERRORS.STORE_HAS_PRODUCTS, 409);
 
   await db.delete(stores).where(eq(stores.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });

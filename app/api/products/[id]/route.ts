@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { products } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,8 @@ export const PUT = handle('PUT /api/products/[id]', 'Failed to update product', 
       coveragePerUnit: data.coveragePerUnit != null ? String(data.coveragePerUnit) : undefined,
     })
     .where(eq(products.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });
 
@@ -44,5 +47,7 @@ export const DELETE = handle('DELETE /api/products/[id]', 'Failed to delete prod
   if (response) return response;
 
   await db.delete(products).where(eq(products.id, id));
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id });
 });

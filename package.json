@@ -22,7 +22,8 @@
     "models:seed": "tsx scripts/seed-models.ts",
     "models:stock": "tsx scripts/stock-models.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
-    "db:seed:rates": "tsx scripts/seed-rates.ts"
+    "db:seed:rates": "tsx scripts/seed-rates.ts",
+    "db:indexes": "tsx scripts/db-indexes.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

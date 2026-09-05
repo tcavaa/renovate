@@ -1,11 +1,11 @@
 import type { Worker } from '@/lib/db/schema';
 import { WorkerCard } from './WorkerCard';
 
-export function WorkerList({ workers }: { workers: Worker[] }) {
+export function WorkerList({ workers, emptyText }: { workers: Worker[]; emptyText: string }) {
   if (workers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-line p-12 text-center text-ink-muted">
-        ხელოსანი ვერ მოიძებნა
+        {emptyText}
       </div>
     );
   }

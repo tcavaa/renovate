@@ -1,22 +1,35 @@
-'use client';
-
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { and, desc, eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { workers } from '@/lib/db/schema';
 import { WorkerList } from '@/components/workers/WorkerList';
-import { useWorkers } from '@/hooks/useWorkers';
-import { useT } from '@/lib/i18n/client';
+import { getT } from '@/lib/i18n/server';
 import { workerSpecialtyLabel } from '@/lib/i18n/labels';
+import { cn } from '@/lib/utils';
 
-export default function WorkersPage() {
-  const ka = useT();
-  const SPECIALTIES = [
-    { slug: '', label: ka.common.all },
-    ...(['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const).map(
-      (slug) => ({ slug, label: workerSpecialtyLabel(ka, slug) })
-    ),
-  ];
-  const [specialty, setSpecialty] = useState<string>('');
-  const { items, loading } = useWorkers(specialty || undefined);
+export const dynamic = 'force-dynamic';
+
+const SPECIALTY_SLUGS = ['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const;
+
+export function generateMetadata(): Metadata {
+  const t = getT();
+  return { title: t.workers.title, description: t.workers.subtitle };
+}
+
+/** Public worker directory, server-rendered with the specialty filter in the URL. */
+export default async function WorkersPage({ searchParams }: { searchParams: { specialty?: string } }) {
+  const ka = getT();
+  const specialty = searchParams.specialty ?? '';
+
+  const conditions = [eq(workers.isActive, true)];
+  if (specialty) conditions.push(eq(workers.specialtySlug, specialty));
+
+  const items = await db
+    .select()
+    .from(workers)
+    .where(and(...conditions))
+    .orderBy(desc(workers.isVerified), desc(workers.rating));
 
   return (
     <div className="container py-10">
@@ -25,29 +38,34 @@ export default function WorkersPage() {
         <p className="mt-2 text-ink-muted">{ka.workers.subtitle}</p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {SPECIALTIES.map((s) => (
-          <button
-            key={s.slug || 'all'}
-            onClick={() => setSpecialty(s.slug)}
-            className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
-              specialty === s.slug
-                ? 'border-brand bg-brand text-white'
-                : 'border-line bg-bg-surface hover:border-brand/40'
-            }`}
-          >
-            {s.label}
-          </button>
+      <nav className="mb-6 flex flex-wrap gap-2" aria-label={ka.workers.specialty}>
+        <Chip href="/workers" active={specialty === ''}>
+          {ka.common.all}
+        </Chip>
+        {SPECIALTY_SLUGS.map((slug) => (
+          <Chip key={slug} href={`/workers?specialty=${slug}`} active={specialty === slug}>
+            {workerSpecialtyLabel(ka, slug)}
+          </Chip>
         ))}
-      </div>
+      </nav>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-8 w-8 animate-spin text-brand" />
-        </div>
-      ) : (
-        <WorkerList workers={items} />
-      )}
+      <WorkerList workers={items} emptyText={ka.workers.noWorkers} />
     </div>
+  );
+}
+
+function Chip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'rounded-full border px-4 py-1.5 text-sm transition-colors',
+        active ? 'border-brand bg-brand text-white' : 'border-line bg-bg-surface hover:border-brand/40'
+      )}
+    >
+      {children}
+    </Link>
   );
 }

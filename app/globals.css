@@ -1,13 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@300;400;500;600;700&family=Noto+Serif+Georgian:wght@400;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-:root {
-  --font-sans: 'Noto Sans Georgian', system-ui, sans-serif;
-  --font-serif: 'Noto Serif Georgian', Georgia, serif;
-}
 
 html, body {
   background-color: #FAF8F5;

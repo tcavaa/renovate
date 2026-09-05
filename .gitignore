@@ -44,3 +44,6 @@ public/uploads/plans/*
 
 # --- local tooling ---
 .claude/
+
+# builds made beside a running dev server (NEXT_DIST_DIR=.next-build pnpm build)
+.next-build/

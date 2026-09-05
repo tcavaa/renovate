@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
 import { categorySchema } from '@/lib/validations/category.schema';
 import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,5 +32,7 @@ export const POST = handle('POST /api/categories', 'Failed to create category', 
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   const inserted = await db.insert(categories).values(parsed.data);
+  // The studio's cached catalogue must not outlive this write.
+  invalidateDesignCatalog();
   return ok({ id: inserted[0].insertId });
 });
