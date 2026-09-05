@@ -49,6 +49,8 @@ export const floorPlanSchema = z.object({
 const sceneStoreSchema = z.object({
   id: z.number().int(),
   nameKa: z.string(),
+  nameEn: z.string().nullable().optional(),
+  nameRu: z.string().nullable().optional(),
   logoUrl: z.string().nullable(),
   websiteUrl: z.string().nullable(),
   phone: z.string().nullable(),
@@ -63,6 +65,8 @@ const sceneStoreSchema = z.object({
 const sceneProductSchema = z.object({
   productId: z.number().int(),
   nameKa: z.string(),
+  nameEn: z.string().nullable().optional(),
+  nameRu: z.string().nullable().optional(),
   slug: z.string(),
   brand: z.string().nullable(),
   pricePerUnit: z.number().min(0),

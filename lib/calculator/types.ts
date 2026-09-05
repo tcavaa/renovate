@@ -39,6 +39,8 @@ export interface MaterialItem {
 export interface SelectedProduct {
   productId: number;
   nameKa: string;
+  nameEn?: string | null;
+  nameRu?: string | null;
   pricePerUnit: number;
   unit: UnitType;
   qty: number;

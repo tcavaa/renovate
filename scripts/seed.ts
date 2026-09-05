@@ -5,6 +5,7 @@ config({ path: '.env' });
 
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
+import { CATEGORY_RU, PRODUCT_I18N, STORE_I18N, WORKER_I18N } from './lib/translations';
 import { db, pool } from '../lib/db';
 import {
   categories,
@@ -187,8 +188,8 @@ async function seed() {
   for (const c of seedCategories) {
     await db
       .insert(categories)
-      .values({ ...c, sortOrder: 0, isVisible: true })
-      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa } });
+      .values({ ...c, nameRu: CATEGORY_RU[c.slug] ?? null, sortOrder: 0, isVisible: true })
+      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameEn: c.nameEn, nameRu: CATEGORY_RU[c.slug] ?? null } });
   }
 
   console.log('— inserting partner store');
@@ -196,6 +197,8 @@ async function seed() {
     .insert(stores)
     .values({
       nameKa: 'რემონტი.ge ოფიციალური მაღაზია',
+      nameEn: STORE_I18N['რემონტი.ge ოფიციალური მაღაზია'].en,
+      nameRu: STORE_I18N['რემონტი.ge ოფიციალური მაღაზია'].ru,
       websiteUrl: 'https://remonti.ge',
       phone: '+995322000000',
       address: 'თბილისი, ქართველი ხელოსნების 1',
@@ -220,6 +223,8 @@ async function seed() {
         .values({
           categoryId,
           nameKa: p.nameKa,
+          nameEn: PRODUCT_I18N[p.slug]?.en ?? null,
+          nameRu: PRODUCT_I18N[p.slug]?.ru ?? null,
           slug: p.slug,
           pricePerUnit: String(p.pricePerUnit),
           unit: p.unit,
@@ -233,6 +238,8 @@ async function seed() {
           set: {
             pricePerUnit: String(p.pricePerUnit),
             nameKa: p.nameKa,
+            nameEn: PRODUCT_I18N[p.slug]?.en ?? null,
+            nameRu: PRODUCT_I18N[p.slug]?.ru ?? null,
             imageUrl: p.imageUrl ?? `/uploads/products/${p.slug}.png`,
             isFeatured: !!p.isFeatured,
           },
@@ -244,8 +251,8 @@ async function seed() {
   for (const w of seedWorkers) {
     await db
       .insert(workers)
-      .values({ ...w, isActive: true })
-      .onDuplicateKeyUpdate({ set: { rating: w.rating } });
+      .values({ ...w, nameEn: WORKER_I18N[w.nameKa]?.en ?? null, nameRu: WORKER_I18N[w.nameKa]?.ru ?? null, isActive: true })
+      .onDuplicateKeyUpdate({ set: { rating: w.rating, nameEn: WORKER_I18N[w.nameKa]?.en ?? null, nameRu: WORKER_I18N[w.nameKa]?.ru ?? null } });
   }
 
   // The admin account comes from the environment, never from a constant in the repo: a

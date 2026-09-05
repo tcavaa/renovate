@@ -25,7 +25,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });
 
   const [cats, storeRows] = await Promise.all([
-    db.select({ id: categories.id, nameKa: categories.nameKa, nameEn: categories.nameEn, slug: categories.slug }).from(categories).orderBy(asc(categories.phase), asc(categories.sortOrder)),
+    db.select({ id: categories.id, nameKa: categories.nameKa, nameEn: categories.nameEn, nameRu: categories.nameRu, slug: categories.slug }).from(categories).orderBy(asc(categories.phase), asc(categories.sortOrder)),
     db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores).orderBy(asc(stores.nameKa)),
   ]);
 
@@ -102,7 +102,7 @@ export default async function AdminProductsPage({ searchParams }: { searchParams
       <FilterBar
         fields={[
           { name: 'q', type: 'search', placeholder: `${f.search} (${ka.admin.forms.nameKa}, SKU, ${ka.admin.forms.brand})`, className: 'w-72' },
-          { name: 'category', type: 'select', label: f.category, options: cats.map((c) => ({ value: String(c.id), label: pickLocalizedName(locale, c.nameKa, c.nameEn) })) },
+          { name: 'category', type: 'select', label: f.category, options: cats.map((c) => ({ value: String(c.id), label: pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu) })) },
           { name: 'store', type: 'select', label: f.store, options: [{ value: 'none', label: f.noStore }, ...storeRows.map((s) => ({ value: String(s.id), label: s.nameKa }))] },
           { name: 'style', type: 'select', label: f.style, options: STYLE_IDS.map((id) => ({ value: id, label: styleLabel(ka, id) })) },
           { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }] },

@@ -71,6 +71,7 @@ pnpm test           # vitest: calculator, pricing, matcher, API helpers, both sa
 pnpm test:coverage  # same with the coverage gate CI enforces
 pnpm test:e2e       # Playwright flows against :3000 (needs the DB; not in CI)
 pnpm uploads:cleanup  # delete plan uploads no project references (--dry-run to preview)
+pnpm db:backfill-translations  # en/ru names for rows that only have Georgian ones
 NEXT_DIST_DIR=.next-build pnpm build  # production build beside a live dev server
 ```
 
@@ -185,6 +186,20 @@ plus `Pager` (server, links). A filtered view is therefore a URL: the dashboard'
 Adding a filter is one `where.push(...)` in the page and one field in the `FilterBar`
 config; strings live under `admin.filters` in the dictionaries. The rates table filters
 client-side because every row is an editable form.
+
+### Catalogue data in three languages
+
+Products, stores and workers carry `nameKa` plus optional `nameEn` / `nameRu` (and the same
+for descriptions and bios); categories have `nameRu` next to the existing `nameEn`. Render
+them only through `localizedName(locale, row)` / `localizedText(...)` from `lib/i18n/labels.ts`,
+which fall back ru → en → ka so a half-translated row still shows something. Product
+snapshots stored in scenes and projects carry the three names too, so a saved design reads
+correctly in any language. Archetype labels have `labelEn` / `labelRu`
+(`archetypeLabel(kind, locale)`); style names and blurbs are dictionary keys. The admin forms
+have a "Translations" section; `scripts/lib/translations.ts` holds the seed translations and
+`pnpm db:backfill-translations` fills in rows that only have Georgian (3D products get
+"archetype + model name", textures a humanised slug). Convention 1 above now applies to data
+as well as UI copy: nothing user-facing is Georgian-only by construction.
 
 ### Key 3D-relevant columns
 

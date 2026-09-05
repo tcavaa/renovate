@@ -4,13 +4,17 @@ import { BadgeCheck, Phone, Star } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { localizedName, localizedText, workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 import type { Worker } from '@/lib/db/schema';
 
 export function WorkerCard({ worker }: { worker: Worker }) {
   const ka = useT();
-  const initials = worker.nameKa
+  const locale = useLocale();
+  const name = localizedName(locale, worker);
+  const bio = localizedText(locale, worker.bio, worker.bioEn, worker.bioRu);
+  const initials = name
     .split(' ')
     .map((p) => p[0])
     .filter(Boolean)
@@ -26,12 +30,12 @@ export function WorkerCard({ worker }: { worker: Worker }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-serif text-base font-semibold">{worker.nameKa}</h3>
+              <h3 className="font-serif text-base font-semibold">{name}</h3>
               {worker.isVerified && (
                 <BadgeCheck className="h-4 w-4 text-success" aria-label={ka.workers.verified} />
               )}
             </div>
-            <p className="text-sm text-ink-muted">{worker.specialty}</p>
+            <p className="text-sm text-ink-muted">{locale === 'ka' ? worker.specialty : workerSpecialtyLabel(ka, worker.specialtySlug)}</p>
             <div className="mt-1 flex items-center gap-1 text-xs text-ink-muted">
               <Star className="h-3.5 w-3.5 fill-accent text-accent" />
               <span className="font-medium text-ink">{Number(worker.rating).toFixed(1)}</span>
@@ -40,22 +44,22 @@ export function WorkerCard({ worker }: { worker: Worker }) {
           </div>
         </div>
 
-        {worker.bio && (
-          <p className="mt-3 line-clamp-2 text-sm text-ink-muted">{worker.bio}</p>
+        {bio && (
+          <p className="mt-3 line-clamp-2 text-sm text-ink-muted">{bio}</p>
         )}
 
         <div className="mt-4 flex items-center justify-between">
           <div>
             {worker.priceUnit === 'm2' && worker.pricePerM2 ? (
               <span className="font-serif text-lg font-semibold text-brand">
-                {formatGEL(Number(worker.pricePerM2))} / მ²
+                {formatGEL(Number(worker.pricePerM2))} {ka.workers.perM2Slash}
               </span>
             ) : worker.pricePerUnit ? (
               <span className="font-serif text-lg font-semibold text-brand">
-                {formatGEL(Number(worker.pricePerUnit))} / ცალი
+                {formatGEL(Number(worker.pricePerUnit))} {ka.workers.perPieceSlash}
               </span>
             ) : (
-              <Badge variant="outline">ფასი შეთანხმებით</Badge>
+              <Badge variant="outline">{ka.workers.priceByAgreement}</Badge>
             )}
           </div>
           {worker.phone && (

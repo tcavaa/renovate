@@ -8,7 +8,8 @@
 
 import Image from 'next/image';
 import { Check } from 'lucide-react';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
 import { cn, formatGEL } from '@/lib/utils';
 import { pricePerM2, surfaceOptions, type Surface } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
@@ -29,6 +30,7 @@ const SURFACES: Surface[] = ['floor', 'wall'];
 
 export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes, onPick }: FinishPanelProps) {
   const t = useT();
+  const locale = useLocale();
   const room = rooms.find((r) => r.id === roomId) ?? null;
   const targets = room ? [room] : rooms;
   const ordered: Surface[] = surface ? [surface, ...SURFACES.filter((s) => s !== surface)] : SURFACES;
@@ -81,7 +83,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
                 {options.map((product) => (
                   <li key={product.id}>
                     <Swatch
-                      label={product.nameKa}
+                      label={localizedName(locale, product)}
                       price={`${formatGEL(pricePerM2(product))}/${t.design.finishPerM2}`}
                       textureUrl={product.textureUrl}
                       active={current === product.id}

@@ -11,7 +11,7 @@ import { ProductCard } from '@/components/catalog/ProductCard';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { roomTypeLabel, pickLocalizedName } from '@/lib/i18n/labels';
+import { localizedName, roomTypeLabel, pickLocalizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 import type { Product } from '@/lib/db/schema';
 import type { SelectedProduct } from '@/lib/calculator/types';
@@ -55,6 +55,8 @@ export default function FurnitureStepPage() {
     const sel: SelectedProduct = {
       productId: p.id,
       nameKa: p.nameKa,
+      nameEn: p.nameEn,
+      nameRu: p.nameRu,
       pricePerUnit: Number(p.pricePerUnit),
       unit: p.unit,
       qty: 1,
@@ -187,7 +189,7 @@ export default function FurnitureStepPage() {
                               <Plus className="h-4 w-4 text-brand" />
                             </div>
                             <p className="line-clamp-1 text-sm font-medium">
-                              {item.nameKa}
+                              {localizedName(locale, item)}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">

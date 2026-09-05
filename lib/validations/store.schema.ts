@@ -18,7 +18,11 @@ const urlOrPath = z
 
 export const storeSchema = z.object({
   nameKa: z.string().min(1).max(255),
+  nameEn: z.string().max(255).optional().nullable(),
+  nameRu: z.string().max(255).optional().nullable(),
   descriptionKa: z.string().max(2000).optional().nullable(),
+  descriptionEn: z.string().max(2000).optional().nullable(),
+  descriptionRu: z.string().max(2000).optional().nullable(),
   logoUrl: urlOrPath,
   websiteUrl: urlOrPath,
   phone: z.string().max(50).optional().nullable(),

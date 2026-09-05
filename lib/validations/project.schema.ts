@@ -4,6 +4,8 @@ import { calculatorRequestSchema } from './room.schema';
 const selectedProductSchema = z.object({
   productId: z.number().int(),
   nameKa: z.string(),
+  nameEn: z.string().nullable().optional(),
+  nameRu: z.string().nullable().optional(),
   pricePerUnit: z.number(),
   unit: z.string(),
   qty: z.number(),

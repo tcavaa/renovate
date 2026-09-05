@@ -29,6 +29,7 @@ import { spawn } from 'node:child_process';
 import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
+import { humanizeSlug } from './lib/translations';
 import type { StyleId } from '../lib/design/types';
 
 const ROOT = process.cwd();
@@ -271,6 +272,7 @@ async function upsert(
     categoryId,
     storeId: storeBySlug.get(entry.storeSlug) ?? null,
     nameKa: entry.nameKa,
+    nameEn: humanizeSlug(entry.slug),
     slug: entry.slug,
     sku: `TX-${entry.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
     pricePerUnit: String(entry.priceGel),

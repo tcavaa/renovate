@@ -60,6 +60,8 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
   const items: CatalogProduct[] = rows.map(({ product, store }) => ({
     id: product.id,
     nameKa: product.nameKa,
+    nameEn: product.nameEn,
+    nameRu: product.nameRu,
     slug: product.slug,
     brand: product.brand,
     categorySlug: categorySlugById.get(product.categoryId) ?? '',
@@ -82,6 +84,8 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
       ? {
           id: store.id,
           nameKa: store.nameKa,
+          nameEn: store.nameEn,
+          nameRu: store.nameRu,
           logoUrl: store.logoUrl,
           websiteUrl: store.websiteUrl,
           phone: store.phone,
@@ -101,6 +105,8 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
     stores: partnerStores.map((s) => ({
       id: s.id,
       nameKa: s.nameKa,
+      nameEn: s.nameEn,
+      nameRu: s.nameRu,
       descriptionKa: s.descriptionKa,
       logoUrl: s.logoUrl,
       websiteUrl: s.websiteUrl,

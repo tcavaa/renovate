@@ -129,7 +129,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
         >
           <div className="border-b border-line p-3">
             <p className="truncate text-sm font-semibold">
-              {user.name ?? 'მომხმარებელი'}
+              {user.name ?? ka.nav.user}
             </p>
             <p className="truncate text-xs text-ink-muted">{user.email}</p>
             {isAdmin && (

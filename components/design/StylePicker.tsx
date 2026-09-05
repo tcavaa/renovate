@@ -2,31 +2,10 @@
 
 import { Check } from 'lucide-react';
 import { STYLES, STYLE_IDS } from '@/lib/design/styles';
+import { useT } from '@/lib/i18n/client';
+import { styleLabel } from '@/lib/i18n/labels';
 import type { StyleId } from '@/lib/design/types';
 import { cn } from '@/lib/utils';
-
-const LABELS: Record<StyleId, { ka: string; en: string; blurbKa: string }> = {
-  modern: {
-    ka: 'თანამედროვე',
-    en: 'Modern',
-    blurbKa: 'სუფთა ხაზები, გრაფიტი და თეთრი, მინა და ქრომი.',
-  },
-  scandinavian: {
-    ka: 'სკანდინავიური',
-    en: 'Scandinavian',
-    blurbKa: 'ღია მუხა, რბილი ტექსტილი, ბევრი სინათლე.',
-  },
-  industrial: {
-    ka: 'ინდუსტრიული',
-    en: 'Industrial',
-    blurbKa: 'აგური, შავი ლითონი, ტყავი და მასივი.',
-  },
-  vintage: {
-    ka: 'ვინტაჟი',
-    en: 'Vintage',
-    blurbKa: 'კაკალი, სპილენძი, ხავერდი და ნიმუშები.',
-  },
-};
 
 export function StylePicker({
   value,
@@ -35,11 +14,12 @@ export function StylePicker({
   value: StyleId;
   onChange: (styleId: StyleId) => void;
 }) {
+  const t = useT();
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {STYLE_IDS.map((id) => {
         const style = STYLES[id];
-        const label = LABELS[id];
         const active = value === id;
 
         return (
@@ -79,10 +59,7 @@ export function StylePicker({
                       backgroundSize: '100px',
                     }}
                   />
-                  <div
-                    className="h-1/2"
-                    style={{ backgroundColor: style.surfaces.wall.colorHex }}
-                  />
+                  <div className="h-1/2" style={{ backgroundColor: style.surfaces.wall.colorHex }} />
                 </div>
               </div>
 
@@ -97,16 +74,15 @@ export function StylePicker({
               </div>
 
               {active && (
-                <span className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow-sm">
+                <span className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-brand text-white shadow">
                   <Check className="h-3.5 w-3.5" />
                 </span>
               )}
             </div>
 
             <div className="p-3">
-              <p className="font-serif text-base font-semibold text-ink">{label.ka}</p>
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">{label.en}</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">{label.blurbKa}</p>
+              <p className="font-serif text-base font-semibold text-ink">{styleLabel(t, id)}</p>
+              <p className="mt-1 text-xs leading-snug text-ink-muted">{t.styleBlurbs[id]}</p>
             </div>
           </button>
         );

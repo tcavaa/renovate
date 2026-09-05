@@ -9,22 +9,24 @@ import { products, categories } from '@/lib/db/schema';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getT } from '@/lib/i18n/server';
-import { formatGEL, formatUnit } from '@/lib/utils';
+import { getLocale, getT } from '@/lib/i18n/server';
+import { localizedName, localizedText, pickLocalizedName, unitLabel } from '@/lib/i18n/labels';
+import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const rows = await db
-    .select({ nameKa: products.nameKa, descriptionKa: products.descriptionKa, imageUrl: products.imageUrl })
+    .select({ nameKa: products.nameKa, nameEn: products.nameEn, nameRu: products.nameRu, descriptionKa: products.descriptionKa, descriptionEn: products.descriptionEn, descriptionRu: products.descriptionRu, imageUrl: products.imageUrl })
     .from(products)
     .where(eq(products.slug, params.slug))
     .limit(1);
   const product = rows[0];
   if (!product) return {};
+  const locale = getLocale();
   return {
-    title: product.nameKa,
-    description: product.descriptionKa ?? undefined,
+    title: localizedName(locale, product),
+    description: localizedText(locale, product.descriptionKa, product.descriptionEn, product.descriptionRu) ?? undefined,
     openGraph: product.imageUrl ? { images: [product.imageUrl] } : undefined,
   };
 }
@@ -35,6 +37,7 @@ export default async function ProductDetailPage({
   params: { slug: string };
 }) {
   const ka = getT();
+  const locale = getLocale();
   const productRows = await db
     .select()
     .from(products)
@@ -42,6 +45,8 @@ export default async function ProductDetailPage({
     .limit(1);
   const product = productRows[0];
   if (!product) notFound();
+  const name = localizedName(locale, product);
+  const description = localizedText(locale, product.descriptionKa, product.descriptionEn, product.descriptionRu);
 
   const catRows = await db
     .select()
@@ -53,7 +58,7 @@ export default async function ProductDetailPage({
   const imageUrl =
     product.imageUrl ||
     `https://placehold.co/800x600/E85D26/FFFFFF/png?text=${encodeURIComponent(
-      product.nameKa.split(' ')[0]
+      name.split(' ')[0]
     )}`;
 
   const specs = (product.specs ?? {}) as Record<string, string>;
@@ -72,7 +77,7 @@ export default async function ProductDetailPage({
           <div className="relative aspect-[4/3] bg-bg-base">
             <Image
               src={imageUrl}
-              alt={product.nameKa}
+              alt={name}
               fill
               priority
               sizes="(min-width: 1024px) 50vw, 100vw"
@@ -81,9 +86,9 @@ export default async function ProductDetailPage({
           </div>
         </Card>
         <div>
-          {category && <Badge variant="default">{category.nameKa}</Badge>}
+          {category && <Badge variant="default">{pickLocalizedName(locale, category.nameKa, category.nameEn, category.nameRu)}</Badge>}
           <h1 className="mt-3 font-serif text-3xl font-bold leading-tight">
-            {product.nameKa}
+            {name}
           </h1>
           {product.brand && (
             <p className="mt-2 text-sm uppercase tracking-wide text-ink-muted">
@@ -95,12 +100,12 @@ export default async function ProductDetailPage({
             <span className="font-serif text-4xl font-bold text-brand">
               {formatGEL(Number(product.pricePerUnit))}
             </span>
-            <span className="text-ink-muted">/ {formatUnit(product.unit)}</span>
+            <span className="text-ink-muted">/ {unitLabel(ka, product.unit)}</span>
           </div>
 
-          {product.descriptionKa && (
+          {description && (
             <p className="text-base leading-relaxed text-ink-muted">
-              {product.descriptionKa}
+              {description}
             </p>
           )}
 

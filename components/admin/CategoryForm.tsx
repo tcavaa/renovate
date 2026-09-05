@@ -40,6 +40,7 @@ export function CategoryForm({ category }: Props) {
   const [form, setForm] = useState({
     nameKa: category?.nameKa ?? '',
     nameEn: category?.nameEn ?? '',
+    nameRu: category?.nameRu ?? '',
     slug: category?.slug ?? '',
     icon: category?.icon ?? '',
     phase: category?.phase ?? 1,
@@ -121,6 +122,10 @@ export function CategoryForm({ category }: Props) {
                 value={form.nameEn}
                 onChange={(e) => update('nameEn', e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.nameRu}</Label>
+              <Input value={form.nameRu} onChange={(e) => update('nameRu', e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.forms.slug}</Label>

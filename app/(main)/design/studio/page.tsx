@@ -13,7 +13,7 @@ import { HoverCard, type HoverCardHandle } from '@/components/design/HoverCard';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import { priceScene } from '@/lib/design/pricing';
 import { formatGEL } from '@/lib/utils';
 import { rotateItem as rotatePlacement } from '@/lib/design/manipulate';
@@ -33,6 +33,7 @@ type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall' } | null;
 
 export default function StudioPage() {
   const t = useT();
+  const locale = useLocale();
   const {
     plan,
     styleId,
@@ -72,6 +73,7 @@ export default function StudioPage() {
         ? priceScene(plan, scene, {
             homeState: homeState ?? undefined,
             book,
+            locale,
             surfaceLabels: {
               floor: t.design.finishFloor,
               wall: t.design.finishWall,
@@ -79,7 +81,7 @@ export default function StudioPage() {
             },
           })
         : null,
-    [plan, scene, homeState, book, t]
+    [plan, scene, homeState, book, t, locale]
   );
 
   const selected = items.find((i) => i.id === selectedItemId) ?? null;

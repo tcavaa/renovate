@@ -6,6 +6,8 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 export interface PartnerStore {
   id: number;
   nameKa: string;
+  nameEn: string | null;
+  nameRu: string | null;
   descriptionKa: string | null;
   logoUrl: string | null;
   websiteUrl: string | null;

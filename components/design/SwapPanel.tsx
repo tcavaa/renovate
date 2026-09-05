@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { ItemCard } from '@/components/design/ItemCard';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { formatGEL, cn } from '@/lib/utils';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
 import type { PlacedItem, StyleId } from '@/lib/design/types';
 
 interface SwapPanelProps {
@@ -35,6 +36,7 @@ export function SwapPanel({
   rotateBlocked,
 }: SwapPanelProps) {
   const t = useT();
+  const locale = useLocale();
 
   if (!item) {
     return (
@@ -125,7 +127,7 @@ export function SwapPanel({
                       {product.imageUrl ? (
                         <Image
                           src={product.imageUrl}
-                          alt={product.nameKa}
+                          alt={localizedName(locale, product)}
                           fill
                           sizes="44px"
                           className="object-cover"
@@ -140,10 +142,10 @@ export function SwapPanel({
 
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-medium text-ink">
-                        {product.nameKa}
+                        {localizedName(locale, product)}
                       </span>
                       <span className="block truncate text-[11px] text-ink-muted">
-                        {product.store?.nameKa ?? product.brand ?? ''}
+                        {(product.store ? localizedName(locale, product.store) : null) ?? product.brand ?? ''}
                       </span>
                     </span>
 

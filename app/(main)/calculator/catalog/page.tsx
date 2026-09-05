@@ -12,7 +12,7 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { calculateMaterials, aggregateRoomTotals } from '@/lib/calculator/materials';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { pickLocalizedName } from '@/lib/i18n/labels';
+import { localizedName, pickLocalizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 import type { Product } from '@/lib/db/schema';
 import type { SelectedProduct } from '@/lib/calculator/types';
@@ -62,6 +62,8 @@ export default function CatalogStepPage() {
     const sel: SelectedProduct = {
       productId: p.id,
       nameKa: p.nameKa,
+      nameEn: p.nameEn,
+      nameRu: p.nameRu,
       pricePerUnit: Number(p.pricePerUnit),
       unit: p.unit,
       qty,
@@ -176,7 +178,7 @@ export default function CatalogStepPage() {
                     {Object.entries(selectedProducts).map(([key, p]) => (
                       <li key={key} className="flex items-start justify-between gap-2 text-sm">
                         <div className="min-w-0">
-                          <p className="line-clamp-2 font-medium">{p.nameKa}</p>
+                          <p className="line-clamp-2 font-medium">{localizedName(locale, p)}</p>
                           <p className="text-xs text-ink-muted">
                             {p.qty} × {formatGEL(p.pricePerUnit)}
                           </p>

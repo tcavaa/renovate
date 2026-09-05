@@ -29,7 +29,8 @@
     "textures:stock": "tsx scripts/stock-textures.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",
     "db:indexes": "tsx scripts/db-indexes.ts",
-    "uploads:cleanup": "tsx scripts/cleanup-plans.ts"
+    "uploads:cleanup": "tsx scripts/cleanup-plans.ts",
+    "db:backfill-translations": "tsx scripts/backfill-translations.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

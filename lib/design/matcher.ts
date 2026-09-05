@@ -18,6 +18,8 @@ import type { PlacedItem, SceneProduct, StyleId } from './types';
 export interface CatalogProduct {
   id: number;
   nameKa: string;
+  nameEn?: string | null;
+  nameRu?: string | null;
   slug: string;
   brand: string | null;
   categorySlug: string;
@@ -221,6 +223,8 @@ export function toSceneProduct(product: CatalogProduct, qty: number): SceneProdu
   return {
     productId: product.id,
     nameKa: product.nameKa,
+    nameEn: product.nameEn ?? null,
+    nameRu: product.nameRu ?? null,
     slug: product.slug,
     brand: product.brand,
     pricePerUnit: product.pricePerUnit,

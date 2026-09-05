@@ -48,6 +48,7 @@ export default async function AdminCategoriesPage({ searchParams }: { searchPara
         id: categories.id,
         nameKa: categories.nameKa,
         nameEn: categories.nameEn,
+        nameRu: categories.nameRu,
         slug: categories.slug,
         phase: categories.phase,
         calculationType: categories.calculationType,
@@ -112,7 +113,7 @@ export default async function AdminCategoriesPage({ searchParams }: { searchPara
             <Tr key={c.id}>
               <td className="px-4 py-2.5 font-medium">
                 <Link href={`/admin/categories/${c.id}`} className="hover:text-brand">
-                  {pickLocalizedName(locale, c.nameKa, c.nameEn)}
+                  {pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)}
                 </Link>
               </td>
               <td className="px-4 py-2.5 font-mono text-xs text-ink-muted">{c.slug}</td>

@@ -21,7 +21,11 @@ export function StoreForm({ store }: { store?: Store }) {
 
   const [form, setForm] = useState({
     nameKa: store?.nameKa ?? '',
+    nameEn: store?.nameEn ?? '',
+    nameRu: store?.nameRu ?? '',
     descriptionKa: store?.descriptionKa ?? '',
+    descriptionEn: store?.descriptionEn ?? '',
+    descriptionRu: store?.descriptionRu ?? '',
     logoUrl: store?.logoUrl ?? '',
     websiteUrl: store?.websiteUrl ?? '',
     phone: store?.phone ?? '',
@@ -87,6 +91,28 @@ export function StoreForm({ store }: { store?: Store }) {
                 onChange={(e) => update('nameKa', e.target.value)}
               />
             </div>
+            <fieldset className="space-y-3 rounded-md border border-line p-4 md:col-span-2">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{ka.admin.forms.translations}</legend>
+              <p className="text-xs text-ink-muted">{ka.admin.forms.translationsHint}</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.nameEn}</Label>
+                  <Input value={form.nameEn} onChange={(e) => update('nameEn', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.nameRu}</Label>
+                  <Input value={form.nameRu} onChange={(e) => update('nameRu', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.descriptionEn}</Label>
+                  <Textarea rows={2} value={form.descriptionEn ?? ''} onChange={(e) => update('descriptionEn', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.descriptionRu}</Label>
+                  <Textarea rows={2} value={form.descriptionRu ?? ''} onChange={(e) => update('descriptionRu', e.target.value)} />
+                </div>
+              </div>
+            </fieldset>
 
             <div className="space-y-2">
               <Label>{ka.admin.forms.website}</Label>

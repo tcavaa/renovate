@@ -15,6 +15,7 @@ import {
   workTypeLabel,
   unitLabel,
   statusLabel,
+  localizedName,
 } from '@/lib/i18n/labels';
 import { formatGEL, formatNumber } from '@/lib/utils';
 import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
@@ -220,6 +221,7 @@ export function ProjectDetail({
           subtotal={summary.subtotalProducts}
           emptyText={ka.summary.productsEmpty}
           t={ka}
+          locale={locale}
         />
       </Section>
 
@@ -229,6 +231,7 @@ export function ProjectDetail({
           subtotal={summary.subtotalFurniture}
           emptyText={ka.summary.furnitureEmpty}
           t={ka}
+          locale={locale}
         />
       </Section>
 
@@ -343,11 +346,13 @@ export function ProductsTable({
   subtotal,
   emptyText,
   t,
+  locale,
 }: {
   items: SelectedProduct[];
   subtotal: number;
   emptyText: string;
   t: Dictionary;
+  locale: Locale;
 }) {
   const ka = t;
   return (
@@ -364,7 +369,7 @@ export function ProductsTable({
       <tbody>
         {items.map((p, idx) => (
           <tr key={`${p.productId}-${idx}`} className="border-b border-line/40 last:border-0">
-            <td className="px-4 py-3 font-medium">{p.nameKa}</td>
+            <td className="px-4 py-3 font-medium">{localizedName(locale, p)}</td>
             <td className="px-4 py-3 text-right tabular-nums">{formatNumber(p.qty)}</td>
             <td className="px-4 py-3 text-ink-muted">{unitLabel(ka, p.unit)}</td>
             <td className="px-4 py-3 text-right tabular-nums text-ink-muted">

@@ -7,12 +7,13 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Card, CardContent } from '@/components/ui/card';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 import {
   materialLabel,
   workTypeLabel,
   phaseLabel,
   unitLabel,
+  localizedName,
 } from '@/lib/i18n/labels';
 import type { ProjectSummary } from '@/lib/calculator/types';
 import { MATERIAL_RATES_PER_M2 } from '@/lib/calculator/constants';
@@ -21,6 +22,7 @@ import { MoneyRow } from '@/components/ui/money-row';
 
 export function SummaryCard({ summary }: { summary: ProjectSummary }) {
   const ka = useT();
+  const locale = useLocale();
   return (
     <div className="space-y-6">
       {/* Hero total */}
@@ -124,7 +126,7 @@ export function SummaryCard({ summary }: { summary: ProjectSummary }) {
                           key={`${p.productId}-${p.categorySlug ?? ''}`}
                           className="border-b border-line/40 last:border-0"
                         >
-                          <td className="py-2 pr-2">{p.nameKa}</td>
+                          <td className="py-2 pr-2">{localizedName(locale, p)}</td>
                           <td className="py-2 pr-2 text-right tabular-nums">
                             {formatNumber(p.qty)} {unitLabel(ka, p.unit)}
                           </td>
@@ -156,7 +158,7 @@ export function SummaryCard({ summary }: { summary: ProjectSummary }) {
                     <tbody>
                       {summary.furniture.map((p, i) => (
                         <tr key={`${p.productId}-${i}`} className="border-b border-line/40 last:border-0">
-                          <td className="py-2 pr-2">{p.nameKa}</td>
+                          <td className="py-2 pr-2">{localizedName(locale, p)}</td>
                           <td className="py-2 text-right font-medium tabular-nums">
                             {formatGEL(p.totalPrice)}
                           </td>

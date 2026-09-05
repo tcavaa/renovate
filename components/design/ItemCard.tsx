@@ -10,8 +10,9 @@
 import Image from 'next/image';
 import { MapPin, Phone, Sparkles, Star, Truck, UserCheck } from 'lucide-react';
 import { formatGEL } from '@/lib/utils';
-import { useT } from '@/lib/i18n/client';
-import { getArchetype } from '@/lib/design/catalog';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
+import { archetypeLabel } from '@/lib/design/catalog';
 import type { PlacedItem } from '@/lib/design/types';
 import { cn } from '@/lib/utils';
 
@@ -23,8 +24,8 @@ interface ItemCardProps {
 
 export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps) {
   const t = useT();
+  const locale = useLocale();
   const product = item.product;
-  const archetype = getArchetype(item.kind);
   const compact = variant === 'tooltip';
 
   return (
@@ -40,7 +41,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
           {product?.imageUrl ? (
             <Image
               src={product.imageUrl}
-              alt={product.nameKa}
+              alt={localizedName(locale, product)}
               fill
               sizes="64px"
               className="object-cover"
@@ -55,7 +56,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
 
         <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            {archetype?.labelKa ?? item.kind}
+            {archetypeLabel(item.kind, locale)}
           </p>
           <p
             className={cn(
@@ -75,7 +76,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
                 : t.design.originStyle}
           </p>
           <p className="truncate text-sm font-semibold leading-snug text-ink">
-            {product?.nameKa ?? '—'}
+            {product ? localizedName(locale, product) : '—'}
           </p>
           {product && (
             <p className="mt-0.5 font-serif text-base font-bold text-brand-dark">
@@ -96,7 +97,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
             {product.store.logoUrl && (
               <Image
                 src={product.store.logoUrl}
-                alt={product.store.nameKa}
+                alt={localizedName(locale, product.store)}
                 width={26}
                 height={26}
                 className="rounded-md"
@@ -106,7 +107,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
               <p className="text-[10px] uppercase tracking-wide text-ink-muted">
                 {t.design.soldBy}
               </p>
-              <p className="truncate text-xs font-semibold text-ink">{product.store.nameKa}</p>
+              <p className="truncate text-xs font-semibold text-ink">{localizedName(locale, product.store)}</p>
             </div>
             {product.store.rating != null && (
               <span className="flex items-center gap-0.5 rounded-full bg-bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink">

@@ -15,6 +15,13 @@
       "when": 1788649096712,
       "tag": "0001_auth_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1788650967604,
+      "tag": "0002_localized_names",
+      "breakpoints": true
     }
   ]
 }

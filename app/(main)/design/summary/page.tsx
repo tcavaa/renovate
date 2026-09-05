@@ -17,7 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { useDesignStore } from '@/store/designStore';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
 import { formatGEL, formatM2 } from '@/lib/utils';
@@ -27,6 +28,7 @@ import { getStyle } from '@/lib/design/styles';
 
 export default function DesignSummaryPage() {
   const t = useT();
+  const locale = useLocale();
   const { plan, styleId, mode, budgetGel, items, finishes, floorPlanUrl, homeState } = useDesignStore();
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
@@ -43,10 +45,11 @@ export default function DesignSummaryPage() {
         ? priceScene(plan, scene, {
             homeState: homeState ?? undefined,
             book,
+            locale,
             surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling },
           })
         : null,
-    [plan, scene, homeState, book, t]
+    [plan, scene, homeState, book, t, locale]
   );
 
   if (!plan || !cost) {
@@ -155,7 +158,7 @@ export default function DesignSummaryPage() {
                   {basket.store?.logoUrl && (
                     <Image
                       src={basket.store.logoUrl}
-                      alt={basket.store.nameKa}
+                      alt={localizedName(locale, basket.store)}
                       width={40}
                       height={40}
                       className="rounded-lg"
@@ -163,7 +166,7 @@ export default function DesignSummaryPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <CardTitle className="truncate text-base">
-                      {basket.store?.nameKa ?? '—'}
+                      {basket.store ? localizedName(locale, basket.store) : '—'}
                     </CardTitle>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                       {basket.store?.address && (
@@ -202,7 +205,7 @@ export default function DesignSummaryPage() {
                       {basket.lines.map((line, i) => (
                         <tr key={`${line.product.productId}-${i}`}>
                           <td className="py-2 pr-2">
-                            <p className="font-medium text-ink">{line.product.nameKa}</p>
+                            <p className="font-medium text-ink">{localizedName(locale, line.product)}</p>
                             <p className="text-xs text-ink-muted">
                               {line.item} · {line.roomName}
                             </p>

@@ -24,6 +24,7 @@ config({ path: '.env' });
 import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, stores } from '../lib/db/schema';
+import { CATEGORY_RU, STORE_I18N } from './lib/translations';
 
 // ---------------------------------------------------------------------------
 // Categories the studio needs on top of the calculator's own
@@ -196,13 +197,15 @@ async function seed() {
     await db
       .insert(categories)
       .values({ ...c, isVisible: true, sortOrder: 50 })
-      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, isFurniture: c.isFurniture } });
+      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameRu: CATEGORY_RU[c.slug] ?? null, isFurniture: c.isFurniture } });
   }
 
   console.log('— partner stores');
   for (const s of seedStores) {
     const values = {
       nameKa: s.nameKa,
+      nameEn: STORE_I18N[s.nameKa]?.en ?? null,
+      nameRu: STORE_I18N[s.nameKa]?.ru ?? null,
       descriptionKa: s.descriptionKa,
       logoUrl: `/uploads/stores/${s.slug}.svg`,
       websiteUrl: s.websiteUrl,

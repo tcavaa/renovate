@@ -13,6 +13,7 @@ export const calculationTypeEnum = z.enum([
 export const categorySchema = z.object({
   nameKa: z.string().min(1).max(255),
   nameEn: z.string().min(1).max(255),
+  nameRu: z.string().max(255).optional().nullable(),
   slug: z
     .string()
     .min(1)

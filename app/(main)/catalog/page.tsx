@@ -67,7 +67,7 @@ export default async function PublicCatalogPage({
         </Chip>
         {visibleCategories.map((c) => (
           <Chip key={c.id} href={`/catalog?category=${encodeURIComponent(c.slug)}`} active={activeSlug === c.slug}>
-            {pickLocalizedName(locale, c.nameKa, c.nameEn)}
+            {pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)}
           </Chip>
         ))}
       </nav>

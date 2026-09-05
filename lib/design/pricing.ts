@@ -22,7 +22,7 @@ import type {
   SceneStore,
   StoreBasket,
 } from './types';
-import { getArchetype } from './catalog';
+import { archetypeLabel } from './catalog';
 
 export interface PriceOptions {
   /** Only used in `full` mode; ignored for design-only projects. */
@@ -31,6 +31,8 @@ export interface PriceOptions {
   book?: RateBook;
   /** Basket line labels for finishes, in the user's language. Georgian when omitted. */
   surfaceLabels?: SurfaceLabels;
+  /** Language for the furniture line labels (archetype names). Georgian when omitted. */
+  locale?: 'ka' | 'en' | 'ru';
 }
 
 export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling', string>;
@@ -67,7 +69,7 @@ export function priceScene(
       basketsByStore.set(key, basket);
     }
     basket.lines.push({
-      item: getArchetype(item.kind)?.labelKa ?? item.kind,
+      item: archetypeLabel(item.kind, options.locale ?? 'ka'),
       roomName: roomName.get(item.roomId) ?? item.roomId,
       product,
     });

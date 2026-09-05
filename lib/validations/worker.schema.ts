@@ -11,6 +11,8 @@ const imageUrlField = z
 
 export const workerSchema = z.object({
   nameKa: z.string().min(2).max(255),
+  nameEn: z.string().max(255).optional().nullable(),
+  nameRu: z.string().max(255).optional().nullable(),
   specialty: z.string().min(2).max(255),
   specialtySlug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and dashes only'),
   phone: z.string().max(50).optional().nullable(),
@@ -20,6 +22,8 @@ export const workerSchema = z.object({
   rating: z.coerce.number().min(0).max(5).optional(),
   reviewCount: z.coerce.number().int().min(0).optional(),
   bio: z.string().max(5000).optional().nullable(),
+  bioEn: z.string().max(5000).optional().nullable(),
+  bioRu: z.string().max(5000).optional().nullable(),
   avatarUrl: imageUrlField,
   isVerified: z.boolean().default(false),
   isActive: z.boolean().default(true),

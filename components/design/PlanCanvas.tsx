@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
+import { useT } from '@/lib/i18n/client';
 import { polygonBounds, polygonCentroid, roomEdges, pointOnEdge } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlanRoom } from '@/lib/design/types';
 
@@ -49,6 +50,7 @@ export function PlanCanvas({
 }: PlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
+  const unitM2 = useT().units.m2;
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -142,7 +144,7 @@ export function PlanCanvas({
           ctx.fillText(truncate(room.name, 18), centre.x, centre.y - 7);
           ctx.fillStyle = COLORS.labelMuted;
           ctx.font = '11px system-ui, sans-serif';
-          ctx.fillText(`${room.areaM2.toFixed(1)} მ²`, centre.x, centre.y + 8);
+          ctx.fillText(`${room.areaM2.toFixed(1)} ${unitM2}`, centre.x, centre.y + 8);
         }
         if (room.lowConfidence) {
           ctx.fillStyle = COLORS.warn;
@@ -152,7 +154,7 @@ export function PlanCanvas({
         }
       }
     }
-  }, [plan, selectedRoomId, hoveredRoomId, labels, height]);
+  }, [plan, selectedRoomId, hoveredRoomId, labels, height, unitM2]);
 
   useEffect(() => {
     draw();

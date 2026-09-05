@@ -31,6 +31,10 @@ export function WorkerForm({ worker }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     nameKa: worker?.nameKa ?? '',
+    nameEn: worker?.nameEn ?? '',
+    nameRu: worker?.nameRu ?? '',
+    bioEn: worker?.bioEn ?? '',
+    bioRu: worker?.bioRu ?? '',
     specialty: worker?.specialty ?? '',
     specialtySlug: worker?.specialtySlug ?? '',
     phone: worker?.phone ?? '',
@@ -99,6 +103,28 @@ export function WorkerForm({ worker }: Props) {
                 onChange={(e) => update('nameKa', e.target.value)}
               />
             </div>
+            <fieldset className="space-y-3 rounded-md border border-line p-4 md:col-span-2">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{ka.admin.forms.translations}</legend>
+              <p className="text-xs text-ink-muted">{ka.admin.forms.translationsHint}</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.nameEn}</Label>
+                  <Input value={form.nameEn} onChange={(e) => update('nameEn', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.nameRu}</Label>
+                  <Input value={form.nameRu} onChange={(e) => update('nameRu', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.bioEn}</Label>
+                  <Textarea rows={2} value={form.bioEn ?? ''} onChange={(e) => update('bioEn', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>{ka.admin.forms.bioRu}</Label>
+                  <Textarea rows={2} value={form.bioRu ?? ''} onChange={(e) => update('bioRu', e.target.value)} />
+                </div>
+              </div>
+            </fieldset>
             <div className="space-y-2">
               <Label>{ka.admin.forms.specialty}</Label>
               <Input

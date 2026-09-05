@@ -164,6 +164,8 @@ export interface PlacedItem {
 export interface SceneProduct {
   productId: number;
   nameKa: string;
+  nameEn?: string | null;
+  nameRu?: string | null;
   slug: string;
   brand: string | null;
   pricePerUnit: number;
@@ -181,6 +183,8 @@ export interface SceneProduct {
 export interface SceneStore {
   id: number;
   nameKa: string;
+  nameEn?: string | null;
+  nameRu?: string | null;
   logoUrl: string | null;
   websiteUrl: string | null;
   phone: string | null;

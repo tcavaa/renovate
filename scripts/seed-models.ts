@@ -24,7 +24,7 @@ import path from 'node:path';
 import { and, eq, inArray, isNotNull, isNull, notInArray } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
-import { getArchetype } from '../lib/design/catalog';
+import { archetypeLabel, getArchetype } from '../lib/design/catalog';
 import type { ManifestModel } from './convert-models';
 
 interface Manifest {
@@ -86,6 +86,8 @@ async function main() {
       categoryId,
       storeId,
       nameKa: model.nameKa,
+      nameEn: `${archetypeLabel(model.kind, 'en')} ${model.displayName}`,
+      nameRu: `${archetypeLabel(model.kind, 'ru')} ${model.displayName}`,
       descriptionKa: model.displayName,
       slug,
       sku: `PM-${model.name.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
