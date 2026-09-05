@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@300;400;500;600;700&family=Noto+Serif+Georgian:wght@400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Noto Sans Georgian', system-ui, sans-serif;
+  --font-serif: 'Noto Serif Georgian', Georgia, serif;
+}
+
+html, body {
+  background-color: #FAF8F5;
+  color: #1A1A1A;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+}
+
+* {
+  border-color: #E5E0D8;
+}
+
+::selection {
+  background-color: rgba(232, 93, 38, 0.18);
+  color: #1A1A1A;
+}
+
+/* Subtle scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #E5E0D8;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C44D1A;
+}
+
+/* Print styles for the summary page */
+@media print {
+  header, footer, nav, .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+}

@@ -1,0 +1,46 @@
+# --- dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- Next.js build output ---
+.next/
+out/
+next-env.d.ts
+
+# --- TypeScript ---
+*.tsbuildinfo
+
+# --- environment / secrets ---
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
+
+# --- logs / debug ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- editors ---
+.vscode/
+.idea/
+*.swp
+
+# --- tests / coverage ---
+coverage/
+
+# --- runtime uploads ---
+# Floor plans uploaded by visitors are runtime data, not source.
+# Product, furniture and store images are referenced by the seed scripts and stay tracked.
+public/uploads/plans/*
+!public/uploads/plans/.gitkeep
+
+# --- local tooling ---
+.claude/
