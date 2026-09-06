@@ -30,7 +30,7 @@ export const getDesignCatalog = unstable_cache(loadDesignCatalog, [DESIGN_CATALO
 });
 
 export function invalidateDesignCatalog(): void {
-  revalidateTag(DESIGN_CATALOG_TAG);
+  revalidateTag(DESIGN_CATALOG_TAG, 'max');
 }
 
 async function loadDesignCatalog(): Promise<DesignCatalog> {

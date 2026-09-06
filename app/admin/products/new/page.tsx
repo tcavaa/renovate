@@ -7,7 +7,7 @@ import { getT } from '@/lib/i18n/server';
 export const dynamic = 'force-dynamic';
 
 export default async function NewProductPage() {
-  const ka = getT();
+  const ka = await getT();
   const [cats, storeRows] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.nameKa)),
     db.select().from(stores).orderBy(asc(stores.nameKa)),

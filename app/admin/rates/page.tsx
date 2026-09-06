@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * price that moved on the market this week is a field, not a deploy.
  */
 export default async function AdminRatesPage() {
-  const ka = getT();
+  const ka = await getT();
   const rows = await db.select().from(rates).orderBy(asc(rates.phase), asc(rates.sortOrder), asc(rates.id));
 
   return (

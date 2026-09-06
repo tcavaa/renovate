@@ -49,7 +49,7 @@ describe('requireAdmin', () => {
 describe('handle', () => {
   it('passes a successful response through', async () => {
     const route = handle('GET /x', 'failed', async () => ok('fine'));
-    const res = await route(request('1.1.1.1'), { params: {} });
+    const res = await route(request('1.1.1.1'), { params: Promise.resolve({}) });
     expect(res.status).toBe(200);
   });
 
@@ -57,7 +57,7 @@ describe('handle', () => {
     const route = handle('GET /x', 'Something failed', async () => {
       throw new Error('secret database detail');
     });
-    const res = await route(request('1.1.1.1'), { params: {} });
+    const res = await route(request('1.1.1.1'), { params: Promise.resolve({}) });
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe('Something failed');

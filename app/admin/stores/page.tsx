@@ -17,8 +17,9 @@ export const dynamic = 'force-dynamic';
 const SORTS = ['name', 'products', 'rating', 'newest'] as const;
 const PATH = '/admin/stores';
 
-export default async function AdminStoresPage({ searchParams }: { searchParams: SearchParams }) {
-  const ka = getT();
+export default async function AdminStoresPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'name', defaultDir: 'asc' });
 
   const cities = await db

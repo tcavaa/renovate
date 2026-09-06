@@ -22,10 +22,11 @@ import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProfilePage({ searchParams }: { searchParams: { verified?: string } }) {
+export default async function ProfilePage(props: { searchParams: Promise<{ verified?: string }> }) {
+  const searchParams = await props.searchParams;
   const session = await auth();
-  const ka = getT();
-  const locale = getLocale();
+  const ka = await getT();
+  const locale = await getLocale();
   const userId = Number(session!.user.id);
 
   const [account] = await db

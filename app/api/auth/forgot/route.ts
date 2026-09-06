@@ -33,7 +33,7 @@ export const POST = handle('POST /api/auth/forgot', 'Failed to start password re
     .limit(1);
 
   if (rows[0]) {
-    await sendPasswordResetMail(rows[0], getT());
+    await sendPasswordResetMail(rows[0], await getT());
     log.info('password reset requested', { userId: rows[0].id });
   }
   return ok({ sent: true });

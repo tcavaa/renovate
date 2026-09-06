@@ -11,9 +11,10 @@ import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminProjectDetailPage({ params }: { params: { id: string } }) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function AdminProjectDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
+  const ka = await getT();
+  const locale = await getLocale();
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
 

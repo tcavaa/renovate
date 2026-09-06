@@ -17,9 +17,10 @@ const SORTS = ['phase', 'name', 'products'] as const;
 const PATH = '/admin/categories';
 const PHASES = [...Array.from({ length: 18 }, (_, i) => i + 1), 20];
 
-export default async function AdminCategoriesPage({ searchParams }: { searchParams: SearchParams }) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function AdminCategoriesPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
+  const locale = await getLocale();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'phase', defaultDir: 'asc', pageSize: 50 });
 
   const where: SQL[] = [];

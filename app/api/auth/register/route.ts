@@ -37,7 +37,7 @@ export const POST = handle('POST /api/auth/register', 'Registration failed', asy
 
   // The account works before the address is verified; the mail is a nicety that must not
   // turn a mail-server hiccup into a failed registration.
-  sendVerificationMail({ id, email }, getT()).catch((e) => log.warn('verification mail failed', { userId: id, err: e }));
+  sendVerificationMail({ id, email }, await getT()).catch((e) => log.warn('verification mail failed', { userId: id, err: e }));
 
   return ok({ id, email });
 });

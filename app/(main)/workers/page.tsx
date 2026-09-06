@@ -12,14 +12,15 @@ export const dynamic = 'force-dynamic';
 
 const SPECIALTY_SLUGS = ['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const;
 
-export function generateMetadata(): Metadata {
-  const t = getT();
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
   return { title: t.workers.title, description: t.workers.subtitle };
 }
 
 /** Public worker directory, server-rendered with the specialty filter in the URL. */
-export default async function WorkersPage({ searchParams }: { searchParams: { specialty?: string } }) {
-  const ka = getT();
+export default async function WorkersPage(props: { searchParams: Promise<{ specialty?: string }> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
   const specialty = searchParams.specialty ?? '';
 
   const conditions = [eq(workers.isActive, true)];

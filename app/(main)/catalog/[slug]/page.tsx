@@ -15,7 +15,8 @@ import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const rows = await db
     .select({ nameKa: products.nameKa, nameEn: products.nameEn, nameRu: products.nameRu, descriptionKa: products.descriptionKa, descriptionEn: products.descriptionEn, descriptionRu: products.descriptionRu, imageUrl: products.imageUrl })
     .from(products)
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     .limit(1);
   const product = rows[0];
   if (!product) return {};
-  const locale = getLocale();
+  const locale = await getLocale();
   return {
     title: localizedName(locale, product),
     description: localizedText(locale, product.descriptionKa, product.descriptionEn, product.descriptionRu) ?? undefined,
@@ -31,13 +32,14 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function ProductDetailPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function ProductDetailPage(
+  props: {
+    params: Promise<{ slug: string }>;
+  }
+) {
+  const params = await props.params;
+  const ka = await getT();
+  const locale = await getLocale();
   const productRows = await db
     .select()
     .from(products)

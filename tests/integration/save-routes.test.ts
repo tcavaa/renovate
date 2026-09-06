@@ -78,7 +78,7 @@ describe('POST /api/projects', () => {
           r1: [{ productId: 2, nameKa: 'y', pricePerUnit: 1, unit: 'piece', qty: 50, totalPrice: 50, imageUrl: null }],
         },
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -104,7 +104,7 @@ describe('POST /api/projects', () => {
         selectedProducts: { paint_global: { productId: 999, nameKa: 'x', pricePerUnit: 1, unit: 'liter', qty: 1, totalPrice: 1, imageUrl: null } },
         selectedFurniture: {},
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain('999');
@@ -113,14 +113,14 @@ describe('POST /api/projects', () => {
 
   it('rejects an invalid body with 400', async () => {
     const POST = await load();
-    const res = await POST(post('http://localhost/api/projects', { homeState: 'purple' }), { params: {} });
+    const res = await POST(post('http://localhost/api/projects', { homeState: 'purple' }), { params: Promise.resolve({}) });
     expect(res.status).toBe(400);
   });
 
   it('marks a signed-in user’s project as saved and attaches the user id', async () => {
     authMock.mockResolvedValue({ user: { id: '5', role: 'user' } });
     const POST = await load();
-    await POST(post('http://localhost/api/projects', { homeState: 'green_frame', rooms: [room], selectedProducts: {}, selectedFurniture: {} }), { params: {} });
+    await POST(post('http://localhost/api/projects', { homeState: 'green_frame', rooms: [room], selectedProducts: {}, selectedFurniture: {} }), { params: Promise.resolve({}) });
     expect(insertValues.mock.calls[0][0]).toMatchObject({ userId: 5, status: 'saved' });
   });
 
@@ -129,7 +129,7 @@ describe('POST /api/projects', () => {
     const ip = '198.51.100.250';
     let last = 0;
     for (let i = 0; i < 25; i++) {
-      const res = await POST(post('http://localhost/api/projects', { homeState: 'green_frame', rooms: [room], selectedProducts: {}, selectedFurniture: {} }, ip), { params: {} });
+      const res = await POST(post('http://localhost/api/projects', { homeState: 'green_frame', rooms: [room], selectedProducts: {}, selectedFurniture: {} }, ip), { params: Promise.resolve({}) });
       last = res.status;
     }
     expect(last).toBe(429);
@@ -191,7 +191,7 @@ describe('POST /api/design/projects', () => {
           ],
         },
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -214,7 +214,7 @@ describe('POST /api/design/projects', () => {
           finishes: [{ roomId: 'ghost', surface: 'floor', colorHex: '#ffffff', textureUrl: null, textureScaleM: 1, product: snapshot(3, 1) }],
         },
       }),
-      { params: {} }
+      { params: Promise.resolve({}) }
     );
     expect(res.status).toBe(400);
     expect(insertValues).not.toHaveBeenCalled();

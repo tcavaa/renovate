@@ -3,8 +3,8 @@ import { getT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
-export default function NewStorePage() {
-  const ka = getT();
+export default async function NewStorePage() {
+  const ka = await getT();
   return (
     <div className="space-y-6">
       <h1 className="font-serif text-3xl font-bold">{ka.admin.actions.create}</h1>

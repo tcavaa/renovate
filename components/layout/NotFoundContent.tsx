@@ -8,8 +8,8 @@ import { getT } from '@/lib/i18n/server';
  * The 404 body, shared by the root and the `(main)` not-found pages — the root one has to
  * draw its own header and footer because it renders outside the main layout.
  */
-export function NotFoundContent() {
-  const ka = getT();
+export async function NotFoundContent() {
+  const ka = await getT();
   const suggestions = [
     { href: '/calculator', icon: Calculator, label: ka.notFound.calculator },
     { href: '/catalog', icon: LayoutGrid, label: ka.notFound.catalogSuggest },

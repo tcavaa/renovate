@@ -25,9 +25,12 @@ test('sample plan reaches a furnished studio with a cost bar', async ({ page }) 
   await expect(page.locator('canvas')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/GEL\s?[\d,]+/).first()).toBeVisible();
 
-  // Furniture actually loaded: the models are fetched from /models.
-  const glb = await page.evaluate(() =>
-    performance.getEntriesByType('resource').filter((e) => e.name.includes('.glb')).length
-  );
-  expect(glb).toBeGreaterThan(0);
+  // Furniture actually loaded: the models are fetched from /models. React Three Fiber 9
+  // configures the renderer asynchronously, so the first fetches land a beat after the canvas.
+  await expect
+    .poll(
+      () => page.evaluate(() => performance.getEntriesByType('resource').filter((e) => e.name.includes('.glb')).length),
+      { timeout: 30_000 }
+    )
+    .toBeGreaterThan(0);
 });

@@ -14,8 +14,8 @@ import { getT } from '@/lib/i18n/server';
 
 export const metadata = { title: 'About — RenovateGE' };
 
-export default function AboutPage() {
-  const ka = getT();
+export default async function AboutPage() {
+  const ka = await getT();
   const what = [
     { icon: Calculator, title: ka.pages.about.what1Title, desc: ka.pages.about.what1Desc },
     { icon: LayoutGrid, title: ka.pages.about.what2Title, desc: ka.pages.about.what2Desc },

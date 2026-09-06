@@ -58,6 +58,8 @@ export function parseId(raw: string) {
   return { id, response: null };
 }
 
+/** What Next hands a route handler: params resolve asynchronously since Next 15. */
+type IncomingContext = { params: Promise<Record<string, string>> | Record<string, string> };
 type RouteContext = { params: Record<string, string> };
 type RouteHandler<R extends Request> = (req: R, ctx: RouteContext) => Promise<Response>;
 
@@ -69,10 +71,11 @@ export function handle<R extends Request = Request>(
   label: string,
   message: string,
   fn: RouteHandler<R>
-): RouteHandler<R> {
-  return async (req, ctx) => {
+): (req: R, ctx: IncomingContext) => Promise<Response> {
+  return async (req, incoming) => {
     const started = Date.now();
     try {
+      const ctx: RouteContext = { params: (await incoming.params) ?? {} };
       const response = await fn(req, ctx);
       log.info('request', { route: label, status: response.status, ms: Date.now() - started });
       return response;

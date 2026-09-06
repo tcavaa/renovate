@@ -19,14 +19,15 @@ import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminUserDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function AdminUserDetailPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
   const session = await auth();
-  const ka = getT();
-  const locale = getLocale();
+  const ka = await getT();
+  const locale = await getLocale();
   const dateLocale = locale === 'ka' ? 'ka-GE' : locale === 'ru' ? 'ru-RU' : 'en-US';
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();

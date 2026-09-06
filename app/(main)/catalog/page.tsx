@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 24;
 
-export function generateMetadata(): Metadata {
-  const t = getT();
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
   return { title: t.catalog.title, description: t.catalog.subtitle };
 }
 
@@ -25,13 +25,14 @@ export function generateMetadata(): Metadata {
  * waiting on `/api/products`. The category filter is a query parameter so every filtered view
  * has a URL.
  */
-export default async function PublicCatalogPage({
-  searchParams,
-}: {
-  searchParams: { category?: string };
-}) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function PublicCatalogPage(
+  props: {
+    searchParams: Promise<{ category?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
+  const locale = await getLocale();
   const activeSlug = searchParams.category ?? null;
 
   const visibleCategories = await db

@@ -37,6 +37,6 @@ export const POST = handle('POST /api/auth/verify', 'Failed to send verification
   if (!user) return fail(API_ERRORS.NOT_FOUND, 404);
   if (user.emailVerifiedAt) return ok({ sent: false, alreadyVerified: true });
 
-  await sendVerificationMail(user, getT());
+  await sendVerificationMail(user, await getT());
   return ok({ sent: true });
 });

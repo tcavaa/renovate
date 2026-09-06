@@ -17,8 +17,8 @@ import { formatGEL } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
-  const ka = getT();
-  const locale = getLocale();
+  const ka = await getT();
+  const locale = await getLocale();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
 
   const [

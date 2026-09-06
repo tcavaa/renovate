@@ -7,7 +7,7 @@ export const metadata = { title: 'Admin' };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  const ka = getT();
+  const ka = await getT();
   if (!session?.user) redirect('/login?callbackUrl=/admin');
   if (session.user.role !== 'admin') {
     return (

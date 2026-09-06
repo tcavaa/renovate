@@ -15,8 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/lib/i18n/server';
 
-export default function HomePage() {
-  const ka = getT();
+export default async function HomePage() {
+  const ka = await getT();
   const features = [
     { icon: Calculator, title: ka.hero.feature1Title, desc: ka.hero.feature1Desc },
     { icon: LayoutGrid, title: ka.hero.feature2Title, desc: ka.hero.feature2Desc },

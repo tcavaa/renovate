@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { Hammer, Heart } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 
-export function Footer() {
-  const ka = getT();
+export async function Footer() {
+  const ka = await getT();
   return (
     <footer className="mt-24 border-t border-line bg-bg-surface">
       <div className="container py-12">

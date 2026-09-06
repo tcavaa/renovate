@@ -19,9 +19,10 @@ export const dynamic = 'force-dynamic';
 const SORTS = ['newest', 'name', 'price'] as const;
 const PATH = '/admin/products';
 
-export default async function AdminProductsPage({ searchParams }: { searchParams: SearchParams }) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function AdminProductsPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
+  const locale = await getLocale();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });
 
   const [cats, storeRows] = await Promise.all([

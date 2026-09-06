@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { Hammer } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
-  const ka = getT();
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const ka = await getT();
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-line bg-bg-surface">

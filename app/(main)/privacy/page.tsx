@@ -3,8 +3,8 @@ import { LegalPage } from '@/components/legal/LegalPage';
 
 export const metadata = { title: 'Privacy — RenovateGE' };
 
-export default function PrivacyPage() {
-  const ka = getT();
+export default async function PrivacyPage() {
+  const ka = await getT();
   const p = ka.pages.privacy;
   const sections = [
     { title: p.s1Title, body: p.s1Body },

@@ -26,13 +26,13 @@ App is **not yet shipped**. No git repo in this directory.
 
 ## Stack
 
-- Next.js 14 App Router, TypeScript **strict**, React 18
+- Next.js 16 App Router (Turbopack), TypeScript **strict**, React 19
 - MySQL 8 + Drizzle ORM (`drizzle-kit`), pnpm 9
 - Tailwind 3 + shadcn/ui-style components (Radix primitives), lucide-react
 - Zustand + `persist` (localStorage) for calculator/design state
 - React Hook Form + Zod
 - NextAuth v5 beta (Credentials + optional Google), JWT sessions, role `'user' | 'admin'`
-- **three / @react-three/fiber / @react-three/drei** for the 3D studio
+- **three / @react-three/fiber 9 / @react-three/drei 10** for the 3D studio
 - i18n: `ka` (primary), `en`, `ru` — every string lives in `lib/i18n/*.ts`
 - Uploads → `public/uploads/*` via `/api/upload`
 - Deploy target: self-hosted VPS, PM2 + Nginx, port 3000
@@ -48,7 +48,7 @@ App is **not yet shipped**. No git repo in this directory.
 pnpm dev            # next dev on :3000
 pnpm build          # production build
 pnpm type-check     # tsc --noEmit — run this before declaring work done
-pnpm lint
+pnpm lint           # eslint . (flat config in eslint.config.mjs; `next lint` is gone in Next 16)
 pnpm db:push        # push schema.ts to MySQL (no migration files in use)
 pnpm db:seed        # seed categories, stores, products, workers, admin
 pnpm db:seed:design # seed partner stores + the design categories (no furniture — see models:seed)
@@ -663,3 +663,18 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   Adding a partner's range means an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
+
+## Next 16 notes (upgraded September 2026)
+
+- Request APIs are async: `getT()` / `getLocale()` in `lib/i18n/server.ts` return promises and
+  every server component that uses them is `async`. `params` and `searchParams` arrive as
+  promises; the route wrapper `handle()` in `lib/api/route.ts` awaits `ctx.params` so the
+  handlers themselves keep the plain `{ params }` shape.
+- `proxy.ts` replaced `middleware.ts` (same matcher, same NextAuth guard). The export has to be
+  a plain function named `proxy`; a destructured `export const { auth: proxy }` is not detected.
+- `pnpm lint` runs `eslint .` with the flat config. The React Compiler rules that
+  eslint-config-next 16 adds (`react-hooks/refs`, `set-state-in-effect`, `immutability`,
+  `purity`) are warnings until the viewer's ref patterns are reworked.
+- `revalidateTag(tag, 'max')` — the second argument is required now.
+- React Three Fiber 9 configures the renderer asynchronously; anything that waits for the
+  first model fetch (tests, screenshots) has to poll rather than assert immediately.

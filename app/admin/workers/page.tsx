@@ -18,8 +18,9 @@ const SORTS = ['newest', 'name', 'rating'] as const;
 const PATH = '/admin/workers';
 const SPECIALTIES = ['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const;
 
-export default async function AdminWorkersPage({ searchParams }: { searchParams: SearchParams }) {
-  const ka = getT();
+export default async function AdminWorkersPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });
 
   const where: SQL[] = [];

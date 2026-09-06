@@ -3,8 +3,8 @@ import { LegalPage } from '@/components/legal/LegalPage';
 
 export const metadata = { title: 'Terms — RenovateGE' };
 
-export default function TermsPage() {
-  const ka = getT();
+export default async function TermsPage() {
+  const ka = await getT();
   const t = ka.pages.terms;
   const sections = [
     { title: t.s1Title, body: t.s1Body },

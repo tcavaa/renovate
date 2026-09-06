@@ -10,7 +10,7 @@ Georgian-language home renovation planner & cost estimator. Plan your renovation
 
 | Layer        | Technology                                      |
 | ------------ | ----------------------------------------------- |
-| Framework    | Next.js 14 (App Router)                         |
+| Framework    | Next.js 16 (App Router)                         |
 | Language     | TypeScript (strict)                             |
 | DB           | MySQL 8 via `mysql2`                            |
 | ORM          | Drizzle ORM (`drizzle-kit` for migrations)      |

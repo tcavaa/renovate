@@ -16,9 +16,10 @@ export const dynamic = 'force-dynamic';
 const SORTS = ['newest', 'name', 'projects', 'total'] as const;
 const PATH = '/admin/users';
 
-export default async function AdminUsersPage({ searchParams }: { searchParams: SearchParams }) {
-  const ka = getT();
-  const locale = getLocale();
+export default async function AdminUsersPage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
+  const ka = await getT();
+  const locale = await getLocale();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });
 
   const where: SQL[] = [];

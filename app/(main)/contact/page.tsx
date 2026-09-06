@@ -5,8 +5,8 @@ import { ContactForm } from '@/components/contact/ContactForm';
 
 export const metadata = { title: 'Contact — RenovateGE' };
 
-export default function ContactPage() {
-  const ka = getT();
+export default async function ContactPage() {
+  const ka = await getT();
   const info = [
     { icon: MapPin, label: ka.pages.contact.addressLabel, value: ka.footer.address },
     { icon: Mail, label: ka.pages.contact.emailInfoLabel, value: ka.footer.email },

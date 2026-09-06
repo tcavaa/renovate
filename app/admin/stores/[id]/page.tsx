@@ -6,7 +6,8 @@ import { StoreForm } from '@/components/admin/StoreForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditStorePage({ params }: { params: { id: string } }) {
+export default async function EditStorePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
 

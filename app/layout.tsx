@@ -25,8 +25,8 @@ const serif = Noto_Serif_Georgian({
   display: 'swap',
 });
 
-export function generateMetadata(): Metadata {
-  const t = getT();
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT();
   return {
     title: {
       default: `${t.app.name} — ${t.app.tagline}`,
@@ -45,9 +45,9 @@ export function generateMetadata(): Metadata {
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = getLocale();
-  const dictionary = getT();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const dictionary = await getT();
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       <body>

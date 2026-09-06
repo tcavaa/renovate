@@ -7,12 +7,13 @@ import { getT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditProductPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const ka = getT();
+export default async function EditProductPage(
+  props: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  const params = await props.params;
+  const ka = await getT();
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
   const [productRow, cats, storeRows] = await Promise.all([
