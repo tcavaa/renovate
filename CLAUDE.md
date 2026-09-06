@@ -664,6 +664,30 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
 
+## Design system (September 2026 redesign)
+
+Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.css`.
+
+- **Surfaces**: warm paper `bg-base` (#F5F2ED), white cards, `sand` for in-between panels,
+  `bg-deep` for the one dark band. `.glass` / `.glass-dark` are the frosted panels used over
+  imagery and the 3D canvas; `.grain` adds paper texture to large flat areas.
+- **Type**: `.display` (heavy uppercase sans, tight tracking) with the `text-display-*`
+  clamp scale for hero and section titles; the serif for ordinary headings; `.eyebrow` for
+  the small-caps label above them; `.bracket-link` for secondary "( link )" actions.
+- **Motion without JavaScript**: `.reveal`, `.reveal-scale`, `.reveal-stagger` and
+  `.parallax` are CSS scroll-driven animations (`animation-timeline: view()`), guarded by
+  `@supports` and reduced-motion — content is fully visible where they are unsupported. The
+  hero words use `.hero-word` (load-time stagger via `--i`). `animate-marquee`,
+  `animate-spin-slow`, `animate-float` are the only looping animations.
+- **Landing** (`components/landing/*`): every image and figure is live data — the product wall
+  and the floating price chips are real catalogue rows, the stats are database counts.
+- **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats.
+  `StudioRail` opens one `FloatingPanel` at a time; `ViewSwitch` (2D / 3D / walk) and
+  `ZoomControls` drive the viewer through the `ViewerApi` it hands back via `onApi`.
+  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it.
+- **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
+  The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
+
 ## Next 16 notes (upgraded September 2026)
 
 - Request APIs are async: `getT()` / `getLocale()` in `lib/i18n/server.ts` return promises and

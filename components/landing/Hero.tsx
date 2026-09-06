@@ -31,7 +31,7 @@ export function Hero({ t }: { t: Dictionary }) {
                   {words[1]}
                 </span>
               </span>
-              <span className="absolute left-[58%] top-0 z-10 hidden w-[clamp(150px,17vw,250px)] -translate-y-[62%] animate-scale-in md:block" style={{ animationDelay: '500ms' }}>
+              <span className="absolute left-[84%] top-0 z-10 hidden w-[clamp(130px,13vw,190px)] -translate-y-[58%] animate-scale-in md:block" style={{ animationDelay: '500ms' }}>
                 <span className="relative block aspect-[4/5] overflow-hidden rounded-2xl shadow-float ring-1 ring-black/5">
                   <Image src="/uploads/furniture/cloud-sofa.jpg" alt="" fill priority sizes="330px" className="parallax scale-110 object-cover" />
                 </span>
