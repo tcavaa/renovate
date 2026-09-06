@@ -934,6 +934,13 @@ export const ka = {
     ceiling_paint: 'ჭერის საღებავი',
   },
   design: {
+    fitView: 'მთელი ბინის ჩვენება',
+    fullscreen: 'სრულ ეკრანზე',
+    exitFullscreen: 'სრული ეკრანიდან გამოსვლა',
+    zoomIn: 'მიახლოება',
+    zoomOut: 'დაშორება',
+    swapOpen: 'ყველა ვარიანტი',
+    swapClose: 'ჩაკეცვა',
     nav: 'დიზაინი',
     badge: 'ახალი',
     title: '3D დიზაინ სტუდია',

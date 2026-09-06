@@ -940,6 +940,13 @@ export const en: Dictionary = {
     ceiling_paint: 'Ceiling paint',
   },
   design: {
+    fitView: 'Show the whole flat',
+    fullscreen: 'Full screen',
+    exitFullscreen: 'Exit full screen',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    swapOpen: 'All options',
+    swapClose: 'Collapse',
     nav: 'Design',
     badge: 'New',
     title: '3D Design Studio',

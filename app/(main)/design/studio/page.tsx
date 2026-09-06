@@ -73,6 +73,20 @@ export default function StudioPage() {
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // The workspace itself goes full screen (not the page), so the header and step strip drop
+  // away and the canvas gets every pixel; the floating chrome stays with it.
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === workspaceRef.current && !!workspaceRef.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void workspaceRef.current?.requestFullscreen?.();
+  }, []);
 
   const scene = useMemo(
     () => ({ styleId, mode, budgetGel, items, finishes }),
@@ -189,7 +203,7 @@ export default function StudioPage() {
     <>
       <DesignSteps current={4} />
 
-      <div className="relative h-[calc(100vh-72px-48px)] min-h-[560px] w-full overflow-hidden bg-sand-light">
+      <div ref={workspaceRef} className={cn('relative w-full overflow-hidden bg-sand-light', fullscreen ? 'h-screen' : 'h-[calc(100vh-72px-48px)] min-h-[560px]')}>
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
@@ -348,9 +362,10 @@ export default function StudioPage() {
 
         {/* ---- selected item card (right) ---- */}
         {selected && view !== '2d' && (
-          <div className="pointer-events-auto absolute bottom-20 right-4 top-20 flex w-[340px] flex-col">
+          <div className="pointer-events-auto absolute bottom-4 right-4 top-20 flex w-[340px] flex-col">
             <FloatingPanel title={t.design.selectedItem} subtitle={archetypeLabel(selected.kind, locale)} onClose={() => selectItem(null)} className="h-full">
               <SwapPanel
+                key={selected.id}
                 item={selected}
                 catalog={products}
                 styleId={styleId}
@@ -381,8 +396,15 @@ export default function StudioPage() {
         <p className="pointer-events-none absolute bottom-6 left-1/2 hidden -translate-x-1/2 bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">
           {view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : t.design.dragHint}
         </p>
-        <div className="pointer-events-auto absolute bottom-4 right-4">
-          <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} disabled={view !== '3d' || !viewerApi} />
+        {/* Steps left when the item panel is open so the two never overlap. */}
+        <div className={cn('pointer-events-auto absolute bottom-4 transition-[right] duration-300', selected && view !== '2d' ? 'right-[calc(340px+2rem)]' : 'right-4')}>
+          <ZoomControls
+            onZoom={(f) => viewerApi?.zoom(f)}
+            onReset={() => viewerApi?.reset()}
+            onFullscreen={toggleFullscreen}
+            fullscreen={fullscreen}
+            disabled={view !== '3d' || !viewerApi}
+          />
         </div>
 
         <HoverCard ref={hoverCard} />

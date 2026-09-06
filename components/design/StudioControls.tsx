@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, Maximize2, Minus, Plus, RefreshCw, SquareDashed } from 'lucide-react';
+import { Eye, Maximize2, Minimize2, Minus, Plus, RefreshCw, Scan, SquareDashed } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
@@ -56,18 +56,35 @@ export function ViewSwitch({
   );
 }
 
-/** Zoom in, zoom out, frame the flat. */
-export function ZoomControls({ onZoom, onReset, disabled }: { onZoom: (factor: number) => void; onReset: () => void; disabled?: boolean }) {
+/** Zoom in, zoom out, frame the flat, and take the workspace full screen. */
+export function ZoomControls({
+  onZoom,
+  onReset,
+  onFullscreen,
+  fullscreen,
+  disabled,
+}: {
+  onZoom: (factor: number) => void;
+  onReset: () => void;
+  onFullscreen: () => void;
+  fullscreen: boolean;
+  disabled?: boolean;
+}) {
+  const t = useT();
   return (
-    <div className="glass flex flex-col rounded-2xl p-1">
-      <IconButton label="+" onClick={() => onZoom(0.8)} disabled={disabled} plain>
+    <div className="glass flex flex-col p-1">
+      <IconButton label={t.design.zoomIn} onClick={() => onZoom(0.8)} disabled={disabled} plain>
         <Plus className="h-4 w-4" />
       </IconButton>
-      <IconButton label="−" onClick={() => onZoom(1.25)} disabled={disabled} plain>
+      <IconButton label={t.design.zoomOut} onClick={() => onZoom(1.25)} disabled={disabled} plain>
         <Minus className="h-4 w-4" />
       </IconButton>
-      <IconButton label="fit" onClick={onReset} disabled={disabled} plain>
-        <Maximize2 className="h-4 w-4" />
+      <IconButton label={t.design.fitView} onClick={onReset} disabled={disabled} plain>
+        <Scan className="h-4 w-4" />
+      </IconButton>
+      <span className="mx-2 my-0.5 h-px bg-line" />
+      <IconButton label={fullscreen ? t.design.exitFullscreen : t.design.fullscreen} pressed={fullscreen} onClick={onFullscreen} plain>
+        {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
       </IconButton>
     </div>
   );
@@ -97,7 +114,7 @@ export function IconButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        'grid h-10 w-10 place-items-center rounded-xl transition-colors disabled:opacity-40',
+        'grid h-10 w-10 place-items-center transition-colors disabled:opacity-40',
         !plain && 'glass',
         pressed ? 'bg-ink text-white hover:bg-ink' : 'text-ink-soft hover:bg-white hover:text-ink'
       )}

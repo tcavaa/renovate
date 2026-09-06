@@ -938,6 +938,13 @@ export const ru: Dictionary = {
     ceiling_paint: 'Краска для потолка',
   },
   design: {
+    fitView: 'Показать всю квартиру',
+    fullscreen: 'На весь экран',
+    exitFullscreen: 'Выйти из полноэкранного режима',
+    zoomIn: 'Приблизить',
+    zoomOut: 'Отдалить',
+    swapOpen: 'Все варианты',
+    swapClose: 'Свернуть',
     nav: 'Дизайн',
     badge: 'Новое',
     title: '3D студия дизайна',
