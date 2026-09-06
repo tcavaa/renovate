@@ -4,7 +4,7 @@ import type { Dictionary } from '@/lib/i18n';
 
 export function FinalCta({ t }: { t: Dictionary }) {
   return (
-    <section className="container py-24 md:py-36">
+    <section className="container pt-24 md:pt-36">
       <div className="reveal-scale relative overflow-hidden rounded-3xl bg-radial-warm border border-line px-6 py-20 text-center shadow-card md:px-16 md:py-28">
         <div className="grain absolute inset-0" />
         <p className="eyebrow relative">{t.app.tagline}</p>

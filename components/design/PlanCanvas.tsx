@@ -22,6 +22,7 @@ interface PlanCanvasProps {
   /** Show room name + area labels. */
   labels?: boolean;
   className?: string;
+  /** Fixed CSS height in px; omit to fill the container (size it with `className`). */
   height?: number;
 }
 
@@ -46,7 +47,7 @@ export function PlanCanvas({
   onHoverRoom,
   labels = true,
   className,
-  height = 420,
+  height,
 }: PlanCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const transformRef = useRef({ scale: 1, offsetX: 0, offsetY: 0 });
@@ -60,7 +61,7 @@ export function PlanCanvas({
 
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = canvas.clientWidth;
-    const cssHeight = height;
+    const cssHeight = height ?? canvas.clientHeight;
     canvas.width = Math.round(cssWidth * dpr);
     canvas.height = Math.round(cssHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -184,7 +185,7 @@ export function PlanCanvas({
   return (
     <canvas
       ref={canvasRef}
-      style={{ height }}
+      style={height !== undefined ? { height } : undefined}
       className={className}
       onMouseMove={(e) => onHoverRoom?.(roomAt(e.clientX, e.clientY)?.id ?? null)}
       onMouseLeave={() => onHoverRoom?.(null)}

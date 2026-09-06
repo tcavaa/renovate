@@ -193,14 +193,13 @@ export default function StudioPage() {
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
-            <div className="grid h-full w-full place-items-center p-6">
+            <div className={cn('grid h-full w-full place-items-center px-6 pb-16 pt-20 transition-[padding] duration-300', rail && 'lg:pl-[26rem]', selected && 'lg:pr-[24rem]')}>
               <div className="glass h-full w-full max-w-5xl overflow-hidden rounded-3xl bg-white/80">
                 <PlanCanvas
                   plan={plan}
                   selectedRoomId={focusRoomId}
                   onSelectRoom={(id) => setFocusRoom(id)}
-                  className="h-full w-full cursor-pointer"
-                  height={720}
+                  className="block h-full w-full cursor-pointer"
                 />
               </div>
             </div>
