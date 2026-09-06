@@ -14,6 +14,7 @@ const HREFS: Record<StudioStep, string> = {
   5: '/design/summary',
 };
 
+/** The five-step journey as a slim progress strip; done steps are links back. */
 export function DesignSteps({ current }: { current: StudioStep }) {
   const t = useT();
   const steps: Array<{ num: StudioStep; label: string }> = [
@@ -25,62 +26,41 @@ export function DesignSteps({ current }: { current: StudioStep }) {
   ];
 
   return (
-    <div className="border-b border-line bg-bg-surface">
-      <div className="container py-4">
-        <ol className="flex items-center justify-between gap-1 sm:gap-4">
-          {steps.map((step, i) => {
-            const status =
-              step.num < current ? 'done' : step.num === current ? 'current' : 'upcoming';
-            const reachable = step.num <= current;
-            const inner = (
-              <>
-                <span
-                  className={cn(
-                    'grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold transition-colors',
-                    status === 'done' && 'bg-success text-white',
-                    status === 'current' && 'bg-brand text-white shadow-sm',
-                    status === 'upcoming' && 'bg-line text-ink-muted'
-                  )}
-                >
-                  {status === 'done' ? <Check className="h-3.5 w-3.5" /> : step.num}
-                </span>
-                <span
-                  className={cn(
-                    'hidden text-xs font-medium sm:inline',
-                    status === 'current' ? 'text-ink' : 'text-ink-muted'
-                  )}
-                >
-                  {step.label}
-                </span>
-              </>
-            );
-            const className = cn(
-              'flex flex-1 items-center gap-2 sm:gap-3',
-              reachable && 'cursor-pointer'
-            );
-
-            return (
-              <li key={step.num} className="flex flex-1 items-center gap-2 sm:gap-3">
-                {reachable ? (
-                  <Link href={HREFS[step.num]} className={className}>
-                    {inner}
-                  </Link>
-                ) : (
-                  <div className={className}>{inner}</div>
+    <div className="border-b border-line/70 bg-bg-base/80 backdrop-blur">
+      <ol className="container flex h-[52px] items-center gap-1 overflow-x-auto sm:gap-2">
+        {steps.map((step, i) => {
+          const status = step.num < current ? 'done' : step.num === current ? 'current' : 'upcoming';
+          const reachable = step.num <= current;
+          const inner = (
+            <>
+              <span
+                className={cn(
+                  'grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold transition-colors',
+                  status === 'done' && 'bg-ink text-white',
+                  status === 'current' && 'bg-brand text-white',
+                  status === 'upcoming' && 'border border-line text-ink-faint'
                 )}
-                {i < steps.length - 1 && (
-                  <span
-                    className={cn(
-                      'hidden h-px flex-1 sm:block',
-                      step.num < current ? 'bg-success/40' : 'bg-line'
-                    )}
-                  />
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </div>
+              >
+                {status === 'done' ? <Check className="h-3 w-3" /> : step.num}
+              </span>
+              <span className={cn('whitespace-nowrap text-xs font-medium', status === 'current' ? 'text-ink' : 'text-ink-muted')}>{step.label}</span>
+            </>
+          );
+          const className = cn('flex items-center gap-2 rounded-full px-2 py-1', reachable && status !== 'current' && 'hover:bg-white');
+          return (
+            <li key={step.num} className="flex items-center gap-1 sm:gap-2">
+              {reachable ? (
+                <Link href={HREFS[step.num]} className={className}>
+                  {inner}
+                </Link>
+              ) : (
+                <div className={className}>{inner}</div>
+              )}
+              {i < steps.length - 1 && <span className={cn('h-px w-6 sm:w-10', step.num < current ? 'bg-ink' : 'bg-line')} />}
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

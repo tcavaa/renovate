@@ -1,87 +1,80 @@
 import Link from 'next/link';
-import { Hammer, Heart } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 
+/** Quiet footer with an oversized wordmark — the brand is the last thing on every page. */
 export async function Footer() {
-  const ka = await getT();
+  const t = await getT();
+  const columns = [
+    {
+      title: t.footer.product,
+      links: [
+        { href: '/design', label: t.design.nav },
+        { href: '/calculator', label: t.nav.calculator },
+        { href: '/catalog', label: t.nav.catalog },
+        { href: '/workers', label: t.nav.workers },
+      ],
+    },
+    {
+      title: t.footer.company,
+      links: [
+        { href: '/about', label: t.footer.about },
+        { href: '/contact', label: t.footer.contact },
+        { href: '/privacy', label: t.footer.privacy },
+        { href: '/terms', label: t.footer.terms },
+      ],
+    },
+  ];
+
   return (
-    <footer className="mt-24 border-t border-line bg-bg-surface">
-      <div className="container py-12">
-        <div className="grid gap-8 md:grid-cols-4">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand text-white">
-                <Hammer className="h-5 w-5" />
-              </span>
-              <span className="font-serif text-lg font-bold">{ka.app.name}</span>
+    <footer className="relative mt-32 overflow-hidden border-t border-line bg-bg-base">
+      <div className="container pb-10 pt-16">
+        <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <div className="space-y-5">
+            <p className="max-w-xs text-sm leading-relaxed text-ink-muted">{t.app.description}</p>
+            <Link
+              href="/design"
+              className="group inline-flex items-center gap-2 text-sm font-medium text-ink hover:text-brand"
+            >
+              {t.landing.heroCta}
+              <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </Link>
+          </div>
+
+          {columns.map((col) => (
+            <div key={col.title}>
+              <h4 className="eyebrow mb-4">{col.title}</h4>
+              <ul className="space-y-2.5 text-sm">
+                {col.links.map((l) => (
+                  <li key={l.href}>
+                    <Link href={l.href} className="text-ink-soft transition-colors hover:text-brand">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <p className="text-sm text-ink-muted">{ka.app.description}</p>
-          </div>
+          ))}
 
           <div>
-            <h4 className="mb-3 text-sm font-semibold">{ka.footer.product}</h4>
-            <ul className="space-y-2 text-sm text-ink-muted">
-              <li>
-                <Link href="/calculator" className="hover:text-brand">
-                  {ka.nav.calculator}
-                </Link>
-              </li>
-              <li>
-                <Link href="/catalog" className="hover:text-brand">
-                  {ka.nav.catalog}
-                </Link>
-              </li>
-              <li>
-                <Link href="/workers" className="hover:text-brand">
-                  {ka.nav.workers}
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="mb-3 text-sm font-semibold">{ka.footer.company}</h4>
-            <ul className="space-y-2 text-sm text-ink-muted">
-              <li>
-                <Link href="/about" className="hover:text-brand">
-                  {ka.footer.about}
-                </Link>
-              </li>
-              <li>
-                <Link href="/contact" className="hover:text-brand">
-                  {ka.footer.contact}
-                </Link>
-              </li>
-              <li>
-                <Link href="/privacy" className="hover:text-brand">
-                  {ka.footer.privacy}
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="hover:text-brand">
-                  {ka.footer.terms}
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="mb-3 text-sm font-semibold">{ka.footer.contact}</h4>
-            <ul className="space-y-2 text-sm text-ink-muted">
-              <li>{ka.footer.address}</li>
-              <li>{ka.footer.email}</li>
-              <li>{ka.footer.phone}</li>
+            <h4 className="eyebrow mb-4">{t.footer.contact}</h4>
+            <ul className="space-y-2.5 text-sm text-ink-soft">
+              <li>{t.footer.address}</li>
+              <li>{t.footer.email}</li>
+              <li>{t.footer.phone}</li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-line pt-6 sm:flex-row">
-          <p className="text-xs text-ink-muted">
-            © {new Date().getFullYear()} {ka.app.name}. {ka.footer.rights}.
+        <div className="mt-16 select-none overflow-hidden" aria-hidden>
+          <p className="display text-[clamp(3rem,13vw,13rem)] leading-[0.85] text-ink/[0.06]">{t.app.name}</p>
+        </div>
+
+        <div className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 text-xs text-ink-muted sm:flex-row sm:items-center">
+          <p>
+            © {new Date().getFullYear()} {t.app.name}. {t.footer.rights}.
           </p>
-          <p className="flex items-center gap-1.5 text-xs text-ink-muted">
-            {ka.footer.poweredBy} <Heart className="h-3.5 w-3.5 text-brand" />
-          </p>
+          <p>{t.app.tagline}</p>
         </div>
       </div>
     </footer>

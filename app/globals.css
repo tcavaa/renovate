@@ -2,50 +2,153 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 html, body {
-  background-color: #FAF8F5;
-  color: #1A1A1A;
+  background-color: #F5F2ED;
+  color: #161513;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4 {
   font-family: var(--font-serif);
   letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 * {
-  border-color: #E5E0D8;
+  border-color: #E3DCD2;
 }
 
 ::selection {
   background-color: rgba(232, 93, 38, 0.18);
-  color: #1A1A1A;
+  color: #161513;
 }
 
 /* Subtle scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E3DCD2; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #C44D1A; }
+
+@layer components {
+  /* Translucent panel used over imagery and the 3D canvas. */
+  .glass {
+    @apply border border-white/60 bg-white/70 shadow-glass backdrop-blur-xl;
+  }
+  .glass-dark {
+    @apply border border-white/10 bg-ink/70 text-white shadow-float backdrop-blur-xl;
+  }
+  /* Editorial uppercase display type — the sans at its heaviest weight, tracked tight. */
+  .display {
+    @apply font-sans font-bold uppercase;
+    letter-spacing: -0.035em;
+    line-height: 0.92;
+  }
+  /* Small caps label used above headings. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-muted;
+  }
+  /* Bracketed inline link, e.g. ( Learn more ) */
+  .bracket-link::before { content: '( '; }
+  .bracket-link::after { content: ' )'; }
+  .bracket-link::before, .bracket-link::after { @apply text-ink-faint transition-colors; }
+  .bracket-link:hover::before, .bracket-link:hover::after { @apply text-brand; }
+  /* Fine paper grain over large flat areas. */
+  .grain::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    opacity: 0.035;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+
+/*
+ * Scroll-driven reveals, no JavaScript.
+ *
+ * `.reveal` elements fade and rise as they enter the viewport, driven by the browser's own
+ * scroll timeline. Where `animation-timeline: view()` is unsupported the element is simply
+ * visible — the content never depends on the effect.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+    .reveal-scale {
+      animation: reveal-scale linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 60%;
+    }
+    .reveal-stagger > * {
+      animation: reveal-up linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 50%;
+    }
+    .reveal-stagger > *:nth-child(2) { animation-range: entry 10% entry 60%; }
+    .reveal-stagger > *:nth-child(3) { animation-range: entry 20% entry 70%; }
+    .reveal-stagger > *:nth-child(4) { animation-range: entry 30% entry 80%; }
+    /* Slow parallax drift for decorative imagery while it crosses the viewport. */
+    .parallax {
+      animation: parallax linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: #E5E0D8;
-  border-radius: 8px;
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #C44D1A;
+@keyframes reveal-scale {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes parallax {
+  from { transform: translateY(6%); }
+  to { transform: translateY(-6%); }
+}
+
+/* Hero entrance: words rise one after another on load. */
+.hero-word {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(110%);
+  animation: hero-word 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 120ms);
+}
+@keyframes hero-word {
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-clip {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-bottom: 0.06em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-word { animation: none; opacity: 1; transform: none; }
+  .animate-marquee, .animate-spin-slow, .animate-float { animation: none; }
 }
 
 /* Print styles for the summary page */
 @media print {
-  header, footer, nav, .no-print {
-    display: none !important;
-  }
-  body {
-    background: white !important;
-  }
+  header, footer, nav, .no-print { display: none !important; }
+  body { background: white !important; }
 }

@@ -37,6 +37,14 @@ import { Headlamp, WalkControls } from './WalkControls';
 
 export type ViewMode = 'orbit' | 'walk';
 
+/** Camera actions the studio's overlay buttons call. */
+export interface ViewerApi {
+  /** Multiplies the camera's distance to its target; < 1 zooms in. */
+  zoom: (factor: number) => void;
+  /** Frames the whole flat (or the focused room) again. */
+  reset: () => void;
+}
+
 export interface Viewer3DProps {
   plan: FloorPlan;
   scene: DesignScene;
@@ -50,6 +58,8 @@ export interface Viewer3DProps {
   onSelectSurface?: (selection: { roomId: string; surface: 'floor' | 'wall' } | null) => void;
   /** Commits a drag. `roomId` is set when the item was dragged into a different room. */
   onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
+  /** Receives the camera API once the scene is up; `null` on unmount. */
+  onApi?: (api: ViewerApi | null) => void;
   className?: string;
 }
 
@@ -120,6 +130,7 @@ function SceneContent({
   onSelectItem,
   onSelectSurface,
   onPlaceItem,
+  onApi,
 }: Viewer3DProps) {
   const style = getStyle(scene.styleId);
   const { camera, gl } = useThree();
@@ -216,6 +227,31 @@ function SceneContent({
       camera.lookAt(...target);
     }
   }, [plan, focusRoomId, camera, walking]);
+
+  // The overlay's zoom and frame buttons drive the camera through this.
+  useEffect(() => {
+    if (!onApi) return;
+    const api: ViewerApi = {
+      zoom: (factor) => {
+        const orbit = orbitRef.current;
+        if (!orbit) return;
+        const target = orbit.target;
+        camera.position.sub(target).multiplyScalar(factor).add(target);
+        orbit.update();
+      },
+      reset: () => {
+        const { position, target } = frameFor(plan, focusRoomId);
+        camera.position.set(...position);
+        const orbit = orbitRef.current;
+        if (orbit) {
+          orbit.target.set(...target);
+          orbit.update();
+        }
+      },
+    };
+    onApi(api);
+    return () => onApi(null);
+  }, [onApi, camera, plan, focusRoomId]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway
