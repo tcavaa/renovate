@@ -32,7 +32,7 @@ export function LegalPage({
             {subtitle && (
               <p className="mt-3 text-lg text-ink-muted">{subtitle}</p>
             )}
-            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-bg-surface px-3 py-1 text-xs text-ink-muted">
+            <div className="mt-6 inline-flex items-center gap-2 border border-line bg-bg-surface px-3 py-1 text-xs text-ink-muted">
               <Calendar className="h-3.5 w-3.5" />
               {lastUpdatedLabel}: {lastUpdatedValue}
             </div>

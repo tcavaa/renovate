@@ -189,7 +189,7 @@ export default function StudioPage() {
     <>
       <DesignSteps current={4} />
 
-      <div className="relative h-[calc(100vh-72px-52px)] min-h-[560px] w-full overflow-hidden bg-sand-light">
+      <div className="relative h-[calc(100vh-72px-48px)] min-h-[560px] w-full overflow-hidden bg-sand-light">
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
@@ -223,9 +223,9 @@ export default function StudioPage() {
 
         {/* ---- top bar ---- */}
         <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-4">
-          <div className="pointer-events-auto glass flex items-center gap-2 rounded-full py-1.5 pl-4 pr-2">
+          <div className="pointer-events-auto glass flex items-center gap-2 py-1.5 pl-4 pr-2">
             <span className="text-sm font-medium">{focusRoom ? focusRoom.name : t.design.wholeFlat}</span>
-            <Badge variant="outline" className="rounded-full">
+            <Badge variant="outline">
               {visibleItems.length}
             </Badge>
           </div>
@@ -240,7 +240,7 @@ export default function StudioPage() {
           </div>
           <Link
             href="/design/summary"
-            className="pointer-events-auto group inline-flex h-11 items-center gap-2 rounded-full bg-ink pl-5 pr-4 text-sm font-medium text-white shadow-float transition-colors hover:bg-brand"
+            className="pointer-events-auto group inline-flex h-11 items-center gap-2 bg-ink pl-5 pr-4 text-sm font-medium text-white shadow-float transition-colors hover:bg-brand"
           >
             {t.design.goToSummary}
             <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
@@ -335,7 +335,7 @@ export default function StudioPage() {
                       </li>
                     )}
                   </ul>
-                  <Button asChild className="mt-4 w-full rounded-full">
+                  <Button asChild variant="ink" className="mt-4 w-full">
                     <Link href="/design/summary">
                       {t.design.goToSummary} <ArrowRight className="h-4 w-4" />
                     </Link>
@@ -378,7 +378,7 @@ export default function StudioPage() {
             )}
           </div>
         )}
-        <p className="pointer-events-none absolute bottom-6 left-1/2 hidden -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">
+        <p className="pointer-events-none absolute bottom-6 left-1/2 hidden -translate-x-1/2 bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">
           {view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : t.design.dragHint}
         </p>
         <div className="pointer-events-auto absolute bottom-4 right-4">
@@ -403,7 +403,7 @@ function RoomRow({ label, count, active, onClick }: { label: string; count: numb
         )}
       >
         <span className="truncate">{label}</span>
-        <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs tabular-nums', active ? 'bg-white/15' : 'bg-bg-base text-ink-muted')}>{count}</span>
+        <span className={cn('shrink-0 px-2 py-0.5 text-xs tabular-nums', active ? 'bg-white/15' : 'bg-bg-base text-ink-muted')}>{count}</span>
       </button>
     </li>
   );

@@ -35,7 +35,7 @@ export default async function AboutPage() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-bg-base via-brand/5 to-accent/10" />
         <div className="container py-16 md:py-24">
           <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/5 px-4 py-1.5 text-sm text-brand-dark">
+            <div className="mb-6 inline-flex items-center gap-2 border border-brand/20 bg-brand/5 px-4 py-1.5 text-sm text-brand-dark">
               <Sparkles className="h-4 w-4" />
               {ka.app.tagline}
             </div>

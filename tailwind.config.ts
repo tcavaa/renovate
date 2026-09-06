@@ -4,9 +4,10 @@ import type { Config } from 'tailwindcss';
  * Design tokens.
  *
  * Warm paper background, near-black ink, one terracotta accent used sparingly, and a sand
- * neutral for surfaces that sit between the two. Radii are generous (cards 16–32 px), shadows
- * are soft and layered, and `glass` is the translucent panel used over imagery and the 3D
- * canvas. Headings use the serif; display type uses the sans at heavy weight.
+ * neutral for surfaces that sit between the two. Corners are sharp: the whole radius scale
+ * collapses to 0–4 px so `rounded-2xl` in an old component reads as a crisp edge, not a pill.
+ * Shadows are soft and layered, and `glass` is the translucent panel used over imagery and
+ * the 3D canvas. Headings use the serif; display type uses the sans at heavy weight.
  */
 const config: Config = {
   darkMode: ['class'],
@@ -57,12 +58,13 @@ const config: Config = {
         'display-md': ['clamp(2rem, 4vw, 3.5rem)', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
       },
       borderRadius: {
-        lg: '14px',
-        md: '10px',
-        sm: '6px',
-        xl: '20px',
-        '2xl': '28px',
-        '3xl': '36px',
+        DEFAULT: '2px',
+        sm: '0px',
+        md: '2px',
+        lg: '2px',
+        xl: '3px',
+        '2xl': '4px',
+        '3xl': '4px',
       },
       boxShadow: {
         card: '0 1px 2px rgba(22, 21, 19, 0.04), 0 6px 20px rgba(22, 21, 19, 0.05)',

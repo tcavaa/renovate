@@ -29,7 +29,7 @@ export function FloatingPanel({
             type="button"
             onClick={onClose}
             aria-label="close"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-white hover:text-ink"
+            className="grid h-7 w-7 shrink-0 place-items-center text-ink-muted transition-colors hover:bg-white hover:text-ink"
           >
             <X className="h-4 w-4" />
           </button>

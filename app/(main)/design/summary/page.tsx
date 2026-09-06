@@ -1,21 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
-import {
-  ArrowLeft,
-  Check,
-  Loader2,
-  MapPin,
-  Phone,
-  Printer,
-  Save,
-  Truck,
-} from 'lucide-react';
+import { Check, MapPin, Phone, Printer, Save, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { StepHeader } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
+import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useDesignStore } from '@/store/designStore';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
@@ -56,12 +48,7 @@ export default function DesignSummaryPage() {
     return (
       <>
         <DesignSteps current={5} />
-        <div className="container py-20 text-center">
-          <h1 className="font-serif text-2xl font-bold">{t.design.needPlanTitle}</h1>
-          <Button asChild className="mt-6">
-            <Link href="/design">{t.design.startOver}</Link>
-          </Button>
-        </div>
+        <EmptyStep message={t.design.needPlanDesc} back={t.design.startOver} href="/design" />
       </>
     );
   }
@@ -99,75 +86,53 @@ export default function DesignSummaryPage() {
   return (
     <>
       <DesignSteps current={5} />
-      <div className="container py-8">
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-2xl font-bold md:text-3xl">{t.design.summaryTitle}</h1>
-            <p className="mt-1 text-sm text-ink-muted">{t.design.summarySubtitle}</p>
-            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+      <div className="container py-10 md:py-14">
+        <StepHeader
+          step={5}
+          total={5}
+          title={t.design.summaryTitle}
+          subtitle={t.design.summarySubtitle}
+          meta={
+            <>
               <span className="flex items-center gap-1">
-                {style.swatches.slice(0, 3).map((hex) => (
-                  <span
-                    key={hex}
-                    className="h-3 w-3 rounded-full border border-line"
-                    style={{ backgroundColor: hex }}
-                  />
+                {style.swatches.slice(0, 4).map((hex) => (
+                  <span key={hex} className="h-3 w-3 border border-line" style={{ backgroundColor: hex }} />
                 ))}
               </span>
-              {plan.rooms.length} × {t.design.step2} · {formatM2(totalFloorAreaM2(plan))} ·{' '}
-              {items.filter((i) => i.product).length} {t.design.itemsInRoom}
-            </p>
-          </div>
-
-          <div className="flex gap-2 no-print">
-            <Button type="button" variant="outline" onClick={() => window.print()}>
+              <span>{plan.rooms.length} × {t.design.step2}</span>
+              <span className="text-ink-faint">·</span>
+              <span>{formatM2(totalFloorAreaM2(plan))}</span>
+              <span className="text-ink-faint">·</span>
+              <span>
+                {items.filter((i) => i.product).length} {t.design.itemsInRoom}
+              </span>
+            </>
+          }
+          actions={
+            <Button type="button" variant="outline" onClick={() => window.print()} className="no-print">
               <Printer className="h-4 w-4" />
               {t.design.print}
             </Button>
-            <Button type="button" onClick={save} disabled={saving || savedId != null}>
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : savedId != null ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {saving
-                ? t.design.saving
-                : savedId != null
-                  ? t.design.savedTitle
-                  : t.design.saveDesign}
-            </Button>
-          </div>
-        </header>
+          }
+        />
 
-        {error && (
-          <p className="mb-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">
-            {error}
-          </p>
-        )}
+        {error && <p className="mt-6 border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           {/* ---- baskets, grouped by partner ---- */}
-          <div className="space-y-5">
-            <h2 className="font-serif text-lg font-semibold">{t.design.byStore}</h2>
+          <div className="space-y-6">
+            <p className="eyebrow">{t.design.byStore}</p>
 
             {cost.baskets.map((basket, index) => (
-              <Card key={basket.store?.id ?? `none-${index}`}>
-                <CardHeader className="flex-row items-center gap-3 space-y-0">
-                  {basket.store?.logoUrl && (
-                    <Image
-                      src={basket.store.logoUrl}
-                      alt={localizedName(locale, basket.store)}
-                      width={40}
-                      height={40}
-                      className="rounded-lg"
-                    />
+              <section key={basket.store?.id ?? `none-${index}`} className="border border-line bg-bg-surface">
+                <header className="flex items-center gap-4 border-b border-line p-4">
+                  {basket.store?.logoUrl ? (
+                    <Image src={basket.store.logoUrl} alt={localizedName(locale, basket.store)} width={40} height={40} className="border border-line" />
+                  ) : (
+                    <span className="grid h-10 w-10 place-items-center border border-line font-serif text-base font-semibold text-ink">{(basket.store ? localizedName(locale, basket.store) : '—').slice(0, 1)}</span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <CardTitle className="truncate text-base">
-                      {basket.store ? localizedName(locale, basket.store) : '—'}
-                    </CardTitle>
+                    <h3 className="truncate font-serif text-lg font-semibold text-ink">{basket.store ? localizedName(locale, basket.store) : '—'}</h3>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                       {basket.store?.address && (
                         <span className="flex items-center gap-1">
@@ -176,10 +141,7 @@ export default function DesignSummaryPage() {
                         </span>
                       )}
                       {basket.store?.phone && (
-                        <a
-                          href={`tel:${basket.store.phone}`}
-                          className="flex items-center gap-1 hover:text-brand"
-                        >
+                        <a href={`tel:${basket.store.phone}`} className="flex items-center gap-1 hover:text-ink">
                           <Phone className="h-3 w-3" />
                           {basket.store.phone}
                         </a>
@@ -187,56 +149,46 @@ export default function DesignSummaryPage() {
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="font-serif text-lg font-bold text-brand-dark">
-                      {formatGEL(basket.subtotal)}
-                    </p>
+                    <p className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(basket.subtotal)}</p>
                     <p className="flex items-center justify-end gap-1 text-[11px] text-ink-muted">
                       <Truck className="h-3 w-3" />
-                      {basket.deliveryFee === 0
-                        ? t.design.freeDelivery
-                        : formatGEL(basket.deliveryFee)}
+                      {basket.deliveryFee === 0 ? t.design.freeDelivery : formatGEL(basket.deliveryFee)}
                     </p>
                   </div>
-                </CardHeader>
+                </header>
 
-                <CardContent>
-                  <table className="w-full text-sm">
-                    <tbody className="divide-y divide-line">
-                      {basket.lines.map((line, i) => (
-                        <tr key={`${line.product.productId}-${i}`}>
-                          <td className="py-2 pr-2">
-                            <p className="font-medium text-ink">{localizedName(locale, line.product)}</p>
-                            <p className="text-xs text-ink-muted">
-                              {line.item} · {line.roomName}
-                            </p>
-                          </td>
-                          <td className="whitespace-nowrap py-2 text-right text-xs text-ink-muted">
-                            {line.product.qty !== 1 && `${line.product.qty} × `}
-                            {formatGEL(line.product.pricePerUnit)}
-                          </td>
-                          <td className="whitespace-nowrap py-2 pl-3 text-right font-semibold">
-                            {formatGEL(line.product.totalPrice)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </CardContent>
-              </Card>
+                <table className="w-full text-sm">
+                  <tbody>
+                    {basket.lines.map((line, i) => (
+                      <tr key={`${line.product.productId}-${i}`} className="border-b border-line/70 last:border-b-0">
+                        <td className="py-2.5 pl-4 pr-2">
+                          <p className="font-medium text-ink">{localizedName(locale, line.product)}</p>
+                          <p className="text-xs text-ink-muted">
+                            {line.item} · {line.roomName}
+                          </p>
+                        </td>
+                        <td className="whitespace-nowrap py-2.5 text-right text-xs tabular-nums text-ink-muted">
+                          {line.product.qty !== 1 && `${line.product.qty} × `}
+                          {formatGEL(line.product.pricePerUnit)}
+                        </td>
+                        <td className="whitespace-nowrap py-2.5 pl-3 pr-4 text-right font-semibold tabular-nums">{formatGEL(line.product.totalPrice)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
             ))}
           </div>
 
           {/* ---- totals ---- */}
-          <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t.design.grandTotal}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
+          <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <div className="border border-line bg-bg-surface">
+              <div className="border-b border-line px-4 py-3">
+                <p className="eyebrow">{t.design.grandTotal}</p>
+              </div>
+              <div className="space-y-2 p-4 text-sm">
                 <MoneyRow label={t.design.furnitureTotal} value={cost.furnitureTotal} />
-                {mode !== 'full' && cost.finishesTotal > 0 && (
-                  <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />
-                )}
+                {mode !== 'full' && cost.finishesTotal > 0 && <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />}
                 {mode === 'full' && (
                   <>
                     <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />
@@ -245,36 +197,41 @@ export default function DesignSummaryPage() {
                   </>
                 )}
                 <MoneyRow label={t.design.delivery} value={cost.deliveryTotal} />
-
-                <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
-                  <span className="font-semibold">{t.design.grandTotal}</span>
-                  <span className="font-serif text-2xl font-bold text-brand-dark">
-                    {formatGEL(cost.grandTotal)}
-                  </span>
+                <div className="mt-3 flex items-baseline justify-between border-t-2 border-ink pt-3">
+                  <span className="font-serif font-semibold">{t.design.grandTotal}</span>
+                  <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t.design.perRoomTitle}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1.5 text-sm">
+            <div className="border border-line bg-bg-surface">
+              <div className="border-b border-line px-4 py-3">
+                <p className="eyebrow">{t.design.perRoomTitle}</p>
+              </div>
+              <div className="space-y-1.5 p-4 text-sm">
                 {cost.perRoom.map((room) => (
                   <MoneyRow key={room.roomId} label={room.roomName} value={room.total} muted />
                 ))}
-              </CardContent>
-            </Card>
-
-            <Button asChild variant="outline" className="w-full no-print">
-              <Link href="/design/studio">
-                <ArrowLeft className="h-4 w-4" />
-                {t.design.backToStudio}
-              </Link>
-            </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <StepNav
+        back={{ href: '/design/studio', label: t.design.backToStudio }}
+        next={{
+          label: saving ? t.design.saving : savedId != null ? t.design.savedTitle : t.design.saveDesign,
+          onClick: save,
+          disabled: saving || savedId != null,
+          loading: saving,
+          icon: savedId != null ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />,
+        }}
+      >
+        <p className="text-sm text-ink-muted sm:text-right">
+          {t.design.grandTotal} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal)}</span>
+        </p>
+      </StepNav>
     </>
   );
 }

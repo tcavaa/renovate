@@ -67,7 +67,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
                   {s === 'floor' ? t.design.finishFloor : t.design.finishWall}
                 </span>
                 {originOf(s) === 'calculator' && (
-                  <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+                  <span className="bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
                     {t.design.finishOriginCalculator}
                   </span>
                 )}

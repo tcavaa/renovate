@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { ArrowRight, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,6 +13,9 @@ import {
 } from '@/components/ui/select';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanCanvas } from '@/components/design/PlanCanvas';
+import { StepHeader } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
+import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
@@ -46,14 +48,23 @@ export default function PlanReviewPage() {
   return (
     <>
       <DesignSteps current={2} />
-      <div className="container py-8">
-        <header className="mb-6">
-          <h1 className="font-serif text-2xl font-bold md:text-3xl">{t.design.reviewTitle}</h1>
-          <p className="mt-1 max-w-2xl text-sm text-ink-muted">{t.design.reviewSubtitle}</p>
-        </header>
+      <div className="container py-10 md:py-14">
+        <StepHeader
+          step={2}
+          total={5}
+          title={t.design.reviewTitle}
+          subtitle={t.design.reviewSubtitle}
+          meta={
+            <>
+              <span>{plan.rooms.length} × {t.design.step2}</span>
+              <span className="text-ink-faint">·</span>
+              <span>{formatM2(totalFloorAreaM2(plan))}</span>
+            </>
+          }
+        />
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="overflow-hidden rounded-lg border border-line bg-bg-surface shadow-card">
+        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="overflow-hidden border border-line bg-bg-surface lg:sticky lg:top-24 lg:self-start">
             <PlanCanvas
               plan={plan}
               selectedRoomId={selectedId}
@@ -64,18 +75,16 @@ export default function PlanReviewPage() {
               height={520}
             />
             <div className="flex items-center justify-between border-t border-line px-4 py-3 text-sm">
-              <span className="text-ink-muted">
-                {plan.rooms.length} × {t.design.step2}
-              </span>
-              <span className="font-semibold">
+              <span className="eyebrow">{plan.rooms.length} × {t.design.step2}</span>
+              <span className="font-serif text-base font-semibold text-ink">
                 {t.design.planTotal}: {formatM2(totalFloorAreaM2(plan))}
               </span>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-              {plan.rooms.map((room) => {
+            <div className="border border-line bg-bg-surface">
+              {plan.rooms.map((room, index) => {
                 const active = room.id === selectedId;
                 return (
                   <div
@@ -83,12 +92,11 @@ export default function PlanReviewPage() {
                     onMouseEnter={() => setHoveredId(room.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     onClick={() => setSelectedId(room.id)}
-                    className={cn(
-                      'rounded-lg border bg-bg-surface p-3 transition-colors',
-                      active ? 'border-brand ring-1 ring-brand/25' : 'border-line'
-                    )}
+                    className={cn('relative border-b border-line p-3 pl-4 transition-colors last:border-b-0', active ? 'bg-sand-light' : 'hover:bg-sand-light/60')}
                   >
+                    <span className={cn('absolute inset-y-0 left-0 w-[2px]', active ? 'bg-ink' : 'bg-transparent')} />
                     <div className="flex items-start gap-2">
+                      <span className="mt-2.5 w-5 shrink-0 text-xs tabular-nums text-ink-faint">{String(index + 1).padStart(2, '0')}</span>
                       <div className="min-w-0 flex-1 space-y-2">
                         <Input
                           value={room.name}
@@ -185,25 +193,15 @@ export default function PlanReviewPage() {
               })}
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => addRoom(t.design.newRoom)}
-            >
+            <Button type="button" variant="outline" className="w-full" onClick={() => addRoom(t.design.newRoom)}>
               <Plus className="h-4 w-4" />
               {t.design.addRoom}
-            </Button>
-
-            <Button asChild size="lg" className="w-full">
-              <Link href="/design/style">
-                {t.design.continueToStyle}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
             </Button>
           </div>
         </div>
       </div>
+
+      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ href: '/design/style', label: t.design.continueToStyle }} />
     </>
   );
 }
@@ -265,13 +263,7 @@ function NeedPlan() {
   return (
     <>
       <DesignSteps current={2} />
-      <div className="container py-20 text-center">
-        <h1 className="font-serif text-2xl font-bold">{t.design.needPlanTitle}</h1>
-        <p className="mt-2 text-ink-muted">{t.design.needPlanDesc}</p>
-        <Button asChild className="mt-6">
-          <Link href="/design">{t.design.startOver}</Link>
-        </Button>
-      </div>
+      <EmptyStep message={t.design.needPlanDesc} back={t.design.startOver} href="/design" />
     </>
   );
 }

@@ -1,257 +1,177 @@
 'use client';
 
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
-import { Card, CardContent } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useLocale, useT } from '@/lib/i18n/client';
-import {
-  materialLabel,
-  workTypeLabel,
-  phaseLabel,
-  unitLabel,
-  localizedName,
-} from '@/lib/i18n/labels';
+import { materialLabel, workTypeLabel, phaseLabel, unitLabel, localizedName } from '@/lib/i18n/labels';
 import type { ProjectSummary } from '@/lib/calculator/types';
 import { MATERIAL_RATES_PER_M2 } from '@/lib/calculator/constants';
 import { formatGEL, formatNumber } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
+import { Figure } from '@/components/calculator/MaterialsTable';
 
+const TH = 'py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted';
+
+/**
+ * The estimate: the grand total as one large figure on an ink band, the four subtotals as a
+ * hairline strip, every line in collapsible ledgers, and the arithmetic at the end.
+ */
 export function SummaryCard({ summary }: { summary: ProjectSummary }) {
-  const ka = useT();
+  const t = useT();
   const locale = useLocale();
+  const margin = summary.grandTotalWithMargin - summary.grandTotal;
+
   return (
     <div className="space-y-6">
-      {/* Hero total */}
-      <Card className="border-brand/20 bg-gradient-to-br from-brand to-brand-dark text-white shadow-cardHover">
-        <CardContent className="p-8 text-center">
-          <p className="text-sm uppercase tracking-wide text-white/80">
-            {ka.summary.grandTotalWithMargin}
-          </p>
-          <p className="mt-2 font-serif text-5xl font-bold">
-            {formatGEL(summary.grandTotalWithMargin)}
-          </p>
-          <p className="mt-2 text-sm text-white/80">
-            {ka.summary.grandTotal} {formatGEL(summary.grandTotal)} +{' '}
-            {ka.summary.contingency} {formatGEL(summary.grandTotalWithMargin - summary.grandTotal)}
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Subtotals grid */}
-      <div className="grid gap-3 sm:grid-cols-4">
-        <SubtotalCard label={ka.summary.materials} value={summary.subtotalMaterials} accent="brand" />
-        <SubtotalCard label={ka.summary.products} value={summary.subtotalProducts} accent="accent" />
-        <SubtotalCard label={ka.summary.furniture} value={summary.subtotalFurniture} accent="success" />
-        <SubtotalCard label={ka.summary.workers} value={summary.subtotalWorkers} accent="slate" />
+      <div className="relative overflow-hidden bg-ink px-6 py-10 text-white md:px-10 md:py-14">
+        <div className="grain absolute inset-0 opacity-60" />
+        <p className="eyebrow relative text-white/60">{t.summary.grandTotalWithMargin}</p>
+        <p className="display relative mt-4 text-[clamp(2.75rem,7vw,6rem)] tabular-nums">{formatGEL(summary.grandTotalWithMargin)}</p>
+        <p className="relative mt-4 text-sm text-white/60">
+          {t.summary.grandTotal} <span className="text-white">{formatGEL(summary.grandTotal)}</span>
+          <span className="mx-2">+</span>
+          {t.summary.contingency} <span className="text-white">{formatGEL(margin)}</span>
+        </p>
       </div>
 
-      {/* Detailed accordion */}
-      <Card>
-        <CardContent className="p-2 sm:p-6">
-          <Accordion type="multiple" defaultValue={['materials']}>
-            <AccordionItem value="materials">
-              <AccordionTrigger>
-                <span>
-                  {ka.summary.materials}{' '}
-                  <span className="ml-2 font-normal text-ink-muted">
-                    ({summary.materials.length})
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
-                      <th className="py-2 pr-2">{ka.summary.item}</th>
-                      <th className="py-2 pr-2 text-right">{ka.summary.qty}</th>
-                      <th className="py-2 pr-2 text-right">{ka.summary.unitPrice}</th>
-                      <th className="py-2 text-right">{ka.summary.total}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.materials.map((m) => {
-                      const phase = MATERIAL_RATES_PER_M2[m.key]?.phase;
-                      return (
-                        <tr key={m.key} className="border-b border-line/40 last:border-0">
-                          <td className="py-2 pr-2">
-                            {materialLabel(ka, m.key)}
-                            {phase != null && (
-                              <span className="ml-2 text-xs text-ink-muted">
-                                · {phaseLabel(ka, phase)}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-2 pr-2 text-right tabular-nums">
-                            {formatNumber(m.qty)} {unitLabel(ka, m.unit)}
-                          </td>
-                          <td className="py-2 pr-2 text-right text-ink-muted tabular-nums">
-                            {m.estimatedPriceGEL != null ? formatGEL(m.estimatedPriceGEL, true) : '—'}
-                          </td>
-                          <td className="py-2 text-right font-medium tabular-nums">
-                            {m.estimatedPriceGEL != null
-                              ? formatGEL(m.qty * m.estimatedPriceGEL)
-                              : '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </AccordionContent>
-            </AccordionItem>
+      <div className="grid border-t border-l border-line sm:grid-cols-2 lg:grid-cols-4">
+        <Figure label={t.summary.materials} value={formatGEL(summary.subtotalMaterials)} />
+        <Figure label={t.summary.products} value={formatGEL(summary.subtotalProducts)} />
+        <Figure label={t.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
+        <Figure label={t.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
+      </div>
 
-            <AccordionItem value="products">
-              <AccordionTrigger>
-                <span>
-                  {ka.summary.products}{' '}
-                  <span className="ml-2 font-normal text-ink-muted">
-                    ({summary.products.length})
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                {summary.products.length === 0 ? (
-                  <p className="text-sm text-ink-muted py-4">
-                    {ka.calculator.noProductsSelectedHint}
-                  </p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <tbody>
-                      {summary.products.map((p) => (
-                        <tr
-                          key={`${p.productId}-${p.categorySlug ?? ''}`}
-                          className="border-b border-line/40 last:border-0"
-                        >
-                          <td className="py-2 pr-2">{localizedName(locale, p)}</td>
-                          <td className="py-2 pr-2 text-right tabular-nums">
-                            {formatNumber(p.qty)} {unitLabel(ka, p.unit)}
-                          </td>
-                          <td className="py-2 text-right font-medium tabular-nums">
-                            {formatGEL(p.totalPrice)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </AccordionContent>
-            </AccordionItem>
+      <div className="border border-line bg-bg-surface px-5">
+        <Accordion type="multiple" defaultValue={['materials']}>
+          <AccordionItem value="materials">
+            <AccordionTrigger className="font-serif text-base">
+              <span>
+                {t.summary.materials} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.materials.length})</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left">
+                    <th className={TH}>{t.summary.item}</th>
+                    <th className={`${TH} text-right`}>{t.summary.qty}</th>
+                    <th className={`${TH} text-right`}>{t.summary.unitPrice}</th>
+                    <th className={`${TH} text-right`}>{t.summary.total}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.materials.map((m) => {
+                    const phase = MATERIAL_RATES_PER_M2[m.key]?.phase;
+                    return (
+                      <tr key={m.key} className="border-b border-line/60 last:border-0">
+                        <td className="py-2 pr-2">
+                          {materialLabel(t, m.key)}
+                          {phase != null && <span className="ml-2 text-xs text-ink-muted">· {phaseLabel(t, phase)}</span>}
+                        </td>
+                        <td className="py-2 pr-2 text-right tabular-nums">
+                          {formatNumber(m.qty)} {unitLabel(t, m.unit)}
+                        </td>
+                        <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">{m.estimatedPriceGEL != null ? formatGEL(m.estimatedPriceGEL, true) : '—'}</td>
+                        <td className="py-2 text-right font-medium tabular-nums">{m.estimatedPriceGEL != null ? formatGEL(m.qty * m.estimatedPriceGEL) : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </AccordionContent>
+          </AccordionItem>
 
-            <AccordionItem value="furniture">
-              <AccordionTrigger>
-                <span>
-                  {ka.summary.furniture}{' '}
-                  <span className="ml-2 font-normal text-ink-muted">
-                    ({summary.furniture.length})
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                {summary.furniture.length === 0 ? (
-                  <p className="text-sm text-ink-muted py-4">{ka.calculator.noFurnitureSelectedHint}</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <tbody>
-                      {summary.furniture.map((p, i) => (
-                        <tr key={`${p.productId}-${i}`} className="border-b border-line/40 last:border-0">
-                          <td className="py-2 pr-2">{localizedName(locale, p)}</td>
-                          <td className="py-2 text-right font-medium tabular-nums">
-                            {formatGEL(p.totalPrice)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-
-            <AccordionItem value="workers">
-              <AccordionTrigger>
-                <span>
-                  {ka.summary.workers}{' '}
-                  <span className="ml-2 font-normal text-ink-muted">
-                    ({summary.workerCosts.length})
-                  </span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
+          <AccordionItem value="products">
+            <AccordionTrigger className="font-serif text-base">
+              <span>
+                {t.summary.products} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.products.length})</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              {summary.products.length === 0 ? (
+                <p className="py-4 text-sm text-ink-muted">{t.calculator.noProductsSelectedHint}</p>
+              ) : (
                 <table className="w-full text-sm">
                   <tbody>
-                    {summary.workerCosts.map((w) => (
-                      <tr key={w.key} className="border-b border-line/40 last:border-0">
-                        <td className="py-2 pr-2">{workTypeLabel(ka, w.key)}</td>
-                        <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">
-                          {formatNumber(w.qty)} {unitLabel(ka, w.qtyUnit)}
+                    {summary.products.map((p) => (
+                      <tr key={`${p.productId}-${p.categorySlug ?? ''}`} className="border-b border-line/60 last:border-0">
+                        <td className="py-2 pr-2">{localizedName(locale, p)}</td>
+                        <td className="py-2 pr-2 text-right tabular-nums">
+                          {formatNumber(p.qty)} {unitLabel(t, p.unit)}
                         </td>
-                        <td className="py-2 text-right font-medium tabular-nums">
-                          {formatGEL(w.totalGEL)}
-                        </td>
+                        <td className="py-2 text-right font-medium tabular-nums">{formatGEL(p.totalPrice)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </CardContent>
-      </Card>
+              )}
+            </AccordionContent>
+          </AccordionItem>
 
-      {/* Footer totals */}
-      <Card>
-        <CardContent className="p-6 space-y-3">
-          <MoneyRow label={ka.summary.materials} value={summary.subtotalMaterials} />
-          <MoneyRow label={ka.summary.products} value={summary.subtotalProducts} />
-          <MoneyRow label={ka.summary.furniture} value={summary.subtotalFurniture} />
-          <MoneyRow label={ka.summary.workers} value={summary.subtotalWorkers} />
-          <div className="border-t border-line pt-3">
-            <MoneyRow label={ka.summary.subtotal} value={summary.grandTotal} bold />
-            <MoneyRow
-              label={`${ka.summary.contingency}`}
-              value={summary.grandTotalWithMargin - summary.grandTotal}
-              muted
-            />
-            <div className="mt-3 flex items-center justify-between">
-              <span className="font-serif text-lg font-bold">{ka.summary.grandTotalWithMargin}</span>
-              <span className="font-serif text-2xl font-bold text-brand">
-                {formatGEL(summary.grandTotalWithMargin)}
+          <AccordionItem value="furniture">
+            <AccordionTrigger className="font-serif text-base">
+              <span>
+                {t.summary.furniture} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.furniture.length})</span>
               </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </AccordionTrigger>
+            <AccordionContent>
+              {summary.furniture.length === 0 ? (
+                <p className="py-4 text-sm text-ink-muted">{t.calculator.noFurnitureSelectedHint}</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {summary.furniture.map((p, i) => (
+                      <tr key={`${p.productId}-${i}`} className="border-b border-line/60 last:border-0">
+                        <td className="py-2 pr-2">{localizedName(locale, p)}</td>
+                        <td className="py-2 text-right font-medium tabular-nums">{formatGEL(p.totalPrice)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="workers" className="border-b-0">
+            <AccordionTrigger className="font-serif text-base">
+              <span>
+                {t.summary.workers} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.workerCosts.length})</span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <table className="w-full text-sm">
+                <tbody>
+                  {summary.workerCosts.map((w) => (
+                    <tr key={w.key} className="border-b border-line/60 last:border-0">
+                      <td className="py-2 pr-2">{workTypeLabel(t, w.key)}</td>
+                      <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">
+                        {formatNumber(w.qty)} {unitLabel(t, w.qtyUnit)}
+                      </td>
+                      <td className="py-2 text-right font-medium tabular-nums">{formatGEL(w.totalGEL)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
+      <div className="border border-line bg-bg-surface p-5 md:p-6">
+        <div className="space-y-2">
+          <MoneyRow label={t.summary.materials} value={summary.subtotalMaterials} />
+          <MoneyRow label={t.summary.products} value={summary.subtotalProducts} />
+          <MoneyRow label={t.summary.furniture} value={summary.subtotalFurniture} />
+          <MoneyRow label={t.summary.workers} value={summary.subtotalWorkers} />
+        </div>
+        <div className="mt-4 space-y-2 border-t border-line pt-4">
+          <MoneyRow label={t.summary.subtotal} value={summary.grandTotal} bold />
+          <MoneyRow label={t.summary.contingency} value={margin} muted />
+        </div>
+        <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
+          <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
+          <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+        </div>
+      </div>
     </div>
   );
 }
-
-function SubtotalCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: number;
-  accent: 'brand' | 'accent' | 'success' | 'slate';
-}) {
-  const colorMap: Record<typeof accent, string> = {
-    brand: 'text-brand',
-    accent: 'text-accent-dark',
-    success: 'text-success',
-    slate: 'text-slate-deep',
-  };
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p className={`mt-1 font-serif text-xl font-bold ${colorMap[accent]}`}>
-          {formatGEL(value)}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-

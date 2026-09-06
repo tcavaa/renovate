@@ -1,27 +1,21 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo } from 'react';
-import { ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
-import { MaterialsTable } from '@/components/calculator/MaterialsTable';
+import { MaterialsTable, Figure } from '@/components/calculator/MaterialsTable';
+import { StepHeader } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
+import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import {
-  calculateMaterials,
-  calculateWorkerCosts,
-  aggregateRoomTotals,
-} from '@/lib/calculator/materials';
+import { calculateMaterials, calculateWorkerCosts, aggregateRoomTotals } from '@/lib/calculator/materials';
 import { useT } from '@/lib/i18n/client';
-import { formatM2L } from '@/lib/i18n/labels';
+import { formatM2L, homeStateLabel } from '@/lib/i18n/labels';
 
 export default function MaterialsPage() {
-  const ka = useT();
+  const t = useT();
   const { rooms, homeState } = useCalculatorStore();
   const { book } = useRateBook();
-
   const ready = !!homeState && rooms.length > 0;
 
   const { materials, workerCosts, totals } = useMemo(() => {
@@ -37,21 +31,7 @@ export default function MaterialsPage() {
     return (
       <>
         <StepIndicator current={2} />
-        <div className="container py-16">
-          <Card className="mx-auto max-w-lg">
-            <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-              <AlertCircle className="h-10 w-10 text-warning" />
-              <p className="text-ink-muted">
-                {homeState
-                  ? ka.calculator.needRoomsFirst
-                  : ka.calculator.needHomeStateFirst}
-              </p>
-              <Button asChild>
-                <Link href="/calculator">{ka.common.back}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <EmptyStep message={homeState ? t.calculator.needRoomsFirst : t.calculator.needHomeStateFirst} back={t.common.back} />
       </>
     );
   }
@@ -59,54 +39,30 @@ export default function MaterialsPage() {
   return (
     <>
       <StepIndicator current={2} />
-      <div className="container py-10 space-y-8">
-        <div>
-          <h1 className="font-serif text-3xl font-bold">{ka.calculator.step2}</h1>
-          <p className="mt-2 text-ink-muted">
-            {ka.calculator.materialsSubtitle.replace(
-              '{m2}',
-              totals ? formatM2L(ka, totals.totalFloorM2) : ''
-            )}
-          </p>
-        </div>
+      <div className="container py-10 md:py-14">
+        <StepHeader
+          step={2}
+          total={5}
+          title={t.calculator.step2}
+          subtitle={t.calculator.materialsSubtitle.replace('{m2}', totals ? formatM2L(t, totals.totalFloorM2) : '')}
+          meta={homeState && <span>{homeStateLabel(t, homeState)}</span>}
+        />
 
         {totals && (
-          <div className="grid gap-3 sm:grid-cols-4">
-            <SummaryStat label={ka.calculator.summaryFloor} value={formatM2L(ka, totals.totalFloorM2)} />
-            <SummaryStat label={ka.calculator.summaryWalls} value={formatM2L(ka, totals.totalWallM2)} />
-            <SummaryStat label={ka.calculator.summaryWetRooms} value={formatM2L(ka, totals.totalWetRoomM2)} />
-            <SummaryStat label={ka.calculator.summaryRooms} value={String(rooms.length)} />
+          <div className="mt-8 grid border-t border-l border-line sm:grid-cols-2 lg:grid-cols-4">
+            <Figure label={t.calculator.summaryFloor} value={formatM2L(t, totals.totalFloorM2)} />
+            <Figure label={t.calculator.summaryWalls} value={formatM2L(t, totals.totalWallM2)} />
+            <Figure label={t.calculator.summaryWetRooms} value={formatM2L(t, totals.totalWetRoomM2)} />
+            <Figure label={t.calculator.summaryRooms} value={String(rooms.length)} />
           </div>
         )}
 
-        <MaterialsTable materials={materials} workerCosts={workerCosts} />
-
-        <div className="flex flex-col-reverse justify-between gap-3 sm:flex-row sm:items-center">
-          <Button variant="outline" size="lg" asChild>
-            <Link href="/calculator">
-              <ArrowLeft className="h-4 w-4" />
-              {ka.calculator.backButton}
-            </Link>
-          </Button>
-          <Button size="xl" asChild>
-            <Link href="/calculator/catalog">
-              {ka.calculator.nextButton}
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
+        <div className="mt-12">
+          <MaterialsTable materials={materials} workerCosts={workerCosts} />
         </div>
       </div>
-    </>
-  );
-}
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p className="mt-1 font-serif text-xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+      <StepNav back={{ href: '/calculator', label: t.calculator.backButton }} next={{ href: '/calculator/catalog', label: t.calculator.nextButton }} />
+    </>
   );
 }

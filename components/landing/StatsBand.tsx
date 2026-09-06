@@ -25,7 +25,7 @@ export function StatsBand({ t, products, stores }: { t: Dictionary; products: nu
               <p className="reveal mt-5 max-w-lg text-lg leading-relaxed text-white/70">{t.landing.statsBody}</p>
               <Link
                 href="/calculator"
-                className="group reveal mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-white px-6 text-sm font-medium text-ink transition-colors hover:bg-brand hover:text-white"
+                className="group reveal mt-8 inline-flex h-12 items-center gap-2 bg-white px-6 text-sm font-medium text-ink transition-colors hover:bg-brand hover:text-white"
               >
                 {t.landing.statsCta}
                 <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

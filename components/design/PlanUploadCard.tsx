@@ -152,8 +152,8 @@ export function PlanUploadCard({ onPlan, showSample = false }: PlanUploadCardPro
         }}
         onClick={() => phase !== 'parsing' && phase !== 'reading' && inputRef.current?.click()}
         className={cn(
-          'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-          dragging ? 'border-brand bg-brand/5' : 'border-line bg-bg-surface hover:border-brand/50'
+          'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 border border-dashed p-8 text-center transition-colors',
+          dragging ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/50'
         )}
       >
         <input
@@ -186,7 +186,7 @@ export function PlanUploadCard({ onPlan, showSample = false }: PlanUploadCardPro
           </>
         ) : (
           <>
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-brand/10 text-brand">
+            <span className="grid h-12 w-12 place-items-center border border-line bg-bg-surface text-ink">
               <Upload className="h-6 w-6" />
             </span>
             <p className="text-sm font-medium">{t.design.uploadHint}</p>
@@ -229,7 +229,7 @@ export function PlanUploadCard({ onPlan, showSample = false }: PlanUploadCardPro
       )}
 
       {phase === 'scale' && parse && (
-        <Card className="mt-4 border-brand/30">
+        <Card className="mt-4 border-ink/30">
           <CardContent className="space-y-4 pt-6">
             <div className="flex items-center gap-2 text-sm font-semibold text-success">
               <Sparkles className="h-4 w-4" />
@@ -258,7 +258,7 @@ export function PlanUploadCard({ onPlan, showSample = false }: PlanUploadCardPro
                   autoFocus
                 />
               </div>
-              <Button type="button" onClick={confirmScale} disabled={!totalArea}>
+              <Button type="button" variant="ink" onClick={confirmScale} disabled={!totalArea}>
                 {t.design.applyScale}
                 <ArrowRight className="h-4 w-4" />
               </Button>

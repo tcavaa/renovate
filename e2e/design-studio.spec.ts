@@ -23,7 +23,7 @@ test('sample plan reaches a furnished studio with a cost bar', async ({ page }) 
 
   await expect(page).toHaveURL(/\/design\/studio/);
   await expect(page.locator('canvas')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/GEL\s?[\d,]+/).first()).toBeVisible();
+  await expect(page.getByText(/\d[\d\u202F]*\s?₾/).first()).toBeVisible();
 
   // Furniture actually loaded: the models are fetched from /models. React Three Fiber 9
   // configures the renderer asynchronously, so the first fetches land a beat after the canvas.

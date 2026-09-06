@@ -1,16 +1,16 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2, ShoppingBag } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Loader2 } from 'lucide-react';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
 import { ProductCard } from '@/components/catalog/ProductCard';
+import { StepHeader } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
+import { SideList } from '@/components/flow/SideList';
+import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
-import { calculateMaterials, aggregateRoomTotals } from '@/lib/calculator/materials';
+import { aggregateRoomTotals } from '@/lib/calculator/materials';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { localizedName, pickLocalizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
@@ -19,34 +19,25 @@ import type { SelectedProduct } from '@/lib/calculator/types';
 import { suggestedQuantity } from '@/lib/calculator/quantities';
 
 export default function CatalogStepPage() {
-  const ka = useT();
+  const t = useT();
   const locale = useLocale();
-  const { rooms, homeState, selectedProducts, selectProduct, removeProduct } =
-    useCalculatorStore();
+  const { rooms, homeState, selectedProducts, selectProduct, removeProduct } = useCalculatorStore();
   const { items: categories, loading: catLoading } = useCategories(false);
 
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const currentSlug = activeSlug ?? categories[0]?.slug ?? null;
+  const current = categories.find((c) => c.slug === currentSlug) ?? null;
   const { items: products, loading } = useProducts(currentSlug, 1, 24);
 
   const totals = useMemo(() => aggregateRoomTotals(rooms), [rooms]);
-
   const selectionCount = Object.keys(selectedProducts).length;
-  const totalSelected = useMemo(
-    () => Object.values(selectedProducts).reduce((s, p) => s + p.totalPrice, 0),
-    [selectedProducts]
-  );
+  const totalSelected = useMemo(() => Object.values(selectedProducts).reduce((s, p) => s + p.totalPrice, 0), [selectedProducts]);
 
   if (rooms.length === 0 || !homeState) {
     return (
       <>
         <StepIndicator current={3} />
-        <div className="container py-16 text-center">
-          <p className="text-ink-muted">{ka.calculator.needRoomsFirst}</p>
-          <Button asChild className="mt-4">
-            <Link href="/calculator">{ka.common.back}</Link>
-          </Button>
-        </div>
+        <EmptyStep message={t.calculator.needRoomsFirst} back={t.common.back} />
       </>
     );
   }
@@ -77,145 +68,99 @@ export default function CatalogStepPage() {
   return (
     <>
       <StepIndicator current={3} />
-      <div className="container py-10">
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr_280px]">
-          {/* Categories sidebar */}
-          <aside>
-            <h2 className="mb-3 font-serif text-lg font-semibold">{ka.catalog.filterByCategory}</h2>
-            <div className="space-y-1">
-              {catLoading && (
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-9 rounded-md bg-line/50" />
-                  ))}
-                </div>
-              )}
-              {categories.map((c) => {
-                const active = currentSlug === c.slug;
-                const hasSelection = !!selectedProducts[`${c.slug}_global`];
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setActiveSlug(c.slug)}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                      active
-                        ? 'bg-brand text-white'
-                        : 'text-ink hover:bg-bg-base'
-                    }`}
-                  >
-                    <span>{pickLocalizedName(locale, c.nameKa, c.nameEn)}</span>
-                    {hasSelection && (
-                      <Badge
-                        variant={active ? 'outline' : 'default'}
-                        className={active ? 'border-white/40 text-white' : undefined}
-                      >
-                        ✓
-                      </Badge>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+      <div className="container py-10 md:py-14">
+        <StepHeader step={3} total={5} title={t.calculator.step3} subtitle={t.calculator.chooseProduct} />
+
+        <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_280px]">
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            {catLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-9 animate-pulse bg-line/50" />
+                ))}
+              </div>
+            ) : (
+              <SideList
+                title={t.catalog.filterByCategory}
+                activeId={currentSlug}
+                onSelect={setActiveSlug}
+                items={categories.map((c) => ({
+                  id: c.slug,
+                  label: pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu),
+                  count: selectedProducts[`${c.slug}_global`] ? '✓' : undefined,
+                }))}
+              />
+            )}
           </aside>
 
-          {/* Products grid */}
           <section>
-            <div className="mb-6 flex items-end justify-between">
-              <div>
-                <h1 className="font-serif text-2xl font-bold">{ka.calculator.step3}</h1>
+            <div className="mb-4 flex items-baseline justify-between border-b border-line pb-3">
+              <h2 className="font-serif text-xl font-semibold text-ink">{current ? pickLocalizedName(locale, current.nameKa, current.nameEn, current.nameRu) : '…'}</h2>
+              {currentSlug && (
                 <p className="text-sm text-ink-muted">
-                  {ka.calculator.chooseProduct}
+                  {t.calculator.needRequiredQty}: <span className="tabular-nums text-ink">{suggestedQuantity(currentSlug, totals)}</span>
                 </p>
-              </div>
+              )}
             </div>
             {loading ? (
               <div className="flex items-center justify-center py-24">
-                <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
               </div>
             ) : products.length === 0 ? (
-              <Card>
-                <CardContent className="py-12 text-center text-ink-muted">
-                  {ka.catalog.noProducts}
-                </CardContent>
-              </Card>
+              <div className="border border-dashed border-line p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {products.map((p) => (
                   <ProductCard
                     key={p.id}
                     product={p}
-                    selected={
-                      currentSlug
-                        ? selectedProducts[`${currentSlug}_global`]?.productId === p.id
-                        : false
-                    }
+                    selected={currentSlug ? selectedProducts[`${currentSlug}_global`]?.productId === p.id : false}
                     onAction={() => handleSelect(p)}
-                    qtyHint={
-                      currentSlug
-                        ? `${suggestedQuantity(currentSlug, totals)}`
-                        : undefined
-                    }
+                    qtyHint={currentSlug ? String(suggestedQuantity(currentSlug, totals)) : undefined}
                   />
                 ))}
               </div>
             )}
           </section>
 
-          {/* Selected sidebar */}
-          <aside>
-            <Card className="sticky top-24">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <ShoppingBag className="h-4 w-4" />
-                  {ka.calculator.selected} ({selectionCount})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {selectionCount === 0 ? (
-                  <p className="text-sm text-ink-muted">{ka.calculator.nothingSelected}</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {Object.entries(selectedProducts).map(([key, p]) => (
-                      <li key={key} className="flex items-start justify-between gap-2 text-sm">
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 font-medium">{localizedName(locale, p)}</p>
-                          <p className="text-xs text-ink-muted">
-                            {p.qty} × {formatGEL(p.pricePerUnit)}
-                          </p>
-                        </div>
-                        <span className="shrink-0 font-semibold">
-                          {formatGEL(p.totalPrice)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
-                  <span className="text-sm text-ink-muted">{ka.calculator.total}</span>
-                  <span className="font-serif text-lg font-bold text-brand">
-                    {formatGEL(totalSelected)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <div className="border border-line bg-bg-surface">
+              <div className="border-b border-line px-4 py-3">
+                <p className="eyebrow">
+                  {t.calculator.selected} <span className="text-ink">{selectionCount}</span>
+                </p>
+              </div>
+              {selectionCount === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-ink-muted">{t.calculator.nothingSelected}</p>
+              ) : (
+                <ul>
+                  {Object.entries(selectedProducts).map(([key, p]) => (
+                    <li key={key} className="flex items-start justify-between gap-3 border-b border-line px-4 py-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 font-medium text-ink">{localizedName(locale, p)}</p>
+                        <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
+                          {p.qty} × {formatGEL(p.pricePerUnit)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums">{formatGEL(p.totalPrice)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex items-baseline justify-between px-4 py-3">
+                <span className="text-sm text-ink-muted">{t.calculator.total}</span>
+                <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(totalSelected)}</span>
+              </div>
+            </div>
           </aside>
         </div>
-
-        <div className="mt-10 flex flex-col-reverse justify-between gap-3 sm:flex-row sm:items-center">
-          <Button variant="outline" size="lg" asChild>
-            <Link href="/calculator/materials">
-              <ArrowLeft className="h-4 w-4" />
-              {ka.calculator.backButton}
-            </Link>
-          </Button>
-          <Button size="xl" asChild>
-            <Link href="/calculator/furniture">
-              {ka.calculator.nextButton}
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
       </div>
+
+      <StepNav back={{ href: '/calculator/materials', label: t.calculator.backButton }} next={{ href: '/calculator/furniture', label: t.calculator.nextButton }}>
+        <p className="text-sm text-ink-muted sm:text-right">
+          {t.calculator.selected} {selectionCount} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(totalSelected)}</span>
+        </p>
+      </StepNav>
     </>
   );
 }

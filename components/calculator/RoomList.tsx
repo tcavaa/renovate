@@ -1,81 +1,57 @@
 'use client';
 
-import { Trash2, Ruler, ArrowDownToLine } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { formatM2L, roomTypeLabel } from '@/lib/i18n/labels';
 import type { Room } from '@/lib/calculator/types';
 
-export function RoomList({
-  rooms,
-  onRemove,
-}: {
-  rooms: Room[];
-  onRemove: (id: string) => void;
-}) {
-  const ka = useT();
-  if (rooms.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center text-ink-muted">
-          <Ruler className="mx-auto mb-3 h-10 w-10 opacity-40" />
-          <p>{ka.rooms.empty}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
+/** The rooms entered so far as a hairline ledger: index, name, type, dimensions, area. */
+export function RoomList({ rooms, onRemove }: { rooms: Room[]; onRemove: (id: string) => void }) {
+  const t = useT();
   const totalM2 = rooms.reduce((s, r) => s + r.floorM2, 0);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between rounded-md bg-bg-surface border border-line px-4 py-3">
-        <span className="text-sm text-ink-muted">
-          {ka.rooms.total}: <strong className="text-ink">{rooms.length}</strong>
-        </span>
-        <span className="text-sm">
-          {ka.rooms.totalM2}:{' '}
-          <strong className="font-serif text-base text-brand">{formatM2L(ka, totalM2)}</strong>
-        </span>
+    <div className="border border-line bg-bg-surface">
+      <div className="flex items-baseline justify-between border-b border-line px-5 py-3">
+        <p className="eyebrow">
+          {t.rooms.total} <span className="text-ink">{rooms.length}</span>
+        </p>
+        <p className="text-sm text-ink-muted">
+          {t.rooms.totalM2} <span className="ml-1 font-serif text-lg font-semibold text-ink">{formatM2L(t, totalM2)}</span>
+        </p>
       </div>
-      <div className="grid gap-3">
-        {rooms.map((room) => (
-          <Card key={room.id} className="hover:shadow-cardHover transition-shadow">
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-md bg-brand/10 text-brand">
-                <ArrowDownToLine className="h-5 w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="font-serif font-semibold">{room.nameKa}</h4>
-                  <Badge variant="outline">{roomTypeLabel(ka, room.type)}</Badge>
-                  {room.isWetRoom && <Badge variant="secondary">{ka.rooms.wet}</Badge>}
-                </div>
-                <p className="mt-1 text-xs text-ink-muted">
-                  {room.width}{ka.units.m} × {room.length}{ka.units.m} × {room.height}{ka.units.m}
-                  {' · '}
-                  {ka.rooms.wallsLabel} {formatM2L(ka, room.wallM2)}
+
+      {rooms.length === 0 ? (
+        <p className="px-5 py-12 text-center text-sm text-ink-muted">{t.rooms.empty}</p>
+      ) : (
+        <ul>
+          {rooms.map((room, i) => (
+            <li key={room.id} className="group grid grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-line px-5 py-3 last:border-b-0">
+              <span className="text-xs tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+              <div className="min-w-0">
+                <p className="truncate font-serif text-base font-semibold text-ink">{room.nameKa}</p>
+                <p className="mt-0.5 truncate text-xs text-ink-muted">
+                  {roomTypeLabel(t, room.type)}
+                  {room.isWetRoom && <span className="ml-1.5 border border-line px-1 py-px text-[10px] uppercase tracking-wide">{t.rooms.wet}</span>}
+                  <span className="mx-1.5 text-ink-faint">·</span>
+                  <span className="tabular-nums">
+                    {room.width} × {room.length} × {room.height} {t.units.m}
+                  </span>
                 </p>
               </div>
-              <div className="text-right">
-                <div className="font-serif text-lg font-semibold text-brand">
-                  {formatM2L(ka, room.floorM2)}
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
+              <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2L(t, room.floorM2)}</span>
+              <button
+                type="button"
                 onClick={() => onRemove(room.id)}
-                aria-label={ka.rooms.remove}
+                aria-label={t.rooms.remove}
+                className="grid h-8 w-8 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger"
               >
-                <Trash2 className="h-4 w-4 text-danger" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function ViewSwitch({
   ];
   return (
     <div className="flex items-center gap-2">
-      <div className="glass flex rounded-full p-1" role="tablist">
+      <div className="glass flex p-1" role="tablist">
         {options.map((o) => (
           <button
             key={o.id}
@@ -37,7 +37,7 @@ export function ViewSwitch({
             aria-selected={view === o.id}
             onClick={() => onView(o.id)}
             className={cn(
-              'flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors',
+              'flex h-9 items-center gap-1.5 px-4 text-sm font-medium transition-colors',
               view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'
             )}
           >
@@ -98,7 +98,7 @@ export function IconButton({
       onClick={onClick}
       className={cn(
         'grid h-10 w-10 place-items-center rounded-xl transition-colors disabled:opacity-40',
-        !plain && 'glass rounded-full',
+        !plain && 'glass',
         pressed ? 'bg-ink text-white hover:bg-ink' : 'text-ink-soft hover:bg-white hover:text-ink'
       )}
     >

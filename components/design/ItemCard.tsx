@@ -110,7 +110,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
               <p className="truncate text-xs font-semibold text-ink">{localizedName(locale, product.store)}</p>
             </div>
             {product.store.rating != null && (
-              <span className="flex items-center gap-0.5 rounded-full bg-bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink">
+              <span className="flex items-center gap-0.5 bg-bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink">
                 <Star className="h-3 w-3 fill-accent text-accent" />
                 {product.store.rating.toFixed(1)}
               </span>

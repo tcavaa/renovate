@@ -5,22 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const gelFormatter = new Intl.NumberFormat('ka-GE', {
-  style: 'currency',
-  currency: 'GEL',
-  maximumFractionDigits: 0,
-});
+/**
+ * Money and quantities are formatted by hand, not through `Intl`.
+ *
+ * The server's ICU (Node) and the visitor's (their browser) disagree about Georgian: one
+ * prints "890 ₾", the other "GEL 890", and every price on a server-rendered page then fails
+ * hydration. Fixed rules — a narrow no-break space between thousands, a comma before
+ * decimals, the lari sign after the figure — give the same string everywhere.
+ */
+const GROUP = '\u202F';
 
-const gelFormatterDecimals = new Intl.NumberFormat('ka-GE', {
-  style: 'currency',
-  currency: 'GEL',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+function groupDigits(value: number, fractionDigits: number): string {
+  const fixed = Math.abs(value).toFixed(fractionDigits);
+  const [int, frac] = fixed.split('.');
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP);
+  const sign = value < 0 ? '−' : '';
+  return frac ? `${sign}${grouped},${frac}` : `${sign}${grouped}`;
+}
 
 export function formatGEL(amount: number, withDecimals = false): string {
   if (!Number.isFinite(amount)) return '—';
-  return withDecimals ? gelFormatterDecimals.format(amount) : gelFormatter.format(amount);
+  return `${groupDigits(amount, withDecimals ? 2 : 0)}\u00A0₾`;
 }
 
 export function formatM2(value: number): string {
@@ -30,10 +35,10 @@ export function formatM2(value: number): string {
 
 export function formatNumber(value: number, fractionDigits = 2): string {
   if (!Number.isFinite(value)) return '—';
-  return new Intl.NumberFormat('ka-GE', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: fractionDigits,
-  }).format(value);
+  // Trim trailing zeros so 4.30 reads 4,3 and 18.00 reads 18.
+  const rounded = Number(value.toFixed(fractionDigits));
+  const decimals = Math.min(fractionDigits, (rounded.toString().split('.')[1] ?? '').length);
+  return groupDigits(rounded, decimals);
 }
 
 export function formatUnit(unit: string): string {

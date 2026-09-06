@@ -1,150 +1,117 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useT } from '@/lib/i18n/client';
 import { MATERIAL_RATES_PER_M2 } from '@/lib/calculator/constants';
-import {
-  materialLabel,
-  workTypeLabel,
-  phaseLabel,
-  unitLabel,
-} from '@/lib/i18n/labels';
+import { materialLabel, workTypeLabel, phaseLabel, unitLabel } from '@/lib/i18n/labels';
 import type { MaterialItem, WorkerCost } from '@/lib/calculator/types';
 import { formatGEL, formatNumber } from '@/lib/utils';
 
-export function MaterialsTable({
-  materials,
-  workerCosts,
-}: {
-  materials: MaterialItem[];
-  workerCosts: WorkerCost[];
-}) {
-  const ka = useT();
+const TH = 'pb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted';
+const TD = 'py-2.5 align-top';
+
+/**
+ * The computed bill of materials as a ledger: one hairline table per renovation phase, the
+ * labour table after them, and the two subtotals as large figures at the end.
+ */
+export function MaterialsTable({ materials, workerCosts }: { materials: MaterialItem[]; workerCosts: WorkerCost[] }) {
+  const t = useT();
   const grouped = materials.reduce<Record<number, MaterialItem[]>>((acc, m) => {
     const phase = MATERIAL_RATES_PER_M2[m.key]?.phase ?? 99;
-    if (!acc[phase]) acc[phase] = [];
-    acc[phase].push(m);
+    (acc[phase] ??= []).push(m);
     return acc;
   }, {});
-
-  const sortedPhases = Object.keys(grouped)
+  const phases = Object.keys(grouped)
     .map(Number)
     .sort((a, b) => a - b);
 
-  const totalMaterialsCost = materials.reduce(
-    (s, m) => s + m.qty * (m.estimatedPriceGEL ?? 0),
-    0
-  );
-  const totalWorkerCost = workerCosts.reduce((s, w) => s + w.totalGEL, 0);
+  const totalMaterials = materials.reduce((s, m) => s + m.qty * (m.estimatedPriceGEL ?? 0), 0);
+  const totalWorkers = workerCosts.reduce((s, w) => s + w.totalGEL, 0);
 
   return (
-    <div className="space-y-8">
-      {sortedPhases.map((phase) => (
-        <Card key={phase}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <Badge>{phase}</Badge>
-              {phaseLabel(ka, phase)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
-                    <th className="pb-3 pr-3">{ka.calculator.materialName}</th>
-                    <th className="pb-3 pr-3 text-right">{ka.calculator.quantity}</th>
-                    <th className="pb-3 pr-3 text-right">{ka.calculator.estimatedPrice}</th>
-                    <th className="pb-3 text-right">{ka.calculator.total}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped[phase]?.map((m) => {
-                    const total = m.qty * (m.estimatedPriceGEL ?? 0);
-                    return (
-                      <tr key={m.key} className="border-b border-line/60 last:border-0">
-                        <td className="py-3 pr-3">{materialLabel(ka, m.key)}</td>
-                        <td className="py-3 pr-3 text-right tabular-nums">
-                          {formatNumber(m.qty)} {unitLabel(ka, m.unit)}
-                        </td>
-                        <td className="py-3 pr-3 text-right text-ink-muted tabular-nums">
-                          {m.estimatedPriceGEL != null
-                            ? `${formatGEL(m.estimatedPriceGEL, true)} / ${unitLabel(ka, m.unit)}`
-                            : '—'}
-                        </td>
-                        <td className="py-3 text-right font-medium tabular-nums">
-                          {total > 0 ? formatGEL(total) : '—'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-
-      {/* Worker costs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3">
-            <Badge variant="secondary">{ka.calculator.workersBadge}</Badge>
-            {ka.calculator.workersCost}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="space-y-10">
+      {phases.map((phase) => (
+        <section key={phase}>
+          <header className="flex items-baseline gap-3 border-b-2 border-ink pb-2">
+            <span className="text-xs font-semibold tabular-nums text-ink-faint">{String(phase).padStart(2, '0')}</span>
+            <h3 className="font-serif text-lg font-semibold text-ink">{phaseLabel(t, phase)}</h3>
+          </header>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
-                  <th className="pb-3 pr-3">{ka.calculator.workLabel}</th>
-                  <th className="pb-3 pr-3 text-right">{ka.calculator.quantity}</th>
-                  <th className="pb-3 pr-3 text-right">{ka.calculator.pricePerUnit}</th>
-                  <th className="pb-3 text-right">{ka.calculator.total}</th>
+                <tr className="border-b border-line text-left">
+                  <th className={TH}>{t.calculator.materialName}</th>
+                  <th className={`${TH} text-right`}>{t.calculator.quantity}</th>
+                  <th className={`${TH} text-right`}>{t.calculator.estimatedPrice}</th>
+                  <th className={`${TH} text-right`}>{t.calculator.total}</th>
                 </tr>
               </thead>
               <tbody>
-                {workerCosts.map((w) => (
-                  <tr key={w.key} className="border-b border-line/60 last:border-0">
-                    <td className="py-3 pr-3">{workTypeLabel(ka, w.key)}</td>
-                    <td className="py-3 pr-3 text-right tabular-nums">
-                      {formatNumber(w.qty)} {unitLabel(ka, w.qtyUnit)}
-                    </td>
-                    <td className="py-3 pr-3 text-right text-ink-muted tabular-nums">
-                      {formatGEL(w.pricePerQty)}
-                    </td>
-                    <td className="py-3 text-right font-medium tabular-nums">
-                      {formatGEL(w.totalGEL)}
-                    </td>
-                  </tr>
-                ))}
+                {grouped[phase]?.map((m) => {
+                  const total = m.qty * (m.estimatedPriceGEL ?? 0);
+                  return (
+                    <tr key={m.key} className="border-b border-line/70 last:border-0">
+                      <td className={`${TD} pr-3 text-ink`}>{materialLabel(t, m.key)}</td>
+                      <td className={`${TD} pr-3 text-right tabular-nums text-ink-soft`}>
+                        {formatNumber(m.qty)} {unitLabel(t, m.unit)}
+                      </td>
+                      <td className={`${TD} pr-3 text-right tabular-nums text-ink-muted`}>
+                        {m.estimatedPriceGEL != null ? `${formatGEL(m.estimatedPriceGEL, true)} / ${unitLabel(t, m.unit)}` : '—'}
+                      </td>
+                      <td className={`${TD} text-right font-medium tabular-nums`}>{total > 0 ? formatGEL(total) : '—'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
+        </section>
+      ))}
 
-      {/* Subtotals */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <span className="text-sm text-ink-muted">{ka.calculator.materialCost}</span>
-            <span className="font-serif text-2xl font-bold text-brand">
-              {formatGEL(totalMaterialsCost)}
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center justify-between p-6">
-            <span className="text-sm text-ink-muted">{ka.calculator.workerCost}</span>
-            <span className="font-serif text-2xl font-bold text-slate-deep">
-              {formatGEL(totalWorkerCost)}
-            </span>
-          </CardContent>
-        </Card>
+      <section>
+        <header className="flex items-baseline gap-3 border-b-2 border-ink pb-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-faint">{t.calculator.workersBadge}</span>
+          <h3 className="font-serif text-lg font-semibold text-ink">{t.calculator.workersCost}</h3>
+        </header>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-line text-left">
+                <th className={TH}>{t.calculator.workLabel}</th>
+                <th className={`${TH} text-right`}>{t.calculator.quantity}</th>
+                <th className={`${TH} text-right`}>{t.calculator.pricePerUnit}</th>
+                <th className={`${TH} text-right`}>{t.calculator.total}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {workerCosts.map((w) => (
+                <tr key={w.key} className="border-b border-line/70 last:border-0">
+                  <td className={`${TD} pr-3 text-ink`}>{workTypeLabel(t, w.key)}</td>
+                  <td className={`${TD} pr-3 text-right tabular-nums text-ink-soft`}>
+                    {formatNumber(w.qty)} {unitLabel(t, w.qtyUnit)}
+                  </td>
+                  <td className={`${TD} pr-3 text-right tabular-nums text-ink-muted`}>{formatGEL(w.pricePerQty)}</td>
+                  <td className={`${TD} text-right font-medium tabular-nums`}>{formatGEL(w.totalGEL)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="grid border-t border-l border-line sm:grid-cols-2">
+        <Figure label={t.calculator.materialCost} value={formatGEL(totalMaterials)} />
+        <Figure label={t.calculator.workerCost} value={formatGEL(totalWorkers)} />
       </div>
+    </div>
+  );
+}
+
+/** One large figure with its label, drawn as a cell of a hairline grid. */
+export function Figure({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
+  return (
+    <div className="border-b border-r border-line bg-bg-surface px-5 py-5">
+      <p className="eyebrow">{label}</p>
+      <p className={`mt-2 font-serif font-semibold leading-none tabular-nums text-ink ${emphasis ? 'text-4xl' : 'text-3xl'}`}>{value}</p>
     </div>
   );
 }

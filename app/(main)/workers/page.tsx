@@ -62,7 +62,7 @@ function Chip({ href, active, children }: { href: string; active: boolean; child
       scroll={false}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'rounded-full border px-4 py-1.5 text-sm transition-colors',
+        'border px-4 py-1.5 text-sm transition-colors',
         active ? 'border-brand bg-brand text-white' : 'border-line bg-bg-surface hover:border-brand/40'
       )}
     >

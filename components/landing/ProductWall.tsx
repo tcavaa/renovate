@@ -56,7 +56,7 @@ export function ProductWall({ t, products }: { t: Dictionary; products: LandingP
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                   )}
-                  <span className="glass absolute left-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold text-ink">{formatGEL(p.price)}</span>
+                  <span className="glass absolute left-3 top-3 px-2.5 py-1 text-xs font-semibold text-ink">{formatGEL(p.price)}</span>
                 </div>
                 <div className="flex items-start justify-between gap-3 p-4">
                   <div className="min-w-0">

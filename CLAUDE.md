@@ -687,6 +687,27 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it.
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
+- **Corners are sharp.** The Tailwind radius scale is collapsed to 0–4 px, so `rounded-2xl`
+  in an older component renders as a crisp edge; do not reach for `rounded-full` on buttons,
+  chips or panels — it is reserved for things that are genuinely circles (avatars, colour
+  dots, the rotating badge). Cards are flat: hairline `border-line`, no shadow. The primary
+  button is `variant="ink"` (near-black, terracotta on hover).
+- **Step flows** (`components/flow/*`): both journeys — calculator and studio — are built from
+  the same parts. `StepStrip` is the numbered index under the header (`StepIndicator` and
+  `DesignSteps` are thin wrappers that supply labels and hrefs); `StepHeader` is the
+  "STEP 02 / 05" head with title, lead, meta and actions; `SectionHead` numbers sections
+  inside a step; `StepNav` is the sticky bottom bar (back link, running total, one primary
+  action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
+  the "finish the previous step first" card. `Figure` (in `MaterialsTable`) is the large
+  number-in-a-cell used for stats and subtotals.
+- **Catalogue** (`/catalog`): server-rendered with a real sidebar — categories in two groups
+  (materials by phase, then furniture) with live counts, partner stores, the four styles and
+  a price band — plus search, sort and paging. Every control is a link or a GET form built
+  with `hrefWith` from `lib/admin/list.ts`, so any filtered view is a URL and the page works
+  without JavaScript; only the sort `<select>` is a client component. On small screens a
+  checkbox (`#catalog-filters`, `peer-checked`) shows the sidebar. Only category links carry
+  `aria-current="page"` (the e2e test counts exactly one). `ProductCard` takes `href` to be a
+  link (catalogue) or `onAction` to end in a select button (calculator steps).
 
 ## Next 16 notes (upgraded September 2026)
 

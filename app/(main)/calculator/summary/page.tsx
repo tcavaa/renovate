@@ -5,8 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeft,
-  Loader2,
   Printer,
   Save,
   CheckCircle2,
@@ -18,7 +16,6 @@ import {
   Box,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -28,11 +25,16 @@ import {
 } from '@/components/ui/dialog';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
+import { StepHeader } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
+import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useT } from '@/lib/i18n/client';
+import { homeStateLabel } from '@/lib/i18n/labels';
+import { formatGEL } from '@/lib/utils';
 
 const CALLBACK_URL = '/calculator/summary?autoSave=1';
 
@@ -141,12 +143,7 @@ export default function SummaryPage() {
     return (
       <>
         <StepIndicator current={5} />
-        <div className="container py-16 text-center">
-          <p className="text-ink-muted">{ka.calculator.needRoomsFirst}</p>
-          <Button asChild className="mt-4">
-            <Link href="/calculator">{ka.common.back}</Link>
-          </Button>
-        </div>
+        <EmptyStep message={ka.calculator.needRoomsFirst} back={ka.common.back} />
       </>
     );
   }
@@ -156,36 +153,26 @@ export default function SummaryPage() {
   return (
     <>
       <StepIndicator current={5} />
-      <div className="container py-10">
-        <div className="mx-auto max-w-4xl space-y-8">
-          <div className="text-center">
-            <h1 className="font-serif text-3xl font-bold md:text-4xl">
-              {ka.summary.title}
-            </h1>
-            <p className="mt-2 text-ink-muted">{ka.summary.subtitle}</p>
-          </div>
-
-          <SummaryCard summary={summary} />
-
-          {error && (
-            <Card className="border-danger/40 bg-danger/5">
-              <CardContent className="p-4 text-sm text-danger">{error}</CardContent>
-            </Card>
-          )}
-
-          <div className="no-print flex flex-wrap items-center justify-between gap-3">
-            <Button variant="outline" asChild>
-              <Link href="/calculator/furniture">
-                <ArrowLeft className="h-4 w-4" />
-                {ka.calculator.backButton}
-              </Link>
-            </Button>
-            <div className="flex flex-wrap items-center gap-2">
+      <div className="container py-10 md:py-14">
+        <StepHeader
+          step={5}
+          total={5}
+          title={ka.summary.title}
+          subtitle={ka.summary.subtitle}
+          meta={
+            <>
+              <span>{rooms.length} × {ka.summary.rooms}</span>
+              <span className="text-ink-faint">·</span>
+              <span>{homeStateLabel(ka, homeState)}</span>
+            </>
+          }
+          actions={
+            <div className="no-print flex flex-wrap items-center gap-2">
               <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="h-4 w-4" />
                 {ka.summary.print}
               </Button>
-              <Button onClick={viewIn3d} size="lg" variant="secondary" disabled={!ready}>
+              <Button variant="outline" onClick={viewIn3d} disabled={!ready}>
                 <Box className="h-4 w-4" />
                 {ka.calculator.view3dButton}
               </Button>
@@ -193,31 +180,29 @@ export default function SummaryPage() {
                 <RotateCcw className="h-4 w-4" />
                 {ka.calculator.startOver}
               </Button>
-              {savedId != null ? (
-                <Button asChild size="lg" variant="outline">
-                  <Link href="/profile">
-                    <CheckCircle2 className="h-4 w-4 text-success" />
-                    {ka.calculator.savedAndGo}
-                  </Link>
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleSave}
-                  disabled={saving || status === 'loading'}
-                  size="lg"
-                >
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {ka.summary.saveProject}
-                </Button>
-              )}
             </div>
-          </div>
+          }
+        />
+
+        <div className="mt-8">
+          <SummaryCard summary={summary} />
         </div>
+
+        {error && <p className="mt-6 border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
       </div>
+
+      <StepNav
+        back={{ href: '/calculator/furniture', label: ka.calculator.backButton }}
+        next={
+          savedId != null
+            ? { href: '/profile', label: ka.calculator.savedAndGo, icon: <CheckCircle2 className="h-4 w-4" /> }
+            : { label: ka.summary.saveProject, onClick: handleSave, disabled: saving || status === 'loading', loading: saving, icon: <Save className="h-4 w-4" /> }
+        }
+      >
+        <p className="text-sm text-ink-muted sm:text-right">
+          {ka.summary.grandTotalWithMargin} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+        </p>
+      </StepNav>
 
       <Dialog
         open={successModalOpen}

@@ -68,7 +68,7 @@ export function Hero({ t }: { t: Dictionary }) {
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center animate-rise-in" style={{ animationDelay: '850ms' }}>
               <Link
                 href="/design"
-                className="group inline-flex h-14 items-center gap-2 rounded-full bg-ink px-7 text-base font-medium text-white transition-all hover:bg-brand hover:shadow-cardHover"
+                className="group inline-flex h-14 items-center gap-2 bg-ink px-7 text-base font-medium text-white transition-all hover:bg-brand hover:shadow-cardHover"
               >
                 {t.landing.heroCta}
                 <ArrowUpRight className="h-5 w-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

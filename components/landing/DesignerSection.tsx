@@ -25,8 +25,8 @@ export function DesignerSection({ t, products }: { t: Dictionary; products: Land
           <Step index="01" title={t.landing.step1Title} body={t.landing.step1Desc}>
             <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-white">
               <Image src="/samples/plan-2br.png" alt="" fill sizes="(min-width: 1024px) 40vw, 90vw" className="object-contain p-4 opacity-90" />
-              <span className="glass absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-medium">5 × {t.design.step2}</span>
-              <span className="glass absolute bottom-4 right-4 rounded-full px-3 py-1.5 text-xs font-medium text-success">✓ {t.design.step1}</span>
+              <span className="glass absolute left-4 top-4 px-3 py-1.5 text-xs font-medium">5 × {t.design.step2}</span>
+              <span className="glass absolute bottom-4 right-4 px-3 py-1.5 text-xs font-medium text-success">✓ {t.design.step1}</span>
             </div>
           </Step>
 

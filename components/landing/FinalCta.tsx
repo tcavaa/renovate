@@ -13,7 +13,7 @@ export function FinalCta({ t }: { t: Dictionary }) {
         <div className="relative mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/design"
-            className="group inline-flex h-14 items-center gap-2 rounded-full bg-ink px-8 text-base font-medium text-white transition-all hover:bg-brand hover:shadow-cardHover"
+            className="group inline-flex h-14 items-center gap-2 bg-ink px-8 text-base font-medium text-white transition-all hover:bg-brand hover:shadow-cardHover"
           >
             {t.landing.ctaPrimary}
             <ArrowUpRight className="h-5 w-5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

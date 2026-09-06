@@ -65,13 +65,13 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                  'relative px-4 py-2 text-sm font-medium transition-colors',
                   active ? 'text-ink' : 'text-ink-muted hover:text-ink'
                 )}
               >
                 {link.label}
                 {link.badge && (
-                  <span className="ml-1.5 rounded-full bg-brand/12 px-1.5 py-0.5 text-[10px] font-semibold text-brand-dark">{link.badge}</span>
+                  <span className="ml-1.5 bg-brand/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-dark">{link.badge}</span>
                 )}
                 {active && <span className="absolute inset-x-4 -bottom-0.5 h-px bg-ink" />}
               </Link>
@@ -84,7 +84,7 @@ export function Header() {
           <UserMenu variant="desktop" />
           <Link
             href="/design"
-            className="group inline-flex h-10 items-center gap-2 rounded-full bg-ink pl-4 pr-3 text-sm font-medium text-white transition-colors hover:bg-brand"
+            className="group inline-flex h-10 items-center gap-2 bg-ink pl-4 pr-3 text-sm font-medium text-white transition-colors hover:bg-brand"
           >
             {t.landing.heroCta}
             <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
@@ -98,7 +98,7 @@ export function Header() {
             aria-label="menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="grid h-10 w-10 place-items-center rounded-full border border-line bg-bg-surface/70"
+            className="grid h-10 w-10 place-items-center border border-line bg-bg-surface/70"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -109,12 +109,12 @@ export function Header() {
         <div className="border-t border-line/70 bg-bg-base/95 backdrop-blur-xl lg:hidden">
           <nav className="container flex flex-col gap-1 py-4">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className="rounded-xl px-3 py-3 font-serif text-2xl font-semibold hover:bg-bg-surface">
+              <Link key={link.href} href={link.href} className="px-3 py-3 font-serif text-2xl font-semibold hover:bg-bg-surface">
                 {link.label}
               </Link>
             ))}
             <div className="mt-3 space-y-3 border-t border-line pt-4">
-              <Link href="/design" className="flex h-12 items-center justify-center gap-2 rounded-full bg-ink text-sm font-medium text-white">
+              <Link href="/design" className="flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white">
                 {t.landing.heroCta} <ArrowUpRight className="h-4 w-4" />
               </Link>
               <UserMenu variant="mobile" />
