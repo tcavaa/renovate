@@ -415,6 +415,20 @@ the two — otherwise you could not walk through your own doorways.
 - `mode: 'design_only'` — the home is finished; only furniture and decor are costed.
 - `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine.
 
+### Step 1: three ways to a plan (`app/(main)/calculator/page.tsx`)
+
+The calculator starts from the plan, not the home state: upload a 2D plan, enter rooms by
+hand, or draw one — three tabs in a row, the home state below. Every room carries an optional
+`x`/`z` (top-left, metres) on the plan: an uploaded plan sets it from the room outline, a typed
+room takes the first free spot (`findFreeSpot` in `lib/calculator/layout.ts`), a drawn
+rectangle keeps where it was drawn. `RoomLayoutEditor` is the SVG grid the rooms move on
+(drag, 25 cm snap, overlap warning; drag on empty space draws in draw mode) and `RoomList`
+edits name and type in place and reorders with arrows. `planFromCalculatorRooms` uses those
+positions when every room has them and only falls back to the strip layout otherwise, so the
+layout the user arranged is the one the 3D step builds. **A re-uploaded plan is a new
+project**: `replaceRooms` drops every product and furniture pick along with the rooms;
+`setRooms` only prunes furniture of rooms that vanished.
+
 ### One journey: calculator → 3D (`lib/design/fromCalculator.ts`)
 
 The calculator's first step can take a 2D plan (the same `PlanUploadCard` the studio uses):

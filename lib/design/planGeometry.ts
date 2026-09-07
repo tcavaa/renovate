@@ -649,19 +649,31 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
     const width = round2(Math.max(...xs) - Math.min(...xs));
     const depth = round2(Math.max(...zs) - Math.min(...zs));
     const length = room.polygon.length > 4 ? round2(room.areaM2 / Math.max(width, 0.1)) : depth;
-    return computeRoomAreas({
-      id: room.id,
-      type: room.type,
-      nameKa: room.name,
-      width,
-      length,
-      height: room.heightM,
-    });
+    return {
+      ...computeRoomAreas({
+        id: room.id,
+        type: room.type,
+        nameKa: room.name,
+        width,
+        length,
+        height: room.heightM,
+      }),
+      x: round2(Math.min(...xs)),
+      z: round2(Math.min(...zs)),
+    };
   });
 }
 
+/**
+ * Builds a plan from the calculator's rooms. Rooms the user placed (every room carries `x`/`z`
+ * from the layout editor or the plan they came from) keep those positions; rooms typed
+ * without positions are laid out in a simple strip.
+ */
 export function planFromCalculatorRooms(rooms: Room[]): FloorPlan {
   const planRooms: PlanRoom[] = [];
+  const placed = rooms.length > 0 && rooms.every((r) => typeof r.x === 'number' && typeof r.z === 'number');
+  const originX = placed ? Math.min(...rooms.map((r) => r.x as number)) : 0;
+  const originZ = placed ? Math.min(...rooms.map((r) => r.z as number)) : 0;
   let cursorX = 0;
   let rowZ = 0;
   let rowDepth = 0;
@@ -670,7 +682,10 @@ export function planFromCalculatorRooms(rooms: Room[]): FloorPlan {
   for (const room of rooms) {
     const w = Math.max(1.5, room.width);
     const d = Math.max(1.5, room.length);
-    if (cursorX > 0 && cursorX + w > maxRowWidth) {
+    if (placed) {
+      cursorX = (room.x as number) - originX;
+      rowZ = (room.z as number) - originZ;
+    } else if (cursorX > 0 && cursorX + w > maxRowWidth) {
       cursorX = 0;
       rowZ += rowDepth;
       rowDepth = 0;
@@ -691,8 +706,10 @@ export function planFromCalculatorRooms(rooms: Room[]): FloorPlan {
       perimeterM: round2(polygonPerimeterM(polygon)),
       openings: [],
     });
-    cursorX += w;
-    rowDepth = Math.max(rowDepth, d);
+    if (!placed) {
+      cursorX += w;
+      rowDepth = Math.max(rowDepth, d);
+    }
   }
 
   deriveOpenings(planRooms, DEFAULT_WALL_THICKNESS_M);

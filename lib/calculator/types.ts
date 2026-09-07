@@ -25,6 +25,9 @@ export interface Room {
   ceilingM2: number;
   perimeterM: number;
   isWetRoom: boolean;
+  /** Top-left corner on the flat's plan, metres. Set by the plan or the layout editor. */
+  x?: number;
+  z?: number;
 }
 
 export interface MaterialItem {

@@ -1,12 +1,34 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useT } from '@/lib/i18n/client';
 import { formatM2L, roomTypeLabel } from '@/lib/i18n/labels';
-import type { Room } from '@/lib/calculator/types';
+import { ROOM_TYPES } from '@/lib/calculator/constants';
+import type { Room, RoomType } from '@/lib/calculator/types';
+import { cn } from '@/lib/utils';
 
-/** The rooms entered so far as a hairline ledger: index, name, type, dimensions, area. */
-export function RoomList({ rooms, onRemove }: { rooms: Room[]; onRemove: (id: string) => void }) {
+/**
+ * The rooms as a hairline ledger, in the order they will be listed everywhere else. Each
+ * row edits its name and type in place, moves up or down, or goes; the selected row is the
+ * one highlighted on the layout.
+ */
+export function RoomList({
+  rooms,
+  selectedId,
+  onSelect,
+  onUpdate,
+  onReorder,
+  onRemove,
+}: {
+  rooms: Room[];
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+  onUpdate?: (id: string, updates: Partial<Room>) => void;
+  onReorder?: (id: string, direction: -1 | 1) => void;
+  onRemove: (id: string) => void;
+}) {
   const t = useT();
   const totalM2 = rooms.reduce((s, r) => s + r.floorM2, 0);
 
@@ -25,33 +47,80 @@ export function RoomList({ rooms, onRemove }: { rooms: Room[]; onRemove: (id: st
         <p className="px-5 py-12 text-center text-sm text-ink-muted">{t.rooms.empty}</p>
       ) : (
         <ul>
-          {rooms.map((room, i) => (
-            <li key={room.id} className="group grid grid-cols-[2rem_minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-line px-5 py-3 last:border-b-0">
-              <span className="text-xs tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
-              <div className="min-w-0">
-                <p className="truncate font-serif text-base font-semibold text-ink">{room.nameKa}</p>
-                <p className="mt-0.5 truncate text-xs text-ink-muted">
-                  {roomTypeLabel(t, room.type)}
-                  {room.isWetRoom && <span className="ml-1.5 border border-line px-1 py-px text-[10px] uppercase tracking-wide">{t.rooms.wet}</span>}
-                  <span className="mx-1.5 text-ink-faint">·</span>
-                  <span className="tabular-nums">
-                    {room.width} × {room.length} × {room.height} {t.units.m}
-                  </span>
-                </p>
-              </div>
-              <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2L(t, room.floorM2)}</span>
-              <button
-                type="button"
-                onClick={() => onRemove(room.id)}
-                aria-label={t.rooms.remove}
-                className="grid h-8 w-8 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger"
+          {rooms.map((room, i) => {
+            const active = room.id === selectedId;
+            return (
+              <li
+                key={room.id}
+                onClick={() => onSelect?.(room.id)}
+                className={cn('relative grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-line py-3 pl-4 pr-3 last:border-b-0', active ? 'bg-sand-light' : 'hover:bg-sand-light/50')}
               >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </li>
-          ))}
+                <span className={cn('absolute inset-y-0 left-0 w-[2px]', active ? 'bg-ink' : 'bg-transparent')} />
+                <span className="text-xs tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+                <div className="min-w-0">
+                  {onUpdate ? (
+                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px]">
+                      <Input value={room.nameKa} onChange={(e) => onUpdate(room.id, { nameKa: e.target.value })} className="h-9" aria-label={t.rooms.name} onClick={(e) => e.stopPropagation()} />
+                      <Select value={room.type} onValueChange={(v) => onUpdate(room.id, { type: v as RoomType, isWetRoom: ['bathroom', 'toilet', 'kitchen'].includes(v) })}>
+                        <SelectTrigger className="h-9" aria-label={t.rooms.type} onClick={(e) => e.stopPropagation()}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(ROOM_TYPES).map((key) => (
+                            <SelectItem key={key} value={key}>
+                              {roomTypeLabel(t, key)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <p className="truncate font-serif text-base font-semibold text-ink">{room.nameKa}</p>
+                  )}
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
+                    <span className="tabular-nums">
+                      {room.width} × {room.length} × {room.height} {t.units.m}
+                    </span>
+                    <span className="text-ink-faint">·</span>
+                    <span className="font-semibold tabular-nums text-ink">{formatM2L(t, room.floorM2)}</span>
+                    {room.isWetRoom && <span className="border border-line px-1 py-px text-[10px] uppercase tracking-wide">{t.rooms.wet}</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  {onReorder && (
+                    <>
+                      <IconBtn label={t.calculator.moveUp} disabled={i === 0} onClick={() => onReorder(room.id, -1)}>
+                        <ChevronUp className="h-4 w-4" />
+                      </IconBtn>
+                      <IconBtn label={t.calculator.moveDown} disabled={i === rooms.length - 1} onClick={() => onReorder(room.id, 1)}>
+                        <ChevronDown className="h-4 w-4" />
+                      </IconBtn>
+                    </>
+                  )}
+                  <IconBtn label={t.rooms.remove} onClick={() => onRemove(room.id)} danger>
+                    <Trash2 className="h-4 w-4" />
+                  </IconBtn>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
+  );
+}
+
+function IconBtn({ label, disabled, danger, onClick, children }: { label: string; disabled?: boolean; danger?: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn('grid h-8 w-8 place-items-center text-ink-faint transition-colors disabled:opacity-30', danger ? 'hover:bg-danger/10 hover:text-danger' : 'hover:bg-line/60 hover:text-ink')}
+    >
+      {children}
+    </button>
   );
 }

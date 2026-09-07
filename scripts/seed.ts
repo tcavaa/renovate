@@ -174,11 +174,11 @@ const seedWorkers: Array<{
   isVerified: boolean;
 }> = [
   { nameKa: 'გიორგი მესხი', specialty: 'მეფილე — ფილების დება', specialtySlug: 'tiling', pricePerM2: '22.00', priceUnit: 'm2', rating: '4.9', reviewCount: 87, bio: '12 წლის გამოცდილების მქონე ხელოსანი. სერთიფიცირებული.', phone: '+995555111222', isVerified: true },
-  { nameKa: 'დავით ბერიძე', specialty: 'მხატვარი — შტუკატურება და საღებავი', specialtySlug: 'painting', pricePerM2: '8.00', priceUnit: 'm2', rating: '4.8', reviewCount: 64, bio: 'სპეციალისტი ფინიშურ სამუშაოებში.', phone: '+995555111223', isVerified: true },
+  { nameKa: 'დავით ბერიძე', specialty: 'მხატვარი — შელესვა და საღებავი', specialtySlug: 'painting', pricePerM2: '8.00', priceUnit: 'm2', rating: '4.8', reviewCount: 64, bio: 'სპეციალისტი ფინიშურ სამუშაოებში.', phone: '+995555111223', isVerified: true },
   { nameKa: 'ლევან წერეთელი', specialty: 'სანტექნიკოსი', specialtySlug: 'plumbing', pricePerM2: '25.00', priceUnit: 'm2', rating: '5.0', reviewCount: 112, bio: 'ნებისმიერი სირთულის სანტექნიკის სამუშაოები.', phone: '+995555111224', isVerified: true },
   { nameKa: 'ნიკა ჯავახიშვილი', specialty: 'ელექტრიკოსი', specialtySlug: 'electrical', pricePerM2: '20.00', priceUnit: 'm2', rating: '4.9', reviewCount: 91, bio: 'ელექტრო პროექტი + მონტაჟი. 24/7.', phone: '+995555111225', isVerified: true },
   { nameKa: 'რევაზ კობახიძე', specialty: 'დურგალი — კარები და კარადები', specialtySlug: 'carpentry', pricePerUnit: '60.00', priceUnit: 'unit', rating: '4.7', reviewCount: 45, bio: 'ხელოვნური და ხელით ნაკეთები.', phone: '+995555111226', isVerified: false },
-  { nameKa: 'ზურაბ კვარაცხელია', specialty: 'მშტუკატურე', specialtySlug: 'plastering', pricePerM2: '18.00', priceUnit: 'm2', rating: '4.8', reviewCount: 56, bio: 'შტუკატურება და გასწორება.', phone: '+995555111227', isVerified: true },
+  { nameKa: 'ზურაბ კვარაცხელია', specialty: 'მლესავი', specialtySlug: 'plastering', pricePerM2: '18.00', priceUnit: 'm2', rating: '4.8', reviewCount: 56, bio: 'შელესვა და გასწორება.', phone: '+995555111227', isVerified: true },
 ];
 
 async function seed() {

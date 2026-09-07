@@ -40,6 +40,8 @@ export const calculatorRequestSchema = z.object({
         ceilingM2: z.number(),
         perimeterM: z.number(),
         isWetRoom: z.boolean(),
+        x: z.number().optional(),
+        z: z.number().optional(),
       })
     )
     .min(1),

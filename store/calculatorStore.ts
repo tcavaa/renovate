@@ -16,6 +16,12 @@ interface CalculatorStore extends CalculatorState {
   addRoom: (room: Room) => void;
   /** Rooms read off an uploaded plan replace whatever was typed; furniture picks per room go with them. */
   setRooms: (rooms: Room[]) => void;
+  /** A new plan is a new project: rooms replaced, every product and furniture pick dropped. */
+  replaceRooms: (rooms: Room[]) => void;
+  /** Layout editor: a room moved on the plan. */
+  moveRoom: (id: string, x: number, z: number) => void;
+  /** Layout editor: a room moved up or down the list. */
+  reorderRoom: (id: string, direction: -1 | 1) => void;
   updateRoom: (id: string, room: Partial<Room>) => void;
   removeRoom: (id: string) => void;
   setStep: (step: 1 | 2 | 3 | 4 | 5) => void;
@@ -50,6 +56,17 @@ export const useCalculatorStore = create<CalculatorStore>()(
             Object.entries(s.selectedFurniture).filter(([roomId]) => keep.has(roomId))
           );
           return { rooms, selectedFurniture };
+        }),
+      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {} }),
+      moveRoom: (id, x, z) => set((s) => ({ rooms: s.rooms.map((r) => (r.id === id ? { ...r, x, z } : r)) })),
+      reorderRoom: (id, direction) =>
+        set((s) => {
+          const index = s.rooms.findIndex((r) => r.id === id);
+          const target = index + direction;
+          if (index < 0 || target < 0 || target >= s.rooms.length) return {};
+          const rooms = [...s.rooms];
+          [rooms[index], rooms[target]] = [rooms[target], rooms[index]];
+          return { rooms };
         }),
       updateRoom: (id, updates) =>
         set((s) => ({

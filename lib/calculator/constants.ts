@@ -13,12 +13,12 @@ export const HOME_STATES: Record<
   white_frame: {
     labelKa: 'თეთრი კარკასი',
     descriptionKa:
-      'კედლები დაშტუკატურებულია, იატაკი მოსწორებულია, ელექტრო და წყალი შეყვანილია.',
+      'კედლები შელესილია, იატაკი მოსწორებულია, ელექტრო და წყალი შეყვანილია.',
     includedPhases: [9, 10, 11, 12, 13, 14, 15, 16, 17],
   },
   green_frame: {
     labelKa: 'მწვანე კარკასი',
-    descriptionKa: 'სრულად მზა სახლი, საჭიროა მხოლოდ მებელი და ინტერიერი.',
+    descriptionKa: 'სრულად მზა სახლი, საჭიროა მხოლოდ ავეჯი და ინტერიერი.',
     includedPhases: [17],
   },
 };
@@ -42,8 +42,8 @@ export const WORKER_RATES = {
   plumbing_rough: { labelKa: 'სანტექნიკა (შიდა)', pricePerM2: 25, unit: 'm2' as const },
   electrical_rough: { labelKa: 'ელექტრო (შიდა)', pricePerM2: 20, unit: 'm2' as const },
   insulation: { labelKa: 'იზოლაცია', pricePerM2: 12, unit: 'm2' as const },
-  screed: { labelKa: 'სტიაჟკა', pricePerM2: 15, unit: 'm2' as const },
-  plastering: { labelKa: 'შტუკატურება', pricePerM2: 18, unit: 'm2' as const },
+  screed: { labelKa: 'იატაკის მოჭიმვა', pricePerM2: 15, unit: 'm2' as const },
+  plastering: { labelKa: 'შელესვა', pricePerM2: 18, unit: 'm2' as const },
   waterproofing: { labelKa: 'ჰიდროიზოლაცია', pricePerM2: 10, unit: 'm2' as const },
   tiling: { labelKa: 'კერამიკის დება', pricePerM2: 22, unit: 'm2' as const },
   windows: { labelKa: 'ფანჯრების დაყენება', pricePerUnit: 80, unit: 'unit' as const },
@@ -250,7 +250,7 @@ export const MATERIAL_RATES_PER_M2: Record<string, MaterialRate> = {
     estimatedPriceGEL: 8,
   },
   gypsum_plaster: {
-    labelKa: 'გიფსის შტუკატური (Knauf)',
+    labelKa: 'თაბაშირის ბათქაში (Knauf)',
     qtyPerM2: 10,
     unit: 'kg',
     wasteFactorPct: 10,
@@ -383,8 +383,8 @@ export const PHASE_NAMES: Record<number, string> = {
   2: 'სანტექნიკა (შიდა)',
   3: 'ელექტრო (შიდა)',
   5: 'იზოლაცია',
-  6: 'სართულის სტიაჟკა',
-  7: 'შტუკატურება',
+  6: 'იატაკის მოჭიმვა',
+  7: 'შელესვა',
   8: 'ჰიდროიზოლაცია',
   9: 'კერამიკა და ფილები',
   10: 'კარები და ფანჯრები',
@@ -394,7 +394,7 @@ export const PHASE_NAMES: Record<number, string> = {
   14: 'ელექტრო (სახე)',
   15: 'სანტექნიკა (სახე)',
   16: 'სანიტარია და კრანები',
-  17: 'მებელი და ინტერიერი',
+  17: 'ავეჯი და ინტერიერი',
   18: 'დასუფთავება',
 };
 
