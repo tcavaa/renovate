@@ -13,7 +13,6 @@ import {
   UserPlus,
   Lock,
   ArrowRight,
-  Box,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +26,7 @@ import { StepIndicator } from '@/components/calculator/StepIndicator';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
+import { Button3d } from '@/components/ui/button-3d';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
@@ -172,10 +172,6 @@ export default function SummaryPage() {
                 <Printer className="h-4 w-4" />
                 {ka.summary.print}
               </Button>
-              <Button variant="outline" onClick={viewIn3d} disabled={!ready}>
-                <Box className="h-4 w-4" />
-                {ka.calculator.view3dButton}
-              </Button>
               <Button variant="ghost" onClick={() => reset()}>
                 <RotateCcw className="h-4 w-4" />
                 {ka.calculator.startOver}
@@ -199,9 +195,14 @@ export default function SummaryPage() {
             : { label: ka.summary.saveProject, onClick: handleSave, disabled: saving || status === 'loading', loading: saving, icon: <Save className="h-4 w-4" /> }
         }
       >
-        <p className="text-sm text-ink-muted sm:text-right">
-          {ka.summary.grandTotalWithMargin} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
-        </p>
+        <div className="flex flex-wrap items-center justify-end gap-4">
+          <p className="text-sm text-ink-muted">
+            {ka.summary.grandTotalWithMargin} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+          </p>
+          <Button3d onClick={viewIn3d} disabled={!ready}>
+            {ka.calculator.view3dButton}
+          </Button3d>
+        </div>
       </StepNav>
 
       <Dialog

@@ -1,32 +1,23 @@
 import Link from 'next/link';
-import { ArrowLeft, Calendar, Hash, Home } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { StatCard } from '@/components/ui/stat-card';
+import { ArrowLeft } from 'lucide-react';
+import { Figure } from '@/components/calculator/MaterialsTable';
+import { PlanSketch } from '@/components/projects/PlanSketch';
 import { MoneyRow } from '@/components/ui/money-row';
 import type { Project } from '@/lib/db/schema';
 import type { Dictionary } from '@/lib/i18n/ka';
 import type { Locale } from '@/lib/i18n';
-import {
-  formatM2L,
-  homeStateLabel,
-  roomTypeLabel,
-  materialLabel,
-  workTypeLabel,
-  unitLabel,
-  statusLabel,
-  localizedName,
-} from '@/lib/i18n/labels';
-import { formatGEL, formatNumber } from '@/lib/utils';
+import { formatM2L, homeStateLabel, roomTypeLabel, materialLabel, workTypeLabel, unitLabel, statusLabel, localizedName } from '@/lib/i18n/labels';
+import { formatGEL, formatNumber, cn } from '@/lib/utils';
 import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
+import type { FloorPlan } from '@/lib/design/types';
 
 /**
- * A saved calculator project, in full: meta, rooms, materials, products, furniture, labour
- * and the cost breakdown.
+ * A saved project, in full: meta, the layout, the rooms, materials, products, furniture,
+ * labour and the cost breakdown — as an editorial spread of hairline ledgers.
  *
  * Rendered identically for the owner (`/profile/projects/[id]`) and for admin
- * (`/admin/orders/[id]`); only the back link and any extra meta rows differ. Server
- * component — the caller loads the project and prices it with the current rate book.
+ * (`/admin/orders/[id]`); only the back link, the actions and any extra meta rows differ.
+ * Server component — the caller loads the project and prices it with the current rate book.
  */
 export interface MetaItem {
   icon: React.ComponentType<{ className?: string }>;
@@ -38,6 +29,9 @@ export function dateLocaleFor(locale: Locale): string {
   return locale === 'ka' ? 'ka-GE' : locale === 'ru' ? 'ru-RU' : 'en-US';
 }
 
+const TH = 'px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted';
+const TD = 'px-4 py-2.5 align-top';
+
 export function ProjectDetail({
   project,
   summary,
@@ -46,6 +40,7 @@ export function ProjectDetail({
   backHref,
   backLabel,
   extraMeta = [],
+  actions,
 }: {
   project: Project;
   summary: ProjectSummary;
@@ -54,266 +49,205 @@ export function ProjectDetail({
   backHref: string;
   backLabel: string;
   extraMeta?: MetaItem[];
+  /** Buttons on the right of the head — the owner gets "open in 3D". */
+  actions?: React.ReactNode;
 }) {
-  const ka = t;
   const rooms = summary.rooms as Room[];
-
-  const meta: MetaItem[] = [
-    { icon: Hash, label: 'ID', value: `#${project.id}` },
-    {
-      icon: Calendar,
-      label: ka.profile.metaCreated,
-      value: new Date(project.createdAt).toLocaleString(dateLocaleFor(locale)),
-    },
-    { icon: Home, label: ka.summary.homeState, value: homeStateLabel(ka, project.homeState) },
-    ...extraMeta,
+  const plan = (project.plan as FloorPlan | null) ?? null;
+  const isDesign = plan != null;
+  const facts: Array<{ label: string; value: string }> = [
+    { label: 'ID', value: `#${project.id}` },
+    { label: t.profile.colType, value: isDesign ? t.profile.typeDesign : t.profile.typeCalculator },
+    { label: t.profile.metaCreated, value: new Date(project.createdAt).toLocaleString(dateLocaleFor(locale)) },
+    { label: t.summary.homeState, value: homeStateLabel(t, project.homeState) },
+    ...extraMeta.map((m) => ({ label: m.label, value: m.value })),
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="py-4 md:py-8">
+      <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-ink-muted transition-colors hover:text-ink">
+        <ArrowLeft className="h-4 w-4" />
+        {backLabel}
+      </Link>
+
+      <header className="mt-4 flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {backLabel}
-          </Link>
-          <h1 className="mt-2 font-serif text-3xl font-bold">
-            {project.nameKa ?? ka.profile.fallbackName} —{' '}
-            <span className="text-ink-muted">#{project.id}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="eyebrow">{isDesign ? t.profile.typeDesign : t.profile.typeCalculator}</span>
+            <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
+          </div>
+          <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+            {project.nameKa ?? t.profile.fallbackName} <span className="text-ink-faint">#{project.id}</span>
           </h1>
         </div>
-        <Badge variant={project.status === 'saved' ? 'success' : 'outline'}>
-          {statusLabel(ka, project.status ?? 'draft')}
-        </Badge>
+        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+      </header>
+
+      <dl className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
+        {facts.map((f) => (
+          <div key={f.label} className="border-b border-r border-line px-4 py-3">
+            <dt className="eyebrow">{f.label}</dt>
+            <dd className="mt-1 truncate text-sm font-medium text-ink">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
+        <Figure label={t.summary.materials} value={formatGEL(summary.subtotalMaterials + summary.subtotalProducts)} />
+        <Figure label={t.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
+        <Figure label={t.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
+        <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(summary.grandTotalWithMargin)} emphasis />
       </div>
 
-      <Card>
-        <CardContent
-          className={
-            meta.length > 3
-              ? 'grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4'
-              : 'grid gap-4 p-5 sm:grid-cols-3'
-          }
-        >
-          {meta.map((m) => {
-            const Icon = m.icon;
-            return (
-              <div key={m.label} className="flex items-start gap-3">
-                <Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
-                <div className="min-w-0">
-                  <p className="text-xs uppercase tracking-wide text-ink-muted">{m.label}</p>
-                  <p className="truncate text-sm font-medium">{m.value}</p>
-                </div>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label={ka.summary.materials}
-          value={formatGEL(summary.subtotalMaterials + summary.subtotalProducts)}
-        />
-        <StatCard label={ka.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
-        <StatCard label={ka.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
-        <StatCard
-          label={ka.summary.grandTotalWithMargin}
-          value={formatGEL(summary.grandTotalWithMargin)}
-          highlight
-        />
-      </div>
-
-      <Section title={ka.summary.rooms}>
-        <table className="w-full text-sm">
-          <thead>
-            <HeadRow>
-              <th className="px-4 py-3">{ka.rooms.name}</th>
-              <th className="px-4 py-3">{ka.rooms.type}</th>
-              <th className="px-4 py-3 text-right">{ka.summary.dimsHeader}</th>
-              <th className="px-4 py-3 text-right">{ka.rooms.floorM2}</th>
-              <th className="px-4 py-3 text-right">{ka.rooms.wallM2}</th>
-              <th className="px-4 py-3 text-right">{ka.rooms.perimeter}</th>
-            </HeadRow>
-          </thead>
-          <tbody>
-            {rooms.map((r) => (
-              <tr key={r.id} className="border-b border-line/40 last:border-0">
-                <td className="px-4 py-3 font-medium">
-                  {r.nameKa}
-                  {r.isWetRoom && (
-                    <Badge className="ml-2" variant="outline">
-                      {ka.rooms.wet}
-                    </Badge>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-ink-muted">{roomTypeLabel(ka, r.type)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
-                  {r.width}×{r.length}×{r.height}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatM2L(ka, r.floorM2)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatM2L(ka, r.wallM2)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">
-                  {formatNumber(r.perimeterM)} {ka.units.m}
-                </td>
-              </tr>
-            ))}
-            {rooms.length === 0 && <EmptyRow colSpan={6} text={ka.summary.roomsEmpty} />}
-          </tbody>
-          {rooms.length > 0 && (
-            <tfoot className="border-t-2 border-line bg-bg-base font-medium">
-              <tr>
-                <td colSpan={3} className="px-4 py-3">
-                  {ka.rooms.totalM2}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">
-                  {formatM2L(ka, Number(project.totalM2))}
-                </td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
+      <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <Section title={t.calculator.layoutTitle} count={rooms.length}>
+          {rooms.length > 0 || plan ? (
+            <div className="border border-line bg-white p-4">
+              <PlanSketch plan={plan} rooms={rooms} className="block h-auto w-full" />
+            </div>
+          ) : (
+            <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
           )}
-        </table>
-      </Section>
+        </Section>
 
-      <Section title={ka.summary.materials}>
-        <table className="w-full text-sm">
-          <thead>
-            <HeadRow>
-              <th className="px-4 py-3">{ka.summary.item}</th>
-              <th className="px-4 py-3 text-right">{ka.summary.qty}</th>
-              <th className="px-4 py-3">{ka.summary.unit}</th>
-              <th className="px-4 py-3 text-right">{ka.summary.unitPrice}</th>
-              <th className="px-4 py-3 text-right">{ka.calculator.total}</th>
-            </HeadRow>
-          </thead>
-          <tbody>
-            {summary.materials.map((m) => {
+        <Section title={t.summary.rooms} count={rooms.length} aside={<span className="font-serif text-lg font-semibold text-ink">{formatM2L(t, Number(project.totalM2))}</span>}>
+          {rooms.length === 0 ? (
+            <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
+          ) : (
+            <ul className="border border-line bg-bg-surface">
+              {rooms.map((r, i) => (
+                <li key={r.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
+                  <span className="text-xs tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+                  <div className="min-w-0">
+                    <p className="truncate font-serif text-base font-semibold text-ink">
+                      {r.nameKa}
+                      {r.isWetRoom && <span className="ml-2 border border-line px-1 py-px text-[10px] font-medium uppercase tracking-wide text-ink-muted">{t.rooms.wet}</span>}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {roomTypeLabel(t, r.type)}
+                      <span className="mx-1.5 text-ink-faint">·</span>
+                      <span className="tabular-nums">
+                        {r.width} × {r.length} × {r.height} {t.units.m}
+                      </span>
+                      <span className="mx-1.5 text-ink-faint">·</span>
+                      <span className="tabular-nums">
+                        {t.rooms.wallsLabel} {formatM2L(t, r.wallM2)}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2L(t, r.floorM2)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+
+      <div className="mt-12 space-y-12">
+        <Section title={t.summary.materials} count={summary.materials.length}>
+          <Table
+            head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
+            rows={summary.materials.map((m) => {
               const total = m.estimatedPriceGEL ? m.qty * m.estimatedPriceGEL : 0;
-              return (
-                <tr key={m.key} className="border-b border-line/40 last:border-0">
-                  <td className="px-4 py-3 font-medium">{materialLabel(ka, m.key)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">{formatNumber(m.qty)}</td>
-                  <td className="px-4 py-3 text-ink-muted">{unitLabel(ka, m.unit)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
-                    {m.estimatedPriceGEL ? formatGEL(m.estimatedPriceGEL, true) : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {total > 0 ? formatGEL(total) : '—'}
-                  </td>
-                </tr>
-              );
+              return [materialLabel(t, m.key), formatNumber(m.qty), unitLabel(t, m.unit), m.estimatedPriceGEL ? formatGEL(m.estimatedPriceGEL, true) : '—', total > 0 ? formatGEL(total) : '—'];
             })}
-            {summary.materials.length === 0 && (
-              <EmptyRow colSpan={5} text={ka.summary.materialsEmpty} />
-            )}
-          </tbody>
-          <SubtotalFoot show={summary.materials.length > 0} label={ka.summary.subtotal} value={summary.subtotalMaterials} />
-        </table>
-      </Section>
-
-      <Section title={ka.summary.products}>
-        <ProductsTable
-          items={summary.products}
-          subtotal={summary.subtotalProducts}
-          emptyText={ka.summary.productsEmpty}
-          t={ka}
-          locale={locale}
-        />
-      </Section>
-
-      <Section title={ka.summary.furniture}>
-        <ProductsTable
-          items={summary.furniture}
-          subtotal={summary.subtotalFurniture}
-          emptyText={ka.summary.furnitureEmpty}
-          t={ka}
-          locale={locale}
-        />
-      </Section>
-
-      <Section title={ka.summary.workers}>
-        <table className="w-full text-sm">
-          <thead>
-            <HeadRow>
-              <th className="px-4 py-3">{ka.summary.item}</th>
-              <th className="px-4 py-3 text-right">{ka.summary.qty}</th>
-              <th className="px-4 py-3">{ka.summary.unit}</th>
-              <th className="px-4 py-3 text-right">{ka.summary.unitPrice}</th>
-              <th className="px-4 py-3 text-right">{ka.calculator.total}</th>
-            </HeadRow>
-          </thead>
-          <tbody>
-            {summary.workerCosts.map((w) => (
-              <tr key={w.key} className="border-b border-line/40 last:border-0">
-                <td className="px-4 py-3 font-medium">{workTypeLabel(ka, w.key)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatNumber(w.qty)}</td>
-                <td className="px-4 py-3 text-ink-muted">{unitLabel(ka, w.qtyUnit)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
-                  {formatGEL(w.pricePerQty, true)}
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums">{formatGEL(w.totalGEL)}</td>
-              </tr>
-            ))}
-            {summary.workerCosts.length === 0 && (
-              <EmptyRow colSpan={5} text={ka.summary.workEmpty} />
-            )}
-          </tbody>
-          <SubtotalFoot show={summary.workerCosts.length > 0} label={ka.summary.subtotal} value={summary.subtotalWorkers} />
-        </table>
-      </Section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-serif">{ka.summary.breakdown}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 p-5">
-          <MoneyRow
-            label={ka.summary.materials}
-            value={summary.subtotalMaterials + summary.subtotalProducts}
+            empty={t.summary.materialsEmpty}
+            subtotal={summary.materials.length ? { label: t.summary.subtotal, value: summary.subtotalMaterials } : undefined}
           />
-          <MoneyRow label={ka.summary.furniture} value={summary.subtotalFurniture} />
-          <MoneyRow label={ka.summary.workers} value={summary.subtotalWorkers} />
-          <div className="border-t border-line pt-3">
-            <MoneyRow label={ka.summary.grandTotal} value={summary.grandTotal} />
-          </div>
-          <MoneyRow
-            label={ka.summary.contingency}
-            value={summary.grandTotalWithMargin - summary.grandTotal}
-            muted
+        </Section>
+
+        <Section title={t.summary.products} count={summary.products.length}>
+          <ProductsTable items={summary.products} subtotal={summary.subtotalProducts} emptyText={t.summary.productsEmpty} t={t} locale={locale} />
+        </Section>
+
+        <Section title={t.summary.furniture} count={summary.furniture.length}>
+          <ProductsTable items={summary.furniture} subtotal={summary.subtotalFurniture} emptyText={t.summary.furnitureEmpty} t={t} locale={locale} />
+        </Section>
+
+        <Section title={t.summary.workers} count={summary.workerCosts.length}>
+          <Table
+            head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
+            rows={summary.workerCosts.map((w) => [workTypeLabel(t, w.key), formatNumber(w.qty), unitLabel(t, w.qtyUnit), formatGEL(w.pricePerQty, true), formatGEL(w.totalGEL)])}
+            empty={t.summary.workEmpty}
+            subtotal={summary.workerCosts.length ? { label: t.summary.subtotal, value: summary.subtotalWorkers } : undefined}
           />
-          <div className="border-t-2 border-line pt-3">
-            <MoneyRow label={ka.summary.grandTotalWithMargin} value={summary.grandTotalWithMargin} big />
+        </Section>
+
+        <Section title={t.summary.breakdown}>
+          <div className="max-w-xl border border-line bg-bg-surface p-5 md:p-6">
+            <div className="space-y-2">
+              <MoneyRow label={t.summary.materials} value={summary.subtotalMaterials + summary.subtotalProducts} />
+              <MoneyRow label={t.summary.furniture} value={summary.subtotalFurniture} />
+              <MoneyRow label={t.summary.workers} value={summary.subtotalWorkers} />
+            </div>
+            <div className="mt-4 space-y-2 border-t border-line pt-4">
+              <MoneyRow label={t.summary.grandTotal} value={summary.grandTotal} bold />
+              <MoneyRow label={t.summary.contingency} value={summary.grandTotalWithMargin - summary.grandTotal} muted />
+            </div>
+            <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
+              <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
+              <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </Section>
+      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Table building blocks
+// Building blocks
 // ---------------------------------------------------------------------------
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, count, aside, children }: { title: string; count?: number; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-serif">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 overflow-x-auto">{children}</CardContent>
-    </Card>
+    <section>
+      <div className="mb-4 flex items-baseline justify-between border-b border-line pb-3">
+        <h2 className="font-serif text-2xl font-semibold text-ink">{title}</h2>
+        {aside ?? (count !== undefined && <span className="text-sm tabular-nums text-ink-muted">{count}</span>)}
+      </div>
+      {children}
+    </section>
   );
 }
 
-function HeadRow({ children }: { children: React.ReactNode }) {
+function Table({ head, rows, empty, subtotal }: { head: string[]; rows: string[][]; empty: string; subtotal?: { label: string; value: number } }) {
+  if (rows.length === 0) return <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{empty}</p>;
   return (
-    <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
-      {children}
-    </tr>
+    <div className="overflow-x-auto border border-line bg-bg-surface">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-line">
+            {head.map((h, i) => (
+              <th key={h} className={cn(TH, i > 0 && i !== 2 && 'text-right')}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-line/70 last:border-b-0">
+              {r.map((c, j) => (
+                <td key={j} className={cn(TD, j === 0 ? 'font-medium text-ink' : j === 2 ? 'text-ink-muted' : 'text-right tabular-nums', j === 3 && 'text-ink-muted', j === 4 && 'font-medium')}>
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+        {subtotal && (
+          <tfoot className="border-t-2 border-ink">
+            <tr>
+              <td colSpan={head.length - 1} className="px-4 py-3 text-right text-sm font-semibold text-ink">
+                {subtotal.label}
+              </td>
+              <td className="px-4 py-3 text-right font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(subtotal.value)}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
   );
 }
 
@@ -327,60 +261,13 @@ export function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   );
 }
 
-function SubtotalFoot({ show, label, value }: { show: boolean; label: string; value: number }) {
-  if (!show) return null;
+export function ProductsTable({ items, subtotal, emptyText, t, locale }: { items: SelectedProduct[]; subtotal: number; emptyText: string; t: Dictionary; locale: Locale }) {
   return (
-    <tfoot className="border-t-2 border-line bg-bg-base font-semibold">
-      <tr>
-        <td colSpan={4} className="px-4 py-3 text-right">
-          {label}
-        </td>
-        <td className="px-4 py-3 text-right tabular-nums">{formatGEL(value)}</td>
-      </tr>
-    </tfoot>
-  );
-}
-
-export function ProductsTable({
-  items,
-  subtotal,
-  emptyText,
-  t,
-  locale,
-}: {
-  items: SelectedProduct[];
-  subtotal: number;
-  emptyText: string;
-  t: Dictionary;
-  locale: Locale;
-}) {
-  const ka = t;
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <HeadRow>
-          <th className="px-4 py-3">{ka.summary.item}</th>
-          <th className="px-4 py-3 text-right">{ka.summary.qty}</th>
-          <th className="px-4 py-3">{ka.summary.unit}</th>
-          <th className="px-4 py-3 text-right">{ka.summary.unitPrice}</th>
-          <th className="px-4 py-3 text-right">{ka.calculator.total}</th>
-        </HeadRow>
-      </thead>
-      <tbody>
-        {items.map((p, idx) => (
-          <tr key={`${p.productId}-${idx}`} className="border-b border-line/40 last:border-0">
-            <td className="px-4 py-3 font-medium">{localizedName(locale, p)}</td>
-            <td className="px-4 py-3 text-right tabular-nums">{formatNumber(p.qty)}</td>
-            <td className="px-4 py-3 text-ink-muted">{unitLabel(ka, p.unit)}</td>
-            <td className="px-4 py-3 text-right tabular-nums text-ink-muted">
-              {formatGEL(p.pricePerUnit, true)}
-            </td>
-            <td className="px-4 py-3 text-right tabular-nums">{formatGEL(p.totalPrice)}</td>
-          </tr>
-        ))}
-        {items.length === 0 && <EmptyRow colSpan={5} text={emptyText} />}
-      </tbody>
-      <SubtotalFoot show={items.length > 0} label={ka.summary.subtotal} value={subtotal} />
-    </table>
+    <Table
+      head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
+      rows={items.map((p) => [localizedName(locale, p), formatNumber(p.qty), unitLabel(t, p.unit), formatGEL(p.pricePerUnit, true), formatGEL(p.totalPrice)])}
+      empty={emptyText}
+      subtotal={items.length ? { label: t.summary.subtotal, value: subtotal } : undefined}
+    />
   );
 }

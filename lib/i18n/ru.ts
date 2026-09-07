@@ -372,6 +372,11 @@ export const ru: Dictionary = {
     mailIgnore: 'Если вы этого не запрашивали, просто проигнорируйте письмо.',
   },
   profile: {
+    typeCalculator: 'Калькулятор',
+    typeDesign: '3D-дизайн',
+    openIn3d: 'Смотреть в 3D',
+    colType: 'Тип',
+    layoutEmpty: 'У этого проекта нет планировки',
     subtitle: 'Управляйте проектами и профилем',
     newProject: 'Новый проект',
     fieldName: 'Имя',
@@ -988,6 +993,7 @@ export const ru: Dictionary = {
     ceiling_paint: 'Краска для потолка',
   },
   design: {
+    continueWithRooms: 'Продолжить с этими комнатами',
     fitView: 'Показать всю квартиру',
     fullscreen: 'На весь экран',
     exitFullscreen: 'Выйти из полноэкранного режима',

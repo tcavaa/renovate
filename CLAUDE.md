@@ -425,9 +425,22 @@ rectangle keeps where it was drawn. `RoomLayoutEditor` is the SVG grid the rooms
 (drag, 25 cm snap, overlap warning; drag on empty space draws in draw mode) and `RoomList`
 edits name and type in place and reorders with arrows. `planFromCalculatorRooms` uses those
 positions when every room has them and only falls back to the strip layout otherwise, so the
-layout the user arranged is the one the 3D step builds. **A re-uploaded plan is a new
-project**: `replaceRooms` drops every product and furniture pick along with the rooms;
-`setRooms` only prunes furniture of rooms that vanished.
+layout the user arranged is the one the 3D step builds. The selected room grows handles:
+corners scale it proportionally about the opposite corner, sides change one dimension
+(`onResize` → `computeRoomAreas` again). **A re-uploaded plan is a new project**:
+`replaceRooms` drops every product and furniture pick along with the rooms; `setRooms` only
+prunes furniture of rooms that vanished. `/design` offers the same three tabs; typed and drawn
+rooms live in page state there until "continue" turns them into the plan.
+
+### Saved projects reopen in 3D (`components/projects/OpenIn3dButton.tsx`)
+
+The profile list, the project page and the calculator summary carry the one button with
+depth, `Button3d` (`.btn-3d`, a hard offset shadow the button sinks into). A design project
+(`plan IS NOT NULL`) reopens exactly as saved through `designStore.openSaved` and lands in the
+studio; a calculator project goes through `startFromCalculator` and lands on the style step.
+`lib/projects/saved.ts` cuts the serialisable slice a server page hands the button.
+`PlanSketch` draws a saved layout as static SVG — the plan's outlines when there are any,
+otherwise the rooms at their `x`/`z`.
 
 ### One journey: calculator → 3D (`lib/design/fromCalculator.ts`)
 

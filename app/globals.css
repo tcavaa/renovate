@@ -63,6 +63,14 @@ p {
   .bracket-link::after { content: ' )'; }
   .bracket-link::before, .bracket-link::after { @apply text-ink-faint transition-colors; }
   .bracket-link:hover::before, .bracket-link:hover::after { @apply text-brand; }
+  /* The one button that is allowed depth: a hard offset shadow that the button sinks into. */
+  .btn-3d {
+    @apply inline-flex items-center justify-center gap-2 border-2 border-ink bg-brand px-6 font-semibold text-white transition-[transform,box-shadow] duration-150;
+    box-shadow: 5px 5px 0 0 #161513;
+  }
+  .btn-3d:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 0 #161513; }
+  .btn-3d:active { transform: translate(5px, 5px); box-shadow: 0 0 0 0 #161513; }
+  .btn-3d:disabled { opacity: 0.5; transform: none; box-shadow: 5px 5px 0 0 #161513; pointer-events: none; }
   /* Fine paper grain over large flat areas. */
   .grain::after {
     content: '';

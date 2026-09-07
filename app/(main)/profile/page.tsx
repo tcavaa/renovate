@@ -1,31 +1,25 @@
 import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
-import {
-  ChevronRight,
-  Mail,
-  Plus,
-  User as UserIcon,
-  Calendar,
-  Home as HomeIcon,
-} from 'lucide-react';
+import { ArrowUpRight, Box, Calculator, Plus } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
+import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
+import { savedProjectInput } from '@/lib/projects/saved';
+import { Figure } from '@/components/calculator/MaterialsTable';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { StatCard } from '@/components/ui/stat-card';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateLabel, statusLabel } from '@/lib/i18n/labels';
-import { formatGEL } from '@/lib/utils';
+import { dateLocaleFor } from '@/components/projects/ProjectDetail';
+import { formatGEL, cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage(props: { searchParams: Promise<{ verified?: string }> }) {
   const searchParams = await props.searchParams;
   const session = await auth();
-  const ka = await getT();
+  const t = await getT();
   const locale = await getLocale();
   const userId = Number(session!.user.id);
 
@@ -36,172 +30,92 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
     .limit(1);
   const needsVerification = !!account && !account.emailVerifiedAt && !!account.hasPassword;
 
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.userId, userId))
-    .orderBy(desc(projects.createdAt));
-
-  const totalSpent = rows.reduce(
-    (s, p) => s + (p.totalCost ? Number(p.totalCost) : 0),
-    0
-  );
+  const rows = await db.select().from(projects).where(eq(projects.userId, userId)).orderBy(desc(projects.createdAt));
+  const totalSpent = rows.reduce((s, p) => s + (p.totalCost ? Number(p.totalCost) : 0), 0);
   const totalM2 = rows.reduce((s, p) => s + Number(p.totalM2), 0);
 
   return (
-    <div className="space-y-8">
+    <div className="py-4 md:py-8">
       <VerifyEmailBanner needsVerification={needsVerification} verifiedFlag={searchParams.verified} />
-      <div className="flex flex-wrap items-start justify-between gap-4">
+
+      <header className="flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold">{ka.nav.profile}</h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {ka.profile.subtitle}
-          </p>
+          <p className="eyebrow">{t.nav.profile}</p>
+          <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{session!.user.name ?? t.nav.user}</h1>
+          <p className="mt-3 text-sm text-ink-muted">{session!.user.email}</p>
         </div>
-        <Button asChild>
-          <Link href="/calculator">
-            <Plus className="h-4 w-4" />
-            {ka.profile.newProject}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" size="lg">
+            <Link href="/calculator">
+              <Calculator className="h-4 w-4" />
+              {t.nav.calculator}
+            </Link>
+          </Button>
+          <Button asChild variant="ink" size="lg" className="group">
+            <Link href="/design">
+              <Plus className="h-4 w-4" />
+              {t.profile.newProject}
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      <div className="mt-8 grid border-l border-t border-line sm:grid-cols-3">
+        <Figure label={t.profile.statTotal} value={String(rows.length)} />
+        <Figure label={t.profile.statArea} value={formatM2L(t, totalM2)} />
+        <Figure label={t.profile.statPlanned} value={formatGEL(totalSpent)} emphasis />
       </div>
 
-      <Card>
-        <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
-          <InfoRow
-            icon={UserIcon}
-            label={ka.profile.fieldName}
-            value={session!.user.name ?? '—'}
-          />
-          <InfoRow icon={Mail} label={ka.profile.fieldEmail} value={session!.user.email ?? '—'} />
-          <InfoRow
-            icon={Calendar}
-            label={ka.profile.fieldProjects}
-            value={`${rows.length}`}
-          />
-        </CardContent>
-      </Card>
+      <section className="mt-12">
+        <div className="flex items-baseline justify-between border-b border-line pb-3">
+          <h2 className="font-serif text-2xl font-semibold text-ink">{t.nav.projects}</h2>
+          <span className="text-sm tabular-nums text-ink-muted">{rows.length}</span>
+        </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label={ka.profile.statTotal} value={`${rows.length}`} />
-        <StatCard label={ka.profile.statArea} value={formatM2L(ka, totalM2)} />
-        <StatCard
-          label={ka.profile.statPlanned}
-          value={formatGEL(totalSpent)}
-          highlight
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-serif">{ka.nav.projects}</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
-                <th className="px-4 py-3">{ka.profile.colName}</th>
-                <th className="px-4 py-3">{ka.profile.colState}</th>
-                <th className="px-4 py-3 text-right">{ka.units.m2}</th>
-                <th className="px-4 py-3 text-right">{ka.profile.colCost}</th>
-                <th className="px-4 py-3">{ka.profile.colStatus}</th>
-                <th className="px-4 py-3">{ka.profile.colDate}</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => (
-                <tr
-                  key={p.id}
-                  className="group border-b border-line/40 transition-colors last:border-0 hover:bg-bg-base"
-                >
-                  <td className="px-4 py-3 font-medium">
-                    <Link
-                      href={`/profile/projects/${p.id}`}
-                      className="hover:text-brand"
-                    >
-                      {p.nameKa ?? '—'}
-                    </Link>
-                    <p className="text-xs text-ink-muted">#{p.id}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 text-sm">
-                      <HomeIcon className="h-3.5 w-3.5 text-ink-muted" />
-                      {homeStateLabel(ka, p.homeState)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {formatM2L(ka, Number(p.totalM2))}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium">
-                    {p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {p.status === 'saved' ? (
-                      <Badge variant="success">{statusLabel(ka, p.status ?? 'draft')}</Badge>
-                    ) : (
-                      <Badge variant="outline">{statusLabel(ka, p.status ?? 'draft')}</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-ink-muted">
-                    {new Date(p.createdAt).toLocaleDateString(
-                      locale === 'ka' ? 'ka-GE' : locale === 'ru' ? 'ru-RU' : 'en-US'
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/profile/projects/${p.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
-                    >
-                      {ka.profile.details}
-                      <ChevronRight className="h-3 w-3" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-16 text-center text-sm text-ink-muted"
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      <p>{ka.profile.emptyText}</p>
-                      <Button asChild>
-                        <Link href="/calculator">
-                          <Plus className="h-4 w-4" />
-                          {ka.profile.emptyCta}
-                        </Link>
-                      </Button>
+        {rows.length === 0 ? (
+          <div className="mt-6 border border-dashed border-line p-16 text-center">
+            <p className="text-sm text-ink-muted">{t.profile.emptyText}</p>
+            <Button asChild variant="ink" className="mt-5">
+              <Link href="/calculator">{t.profile.emptyCta}</Link>
+            </Button>
+          </div>
+        ) : (
+          <ul className="mt-2">
+            {rows.map((p) => {
+              const isDesign = p.plan != null;
+              return (
+                <li key={p.id} className="grid items-center gap-x-6 gap-y-3 border-b border-line py-5 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn('inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', isDesign ? 'border-ink text-ink' : 'border-line text-ink-muted')}>
+                        {isDesign ? <Box className="h-3 w-3" /> : <Calculator className="h-3 w-3" />}
+                        {isDesign ? t.profile.typeDesign : t.profile.typeCalculator}
+                      </span>
+                      <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', p.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, p.status ?? 'draft')}</span>
+                      <span className="text-xs tabular-nums text-ink-faint">#{p.id}</span>
                     </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+                    <Link href={`/profile/projects/${p.id}`} className="group mt-2 inline-flex items-center gap-2 font-serif text-xl font-semibold text-ink hover:text-brand">
+                      {p.nameKa ?? t.profile.fallbackName}
+                      <ArrowUpRight className="h-4 w-4 text-ink-faint transition-colors group-hover:text-brand" />
+                    </Link>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
+                      <span>{homeStateLabel(t, p.homeState)}</span>
+                      <span className="text-ink-faint">·</span>
+                      <span className="tabular-nums">{formatM2L(t, Number(p.totalM2))}</span>
+                      <span className="text-ink-faint">·</span>
+                      <span className="tabular-nums">{new Date(p.createdAt).toLocaleDateString(dateLocaleFor(locale))}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 md:justify-end">
+                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</span>
+                    <OpenIn3dButton project={savedProjectInput(p)} size="sm" />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
-
-function InfoRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-brand" />
-      <div className="min-w-0">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-        <p className="truncate text-sm font-medium">{value}</p>
-      </div>
-    </div>
-  );
-}
-

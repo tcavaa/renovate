@@ -374,6 +374,11 @@ export const en: Dictionary = {
     mailIgnore: 'If you did not request this, you can ignore this message.',
   },
   profile: {
+    typeCalculator: 'Calculator',
+    typeDesign: '3D design',
+    openIn3d: 'View in 3D',
+    colType: 'Type',
+    layoutEmpty: 'This project has no layout',
     subtitle: 'Manage your projects and profile',
     newProject: 'New project',
     fieldName: 'Name',
@@ -990,6 +995,7 @@ export const en: Dictionary = {
     ceiling_paint: 'Ceiling paint',
   },
   design: {
+    continueWithRooms: 'Continue with these rooms',
     fitView: 'Show the whole flat',
     fullscreen: 'Full screen',
     exitFullscreen: 'Exit full screen',

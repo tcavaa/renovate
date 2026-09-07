@@ -7,6 +7,8 @@ import { getT, getLocale } from '@/lib/i18n/server';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
+import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
+import { savedProjectInput } from '@/lib/projects/saved';
 import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +50,7 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
       locale={locale}
       backHref="/profile"
       backLabel={ka.profile.backToProjects}
+      actions={<OpenIn3dButton project={savedProjectInput(project)} size="lg" />}
     />
   );
 }

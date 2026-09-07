@@ -15,16 +15,30 @@ export interface DrawnRect {
   length: number;
 }
 
+const MIN_SIDE_M = 1;
+
+/** Which handle is held: corners scale proportionally, sides change one dimension. */
+type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e';
+const CORNERS: Handle[] = ['nw', 'ne', 'sw', 'se'];
+const SIDES: Handle[] = ['n', 's', 'w', 'e'];
+
+type Gesture =
+  | { kind: 'move'; id: string; dx: number; dz: number; rect: DrawnRect }
+  | { kind: 'resize'; id: string; handle: Handle; start: DrawnRect; rect: DrawnRect; ratio: number }
+  | { kind: 'draw'; x0: number; z0: number; x1: number; z1: number };
+
 /**
- * The flat as rectangles on a grid, in metres. Rooms move by dragging (snapped to the grid);
- * in draw mode a drag on empty space becomes a new room. Plain SVG with a metre-sized
- * viewBox, so the same code renders at any width and the maths stays in metres.
+ * The flat as rectangles on a grid, in metres. Rooms move by dragging their middle; the
+ * selected room grows handles — corners scale it proportionally, sides change its width or
+ * its length. In draw mode a drag on empty space becomes a new room. Plain SVG with a
+ * metre-sized viewBox, so the same code renders at any width and the maths stays in metres.
  */
 export function RoomLayoutEditor({
   rooms,
   selectedId,
   onSelect,
   onMove,
+  onResize,
   onDraw,
   className,
 }: {
@@ -32,14 +46,14 @@ export function RoomLayoutEditor({
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, z: number) => void;
+  onResize?: (id: string, rect: DrawnRect) => void;
   /** When given, dragging on empty space draws a room. */
   onDraw?: (rect: DrawnRect) => void;
   className?: string;
 }) {
   const t = useT();
   const svgRef = useRef<SVGSVGElement>(null);
-  const [drag, setDrag] = useState<{ id: string; dx: number; dz: number; x: number; z: number } | null>(null);
-  const [draft, setDraft] = useState<{ x0: number; z0: number; x1: number; z1: number } | null>(null);
+  const [gesture, setGesture] = useState<Gesture | null>(null);
 
   const placed = rooms.filter((r) => typeof r.x === 'number' && typeof r.z === 'number');
   const bounds = layoutBounds(rooms);
@@ -57,50 +71,98 @@ export function RoomLayoutEditor({
     return { x: w.x, z: w.y };
   };
 
-  const startRoomDrag = (e: React.PointerEvent, room: Room) => {
+  const rectOf = (room: Room): DrawnRect => ({ x: room.x as number, z: room.z as number, width: room.width, length: room.length });
+
+  const capture = (e: React.PointerEvent) => (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+
+  const startMove = (e: React.PointerEvent, room: Room) => {
     e.stopPropagation();
     const w = toWorld(e);
     onSelect(room.id);
-    setDrag({ id: room.id, dx: w.x - (room.x as number), dz: w.z - (room.z as number), x: room.x as number, z: room.z as number });
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    const rect = rectOf(room);
+    setGesture({ kind: 'move', id: room.id, dx: w.x - rect.x, dz: w.z - rect.z, rect });
+    capture(e);
+  };
+
+  const startResize = (e: React.PointerEvent, room: Room, handle: Handle) => {
+    e.stopPropagation();
+    const rect = rectOf(room);
+    setGesture({ kind: 'resize', id: room.id, handle, start: rect, rect, ratio: rect.length / rect.width });
+    capture(e);
   };
 
   const startDraw = (e: React.PointerEvent) => {
-    if (e.target !== e.currentTarget && !(e.target as Element).hasAttribute('data-canvas')) return;
+    if (!(e.target as Element).hasAttribute('data-canvas')) return;
     onSelect(null);
     if (!onDraw) return;
     const w = toWorld(e);
-    setDraft({ x0: snap(w.x), z0: snap(w.z), x1: snap(w.x), z1: snap(w.z) });
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    setGesture({ kind: 'draw', x0: snap(w.x), z0: snap(w.z), x1: snap(w.x), z1: snap(w.z) });
+    capture(e);
+  };
+
+  const resized = (g: Extract<Gesture, { kind: 'resize' }>, w: { x: number; z: number }): DrawnRect => {
+    const { start, handle } = g;
+    const right = start.x + start.width;
+    const bottom = start.z + start.length;
+    let { x, z, width, length } = start;
+    if (CORNERS.includes(handle)) {
+      // Proportional: the corner follows the pointer along the diagonal, the opposite corner stays.
+      const anchorX = handle.includes('w') ? right : start.x;
+      const anchorZ = handle.includes('n') ? bottom : start.z;
+      const dx = Math.abs(w.x - anchorX);
+      const dz = Math.abs(w.z - anchorZ);
+      width = Math.max(MIN_SIDE_M, snap(Math.max(dx, dz / g.ratio)));
+      length = Math.max(MIN_SIDE_M, snap(width * g.ratio));
+      x = handle.includes('w') ? anchorX - width : anchorX;
+      z = handle.includes('n') ? anchorZ - length : anchorZ;
+    } else if (handle === 'e') {
+      width = Math.max(MIN_SIDE_M, snap(w.x - start.x));
+    } else if (handle === 'w') {
+      width = Math.max(MIN_SIDE_M, snap(right - w.x));
+      x = right - width;
+    } else if (handle === 's') {
+      length = Math.max(MIN_SIDE_M, snap(w.z - start.z));
+    } else if (handle === 'n') {
+      length = Math.max(MIN_SIDE_M, snap(bottom - w.z));
+      z = bottom - length;
+    }
+    return { x: Math.max(0, x), z: Math.max(0, z), width, length };
   };
 
   const move = (e: React.PointerEvent) => {
-    if (drag) {
-      const w = toWorld(e);
-      setDrag({ ...drag, x: Math.max(0, snap(w.x - drag.dx)), z: Math.max(0, snap(w.z - drag.dz)) });
-    } else if (draft) {
-      const w = toWorld(e);
-      setDraft({ ...draft, x1: Math.max(0, snap(w.x)), z1: Math.max(0, snap(w.z)) });
+    if (!gesture) return;
+    const w = toWorld(e);
+    if (gesture.kind === 'move') {
+      setGesture({ ...gesture, rect: { ...gesture.rect, x: Math.max(0, snap(w.x - gesture.dx)), z: Math.max(0, snap(w.z - gesture.dz)) } });
+    } else if (gesture.kind === 'resize') {
+      setGesture({ ...gesture, rect: resized(gesture, w) });
+    } else {
+      setGesture({ ...gesture, x1: Math.max(0, snap(w.x)), z1: Math.max(0, snap(w.z)) });
     }
   };
 
   const finish = () => {
-    if (drag) {
-      onMove(drag.id, drag.x, drag.z);
-      setDrag(null);
-    } else if (draft && onDraw) {
-      const x = Math.min(draft.x0, draft.x1);
-      const z = Math.min(draft.z0, draft.z1);
-      const width = Math.abs(draft.x1 - draft.x0);
-      const length = Math.abs(draft.z1 - draft.z0);
-      setDraft(null);
-      if (width >= 1 && length >= 1) onDraw({ x, z, width, length });
+    if (!gesture) return;
+    setGesture(null);
+    if (gesture.kind === 'move') {
+      onMove(gesture.id, gesture.rect.x, gesture.rect.z);
+    } else if (gesture.kind === 'resize') {
+      if (onResize && (gesture.rect.width !== gesture.start.width || gesture.rect.length !== gesture.start.length || gesture.rect.x !== gesture.start.x || gesture.rect.z !== gesture.start.z)) onResize(gesture.id, gesture.rect);
+    } else if (onDraw) {
+      const x = Math.min(gesture.x0, gesture.x1);
+      const z = Math.min(gesture.z0, gesture.z1);
+      const width = Math.abs(gesture.x1 - gesture.x0);
+      const length = Math.abs(gesture.z1 - gesture.z0);
+      if (width >= MIN_SIDE_M && length >= MIN_SIDE_M) onDraw({ x, z, width, length });
     }
   };
 
-  const draftRect = draft
-    ? { x: Math.min(draft.x0, draft.x1), z: Math.min(draft.z0, draft.z1), width: Math.abs(draft.x1 - draft.x0), length: Math.abs(draft.z1 - draft.z0) }
-    : null;
+  const draftRect =
+    gesture?.kind === 'draw'
+      ? { x: Math.min(gesture.x0, gesture.x1), z: Math.min(gesture.z0, gesture.z1), width: Math.abs(gesture.x1 - gesture.x0), length: Math.abs(gesture.z1 - gesture.z0) }
+      : null;
+  const liveRect = gesture && gesture.kind !== 'draw' ? gesture.rect : null;
+  const handleSize = Math.max(0.18, Math.min(0.3, bounds.width / 60));
 
   return (
     <div className={cn('relative border border-line bg-white', className)}>
@@ -127,30 +189,56 @@ export function RoomLayoutEditor({
         <rect width={bounds.width} height={bounds.depth} fill="url(#grid-major)" data-canvas />
 
         {placed.map((room) => {
-          const dragging = drag?.id === room.id;
-          const x = dragging ? drag.x : (room.x as number);
-          const z = dragging ? drag.z : (room.z as number);
+          const live = liveRect && gesture && 'id' in gesture && gesture.id === room.id ? liveRect : rectOf(room);
           const active = room.id === selectedId;
           const bad = overlaps.has(room.id);
-          const fontSize = Math.max(0.22, Math.min(0.4, room.width / 10));
+          const fontSize = Math.max(0.22, Math.min(0.4, live.width / 10));
+          const area = live.width * live.length;
           return (
-            <g key={room.id} className="cursor-move" onPointerDown={(e) => startRoomDrag(e, room)}>
-              <rect
-                x={x}
-                y={z}
-                width={room.width}
-                height={room.length}
-                fill={bad ? 'rgba(239,68,68,0.10)' : active ? 'rgba(22,21,19,0.08)' : room.isWetRoom ? 'rgba(110,150,190,0.12)' : 'rgba(233,226,216,0.6)'}
-                stroke={bad ? '#EF4444' : active ? '#161513' : '#3A3733'}
-                strokeWidth={active ? 2.5 : 1.5}
-                vectorEffect="non-scaling-stroke"
-              />
-              <text x={x + room.width / 2} y={z + room.length / 2 - fontSize * 0.2} textAnchor="middle" fontSize={fontSize} fontWeight={600} fill="#161513" style={{ pointerEvents: 'none' }}>
-                {room.nameKa}
-              </text>
-              <text x={x + room.width / 2} y={z + room.length / 2 + fontSize * 1.1} textAnchor="middle" fontSize={fontSize * 0.75} fill="#6F6A63" style={{ pointerEvents: 'none' }}>
-                {formatM2(room.floorM2)} · {roomTypeLabel(t, room.type)}
-              </text>
+            <g key={room.id}>
+              <g className="cursor-move" onPointerDown={(e) => startMove(e, room)}>
+                <rect
+                  x={live.x}
+                  y={live.z}
+                  width={live.width}
+                  height={live.length}
+                  fill={bad ? 'rgba(239,68,68,0.10)' : active ? 'rgba(22,21,19,0.08)' : room.isWetRoom ? 'rgba(110,150,190,0.12)' : 'rgba(233,226,216,0.6)'}
+                  stroke={bad ? '#EF4444' : active ? '#161513' : '#3A3733'}
+                  strokeWidth={active ? 2.5 : 1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text x={live.x + live.width / 2} y={live.z + live.length / 2 - fontSize * 0.2} textAnchor="middle" fontSize={fontSize} fontWeight={600} fill="#161513" style={{ pointerEvents: 'none' }}>
+                  {room.nameKa}
+                </text>
+                <text x={live.x + live.width / 2} y={live.z + live.length / 2 + fontSize * 1.1} textAnchor="middle" fontSize={fontSize * 0.75} fill="#6F6A63" style={{ pointerEvents: 'none' }}>
+                  {formatM2(area)} · {roomTypeLabel(t, room.type)}
+                </text>
+              </g>
+              {active && onResize && (
+                <g>
+                  {[...CORNERS, ...SIDES].map((h) => {
+                    const cx = h.includes('w') ? live.x : h.includes('e') ? live.x + live.width : live.x + live.width / 2;
+                    const cz = h.includes('n') ? live.z : h.includes('s') ? live.z + live.length : live.z + live.length / 2;
+                    const cursor = h === 'n' || h === 's' ? 'ns-resize' : h === 'e' || h === 'w' ? 'ew-resize' : h === 'nw' || h === 'se' ? 'nwse-resize' : 'nesw-resize';
+                    const corner = CORNERS.includes(h);
+                    return (
+                      <rect
+                        key={h}
+                        x={cx - handleSize / 2}
+                        y={cz - handleSize / 2}
+                        width={handleSize}
+                        height={handleSize}
+                        fill={corner ? '#161513' : '#FFFFFF'}
+                        stroke="#161513"
+                        strokeWidth={1.5}
+                        vectorEffect="non-scaling-stroke"
+                        style={{ cursor }}
+                        onPointerDown={(e) => startResize(e, room, h)}
+                      />
+                    );
+                  })}
+                </g>
+              )}
             </g>
           );
         })}
@@ -163,12 +251,12 @@ export function RoomLayoutEditor({
       <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-3 text-[11px] text-ink-muted">
         <span className="bg-white/90 px-2 py-1">{onDraw ? t.calculator.drawHint : t.calculator.layoutHint}</span>
       </div>
-      {draftRect && draftRect.width >= 1 && draftRect.length >= 1 && (
+      {(draftRect && draftRect.width >= MIN_SIDE_M && draftRect.length >= MIN_SIDE_M) || gesture?.kind === 'resize' ? (
         <div className="pointer-events-none absolute right-3 top-3 bg-ink px-2 py-1 text-[11px] tabular-nums text-white">
-          {draftRect.width.toFixed(2)} × {draftRect.length.toFixed(2)} {t.units.m} · {formatM2(draftRect.width * draftRect.length)}
+          {(draftRect ?? liveRect)!.width.toFixed(2)} × {(draftRect ?? liveRect)!.length.toFixed(2)} {t.units.m} · {formatM2((draftRect ?? liveRect)!.width * (draftRect ?? liveRect)!.length)}
         </div>
-      )}
-      {overlaps.size > 0 && <div className="pointer-events-none absolute right-3 bottom-3 border border-danger/40 bg-white/95 px-2 py-1 text-[11px] text-danger">{t.calculator.overlapWarning}</div>}
+      ) : null}
+      {overlaps.size > 0 && <div className="pointer-events-none absolute bottom-3 right-3 border border-danger/40 bg-white/95 px-2 py-1 text-[11px] text-danger">{t.calculator.overlapWarning}</div>}
     </div>
   );
 }

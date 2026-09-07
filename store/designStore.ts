@@ -79,6 +79,8 @@ interface DesignActions {
     selectedProducts: Record<string, SelectedProduct>;
     selectedFurniture: Record<string, SelectedProduct[]>;
   }) => void;
+  /** Reopens a saved design project in the studio exactly as it was saved. */
+  openSaved: (input: { plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null }) => void;
   /** Gives rooms a floor or wall finish; null returns them to the style's default. */
   setFinish: (roomIds: string[], surface: 'floor' | 'wall', product: CatalogProduct | null) => void;
   swapProduct: (itemId: string, product: CatalogProduct) => void;
@@ -146,11 +148,29 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           plan,
           floorPlanUrl: floorPlanUrl ?? s.floorPlanUrl,
           finishes: defaultFinishes(plan, s.styleId),
-          // A new plan invalidates any furniture laid out against the old one.
+          // A new plan is a new flat: the furniture laid out against the old one and the
+          // calculator's picks for it are gone with it.
           items: [],
+          calculatorPicks: null,
           focusRoomId: null,
           selectedItemId: null,
         })),
+
+      openSaved: ({ plan, scene, floorPlanUrl, homeState }) =>
+        set({
+          plan,
+          floorPlanUrl,
+          homeState,
+          mode: scene.mode,
+          styleId: scene.styleId,
+          budgetGel: scene.budgetGel,
+          items: scene.items,
+          finishes: scene.finishes,
+          calculatorPicks: null,
+          focusRoomId: null,
+          selectedItemId: null,
+          step: 4,
+        }),
 
       updateRoom: (roomId, patch) =>
         set((s) => {

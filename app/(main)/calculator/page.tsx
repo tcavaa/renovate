@@ -73,6 +73,14 @@ export default function CalculatorStep1Page() {
     updateRoom(id, { ...recomputed, x: current.x, z: current.z });
   };
 
+  /** A handle drag: new size and corner, areas recomputed, everything else kept. */
+  const resizeRoom = (id: string, rect: DrawnRect) => {
+    const current = rooms.find((r) => r.id === id);
+    if (!current) return;
+    const recomputed = computeRoomAreas({ id, type: current.type, nameKa: current.nameKa, width: Number(rect.width.toFixed(2)), length: Number(rect.length.toFixed(2)), height: current.height });
+    updateRoom(id, { ...recomputed, x: rect.x, z: rect.z });
+  };
+
   const handleStart = () => {
     if (rooms.length === 0) {
       setError(t.calculator.needRoomsFirst);
@@ -153,7 +161,7 @@ export default function CalculatorStep1Page() {
             <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
               <div>
                 <p className="eyebrow mb-2">{t.calculator.layoutTitle}</p>
-                <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onDraw={mode === 'draw' ? addDrawn : undefined} />
+                <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onResize={resizeRoom} onDraw={mode === 'draw' ? addDrawn : undefined} />
               </div>
               <div className="lg:sticky lg:top-24 lg:self-start">
                 <p className="eyebrow mb-2">{t.rooms.title}</p>

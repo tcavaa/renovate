@@ -369,6 +369,11 @@ export const ka = {
     mailIgnore: 'თუ ეს შენ არ მოითხოვე, უბრალოდ დააიგნორირე ეს წერილი.',
   },
   profile: {
+    typeCalculator: 'გამომთვლელი',
+    typeDesign: '3D დიზაინი',
+    openIn3d: 'ნახე 3D-ში',
+    colType: 'ტიპი',
+    layoutEmpty: 'ამ პროექტს განლაგება არ აქვს',
     subtitle: 'მართე შენი პროექტები და პროფილი',
     newProject: 'ახალი პროექტი',
     fieldName: 'სახელი',
@@ -984,6 +989,7 @@ export const ka = {
     ceiling_paint: 'ჭერის საღებავი',
   },
   design: {
+    continueWithRooms: 'გაგრძელება ამ ოთახებით',
     fitView: 'მთელი ბინის ჩვენება',
     fullscreen: 'სრულ ეკრანზე',
     exitFullscreen: 'სრული ეკრანიდან გამოსვლა',

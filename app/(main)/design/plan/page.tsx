@@ -69,7 +69,11 @@ export default function PlanReviewPage() {
               plan={plan}
               selectedRoomId={selectedId}
               hoveredRoomId={hoveredId}
-              onSelectRoom={setSelectedId}
+              onSelectRoom={(id) => {
+                setSelectedId(id);
+                // The list is long on a real flat: bring the clicked room's row into view.
+                if (id) document.getElementById(`plan-room-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }}
               onHoverRoom={setHoveredId}
               className="w-full cursor-pointer"
               height={520}
@@ -89,6 +93,7 @@ export default function PlanReviewPage() {
                 return (
                   <div
                     key={room.id}
+                    id={`plan-room-${room.id}`}
                     onMouseEnter={() => setHoveredId(room.id)}
                     onMouseLeave={() => setHoveredId(null)}
                     onClick={() => setSelectedId(room.id)}
