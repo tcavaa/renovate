@@ -174,6 +174,19 @@ export interface AiPlanRequest {
   apiKey?: string;
 }
 
+/** What one call cost and how long it took — logged per read so the bill is explainable. */
+export interface AiPlanUsage {
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+  model: string;
+}
+
+/** Anthropic rejects images over this many bytes; the route downsizes before sending. */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+/** Longest edge the API keeps before downscaling itself; sending more only costs upload time. */
+export const MAX_IMAGE_EDGE_PX = 1568;
+
 export class MissingApiKeyError extends Error {
   constructor() {
     super('ANTHROPIC_API_KEY is not configured');
@@ -182,10 +195,16 @@ export class MissingApiKeyError extends Error {
 }
 
 export async function readPlanWithClaude(request: AiPlanRequest): Promise<AiPlanReading> {
+  return (await readPlanWithClaudeDetailed(request)).reading;
+}
+
+/** Same call, with the usage figures alongside the reading. */
+export async function readPlanWithClaudeDetailed(request: AiPlanRequest): Promise<{ reading: AiPlanReading; usage: AiPlanUsage }> {
   const apiKey = request.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new MissingApiKeyError();
 
   const client = new Anthropic({ apiKey });
+  const started = Date.now();
 
   const response = await client.messages.create({
     model: PLAN_MODEL,
@@ -220,7 +239,47 @@ export async function readPlanWithClaude(request: AiPlanRequest): Promise<AiPlan
     throw new Error(`Model returned no plan (stop_reason: ${response.stop_reason})`);
   }
 
-  return call.input as unknown as AiPlanReading;
+  return {
+    reading: normaliseReading(call.input as unknown as AiPlanReading),
+    usage: {
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      durationMs: Date.now() - started,
+      model: response.model,
+    },
+  };
+}
+
+/**
+ * Tidies a reading before geometry sees it. The strict schema guarantees the shape; this
+ * guards the values — a box slightly outside the image, a box the model gave inverted, a
+ * blank label — so the solver never has to.
+ */
+export function normaliseReading(reading: AiPlanReading): AiPlanReading {
+  const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+  const label = (v: string | null) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  const rooms = (reading.rooms ?? [])
+    .filter((room) => room && typeof room.name === 'string')
+    .map((room, index) => {
+      const x0 = clamp(Math.min(room.box.x0, room.box.x1));
+      const x1 = clamp(Math.max(room.box.x0, room.box.x1));
+      const y0 = clamp(Math.min(room.box.y0, room.box.y1));
+      const y1 = clamp(Math.max(room.box.y0, room.box.y1));
+      return {
+        ...room,
+        name: room.name.trim() || `Room ${index + 1}`,
+        type: ROOM_TYPE_VALUES.includes(room.type) ? room.type : 'living_room',
+        box: { x0, y0, x1, y1 },
+        widthLabel: label(room.widthLabel),
+        depthLabel: label(room.depthLabel),
+      };
+    })
+    // A box with no area is not a room the geometry can use.
+    .filter((room) => room.box.x1 - room.box.x0 > 0.005 && room.box.y1 - room.box.y0 > 0.005);
+  const openings = (reading.openings ?? [])
+    .filter((o) => o && typeof o.roomA === 'string')
+    .map((o) => ({ ...o, at: { x: clamp(o.at.x), y: clamp(o.at.y) }, widthLabel: label(o.widthLabel) }));
+  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, openings, notes: label(reading.notes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +322,9 @@ export function buildPlanFromReading(
 
   const solved = solvePlan(rough);
   const solvedById = new Map(solved.rooms.map((room) => [room.id, room.box]));
+  // Rooms whose printed dimension the solver could not honour get flagged, so the review
+  // step points at them instead of asking the user to check everything.
+  const doubtful = new Set(solved.residuals.filter((r) => Math.abs(r.solved - r.target) > 0.08).map((r) => r.roomId));
 
   const rooms: PlanRoom[] = reading.rooms.map((room, index) => {
     const id = `r${index + 1}`;
@@ -285,6 +347,7 @@ export function buildPlanFromReading(
       areaM2: round2(polygonAreaM2(polygon)),
       perimeterM: round2(polygonPerimeterM(polygon)),
       openings: [],
+      ...(doubtful.has(id) ? { lowConfidence: true } : {}),
     };
   });
 

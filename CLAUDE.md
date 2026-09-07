@@ -55,7 +55,8 @@ pnpm db:seed:design # seed partner stores + the design categories (no furniture 
 pnpm db:studio      # drizzle studio
 pnpm test:parser    # synthetic floor plans through the parser — run after touching planParser
 pnpm test:solver    # dimension labels + the plan solver, no API key needed
-pnpm plan:diagnose <plan.png>   # stage-by-stage report on one real plan
+pnpm plan:diagnose <plan.png>   # stage-by-stage report on one real plan (CV path)
+pnpm plan:ai <plan.png> [--save r.json]   # the Claude path on one plan; --replay r.json needs no key
 pnpm assets:extract # re-extract renders/textures from the partner 3D asset drop
 pnpm models:convert # partner OBJ exports → textured, compressed, validated GLBs + manifest.json
 pnpm models:convert --only=woody-bed,node-sofa   # redo a few; merges into the manifest
@@ -702,9 +703,14 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 - Floor-plan parsing has two paths: Claude reads the drawing when `ANTHROPIC_API_KEY` is set,
   and the deterministic CV parser takes over when it is not. The CV path cannot read
   dimensions, so it still asks the user for the total floor area.
-- The AI path is unproven against real plans — it is built and type-checked, but nobody has
-  run it with a key yet. The prompt and the box→metres mapping are the parts most likely to
-  need tuning on first contact.
+- The AI path has not yet met a real plan with a real key. Everything around the call is
+  done — `pnpm plan:ai <file>` runs one drawing through the reader and prints the reading,
+  the parsed labels, the solved walls and the residuals; `--save reading.json` keeps the raw
+  reading and `--replay reading.json` rebuilds the plan from it without a key, which is how
+  to tune the solver deterministically. The route downsizes images to what the vision API
+  accepts (5 MB, ~1568 px) with `sharp`, logs tokens and duration per read, and rooms whose
+  printed dimension the solver could not honour come back `lowConfidence` so the review step
+  points at them. First contact will most likely want prompt and label-parsing tuning.
 - The walk-through has no collision at all — walls, furniture, nothing stops the viewer.
   Deliberate: a design tool wants to be explored, not navigated, and getting stuck reads as a
   bug every time. `buildWalkable` only picks the starting spot now.
