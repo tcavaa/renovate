@@ -102,11 +102,31 @@ p {
     .reveal-stagger > *:nth-child(2) { animation-range: entry 10% entry 60%; }
     .reveal-stagger > *:nth-child(3) { animation-range: entry 20% entry 70%; }
     .reveal-stagger > *:nth-child(4) { animation-range: entry 30% entry 80%; }
+    /*
+     * Scroll sequences: `.seq` ties an element's animation to its own passage through the
+     * viewport between `--from` and `--to` (percent of `cover`: 0 = top edge enters at the
+     * bottom, 100 = bottom edge leaves at the top; a card is fully in view around 35–65).
+     * Siblings with different ranges play one after another as the reader scrolls — an
+     * upload that completes, a plan that wipes in, a material that replaces the last one.
+     */
+    .seq {
+      animation-timeline: view();
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+      animation-range: cover var(--from, 10%) cover var(--to, 50%);
+    }
+    .seq-fill { animation-name: seq-fill; transform-origin: left center; }
+    .seq-wipe-up { animation-name: seq-wipe-up; }
+    .seq-wipe-right { animation-name: seq-wipe-right; }
+    .seq-pop { animation-name: seq-pop; }
+    .seq-fade { animation-name: seq-fade; }
+    .seq-fade-out { animation-name: seq-fade-out; }
+    .seq-rise { animation-name: seq-rise; }
     /* Furniture landing on the plan, one piece after another (`--i` staggers the range). */
     .drop-in {
       animation: drop-in cubic-bezier(0.22, 1, 0.36, 1) both;
       animation-timeline: view();
-      animation-range: entry calc(20% + var(--i, 0) * 15%) entry calc(38% + var(--i, 0) * 15%);
+      animation-range: cover calc(22% + var(--i, 0) * 10%) cover calc(32% + var(--i, 0) * 10%);
     }
     /* Slow parallax drift for decorative imagery while it crosses the viewport. */
     .parallax {
@@ -125,6 +145,13 @@ p {
   from { opacity: 0; transform: scale(0.94); }
   to { opacity: 1; transform: scale(1); }
 }
+@keyframes seq-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes seq-wipe-up { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes seq-wipe-right { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes seq-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+@keyframes seq-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes seq-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes seq-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes drop-in {
   from { opacity: 0; transform: translateY(-48px) scale(0.6); }
   to { opacity: 1; transform: translateY(0) scale(1); }

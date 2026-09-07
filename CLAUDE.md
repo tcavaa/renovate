@@ -679,6 +679,14 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   `@supports` and reduced-motion — content is fully visible where they are unsupported. The
   hero words use `.hero-word` (load-time stagger via `--i`). `animate-marquee`,
   `animate-spin-slow`, `animate-float` are the only looping animations.
+- **Scroll sequences** (`.seq` + `.seq-fill/-wipe-up/-wipe-right/-pop/-fade/-fade-out/-rise`,
+  and `.drop-in`): an element plays between `--from` and `--to` percent of its `cover` range
+  (0 = top edge enters at the bottom of the viewport, 100 = bottom edge leaves at the top; a
+  card is fully in view around 35–65). Siblings with staggered ranges play one after another
+  — the landing's "no designer" cards are built from these. **Never put a `.seq` element
+  inside `overflow-hidden`**: that makes the box a scroll container and `view()` measures
+  against it instead of the page, so every step finishes instantly. Clip with
+  `overflow-clip`, which does not create a scroller.
 - **Landing** (`components/landing/*`): every image and figure is live data — the product wall
   and the floating price chips are real catalogue rows, the stats are database counts.
 - **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats.

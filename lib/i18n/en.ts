@@ -788,6 +788,11 @@ export const en: Dictionary = {
     vintage: 'Walnut, brass, velvet and patterns.',
   },
   landing: {
+    stepCalcTitle: 'Get the estimate',
+    stepCalcDesc: 'Materials, labour and the full estimate are computed from the plan automatically — across 18 phases.',
+    uploading: 'Uploading',
+    uploadDone: 'rooms detected',
+    invoiceRooms: 'rooms',
     eyebrow: 'Interior design you can actually buy',
     heroWords: ['Plan.', 'Price.', 'Build.'],
     heroBody:

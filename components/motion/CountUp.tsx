@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { formatNumber } from '@/lib/utils';
 
 /**
  * A number that counts up when it scrolls into view.
@@ -44,7 +45,7 @@ export function CountUp({ value, suffix = '', duration = 1200 }: { value: number
 
   return (
     <span ref={ref} className="tabular-nums">
-      {shown.toLocaleString('en-US')}
+      {formatNumber(shown, 0)}
       {suffix}
     </span>
   );
