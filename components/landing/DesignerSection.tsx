@@ -54,20 +54,20 @@ export function DesignerSection({ t, products, estimate }: { t: Dictionary; prod
           {/* 01 — the plan uploads itself: a bar fills, the drawing wipes in, a check lands. */}
           <Step index="01" title={t.landing.step1Title} body={t.landing.step1Desc}>
             <div className="relative aspect-[16/10] overflow-clip rounded-xl border border-dashed border-line bg-bg-base">
-              <div className="seq seq-fade-out absolute inset-0 flex flex-col items-center justify-center gap-3" style={seq(30, 37)}>
+              <div className="seq seq-fade-out absolute inset-0 flex flex-col items-center justify-center gap-3" style={seq(42, 48)}>
                 <span className="grid h-12 w-12 place-items-center border border-line bg-white text-ink">
                   <Upload className="h-5 w-5" />
                 </span>
                 <span className="text-sm font-medium text-ink">{t.design.uploadHint}</span>
                 <span className="mt-1 h-9 w-40 overflow-clip border border-line bg-white">
-                  <span className="seq seq-fill block h-full w-full bg-ink" style={seq(12, 30)} />
+                  <span className="seq seq-fill block h-full w-full bg-ink" style={seq(24, 42)} />
                 </span>
                 <span className="text-[11px] uppercase tracking-[0.16em] text-ink-muted">{t.landing.uploading}…</span>
               </div>
-              <div className="seq seq-wipe-up absolute inset-0 bg-white" style={seq(36, 50)}>
+              <div className="seq seq-wipe-up absolute inset-0 bg-white" style={seq(46, 58)}>
                 <Image src="/samples/plan-2br.png" alt="" fill sizes="(min-width: 1024px) 40vw, 90vw" className="object-contain p-4 opacity-90" />
               </div>
-              <span className="seq seq-pop absolute bottom-4 right-4 inline-flex items-center gap-1.5 border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink" style={seq(52, 58)}>
+              <span className="seq seq-pop absolute bottom-4 right-4 inline-flex items-center gap-1.5 border border-line bg-white px-3 py-1.5 text-xs font-medium text-ink" style={seq(60, 66)}>
                 <Check className="h-3.5 w-3.5 text-success" />
                 {estimate.rooms} {t.landing.uploadDone}
               </span>

@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { and, asc, count, desc, eq, gte, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
 import { CatalogSidebar } from '@/components/catalog/CatalogSidebar';
 import { SortSelect } from '@/components/catalog/SortSelect';
+import { StyleFilter } from '@/components/catalog/StyleFilter';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName, pickLocalizedName, styleLabel } from '@/lib/i18n/labels';
 import { STYLE_IDS } from '@/lib/design/styles';
@@ -37,14 +38,14 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
   const t = await getT();
   const locale = await getLocale();
   const params = parseListParams<Sort>(searchParams, { sorts: SORTS, defaultSort: 'featured', pageSize: PAGE_SIZE });
+  const styles = params
+    .get('style')
+    .split(',')
+    .filter((s): s is (typeof STYLE_IDS)[number] => (STYLE_IDS as readonly string[]).includes(s));
   const state = {
     raw: params.raw,
     category: params.get('category'),
     store: params.get('store'),
-    style: STYLE_IDS.includes(params.get('style') as (typeof STYLE_IDS)[number]) ? params.get('style') : '',
-    min: params.get('min'),
-    max: params.get('max'),
-    q: params.q,
     hasFilters: params.hasFilters,
   };
 
@@ -61,13 +62,13 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
   const where: SQL[] = [eq(products.isActive, true)];
   if (state.category) where.push(eq(products.categoryId, activeCategory?.id ?? -1));
   if (state.store) where.push(eq(products.storeId, activeStore?.id ?? -1));
-  if (state.style) where.push(sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(state.style)})`);
+  if (styles.length) where.push(or(...styles.map((s) => sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(s)})`))!);
   const min = params.num('min');
   const max = params.num('max');
   if (min != null) where.push(gte(products.pricePerUnit, String(min)));
   if (max != null) where.push(lte(products.pricePerUnit, String(max)));
-  if (state.q) {
-    const needle = `%${state.q}%`;
+  if (params.q) {
+    const needle = `%${params.q}%`;
     where.push(or(like(products.nameKa, needle), like(products.nameEn, needle), like(products.nameRu, needle), like(products.brand, needle), like(products.sku, needle))!);
   }
 
@@ -98,9 +99,13 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
   const chips: Array<{ label: string; href: string }> = [];
   if (activeCategory) chips.push({ label: pickLocalizedName(locale, activeCategory.nameKa, activeCategory.nameEn, activeCategory.nameRu), href: hrefWith('/catalog', params.raw, { category: undefined, page: undefined }) });
   if (activeStore) chips.push({ label: localizedName(locale, activeStore), href: hrefWith('/catalog', params.raw, { store: undefined, page: undefined }) });
-  if (state.style) chips.push({ label: styleLabel(t, state.style), href: hrefWith('/catalog', params.raw, { style: undefined, page: undefined }) });
+  for (const s of styles) chips.push({ label: styleLabel(t, s), href: hrefWith('/catalog', params.raw, { style: styles.filter((x) => x !== s).join(',') || undefined, page: undefined }) });
   if (min != null || max != null) chips.push({ label: `₾ ${min ?? 0} – ${max ?? '∞'}`, href: hrefWith('/catalog', params.raw, { min: undefined, max: undefined, page: undefined }) });
-  if (state.q) chips.push({ label: `“${state.q}”`, href: hrefWith('/catalog', params.raw, { q: undefined, page: undefined }) });
+  if (params.q) chips.push({ label: `“${params.q}”`, href: hrefWith('/catalog', params.raw, { q: undefined, page: undefined }) });
+  const hidden = (omit: string[]) =>
+    Object.entries(params.raw)
+      .filter(([k]) => !omit.includes(k) && k !== 'page')
+      .map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />);
 
   return (
     <div className="container py-10 md:py-14">
@@ -124,17 +129,38 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-ink-muted">{fill(t.catalog.results, { n: total })}</p>
-              {chips.map((chip) => (
-                <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1 border border-line bg-bg-surface px-2 py-1 text-xs text-ink hover:border-ink">
-                  {chip.label}
-                  <X className="h-3 w-3 text-ink-faint" />
-                </Link>
-              ))}
+          <div className="mb-5 border-b border-line pb-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <form action="/catalog" method="get" className="relative">
+                {hidden(['q'])}
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input type="search" name="q" defaultValue={params.q} placeholder={t.catalog.searchPlaceholder} aria-label={t.catalog.search} className="h-10 w-56 border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
+              </form>
+              <StyleFilter label={t.catalog.style} allLabel={t.catalog.allStyles} options={STYLE_IDS.map((id) => ({ id, label: styleLabel(t, id) }))} selected={styles} raw={params.raw} />
+              <form action="/catalog" method="get" className="flex h-10 items-stretch border border-line bg-bg-surface">
+                {hidden(['min', 'max'])}
+                <span className="eyebrow flex items-center pl-3 pr-2">{t.catalog.price}</span>
+                <input type="number" name="min" min={0} step={1} defaultValue={params.get('min')} placeholder={t.catalog.priceFrom} aria-label={t.catalog.priceFrom} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
+                <input type="number" name="max" min={0} step={1} defaultValue={params.get('max')} placeholder={t.catalog.priceTo} aria-label={t.catalog.priceTo} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
+                <button type="submit" className="border-l border-line px-3 text-xs font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink hover:text-white">
+                  {t.catalog.apply}
+                </button>
+              </form>
+              <div className="ml-auto flex items-center gap-4">
+                <p className="text-sm text-ink-muted">{fill(t.catalog.results, { n: total })}</p>
+                <SortSelect label={t.catalog.sort} value={params.sort} options={SORTS.map((s) => ({ value: s, label: sortLabels[s], href: hrefWith('/catalog', params.raw, { sort: s === 'featured' ? undefined : s, page: undefined }) }))} />
+              </div>
             </div>
-            <SortSelect label={t.catalog.sort} value={params.sort} options={SORTS.map((s) => ({ value: s, label: sortLabels[s], href: hrefWith('/catalog', params.raw, { sort: s === 'featured' ? undefined : s, page: undefined }) }))} />
+            {chips.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {chips.map((chip) => (
+                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1 border border-line bg-bg-surface px-2 py-1 text-xs text-ink hover:border-ink">
+                    {chip.label}
+                    <X className="h-3 w-3 text-ink-faint" />
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           <ProductGrid products={items} emptyText={t.catalog.noProducts} hrefFor={(p) => `/catalog/${p.slug}`} storeNames={storeNames} columns={items.length > 0 && !activeCategory ? 4 : 3} />

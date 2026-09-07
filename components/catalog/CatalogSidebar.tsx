@@ -1,8 +1,6 @@
 import Link from 'next/link';
-import { Search } from 'lucide-react';
-import { STYLE_IDS } from '@/lib/design/styles';
 import { hrefWith } from '@/lib/admin/list';
-import { pickLocalizedName, styleLabel, localizedName } from '@/lib/i18n/labels';
+import { pickLocalizedName, localizedName } from '@/lib/i18n/labels';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import type { Category, Store } from '@/lib/db/schema';
 import { cn } from '@/lib/utils';
@@ -11,10 +9,6 @@ export interface CatalogFilterState {
   raw: Record<string, string>;
   category: string;
   store: string;
-  style: string;
-  min: string;
-  max: string;
-  q: string;
   hasFilters: boolean;
 }
 
@@ -22,9 +16,9 @@ const PATH = '/catalog';
 
 /**
  * The catalogue's index column. Categories in two groups (materials by renovation phase,
- * then furniture and decor), each with its live count; below them the partner stores, the
- * four styles and a price band. Every control is a link or a GET form, so a filtered view is
- * a URL and nothing here needs JavaScript.
+ * then furniture and decor), each with its live count, and the partner stores below. Every
+ * control is a link, so a filtered view is a URL and nothing here needs JavaScript. Search,
+ * style and price live in the toolbar above the grid.
  */
 export function CatalogSidebar({
   t,
@@ -45,26 +39,9 @@ export function CatalogSidebar({
   const furniture = categories.filter((c) => c.isFurniture);
   const total = Object.values(counts).reduce((s, n) => s + n, 0);
   const href = (patch: Record<string, string | undefined>) => hrefWith(PATH, state.raw, { ...patch, page: undefined });
-  const hidden = (omit: string[]) =>
-    Object.entries(state.raw)
-      .filter(([k]) => !omit.includes(k) && k !== 'page')
-      .map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />);
 
   return (
     <div className="space-y-8 text-sm">
-      <form action={PATH} method="get" className="relative">
-        {hidden(['q'])}
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-        <input
-          type="search"
-          name="q"
-          defaultValue={state.q}
-          placeholder={t.catalog.searchPlaceholder}
-          aria-label={t.catalog.search}
-          className="h-10 w-full border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
-        />
-      </form>
-
       <nav aria-label={t.catalog.filterByCategory}>
         <p className="eyebrow mb-2">{t.catalog.filterByCategory}</p>
         <ul className="border-t border-line">
@@ -91,28 +68,6 @@ export function CatalogSidebar({
           ))}
         </ul>
       </div>
-
-      <div>
-        <p className="eyebrow mb-2">{t.catalog.style}</p>
-        <ul className="border-t border-line">
-          <FilterLink href={href({ style: undefined })} active={!state.style} label={t.catalog.allStyles} />
-          {STYLE_IDS.map((id) => (
-            <FilterLink key={id} href={href({ style: state.style === id ? undefined : id })} active={state.style === id} label={styleLabel(t, id)} />
-          ))}
-        </ul>
-      </div>
-
-      <form action={PATH} method="get">
-        {hidden(['min', 'max'])}
-        <p className="eyebrow mb-2">{t.catalog.price} · ₾</p>
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] border border-line">
-          <input type="number" name="min" min={0} step={1} defaultValue={state.min} placeholder={t.catalog.priceFrom} aria-label={t.catalog.priceFrom} className="h-10 w-full min-w-0 border-r border-line bg-bg-surface px-3 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
-          <input type="number" name="max" min={0} step={1} defaultValue={state.max} placeholder={t.catalog.priceTo} aria-label={t.catalog.priceTo} className="h-10 w-full min-w-0 border-r border-line bg-bg-surface px-3 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
-          <button type="submit" className="h-10 bg-ink px-3 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-brand">
-            {t.catalog.apply}
-          </button>
-        </div>
-      </form>
 
       {state.hasFilters && (
         <Link href={PATH} className="bracket-link inline-block text-sm font-medium text-ink-soft hover:text-ink">

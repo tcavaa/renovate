@@ -289,6 +289,8 @@ export const ru: Dictionary = {
     roomsEmpty: 'Комнат нет',
   },
   auth: {
+    eyebrow: 'Аккаунт',
+    sideNote: 'Аккаунт нужен только для сохранения проектов — план, стиль и 3D работают и без регистрации.',
     loginTitle: 'Вход',
     registerTitle: 'Регистрация',
     name: 'Имя',

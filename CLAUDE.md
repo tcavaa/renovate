@@ -709,10 +709,11 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   the "finish the previous step first" card. `Figure` (in `MaterialsTable`) is the large
   number-in-a-cell used for stats and subtotals.
 - **Catalogue** (`/catalog`): server-rendered with a real sidebar — categories in two groups
-  (materials by phase, then furniture) with live counts, partner stores, the four styles and
-  a price band — plus search, sort and paging. Every control is a link or a GET form built
+  (materials by phase, then furniture) with live counts, and partner stores — and a toolbar
+  above the grid with search, a multi-select style dropdown (`style=modern,vintage`, OR),
+  a price band, the result count and sort. Every control is a link or a GET form built
   with `hrefWith` from `lib/admin/list.ts`, so any filtered view is a URL and the page works
-  without JavaScript; only the sort `<select>` is a client component. On small screens a
+  without JavaScript; only the sort `<select>` and the style dropdown are client components. On small screens a
   checkbox (`#catalog-filters`, `peer-checked`) shows the sidebar. Only category links carry
   `aria-current="page"` (the e2e test counts exactly one). `ProductCard` takes `href` to be a
   link (catalogue) or `onAction` to end in a select button (calculator steps).

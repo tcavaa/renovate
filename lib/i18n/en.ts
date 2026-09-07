@@ -291,6 +291,8 @@ export const en: Dictionary = {
     roomsEmpty: 'No rooms',
   },
   auth: {
+    eyebrow: 'Account',
+    sideNote: 'You only need an account to save projects — the plan, the style and the 3D work without signing up.',
     loginTitle: 'Sign in',
     registerTitle: 'Sign up',
     name: 'Name',
