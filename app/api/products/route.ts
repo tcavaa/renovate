@@ -52,6 +52,9 @@ export const POST = handle('POST /api/products', 'Failed to create product', asy
     pricePerUnit: String(parsed.data.pricePerUnit),
     coveragePerUnit: parsed.data.coveragePerUnit != null ? String(parsed.data.coveragePerUnit) : null,
     imageUrl: parsed.data.imageUrl || null,
+    model3dUrl: parsed.data.model3dUrl || null,
+    // The studio only places a model whose status is `ready`; a URL saved here is one.
+    model3dStatus: parsed.data.model3dUrl ? 'ready' : 'none',
   });
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();

@@ -33,6 +33,10 @@ export const PUT = handle('PUT /api/products/[id]', 'Failed to update product', 
       ...data,
       pricePerUnit: data.pricePerUnit != null ? String(data.pricePerUnit) : undefined,
       coveragePerUnit: data.coveragePerUnit != null ? String(data.coveragePerUnit) : undefined,
+      // A model URL arriving (or being cleared) moves the status with it; a payload that does
+      // not mention the URL leaves the status alone.
+      model3dUrl: data.model3dUrl !== undefined ? data.model3dUrl || null : undefined,
+      model3dStatus: data.model3dUrl !== undefined ? (data.model3dUrl ? 'ready' : 'none') : undefined,
     })
     .where(eq(products.id, id));
   // The studio's cached catalogue must not outlive this write.

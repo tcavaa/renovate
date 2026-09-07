@@ -170,12 +170,27 @@ The product form carries a **3D design settings** section: store, style tags, `m
 real dimensions in cm, and colour. Choosing an archetype prefills its standard dimensions.
 
 **Only products with a `model3dUrl` are ever placed.** `matchProducts` drops everything
-without one before it looks at archetype or style, so a product added by hand in admin will
-not appear in a room until it has a converted GLB. `pnpm models:seed` is the normal way
-products get into the studio: it writes one per entry in `public/models/manifest.json` (the
-partner drop) and `public/models/stock/manifest.json` (CC0 stock, see "Stock models") and
-deletes every other product that has a `model3dKind`. The hand-written 115-product range that
-`seed-design.ts` used to carry is gone for that reason.
+without one before it looks at archetype or style. There are two ways a product gets one:
+
+- **Upload a GLB in the product form** (`components/admin/ModelUploader.tsx`). The file goes
+  to `POST /api/upload/model` (admin only, bytes checked by `sniffModel`: `glTF` magic,
+  container version 2, JSON first chunk; 40 MB cap) and lands under `models/` in storage
+  (`/uploads/models/…` locally). The form then loads that URL with the studio's own loader
+  and shows it on a turntable with a grid and an arrow for the front (+Z), reads the real
+  size from the geometry to prefill width/depth/height (a file in cm or mm is recognised by
+  its size and converted), counts triangles and textures, and can render a PNG of the model
+  to use as the product photo when there is none. Saving a URL sets `model3dStatus = 'ready'`
+  (the design catalogue only exposes ready models); clearing it sets `'none'`.
+- **`pnpm models:seed`** writes one product per entry in `public/models/manifest.json` (the
+  partner drop) and `public/models/stock/manifest.json` (CC0 stock, see "Stock models") and
+  deletes every other manifest-managed product with a `model3dKind` — a product whose
+  `model3dUrl` is not under `/models/` (an upload) is left alone. The hand-written
+  115-product range that `seed-design.ts` used to carry is gone for that reason.
+
+The studio scales every model to the product's dimensions (`fitToItem`), so a model in the
+wrong units still renders at the right size; what it cannot fix is orientation — the front
+of a piece has to face +Z with Y up, which is what `pnpm models:convert` produces and what
+the uploader's arrow shows.
 
 Within one room, every slot of a kind gets the same product (six matching dining chairs);
 the next room gets the next-best product of the same style tier, so a flat with five
@@ -786,8 +801,8 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   a `textureUrl` for the focused room's floor and walls (or all rooms at once), priced by the
   room's area. `pnpm textures:stock` is what gives products textures; a product without one
   never appears there. Ceilings stay on the style default.
-- Admin has no bulk import, and a product added there cannot be placed until it has a GLB.
-  Adding a partner's range means an entry in `SOURCES` per archive and `pnpm models:convert`.
+- Admin has no bulk import: one GLB per product through the form. Converting a partner's
+  archive drop is still an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
 

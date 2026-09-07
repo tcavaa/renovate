@@ -1,6 +1,18 @@
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
+ * With `STORAGE_DRIVER=s3` the uploaded GLBs are fetched from the bucket's public origin, so
+ * it has to be a `connect-src`; images are already covered by `img-src https:`.
+ */
+const s3Origin = (() => {
+  try {
+    return process.env.S3_PUBLIC_URL ? new URL(process.env.S3_PUBLIC_URL).origin : null;
+  } catch {
+    return null;
+  }
+})();
+
+/**
  * Content Security Policy.
  *
  * Pragmatic rather than strict: Next.js inlines its bootstrap scripts, so `script-src` needs
@@ -20,7 +32,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   // `blob:` because GLTFLoader hands the textures packed inside each GLB to the browser as
   // blob URLs and fetches them back — without it every partner model loads untextured.
-  `connect-src 'self' blob:${isDev ? ' ws: wss:' : ''}`,
+  `connect-src 'self' blob:${s3Origin ? ` ${s3Origin}` : ''}${isDev ? ' ws: wss:' : ''}`,
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "object-src 'none'",

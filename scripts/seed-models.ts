@@ -21,7 +21,7 @@ config({ path: '.env' });
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { and, eq, inArray, isNotNull, isNull, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, like, notInArray, or } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
 import { archetypeLabel, getArchetype } from '../lib/design/catalog';
@@ -122,13 +122,16 @@ async function main() {
 
   // Everything else the studio could have placed goes. The studio must never draw a product
   // that has no partner model behind it.
+  // Only the manifest's own products are the seed's to remove. A model admin uploaded through
+  // the product form lives under /uploads/models (or on the object store) and stays.
+  const manifestManaged = or(isNull(products.model3dUrl), like(products.model3dUrl, '/models/%'));
   const stale = await db
     .select({ id: products.id, slug: products.slug })
     .from(products)
     .where(
       keepSlugs.length
-        ? and(isNotNull(products.model3dKind), notInArray(products.slug, keepSlugs))
-        : isNotNull(products.model3dKind)
+        ? and(isNotNull(products.model3dKind), notInArray(products.slug, keepSlugs), manifestManaged)
+        : and(isNotNull(products.model3dKind), manifestManaged)
     );
 
   if (stale.length) {

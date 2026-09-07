@@ -41,6 +41,8 @@ coverage/
 # Product, furniture and store images are referenced by the seed scripts and stay tracked.
 public/uploads/plans/*
 !public/uploads/plans/.gitkeep
+public/uploads/models/*
+!public/uploads/models/.gitkeep
 
 # --- local tooling ---
 .claude/

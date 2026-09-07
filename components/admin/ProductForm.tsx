@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageUploader } from '@/components/admin/ImageUploader';
+import { ModelUploader, type ModelMeasurement } from '@/components/admin/ModelUploader';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { unitLabel, pickLocalizedName } from '@/lib/i18n/labels';
@@ -72,6 +73,7 @@ export function ProductForm({ product, categories, stores }: Props) {
     storeId: product?.storeId ? String(product.storeId) : '',
     styleTags: asStyleTags(product?.styleTags),
     model3dKind: product?.model3dKind ?? '',
+    model3dUrl: product?.model3dUrl ?? '',
     colorHex: product?.colorHex ?? '#C9C4BA',
     widthCm: product?.widthCm != null ? String(product.widthCm) : '',
     depthCm: product?.depthCm != null ? String(product.depthCm) : '',
@@ -80,6 +82,16 @@ export function ProductForm({ product, categories, stores }: Props) {
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  /**
+   * Dimensions read from the uploaded GLB. Automatically only into empty fields — an admin
+   * who typed the catalogue's numbers keeps them; the "apply" button overrides on purpose.
+   */
+  const applyMeasurement = (m: ModelMeasurement, { auto }: { auto: boolean }) =>
+    setForm((f) => {
+      if (auto && (f.widthCm || f.depthCm || f.heightCm)) return f;
+      return { ...f, widthCm: String(m.widthCm), depthCm: String(m.depthCm), heightCm: String(m.heightCm) };
+    });
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,6 +103,7 @@ export function ProductForm({ product, categories, stores }: Props) {
       pricePerUnit: Number(form.pricePerUnit),
       storeId: form.storeId ? Number(form.storeId) : null,
       model3dKind: form.model3dKind || null,
+      model3dUrl: form.model3dUrl || null,
       // Blank dimensions mean "use the archetype's default", not zero.
       widthCm: form.widthCm ? Number(form.widthCm) : null,
       depthCm: form.depthCm ? Number(form.depthCm) : null,
@@ -296,6 +309,17 @@ export function ProductForm({ product, categories, stores }: Props) {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.model3d}</Label>
+              <ModelUploader
+                value={form.model3dUrl}
+                onChange={(url) => update('model3dUrl', url)}
+                onMeasured={applyMeasurement}
+                onSnapshot={(url) => setForm((f) => (f.imageUrl ? f : { ...f, imageUrl: url }))}
+                helperText={ka.admin.forms.model3dHelper}
+              />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
