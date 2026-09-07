@@ -45,6 +45,14 @@ export function statusLabel(t: Dictionary, status: string): string {
   return (t.status as unknown as AnyMap)[status] ?? status;
 }
 
+export function roleLabel(t: Dictionary, role: string): string {
+  return (t.roles as unknown as AnyMap)[role] ?? role;
+}
+
+export function orderStatusLabel(t: Dictionary, status: string): string {
+  return (t.orderStatus as unknown as AnyMap)[status] ?? status;
+}
+
 export function styleLabel(t: Dictionary, styleId: string): string {
   return (t.styleNames as unknown as AnyMap)[styleId] ?? styleId;
 }

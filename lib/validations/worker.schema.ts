@@ -16,6 +16,8 @@ export const workerSchema = z.object({
   specialty: z.string().min(2).max(255),
   specialtySlug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/, 'Lowercase letters, numbers and dashes only'),
   phone: z.string().max(50).optional().nullable(),
+  email: z.union([z.string().email().max(255), z.literal('')]).optional().nullable(),
+  commissionRate: z.coerce.number().min(0).max(100).optional().nullable(),
   pricePerM2: z.coerce.number().nonnegative().optional().nullable(),
   pricePerUnit: z.coerce.number().nonnegative().optional().nullable(),
   priceUnit: z.enum(['m2', 'unit', 'fixed']),

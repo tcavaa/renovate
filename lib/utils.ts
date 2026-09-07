@@ -63,3 +63,17 @@ export function slugify(text: string): string {
     .replace(/[^a-z0-9\u10A0-\u10FF]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+/**
+ * `08.09.2026, 06:45` — the same string on the server and in the browser, whatever ICU each
+ * ships. `toLocaleString` in a client component hydrated differently on the two sides (the
+ * order editor hit this); this is for client components, server components may keep
+ * `toLocaleString`. Local time of wherever it runs.
+ */
+export function formatDateTime(value: string | number | Date, withTime = true): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const two = (n: number) => String(n).padStart(2, '0');
+  const date = `${two(d.getDate())}.${two(d.getMonth() + 1)}.${d.getFullYear()}`;
+  return withTime ? `${date}, ${two(d.getHours())}:${two(d.getMinutes())}` : date;
+}

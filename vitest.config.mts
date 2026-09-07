@@ -23,6 +23,7 @@ export default defineConfig({
         'lib/calculator/**/*.ts',
         'lib/design/pricing.ts',
         'lib/design/matcher.ts',
+        'lib/finance/money.ts',
         'lib/api/**/*.ts',
         'lib/auth/**/*.ts',
         'app/api/projects/route.ts',

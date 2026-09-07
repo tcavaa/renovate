@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import { workerReviews, workerWorks, workers } from '@/lib/db/schema';
 import { Stars, WorkerMark } from '@/components/workers/WorkerCard';
 import { Button } from '@/components/ui/button';
+import { BookingDialog } from '@/components/checkout/BookingDialog';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName, localizedText, workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { formatGEL, formatM2 } from '@/lib/utils';
@@ -109,9 +110,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
               </a>
             </Button>
           )}
-          <Button asChild variant="outline" size="lg">
-            <Link href="/calculator">{t.workers.book}</Link>
-          </Button>
+          <BookingDialog workerId={worker.id} workerName={name} />
         </div>
       </header>
 

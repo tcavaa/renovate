@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, Hammer, Package, Plus, Store, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, Hammer, Package, Plus, Receipt, Settings, Store, TrendingUp, Users } from 'lucide-react';
 import { db } from '@/lib/db';
-import { categories, products, projects, stores, users, workers } from '@/lib/db/schema';
+import { categories, orders, products, projects, stores, users, workers } from '@/lib/db/schema';
+import { revenueReport } from '@/lib/finance/report';
+import { periodRange } from '@/lib/finance/money';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -83,6 +85,18 @@ export default async function AdminDashboardPage() {
       .where(and(eq(categories.isVisible, true), isNull(products.id))),
   ]);
 
+  const [monthRevenue, [orderStats], [partnersNoEmail], [storesNoAccount]] = await Promise.all([
+    revenueReport(periodRange('month')),
+    db
+      .select({
+        pending: sql<number>`SUM(${orders.status} = 'new')`,
+        unread: sql<number>`SUM(${orders.viewedAt} IS NULL AND ${orders.status} <> 'cancelled')`,
+      })
+      .from(orders),
+    db.select({ c: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.isActive} = 1 AND (${stores.email} IS NULL OR ${stores.email} = '')) + (SELECT COUNT(*) FROM ${workers} WHERE ${workers.isActive} = 1 AND (${workers.email} IS NULL OR ${workers.email} = ''))` }).from(sql`(SELECT 1) AS one`),
+    db.select({ c: sql<number>`COUNT(*)` }).from(stores).where(and(eq(stores.isActive, true), sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.storeId} = ${stores.id})`)),
+  ]);
+
   const designCategoryIds = designCategoryRows.map((c) => c.id);
   const [noModel] = designCategoryIds.length
     ? await db
@@ -97,6 +111,9 @@ export default async function AdminDashboardPage() {
   const unverifiedWorkers = Number(workerStats.total) - Number(workerStats.verified ?? 0);
 
   const attention: Array<{ text: string; href: string }> = [];
+  if (Number(orderStats.pending ?? 0) > 0) attention.push({ text: fill(d.pendingOrders, { n: Number(orderStats.pending) }), href: '/admin/orders?status=new' });
+  if (Number(partnersNoEmail.c) > 0) attention.push({ text: fill(d.partnersWithoutEmail, { n: Number(partnersNoEmail.c) }), href: '/admin/stores' });
+  if (Number(storesNoAccount.c) > 0) attention.push({ text: fill(d.partnersWithoutAccount, { n: Number(storesNoAccount.c) }), href: '/admin/users?role=store' });
   if (Number(noModel.c) > 0) attention.push({ text: fill(d.noModelProducts, { n: Number(noModel.c) }), href: '/admin/products?model=none&status=active' });
   if (Number(emptyStores.c) > 0) attention.push({ text: fill(d.emptyStores, { n: Number(emptyStores.c) }), href: '/admin/stores?sort=products&dir=asc' });
   if (Number(emptyCategories.c) > 0) attention.push({ text: fill(d.emptyCategories, { n: Number(emptyCategories.c) }), href: '/admin/categories?sort=products&dir=asc' });
@@ -131,7 +148,19 @@ export default async function AdminDashboardPage() {
               <Calculator className="h-4 w-4" /> {d.editRates}
             </Link>
           </Button>
+          <Button asChild size="sm" variant="ghost">
+            <Link href="/admin/settings">
+              <Settings className="h-4 w-4" /> {d.openSettings}
+            </Link>
+          </Button>
         </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <LinkedStat href="/admin/revenue?period=month" label={d.revenueMonth} value={formatGEL(monthRevenue.revenue)} hint={fill(d.revenueMonthHint, { fees: formatGEL(monthRevenue.fees.total), commissions: formatGEL(monthRevenue.commissions.total) })} icon={TrendingUp} />
+        <LinkedStat href="/admin/orders?status=new" label={d.newOrders} value={`${orderStats.pending ?? 0}`} hint={fill(ka.admin.ordersPage.unread, {})} icon={Receipt} />
+        <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.gmv} value={formatGEL(monthRevenue.gmv.total)} hint={fill(ka.admin.revenue.ordersCount, { n: monthRevenue.commissions.orders })} icon={Store} />
+        <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.fees} value={formatGEL(monthRevenue.fees.total)} hint={fill(ka.admin.revenue.checkoutsCount, { n: monthRevenue.fees.count })} icon={Calculator} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -152,7 +181,7 @@ export default async function AdminDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="font-serif">{d.recentProjects}</CardTitle>
-            <Link href="/admin/orders" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+            <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
               {d.viewAll} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </CardHeader>
@@ -162,7 +191,7 @@ export default async function AdminDashboardPage() {
                 {recent.map((r) => (
                   <tr key={r.id} className="border-t border-line/40 hover:bg-bg-base/60">
                     <td className="px-4 py-2.5">
-                      <Link href={`/admin/orders/${r.id}`} className="font-medium hover:text-brand">
+                      <Link href={`/admin/projects/${r.id}`} className="font-medium hover:text-brand">
                         {r.nameKa ?? `#${r.id}`}
                       </Link>
                       <span className="block text-xs text-ink-muted">{r.userName ?? ka.admin.guestUser} · {new Date(r.createdAt).toLocaleDateString(dateLocale)}</span>

@@ -29,6 +29,7 @@ export function StoreForm({ store }: { store?: Store }) {
     logoUrl: store?.logoUrl ?? '',
     websiteUrl: store?.websiteUrl ?? '',
     phone: store?.phone ?? '',
+    email: store?.email ?? '',
     address: store?.address ?? '',
     city: store?.city ?? '',
     rating: store?.rating != null ? String(store.rating) : '4.50',
@@ -127,6 +128,10 @@ export function StoreForm({ store }: { store?: Store }) {
               <Label>{ka.admin.forms.phone}</Label>
               <Input value={form.phone} onChange={(e) => update('phone', e.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.email}</Label>
+              <Input type="email" placeholder="orders@store.ge" value={form.email} onChange={(e) => update('email', e.target.value)} />
+            </div>
 
             <div className="space-y-2">
               <Label>{ka.admin.forms.city}</Label>
@@ -188,6 +193,7 @@ export function StoreForm({ store }: { store?: Store }) {
                 value={form.commissionRate}
                 onChange={(e) => update('commissionRate', e.target.value)}
               />
+              <p className="text-xs text-ink-muted">{ka.admin.forms.commissionHint}</p>
             </div>
 
             <div className="space-y-2 md:col-span-2">

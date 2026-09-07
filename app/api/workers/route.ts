@@ -35,6 +35,8 @@ export const POST = handle('POST /api/workers', 'Failed to create worker', async
     specialty: d.specialty,
     specialtySlug: d.specialtySlug,
     phone: d.phone ?? null,
+    email: d.email || null,
+    commissionRate: d.commissionRate != null ? String(d.commissionRate) : null,
     pricePerM2: d.pricePerM2 != null ? String(d.pricePerM2) : null,
     pricePerUnit: d.pricePerUnit != null ? String(d.pricePerUnit) : null,
     priceUnit: d.priceUnit,

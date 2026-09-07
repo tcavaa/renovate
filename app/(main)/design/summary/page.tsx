@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Check, MapPin, Phone, Printer, Save, Truck } from 'lucide-react';
+import { Check, MapPin, Phone, Printer, Save, ShoppingBag, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -13,6 +13,10 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
+import { usePlatformFees } from '@/hooks/usePlatformFees';
+import { platformFee } from '@/lib/finance/money';
+import { CheckoutDialog } from '@/components/checkout/CheckoutDialog';
+import { fill } from '@/lib/admin/list';
 import { formatGEL, formatM2 } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
@@ -25,6 +29,8 @@ export default function DesignSummaryPage() {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const fees = usePlatformFees();
 
   const scene = useMemo(
     () => ({ styleId, mode, budgetGel, items, finishes }),
@@ -53,27 +59,34 @@ export default function DesignSummaryPage() {
     );
   }
 
+  /** Writes the design once and returns its id — the save button and the checkout share it. */
+  const saveOnce = async (): Promise<number> => {
+    if (savedId != null) return savedId;
+    const res = await fetch('/api/design/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}`,
+        homeState: homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame'),
+        plan,
+        scene,
+        floorPlanUrl,
+      }),
+    });
+    const json = (await res.json()) as {
+      data: { id: number } | null;
+      error: string | null;
+    };
+    if (json.error || !json.data) throw new Error(json.error ?? 'save-failed');
+    setSavedId(json.data.id);
+    return json.data.id;
+  };
+
   const save = async () => {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/design/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}`,
-          homeState: homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame'),
-          plan,
-          scene,
-          floorPlanUrl,
-        }),
-      });
-      const json = (await res.json()) as {
-        data: { id: number } | null;
-        error: string | null;
-      };
-      if (json.error || !json.data) throw new Error(json.error ?? 'save-failed');
-      setSavedId(json.data.id);
+      await saveOnce();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -82,6 +95,9 @@ export default function DesignSummaryPage() {
   };
 
   const style = getStyle(styleId);
+  const areaM2 = totalFloorAreaM2(plan);
+  const fee = platformFee(areaM2, fees.designFeePerM2);
+  const storeCount = cost.baskets.filter((b) => b.store).length;
 
   return (
     <>
@@ -109,10 +125,16 @@ export default function DesignSummaryPage() {
             </>
           }
           actions={
-            <Button type="button" variant="outline" onClick={() => window.print()} className="no-print">
-              <Printer className="h-4 w-4" />
-              {t.design.print}
-            </Button>
+            <div className="no-print flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                {t.design.print}
+              </Button>
+              <Button type="button" variant="outline" onClick={save} disabled={saving || savedId != null}>
+                {savedId != null ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                {saving ? t.design.saving : savedId != null ? t.design.savedTitle : t.design.saveDesign}
+              </Button>
+            </div>
           }
         />
 
@@ -201,6 +223,20 @@ export default function DesignSummaryPage() {
                   <span className="font-serif font-semibold">{t.design.grandTotal}</span>
                   <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
                 </div>
+                <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span>
+                      {t.market.feeDesign}
+                      <span className="block text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(fees.designFeePerM2), m2: formatM2(areaM2) })}</span>
+                    </span>
+                    <span className="shrink-0 font-medium tabular-nums">{formatGEL(fee)}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
+                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + fee)}</span>
+                  </div>
+                  <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
+                </div>
               </div>
             </div>
 
@@ -220,18 +256,23 @@ export default function DesignSummaryPage() {
 
       <StepNav
         back={{ href: '/design/studio', label: t.design.backToStudio }}
-        next={{
-          label: saving ? t.design.saving : savedId != null ? t.design.savedTitle : t.design.saveDesign,
-          onClick: save,
-          disabled: saving || savedId != null,
-          loading: saving,
-          icon: savedId != null ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />,
-        }}
+        next={{ label: t.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.design.grandTotal} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal)}</span>
+          {t.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + fee)}</span>
         </p>
       </StepNav>
+
+      <CheckoutDialog
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        saveProject={saveOnce}
+        fee={fee}
+        totalM2={areaM2}
+        feePerM2={fees.designFeePerM2}
+        goodsTotal={cost.furnitureTotal + cost.finishesTotal + cost.deliveryTotal}
+        storeCount={storeCount}
+      />
     </>
   );
 }

@@ -10,6 +10,7 @@ import { authConfig } from '@/auth.config';
 import { env } from '@/lib/env';
 import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
 import { log } from '@/lib/log';
+import type { UserRole } from '@/lib/auth/roles';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -55,6 +56,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          storeId: user.storeId ?? null,
+          workerId: user.workerId ?? null,
         };
       },
     }),
@@ -98,10 +101,16 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      role: 'user' | 'admin';
+      role: UserRole;
+      /** Set on `store` accounts: the store whose portal this is. */
+      storeId: number | null;
+      /** Set on `worker` accounts. */
+      workerId: number | null;
     };
   }
   interface User {
-    role?: 'user' | 'admin';
+    role?: UserRole;
+    storeId?: number | null;
+    workerId?: number | null;
   }
 }

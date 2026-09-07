@@ -36,6 +36,10 @@ export const API_ERRORS = {
   RATE_KEY_EXISTS: 'RATE_KEY_EXISTS',
   EMAIL_EXISTS: 'EMAIL_EXISTS',
   INVALID_TOKEN: 'INVALID_TOKEN',
+  FORBIDDEN: 'FORBIDDEN',
+  PROJECT_ALREADY_ORDERED: 'PROJECT_ALREADY_ORDERED',
+  PARTNER_NOT_LINKED: 'PARTNER_NOT_LINKED',
+  ORDER_CLOSED: 'ORDER_CLOSED',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];
@@ -45,6 +49,36 @@ export async function requireAdmin() {
   const session = await auth();
   if (!session || session.user?.role !== 'admin') {
     return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  return { session, response: null };
+}
+
+/** Any signed-in session, otherwise a ready 401. */
+export async function requireSession() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  return { session, response: null };
+}
+
+/**
+ * A partner account (`store` / `worker`) with the store or worker it is bound to, or admin,
+ * who may act on any order. A partner role with no link is a misconfigured account and gets
+ * a 403 that names the problem rather than an empty portal.
+ */
+export async function requirePartner() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  const { role, storeId, workerId } = session.user;
+  if (role === 'admin') return { session, response: null };
+  if (role !== 'store' && role !== 'worker') {
+    return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
+  }
+  if ((role === 'store' && !storeId) || (role === 'worker' && !workerId)) {
+    return { session: null, response: fail(API_ERRORS.PARTNER_NOT_LINKED, 403) };
   }
   return { session, response: null };
 }

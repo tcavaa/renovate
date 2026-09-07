@@ -16,7 +16,7 @@ import type { FloorPlan } from '@/lib/design/types';
  * labour and the cost breakdown — as an editorial spread of hairline ledgers.
  *
  * Rendered identically for the owner (`/profile/projects/[id]`) and for admin
- * (`/admin/orders/[id]`); only the back link, the actions and any extra meta rows differ.
+ * (`/admin/projects/[id]`); only the back link, the actions and any extra meta rows differ.
  * Server component — the caller loads the project and prices it with the current rate book.
  */
 export interface MetaItem {
@@ -41,6 +41,7 @@ export function ProjectDetail({
   backLabel,
   extraMeta = [],
   actions,
+  after,
 }: {
   project: Project;
   summary: ProjectSummary;
@@ -51,6 +52,8 @@ export function ProjectDetail({
   extraMeta?: MetaItem[];
   /** Buttons on the right of the head — the owner gets "open in 3D". */
   actions?: React.ReactNode;
+  /** Rendered under the breakdown — the orders placed against the project. */
+  after?: React.ReactNode;
 }) {
   const rooms = summary.rooms as Room[];
   const plan = (project.plan as FloorPlan | null) ?? null;
@@ -191,6 +194,8 @@ export function ProjectDetail({
           </div>
         </Section>
       </div>
+
+      {after}
     </div>
   );
 }

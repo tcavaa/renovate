@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
-import { ChevronDown, FolderKanban, LayoutDashboard, LogOut, User } from 'lucide-react';
+import { ChevronDown, FolderKanban, LayoutDashboard, LogOut, Store, User } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
@@ -66,11 +66,13 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
     .join('')
     .toUpperCase();
   const isAdmin = user.role === 'admin';
+  const isPartner = user.role === 'store' || user.role === 'worker';
 
   const items = [
     { href: '/profile', icon: User, label: t.nav.profile },
     { href: '/profile', icon: FolderKanban, label: t.nav.projects },
     ...(isAdmin ? [{ href: '/admin', icon: LayoutDashboard, label: t.nav.admin }] : []),
+    ...(isPartner ? [{ href: '/partner', icon: Store, label: t.nav.partner }] : []),
   ];
 
   if (variant === 'mobile') {

@@ -1,59 +1,58 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { eq } from 'drizzle-orm';
-import { User } from 'lucide-react';
-import { db } from '@/lib/db';
-import { projects, users } from '@/lib/db/schema';
-import { getT, getLocale } from '@/lib/i18n/server';
-import { buildProjectSummary } from '@/lib/calculator/materials';
-import { loadRateBook } from '@/lib/api/rateBook';
-import { ProjectDetail } from '@/components/projects/ProjectDetail';
-import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { getLocale, getT } from '@/lib/i18n/server';
+import { loadOrderView } from '@/lib/finance/orders';
+import { orderData } from '@/lib/finance/view';
+import { OrderEditor } from '@/components/orders/OrderEditor';
+import { dateLocaleFor } from '@/components/projects/ProjectDetail';
+import { fill } from '@/lib/admin/list';
+import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminProjectDetailPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params;
+export default async function AdminOrderPage(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params;
   const ka = await getT();
   const locale = await getLocale();
-  const id = Number(params.id);
-  if (!Number.isFinite(id)) notFound();
-
-  const rows = await db
-    .select({ project: projects, userName: users.name, userEmail: users.email })
-    .from(projects)
-    .leftJoin(users, eq(projects.userId, users.id))
-    .where(eq(projects.id, id))
-    .limit(1);
-  const row = rows[0];
-  if (!row) notFound();
-  const { project, userName, userEmail } = row;
-
-  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-  const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-
-  const summary = buildProjectSummary(
-    (project.rooms ?? []) as Room[],
-    project.homeState as HomeState,
-    Object.values(selectedProducts),
-    Object.values(selectedFurniture).flat(),
-    await loadRateBook()
-  );
+  const orderId = Number(id);
+  if (!Number.isInteger(orderId) || orderId <= 0) notFound();
+  const view = await loadOrderView(orderId);
+  if (!view) notFound();
+  const data = orderData(view);
+  const o = ka.admin.ordersPage;
+  const partnerHref = view.store ? `/admin/stores/${view.store.id}` : view.worker ? `/admin/workers/${view.worker.id}` : null;
 
   return (
-    <ProjectDetail
-      project={project}
-      summary={summary}
-      t={ka}
-      locale={locale}
-      backHref="/admin/orders"
-      backLabel={ka.admin.projectsList.backToAll}
-      extraMeta={[
-        {
-          icon: User,
-          label: ka.admin.table.user,
-          value: userName ? `${userName} (${userEmail})` : ka.admin.guestUser,
-        },
-      ]}
-    />
+    <div className="space-y-6">
+      <div>
+        <Link href="/admin/orders" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand">
+          <ArrowLeft className="h-4 w-4" />
+          {o.backToAll}
+        </Link>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+          <h1 className="font-serif text-3xl font-bold">
+            {fill(o.title, {})} <span className="text-ink-muted">#{data.id}</span>
+          </h1>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
+            {partnerHref && data.partner && (
+              <Link href={partnerHref} className="text-brand hover:underline">
+                {data.partnerType === 'store' ? o.kindStore : o.kindWorker}: {data.partner.nameKa}
+              </Link>
+            )}
+            {data.checkout && (
+              <span>
+                {fill(o.checkout, { id: data.checkout.id })} · {o.platformFee} {formatGEL(data.checkout.platformFee)}
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1">
+              {data.viewedAt ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+              {data.viewedAt ? `${o.viewedAt} ${new Date(data.viewedAt).toLocaleString(dateLocaleFor(locale))}` : o.notViewed}
+            </span>
+          </div>
+        </div>
+      </div>
+      <OrderEditor order={data} mode="admin" backHref="/admin/orders" />
+    </div>
   );
 }

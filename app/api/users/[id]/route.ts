@@ -9,7 +9,11 @@ export const dynamic = 'force-dynamic';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  role: z.enum(['user', 'admin']).optional(),
+  role: z.enum(['user', 'admin', 'store', 'worker']).optional(),
+  /** Which store a `store` account manages; cleared automatically for other roles. */
+  storeId: z.number().int().positive().nullable().optional(),
+  /** Which worker profile a `worker` account manages. */
+  workerId: z.number().int().positive().nullable().optional(),
 });
 
 export const GET = handle('GET /api/users/[id]', 'Failed to load user', async (_req, { params }) => {
@@ -24,6 +28,8 @@ export const GET = handle('GET /api/users/[id]', 'Failed to load user', async (_
       name: users.name,
       email: users.email,
       role: users.role,
+      storeId: users.storeId,
+      workerId: users.workerId,
       createdAt: users.createdAt,
       hasPassword: sql<number>`CASE WHEN ${users.passwordHash} IS NULL THEN 0 ELSE 1 END`,
     })
@@ -48,7 +54,12 @@ export const PUT = handle('PUT /api/users/[id]', 'Failed to update user', async 
     return fail(API_ERRORS.CANNOT_CHANGE_OWN_ROLE, 400);
   }
 
-  await db.update(users).set(parsed.data).where(eq(users.id, id));
+  // A partner link only makes sense with the matching role; anything else is cleared so a
+  // demoted account does not keep a door into the portal.
+  const patch = { ...parsed.data };
+  if (patch.role && patch.role !== 'store') patch.storeId = null;
+  if (patch.role && patch.role !== 'worker') patch.workerId = null;
+  await db.update(users).set(patch).where(eq(users.id, id));
   return ok({ id });
 });
 

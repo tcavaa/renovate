@@ -38,6 +38,8 @@ export function WorkerForm({ worker }: Props) {
     specialty: worker?.specialty ?? '',
     specialtySlug: worker?.specialtySlug ?? '',
     phone: worker?.phone ?? '',
+    email: worker?.email ?? '',
+    commissionRate: worker?.commissionRate != null ? String(worker.commissionRate) : '',
     pricePerM2: worker?.pricePerM2 ? String(worker.pricePerM2) : '',
     pricePerUnit: worker?.pricePerUnit ? String(worker.pricePerUnit) : '',
     priceUnit: (worker?.priceUnit ?? 'm2') as 'm2' | 'unit' | 'fixed',
@@ -66,6 +68,8 @@ export function WorkerForm({ worker }: Props) {
       rating: form.rating ? Number(form.rating) : 5,
       reviewCount: Number(form.reviewCount) || 0,
       city: form.city || null,
+      email: form.email || null,
+      commissionRate: form.commissionRate === '' ? null : Number(form.commissionRate),
       experienceYears: form.experienceYears ? Number(form.experienceYears) : null,
       completedJobs: Number(form.completedJobs) || 0,
     };
@@ -157,8 +161,17 @@ export function WorkerForm({ worker }: Props) {
               />
             </div>
             <div className="space-y-2">
+              <Label>{ka.admin.forms.email}</Label>
+              <Input type="email" placeholder="name@example.ge" value={form.email} onChange={(e) => update('email', e.target.value)} />
+            </div>
+            <div className="space-y-2">
               <Label>{ka.admin.forms.city}</Label>
               <Input value={form.city} onChange={(e) => update('city', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.commission}</Label>
+              <Input type="number" step="0.1" min={0} max={100} placeholder="5" value={form.commissionRate} onChange={(e) => update('commissionRate', e.target.value)} />
+              <p className="text-xs text-ink-muted">{ka.admin.forms.commissionHint}</p>
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.forms.experienceYears}</Label>

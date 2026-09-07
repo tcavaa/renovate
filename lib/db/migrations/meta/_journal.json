@@ -29,6 +29,13 @@
       "when": 1788777242585,
       "tag": "0003_worker_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1788819311634,
+      "tag": "0004_marketplace",
+      "breakpoints": true
     }
   ]
 }

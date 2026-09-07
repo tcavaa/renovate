@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { and, asc, count, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import { USER_ROLES, isUserRole, type UserRole } from '@/lib/auth/roles';
+import { roleLabel } from '@/lib/i18n/labels';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
@@ -27,7 +29,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
     const needle = `%${p.q}%`;
     where.push(or(like(users.name, needle), like(users.email, needle))!);
   }
-  if (p.get('role') === 'admin' || p.get('role') === 'user') where.push(eq(users.role, p.get('role') as 'admin' | 'user'));
+  if (isUserRole(p.get('role'))) where.push(eq(users.role, p.get('role') as UserRole));
   if (p.get('verified') === 'yes') where.push(sql`${users.emailVerifiedAt} IS NOT NULL`);
   if (p.get('verified') === 'no') where.push(sql`${users.emailVerifiedAt} IS NULL`);
   const filter = where.length ? and(...where) : undefined;
@@ -90,7 +92,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
       <FilterBar
         fields={[
           { name: 'q', type: 'search', placeholder: ka.admin.usersPage.searchPlaceholder, className: 'w-72' },
-          { name: 'role', type: 'select', label: f.role, options: [{ value: 'user', label: ka.nav.user }, { value: 'admin', label: ka.nav.admin }] },
+          { name: 'role', type: 'select', label: f.role, options: USER_ROLES.map((r) => ({ value: r, label: roleLabel(ka, r) })) },
           { name: 'projects', type: 'select', label: ka.admin.table.projects, options: [{ value: 'yes', label: f.hasProjects }, { value: 'no', label: f.noProjects }] },
           { name: 'verified', type: 'select', label: ka.admin.cols.verified, options: [{ value: 'yes', label: f.verified }, { value: 'no', label: f.unverified }] },
         ]}
@@ -136,10 +138,10 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
                 )}
               </td>
               <td className="px-4 py-2.5">
-                {u.role === 'admin' ? <Badge variant="success">{ka.nav.admin}</Badge> : <Badge variant="outline">{ka.nav.user}</Badge>}
+                <Badge variant={u.role === 'admin' ? 'success' : u.role === 'user' ? 'outline' : 'secondary'}>{roleLabel(ka, u.role)}</Badge>
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">
-                <Link href={`/admin/orders?q=${encodeURIComponent(u.email)}`} className="hover:text-brand hover:underline">
+                <Link href={`/admin/projects?q=${encodeURIComponent(u.email)}`} className="hover:text-brand hover:underline">
                   {Number(u.projectCount)}
                 </Link>
               </td>

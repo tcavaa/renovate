@@ -66,6 +66,7 @@ pnpm models:seed    # one product per model in both manifests; deletes every oth
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
 pnpm db:seed:workers # city, experience, portfolio and reviews for the seeded workers; recomputes their ratings
+pnpm db:seed:partners # a portal login per active store and worker (PARTNER_PASSWORD or generated, printed once); creates the platform_settings row
 pnpm db:migrate     # apply pending migrations from lib/db/migrations (what deploys run)
 pnpm db:migrate:baseline  # once, on a DB created with db:push before migrations existed
 pnpm db:indexes     # idempotent secondary indexes (stopgap where push is not an option)
@@ -146,7 +147,13 @@ public/
 | `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
-| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status, **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
+| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` / `saved` / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
+| `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
+| `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
+| `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker, storeId / workerId, status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
+| `order_items` | orderId (cascade), productId (nullable), name snapshots, categorySlug (`labour:<key>` for labour lines), roomName, unit, qty, unitPrice, total, `removed`, note |
+
+`users.role` is `user` / `admin` / `store` / `worker`; a partner role carries `storeId` or `workerId`. `stores` and `workers` have `email` (order notifications) and `commissionRate` (null = platform default).
 
 A design project is distinguished from a calculator project by `plan IS NOT NULL`.
 
@@ -486,10 +493,70 @@ surface categories (doors, windows and sockets have no 3D counterpart and are le
 
 ---
 
+## Marketplace: how the platform earns (`lib/finance/`)
+
+The platform owns nothing and sells nothing — it connects the customer with the stores and
+workers who do, and takes a cut at every step. Two revenue lines, both recorded, neither
+collected (there is no payment integration; the fee is shown on the summaries and stored):
+
+1. **A fee per m²** for the project itself — `calculatorFeePerM2` (default 2 ₾) for a
+   calculation, `designFeePerM2` (default 12 ₾) for a 3D design. Shown as its own line on both
+   summaries ("სულ საფასურის ჩათვლით"), written to `checkouts.platformFee` at checkout.
+2. **A commission on every partner order** — `storeCommissionPct` / `workerCommissionPct`
+   (default 5 %), overridden per store / worker by their own `commissionRate`. Frozen into
+   `orders.commissionPct` when the order is placed so a later rate change does not rewrite history.
+
+```
+summary → "შეკვეთის გაფორმება" → CheckoutDialog (name, phone, e-mail; guests welcome)
+  → saves the project if it is not saved yet (each summary in its own shape)
+  → POST /api/checkout { projectId, customer }
+      lib/finance/money.ts     group the project's picks by store (calculator: products.storeId
+                               lookup; design: the scene's store snapshot), one order per store,
+                               delivery per store, commission at that store's rate, fee = m² × rate
+      lib/finance/orders.ts    one transaction: checkout + orders + items; project → 'submitted'
+      lib/finance/notify.ts    mail to every store (MAIL_DRIVER=log in dev → logs/app-*.log)
+                               and to the customer; never fatal
+worker profile → "დაკვეთა" → BookingDialog → POST /api/bookings { workerId, projectId? }
+  → a worker order; with a project its lines are the calculator's labour estimate
+```
+
+A project is ordered once (`PROJECT_ALREADY_ORDERED` on a second try). Items nobody sells
+(product without a store) are left out and reported as `unassigned`.
+
+**Partner portal (`/partner`)** — a `store` / `worker` account sees its own orders and
+nothing else: dashboard (unread, open, this month's sales, the platform's cut, their share),
+the order list with status filter, and the order editor (`components/orders/OrderEditor.tsx`):
+quantities and prices per line, lines struck out and restored (kept visible for the customer),
+added lines, a message to the customer, the status. Every save recomputes `subtotal` and
+`commissionAmount` from the items (`applyOrderEdit`); a status or message change mails the
+customer. Opening an order sets `viewedAt` and clears the badge. Stores also see their
+product list (read-only), workers their public card. Admin can open the portal as any partner
+with `?store=ID` / `?worker=ID`. `pnpm db:seed:partners` creates the logins.
+
+**Admin** — `/admin/orders` (every order, filters in the URL like the other lists, admin may
+edit any order), `/admin/revenue` (period → fees split calculator/design, commissions split
+stores/workers, volume, daily bars as static SVG, by store, by worker, top products, statuses,
+CSV export at `/api/admin/revenue/export`), `/admin/settings` (the four numbers, with a worked
+example before you save). Store and worker forms carry e-mail and commission; the user form
+assigns partner roles and links the account to its store / worker. The dashboard shows this
+month's revenue and flags orders waiting on a partner and partners without e-mail or login.
+
+The customer sees the orders on the project page (`components/orders/ProjectOrders.tsx`):
+status, total, delivery, and whatever the partner wrote back.
+
+`tests/unit/finance/money.test.ts` covers the arithmetic — fee, commission, grouping,
+delivery, struck-out lines, report periods — and `lib/finance/money.ts` is in the coverage
+gate. Everything that touches the database (`orders.ts`, `report.ts`, `settings.ts`) is
+exercised by the routes, not by unit tests.
+
+**Date formatting in client components** goes through `formatDateTime` (`lib/utils.ts`):
+`toLocaleString` hydrated differently on the server and in the browser and the order editor
+was the first to break.
+
 ## API conventions
 
 - Every route returns `{ data, error }` and sets `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`
-- Admin writes check `session.user.role === 'admin'` via `auth()` from `@/auth`
+- Admin writes check `session.user.role === 'admin'` via `auth()` from `@/auth` (`requireAdmin()`); partner writes use `requirePartner()` and check the order belongs to the session's store / worker (`partnerOwnsOrder`)
 - Zod `safeParse` on every POST body; return `400` with `parsed.error.message`
 - `console.error('METHOD /api/path', e)` then a generic 500 message — never leak internals
 
@@ -686,7 +753,8 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 
 ## Known gaps / roadmap
 
-- Uploads are local disk; S3 planned. No PDF export. No worker booking flow. No SMS.
+- Uploads are local disk; S3 planned. No PDF export. No SMS.
+- The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Partners cannot add or edit their own products yet (admin does it); reviews and portfolio are seeded, not partner-managed.
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**
   (its folder holds a `.max` kitchen and nothing else) — and no partner sells a wardrobe,
   kitchen, bathroom fixture, rug, lamp, plant, desk or bookshelf. Those slots are filled by

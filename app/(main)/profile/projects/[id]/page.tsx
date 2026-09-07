@@ -9,6 +9,7 @@ import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
 import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
 import { savedProjectInput } from '@/lib/projects/saved';
+import { ProjectOrders } from '@/components/orders/ProjectOrders';
 import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +52,7 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
       backHref="/profile"
       backLabel={ka.profile.backToProjects}
       actions={<OpenIn3dButton project={savedProjectInput(project)} size="lg" />}
+      after={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
     />
   );
 }

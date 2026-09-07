@@ -36,6 +36,9 @@ export const PUT = handle('PUT /api/workers/[id]', 'Failed to update worker', as
         d.pricePerUnit !== undefined ? (d.pricePerUnit == null ? null : String(d.pricePerUnit)) : undefined,
       rating: d.rating != null ? String(d.rating) : undefined,
       avatarUrl: d.avatarUrl !== undefined ? d.avatarUrl || null : undefined,
+      email: d.email !== undefined ? d.email || null : undefined,
+      commissionRate:
+        d.commissionRate !== undefined ? (d.commissionRate == null ? null : String(d.commissionRate)) : undefined,
     })
     .where(eq(workers.id, id));
   return ok({ id });

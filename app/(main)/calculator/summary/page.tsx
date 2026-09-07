@@ -13,6 +13,7 @@ import {
   UserPlus,
   Lock,
   ArrowRight,
+  ShoppingBag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,6 +33,9 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
+import { usePlatformFees } from '@/hooks/usePlatformFees';
+import { platformFee } from '@/lib/finance/money';
+import { CheckoutDialog } from '@/components/checkout/CheckoutDialog';
 import { useT } from '@/lib/i18n/client';
 import { homeStateLabel } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
@@ -47,7 +51,9 @@ export default function SummaryPage() {
   const { rooms, homeState, selectedProducts, selectedFurniture, reset } =
     useCalculatorStore();
   const { book } = useRateBook();
+  const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   /** Carries rooms, home state and every pick into the studio; style is the only step left. */
   const viewIn3d = () => {
@@ -72,30 +78,38 @@ export default function SummaryPage() {
     return buildProjectSummary(rooms, homeState, products, furniture, book);
   }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book]);
 
+  // The platform's own line: a fee per square metre of the flat, shown, not collected.
+  const totalM2 = useMemo(() => rooms.reduce((s, r) => s + r.floorM2, 0), [rooms]);
+  const fee = platformFee(totalM2, fees.calculatorFeePerM2);
+
+  /** Writes the project once and returns its id — the save button and the checkout share it. */
+  const saveOnce = useCallback(async (): Promise<number> => {
+    if (savedId != null) return savedId;
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        homeState,
+        rooms,
+        nameKa: ka.calculator.projectName,
+        selectedProducts,
+        selectedFurniture,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok || !json.data?.id) throw new Error(json.error ?? 'save-failed');
+    setSavedId(json.data.id);
+    return json.data.id as number;
+  }, [savedId, homeState, rooms, selectedProducts, selectedFurniture, ka]);
+
   const persistProject = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          homeState,
-          rooms,
-          nameKa: ka.calculator.projectName,
-          selectedProducts,
-          selectedFurniture,
-        }),
-      });
-      const json = await res.json();
-      if (res.ok && json.data?.id) {
-        setSavedId(json.data.id);
-        setSuccessModalOpen(true);
-      } else {
-        setError(json.error ?? ka.calculator.saveError);
-      }
+      await saveOnce();
+      setSuccessModalOpen(true);
     } catch (e) {
       console.error(e);
       setError(ka.calculator.saveError);
@@ -103,7 +117,7 @@ export default function SummaryPage() {
       setSaving(false);
       inFlightRef.current = false;
     }
-  }, [homeState, rooms, selectedProducts, selectedFurniture, ka]);
+  }, [saveOnce, ka]);
 
   const handleSave = () => {
     if (!ready) return;
@@ -172,6 +186,19 @@ export default function SummaryPage() {
                 <Printer className="h-4 w-4" />
                 {ka.summary.print}
               </Button>
+              {savedId != null ? (
+                <Button asChild variant="outline">
+                  <Link href="/profile">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {ka.calculator.savedAndGo}
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={handleSave} disabled={saving || status === 'loading'}>
+                  <Save className="h-4 w-4" />
+                  {ka.summary.saveProject}
+                </Button>
+              )}
               <Button variant="ghost" onClick={() => reset()}>
                 <RotateCcw className="h-4 w-4" />
                 {ka.calculator.startOver}
@@ -181,7 +208,7 @@ export default function SummaryPage() {
         />
 
         <div className="mt-8">
-          <SummaryCard summary={summary} />
+          <SummaryCard summary={summary} platformFee={{ perM2: fees.calculatorFeePerM2, m2: totalM2, total: fee }} />
         </div>
 
         {error && <p className="mt-6 border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
@@ -189,21 +216,28 @@ export default function SummaryPage() {
 
       <StepNav
         back={{ href: '/calculator/furniture', label: ka.calculator.backButton }}
-        next={
-          savedId != null
-            ? { href: '/profile', label: ka.calculator.savedAndGo, icon: <CheckCircle2 className="h-4 w-4" /> }
-            : { label: ka.summary.saveProject, onClick: handleSave, disabled: saving || status === 'loading', loading: saving, icon: <Save className="h-4 w-4" /> }
-        }
+        next={{ label: ka.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <div className="flex flex-wrap items-center justify-end gap-4">
           <p className="text-sm text-ink-muted">
-            {ka.summary.grandTotalWithMargin} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+            {ka.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin + fee)}</span>
           </p>
           <Button3d onClick={viewIn3d} disabled={!ready}>
             {ka.calculator.view3dButton}
           </Button3d>
         </div>
       </StepNav>
+
+      <CheckoutDialog
+        open={checkoutOpen}
+        onOpenChange={setCheckoutOpen}
+        saveProject={saveOnce}
+        fee={fee}
+        totalM2={totalM2}
+        feePerM2={fees.calculatorFeePerM2}
+        goodsTotal={summary.subtotalProducts + summary.subtotalFurniture}
+        storeCount={null}
+      />
 
       <Dialog
         open={successModalOpen}

@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm';
 import { ArrowLeft, Calendar, ChevronRight, Mail, Shield } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { projects, users } from '@/lib/db/schema';
+import { projects, stores, users, workers } from '@/lib/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
@@ -13,6 +13,7 @@ import { getT, getLocale } from '@/lib/i18n/server';
 import {
   formatM2L,
   homeStateShortLabel,
+  roleLabel,
   statusLabel,
 } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
@@ -35,6 +36,13 @@ export default async function AdminUserDetailPage(
   const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
   const user = rows[0];
   if (!user) notFound();
+
+  // The partner pickers on the role form: every store and worker, active or not, so a link
+  // to a paused partner still shows what it points at.
+  const [partnerStores, partnerWorkers] = await Promise.all([
+    db.select({ id: stores.id, name: stores.nameKa }).from(stores).orderBy(stores.nameKa),
+    db.select({ id: workers.id, name: workers.nameKa, specialty: workers.specialty }).from(workers).orderBy(workers.nameKa),
+  ]);
 
   const userProjects = await db
     .select({
@@ -87,11 +95,7 @@ export default async function AdminUserDetailPage(
           <div className="flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-serif text-xl font-semibold">{user.name}</span>
-              {user.role === 'admin' ? (
-                <Badge variant="success">{ka.nav.admin}</Badge>
-              ) : (
-                <Badge variant="outline">{ka.nav.user}</Badge>
-              )}
+              <Badge variant={user.role === 'admin' ? 'success' : user.role === 'user' ? 'outline' : 'secondary'}>{roleLabel(ka, user.role)}</Badge>
               {isSelf && <Badge variant="outline">{ka.admin.youBadge}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
@@ -127,8 +131,12 @@ export default async function AdminUserDetailPage(
           name: user.name,
           email: user.email,
           role: user.role,
+          storeId: user.storeId,
+          workerId: user.workerId,
         }}
         isSelf={isSelf}
+        stores={partnerStores}
+        workers={partnerWorkers}
       />
 
       <Card>
@@ -157,7 +165,7 @@ export default async function AdminUserDetailPage(
                 >
                   <td className="px-4 py-3">
                     <Link
-                      href={`/admin/orders/${p.id}`}
+                      href={`/admin/projects/${p.id}`}
                       className="font-medium text-brand hover:underline"
                     >
                       #{p.id}
@@ -165,7 +173,7 @@ export default async function AdminUserDetailPage(
                   </td>
                   <td className="px-4 py-3 font-medium">
                     <Link
-                      href={`/admin/orders/${p.id}`}
+                      href={`/admin/projects/${p.id}`}
                       className="hover:text-brand"
                     >
                       {p.nameKa ?? '—'}
@@ -192,7 +200,7 @@ export default async function AdminUserDetailPage(
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/admin/orders/${p.id}`}
+                      href={`/admin/projects/${p.id}`}
                       className="inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
                     >
                       {ka.admin.table.details}

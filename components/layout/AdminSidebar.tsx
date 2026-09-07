@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Calculator, ClipboardList, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Store, Users as UsersIcon } from 'lucide-react';
+import { Calculator, ClipboardList, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Receipt, Settings, Store, TrendingUp, Users as UsersIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
@@ -19,8 +19,11 @@ export function AdminSidebar() {
     { href: '/admin/stores', label: ka.admin.stores, icon: Store },
     { href: '/admin/rates', label: ka.admin.rates, icon: Calculator },
     { href: '/admin/workers', label: ka.admin.workers, icon: Hammer },
-    { href: '/admin/orders', label: ka.admin.projects, icon: ClipboardList },
+    { href: '/admin/projects', label: ka.admin.projects, icon: ClipboardList },
+    { href: '/admin/orders', label: ka.admin.orders, icon: Receipt },
+    { href: '/admin/revenue', label: ka.admin.revenue.title, icon: TrendingUp },
     { href: '/admin/users', label: ka.admin.users, icon: UsersIcon },
+    { href: '/admin/settings', label: ka.admin.settings.title, icon: Settings },
   ];
   const user = session?.user;
   const initials = (user?.name ?? user?.email ?? 'A')
