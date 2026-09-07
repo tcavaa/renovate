@@ -25,10 +25,14 @@ import {
   planFromCalculatorRooms,
 } from '@/lib/design/planGeometry';
 import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { placeAdditional } from '@/lib/design/autoLayout';
+import { addOpening as addOpeningTo, moveOpening as moveOpeningIn, removeOpening as removeOpeningFrom, setOpeningWall as setOpeningWallIn, updateOpening as updateOpeningIn } from '@/lib/design/openings';
 import type {
   DesignMode,
   DesignScene,
   FloorPlan,
+  Opening,
+  OpeningKind,
   PlacedItem,
   PlanRoom,
   StyleId,
@@ -84,6 +88,16 @@ interface DesignActions {
   /** Gives rooms a floor or wall finish; null returns them to the style's default. */
   setFinish: (roomIds: string[], surface: 'floor' | 'wall', product: CatalogProduct | null) => void;
   swapProduct: (itemId: string, product: CatalogProduct) => void;
+  /**
+   * Puts one more product into a room: the layout engine finds it a spot among what is
+   * already there. Returns the new item's id, or null when the room has no room for it.
+   */
+  addItem: (product: CatalogProduct, roomId: string) => string | null;
+  addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null) => string | null;
+  moveOpening: (roomId: string, openingId: string, t: number) => void;
+  updateOpening: (roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind'>>) => void;
+  setOpeningWall: (roomId: string, openingId: string, wallIndex: number) => void;
+  removeOpening: (roomId: string, openingId: string) => void;
   /** Commits a drag. The room may change if the item was dragged into a neighbour. */
   placeItem: (itemId: string, position: Vec2, rotation: number, roomId?: string) => void;
   removeItem: (itemId: string) => void;
@@ -341,6 +355,36 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           }
           return { finishes: next };
         }),
+
+      addItem: (product, roomId) => {
+        const { plan, items } = get();
+        const room = plan?.rooms.find((r) => r.id === roomId);
+        const kind = product.model3dKind;
+        if (!plan || !room || !kind || !product.model3dUrl) return null;
+        const extra = placeAdditional(room, kind, items);
+        if (!extra) return null;
+        const id = `${extra.id}-${Date.now().toString(36)}`;
+        const placed = applySwap([...items, { ...extra, id }], id, product);
+        set({ items: placed, selectedItemId: id, focusRoomId: get().focusRoomId ?? null });
+        return id;
+      },
+
+      addOpening: (roomId, kind, wallIndex = null) => {
+        const { plan } = get();
+        if (!plan) return null;
+        const result = addOpeningTo(plan.rooms, roomId, kind, wallIndex, plan.wallThicknessM);
+        if (!result.openingId) return null;
+        set({ plan: { ...plan, rooms: result.rooms } });
+        return result.openingId;
+      },
+      moveOpening: (roomId, openingId, t) =>
+        set((s) => (s.plan ? { plan: { ...s.plan, rooms: moveOpeningIn(s.plan.rooms, roomId, openingId, t) } } : s)),
+      updateOpening: (roomId, openingId, patch) =>
+        set((s) => (s.plan ? { plan: { ...s.plan, rooms: updateOpeningIn(s.plan.rooms, roomId, openingId, patch) } } : s)),
+      setOpeningWall: (roomId, openingId, wallIndex) =>
+        set((s) => (s.plan ? { plan: { ...s.plan, rooms: setOpeningWallIn(s.plan.rooms, roomId, openingId, wallIndex, s.plan.wallThicknessM) } } : s)),
+      removeOpening: (roomId, openingId) =>
+        set((s) => (s.plan ? { plan: { ...s.plan, rooms: removeOpeningFrom(s.plan.rooms, roomId, openingId) } } : s)),
 
       swapProduct: (itemId, product) =>
         set((s) => ({ items: applySwap(s.items, itemId, product) })),

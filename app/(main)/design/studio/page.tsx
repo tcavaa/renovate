@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, Loader2 } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -12,6 +12,8 @@ import { FinishPanel } from '@/components/design/FinishPanel';
 import { HoverCard, type HoverCardHandle } from '@/components/design/HoverCard';
 import { StudioRail, type RailTab } from '@/components/design/StudioRail';
 import { FloatingPanel } from '@/components/design/FloatingPanel';
+import { AddFurniturePanel } from '@/components/design/AddFurniturePanel';
+import { OpeningsPanel } from '@/components/design/OpeningsPanel';
 import { ViewSwitch, ZoomControls, type StudioView } from '@/components/design/StudioControls';
 import { PlanCanvas } from '@/components/design/PlanCanvas';
 import { useDesignStore } from '@/store/designStore';
@@ -62,6 +64,12 @@ export default function StudioPage() {
     removeItem,
     generate,
     setFinish,
+    addItem,
+    addOpening,
+    moveOpening,
+    updateOpening,
+    setOpeningWall,
+    removeOpening,
   } = useDesignStore();
   const { products } = useDesignCatalog();
   const { book } = useRateBook();
@@ -71,6 +79,12 @@ export default function StudioPage() {
   const [rail, setRail] = useState<RailTab | null>('rooms');
   const [rotateBlocked, setRotateBlocked] = useState(false);
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
+  /** The "items" panel flips between the room's list and the catalogue browser. */
+  const [adding, setAdding] = useState(false);
+  const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
+  // The openings and add-furniture panels edit the focused room; picking a room there is
+  // the same as focusing it, so the 3D view follows the choice.
+  const editRoomId = focusRoomId ?? plan?.rooms[0]?.id ?? '';
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -225,6 +239,10 @@ export default function StudioPage() {
               selectedItemId={selectedItemId}
               showWalls={showWalls}
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
+              editMode={rail === 'openings' ? 'openings' : 'furniture'}
+              selectedOpeningId={selectedOpeningId}
+              onMoveOpening={moveOpening}
+              onSelectOpening={setSelectedOpeningId}
               onHoverItem={onHoverItem}
               onSelectItem={onSelectItem}
               onSelectSurface={onSelectSurface}
@@ -262,6 +280,7 @@ export default function StudioPage() {
         </div>
 
         {/* ---- left rail + panel ---- */}
+        {/* Panels that edit one room default to the focused room, then the first one. */}
         <div className="pointer-events-none absolute bottom-20 left-4 top-20 flex items-start gap-3">
           <div className="pointer-events-auto">
             <StudioRail active={rail} onChange={setRail} />
@@ -284,8 +303,56 @@ export default function StudioPage() {
                   </ul>
                 </FloatingPanel>
               )}
-              {rail === 'items' && (
-                <FloatingPanel title={t.design.swapTitle} subtitle={focusRoom?.name ?? t.design.wholeFlat} onClose={() => setRail(null)}>
+              {rail === 'openings' && (
+                <FloatingPanel title={t.design.openingsTitle} subtitle={plan.rooms.find((r) => r.id === (editRoomId))?.name} onClose={() => setRail(null)} className="h-full">
+                  <OpeningsPanel
+                    rooms={plan.rooms}
+                    roomId={editRoomId}
+                    selectedId={selectedOpeningId}
+                    onRoom={(id) => {
+                      setFocusRoom(id);
+                      setSelectedOpeningId(null);
+                    }}
+                    onSelect={setSelectedOpeningId}
+                    onAdd={(kind) => {
+                      const roomId = editRoomId;
+                      const id = addOpening(roomId, kind);
+                      if (id) setSelectedOpeningId(id);
+                      return !!id;
+                    }}
+                    onMove={(id, tt) => moveOpening(editRoomId, id, tt)}
+                    onUpdate={(id, patch) => updateOpening(editRoomId, id, patch)}
+                    onWall={(id, wallIndex) => setOpeningWall(editRoomId, id, wallIndex)}
+                    onRemove={(id) => {
+                      removeOpening(editRoomId, id);
+                      if (selectedOpeningId === id) setSelectedOpeningId(null);
+                    }}
+                  />
+                </FloatingPanel>
+              )}
+              {rail === 'items' && adding && (
+                <FloatingPanel title={t.design.addFurniture} subtitle={plan.rooms.find((r) => r.id === (editRoomId))?.name} onClose={() => setRail(null)} className="h-full">
+                  <AddFurniturePanel
+                    catalog={products}
+                    rooms={plan.rooms}
+                    roomId={editRoomId}
+                    styleId={styleId}
+                    onRoom={setFocusRoom}
+                    onAdd={(product) => addItem(product, editRoomId) !== null}
+                    onBack={() => setAdding(false)}
+                  />
+                </FloatingPanel>
+              )}
+              {rail === 'items' && !adding && (
+                <FloatingPanel title={t.design.furnitureTitle} subtitle={focusRoom?.name ?? t.design.wholeFlat} onClose={() => setRail(null)}>
+                  <button
+                    type="button"
+                    onClick={() => setAdding(true)}
+                    className="mb-3 flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2 text-sm font-medium text-white transition-colors hover:bg-brand hover:border-brand"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t.design.addFurniture}
+                  </button>
                   {visibleItems.length === 0 ? (
                     <p className="py-6 text-center text-sm text-ink-muted">{t.design.emptyRoom}</p>
                   ) : (
@@ -361,7 +428,7 @@ export default function StudioPage() {
         </div>
 
         {/* ---- selected item card (right) ---- */}
-        {selected && view !== '2d' && (
+        {selected && view !== '2d' && rail !== 'openings' && (
           <div className="pointer-events-auto absolute bottom-4 right-4 top-20 flex w-[340px] flex-col">
             <FloatingPanel title={t.design.selectedItem} subtitle={archetypeLabel(selected.kind, locale)} onClose={() => selectItem(null)} className="h-full">
               <SwapPanel
@@ -394,7 +461,7 @@ export default function StudioPage() {
           </div>
         )}
         <p className="pointer-events-none absolute bottom-6 left-1/2 hidden -translate-x-1/2 bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">
-          {view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : t.design.dragHint}
+          {view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : rail === 'openings' ? t.design.openingsHint : t.design.dragHint}
         </p>
         {/* Steps left when the item panel is open so the two never overlap. */}
         <div className={cn('pointer-events-auto absolute bottom-4 transition-[right] duration-300', selected && view !== '2d' ? 'right-[calc(340px+2rem)]' : 'right-4')}>

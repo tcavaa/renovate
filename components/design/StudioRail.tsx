@@ -1,20 +1,21 @@
 'use client';
 
-import { LayoutGrid, PaintBucket, Sofa, Wallet, type LucideIcon } from 'lucide-react';
+import { DoorOpen, LayoutGrid, PaintBucket, Sofa, Wallet, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
-export type RailTab = 'rooms' | 'items' | 'finishes' | 'cost';
+export type RailTab = 'rooms' | 'openings' | 'items' | 'finishes' | 'cost';
 
 /**
- * The studio's left rail: four icons, one open panel at a time. Clicking the active icon
+ * The studio's left rail: five icons, one open panel at a time. Clicking the active icon
  * closes its panel so the canvas gets the whole width back.
  */
 export function StudioRail({ active, onChange }: { active: RailTab | null; onChange: (tab: RailTab | null) => void }) {
   const t = useT();
   const tabs: Array<{ id: RailTab; icon: LucideIcon; label: string }> = [
     { id: 'rooms', icon: LayoutGrid, label: t.design.step2 },
-    { id: 'items', icon: Sofa, label: t.design.swapTitle },
+    { id: 'openings', icon: DoorOpen, label: t.design.openingsTitle },
+    { id: 'items', icon: Sofa, label: t.design.furnitureTitle },
     { id: 'finishes', icon: PaintBucket, label: t.design.finishesTitle },
     { id: 'cost', icon: Wallet, label: t.design.furnitureTotal },
   ];

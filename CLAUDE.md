@@ -394,6 +394,25 @@ Clicking a floor or a wall in the 3D view selects that surface (`onSelectSurface
 right panel shows the finish picker for that room with the clicked surface first, and a
 choice there applies to that room only. Clicking empty space clears it.
 
+### Doors and windows are editable (`lib/design/openings.ts`)
+
+The rail's second tab puts the studio in *openings* mode: furniture stops answering the
+pointer, every door and window wears a translucent slab, and dragging a slab slides the
+opening along its wall (the trim moves live; the wall's hole follows when the plan commits on
+release). The panel does the rest — wall, width, position, door↔window, add, delete — per
+room. An interior door is two openings, one per room, because each room extrudes its own
+wall; `moveOpening`/`updateOpening`/`removeOpening` keep the twin in step, and `addOpening`
+cuts a twin when the chosen wall is shared (and refuses a window there). Writing these tests
+found a real bug in `deriveOpenings`: the shared run is measured in plan order but applied in
+id order, so when the two disagreed each door landed on the wrong wall of its room.
+
+### Adding furniture in the studio
+
+The items tab's "add furniture" opens a catalogue browser (search, archetype, style chips)
+scoped to the focused room; `designStore.addItem` asks `placeAdditional` for a spot among
+what is already there and applies the product as a studio swap. No spot means no item, and
+the panel says so. Picking a room in either panel focuses it in 3D.
+
 ### Direct manipulation (`lib/design/manipulate.ts`)
 
 The layout engine *searches* for a spot and gives up if it can't find one. Dragging is the
@@ -526,6 +545,10 @@ Each of these cost real debugging time. Don't undo them.
 12. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group keyed on plan,
     finishes and style. Rebuilding everything on every drag was the studio's biggest stutter.
+13. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
+    visibility, so a cut-away wall still caught every click aimed at the sofa behind it.
+    Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
+    opening slabs); the default raycaster only tests layer 0.
 "
 ## Partner models (`scripts/convert-models.ts`)
 
@@ -722,7 +745,8 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
 - **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats.
   `StudioRail` opens one `FloatingPanel` at a time; `ViewSwitch` (2D / 3D / walk) and
   `ZoomControls` drive the viewer through the `ViewerApi` it hands back via `onApi`.
-  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it.
+  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it. The rail has
+  five tabs: rooms, doors & windows, furniture (with the add-furniture browser), finishes, cost.
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
 - **Corners are sharp.** The Tailwind radius scale is collapsed to 0–4 px, so `rounded-2xl`

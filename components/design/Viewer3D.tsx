@@ -21,6 +21,8 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import {
+  HIDDEN_LAYER,
+  OPENING_SLAB_NAME,
   buildRoomShells,
   disposeOwnedGeometry,
   frameFor,
@@ -28,6 +30,8 @@ import {
   visibleRoomIds,
   type SceneUserData,
 } from '@/lib/design3d/buildScene';
+import { edgeOf, projectToEdge } from '@/lib/design/openings';
+import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
@@ -36,6 +40,8 @@ import type { DesignScene, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/d
 import { Headlamp, WalkControls } from './WalkControls';
 
 export type ViewMode = 'orbit' | 'walk';
+/** What the pointer edits: furniture (the default) or the doors and windows. */
+export type EditMode = 'furniture' | 'openings';
 
 /** Camera actions the studio's overlay buttons call. */
 export interface ViewerApi {
@@ -52,6 +58,11 @@ export interface Viewer3DProps {
   selectedItemId?: string | null;
   showWalls?: boolean;
   viewMode?: ViewMode;
+  editMode?: EditMode;
+  selectedOpeningId?: string | null;
+  /** An opening was dragged along its wall to a new `t`. */
+  onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
+  onSelectOpening?: (openingId: string | null) => void;
   onHoverItem?: (item: PlacedItem | null, screen: { x: number; y: number } | null) => void;
   onSelectItem?: (itemId: string | null) => void;
   /** A click on a room's floor or wall — the studio opens the finish picker for it. */
@@ -104,6 +115,17 @@ const dragHit = new THREE.Vector3();
 /** Distance the pointer must travel before a press becomes a drag rather than a tap. */
 const DRAG_THRESHOLD_PX = 5;
 
+interface OpeningDragState {
+  room: PlanRoom;
+  opening: PlanRoom['openings'][number];
+  edge: NonNullable<ReturnType<typeof edgeOf>>;
+  trim: THREE.Object3D;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  t: number;
+}
+
 interface DragState {
   itemId: string;
   item: PlacedItem;
@@ -117,7 +139,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening'>;
 
 function SceneContent({
   plan,
@@ -126,10 +148,14 @@ function SceneContent({
   selectedItemId = null,
   showWalls = true,
   viewMode = 'orbit',
+  editMode = 'furniture',
+  selectedOpeningId = null,
   onHoverItem,
   onSelectItem,
   onSelectSurface,
   onPlaceItem,
+  onMoveOpening,
+  onSelectOpening,
   onApi,
 }: Viewer3DProps) {
   const style = getStyle(scene.styleId);
@@ -146,7 +172,8 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening };
+  const editingOpenings = editMode === 'openings';
 
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
@@ -168,6 +195,19 @@ function SceneContent({
     [plan, scene.finishes, style, materials, shellOptions]
   );
   useEffect(() => () => disposeOwnedGeometry(shell), [shell]);
+
+  // In openings mode every door and window wears its translucent slab — the handle to
+  // grab — and the selected one is a shade stronger. Off the mode they leave the raycast
+  // layer entirely, so they can never sit between the pointer and a sofa.
+  useEffect(() => {
+    shell.traverse((child) => {
+      if (child.name !== OPENING_SLAB_NAME || !(child instanceof THREE.Mesh)) return;
+      const data = child.parent?.userData as SceneUserData | undefined;
+      const selected = !!selectedOpeningId && data?.openingId === selectedOpeningId;
+      child.layers.set(editingOpenings ? 0 : HIDDEN_LAYER);
+      (child.material as THREE.MeshBasicMaterial).opacity = selected ? 0.55 : 0.28;
+    });
+  }, [shell, editingOpenings, selectedOpeningId]);
 
   // The furniture lives in one long-lived group that is reconciled against the item list.
   const itemsGroup = useMemo(() => {
@@ -278,7 +318,11 @@ function SceneContent({
 
       // > 0 means the camera sits on the outward side, so this wall is in the way.
       const facing = data.outward.x * toCamera.x + data.outward.z * toCamera.z;
-      child.visible = facing <= 0.35;
+      const visible = facing <= 0.35;
+      child.visible = visible;
+      // A cut-away wall must not catch the pointer either: the raycaster ignores this layer,
+      // so the furniture behind it stays clickable.
+      child.layers.set(visible ? 0 : HIDDEN_LAYER);
     });
   });
 
@@ -300,6 +344,7 @@ function SceneContent({
   };
 
   const dragRef = useRef<DragState | null>(null);
+  const openingDragRef = useRef<OpeningDragState | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
   const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; x: number; y: number } | null>(null);
 
@@ -323,6 +368,14 @@ function SceneContent({
     if (dragRef.current?.moved) return; // the drag loop owns the pointer
 
     const data = pick(event);
+    if (editingOpenings) {
+      gl.domElement.style.cursor = data?.pickKind === 'opening' ? 'ew-resize' : 'default';
+      if (hoveredId) {
+        setHoveredId(null);
+        onHoverItem?.(null, null);
+      }
+      return;
+    }
     const itemId = data?.pickKind === 'item' ? (data.itemId ?? null) : null;
 
     if (itemId !== hoveredId) {
@@ -351,6 +404,22 @@ function SceneContent({
    */
   const handleDown = (event: ThreeEvent<PointerEvent>) => {
     const data = pick(event);
+    if (editingOpenings) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      if (data?.pickKind !== 'opening' || !data.openingId) {
+        openingDragRef.current = null;
+        return;
+      }
+      const room = plan.rooms.find((r) => r.id === data.roomId);
+      const opening = room?.openings.find((o) => o.id === data.openingId);
+      const trim = shell.getObjectByName(`opening-${data.openingId}`);
+      if (!room || !opening || !trim) return;
+      const edge = edgeOf(room, opening.wallIndex);
+      if (!edge) return;
+      openingDragRef.current = { room, opening, edge, trim, startX: event.clientX, startY: event.clientY, moved: false, t: opening.t };
+      return;
+    }
     const itemId = data?.pickKind === 'item' ? data.itemId : null;
     if (!itemId) {
       dragRef.current = null;
@@ -395,6 +464,28 @@ function SceneContent({
     const canvas = gl.domElement;
 
     const onPointerMove = (event: PointerEvent) => {
+      const od = openingDragRef.current;
+      if (od) {
+        if (walking) return;
+        const travel = Math.abs(event.clientX - od.startX) + Math.abs(event.clientY - od.startY);
+        if (!od.moved) {
+          if (travel < DRAG_THRESHOLD_PX) return;
+          od.moved = true;
+          const orbit = orbitRef.current;
+          if (orbit) orbit.enabled = false;
+          canvas.style.cursor = 'ew-resize';
+        }
+        const ground = floorPoint(event.clientX, event.clientY, 0);
+        if (!ground) return;
+        const t = projectToEdge(od.edge, ground, od.opening.widthM);
+        od.t = t;
+        // Slide the whole trim (frame, leaf, slab) along the wall as a live preview; the
+        // wall's hole follows when the plan commits on release.
+        const from = pointOnEdge(od.edge, od.opening.t);
+        const to = pointOnEdge(od.edge, t);
+        od.trim.position.set(to.x - from.x, 0, to.z - from.z);
+        return;
+      }
       const drag = dragRef.current;
       if (!drag) return;
       // Inside the flat, dragging the view takes priority over dragging furniture.
@@ -435,7 +526,19 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      const { onSelectSurface, onSelectItem, onPlaceItem } = callbacks.current;
+      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening } = callbacks.current;
+
+      const od = openingDragRef.current;
+      openingDragRef.current = null;
+      if (od) {
+        const orbit = orbitRef.current;
+        if (orbit) orbit.enabled = true;
+        canvas.style.cursor = 'default';
+        onSelectOpening?.(od.opening.id);
+        if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4) onMoveOpening?.(od.room.id, od.opening.id, od.t);
+        else od.trim.position.set(0, 0, 0);
+        return;
+      }
 
       // A tap on a floor or wall with no travel is a selection; a drag is orbiting.
       const press = surfacePressRef.current;
@@ -478,6 +581,12 @@ function SceneContent({
       window.removeEventListener('pointercancel', onPointerUp);
     };
   }, [gl, walking, plan.rooms, scene.items, floorPoint, outlines]);
+
+  // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
+  useEffect(() => {
+    if (editingOpenings) return;
+    openingDragRef.current = null;
+  }, [editingOpenings]);
 
   return (
     <>

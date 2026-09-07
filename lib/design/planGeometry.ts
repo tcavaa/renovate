@@ -421,7 +421,13 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
     const [idA, idB] = key.split('|');
     const a = rooms.find((r) => r.id === idA)!;
     const b = rooms.find((r) => r.id === idB)!;
-    const run = runOf(a, b)!;
+    // The run was measured with the rooms in plan order; `a`/`b` are in id order. When the
+    // two disagree, edgeA belongs to `b` — swapping keeps each door on its own room's wall.
+    const stored = shared.get(`${a.id}|${b.id}`);
+    const run: SharedRun = stored ?? (() => {
+      const rev = shared.get(`${b.id}|${a.id}`)!;
+      return { ...rev, edgeA: rev.edgeB, edgeB: rev.edgeA, tA: rev.tB, tB: rev.tA };
+    })();
     {
       const shared = run;
 

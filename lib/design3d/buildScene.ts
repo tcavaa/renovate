@@ -37,8 +37,9 @@ import { StyleMaterials } from './materials';
 import { box, cylinder, tag } from './primitives';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface';
+  pickKind: 'item' | 'surface' | 'opening';
   itemId?: string;
+  openingId?: string;
   roomId: string;
   surface?: 'floor' | 'wall' | 'ceiling';
   /** Outward normal of a wall, for the doll's-house cutaway. Walls only. */
@@ -218,7 +219,13 @@ function buildRoomShell(
       group.add(baseboard);
 
       for (const opening of openings) {
-        group.add(buildOpeningTrim(edge, opening, plan.wallThicknessM, materials));
+        const trim = buildOpeningTrim(edge, opening, plan.wallThicknessM, materials);
+        trim.name = `opening-${opening.id}`;
+        // Everything in the trim answers to the opening, so a click on a jamb picks the door.
+        trim.traverse((child) => {
+          if (child instanceof THREE.Mesh) tag(child, { pickKind: 'opening', roomId: room.id, openingId: opening.id } satisfies SceneUserData);
+        });
+        group.add(trim);
       }
     }
   }
@@ -330,6 +337,11 @@ function buildBaseboard(edge: PlanEdge, openings: Opening[], material: THREE.Mat
   return group;
 }
 
+/** Hidden by default; the viewer shows the slabs while doors and windows are being edited. */
+export const OPENING_SLAB_NAME = 'opening-slab';
+/** Layer the raycaster ignores. Cut-away walls and idle opening slabs go here. */
+export const HIDDEN_LAYER = 1;
+
 /** Frame around an opening, plus glazing for windows and a swung leaf for doors. */
 function buildOpeningTrim(
   edge: PlanEdge,
@@ -368,6 +380,14 @@ function buildOpeningTrim(
   }
   // Head
   place(box(w + frame * 2, frame, thickness + 0.02, frameMaterial), 0, sill + h + frame / 2, midWall);
+
+  // A translucent slab the size of the opening: the thing you grab to slide a door along
+  // its wall. Parked on the hidden layer until the studio enters its openings mode.
+  const slab = own(box(w, h, thickness + 0.16, new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.28, depthWrite: false })));
+  slab.name = OPENING_SLAB_NAME;
+  slab.renderOrder = 5;
+  slab.layers.set(HIDDEN_LAYER);
+  place(slab, 0, sill + h / 2, midWall);
 
   if (opening.kind === 'window') {
     // Sill, glazing, and one bar so it reads as a window rather than a hole.
