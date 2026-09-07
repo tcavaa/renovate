@@ -45,6 +45,9 @@ export function WorkerForm({ worker }: Props) {
     reviewCount: worker?.reviewCount ?? 0,
     bio: worker?.bio ?? '',
     avatarUrl: worker?.avatarUrl ?? '',
+    city: worker?.city ?? '',
+    experienceYears: worker?.experienceYears != null ? String(worker.experienceYears) : '',
+    completedJobs: worker?.completedJobs != null ? String(worker.completedJobs) : '0',
     isVerified: worker?.isVerified ?? false,
     isActive: worker?.isActive ?? true,
   });
@@ -62,6 +65,9 @@ export function WorkerForm({ worker }: Props) {
       pricePerUnit: form.pricePerUnit ? Number(form.pricePerUnit) : null,
       rating: form.rating ? Number(form.rating) : 5,
       reviewCount: Number(form.reviewCount) || 0,
+      city: form.city || null,
+      experienceYears: form.experienceYears ? Number(form.experienceYears) : null,
+      completedJobs: Number(form.completedJobs) || 0,
     };
     const url = worker ? `/api/workers/${worker.id}` : '/api/workers';
     const method = worker ? 'PUT' : 'POST';
@@ -149,6 +155,18 @@ export function WorkerForm({ worker }: Props) {
                 value={form.phone ?? ''}
                 onChange={(e) => update('phone', e.target.value)}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.city}</Label>
+              <Input value={form.city} onChange={(e) => update('city', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.experienceYears}</Label>
+              <Input type="number" min={0} max={80} value={form.experienceYears} onChange={(e) => update('experienceYears', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{ka.admin.forms.completedJobs}</Label>
+              <Input type="number" min={0} value={form.completedJobs} onChange={(e) => update('completedJobs', e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.forms.priceUnit}</Label>

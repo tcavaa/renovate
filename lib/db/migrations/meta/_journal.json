@@ -22,6 +22,13 @@
       "when": 1788650967604,
       "tag": "0002_localized_names",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788777242585,
+      "tag": "0003_worker_profiles",
+      "breakpoints": true
     }
   ]
 }

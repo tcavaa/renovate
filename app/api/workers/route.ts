@@ -42,6 +42,9 @@ export const POST = handle('POST /api/workers', 'Failed to create worker', async
     reviewCount: d.reviewCount ?? 0,
     bio: d.bio ?? null,
     avatarUrl: d.avatarUrl || null,
+    city: d.city || null,
+    experienceYears: d.experienceYears ?? null,
+    completedJobs: d.completedJobs ?? 0,
     isVerified: d.isVerified,
     isActive: d.isActive,
   });

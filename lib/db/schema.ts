@@ -180,11 +180,51 @@ export const workers = mysqlTable('workers', {
   bioEn: text('bio_en'),
   bioRu: text('bio_ru'),
   avatarUrl: varchar('avatar_url', { length: 500 }),
+  city: varchar('city', { length: 100 }),
+  experienceYears: int('experience_years'),
+  completedJobs: int('completed_jobs').default(0),
   isVerified: boolean('is_verified').default(false).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => ({
   activeSpecialtyIdx: index('workers_active_specialty_idx').on(t.isActive, t.specialtySlug),
+}));
+
+/** A client's review of a worker; `workers.rating` / `reviewCount` are kept as aggregates. */
+export const workerReviews = mysqlTable('worker_reviews', {
+  id: int('id').primaryKey().autoincrement(),
+  workerId: int('worker_id').notNull().references(() => workers.id, { onDelete: 'cascade' }),
+  authorName: varchar('author_name', { length: 255 }).notNull(),
+  rating: int('rating').notNull(),
+  textKa: text('text_ka'),
+  textEn: text('text_en'),
+  textRu: text('text_ru'),
+  /** What the job was, e.g. "bathroom tiling, 8 m²". */
+  jobKa: varchar('job_ka', { length: 255 }),
+  jobEn: varchar('job_en', { length: 255 }),
+  jobRu: varchar('job_ru', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  workerIdx: index('worker_reviews_worker_idx').on(t.workerId, t.createdAt),
+}));
+
+/** One finished job in a worker's portfolio. */
+export const workerWorks = mysqlTable('worker_works', {
+  id: int('id').primaryKey().autoincrement(),
+  workerId: int('worker_id').notNull().references(() => workers.id, { onDelete: 'cascade' }),
+  titleKa: varchar('title_ka', { length: 255 }).notNull(),
+  titleEn: varchar('title_en', { length: 255 }),
+  titleRu: varchar('title_ru', { length: 255 }),
+  descriptionKa: text('description_ka'),
+  descriptionEn: text('description_en'),
+  descriptionRu: text('description_ru'),
+  imageUrl: varchar('image_url', { length: 500 }),
+  areaM2: decimal('area_m2', { precision: 8, scale: 2 }),
+  city: varchar('city', { length: 100 }),
+  year: int('year'),
+  sortOrder: int('sort_order').default(0).notNull(),
+}, (t) => ({
+  workerIdx: index('worker_works_worker_idx').on(t.workerId, t.sortOrder),
 }));
 
 export const projects = mysqlTable('projects', {
@@ -230,5 +270,7 @@ export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type Worker = typeof workers.$inferSelect;
 export type NewWorker = typeof workers.$inferInsert;
+export type WorkerReview = typeof workerReviews.$inferSelect;
+export type WorkerWork = typeof workerWorks.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;

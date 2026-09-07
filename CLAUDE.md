@@ -64,6 +64,7 @@ pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write noth
 pnpm models:seed    # one product per model in both manifests; deletes every other placeable product
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
+pnpm db:seed:workers # city, experience, portfolio and reviews for the seeded workers; recomputes their ratings
 pnpm db:migrate     # apply pending migrations from lib/db/migrations (what deploys run)
 pnpm db:migrate:baseline  # once, on a DB created with db:push before migrations existed
 pnpm db:indexes     # idempotent secondary indexes (stopgap where push is not an option)
@@ -141,7 +142,9 @@ public/
 | `categories` | nameKa/nameEn, slug, icon, `phase` (1–18 renovation phase, 20 = furniture), `calculationType` enum, isVisible, `isFurniture`, sortOrder |
 | `stores` | nameKa (**unique**), `descriptionKa`, logoUrl, websiteUrl, phone, address, `city`, `rating`, `reviewCount`, `deliveryDays`, `deliveryFeeGel`, commissionRate, isActive |
 | `products` | categoryId, storeId, nameKa, slug, sku, pricePerUnit (decimal-as-string), unit enum, coveragePerUnit, brand, imageUrl, `images` json, `specs` json, `tags` json, **`styleTags` json**, **`model3dKind`**, **`model3dUrl`**, **`textureUrl`**, **`colorHex`**, **`widthCm`/`depthCm`/`heightCm`**, isActive, isFeatured |
-| `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, isVerified |
+| `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified |
+| `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
+| `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
 | `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status, **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
 
 A design project is distinguished from a calculator project by `plan IS NOT NULL`.
@@ -713,7 +716,14 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   above the grid with search, a multi-select style dropdown (`style=modern,vintage`, OR),
   a price band, the result count and sort. Every control is a link or a GET form built
   with `hrefWith` from `lib/admin/list.ts`, so any filtered view is a URL and the page works
-  without JavaScript; only the sort `<select>` and the style dropdown are client components. On small screens a
+  without JavaScript; only the sort `<select>` and the style dropdown are client components.
+- **Workers** (`/workers`, `/workers/[id]`): the same shape as the catalogue — specialties
+  with counts and cities in the sidebar, search, a verified toggle, count and sort in the
+  toolbar, `WorkerCard` plates that link to the profile. The profile shows the bio, the
+  portfolio (`worker_works`) and the reviews (`worker_reviews`) with a rating breakdown;
+  admin edits city/experience/completed jobs, while reviews and works come from
+  `pnpm db:seed:workers` until there is an admin screen for them. Only specialty links carry
+  `aria-current="page"` (the e2e test counts exactly one). On small screens a
   checkbox (`#catalog-filters`, `peer-checked`) shows the sidebar. Only category links carry
   `aria-current="page"` (the e2e test counts exactly one). `ProductCard` takes `href` to be a
   link (catalogue) or `onAction` to end in a select button (calculator steps).

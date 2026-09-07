@@ -25,6 +25,9 @@ export const workerSchema = z.object({
   bioEn: z.string().max(5000).optional().nullable(),
   bioRu: z.string().max(5000).optional().nullable(),
   avatarUrl: imageUrlField,
+  city: z.string().max(100).optional().nullable(),
+  experienceYears: z.coerce.number().int().min(0).max(80).optional().nullable(),
+  completedJobs: z.coerce.number().int().min(0).optional().nullable(),
   isVerified: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
