@@ -79,8 +79,7 @@ export function Header() {
           })}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
-          <LanguageSwitcher variant="desktop" />
+        <div className="hidden items-center gap-5 lg:flex">
           <UserMenu variant="desktop" />
           <Link
             href="/design"
@@ -89,9 +88,10 @@ export function Header() {
             {t.landing.heroCta}
             <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </Link>
+          <LanguageSwitcher variant="desktop" />
         </div>
 
-        <div className="flex items-center gap-2 lg:hidden">
+        <div className="flex items-center gap-4 lg:hidden">
           <LanguageSwitcher variant="desktop" />
           <button
             type="button"

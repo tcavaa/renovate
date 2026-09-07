@@ -10,8 +10,19 @@ import type { LandingProduct } from './ProductWall';
  * steps scroll past on the right, each with a visual built from the product's own data — the
  * sample plan, the four style palettes, and a tilted plan with priced furniture floating over it.
  */
+/** Where each piece lands on the tilted plan (rough room centres), largest first. */
+const SPOTS = [
+  { left: '20%', top: '16%', w: '22%' },
+  { left: '50%', top: '10%', w: '18%' },
+  { left: '30%', top: '46%', w: '17%' },
+  { left: '62%', top: '40%', w: '20%' },
+];
+
 export function DesignerSection({ t, products }: { t: Dictionary; products: LandingProduct[] }) {
-  const floating = products.slice(0, 3);
+  // Partner renders sit on pure white and blend into the preview floor; the Poly Haven stock
+  // photos come on grey and would show their rectangle, so they only stand in when needed.
+  const partner = products.filter((p) => p.brand !== 'Poly Haven');
+  const placed = (partner.length >= 4 ? partner : products).slice(0, 4);
   return (
     <section className="container py-24 md:py-32">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-20">
@@ -65,31 +76,34 @@ export function DesignerSection({ t, products }: { t: Dictionary; products: Land
           </Step>
 
           <Step index="03" title={t.landing.step3Title} body={t.landing.step3Desc}>
-            <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-bg-deep [perspective:1200px]">
+            {/*
+              The plan lies tilted on a dark floor and the furniture lands on it as the reader
+              scrolls: each piece has its own scroll-driven timeline with a later range than the
+              one before, so they arrive one at a time. No JavaScript; static where unsupported.
+            */}
+            <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-white [perspective:1200px]">
               <div className="absolute inset-x-[8%] top-[12%] aspect-[4/3] [transform:rotateX(52deg)_rotateZ(-14deg)] [transform-style:preserve-3d]">
-                <Image src="/samples/plan-2br.png" alt="" fill sizes="600px" className="rounded-lg object-contain opacity-80 invert" />
+                <Image src="/samples/plan-2br.png" alt="" fill sizes="600px" className="object-contain opacity-90" />
               </div>
-              {floating.map((p, i) => (
+              {placed.map((p, i) => (
                 <div
                   key={p.id}
-                  className="glass absolute flex items-center gap-2 rounded-xl p-1.5 pr-3 animate-float"
-                  style={{
-                    left: `${18 + i * 26}%`,
-                    top: `${28 + (i % 2) * 34}%`,
-                    animationDelay: `${i * 900}ms`,
-                  }}
+                  className="drop-in absolute flex flex-col items-center"
+                  style={{ left: SPOTS[i].left, top: SPOTS[i].top, width: SPOTS[i].w, '--i': i } as React.CSSProperties}
                 >
-                  <span className="relative h-9 w-9 overflow-hidden rounded-lg bg-bg-base">
-                    {p.imageUrl && <Image src={p.imageUrl} alt="" fill sizes="36px" className="object-cover" />}
+                  {/* Renders come on white, so the box is white too; a soft ellipse grounds each piece. */}
+                  <span className="absolute bottom-[14%] left-[15%] right-[15%] h-[10%] rounded-full bg-ink/30 blur-md" aria-hidden />
+                  <span className="relative block aspect-square w-full">
+                    {p.imageUrl && <Image src={p.imageUrl} alt="" fill sizes="160px" className="object-contain mix-blend-multiply" />}
                   </span>
-                  <span className="leading-tight">
-                    <span className="block max-w-[120px] truncate text-[11px] font-medium">{p.name}</span>
-                    <span className="block text-[11px] text-brand-dark">{formatGEL(p.price)}</span>
+                  <span className="-mt-2 flex items-center gap-2 bg-ink px-2 py-1 leading-tight text-white">
+                    <span className="block max-w-[110px] truncate text-[11px] font-medium">{p.name}</span>
+                    <span className="block text-[11px] font-semibold text-brand">{formatGEL(p.price)}</span>
                   </span>
                 </div>
               ))}
-              <span className="absolute bottom-4 left-4 text-xs font-medium uppercase tracking-[0.18em] text-white/60">{t.landing.previewLabel}</span>
-              <span className="absolute bottom-4 right-4 text-xs text-white/60">{t.landing.previewHint}</span>
+              <span className="absolute bottom-4 left-4 text-xs font-medium uppercase tracking-[0.18em] text-ink-muted">{t.landing.previewLabel}</span>
+              <span className="absolute bottom-4 right-4 text-xs text-ink-muted">{t.landing.previewHint}</span>
             </div>
           </Step>
         </ol>
