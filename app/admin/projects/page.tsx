@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, like, lte, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNotNull, like, lte, or, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
   if (p.get('status')) where.push(eq(projects.status, p.get('status') as 'draft' | 'saved' | 'submitted'));
   if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as 'black_frame' | 'white_frame' | 'green_frame'));
   if (p.get('kind') === 'design') where.push(isNotNull(projects.plan));
-  if (p.get('kind') === 'calculator') where.push(isNull(projects.plan));
+  if (p.get('kind') === 'calculator') where.push(isNotNull(projects.selectedProducts));
   if (p.get('dateFrom')) where.push(gte(projects.createdAt, new Date(p.get('dateFrom'))));
   if (p.get('dateTo')) where.push(lte(projects.createdAt, new Date(`${p.get('dateTo')}T23:59:59`)));
   if (p.num('costMin') != null) where.push(gte(projects.totalCost, String(p.num('costMin'))));
@@ -56,6 +56,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
         createdAt: projects.createdAt,
         styleId: projects.styleId,
         isDesign: isNotNull(projects.plan),
+        hasCalculator: isNotNull(projects.selectedProducts),
         userName: users.name,
         userEmail: users.email,
       })
@@ -131,14 +132,15 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
                 )}
               </td>
               <td className="px-4 py-2.5">
-                {r.isDesign ? (
-                  <Badge variant="secondary">
-                    {f.designKind}
-                    {r.styleId ? ` · ${r.styleId}` : ''}
-                  </Badge>
-                ) : (
-                  <Badge variant="outline">{f.calculatorKind}</Badge>
-                )}
+                <span className="inline-flex flex-wrap gap-1">
+                  {Boolean(r.hasCalculator) && <Badge variant="outline">{f.calculatorKind}</Badge>}
+                  {Boolean(r.isDesign) && (
+                    <Badge variant="secondary">
+                      {f.designKind}
+                      {r.styleId ? ` · ${r.styleId}` : ''}
+                    </Badge>
+                  )}
+                </span>
               </td>
               <td className="px-4 py-2.5">
                 <Badge>{homeStateShortLabel(ka, r.homeState)}</Badge>

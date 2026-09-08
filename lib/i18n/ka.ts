@@ -397,6 +397,14 @@ export const ka = {
     backToProjects: 'ჩემი პროექტები',
     fallbackName: 'პროექტი',
     metaCreated: 'შექმნა',
+    tagCalculator: 'გამომთვლელი',
+    tagDesign: '3D',
+    calculateCosts: 'დათვალე რემონტის ხარჯები',
+    openInCalculator: 'გამომთვლელში გახსნა',
+    designProducts: '3D დიზაინის პროდუქტები',
+    designProductsHint: 'რაც სტუდიაში დაიდგა — მაღაზიების მიხედვით, ოთახით და ზედაპირით.',
+    furnitureInStudio: 'ავეჯი 3D სტუდიაშია არჩეული — იხილე „3D დიზაინის პროდუქტები“ ქვემოთ',
+    designTotal: 'დიზაინის პროდუქტები',
   },
   admin: {
     dashboard: 'დაშბორდი',
@@ -989,6 +997,7 @@ export const ka = {
     orderNo: 'შეკვეთა #{id}',
     feeRecorded: 'დაფიქსირებული საფასური',
     removedByPartner: 'პარტნიორმა ამოიღო',
+    showItems: 'შეკვეთის პოზიციები ({n})',
   },
   partner: {
     title: 'პარტნიორის კაბინეტი',

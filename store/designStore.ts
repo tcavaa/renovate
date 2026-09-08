@@ -47,6 +47,8 @@ interface DesignState {
   mode: DesignMode;
   /** Set when the journey started in the calculator; the summary prices against it. */
   homeState: HomeState | null;
+  /** The saved project this design belongs to, so saving writes into the same row as the calculation. */
+  projectId: number | null;
   /** What the user picked in the calculator, applied on top of every layout. */
   calculatorPicks: CalculatorPicks | null;
   styleId: StyleId;
@@ -65,6 +67,8 @@ interface DesignState {
 
 interface DesignActions {
   setMode: (mode: DesignMode) => void;
+  setHomeState: (homeState: HomeState) => void;
+  setProjectId: (id: number | null) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setBudget: (budgetGel: number | null, catalog: CatalogProduct[]) => void;
   setPlan: (plan: FloorPlan, floorPlanUrl?: string | null) => void;
@@ -85,9 +89,11 @@ interface DesignActions {
     homeState: HomeState;
     selectedProducts: Record<string, SelectedProduct>;
     selectedFurniture: Record<string, SelectedProduct[]>;
+    /** The saved calculator project, so the design is written into the same row. */
+    projectId?: number | null;
   }) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
-  openSaved: (input: { plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null }) => void;
+  openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null }) => void;
   /** Gives rooms a floor or wall finish; null returns them to the style's default. */
   setFinish: (roomIds: string[], surface: 'floor' | 'wall', product: CatalogProduct | null) => void;
   swapProduct: (itemId: string, product: CatalogProduct) => void;
@@ -124,6 +130,7 @@ const PERSIST_VERSION = 1;
 const initial: DesignState = {
   mode: 'design_only',
   homeState: null,
+  projectId: null,
   calculatorPicks: null,
   styleId: 'scandinavian',
   budgetGel: null,
@@ -142,7 +149,10 @@ export const useDesignStore = create<DesignState & DesignActions>()(
     (set, get) => ({
       ...initial,
 
-      setMode: (mode) => set({ mode }),
+      // Renovation needs a starting state to price from; white frame is the common case.
+      setMode: (mode) => set((s) => ({ mode, homeState: mode === 'full' ? s.homeState ?? 'white_frame' : s.homeState })),
+      setHomeState: (homeState) => set({ homeState }),
+      setProjectId: (projectId) => set({ projectId }),
 
       setStyle: (styleId, catalog) => {
         const { plan, items, budgetGel } = get();
@@ -179,10 +189,13 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           calculatorPicks: null,
           focusRoomId: null,
           selectedItemId: null,
+          // …and a new project on the server: the next save gets its own row.
+          projectId: null,
         })),
 
-      openSaved: ({ plan, scene, floorPlanUrl, homeState }) =>
+      openSaved: ({ projectId = null, plan, scene, floorPlanUrl, homeState }) =>
         set({
+          projectId,
           plan,
           floorPlanUrl,
           homeState,
@@ -321,7 +334,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         });
       },
 
-      startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture }) =>
+      startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null }) =>
         set((s) => {
           // A plan uploaded in the calculator keeps its real walls; rooms typed by hand become
           // a row of rectangles. Either way the calculator's types, names and heights win.
@@ -345,6 +358,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           }
           return {
             plan,
+            projectId,
             mode: 'full',
             homeState,
             calculatorPicks: picksFromCalculator(selectedProducts, selectedFurniture),
@@ -485,6 +499,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
       partialize: (s) => ({
         mode: s.mode,
         homeState: s.homeState,
+        projectId: s.projectId,
         calculatorPicks: s.calculatorPicks,
         styleId: s.styleId,
         budgetGel: s.budgetGel,
@@ -530,6 +545,7 @@ function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): Surfac
 const persistedSchema = z.object({
   mode: z.enum(['full', 'design_only']),
   homeState: z.enum(['black_frame', 'white_frame', 'green_frame']).nullable(),
+  projectId: z.number().int().positive().nullable().optional(),
   calculatorPicks: z
     .object({
       furniture: z.array(z.object({ roomId: z.string(), productId: z.number().int() })),
@@ -552,6 +568,7 @@ function migratePersisted(persisted: unknown, version: number): DesignState {
   return {
     ...initial,
     ...parsed.data,
+    projectId: parsed.data.projectId ?? null,
     plan: parsed.data.plan as FloorPlan | null,
     items: parsed.data.items as PlacedItem[],
     finishes: parsed.data.finishes as SurfaceFinish[],

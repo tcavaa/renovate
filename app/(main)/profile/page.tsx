@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
-import { ArrowUpRight, Box, Calculator, Plus } from 'lucide-react';
+import { ArrowUpRight, Calculator, Plus } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
-import { savedProjectInput } from '@/lib/projects/saved';
+import { projectKind, savedProjectInput } from '@/lib/projects/saved';
+import { CalculateCostsButton } from '@/components/projects/CalculateCostsButton';
+import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
 import { Figure } from '@/components/calculator/MaterialsTable';
 import { Button } from '@/components/ui/button';
 import { getT, getLocale } from '@/lib/i18n/server';
@@ -82,15 +84,11 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
         ) : (
           <ul className="mt-2">
             {rows.map((p) => {
-              const isDesign = p.plan != null;
               return (
                 <li key={p.id} className="grid items-center gap-x-6 gap-y-3 border-b border-line py-5 md:grid-cols-[minmax(0,1fr)_auto]">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn('inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', isDesign ? 'border-ink text-ink' : 'border-line text-ink-muted')}>
-                        {isDesign ? <Box className="h-3 w-3" /> : <Calculator className="h-3 w-3" />}
-                        {isDesign ? t.profile.typeDesign : t.profile.typeCalculator}
-                      </span>
+                      <ProjectKindTags t={t} kind={projectKind(p)} />
                       <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', p.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, p.status ?? 'draft')}</span>
                       <span className="text-xs tabular-nums text-ink-faint">#{p.id}</span>
                     </div>
@@ -106,9 +104,12 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
                       <span className="tabular-nums">{new Date(p.createdAt).toLocaleDateString(dateLocaleFor(locale))}</span>
                     </p>
                   </div>
-                  <div className="flex items-center justify-between gap-4 md:justify-end">
+                  <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
                     <span className="font-serif text-xl font-semibold tabular-nums text-ink">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</span>
-                    <OpenIn3dButton project={savedProjectInput(p)} size="sm" />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CalculateCostsButton project={savedProjectInput(p)} size="sm" />
+                      <OpenIn3dButton project={savedProjectInput(p)} size="sm" />
+                    </div>
                   </div>
                 </li>
               );

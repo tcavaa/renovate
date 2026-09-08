@@ -9,7 +9,9 @@ import type { Locale } from '@/lib/i18n';
 import { formatM2L, homeStateLabel, roomTypeLabel, materialLabel, workTypeLabel, unitLabel, statusLabel, localizedName } from '@/lib/i18n/labels';
 import { formatGEL, formatNumber, cn } from '@/lib/utils';
 import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { FloorPlan } from '@/lib/design/types';
+import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
+import { projectKind } from '@/lib/projects/saved';
+import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
 
 /**
  * A saved project, in full: meta, the layout, the rooms, materials, products, furniture,
@@ -57,10 +59,14 @@ export function ProjectDetail({
 }) {
   const rooms = summary.rooms as Room[];
   const plan = (project.plan as FloorPlan | null) ?? null;
-  const isDesign = plan != null;
+  const kind = projectKind(project);
+  const isDesign = kind.hasDesign;
+  const kindLabel = [kind.hasCalculator ? t.profile.typeCalculator : null, kind.hasDesign ? t.profile.typeDesign : null].filter(Boolean).join(' + ') || t.profile.typeCalculator;
+  const scene = (project.scene as DesignScene | null) ?? null;
+  const design = scene ? designLines(scene, plan, t) : null;
   const facts: Array<{ label: string; value: string }> = [
     { label: 'ID', value: `#${project.id}` },
-    { label: t.profile.colType, value: isDesign ? t.profile.typeDesign : t.profile.typeCalculator },
+    { label: t.profile.colType, value: kindLabel },
     { label: t.profile.metaCreated, value: new Date(project.createdAt).toLocaleString(dateLocaleFor(locale)) },
     { label: t.summary.homeState, value: homeStateLabel(t, project.homeState) },
     ...extraMeta.map((m) => ({ label: m.label, value: m.value })),
@@ -76,7 +82,7 @@ export function ProjectDetail({
       <header className="mt-4 flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="eyebrow">{isDesign ? t.profile.typeDesign : t.profile.typeCalculator}</span>
+            <ProjectKindTags t={t} kind={kind} />
             <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
           </div>
           <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
@@ -99,7 +105,7 @@ export function ProjectDetail({
         <Figure label={t.summary.materials} value={formatGEL(summary.subtotalMaterials + summary.subtotalProducts)} />
         <Figure label={t.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
         <Figure label={t.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
-        <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(summary.grandTotalWithMargin)} emphasis />
+        {design && design.total > 0 ? <Figure label={t.profile.designTotal} value={formatGEL(design.total)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(summary.grandTotalWithMargin)} emphasis />}
       </div>
 
       <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
@@ -164,8 +170,27 @@ export function ProjectDetail({
         </Section>
 
         <Section title={t.summary.furniture} count={summary.furniture.length}>
-          <ProductsTable items={summary.furniture} subtotal={summary.subtotalFurniture} emptyText={t.summary.furnitureEmpty} t={t} locale={locale} />
+          <ProductsTable items={summary.furniture} subtotal={summary.subtotalFurniture} emptyText={design && design.groups.length > 0 ? t.profile.furnitureInStudio : t.summary.furnitureEmpty} t={t} locale={locale} />
         </Section>
+
+        {design && design.groups.length > 0 && (
+          <Section title={t.profile.designProducts} count={design.count} aside={<span className="font-serif text-lg font-semibold text-ink">{formatGEL(design.total)}</span>}>
+            <p className="text-sm text-ink-muted">{t.profile.designProductsHint}</p>
+            <div className="space-y-6">
+              {design.groups.map((group) => (
+                <div key={group.storeKey} className="space-y-2">
+                  <p className="eyebrow">{group.storeName}</p>
+                  <Table
+                    head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
+                    rows={group.lines.map((l) => [`${localizedName(locale, l.product)}${l.where ? ` · ${l.where}` : ''}`, formatNumber(l.product.qty), unitLabel(t, l.product.unit), formatGEL(l.product.pricePerUnit, true), formatGEL(l.product.totalPrice)])}
+                    empty=""
+                    subtotal={{ label: t.summary.subtotal, value: group.subtotal }}
+                  />
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
 
         <Section title={t.summary.workers} count={summary.workerCosts.length}>
           <Table
@@ -275,4 +300,29 @@ export function ProductsTable({ items, subtotal, emptyText, t, locale }: { items
       subtotal={items.length ? { label: t.summary.subtotal, value: subtotal } : undefined}
     />
   );
+}
+
+/**
+ * The studio's products, grouped by the store that sells them: every placed item with a
+ * product and every chosen finish, each with the room (and surface) it belongs to. The
+ * store snapshots travel with the scene, so this needs no catalogue lookup.
+ */
+function designLines(scene: DesignScene, plan: FloorPlan | null, t: Dictionary) {
+  const roomName = new Map((plan?.rooms ?? []).map((r) => [r.id, r.name]));
+  const groups = new Map<string, { storeKey: string; storeName: string; lines: Array<{ product: SceneProduct; where: string | null }>; subtotal: number }>();
+  const push = (product: SceneProduct, where: string | null) => {
+    const key = product.store ? String(product.store.id) : 'none';
+    const group = groups.get(key) ?? { storeKey: key, storeName: product.store?.nameKa ?? '—', lines: [], subtotal: 0 };
+    group.lines.push({ product, where });
+    group.subtotal += product.totalPrice;
+    groups.set(key, group);
+  };
+  for (const item of scene.items) if (item.product) push(item.product, roomName.get(item.roomId) ?? null);
+  for (const finish of scene.finishes) {
+    if (!finish.product) continue;
+    const surface = finish.surface === 'floor' ? t.design.finishFloor : finish.surface === 'wall' ? t.design.finishWall : t.design.finishCeiling;
+    push(finish.product, [roomName.get(finish.roomId), surface].filter(Boolean).join(' · ') || null);
+  }
+  const list = [...groups.values()].sort((a, b) => b.subtotal - a.subtotal);
+  return { groups: list, count: list.reduce((n, g) => n + g.lines.length, 0), total: list.reduce((n, g) => n + g.subtotal, 0) };
 }

@@ -10,6 +10,8 @@ import { wallAreaM2 } from '@/lib/design/surfaces';
 import type { DesignScene, FloorPlan, PlanRoom } from '@/lib/design/types';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { loadProductPrices, repriceFinishSnapshot, repriceSnapshot } from '@/lib/api/productPrices';
+import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
+import type { SelectedProduct } from '@/lib/calculator/types';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
 
@@ -36,7 +38,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   const parsed = saveDesignSchema.safeParse(await req.json());
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { nameKa, homeState, floorPlanUrl } = parsed.data;
+  const { nameKa, homeState, floorPlanUrl, projectId } = parsed.data;
   const plan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
   const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
@@ -77,13 +79,23 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   const cost = priceScene(plan, scene, { homeState, book: await loadRateBook() });
   const rooms = planToCalculatorRooms(plan);
 
+  // A design that came straight out of the calculator carries the calculator's picks, so the
+  // one row has both halves from the start. They are repriced like the calculator save does.
+  let calculatorColumns: { selectedProducts: Record<string, SelectedProduct>; selectedFurniture: Record<string, SelectedProduct[]> } | null = null;
+  if (parsed.data.calculator) {
+    const repriced = await repriceCalculatorPicks(
+      parsed.data.calculator.rooms,
+      parsed.data.calculator.selectedProducts as Record<string, SelectedProduct>,
+      parsed.data.calculator.selectedFurniture as Record<string, SelectedProduct[]>
+    );
+    if (isUnknownProduct(repriced)) return fail(`Unknown product ${repriced.unknownProductId}`, 400);
+    calculatorColumns = repriced;
+  }
+
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
 
-  const inserted = await db.insert(projects).values({
-    userId,
-    sessionId: null,
-    nameKa,
+  const designColumns = {
     homeState,
     mode: scene.mode,
     styleId: scene.styleId,
@@ -93,12 +105,26 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     rooms,
     plan,
     scene,
-    selectedProducts: null,
-    selectedFurniture: null,
     totalMaterialsCost: String(cost.materialsTotal + cost.finishesTotal),
     totalFurnitureCost: String(cost.furnitureTotal),
     totalWorkersCost: String(cost.labourTotal),
     totalCost: String(cost.grandTotal),
+  };
+
+  // Writing into the caller's own project keeps whatever calculator half it already has.
+  const existing = await ownProject(projectId, userId);
+  if (existing) {
+    await db.update(projects).set({ ...designColumns, ...(calculatorColumns ?? {}) }).where(eq(projects.id, existing.id));
+    return ok({ id: existing.id, cost });
+  }
+
+  const inserted = await db.insert(projects).values({
+    userId,
+    sessionId: null,
+    nameKa,
+    ...designColumns,
+    selectedProducts: calculatorColumns?.selectedProducts ?? null,
+    selectedFurniture: calculatorColumns?.selectedFurniture ?? null,
     status: userId ? 'saved' : 'draft',
   });
 

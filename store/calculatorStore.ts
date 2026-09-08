@@ -12,6 +12,17 @@ import type {
 } from '@/lib/calculator/types';
 
 interface CalculatorStore extends CalculatorState {
+  /** The saved project this calculation belongs to, so saving again writes into the same row. */
+  projectId: number | null;
+  setProjectId: (id: number | null) => void;
+  /** Opens a saved project's rooms and picks for (re)calculation — the "calculate costs" button. */
+  openSavedProject: (input: {
+    projectId: number;
+    rooms: Room[];
+    homeState: HomeState | null;
+    selectedProducts: Record<string, SelectedProduct>;
+    selectedFurniture: Record<string, SelectedProduct[]>;
+  }) => void;
   setHomeState: (state: HomeState) => void;
   addRoom: (room: Room) => void;
   /** Rooms read off an uploaded plan replace whatever was typed; furniture picks per room go with them. */
@@ -35,18 +46,22 @@ interface CalculatorStore extends CalculatorState {
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
 const PERSIST_VERSION = 1;
 
-const initial: CalculatorState = {
+const initial: CalculatorState & { projectId: number | null } = {
   homeState: null,
   rooms: [],
   selectedProducts: {},
   selectedFurniture: {},
   step: 1,
+  projectId: null,
 };
 
 export const useCalculatorStore = create<CalculatorStore>()(
   persist(
     (set) => ({
       ...initial,
+      setProjectId: (projectId) => set({ projectId }),
+      openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture }) =>
+        set({ projectId, rooms, homeState, selectedProducts, selectedFurniture, step: 1 }),
       setHomeState: (homeState) => set({ homeState }),
       addRoom: (room) => set((s) => ({ rooms: [...s.rooms, room] })),
       setRooms: (rooms) =>
@@ -57,7 +72,8 @@ export const useCalculatorStore = create<CalculatorStore>()(
           );
           return { rooms, selectedFurniture };
         }),
-      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {} }),
+      // A new plan is a new project — including on the server: the next save gets its own row.
+      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {}, projectId: null }),
       moveRoom: (id, x, z) => set((s) => ({ rooms: s.rooms.map((r) => (r.id === id ? { ...r, x, z } : r)) })),
       reorderRoom: (id, direction) =>
         set((s) => {
@@ -142,15 +158,17 @@ const persistedSchema = z.object({
   selectedProducts: z.record(selectedProductSchema),
   selectedFurniture: z.record(z.array(selectedProductSchema)),
   step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  projectId: z.number().int().positive().nullable().optional(),
 });
 
-function migratePersisted(persisted: unknown, version: number): CalculatorState {
+function migratePersisted(persisted: unknown, version: number): CalculatorState & { projectId: number | null } {
   if (version !== PERSIST_VERSION) return { ...initial };
   const parsed = persistedSchema.safeParse(persisted);
   if (!parsed.success) return { ...initial };
   return {
     ...initial,
     ...parsed.data,
+    projectId: parsed.data.projectId ?? null,
     rooms: parsed.data.rooms as Room[],
     selectedProducts: parsed.data.selectedProducts as Record<string, SelectedProduct>,
     selectedFurniture: parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,

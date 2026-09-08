@@ -1,13 +1,12 @@
-import { eq, desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { saveProjectSchema } from '@/lib/validations/project.schema';
-import { aggregateRoomTotals, buildProjectSummary } from '@/lib/calculator/materials';
-import { categorySlugFromKey, suggestedQuantity } from '@/lib/calculator/quantities';
+import { buildProjectSummary } from '@/lib/calculator/materials';
 import type { SelectedProduct } from '@/lib/calculator/types';
 import { auth } from '@/auth';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
-import { loadProductPrices, repriceSnapshot } from '@/lib/api/productPrices';
+import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
 
@@ -33,37 +32,16 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   const parsed = saveProjectSchema.safeParse(await req.json());
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { rooms, homeState, nameKa } = parsed.data;
+  const { rooms, homeState, nameKa, projectId } = parsed.data;
 
-  // The client's prices and quantities are a preview. Every snapshot is repriced from the
-  // catalogue and its quantity recomputed from the rooms, so nothing edited in devtools
-  // reaches the database or the admin dashboard.
-  const totals = aggregateRoomTotals(rooms);
-  const incomingProducts = parsed.data.selectedProducts as Record<string, SelectedProduct>;
-  const incomingFurniture = parsed.data.selectedFurniture as Record<string, SelectedProduct[]>;
-  const known = await loadProductPrices([
-    ...Object.values(incomingProducts).map((p) => p.productId),
-    ...Object.values(incomingFurniture).flat().map((p) => p.productId),
-  ]);
-
-  const selectedProducts: Record<string, SelectedProduct> = {};
-  for (const [key, snapshot] of Object.entries(incomingProducts)) {
-    const categorySlug = snapshot.categorySlug ?? categorySlugFromKey(key);
-    const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, suggestedQuantity(categorySlug, totals));
-    if (!repriced) return fail(`Unknown product ${snapshot.productId}`, 400);
-    selectedProducts[key] = repriced;
-  }
-  const selectedFurniture: Record<string, SelectedProduct[]> = {};
-  for (const [roomId, list] of Object.entries(incomingFurniture)) {
-    const repricedList: SelectedProduct[] = [];
-    for (const snapshot of list) {
-      // Furniture is picked piece by piece; one selection is one item.
-      const repriced = repriceSnapshot(snapshot, known, 1);
-      if (!repriced) return fail(`Unknown product ${snapshot.productId}`, 400);
-      repricedList.push(repriced);
-    }
-    selectedFurniture[roomId] = repricedList;
-  }
+  // The client's prices and quantities are a preview; see repriceCalculatorPicks.
+  const repriced = await repriceCalculatorPicks(
+    rooms,
+    parsed.data.selectedProducts as Record<string, SelectedProduct>,
+    parsed.data.selectedFurniture as Record<string, SelectedProduct[]>
+  );
+  if (isUnknownProduct(repriced)) return fail(`Unknown product ${repriced.unknownProductId}`, 400);
+  const { selectedProducts, selectedFurniture } = repriced;
 
   // Same rate book the calculator UI used, so the saved total matches what was shown.
   const summary = buildProjectSummary(
@@ -78,10 +56,7 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
 
-  const inserted = await db.insert(projects).values({
-    userId,
-    sessionId: null,
-    nameKa,
+  const calculatorColumns = {
     homeState,
     totalM2: String(totalM2),
     rooms,
@@ -91,8 +66,24 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     totalFurnitureCost: String(summary.subtotalFurniture),
     totalWorkersCost: String(summary.subtotalWorkers),
     totalCost: String(summary.grandTotalWithMargin),
+  };
+
+  // One project, both halves: a saved design (or an earlier calculation) of the caller's is
+  // written into rather than duplicated. An ordered project is history and gets a new row.
+  const existing = await ownProject(projectId, userId);
+  if (existing) {
+    await db.update(projects).set(calculatorColumns).where(eq(projects.id, existing.id));
+    return ok({ id: existing.id, summary });
+  }
+
+  const inserted = await db.insert(projects).values({
+    userId,
+    sessionId: null,
+    nameKa,
+    ...calculatorColumns,
     status: userId ? 'saved' : 'draft',
   });
 
   return ok({ id: inserted[0].insertId, summary });
 });
+

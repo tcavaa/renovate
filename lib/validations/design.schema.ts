@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { calculatorPicksPayloadSchema } from './project.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
 
@@ -131,6 +132,10 @@ export const saveDesignSchema = z.object({
   plan: floorPlanSchema,
   scene: designSceneSchema,
   floorPlanUrl: z.string().max(500).nullable().optional(),
+  /** An existing project of the caller's to write into, so a calculation and a design share one row. */
+  projectId: z.number().int().positive().optional(),
+  /** The calculator's picks when the design came out of a calculation that was never saved. */
+  calculator: calculatorPicksPayloadSchema.optional(),
 });
 
 export type SaveDesignInput = z.infer<typeof saveDesignSchema>;

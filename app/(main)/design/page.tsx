@@ -7,6 +7,7 @@ import { ArrowUpRight, Check, Home, PenLine, Rows3, Sofa, Upload } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
+import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { RoomForm } from '@/components/calculator/RoomForm';
 import { RoomList } from '@/components/calculator/RoomList';
 import { RoomLayoutEditor, type DrawnRect } from '@/components/calculator/RoomLayoutEditor';
@@ -32,7 +33,7 @@ type PlanMode = 'upload' | 'manual' | 'draw';
 export default function DesignStartPage() {
   const t = useT();
   const router = useRouter();
-  const { mode, setMode, setPlan } = useDesignStore();
+  const { mode, setMode, setPlan, homeState, setHomeState } = useDesignStore();
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
   const [planMode, setPlanMode] = useState<PlanMode>('upload');
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -168,6 +169,15 @@ export default function DesignStartPage() {
             <ModeCard active={mode === 'design_only'} onClick={() => setMode('design_only')} icon={<Sofa className="h-5 w-5" />} label={t.design.modeDesignOnlyLabel} description={t.design.modeDesignOnlyDesc} />
             <ModeCard active={mode === 'full'} onClick={() => setMode('full')} icon={<Home className="h-5 w-5" />} label={t.design.modeFullLabel} description={t.design.modeFullDesc} />
           </div>
+          {mode === 'full' && (
+            <div className="space-y-3 pt-2">
+              <div>
+                <p className="eyebrow">{t.homeState.title}</p>
+                <p className="mt-1 text-sm text-ink-muted">{t.homeState.subtitle}</p>
+              </div>
+              <HomeStateSelector value={homeState} onChange={setHomeState} />
+            </div>
+          )}
         </section>
       </div>
     </>

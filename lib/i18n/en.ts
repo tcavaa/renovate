@@ -402,6 +402,14 @@ export const en: Dictionary = {
     backToProjects: 'My projects',
     fallbackName: 'Project',
     metaCreated: 'Created',
+    tagCalculator: 'Calculator',
+    tagDesign: '3D',
+    calculateCosts: 'Calculate renovation costs',
+    openInCalculator: 'Open in the calculator',
+    designProducts: '3D design products',
+    designProductsHint: 'What was placed in the studio — by store, with the room and surface.',
+    furnitureInStudio: 'Furniture was chosen in the 3D studio — see "3D design products" below',
+    designTotal: 'Design products',
   },
   admin: {
     dashboard: 'Dashboard',
@@ -995,6 +1003,7 @@ export const en: Dictionary = {
     orderNo: 'Order #{id}',
     feeRecorded: 'Recorded fee',
     removedByPartner: 'removed by the partner',
+    showItems: 'Order lines ({n})',
   },
   partner: {
     title: 'Partner portal',

@@ -522,7 +522,7 @@ export async function partnerStats(ref: PartnerRef, now = new Date()): Promise<P
   };
 }
 
-/** Every order placed against one project, for the customer's project page. */
+/** Every order placed against one project, with its lines, for the customer's project page. */
 export async function ordersForProject(projectId: number) {
   const rows = await db
     .select({
@@ -549,7 +549,9 @@ export async function ordersForProject(projectId: number) {
     .leftJoin(workers, eq(orders.workerId, workers.id))
     .where(eq(orders.projectId, projectId))
     .orderBy(desc(orders.createdAt));
-  return rows.map((r) => ({ ...r, itemCount: Number(r.itemCount) }));
+  const ids = rows.map((r) => r.id);
+  const lines = ids.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, ids)).orderBy(asc(orderItems.sortOrder), asc(orderItems.id)) : [];
+  return rows.map((r) => ({ ...r, itemCount: Number(r.itemCount), items: lines.filter((l) => l.orderId === r.id) }));
 }
 
 export async function checkoutForProject(projectId: number) {

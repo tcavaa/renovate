@@ -497,6 +497,33 @@ corners scale it proportionally about the opposite corner, sides change one dime
 prunes furniture of rooms that vanished. `/design` offers the same three tabs; typed and drawn
 rooms live in page state there until "continue" turns them into the plan.
 
+### One project, both halves (`lib/api/projectSave.ts`, `lib/projects/saved.ts`)
+
+A calculation and a 3D design of the same flat are one `projects` row. Both stores carry a
+`projectId`: the calculator's save sends it and the route updates the caller's own, not yet
+ordered row instead of inserting (`ownProject`); the design save does the same, and when the
+design grew out of a calculation that was never saved it sends the calculator's picks along
+(`calculator` in the payload) so the new row has both halves at once. `projectKind(row)`
+reads the halves back — `selectedProducts IS NOT NULL` is a calculation (an empty object
+when nothing was picked), `plan IS NOT NULL` a design — and `ProjectKindTags` shows both
+tags on the profile list, the project page and the admin list. A new plan (`replaceRooms`,
+`setPlan`) drops the id: a new flat is a new project. An ordered project is history and a
+save over it gets a new row.
+
+`CalculateCostsButton` is the other direction: a design-first project opens in the
+calculator with the plan's rooms (`planToCalculatorRooms` keeps their positions) and the
+same id, so the estimate lands in the same row. The project page lists the studio's
+products by store (`designLines`) under the calculator's own tables, and each partner order
+under it unfolds into its lines.
+
+`StoreOwnerGuard` (root layout) remembers whose work the two localStorage stores hold and
+wipes both when a signed-in user signs out or a different account signs in — the next person
+on the same computer used to find the previous user's plan waiting. A guest's work survives
+signing in; that is the "log in to save" path.
+
+The design page's mode block defaults to design only; choosing renovation + design reveals
+the calculator's three home states, and the studio prices against the chosen one.
+
 ### Saved projects reopen in 3D (`components/projects/OpenIn3dButton.tsx`)
 
 The profile list, the project page and the calculator summary carry the one button with

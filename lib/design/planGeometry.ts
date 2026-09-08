@@ -637,6 +637,10 @@ export function planToCalculatorRooms(plan: FloorPlan): Room[] {
       ceilingM2: floorM2,
       perimeterM,
       isWetRoom: WET_ROOM_TYPES.includes(r.type),
+      // Where the room sits on the plan, so the calculator's layout editor shows the flat as
+      // drawn rather than a strip of rectangles.
+      x: round2(b.minX),
+      z: round2(b.minZ),
     };
   });
 }

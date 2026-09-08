@@ -1,12 +1,12 @@
 import Link from 'next/link';
-import { Phone } from 'lucide-react';
+import { ChevronDown, Phone } from 'lucide-react';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import type { Dictionary, Locale } from '@/lib/i18n';
-import { localizedName } from '@/lib/i18n/labels';
+import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { checkoutForProject, ordersForProject } from '@/lib/finance/orders';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL, formatM2 } from '@/lib/utils';
+import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
 /**
  * The orders a project turned into, for its owner (and admin): one card per partner with
@@ -79,6 +79,27 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.market.partnerMessage}</p>
                     <p className="mt-1 text-sm text-ink">{o.partnerMessage}</p>
                   </div>
+                )}
+                {o.items.length > 0 && (
+                  <details className="group mt-3 border-t border-line pt-2">
+                    <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                      {fill(t.market.showItems, { n: o.items.length })}
+                    </summary>
+                    <ul className="mt-2 divide-y divide-line/70 text-sm">
+                      {o.items.map((line) => (
+                        <li key={line.id} className={cn('flex items-baseline justify-between gap-3 py-1.5', line.removed && 'text-ink-faint line-through')}>
+                          <span className="min-w-0">
+                            <span className="block truncate">{localizedName(locale, line)}</span>
+                            <span className="block text-xs text-ink-muted no-underline">
+                              {[line.roomName, `${formatNumber(Number(line.qty))} ${unitLabel(t, line.unit)} × ${formatGEL(Number(line.unitPrice))}`, line.removed ? t.market.removedByPartner : null].filter(Boolean).join(' · ')}
+                            </span>
+                          </span>
+                          <span className="shrink-0 tabular-nums">{formatGEL(Number(line.total))}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </li>
             );

@@ -400,6 +400,14 @@ export const ru: Dictionary = {
     backToProjects: 'Мои проекты',
     fallbackName: 'Проект',
     metaCreated: 'Создан',
+    tagCalculator: 'Калькулятор',
+    tagDesign: '3D',
+    calculateCosts: 'Посчитать стоимость ремонта',
+    openInCalculator: 'Открыть в калькуляторе',
+    designProducts: 'Товары 3D-дизайна',
+    designProductsHint: 'Что расставлено в студии — по магазинам, с комнатой и поверхностью.',
+    furnitureInStudio: 'Мебель выбрана в 3D-студии — см. «Товары 3D-дизайна» ниже',
+    designTotal: 'Товары дизайна',
   },
   admin: {
     dashboard: 'Дашборд',
@@ -993,6 +1001,7 @@ export const ru: Dictionary = {
     orderNo: 'Заказ #{id}',
     feeRecorded: 'Зафиксированный сбор',
     removedByPartner: 'убрано партнёром',
+    showItems: 'Позиции заказа ({n})',
   },
   partner: {
     title: 'Кабинет партнёра',

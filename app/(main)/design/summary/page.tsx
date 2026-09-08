@@ -9,6 +9,7 @@ import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useDesignStore } from '@/store/designStore';
+import { useCalculatorStore } from '@/store/calculatorStore';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
@@ -25,7 +26,8 @@ import { getStyle } from '@/lib/design/styles';
 export default function DesignSummaryPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, floorPlanUrl, homeState } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, floorPlanUrl, homeState, projectId, setProjectId, calculatorPicks } = useDesignStore();
+  const calculator = useCalculatorStore();
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +73,13 @@ export default function DesignSummaryPage() {
         plan,
         scene,
         floorPlanUrl,
+        // The calculation this design grew out of is written into the same row; when it was
+        // never saved, its picks travel along so the row has both halves anyway.
+        projectId: projectId ?? undefined,
+        calculator:
+          calculatorPicks && calculator.rooms.length > 0 && calculator.homeState
+            ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture }
+            : undefined,
       }),
     });
     const json = (await res.json()) as {
@@ -79,6 +88,8 @@ export default function DesignSummaryPage() {
     };
     if (json.error || !json.data) throw new Error(json.error ?? 'save-failed');
     setSavedId(json.data.id);
+    setProjectId(json.data.id);
+    if (calculatorPicks) calculator.setProjectId(json.data.id);
     return json.data.id;
   };
 

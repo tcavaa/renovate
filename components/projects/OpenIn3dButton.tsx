@@ -19,11 +19,11 @@ export function OpenIn3dButton({ project, size = 'md', className }: { project: S
 
   const open = () => {
     if (project.plan && project.scene) {
-      openSaved({ plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
+      openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
       router.push('/design/studio');
       return;
     }
-    startFromCalculator({ rooms: project.rooms, homeState: project.homeState, selectedProducts: project.selectedProducts, selectedFurniture: project.selectedFurniture });
+    startFromCalculator({ rooms: project.rooms, homeState: project.homeState, selectedProducts: project.selectedProducts, selectedFurniture: project.selectedFurniture, projectId: project.id });
     router.push('/design/style');
   };
 

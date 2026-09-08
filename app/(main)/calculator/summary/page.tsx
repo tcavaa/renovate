@@ -48,19 +48,13 @@ export default function SummaryPage() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
-  const { rooms, homeState, selectedProducts, selectedFurniture, reset } =
+  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId } =
     useCalculatorStore();
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
-  /** Carries rooms, home state and every pick into the studio; style is the only step left. */
-  const viewIn3d = () => {
-    if (!homeState) return;
-    startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture });
-    router.push('/design/style');
-  };
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -68,6 +62,13 @@ export default function SummaryPage() {
   const [error, setError] = useState<string | null>(null);
   const autoSaveAttempted = useRef(false);
   const inFlightRef = useRef(false);
+
+  /** Carries rooms, home state, every pick and the saved project into the studio; style is the only step left. */
+  const viewIn3d = () => {
+    if (!homeState) return;
+    startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: savedId ?? projectId });
+    router.push('/design/style');
+  };
 
   const ready = !!homeState && rooms.length > 0;
 
@@ -94,11 +95,15 @@ export default function SummaryPage() {
         nameKa: ka.calculator.projectName,
         selectedProducts,
         selectedFurniture,
+        // A project opened from the profile, or one this session already saved, is written
+        // into rather than duplicated. Read at call time: it is an id, not something to re-render on.
+        projectId: useCalculatorStore.getState().projectId ?? undefined,
       }),
     });
     const json = await res.json();
     if (!res.ok || !json.data?.id) throw new Error(json.error ?? 'save-failed');
     setSavedId(json.data.id);
+    useCalculatorStore.getState().setProjectId(json.data.id);
     return json.data.id as number;
   }, [savedId, homeState, rooms, selectedProducts, selectedFurniture, ka]);
 
