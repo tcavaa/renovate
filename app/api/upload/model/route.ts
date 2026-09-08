@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok, requireAdmin } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
 import { MODEL_EXTENSION, sniffModel } from '@/lib/uploads/sniff';
+import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
 import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -25,15 +26,22 @@ export const POST = handle('POST /api/upload/model', 'Upload failed', async (req
 
   const formData = await req.formData();
   const file = formData.get('file');
-  if (!(file instanceof File)) return fail('No file provided', 400);
-  if (file.size > MAX_MODEL_BYTES) return fail(`File too large (max ${MAX_MODEL_BYTES / 1024 / 1024}MB)`, 400);
+  if (!(file instanceof File)) return fail(API_ERRORS.MODEL_INVALID, 400);
+  if (file.size > MAX_MODEL_BYTES) return fail(API_ERRORS.MODEL_TOO_LARGE, 400);
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const mime = sniffModel(bytes);
-  if (!mime) return fail('Not a binary glTF (.glb) file', 400);
+  if (!mime) return fail(API_ERRORS.MODEL_INVALID, 400);
+  const info = inspectGlb(bytes);
+  if (!info || info.meshes === 0) return fail(API_ERRORS.MODEL_INVALID, 400);
+  const blocked = unsupportedExtension(info);
+  if (blocked) {
+    log.info('model refused: unsupported extension', { extension: blocked, generator: info.generator });
+    return fail(API_ERRORS.MODEL_UNSUPPORTED_COMPRESSION, 400);
+  }
 
   const key = safeKey('models', `${Date.now()}-${randomBytes(6).toString('hex')}.${MODEL_EXTENSION}`);
   const stored = await storage.put(key, bytes, mime);
-  log.info('model uploaded', { key, bytes: stored.size, by: admin.session.user.id });
+  log.info('model uploaded', { key, bytes: stored.size, by: admin.session.user.id, generator: info.generator, meshes: info.meshes, images: info.images });
   return ok({ url: stored.url, filename: key.split('/').pop(), size: stored.size });
 });

@@ -1083,6 +1083,9 @@ export const ru: Dictionary = {
     PROJECT_ALREADY_ORDERED: 'Этот проект уже заказан',
     PARTNER_NOT_LINKED: 'Ваш аккаунт не привязан к магазину или мастеру — обратитесь к администратору',
     ORDER_CLOSED: 'Заказ закрыт и больше не редактируется',
+    MODEL_INVALID: 'Файл не является корректной GLB-моделью (binary glTF 2)',
+    MODEL_TOO_LARGE: 'Модель слишком большая — не более 40 MB',
+    MODEL_UNSUPPORTED_COMPRESSION: 'Модель использует сжатие Draco или Basis, которое студия не читает — экспортируйте без них (Meshopt допустим)',
     UNKNOWN: 'Что-то пошло не так, попробуйте ещё раз',
   },
   styleNames: {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
+import { apiErrorMessage } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
 
 /**
@@ -140,7 +141,7 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
       try {
         const json = JSON.parse(xhr.responseText) as { data: { url: string; size: number } | null; error: string | null };
         if (xhr.status >= 400 || !json.data) {
-          setError(json.error ?? t.modelUploader.uploadError);
+          setError(json.error ? apiErrorMessage(t, json.error) : t.modelUploader.uploadError);
           return;
         }
         setBytes(json.data.size);

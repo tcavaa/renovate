@@ -190,7 +190,15 @@ without one before it looks at archetype or style. There are two ways a product 
 The studio scales every model to the product's dimensions (`fitToItem`), so a model in the
 wrong units still renders at the right size; what it cannot fix is orientation — the front
 of a piece has to face +Z with Y up, which is what `pnpm models:convert` produces and what
-the uploader's arrow shows.
+the uploader's arrow shows. The upload route also refuses a GLB that *requires* Draco or
+Basis (`lib/uploads/glb.ts`): the studio's loader has neither decoder, and such a file would
+upload fine and then render as nothing. Meshopt is fine.
+
+**A model that fails to load is not an empty slot.** `buildPlacedItem` used to swallow the
+error, so a 404 or a broken file looked exactly like "no product" — an invisible item with a
+selection box around it. Now the item gets a translucent ghost box in the product's colour
+and a `console.warn` naming the product and URL; a slot with no product at all still draws
+nothing.
 
 Within one room, every slot of a kind gets the same product (six matching dining chairs);
 the next room gets the next-best product of the same style tier, so a flat with five

@@ -1079,6 +1079,9 @@ export const ka = {
     PROJECT_ALREADY_ORDERED: 'ეს პროექტი უკვე შეკვეთილია',
     PARTNER_NOT_LINKED: 'თქვენი ანგარიში მაღაზიას ან ხელოსანს არ არის მიბმული — მიმართეთ ადმინისტრატორს',
     ORDER_CLOSED: 'შეკვეთა დახურულია და ვეღარ შეიცვლება',
+    MODEL_INVALID: 'ფაილი არ არის სწორი GLB (binary glTF 2) მოდელი',
+    MODEL_TOO_LARGE: 'მოდელი ძალიან დიდია — მაქსიმუმ 40 MB',
+    MODEL_UNSUPPORTED_COMPRESSION: 'მოდელი Draco ან Basis კომპრესიით არის, რასაც სტუდია ვერ კითხულობს — გამოიტანე მათ გარეშე (Meshopt დასაშვებია)',
     UNKNOWN: 'მოხდა შეცდომა, სცადე თავიდან',
   },
   styleNames: {

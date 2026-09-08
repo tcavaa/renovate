@@ -1085,6 +1085,9 @@ export const en: Dictionary = {
     PROJECT_ALREADY_ORDERED: 'This project has already been ordered',
     PARTNER_NOT_LINKED: 'Your account is not linked to a store or worker — ask an administrator',
     ORDER_CLOSED: 'This order is closed and can no longer be changed',
+    MODEL_INVALID: 'The file is not a valid GLB (binary glTF 2) model',
+    MODEL_TOO_LARGE: 'The model is too large — 40 MB at most',
+    MODEL_UNSUPPORTED_COMPRESSION: 'The model uses Draco or Basis compression, which the studio cannot read — export without them (Meshopt is fine)',
     UNKNOWN: 'Something went wrong, please try again',
   },
   styleNames: {

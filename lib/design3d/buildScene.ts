@@ -126,7 +126,7 @@ export function visibleRoomIds(plan: FloorPlan, options: BuildSceneOptions): Set
  */
 export function disposeOwnedGeometry(root: THREE.Object3D): void {
   root.traverse((child) => {
-    if (child instanceof THREE.Mesh && child.userData.ownsGeometry) child.geometry.dispose();
+    if ((child instanceof THREE.Mesh || child instanceof THREE.LineSegments) && child.userData.ownsGeometry) child.geometry.dispose();
   });
 }
 
@@ -548,7 +548,10 @@ function itemKey(item: PlacedItem): string {
  * is a beat, not a wait; the same URL is fetched once however many chairs share it.
  *
  * An item with no model is not drawn at all. That is deliberate: a room furnished with
- * stand-ins would show the customer things nobody sells.
+ * stand-ins would show the customer things nobody sells. An item whose model *fails* to load
+ * is the opposite case — a real product with a broken or missing file — and gets a
+ * translucent ghost box in its colour plus a console warning, so the failure is seen and
+ * fixed in admin rather than mistaken for an empty slot.
  */
 export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
   const modelUrl = item.product?.model3dUrl;
@@ -573,12 +576,44 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
       // The wrapper's own roomId may have moved on while the model was loading.
       tag(model, { pickKind: 'item', itemId: item.id, roomId: (wrapper.userData as SceneUserData).roomId });
     })
-    .catch(() => {
-      // A missing or broken GLB leaves the slot empty. The cost bar still counts it, which
-      // is the right call — the product exists; only its picture failed.
+    .catch((err: unknown) => {
+      // Swapped or deleted while the model was in flight.
+      if (!wrapper.parent) return;
+      // The product exists and the cost bar counts it; only its picture failed. Say so.
+      console.warn(`[studio] model failed to load for "${item.product?.nameKa ?? item.id}": ${modelUrl}`, err);
+      const ghost = ghostFor(item);
+      tag(ghost, { pickKind: 'item', itemId: item.id, roomId: (wrapper.userData as SceneUserData).roomId });
+      wrapper.add(ghost);
     });
 
   return wrapper;
+}
+
+const ghostMaterials = new Map<string, THREE.MeshStandardMaterial>();
+const ghostEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x8a8378, transparent: true, opacity: 0.9 });
+
+function ghostMaterial(colorHex: string | null | undefined): THREE.MeshStandardMaterial {
+  const key = (colorHex ?? '#C9C4BA').toLowerCase();
+  let material = ghostMaterials.get(key);
+  if (!material) {
+    material = new THREE.MeshStandardMaterial({ color: new THREE.Color(key), transparent: true, opacity: 0.4, roughness: 0.9, depthWrite: false });
+    ghostMaterials.set(key, material);
+  }
+  return material;
+}
+
+/** A translucent box the size and colour of the product, standing where its model should be. */
+function ghostFor(item: PlacedItem): THREE.Object3D {
+  const { width, depth, height } = item.size;
+  const box = own(new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), ghostMaterial(item.product?.colorHex)));
+  box.position.y = height / 2;
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), ghostEdgeMaterial);
+  edges.userData.ownsGeometry = true;
+  box.add(edges);
+  const group = new THREE.Group();
+  group.name = 'model-ghost';
+  group.add(box);
+  return group;
 }
 
 // ---------------------------------------------------------------------------

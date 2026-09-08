@@ -34,3 +34,34 @@ describe('sniffModel', () => {
     expect(sniffImage(glb())).toBeNull();
   });
 });
+
+describe('inspectGlb', () => {
+  const withJson = (json: object) => {
+    const text = new TextEncoder().encode(JSON.stringify(json));
+    const bytes = new Uint8Array(20 + text.length);
+    const view = new DataView(bytes.buffer);
+    bytes.set([0x67, 0x6c, 0x54, 0x46], 0);
+    view.setUint32(4, 2, true);
+    view.setUint32(8, bytes.length, true);
+    view.setUint32(12, text.length, true);
+    view.setUint32(16, 0x4e4f534a, true);
+    bytes.set(text, 20);
+    return bytes;
+  };
+
+  it('reads the generator, the extensions and the counts', async () => {
+    const { inspectGlb, unsupportedExtension } = await import('@/lib/uploads/glb');
+    const info = inspectGlb(withJson({ asset: { generator: 'Blender' }, meshes: [{}], materials: [{}], images: [{}, {}], extensionsUsed: ['EXT_meshopt_compression'], extensionsRequired: ['EXT_meshopt_compression'] }))!;
+    expect(info.generator).toBe('Blender');
+    expect(info.meshes).toBe(1);
+    expect(info.images).toBe(2);
+    expect(unsupportedExtension(info)).toBeNull();
+  });
+
+  it('names Draco and Basis as the extensions the studio cannot decode', async () => {
+    const { inspectGlb, unsupportedExtension } = await import('@/lib/uploads/glb');
+    expect(unsupportedExtension(inspectGlb(withJson({ meshes: [{}], extensionsRequired: ['KHR_draco_mesh_compression'] }))!)).toBe('KHR_draco_mesh_compression');
+    expect(unsupportedExtension(inspectGlb(withJson({ meshes: [{}], extensionsRequired: ['KHR_texture_basisu'] }))!)).toBe('KHR_texture_basisu');
+    expect(inspectGlb(new Uint8Array(4))).toBeNull();
+  });
+});
