@@ -65,11 +65,15 @@ export function picksFromScene(scene: DesignScene): { selectedProducts: Record<s
     if (!item.product) continue;
     (selectedFurniture[item.roomId] ??= []).push(toSelected(item.product));
   }
+  // The materials step keys a category's pick as `<slug>_global`; the same key here is what
+  // makes the studio's floor show as the chosen laminate there.
   const selectedProducts: Record<string, SelectedProduct> = {};
   for (const finish of scene.finishes) {
     const slug = finish.product?.categorySlug;
-    if (!finish.product || !slug || selectedProducts[slug]) continue;
-    selectedProducts[slug] = toSelected(finish.product);
+    if (!finish.product || !slug) continue;
+    const key = `${slug}_global`;
+    if (selectedProducts[key]) continue;
+    selectedProducts[key] = toSelected(finish.product);
   }
   return { selectedProducts, selectedFurniture };
 }
