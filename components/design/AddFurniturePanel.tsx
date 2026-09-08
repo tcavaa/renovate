@@ -73,7 +73,7 @@ export function AddFurniturePanel({
   const add = (product: CatalogProduct) => {
     const ok = onAdd(product);
     setNotice({ id: product.id, ok });
-    window.setTimeout(() => setNotice((n) => (n?.id === product.id ? null : n)), 1800);
+    window.setTimeout(() => setNotice((n) => (n?.id === product.id ? null : n)), ok ? 5000 : 1800);
   };
 
   return (
@@ -152,6 +152,11 @@ export function AddFurniturePanel({
       {notice && !notice.ok && (
         <p role="alert" className="border border-danger/40 bg-danger/5 px-2 py-1.5 text-[11px] text-danger">
           {t.design.noSpaceForItem}
+        </p>
+      )}
+      {notice && notice.ok && (
+        <p role="status" className="border border-ink/30 bg-white px-2 py-1.5 text-[11px] text-ink">
+          {t.design.carryStarted}
         </p>
       )}
     </div>

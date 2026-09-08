@@ -394,8 +394,10 @@ export const ROTATE_STEP_RAD = Math.PI / 4; // 45°
  * undone. When someone presses rotate they mean the angle they asked for.
  *
  * The item is kept inside the room, and if the new angle collides it is nudged towards the
- * middle of the room before giving up — turning a sofa a quarter turn usually needs a few
- * centimetres of room to do it in.
+ * middle of the room first — turning a sofa a quarter turn usually needs a few centimetres
+ * of room to do it in. When nothing fits it still turns, and comes back `valid: false`: the
+ * studio shows the collision and the person drags the piece somewhere it fits. Refusing the
+ * turn made a sofa impossible to rotate in any room without spare floor.
  */
 export function rotateItem(
   room: PlanRoom,
@@ -428,7 +430,20 @@ export function rotateItem(
     if (fits) return { position: candidate, rotation, valid: true, snappedToWall: false };
   }
 
-  return { position: item.position, rotation: item.rotation, valid: false, snappedToWall: false };
+  const turned = clampInsideRoom(room, item.position, item.size, rotation);
+  return { position: turned, rotation, valid: false, snappedToWall: false };
+}
+
+/**
+ * Does the item, as it stands, fit — inside its room and clear of everything else? What the
+ * selection outline turns red on, and what a drop is judged by.
+ */
+export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[]): boolean {
+  const footprint = footprintOf(item.position, item.size, item.rotation);
+  if (!footprintInRoom(footprint, room.polygon)) return false;
+  return !blockingItems(others, room.id, item.id).some((other) =>
+    footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))
+  );
 }
 
 function normalise(v: Vec2): Vec2 {

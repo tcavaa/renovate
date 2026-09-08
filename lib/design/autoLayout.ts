@@ -122,9 +122,14 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
  * Finds room for one more item of `kind` among what is already placed — the user's own bed
  * for a room whose program had no bed. Same rules, same keepouts; null when it will not fit.
  */
-export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedItem[]): PlacedItem | null {
-  const archetype = getArchetype(kind);
-  if (!archetype) return null;
+export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedItem[], size?: PlacedItem['size']): PlacedItem | null {
+  const registered = getArchetype(kind);
+  if (!registered) return null;
+  // The spot is found for the real product when its size is known, not for the archetype's
+  // typical one: a 1.9 m cabinet dropped where a 1 m one fits overlapped its neighbours and
+  // came up red the moment it landed. Runs and rugs keep being sized to the room.
+  const exact = !!size && registered.placement.type !== 'wall-run' && registered.slot !== 'rug' && registered.slot !== 'curtain';
+  const archetype = exact ? { ...registered, size: size! } : registered;
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return null;
 
@@ -136,7 +141,7 @@ export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedIt
       .map((i) => boxFor({ position: i.position, rotation: i.rotation, size: i.size, elevationM: i.elevationM })),
   ];
   const index = placed.filter((i) => i.kind === kind).length;
-  const pose = resolvePose(archetype, index, room, edges, placed, occupied);
+  const pose = resolvePose(archetype, index, room, edges, placed, occupied, { exact }) ?? placeAnywhere(archetype, room, edges, occupied);
   if (!pose) return null;
   return {
     id: `${room.id}-${kind}-extra-${index}`,
@@ -161,13 +166,14 @@ function resolvePose(
   room: PlanRoom,
   edges: PlanEdge[],
   placed: PlacedItem[],
-  occupied: Box[]
+  occupied: Box[],
+  options: { exact?: boolean } = {}
 ): Pose | null {
   const rule = archetype.placement;
 
   switch (rule.type) {
     case 'wall':
-      return placeAgainstWall(archetype, room, edges, occupied, rule.prefer, rule.clearanceM);
+      return placeAgainstWall(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.exact ?? false);
     case 'wall-run':
       return placeWallRun(archetype, room, edges, occupied, rule.prefer, rule.clearanceM);
     case 'center':
@@ -196,15 +202,17 @@ function placeAgainstWall(
   edges: PlanEdge[],
   occupied: Box[],
   prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
-  clearanceM: number
+  clearanceM: number,
+  exact = false
 ): Pose | null {
   const doorPoints = openingPoints(room, edges, (o) => o.kind !== 'window');
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
 
   // A wardrobe comes in many widths; a bed does not. When the standard width finds no wall,
   // storage tries narrower slots before giving up — the matcher then prefers a product that
-  // fits the slot it was given.
-  const widths = NARROWABLE.has(archetype.kind)
+  // fits the slot it was given. Not when the size is a real product's (`exact`): a 1.9 m
+  // cabinet handed a 1.2 m slot lands on its neighbours.
+  const widths = !exact && NARROWABLE.has(archetype.kind)
     ? [1, 0.8, 0.65].map((f) => archetype.size.width * f)
     : [archetype.size.width];
 
@@ -558,6 +566,53 @@ function placeInCorner(
     );
     const score = -crowding;
     if (!best || score > best.score) best = { pose, score };
+  }
+
+  return best?.pose ?? null;
+}
+
+/**
+ * Any free floor at all, for a piece the wall rules could not seat. A grid over the room in
+ * both orientations; the spot nearest a wall wins and turns to face into the room, the middle
+ * of the floor is the last resort. Explicit adds only — the initial layout has taste, this
+ * has patience — and it never returns a spot that overlaps anything, so an add that does land
+ * is a valid placement, not a red one.
+ */
+function placeAnywhere(archetype: Archetype, room: PlanRoom, edges: PlanEdge[], occupied: Box[]): Pose | null {
+  const { width, depth } = archetype.size;
+  const bounds = polygonBounds(room.polygon);
+  const step = 0.1;
+  const margin = 0.02;
+  let best: { pose: Pose; score: number } | null = null;
+
+  for (const rotation of [0, Math.PI / 2]) {
+    const sideways = rotation !== 0;
+    const halfX = (sideways ? depth : width) / 2;
+    const halfZ = (sideways ? width : depth) / 2;
+    for (let x = bounds.minX + halfX + margin; x <= bounds.maxX - halfX - margin + 1e-9; x += step) {
+      for (let z = bounds.minZ + halfZ + margin; z <= bounds.maxZ - halfZ - margin + 1e-9; z += step) {
+        const pose: Pose = { position: { x, z }, rotation, size: archetype.size, elevationM: 0 };
+        if (!fitsInRoom(pose, room.polygon)) continue;
+        if (overlapsAny(boxFor(pose), occupied)) continue;
+
+        // Distance from the item's back to the nearest wall it is parallel to.
+        let nearest: { edge: PlanEdge; gap: number } | null = null;
+        for (const edge of edges) {
+          const parallel = Math.abs(Math.abs(Math.sin(edge.facing)) - Math.abs(Math.sin(rotation))) < 1e-6;
+          if (!parallel) continue;
+          const toItem = { x: pose.position.x - edge.a.x, z: pose.position.z - edge.a.z };
+          const gap = toItem.x * edge.inward.x + toItem.z * edge.inward.z - depth / 2;
+          if (gap < -1e-6) continue;
+          if (!nearest || gap < nearest.gap) nearest = { edge, gap };
+        }
+        const score = -(nearest?.gap ?? 100);
+        if (!best || score > best.score) {
+          // Against a wall the piece turns its back to it, like everything the layout places.
+          const facing = nearest && nearest.gap < 0.3 ? nearest.edge.facing : rotation;
+          best = { pose: { ...pose, rotation: facing }, score };
+        }
+      }
+    }
   }
 
   return best?.pose ?? null;

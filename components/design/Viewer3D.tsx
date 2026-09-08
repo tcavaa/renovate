@@ -35,7 +35,7 @@ import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
-import { roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
+import { isPlacementValid, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import type { DesignScene, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { Headlamp, WalkControls } from './WalkControls';
 
@@ -49,6 +49,8 @@ export interface ViewerApi {
   zoom: (factor: number) => void;
   /** Frames the whole flat (or the focused room) again. */
   reset: () => void;
+  /** Where the item riding on the pointer would land right now, or null when nothing is carried. */
+  carryPose: () => { position: Vec2; rotation: number; roomId: string } | null;
 }
 
 export interface Viewer3DProps {
@@ -59,6 +61,10 @@ export interface Viewer3DProps {
   showWalls?: boolean;
   viewMode?: ViewMode;
   editMode?: EditMode;
+  /** An item that follows the pointer until it is clicked down — see `designStore.beginAdd`. */
+  carryingItemId?: string | null;
+  /** The carried item was clicked down somewhere it fits and is placed. */
+  onCarryPlaced?: (itemId: string) => void;
   selectedOpeningId?: string | null;
   /** An opening was dragged along its wall to a new `t`. */
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
@@ -139,7 +145,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced'>;
 
 function SceneContent({
   plan,
@@ -149,6 +155,8 @@ function SceneContent({
   showWalls = true,
   viewMode = 'orbit',
   editMode = 'furniture',
+  carryingItemId = null,
+  onCarryPlaced,
   selectedOpeningId = null,
   onHoverItem,
   onSelectItem,
@@ -172,7 +180,7 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced };
   const editingOpenings = editMode === 'openings';
 
   // One material factory per style; disposed when the style changes or the viewer unmounts.
@@ -238,14 +246,49 @@ function SceneContent({
   }, [outlines]);
 
   useEffect(() => {
-    if (dragging) return; // the drag loop drives the outline itself
-    applyOutline(outlines.active, selectedItemId ? itemsById.get(selectedItemId) : null, 0xe85d26);
+    if (dragging || carryingItemId) return; // the drag and carry loops drive the outline themselves
+    const selected = selectedItemId ? itemsById.get(selectedItemId) : null;
+    // A turn that left the piece overlapping something is shown in red until it is dragged
+    // somewhere it fits — the same colour a refused drop uses, so it reads as one rule.
+    const room = selected ? plan.rooms.find((r) => r.id === selected.roomId) : undefined;
+    const fits = !selected || !room || isPlacementValid(room, selected, scene.items);
+    applyOutline(outlines.active, selected ?? null, fits ? 0xe85d26 : 0xef4444);
     applyOutline(
       outlines.hover,
       hoveredId && hoveredId !== selectedItemId ? itemsById.get(hoveredId) : null,
       0xf5a623
     );
-  }, [outlines, selectedItemId, hoveredId, itemsById, dragging]);
+  }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items]);
+
+  /**
+   * Carrying: an item just added rides on the pointer. The camera stays put (orbit off), the
+   * outline says whether the spot under the pointer fits, and a click sets it down only when
+   * it does. Starts by showing where the item is now, so a click without moving still lands.
+   */
+  useEffect(() => {
+    const canvas = gl.domElement;
+    if (!carryingItemId) {
+      carryRef.current = null;
+      return;
+    }
+    const item = itemsById.get(carryingItemId);
+    const room = plan.rooms.find((r) => r.id === item?.roomId);
+    if (!item || !room) {
+      carryRef.current = null;
+      return;
+    }
+    const initial = snapPlacement(room, item, { position: item.position, rotation: item.rotation }, scene.items);
+    carryRef.current = { itemId: carryingItemId, room, result: initial };
+    applyOutline(outlines.active, { ...item, position: initial.position, rotation: initial.rotation }, initial.valid ? 0x22c55e : 0xef4444);
+    outlines.hover.visible = false;
+    const orbit = orbitRef.current;
+    if (orbit) orbit.enabled = false;
+    canvas.style.cursor = 'crosshair';
+    return () => {
+      if (orbit) orbit.enabled = true;
+      canvas.style.cursor = 'default';
+    };
+  }, [carryingItemId, itemsById, plan.rooms, scene.items, outlines, gl]);
 
   // -------------------------------------------------------------------------
   // Camera framing
@@ -287,6 +330,10 @@ function SceneContent({
           orbit.target.set(...target);
           orbit.update();
         }
+      },
+      carryPose: () => {
+        const carry = carryRef.current;
+        return carry?.result ? { position: carry.result.position, rotation: carry.result.rotation, roomId: carry.room.id } : null;
       },
     };
     onApi(api);
@@ -344,6 +391,10 @@ function SceneContent({
   };
 
   const dragRef = useRef<DragState | null>(null);
+  /** The item riding on the pointer, where it would land, and the press that may set it down. */
+  const carryRef = useRef<{ itemId: string; room: PlanRoom; result: SnapResult | null; pressX?: number; pressY?: number } | null>(null);
+  /** Moves the carried item to a screen point; set by the pointer effect, called from R3F handlers too. */
+  const carryUpdateRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
   const openingDragRef = useRef<OpeningDragState | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
   const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; x: number; y: number } | null>(null);
@@ -365,6 +416,7 @@ function SceneContent({
   );
 
   const handleMove = (event: ThreeEvent<PointerEvent>) => {
+    if (carryRef.current) return; // the carried item owns the pointer
     if (dragRef.current?.moved) return; // the drag loop owns the pointer
 
     const data = pick(event);
@@ -389,7 +441,7 @@ function SceneContent({
   };
 
   const handleOut = () => {
-    if (dragRef.current?.moved) return;
+    if (carryRef.current || dragRef.current?.moved) return;
     setHoveredId(null);
     gl.domElement.style.cursor = 'default';
     onHoverItem?.(null, null);
@@ -403,6 +455,15 @@ function SceneContent({
    * reliable, and committing to a drag immediately would make the scene impossible to orbit.
    */
   const handleDown = (event: ThreeEvent<PointerEvent>) => {
+    if (carryRef.current) {
+      // A press while carrying is a candidate "set it down here"; decided on release.
+      carryRef.current.pressX = event.clientX;
+      carryRef.current.pressY = event.clientY;
+      carryUpdateRef.current?.(event.clientX, event.clientY);
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      return;
+    }
     const data = pick(event);
     if (editingOpenings) {
       dragRef.current = null;
@@ -463,7 +524,30 @@ function SceneContent({
   useEffect(() => {
     const canvas = gl.domElement;
 
+    carryUpdateRef.current = (clientX, clientY) => {
+      const carry = carryRef.current;
+      if (!carry) return;
+      const item = scene.items.find((i) => i.id === carry.itemId);
+      const wrapper = itemsGroup.getObjectByName(`item-${carry.itemId}`);
+      if (!item || !wrapper) return;
+      const ground = floorPoint(clientX, clientY, item.elevationM);
+      if (!ground) return;
+      // Carrying into a neighbouring room re-homes the item there, like a drag does.
+      const room = roomAtPoint(plan.rooms, ground) ?? carry.room;
+      carry.room = room;
+      const result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items);
+      carry.result = result;
+      wrapper.position.set(result.position.x, item.elevationM, result.position.z);
+      wrapper.rotation.y = result.rotation;
+      applyOutline(outlines.active, { ...item, position: result.position, rotation: result.rotation }, result.valid ? 0x22c55e : 0xef4444);
+      outlines.hover.visible = false;
+    };
+
     const onPointerMove = (event: PointerEvent) => {
+      if (carryRef.current && !walking) {
+        carryUpdateRef.current?.(event.clientX, event.clientY);
+        return;
+      }
       const od = openingDragRef.current;
       if (od) {
         if (walking) return;
@@ -526,7 +610,20 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening } = callbacks.current;
+      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced } = callbacks.current;
+
+      const carry = carryRef.current;
+      if (carry) {
+        const tapped = carry.pressX != null && carry.pressY != null && Math.hypot(event.clientX - carry.pressX, event.clientY - carry.pressY) < 6;
+        carry.pressX = undefined;
+        carry.pressY = undefined;
+        // Only a tap sets the item down, and only where it fits; anywhere else it stays on the pointer.
+        if (tapped && carry.result?.valid) {
+          onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id);
+          onCarryPlaced?.(carry.itemId);
+        }
+        return;
+      }
 
       const od = openingDragRef.current;
       openingDragRef.current = null;
@@ -580,7 +677,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, scene.items, floorPoint, outlines]);
+  }, [gl, walking, plan.rooms, scene.items, floorPoint, outlines, itemsGroup]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {

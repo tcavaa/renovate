@@ -194,6 +194,12 @@ the uploader's arrow shows. The upload route also refuses a GLB that *requires* 
 Basis (`lib/uploads/glb.ts`): the studio's loader has neither decoder, and such a file would
 upload fine and then render as nothing. Meshopt is fine.
 
+**Models stand on y = 0, centred on x/z.** That is the converters' output and what the
+wrapper (placed at the centre of the footprint, on the floor) assumes. `loadModel` shifts
+every file onto that origin on a pivot above its own transform, because an uploaded GLB
+comes with whatever origin its tool chose — Meshy centres on the bounding box and half the
+piece sat below the floor.
+
 **A model that fails to load is not an empty slot.** `buildPlacedItem` used to swallow the
 error, so a 404 or a broken file looked exactly like "no product" — an invisible item with a
 selection box around it. Now the item gets a translucent ghost box in the product's colour
@@ -440,9 +446,14 @@ id order, so when the two disagreed each door landed on the wrong wall of its ro
 ### Adding furniture in the studio
 
 The items tab's "add furniture" opens a catalogue browser (search, archetype, style chips)
-scoped to the focused room; `designStore.addItem` asks `placeAdditional` for a spot among
-what is already there and applies the product as a studio swap. No spot means no item, and
-the panel says so. Picking a room in either panel focuses it in 3D.
+scoped to the focused room. `designStore.beginAdd` creates the item with the product's real
+size — `placeAdditional` finds a free spot when there is one (a wall first, then any free
+floor; never a narrowed slot, which is how a 1.9 m cabinet used to land on its neighbours),
+the middle of the room otherwise — and hands it to the pointer (`carryingItemId`). In the
+viewer the piece follows the mouse, the outline is green where it fits and red where it does
+not, R turns it (`ViewerApi.carryPose` gives the page the spot under the pointer to turn it
+at), a click sets it down only on green, and Escape (`cancelCarry`) removes it. Picking a
+room in either panel focuses it in 3D.
 
 ### Direct manipulation (`lib/design/manipulate.ts`)
 
@@ -454,7 +465,11 @@ inside the room and reports whether it collides. An invalid drop is refused and 
 returns to where it came from, outlined in red on the way.
 
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
-the nearest wall would instantly undo every rotation of anything already sitting flush.
+the nearest wall would instantly undo every rotation of anything already sitting flush. It
+also never refuses: when the turned piece fits nowhere near where it stands, it turns anyway
+and comes back `valid: false`, the selection outline goes red (`isPlacementValid`), and the
+person drags it somewhere it fits — a refused drop puts it back where it came from. Refusing
+the turn made a sofa impossible to rotate in any room without spare floor.
 
 `buildWalkable` + `canStandAt` are the walk-through's collision: room polygons are separated
 by the thickness of the wall between them, so each door contributes a portal box that bridges

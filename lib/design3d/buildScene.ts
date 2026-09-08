@@ -648,8 +648,20 @@ function loadModel(url: string): Promise<THREE.Object3D> {
           child.geometry.computeVertexNormals();
         }
       });
-      const size = new THREE.Box3().setFromObject(object).getSize(new THREE.Vector3());
-      return { object, size };
+      // A wrapper sits at the centre of the item's footprint, on the floor, so the model has
+      // to stand on y = 0 centred on x/z. The converters export exactly that; a file uploaded
+      // in admin comes with whatever origin its tool chose — Meshy centres on the bounding
+      // box, so half the piece sat below the floor. Shift once here, on a pivot above the
+      // file's own transform, and every clone inherits it.
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const centre = box.getCenter(new THREE.Vector3());
+      const pivot = new THREE.Group();
+      pivot.add(object);
+      pivot.position.set(-centre.x, -box.min.y, -centre.z);
+      const root = new THREE.Group();
+      root.add(pivot);
+      return { object: root, size };
     });
     modelCache.set(url, entry);
   }

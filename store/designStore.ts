@@ -26,6 +26,7 @@ import {
 } from '@/lib/design/planGeometry';
 import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { placeAdditional } from '@/lib/design/autoLayout';
+import { getArchetype } from '@/lib/design/catalog';
 import { addOpening as addOpeningTo, moveOpening as moveOpeningIn, removeOpening as removeOpeningFrom, setOpeningWall as setOpeningWallIn, updateOpening as updateOpeningIn } from '@/lib/design/openings';
 import type {
   DesignMode,
@@ -57,6 +58,8 @@ interface DesignState {
   /** Room the camera is focused on, or null for the whole flat. */
   focusRoomId: string | null;
   selectedItemId: string | null;
+  /** An item just added from the catalogue, riding on the pointer until it is clicked down. */
+  carryingItemId: string | null;
   step: StudioStep;
 }
 
@@ -93,6 +96,13 @@ interface DesignActions {
    * already there. Returns the new item's id, or null when the room has no room for it.
    */
   addItem: (product: CatalogProduct, roomId: string) => string | null;
+  /**
+   * Adds a product and hands it to the pointer: the viewer moves it with the mouse, R turns
+   * it, a click sets it down where it fits, Escape (`cancelCarry`) removes it again.
+   */
+  beginAdd: (product: CatalogProduct, roomId: string) => string | null;
+  finishCarry: () => void;
+  cancelCarry: () => void;
   addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null) => string | null;
   moveOpening: (roomId: string, openingId: string, t: number) => void;
   updateOpening: (roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind'>>) => void;
@@ -123,6 +133,7 @@ const initial: DesignState = {
   finishes: [],
   focusRoomId: null,
   selectedItemId: null,
+  carryingItemId: null,
   step: 1,
 };
 
@@ -361,12 +372,63 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         const room = plan?.rooms.find((r) => r.id === roomId);
         const kind = product.model3dKind;
         if (!plan || !room || !kind || !product.model3dUrl) return null;
-        const extra = placeAdditional(room, kind, items);
+        const size =
+          product.widthCm && product.depthCm && product.heightCm
+            ? { width: product.widthCm / 100, depth: product.depthCm / 100, height: product.heightCm / 100 }
+            : undefined;
+        const extra = placeAdditional(room, kind, items, size);
         if (!extra) return null;
         const id = `${extra.id}-${Date.now().toString(36)}`;
         const placed = applySwap([...items, { ...extra, id }], id, product);
         set({ items: placed, selectedItemId: id, focusRoomId: get().focusRoomId ?? null });
         return id;
+      },
+
+      beginAdd: (product, roomId) => {
+        const { plan, items } = get();
+        const room = plan?.rooms.find((r) => r.id === roomId);
+        const kind = product.model3dKind;
+        const archetype = kind ? getArchetype(kind) : undefined;
+        if (!plan || !room || !kind || !archetype || !product.model3dUrl) return null;
+        const size =
+          product.widthCm && product.depthCm && product.heightCm
+            ? { width: product.widthCm / 100, depth: product.depthCm / 100, height: product.heightCm / 100 }
+            : archetype.size;
+        // A free spot when there is one, so a click without moving already lands; otherwise
+        // the middle of the room, shown red until the pointer carries it somewhere it fits.
+        const found = placeAdditional(room, kind, items, size);
+        const centre = {
+          x: room.polygon.reduce((sum, pt) => sum + pt.x, 0) / room.polygon.length,
+          z: room.polygon.reduce((sum, pt) => sum + pt.z, 0) / room.polygon.length,
+        };
+        const index = items.filter((i) => i.roomId === room.id && i.kind === kind).length;
+        const extra: PlacedItem = found ?? {
+          id: `${room.id}-${kind}-extra-${index}`,
+          roomId: room.id,
+          slot: archetype.slot,
+          kind,
+          position: centre,
+          rotation: 0,
+          elevationM: archetype.placement.type === 'ceiling' ? Math.max(0, room.heightM - size.height) : 0,
+          size,
+          product: null,
+        };
+        const id = `${extra.id}-${Date.now().toString(36)}`;
+        const placed = applySwap([...items, { ...extra, id }], id, product);
+        set({ items: placed, selectedItemId: id, carryingItemId: id });
+        return id;
+      },
+
+      finishCarry: () => set({ carryingItemId: null }),
+
+      cancelCarry: () => {
+        const { carryingItemId, items, selectedItemId } = get();
+        if (!carryingItemId) return;
+        set({
+          items: items.filter((i) => i.id !== carryingItemId),
+          selectedItemId: selectedItemId === carryingItemId ? null : selectedItemId,
+          carryingItemId: null,
+        });
       },
 
       addOpening: (roomId, kind, wallIndex = null) => {

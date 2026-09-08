@@ -24,7 +24,7 @@ import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { formatGEL, cn } from '@/lib/utils';
-import { rotateItem as rotatePlacement } from '@/lib/design/manipulate';
+import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import type { PlacedItem, Vec2 } from '@/lib/design/types';
 import type { ViewerApi } from '@/components/design/Viewer3D';
 
@@ -57,6 +57,7 @@ export default function StudioPage() {
     finishes,
     focusRoomId,
     selectedItemId,
+    carryingItemId,
     setFocusRoom,
     selectItem,
     swapProduct,
@@ -64,7 +65,9 @@ export default function StudioPage() {
     removeItem,
     generate,
     setFinish,
-    addItem,
+    beginAdd,
+    finishCarry,
+    cancelCarry,
     addOpening,
     moveOpening,
     updateOpening,
@@ -149,21 +152,33 @@ export default function StudioPage() {
     [placeItem]
   );
   const onApi = useCallback((api: ViewerApi | null) => setViewerApi(api), []);
+  const onCarryPlaced = useCallback(
+    (itemId: string) => {
+      finishCarry();
+      selectItem(itemId);
+    },
+    [finishCarry, selectItem]
+  );
 
   const rotateSelected = useCallback(
     (steps: number) => {
       if (!selected || !plan) return;
+      if (carryingItemId && selected.id === carryingItemId) {
+        // On the pointer the angle is all that matters; the spot comes from the viewer.
+        const pose = viewerApi?.carryPose();
+        placeItem(selected.id, pose?.position ?? selected.position, selected.rotation + steps * ROTATE_STEP_RAD, pose?.roomId ?? selected.roomId);
+        setRotateBlocked(false);
+        return;
+      }
       const room = plan.rooms.find((r) => r.id === selected.roomId);
       if (!room) return;
       const result = rotatePlacement(room, selected, steps, items);
-      if (!result.valid) {
-        setRotateBlocked(true);
-        return;
-      }
-      setRotateBlocked(false);
+      // The turn always happens; a pose that collides is shown in red until it is dragged
+      // somewhere it fits, and the hint below the item says so.
+      setRotateBlocked(!result.valid);
       placeItem(selected.id, result.position, result.rotation, room.id);
     },
-    [selected, plan, items, placeItem]
+    [selected, plan, items, placeItem, carryingItemId, viewerApi]
   );
 
   useEffect(() => setRotateBlocked(false), [selectedItemId]);
@@ -176,7 +191,9 @@ export default function StudioPage() {
       if (target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(target.tagName)) return;
       const key = event.key.toLowerCase();
       if (key === 'escape') {
-        selectItem(null);
+        // Escape while carrying takes the piece back out of the room.
+        if (carryingItemId) cancelCarry();
+        else selectItem(null);
         setSelectedSurface(null);
       } else if (key === 'r' && selectedItemId) {
         event.preventDefault();
@@ -187,7 +204,7 @@ export default function StudioPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rotateSelected, selectedItemId, selectItem]);
+  }, [rotateSelected, selectedItemId, selectItem, carryingItemId, cancelCarry]);
 
   const itemsPerRoom = useMemo(() => {
     const counts = new Map<string, number>();
@@ -247,6 +264,8 @@ export default function StudioPage() {
               onSelectItem={onSelectItem}
               onSelectSurface={onSelectSurface}
               onPlaceItem={onPlaceItem}
+              carryingItemId={carryingItemId}
+              onCarryPlaced={onCarryPlaced}
               onApi={onApi}
               className="h-full w-full"
             />
@@ -338,7 +357,7 @@ export default function StudioPage() {
                     roomId={editRoomId}
                     styleId={styleId}
                     onRoom={setFocusRoom}
-                    onAdd={(product) => addItem(product, editRoomId) !== null}
+                    onAdd={(product) => beginAdd(product, editRoomId) !== null}
                     onBack={() => setAdding(false)}
                   />
                 </FloatingPanel>
@@ -461,7 +480,7 @@ export default function StudioPage() {
           </div>
         )}
         <p className="pointer-events-none absolute bottom-6 left-1/2 hidden -translate-x-1/2 bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">
-          {view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : rail === 'openings' ? t.design.openingsHint : t.design.dragHint}
+          {carryingItemId ? t.design.carryHint : view === 'walk' ? t.design.walkHint : view === '2d' ? t.design.reviewSubtitle : rail === 'openings' ? t.design.openingsHint : t.design.dragHint}
         </p>
         {/* Steps left when the item panel is open so the two never overlap. */}
         <div className={cn('pointer-events-auto absolute bottom-4 transition-[right] duration-300', selected && view !== '2d' ? 'right-[calc(340px+2rem)]' : 'right-4')}>
