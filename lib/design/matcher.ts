@@ -10,9 +10,10 @@
  * and swap it, and the same inputs always give the same room.
  */
 
+import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
 import { getArchetype } from './catalog';
 import { styleAffinity } from './styles';
-import type { PlacedItem, SceneProduct, StyleId } from './types';
+import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
 export interface CatalogProduct {
@@ -46,6 +47,8 @@ export interface CatalogProduct {
 export type BudgetLevel = 'value' | 'balanced' | 'premium';
 
 export interface MatchOptions {
+  /** The rooms the items stand in; with them, a product that does not fit its slot is not placed at that size. */
+  rooms?: PlanRoom[];
   styleId: StyleId;
   /** Total furniture budget in GEL, or null for "no limit". */
   budgetGel?: number | null;
@@ -66,6 +69,10 @@ export function matchProducts(
 ): PlacedItem[] {
   const level = options.level ?? inferLevel(items, catalog, options);
   const byKind = new Map<string, CatalogProduct[]>();
+  const roomsById = new Map((options.rooms ?? []).map((r) => [r.id, r]));
+  // Sizes settle as items are matched: earlier items count with the size they got, later
+  // ones with the archetype's until their turn.
+  const settled: PlacedItem[] = [];
 
   for (const item of items) {
     if (byKind.has(item.kind)) continue;
@@ -78,18 +85,25 @@ export function matchProducts(
   const chosenByRoom = new Map<string, CatalogProduct>();
   const rotation = new Map<string, number>();
 
-  return items.map((item) => {
-    if (item.pinned && item.product) return item;
+  return items.map((item, index) => {
+    const finish = (matched: PlacedItem) => {
+      settled.push(matched);
+      return matched;
+    };
+    if (item.pinned && item.product) return finish(item);
 
     const candidates = byKind.get(item.kind) ?? [];
-    if (candidates.length === 0) return { ...item, product: null };
+    if (candidates.length === 0) return finish({ ...item, product: null });
+
+    const room = roomsById.get(item.roomId);
+    const others = [...settled, ...items.slice(index + 1)];
+    const scored = candidates
+      .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, item) }))
+      .sort((a, b) => b.score - a.score);
 
     const roomKey = `${item.kind}|${item.roomId}`;
     let chosen = chosenByRoom.get(roomKey);
     if (!chosen) {
-      const scored = candidates
-        .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, item) }))
-        .sort((a, b) => b.score - a.score);
       const topAffinity = styleAffinity(options.styleId, scored[0].product.styleTags, scored[0].product.tags);
       const tier = scored.filter(
         (s) => styleAffinity(options.styleId, s.product.styleTags, s.product.tags) === topAffinity
@@ -99,15 +113,61 @@ export function matchProducts(
       rotation.set(item.kind, turn + 1);
       chosenByRoom.set(roomKey, chosen);
     }
-    return {
+
+    // The product's real size has to fit where the slot is. A sofa wider than the wall it was
+    // laid against, or a cabinet that would stand in the doorway, is not placed at that size:
+    // the next-best product that fits takes the slot, and when nothing fits the slot stays
+    // empty rather than poke through the wall.
+    const placed = room ? placeFitting(item, chosen, scored.map((s) => s.product), room, others) : { product: chosen, position: item.position };
+    if (!placed) return finish({ ...item, product: null });
+    return finish({
       ...item,
-      product: toSceneProduct(chosen, quantityFor(item)),
+      position: placed.position,
+      product: toSceneProduct(placed.product, quantityFor(item)),
       // A product with real dimensions overrides the archetype's defaults, so the room
       // reflects the thing you would actually receive.
-      size: sizeFromProduct(chosen, item),
+      size: sizeFromProduct(placed.product, item),
       origin: 'style' as const,
-    };
+    });
   });
+}
+
+/** Slots the layout engine sizes itself, or that float above the floor — size is not a fit question there. */
+function fitMatters(item: PlacedItem): boolean {
+  if (item.slot === 'kitchen_run' || item.slot === 'rug' || item.slot === 'curtain') return false;
+  if (getArchetype(item.kind)?.ghost) return false;
+  return item.elevationM < 0.05;
+}
+
+/**
+ * The preferred product when it fits at the slot (nudged inside the room if it only just
+ * pokes out), otherwise the best-scoring candidate that does; null when none does.
+ */
+function placeFitting(
+  item: PlacedItem,
+  preferred: CatalogProduct,
+  ranked: CatalogProduct[],
+  room: PlanRoom,
+  others: PlacedItem[]
+): { product: CatalogProduct; position: Vec2 } | null {
+  if (!fitMatters(item)) return { product: preferred, position: item.position };
+  const blockers = blockingItems(others, room.id, item.id).map((o) => footprintOf(o.position, o.size, o.rotation));
+  const tryProduct = (product: CatalogProduct): Vec2 | null => {
+    const size = sizeFromProduct(product, item);
+    const position = clampInsideRoom(room, item.position, size, item.rotation);
+    const footprint = footprintOf(position, size, item.rotation);
+    if (!footprintInRoom(footprint, room.polygon)) return null;
+    if (blockers.some((b) => footprintsOverlap(footprint, b))) return null;
+    return position;
+  };
+  const first = tryProduct(preferred);
+  if (first) return { product: preferred, position: first };
+  for (const product of ranked) {
+    if (product.id === preferred.id) continue;
+    const position = tryProduct(product);
+    if (position) return { product, position };
+  }
+  return null;
 }
 
 /** Every catalogue row that could fill this slot, best first. */

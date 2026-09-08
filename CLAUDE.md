@@ -455,6 +455,25 @@ not, R turns it (`ViewerApi.carryPose` gives the page the spot under the pointer
 at), a click sets it down only on green, and Escape (`cancelCarry`) removes it. Picking a
 room in either panel focuses it in 3D.
 
+### The product has to fit the slot (`matcher.ts` → `placeFitting`)
+
+The layout engine sizes a slot from the archetype; the product that fills it has its own
+size, often bigger. `matchProducts` now takes the rooms and, for every floor-standing slot,
+checks the preferred product's real footprint at the slot — nudged inside the room when it
+only just pokes out — against the polygon and the other pieces. A product that does not fit
+gives way to the next-best that does; when nothing fits the slot stays empty. Before this a
+3.2 m sofa in a 2.4 m room sat through the window.
+
+### Tight passages (`lib/design/clearance.ts`)
+
+`tightSpots` flags a piece a person could not get past: a big piece (≥ 0.8 m², ≥ 1.2 m
+long) with less than 60 cm between its long side and a wall, two big pieces less than 35 cm
+apart, or anything within 30 cm of a doorway's inside point. Small things (chairs, a
+nightstand), the short ends of big ones, touching pieces and floating ones do not count —
+the first version flagged half the flat. The viewer draws an amber outline around every
+flagged item and the furniture list says how narrow. It is a warning, not a rule: the
+layout is still saved as arranged.
+
 ### Direct manipulation (`lib/design/manipulate.ts`)
 
 The layout engine *searches* for a spot and gives up if it can't find one. Dragging is the
@@ -481,6 +500,11 @@ the two — otherwise you could not walk through your own doorways.
 - `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine.
 
 ### Step 1: three ways to a plan (`app/(main)/calculator/page.tsx`)
+
+Room sizes are exact: the form and the room list take any value to the centimetre
+(`step 0.01`; the list's `SizeInput` commits on blur so "3." is not rewritten under the
+cursor), and handle drags snap sizes to 1 cm while positions keep the 25 cm grid. A 3.32 m
+room is a 3.32 m room.
 
 The calculator starts from the plan, not the home state: upload a 2D plan, enter rooms by
 hand, or draw one — three tabs in a row, the home state below. Every room carries an optional
@@ -701,7 +725,12 @@ Each of these cost real debugging time. Don't undo them.
 12. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group keyed on plan,
     finishes and style. Rebuilding everything on every drag was the studio's biggest stutter.
-13. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
+13. **Shared walls are extruded to the middle.** Each room extrudes its own walls outwards
+    by the wall thickness, and two rooms either side of one wall sit a thickness apart — so a
+    full-depth extrusion from each put room A's outer face exactly on room B's inner face,
+    and the two colours z-fought, flicking as the camera turned. `isSharedWithAnyRoom`
+    halves the depth for interior walls so the halves meet on a plane nobody sees.
+14. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
     visibility, so a cut-away wall still caught every click aimed at the sofa behind it.
     Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
     opening slabs); the default raycaster only tests layer 0.
@@ -907,7 +936,9 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
 - **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats.
   `StudioRail` opens one `FloatingPanel` at a time; `ViewSwitch` (2D / 3D / walk) and
   `ZoomControls` drive the viewer through the `ViewerApi` it hands back via `onApi`.
-  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it. The rail has
+  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it; walk mode moves
+  on WASD / arrows. **Keys are matched on `event.code`**, never `event.key`: on a Georgian
+  layout W types წ, and matching the character left the viewer standing still. The rail has
   five tabs: rooms, doors & windows, furniture (with the add-furniture browser), finishes, cost.
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.

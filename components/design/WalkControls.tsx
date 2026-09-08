@@ -11,7 +11,9 @@ const WALK_SPEED = 2.4;
 const RUN_SPEED = 4.4;
 const LOOK_SENSITIVITY = 0.0032;
 const PITCH_LIMIT = Math.PI / 2 - 0.08;
-const WALK_KEYS = new Set(['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
+// Physical key codes, not typed characters: on a Georgian (or any non-Latin) layout the W
+// key types "წ", and matching on `event.key` left the viewer standing still.
+const WALK_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 // Scratch object, so the per-frame work allocates nothing.
 const walkEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -20,7 +22,8 @@ const walkEuler = new THREE.Euler(0, 0, 0, 'YXZ');
  * First-person controls for standing inside the flat.
  *
  * Deliberately not pointer-lock: a web page that swallows the cursor the moment you click is
- * hostile. Drag to look, WASD or the arrow keys to walk, shift to hurry.
+ * hostile. Drag to look, WASD or the arrow keys to walk, shift to hurry. Keys are matched by
+ * physical position (`event.code`), so the layout the keyboard is set to does not matter.
  *
  * Movement is deliberately unclipped — walls and furniture do not stop the viewer. The
  * walkable area is only used to choose a sensible starting spot inside the focused room.
@@ -100,11 +103,11 @@ export function WalkControls({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
-      const key = event.key.toLowerCase();
-      pressedKeys.add(key);
-      if (WALK_KEYS.has(key)) event.preventDefault();
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      pressedKeys.add(event.code);
+      if (WALK_KEYS.has(event.code)) event.preventDefault();
     };
-    const onKeyUp = (event: KeyboardEvent) => pressedKeys.delete(event.key.toLowerCase());
+    const onKeyUp = (event: KeyboardEvent) => pressedKeys.delete(event.code);
     const onBlur = () => pressedKeys.clear();
 
     canvas.addEventListener('pointerdown', onDown);
@@ -129,14 +132,15 @@ export function WalkControls({
   useFrame((_, delta) => {
     const pressed = keys.current;
     const forward =
-      (pressed.has('w') || pressed.has('arrowup') ? 1 : 0) -
-      (pressed.has('s') || pressed.has('arrowdown') ? 1 : 0);
+      (pressed.has('KeyW') || pressed.has('ArrowUp') ? 1 : 0) -
+      (pressed.has('KeyS') || pressed.has('ArrowDown') ? 1 : 0);
     const strafe =
-      (pressed.has('d') || pressed.has('arrowright') ? 1 : 0) -
-      (pressed.has('a') || pressed.has('arrowleft') ? 1 : 0);
+      (pressed.has('KeyD') || pressed.has('ArrowRight') ? 1 : 0) -
+      (pressed.has('KeyA') || pressed.has('ArrowLeft') ? 1 : 0);
 
     if (forward !== 0 || strafe !== 0) {
-      const speed = (pressed.has('shift') ? RUN_SPEED : WALK_SPEED) * Math.min(delta, 0.05);
+      const running = pressed.has('ShiftLeft') || pressed.has('ShiftRight');
+      const speed = (running ? RUN_SPEED : WALK_SPEED) * Math.min(delta, 0.05);
       const sin = Math.sin(yaw.current);
       const cos = Math.cos(yaw.current);
 

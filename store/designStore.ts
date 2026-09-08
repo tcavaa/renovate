@@ -170,17 +170,17 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             matchProducts(
               items.map((i) => ({ ...i, pinned: false })),
               catalog,
-              { styleId, budgetGel }
+              { styleId, budgetGel, rooms: plan?.rooms }
             )
           ),
         });
       },
 
       setBudget: (budgetGel, catalog) => {
-        const { items, styleId } = get();
+        const { items, styleId, plan } = get();
         set({ budgetGel });
         if (items.length === 0 || catalog.length === 0) return;
-        set({ items: placeableOnly(matchProducts(items, catalog, { styleId, budgetGel })) });
+        set({ items: placeableOnly(matchProducts(items, catalog, { styleId, budgetGel, rooms: plan?.rooms })) });
       },
 
       setPlan: (plan, floorPlanUrl) =>
@@ -329,7 +329,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         const placed = layoutPlan(plan.rooms);
         // A slot no partner product can fill is dropped rather than shown as a stand-in.
         set((s) => {
-          let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel }));
+          let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms }));
           // Re-laying out the furniture is not a reason to lose the tiles someone picked.
           let finishes = keepChosen(defaultFinishes(plan, styleId), s.finishes);
           if (calculatorPicks) {

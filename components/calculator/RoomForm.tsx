@@ -73,9 +73,9 @@ export function RoomForm({ onAdd }: { onAdd: (room: Room) => void }) {
         <div className="grid grid-cols-3 gap-3 sm:col-span-2">
           {(
             [
-              [t.rooms.width, width, setWidth, 0.5, 0.1],
-              [t.rooms.length, length, setLength, 0.5, 0.1],
-              [t.rooms.height, height, setHeight, 2, 0.05],
+              [t.rooms.width, width, setWidth, 0.5, 0.01],
+              [t.rooms.length, length, setLength, 0.5, 0.01],
+              [t.rooms.height, height, setHeight, 2, 0.01],
             ] as Array<[string, string, (v: string) => void, number, number]>
           ).map(([label, value, set, min, step]) => (
             <div key={label} className="space-y-1.5">

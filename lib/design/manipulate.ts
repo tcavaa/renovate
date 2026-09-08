@@ -221,7 +221,7 @@ function flushAgainstWall(
 }
 
 /** Keeps the footprint inside the room's bounding box, so an item can't be dragged into a wall. */
-function clampInsideRoom(
+export function clampInsideRoom(
   room: PlanRoom,
   position: Vec2,
   size: { width: number; depth: number },

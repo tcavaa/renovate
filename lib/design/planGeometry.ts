@@ -593,7 +593,7 @@ function paramAt(edge: PlanEdge, key: 'x' | 'z', value: number): number {
   return clamp01((value - edge.a[key]) / span);
 }
 
-function isSharedWithAnyRoom(
+export function isSharedWithAnyRoom(
   room: PlanRoom,
   edge: PlanEdge,
   rooms: PlanRoom[],

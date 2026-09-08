@@ -130,3 +130,18 @@ describe('toSceneProduct', () => {
     expect(p.qty).toBe(3);
   });
 });
+
+describe('matchProducts with rooms', () => {
+  it('does not place a product that would poke through the wall, and takes the next one that fits', async () => {
+    const { matchProducts } = await import('@/lib/design/matcher');
+    const { refreshRoom } = await import('@/lib/design/planGeometry');
+    const room = refreshRoom({ id: 'small', type: 'living_room', name: 'small', polygon: [{ x: 0, z: 0 }, { x: 2.4, z: 0 }, { x: 2.4, z: 3 }, { x: 0, z: 3 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+    const huge = catalogProduct(901, { widthCm: 320, depthCm: 100, heightCm: 80, pricePerUnit: 100 });
+    const fits = catalogProduct(902, { widthCm: 200, depthCm: 90, heightCm: 80, pricePerUnit: 2000 });
+    const sofa = { ...slot('a', 'small'), kind: 'sofa_3seat', position: { x: 1.2, z: 0.5 }, size: { width: 2, depth: 0.9, height: 0.8 } };
+    const [placed] = matchProducts([sofa], [huge, fits], { styleId: 'scandinavian', rooms: [room] });
+    expect(placed.product?.productId).toBe(902);
+    const [dropped] = matchProducts([sofa], [huge], { styleId: 'scandinavian', rooms: [room] });
+    expect(dropped.product).toBeNull();
+  });
+});

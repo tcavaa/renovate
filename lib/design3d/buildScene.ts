@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { isSharedWithAnyRoom, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type {
   DesignScene,
   FloorPlan,
@@ -206,9 +206,16 @@ function buildRoomShell(
         isFeature && !wallFinish?.product ? {} : finishOverrides(wallFinish)
       );
 
+      // Each room extrudes its own wall outwards from its polygon. Two rooms either side of
+      // one wall are a wall thickness apart, so a full-thickness extrusion from each puts
+      // room A's outer face exactly on room B's inner face — and the two colours z-fight,
+      // flicking as the camera moves. A shared wall is therefore extruded only to the middle,
+      // where the two halves meet on a plane nobody can see. Exterior walls keep their depth.
+      const shared = isSharedWithAnyRoom(room, edge, plan.rooms, plan.wallThicknessM * 1.5);
+      const depth = shared ? plan.wallThicknessM / 2 : plan.wallThicknessM;
       // Nudge each room's wall height by a hair so shared walls between two rooms do not
       // z-fight along their top edge when seen from above.
-      const wall = buildWall(edge, room.heightM + index * 0.0006, plan.wallThicknessM, openings, wallMaterial);
+      const wall = buildWall(edge, room.heightM + index * 0.0006, depth, openings, wallMaterial);
       const outward = { x: -edge.inward.x, z: -edge.inward.z };
       tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward } satisfies SceneUserData);
       group.add(wall);

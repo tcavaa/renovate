@@ -1448,6 +1448,8 @@ export const en: Dictionary = {
     carryHint: 'The item is on your pointer · move it over the room and click to set it down · R — rotate · Esc — cancel',
     carryStarted: 'The item is on your pointer — place it in the room: green outline = fits, red = not yet. Esc cancels.',
     walkHint: 'Drag to look · WASD or arrows to walk · Shift to hurry',
+    tightPassage: 'Tight passage — {n} cm',
+    tightPassageHint: 'Amber outline: hard to get past here — move or swap the piece',
     rotate: 'Rotate',
     rotateLeft: 'Rotate left',
     rotateRight: 'Rotate right',

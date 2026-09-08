@@ -33,6 +33,7 @@ import {
 import { edgeOf, projectToEdge } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
+import { tightSpotsByItem } from '@/lib/design/clearance';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
 import { isPlacementValid, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
@@ -237,6 +238,26 @@ function SceneContent({
   // -------------------------------------------------------------------------
 
   const outlines = useMemo(() => ({ hover: makeOutline(), active: makeOutline() }), []);
+
+  // Tight passages: an amber box around every piece a person could not get past. One outline
+  // per flagged item, rebuilt when the furniture changes; the pool is disposed with the scene.
+  const warnings = useMemo(() => new THREE.Group(), []);
+  useEffect(() => {
+    for (const child of [...warnings.children]) {
+      warnings.remove(child);
+      disposeOutline(child as THREE.LineSegments);
+    }
+    if (walking) return;
+    const flagged = tightSpotsByItem(plan.rooms, scene.items);
+    for (const item of scene.items) {
+      if (!flagged.has(item.id) || !item.product) continue;
+      const line = makeOutline();
+      applyOutline(line, item, 0xf59e0b);
+      warnings.add(line);
+    }
+  }, [warnings, plan.rooms, scene.items, walking]);
+  useEffect(() => () => warnings.children.forEach((c) => disposeOutline(c as THREE.LineSegments)), [warnings]);
+
   useEffect(() => {
     const { hover, active } = outlines;
     return () => {
@@ -724,6 +745,7 @@ function SceneContent({
         <primitive object={itemsGroup} />
       </group>
 
+      <primitive object={warnings} />
       <primitive object={outlines.active} />
       <primitive object={outlines.hover} />
 

@@ -93,7 +93,15 @@ export default function SummaryPage() {
   const totalM2 = useMemo(() => rooms.reduce((s, r) => s + r.floorM2, 0), [rooms]);
   const fee = platformFee(totalM2, fees.calculatorFeePerM2);
 
-  const designPart = useDesignStore((s) => (designExists ? designCheckoutPart(s.plan, s.items, s.finishes, fees.designFeePerM2, locale) : null));
+  // Select the slices, not a derived object: a selector that builds a new object every call
+  // is a new snapshot every render, and useSyncExternalStore loops on that.
+  const designPlan = useDesignStore((s) => s.plan);
+  const designItems = useDesignStore((s) => s.items);
+  const designFinishes = useDesignStore((s) => s.finishes);
+  const designPart = useMemo(
+    () => (designExists ? designCheckoutPart(designPlan, designItems, designFinishes, fees.designFeePerM2, locale) : null),
+    [designExists, designPlan, designItems, designFinishes, fees.designFeePerM2, locale]
+  );
   const checkoutParts: CheckoutPart[] = summary
     ? [
         {

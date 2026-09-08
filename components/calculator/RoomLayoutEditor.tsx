@@ -16,6 +16,9 @@ export interface DrawnRect {
 }
 
 const MIN_SIDE_M = 1;
+/** Sizes snap to the centimetre while dragging; a 3.32 m room is a 3.32 m room. Positions keep the coarser grid. */
+const SIZE_GRID_M = 0.01;
+const snapSize = (v: number) => snap(v, SIZE_GRID_M);
 
 /** Which handle is held: corners scale proportionally, sides change one dimension. */
 type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e';
@@ -111,19 +114,19 @@ export function RoomLayoutEditor({
       const anchorZ = handle.includes('n') ? bottom : start.z;
       const dx = Math.abs(w.x - anchorX);
       const dz = Math.abs(w.z - anchorZ);
-      width = Math.max(MIN_SIDE_M, snap(Math.max(dx, dz / g.ratio)));
-      length = Math.max(MIN_SIDE_M, snap(width * g.ratio));
+      width = Math.max(MIN_SIDE_M, snapSize(Math.max(dx, dz / g.ratio)));
+      length = Math.max(MIN_SIDE_M, snapSize(width * g.ratio));
       x = handle.includes('w') ? anchorX - width : anchorX;
       z = handle.includes('n') ? anchorZ - length : anchorZ;
     } else if (handle === 'e') {
-      width = Math.max(MIN_SIDE_M, snap(w.x - start.x));
+      width = Math.max(MIN_SIDE_M, snapSize(w.x - start.x));
     } else if (handle === 'w') {
-      width = Math.max(MIN_SIDE_M, snap(right - w.x));
+      width = Math.max(MIN_SIDE_M, snapSize(right - w.x));
       x = right - width;
     } else if (handle === 's') {
-      length = Math.max(MIN_SIDE_M, snap(w.z - start.z));
+      length = Math.max(MIN_SIDE_M, snapSize(w.z - start.z));
     } else if (handle === 'n') {
-      length = Math.max(MIN_SIDE_M, snap(bottom - w.z));
+      length = Math.max(MIN_SIDE_M, snapSize(bottom - w.z));
       z = bottom - length;
     }
     return { x: Math.max(0, x), z: Math.max(0, z), width, length };
@@ -137,7 +140,7 @@ export function RoomLayoutEditor({
     } else if (gesture.kind === 'resize') {
       setGesture({ ...gesture, rect: resized(gesture, w) });
     } else {
-      setGesture({ ...gesture, x1: Math.max(0, snap(w.x)), z1: Math.max(0, snap(w.z)) });
+      setGesture({ ...gesture, x1: Math.max(0, snapSize(w.x)), z1: Math.max(0, snapSize(w.z)) });
     }
   };
 

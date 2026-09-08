@@ -78,9 +78,20 @@ export function RoomList({
                     <p className="truncate font-serif text-base font-semibold text-ink">{room.nameKa}</p>
                   )}
                   <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
-                    <span className="tabular-nums">
-                      {room.width} × {room.length} × {room.height} {t.units.m}
-                    </span>
+                    {onUpdate ? (
+                      <span className="inline-flex items-center gap-1 tabular-nums" onClick={(e) => e.stopPropagation()}>
+                        <SizeInput value={room.width} label={t.rooms.width} onCommit={(v) => onUpdate(room.id, { width: v })} />
+                        ×
+                        <SizeInput value={room.length} label={t.rooms.length} onCommit={(v) => onUpdate(room.id, { length: v })} />
+                        ×
+                        <SizeInput value={room.height} label={t.rooms.height} min={2} onCommit={(v) => onUpdate(room.id, { height: v })} />
+                        {t.units.m}
+                      </span>
+                    ) : (
+                      <span className="tabular-nums">
+                        {room.width} × {room.length} × {room.height} {t.units.m}
+                      </span>
+                    )}
                     <span className="text-ink-faint">·</span>
                     <span className="font-semibold tabular-nums text-ink">{formatM2L(t, room.floorM2)}</span>
                     {room.isWetRoom && <span className="border border-line px-1 py-px text-[10px] uppercase tracking-wide">{t.rooms.wet}</span>}
@@ -122,5 +133,34 @@ function IconBtn({ label, disabled, danger, onClick, children }: { label: string
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * A dimension typed exactly — 3.32 is 3.32, no step to snap to. Uncontrolled while typing
+ * (so "3." is not rewritten to "3" under the cursor) and committed on blur or Enter; the key
+ * resets the field when the room's own value changes, for example from a handle drag.
+ */
+function SizeInput({ value, label, min = 0.5, onCommit }: { value: number; label: string; min?: number; onCommit: (value: number) => void }) {
+  const commit = (raw: string) => {
+    const n = Number(raw.replace(',', '.'));
+    if (Number.isFinite(n) && n >= min && n <= 50 && n !== value) onCommit(Number(n.toFixed(2)));
+  };
+  return (
+    <input
+      key={value}
+      type="number"
+      inputMode="decimal"
+      step="0.01"
+      min={min}
+      max={50}
+      defaultValue={value}
+      aria-label={label}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+      className="h-6 w-14 border border-line bg-white px-1 text-center text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+    />
   );
 }

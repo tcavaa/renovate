@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, Loader2, Plus } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -25,6 +25,8 @@ import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
+import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
+import { fill } from '@/lib/admin/list';
 import type { PlacedItem, Vec2 } from '@/lib/design/types';
 import type { ViewerApi } from '@/components/design/Viewer3D';
 
@@ -196,18 +198,19 @@ export default function StudioPage() {
       if (event.metaKey || event.ctrlKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && /INPUT|TEXTAREA|SELECT/.test(target.tagName)) return;
-      const key = event.key.toLowerCase();
-      if (key === 'escape') {
+      // Physical keys (`event.code`), so R is R on a Georgian layout too.
+      const code = event.code;
+      if (code === 'Escape') {
         // Escape while carrying takes the piece back out of the room.
         if (carryingItemId) cancelCarry();
         else selectItem(null);
         setSelectedSurface(null);
-      } else if (key === 'r' && selectedItemId) {
+      } else if (code === 'KeyR' && selectedItemId) {
         event.preventDefault();
         rotateSelected(event.shiftKey ? -1 : 1);
-      } else if (key === '1') setView('2d');
-      else if (key === '2') setView('3d');
-      else if (key === '3') setView('walk');
+      } else if (code === 'Digit1') setView('2d');
+      else if (code === 'Digit2') setView('3d');
+      else if (code === 'Digit3') setView('walk');
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -236,6 +239,8 @@ export default function StudioPage() {
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;
   const visibleItems = focusRoom ? items.filter((i) => i.roomId === focusRoom.id) : items;
+  // Cheap enough per render (a few dozen boxes), and this line sits below an early return.
+  const tightSpots: Map<string, TightSpot> = plan ? tightSpotsByItem(plan.rooms, items) : new Map();
 
   return (
     <>
@@ -379,6 +384,7 @@ export default function StudioPage() {
                     <Plus className="h-4 w-4" />
                     {t.design.addFurniture}
                   </button>
+                  {visibleItems.some((i) => tightSpots.has(i.id)) && <p className="mb-2 text-[11px] text-warning">{t.design.tightPassageHint}</p>}
                   {visibleItems.length === 0 ? (
                     <p className="py-6 text-center text-sm text-ink-muted">{t.design.emptyRoom}</p>
                   ) : (
@@ -398,6 +404,12 @@ export default function StudioPage() {
                               <span className={cn('block truncate text-xs', selectedItemId === item.id ? 'text-white/70' : 'text-ink-muted')}>
                                 {archetypeLabel(item.kind, locale)}
                               </span>
+                              {tightSpots.has(item.id) && (
+                                <span className={cn('mt-0.5 flex items-center gap-1 text-[11px] font-medium', selectedItemId === item.id ? 'text-amber-300' : 'text-warning')}>
+                                  <AlertTriangle className="h-3 w-3" />
+                                  {fill(t.design.tightPassage, { n: Math.round(tightSpots.get(item.id)!.gapM * 100) })}
+                                </span>
+                              )}
                             </span>
                             {item.product && <span className="shrink-0 text-xs tabular-nums">{formatGEL(item.product.totalPrice)}</span>}
                           </button>
