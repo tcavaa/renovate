@@ -72,7 +72,13 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   // written into rather than duplicated. An ordered project is history and gets a new row.
   const existing = await ownProject(projectId, userId);
   if (existing) {
-    await db.update(projects).set(calculatorColumns).where(eq(projects.id, existing.id));
+    // A project with a calculation is renovation + design, whatever the studio was told when
+    // the design was saved first; the scene's mode follows so reopening it prices the works.
+    const scene = existing.scene as { mode?: string } | null;
+    await db
+      .update(projects)
+      .set({ ...calculatorColumns, mode: 'full', ...(scene && scene.mode !== 'full' ? { scene: { ...scene, mode: 'full' } } : {}) })
+      .where(eq(projects.id, existing.id));
     return ok({ id: existing.id, summary });
   }
 
