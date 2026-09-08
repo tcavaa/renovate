@@ -68,6 +68,8 @@ export default function StudioPage() {
     beginAdd,
     finishCarry,
     cancelCarry,
+    pendingPicks,
+    applyPendingPicks,
     addOpening,
     moveOpening,
     updateOpening,
@@ -75,6 +77,11 @@ export default function StudioPage() {
     removeOpening,
   } = useDesignStore();
   const { products } = useDesignCatalog();
+
+  // Calculator picks that arrived for an existing design go into it once the catalogue is here.
+  useEffect(() => {
+    if (pendingPicks && products.length > 0) applyPendingPicks(products);
+  }, [pendingPicks, products, applyPendingPicks]);
   const { book } = useRateBook();
 
   const [view, setView] = useState<StudioView>('3d');

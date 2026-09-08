@@ -9,7 +9,10 @@ import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { RoomForm } from '@/components/calculator/RoomForm';
 import { RoomList } from '@/components/calculator/RoomList';
 import { RoomLayoutEditor, type DrawnRect } from '@/components/calculator/RoomLayoutEditor';
+import Image from 'next/image';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
+import { PlanSketch } from '@/components/projects/PlanSketch';
+import { Button } from '@/components/ui/button';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { useCalculatorStore } from '@/store/calculatorStore';
@@ -30,6 +33,12 @@ export default function CalculatorStep1Page() {
   const t = useT();
   const { homeState, rooms, setHomeState, addRoom, replaceRooms, updateRoom, removeRoom, moveRoom, reorderRoom } = useCalculatorStore();
   const setPlan = useDesignStore((s) => s.setPlan);
+  const designPlan = useDesignStore((s) => s.plan);
+  const floorPlanUrl = useDesignStore((s) => s.floorPlanUrl);
+  const [replacingPlan, setReplacingPlan] = useState(false);
+  // The studio's plan for these very rooms — a project designed first, or a plan uploaded
+  // here earlier — so step 1 shows it as done instead of asking for it again.
+  const planOnFile = !!designPlan && rooms.length > 0 && designPlan.rooms.length === rooms.length && designPlan.rooms.every((r) => rooms.some((room) => room.id === r.id));
   const [mode, setMode] = useState<PlanMode>('upload');
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +143,26 @@ export default function CalculatorStep1Page() {
             })}
           </div>
 
-          {mode === 'upload' && (
+          {mode === 'upload' && planOnFile && !replacingPlan && designPlan && (
+            <div className="grid items-center gap-5 border border-line bg-bg-surface p-5 sm:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="border border-line bg-white p-2">
+                {floorPlanUrl ? (
+                  <Image src={floorPlanUrl} alt="" width={440} height={330} unoptimized className="h-auto max-h-44 w-full object-contain" />
+                ) : (
+                  <PlanSketch plan={designPlan} rooms={rooms} className="block h-auto w-full" />
+                )}
+              </div>
+              <div>
+                <p className="font-medium text-success">{t.calculator.planAlreadyUploaded.replace('{n}', String(rooms.length))}</p>
+                <p className="mt-1 text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
+                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setReplacingPlan(true)}>
+                  {t.calculator.replacePlan}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {mode === 'upload' && (!planOnFile || replacingPlan) && (
             <div className="border border-line bg-bg-surface p-5">
               <p className="text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
               <div className="mt-4">
@@ -146,6 +174,7 @@ export default function CalculatorStep1Page() {
                     replaceRooms(fromPlan);
                     setPlan(plan, imageUrl);
                     setPlanNotice(fromPlan.length);
+                    setReplacingPlan(false);
                     setSelectedRoomId(null);
                     document.getElementById('rooms-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}

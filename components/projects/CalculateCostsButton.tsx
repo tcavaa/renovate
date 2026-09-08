@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
-import type { SavedProjectInput } from '@/lib/projects/saved';
+import { picksFromScene, type SavedProjectInput } from '@/lib/projects/saved';
 
 /**
  * Opens a saved project in the calculator: its rooms (from the plan when it was designed
@@ -21,17 +21,22 @@ export function CalculateCostsButton({ project, size = 'md', className }: { proj
   const openSaved = useDesignStore((s) => s.openSaved);
 
   const open = () => {
+    // A project designed first has no calculator picks yet: the studio's products stand in,
+    // so the furniture and materials steps show what was chosen rather than nothing.
+    const noPicks = Object.keys(project.selectedProducts).length === 0 && Object.keys(project.selectedFurniture).length === 0;
+    const picks = noPicks && project.scene ? picksFromScene(project.scene) : { selectedProducts: project.selectedProducts, selectedFurniture: project.selectedFurniture };
     openSavedProject({
       projectId: project.id,
       rooms: project.rooms,
-      homeState: project.homeState,
-      selectedProducts: project.selectedProducts,
-      selectedFurniture: project.selectedFurniture,
+      // A design-only project never chose a home state; the row's default is not a choice.
+      homeState: project.hasCalculator ? project.homeState : null,
+      ...picks,
     });
     if (project.plan && project.scene) {
       openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
     }
-    router.push('/calculator');
+    // Plan and home state already settled means step 1 is done: straight to the materials.
+    router.push(project.hasCalculator ? '/calculator/materials' : '/calculator');
   };
 
   return (

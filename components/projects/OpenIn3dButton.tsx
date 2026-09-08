@@ -29,7 +29,7 @@ export function OpenIn3dButton({ project, size = 'md', className }: { project: S
 
   return (
     <Button3d onClick={open} size={size} className={className} disabled={project.rooms.length === 0}>
-      {t.profile.openIn3d}
+      {project.hasDesign ? t.profile.openIn3d : t.profile.createIn3d}
     </Button3d>
   );
 }

@@ -512,9 +512,21 @@ save over it gets a new row.
 
 `CalculateCostsButton` is the other direction: a design-first project opens in the
 calculator with the plan's rooms (`planToCalculatorRooms` keeps their positions) and the
-same id, so the estimate lands in the same row. The project page lists the studio's
-products by store (`designLines`) under the calculator's own tables, and each partner order
-under it unfolds into its lines.
+same id, so the estimate lands in the same row. A renovation + design project chose a home
+state in the studio, so it counts as having a calculation (`hasCalculator` is also true for
+`mode = 'full'`), the button reads "open in the calculator" and lands on the materials step
+— step 1 is done; a design-only project lands on step 1 to choose the home state. The
+studio's products come along as the calculator's picks (`picksFromScene`: items become the
+room's furniture, the first finish per category the category's material) so nothing is
+chosen twice, and step 1 shows the plan already on file instead of asking for it. The
+project page lists the studio's products by store (`designLines`) under the calculator's own
+tables, and each partner order under it unfolds into its lines.
+
+Going the other way with a design already saved for the project, the summary's 3D button
+reads "view in 3D" and `startFromCalculator` keeps the existing design (same `projectId`,
+same rooms) instead of laying the flat out again; the studio applies the calculator's new
+picks on entry (`pendingPicks` → `applyPendingPicks`). `OpenIn3dButton` reads "create in
+3D" for a project without one.
 
 `StoreOwnerGuard` (root layout) remembers whose work the two localStorage stores hold and
 wipes both when a signed-in user signs out or a different account signs in — the next person

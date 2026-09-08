@@ -33,15 +33,22 @@ type PlanMode = 'upload' | 'manual' | 'draw';
 export default function DesignStartPage() {
   const t = useT();
   const router = useRouter();
-  const { mode, setMode, setPlan, homeState, setHomeState } = useDesignStore();
+  const { mode, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId } = useDesignStore();
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
   const [planMode, setPlanMode] = useState<PlanMode>('upload');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
   const useCalculator = () => {
-    if (calculatorRooms.length === 0) return;
-    setPlan(planFromCalculatorRooms(calculatorRooms));
+    const calc = useCalculatorStore.getState();
+    if (calc.rooms.length === 0) return;
+    // The calculation and this design are one project: carry its home state, picks and id.
+    if (calc.homeState) {
+      startFromCalculator({ rooms: calc.rooms, homeState: calc.homeState, selectedProducts: calc.selectedProducts, selectedFurniture: calc.selectedFurniture, projectId: calc.projectId });
+    } else {
+      setPlan(planFromCalculatorRooms(calc.rooms));
+      setProjectId(calc.projectId);
+    }
     router.push('/design/plan');
   };
 

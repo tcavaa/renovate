@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, isNotNull, like, lte, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNotNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
   if (p.get('status')) where.push(eq(projects.status, p.get('status') as 'draft' | 'saved' | 'submitted'));
   if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as 'black_frame' | 'white_frame' | 'green_frame'));
   if (p.get('kind') === 'design') where.push(isNotNull(projects.plan));
-  if (p.get('kind') === 'calculator') where.push(isNotNull(projects.selectedProducts));
+  if (p.get('kind') === 'calculator') where.push(or(isNotNull(projects.selectedProducts), eq(projects.mode, 'full'))!);
   if (p.get('dateFrom')) where.push(gte(projects.createdAt, new Date(p.get('dateFrom'))));
   if (p.get('dateTo')) where.push(lte(projects.createdAt, new Date(`${p.get('dateTo')}T23:59:59`)));
   if (p.num('costMin') != null) where.push(gte(projects.totalCost, String(p.num('costMin'))));
@@ -56,7 +56,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
         createdAt: projects.createdAt,
         styleId: projects.styleId,
         isDesign: isNotNull(projects.plan),
-        hasCalculator: isNotNull(projects.selectedProducts),
+        hasCalculator: sql<number>`(${projects.selectedProducts} IS NOT NULL OR ${projects.mode} = 'full')`,
         userName: users.name,
         userEmail: users.email,
       })

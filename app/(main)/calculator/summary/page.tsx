@@ -53,6 +53,8 @@ export default function SummaryPage() {
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
+  const designProjectId = useDesignStore((s) => s.projectId);
+  const designHasItems = useDesignStore((s) => s.items.length > 0 && s.plan != null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -63,11 +65,17 @@ export default function SummaryPage() {
   const autoSaveAttempted = useRef(false);
   const inFlightRef = useRef(false);
 
-  /** Carries rooms, home state, every pick and the saved project into the studio; style is the only step left. */
+  /**
+   * Carries rooms, home state, every pick and the saved project into the studio. A project
+   * that already has a design opens it with the picks applied; otherwise style is the only
+   * step left.
+   */
+  const currentProjectId = savedId ?? projectId;
+  const designExists = designHasItems && currentProjectId != null && designProjectId === currentProjectId;
   const viewIn3d = () => {
     if (!homeState) return;
-    startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: savedId ?? projectId });
-    router.push('/design/style');
+    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId });
+    router.push(landing === 'studio' ? '/design/studio' : '/design/style');
   };
 
   const ready = !!homeState && rooms.length > 0;
@@ -228,7 +236,7 @@ export default function SummaryPage() {
             {ka.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin + fee)}</span>
           </p>
           <Button3d onClick={viewIn3d} disabled={!ready}>
-            {ka.calculator.view3dButton}
+            {designExists ? ka.profile.openIn3d : ka.calculator.view3dButton}
           </Button3d>
         </div>
       </StepNav>

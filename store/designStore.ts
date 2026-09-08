@@ -62,6 +62,8 @@ interface DesignState {
   selectedItemId: string | null;
   /** An item just added from the catalogue, riding on the pointer until it is clicked down. */
   carryingItemId: string | null;
+  /** Calculator picks arrived for a design that already exists; the studio applies them on entry. */
+  pendingPicks: boolean;
   step: StudioStep;
 }
 
@@ -91,7 +93,9 @@ interface DesignActions {
     selectedFurniture: Record<string, SelectedProduct[]>;
     /** The saved calculator project, so the design is written into the same row. */
     projectId?: number | null;
-  }) => void;
+  }) => 'studio' | 'style';
+  /** Puts pending calculator picks into the existing design without re-laying it out. */
+  applyPendingPicks: (catalog: CatalogProduct[]) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
   openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null }) => void;
   /** Gives rooms a floor or wall finish; null returns them to the style's default. */
@@ -141,6 +145,7 @@ const initial: DesignState = {
   focusRoomId: null,
   selectedItemId: null,
   carryingItemId: null,
+  pendingPicks: false,
   step: 1,
 };
 
@@ -196,6 +201,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
       openSaved: ({ projectId = null, plan, scene, floorPlanUrl, homeState }) =>
         set({
           projectId,
+          pendingPicks: false,
           plan,
           floorPlanUrl,
           homeState,
@@ -334,7 +340,8 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         });
       },
 
-      startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null }) =>
+      startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null }) => {
+        let landing: 'studio' | 'style' = 'style';
         set((s) => {
           // A plan uploaded in the calculator keeps its real walls; rooms typed by hand become
           // a row of rectangles. Either way the calculator's types, names and heights win.
@@ -356,19 +363,44 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           } else {
             plan = planFromCalculatorRooms(rooms);
           }
+          const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture);
+          // The same project already has a design: keep it, and let the studio put the
+          // calculator's picks into it rather than laying the flat out again.
+          const keepDesign = projectId != null && s.projectId === projectId && reusable && s.items.length > 0;
+          if (keepDesign) {
+            landing = 'studio';
+            return { plan, projectId, mode: 'full', homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 4 };
+          }
           return {
             plan,
             projectId,
             mode: 'full',
             homeState,
-            calculatorPicks: picksFromCalculator(selectedProducts, selectedFurniture),
+            calculatorPicks,
+            pendingPicks: false,
             items: [],
             finishes: defaultFinishes(plan, s.styleId),
             focusRoomId: null,
             selectedItemId: null,
             step: 3,
           };
-        }),
+        });
+        return landing;
+      },
+
+      applyPendingPicks: (catalog) => {
+        const { plan, items, finishes, calculatorPicks, pendingPicks } = get();
+        if (!pendingPicks) return;
+        if (!plan || !calculatorPicks) {
+          set({ pendingPicks: false });
+          return;
+        }
+        set({
+          items: placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog)),
+          finishes: applyFinishPicks(finishes, plan, calculatorPicks, catalog),
+          pendingPicks: false,
+        });
+      },
 
       setFinish: (roomIds, surface, product) =>
         set((s) => {
