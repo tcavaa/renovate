@@ -151,3 +151,37 @@ describe('report periods', () => {
     expect(eachDay(broken)).toHaveLength(30);
   });
 });
+
+describe('mergeLines', () => {
+  const line = (productId: number, total: number, qty = 1, roomName: string | null = null) => ({ productId, nameKa: `p${productId}`, nameEn: null, nameRu: null, categorySlug: null, roomName, unit: 'piece', qty, unitPrice: total / qty, total });
+
+  it('lets the design supersede the calculator copy of a product and keeps repeated items', async () => {
+    const { mergeLines } = await import('@/lib/finance/money');
+    const design = { groups: new Map([[10, [line(2, 200, 1, 'kitchen'), line(2, 200, 1, 'kitchen'), line(3, 300)]]]), unassigned: [] };
+    const calculator = { groups: new Map([[10, [line(1, 100), line(2, 200)]]]), unassigned: [line(9, 5)] };
+    const merged = mergeLines(design, calculator);
+    // two chairs stay two chairs; the calculator's chair is the same product and is dropped
+    expect(merged.groups.get(10)!.map((l) => l.productId)).toEqual([2, 2, 3, 1]);
+    expect(merged.skipped).toBe(1);
+    expect(merged.unassigned.map((l) => l.productId)).toEqual([9]);
+  });
+
+  it('takes units ordered earlier off the top, product by product', async () => {
+    const { mergeLines } = await import('@/lib/finance/money');
+    const design = { groups: new Map([[10, [line(2, 200), line(2, 200), line(2, 200), line(4, 400, 2)]]]), unassigned: [] };
+    const merged = mergeLines(design, null, { 2: 1, 4: 1 });
+    const chairs = merged.groups.get(10)!.filter((l) => l.productId === 2);
+    expect(chairs).toHaveLength(2); // one of three was ordered before
+    const table = merged.groups.get(10)!.find((l) => l.productId === 4)!;
+    expect(table.qty).toBe(1); // two wanted, one already ordered
+    expect(table.total).toBe(200);
+    expect(merged.skipped).toBe(1);
+  });
+
+  it('is a plain union when nothing repeats', async () => {
+    const { mergeLines } = await import('@/lib/finance/money');
+    const merged = mergeLines({ groups: new Map([[10, [line(1, 100)]]]), unassigned: [] }, { groups: new Map([[20, [line(2, 50)]]]), unassigned: [] });
+    expect(merged.skipped).toBe(0);
+    expect([...merged.groups.keys()]).toEqual([10, 20]);
+  });
+});

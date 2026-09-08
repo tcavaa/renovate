@@ -4,7 +4,7 @@ import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { checkoutForProject, ordersForProject } from '@/lib/finance/orders';
+import { checkoutsForProject, ordersForProject } from '@/lib/finance/orders';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
@@ -13,7 +13,8 @@ import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
  * status, total and whatever the partner wrote back. Server component — reads the database.
  */
 export async function ProjectOrders({ projectId, t, locale, orderHref }: { projectId: number; t: Dictionary; locale: Locale; orderHref?: (id: number) => string }) {
-  const [orders, checkout] = await Promise.all([ordersForProject(projectId), checkoutForProject(projectId)]);
+  const [orders, checkouts] = await Promise.all([ordersForProject(projectId), checkoutsForProject(projectId)]);
+  const fees = checkouts.filter((c) => Number(c.platformFee) > 0);
   const dateLocale = dateLocaleFor(locale);
 
   return (
@@ -22,10 +23,15 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
         <h2 className="font-serif text-2xl font-semibold text-ink">
           {t.market.ordersTitle} <span className="ml-2 text-base font-normal text-ink-muted">({orders.length})</span>
         </h2>
-        {checkout && (
-          <p className="text-sm text-ink-muted">
-            {t.market.feeRecorded}: <span className="font-semibold text-ink">{formatGEL(Number(checkout.platformFee))}</span>
-            <span className="ml-2 text-xs">{fill(t.market.platformFeeHint, { fee: formatGEL(Number(checkout.feePerM2)), m2: formatM2(Number(checkout.totalM2)) })}</span>
+        {fees.length > 0 && (
+          <p className="text-right text-sm text-ink-muted">
+            {t.market.feeRecorded}:
+            {fees.map((c) => (
+              <span key={c.id} className="ml-2 inline-block">
+                <span className="text-xs">{c.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}</span> <span className="font-semibold text-ink">{formatGEL(Number(c.platformFee))}</span>
+                <span className="ml-1 text-xs">({fill(t.market.platformFeeHint, { fee: formatGEL(Number(c.feePerM2)), m2: formatM2(Number(c.totalM2)) })})</span>
+              </span>
+            ))}
           </p>
         )}
       </div>

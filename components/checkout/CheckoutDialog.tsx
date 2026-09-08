@@ -1,64 +1,130 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { CheckCircle2, Loader2, Send } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CustomerFields, type CustomerForm } from '@/components/checkout/CustomerFields';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { apiErrorMessage, localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import type { CheckoutResult } from '@/lib/finance/orders';
-import { formatGEL, formatM2 } from '@/lib/utils';
+import type { CheckoutResult, ProjectOrderState } from '@/lib/finance/orders';
+import { platformFee, type CheckoutKind } from '@/lib/finance/money';
+import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+
+/** One half of a project as the dialog summarises it: the fee it carries and the products it would send. */
+export interface CheckoutPart {
+  kind: CheckoutKind;
+  totalM2: number;
+  feePerM2: number;
+  lines: Array<{ key: string; productId: number | null; name: string; qty: number; total: number; where: string | null }>;
+}
 
 /**
  * The step that turns an estimate into business: the customer leaves their contact, the
  * project is saved (by the caller, so each summary saves in its own shape), and the platform
- * writes the fee and one order per store. Guests are welcome — the whole point is that a
- * calculation should be orderable without an account. Nothing is paid here; the fee is shown.
+ * writes the fees and one order per store. A project with both halves is one checkout: a
+ * quick line per half — fee and products — with the full list a click away; a half ordered
+ * earlier is shown as already paid, and products already sent to a store are not sent again.
+ * Guests are welcome. Nothing is paid here; the fees are shown.
  */
 export function CheckoutDialog({
   open,
   onOpenChange,
   saveProject,
-  fee,
-  totalM2,
-  feePerM2,
-  goodsTotal,
-  storeCount,
+  projectId,
+  parts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Saves (or reuses) the project and returns its id; throws on failure. */
   saveProject: () => Promise<number>;
-  fee: number;
-  totalM2: number;
-  feePerM2: number;
-  goodsTotal: number;
-  storeCount: number | null;
+  /** The saved project, when known, so earlier checkouts of it can be shown. */
+  projectId: number | null;
+  parts: CheckoutPart[];
 }) {
   const t = useT();
   const locale = useLocale();
   const { data: session } = useSession();
   const [form, setForm] = useState<CustomerForm | null>(null);
-  // Until the customer types, the form shows what the session knows — no effect needed.
   const value: CustomerForm = form ?? { name: session?.user?.name ?? '', phone: '', email: session?.user?.email ?? '', note: '' };
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResult | null>(null);
+  const [state, setState] = useState<ProjectOrderState | null>(null);
+  const [full, setFull] = useState(false);
+
+  // What earlier sittings already ordered, so the preview matches what the server will do.
+  useEffect(() => {
+    if (!open || !projectId) return;
+    let cancelled = false;
+    fetch(`/api/checkout?projectId=${projectId}`)
+      .then((r) => r.json())
+      .then((json: { data: ProjectOrderState | null }) => {
+        if (!cancelled) setState(json.data);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, projectId]);
+
+  const orderedKinds = new Set(state?.orderedKinds ?? []);
+  // Same rules the server applies: the design's lines win over the calculator's copies of a
+  // product, and units ordered earlier are taken off the top, product by product.
+  const designProducts = new Set(parts.filter((p) => p.kind === 'design').flatMap((p) => p.lines.map((l) => l.productId)).filter((id): id is number => id != null));
+  const covered: Record<number, number> = {};
+  for (const [key, qty] of Object.entries(state?.orderedQty ?? {})) covered[Number(key)] = qty;
+  const marked = new Map<string, boolean>();
+  for (const part of [...parts.filter((p) => p.kind === 'design'), ...parts.filter((p) => p.kind !== 'design')]) {
+    for (const line of part.lines) {
+      if (line.productId == null) {
+        marked.set(line.key, false);
+        continue;
+      }
+      if (part.kind !== 'design' && designProducts.has(line.productId)) {
+        marked.set(line.key, true);
+        continue;
+      }
+      const remaining = covered[line.productId] ?? 0;
+      if (remaining >= line.qty) {
+        covered[line.productId] = remaining - line.qty;
+        marked.set(line.key, true);
+        continue;
+      }
+      covered[line.productId] = 0;
+      marked.set(line.key, false);
+    }
+  }
+  const view = parts.map((part) => {
+    const lines = part.lines.map((line) => ({ ...line, duplicate: marked.get(line.key) ?? false }));
+    const feePaid = orderedKinds.has(part.kind);
+    return {
+      ...part,
+      lines,
+      feePaid,
+      fee: feePaid ? 0 : platformFee(part.totalM2, part.feePerM2),
+      goods: lines.filter((l) => !l.duplicate).reduce((s, l) => s + l.total, 0),
+      skipped: lines.filter((l) => l.duplicate).length,
+    };
+  });
+  const feeTotal = view.reduce((s, p) => s + p.fee, 0);
+  const goodsTotal = view.reduce((s, p) => s + p.goods, 0);
+  const skipped = view.reduce((s, p) => s + p.skipped, 0);
+  const partLabel = (kind: CheckoutKind) => (kind === 'design' ? t.market.partDesign : t.market.partCalculator);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      const projectId = await saveProject();
+      const id = await saveProject();
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
+        body: JSON.stringify({ projectId: id, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
       });
       const json = (await res.json()) as { data: CheckoutResult | null; error: string | null };
       if (!res.ok || !json.data) {
@@ -86,10 +152,14 @@ export function CheckoutDialog({
               <DialogDescription className="text-center">{fill(t.market.successDesc, { id: result.checkoutId })}</DialogDescription>
             </DialogHeader>
             <div className="border border-line">
-              <div className="flex items-baseline justify-between border-b border-line px-4 py-2.5 text-sm">
-                <span className="text-ink-muted">{t.market.feeRecorded}</span>
-                <span className="font-semibold tabular-nums">{formatGEL(result.platformFee)}</span>
-              </div>
+              {result.fees.map((f) => (
+                <div key={f.kind} className="flex items-baseline justify-between border-b border-line px-4 py-2.5 text-sm">
+                  <span className="text-ink-muted">
+                    {t.market.feeRecorded} · {f.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}
+                  </span>
+                  <span className="font-semibold tabular-nums">{formatGEL(f.fee)}</span>
+                </div>
+              ))}
               {result.orders.length === 0 ? (
                 <p className="px-4 py-3 text-sm text-ink-muted">{t.market.noStoreOrders}</p>
               ) : (
@@ -108,6 +178,7 @@ export function CheckoutDialog({
                 </ul>
               )}
             </div>
+            {result.alreadyOrdered > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: result.alreadyOrdered })}</p>}
             {result.unassigned > 0 && <p className="text-xs text-warning">{fill(t.market.noPartnerItems, { n: result.unassigned })}</p>}
             <div className="grid gap-2 sm:grid-cols-2">
               {session?.user ? (
@@ -130,18 +201,62 @@ export function CheckoutDialog({
               <DialogTitle>{t.market.checkoutTitle}</DialogTitle>
               <DialogDescription>{t.market.checkoutDesc}</DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-2 border border-line text-sm">
-              <div className="border-r border-line p-3">
-                <p className="eyebrow">{t.market.platformFee}</p>
-                <p className="mt-1 font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(fee)}</p>
-                <p className="text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(feePerM2), m2: formatM2(totalM2) })}</p>
-              </div>
-              <div className="p-3">
-                <p className="eyebrow">{t.summary.products}</p>
-                <p className="mt-1 font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(goodsTotal)}</p>
-                {storeCount != null && <p className="text-xs text-ink-muted">{fill(t.market.storesToOrder, { n: storeCount })}</p>}
+
+            {/* quick summary: one line per half */}
+            <div className="border border-line text-sm">
+              {view.map((part) => (
+                <div key={part.kind} className="border-b border-line px-4 py-2.5 last:border-b-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium text-ink">{partLabel(part.kind)}</span>
+                    <span className="shrink-0 tabular-nums">{formatGEL(part.goods + part.fee)}</span>
+                  </div>
+                  <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
+                    <span>
+                      {t.market.platformFee}: {part.feePaid ? t.market.alreadyOrderedKind : `${formatGEL(part.fee)} · ${fill(t.market.platformFeeHint, { fee: formatGEL(part.feePerM2), m2: formatM2(part.totalM2) })}`}
+                    </span>
+                    <span>
+                      {t.summary.products}: {formatGEL(part.goods)} · {fill(t.market.itemsCount, { n: part.lines.length - part.skipped })}
+                    </span>
+                  </p>
+                </div>
+              ))}
+              <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink px-4 py-2.5">
+                <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
+                <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(goodsTotal + feeTotal)}</span>
               </div>
             </div>
+
+            {skipped > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: skipped })}</p>}
+
+            <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', full && 'rotate-180')} />
+              {full ? t.market.hideFull : t.market.showFull}
+            </button>
+            {full && (
+              <div className="max-h-56 overflow-y-auto border border-line text-xs">
+                {view.map((part) => (
+                  <div key={part.kind}>
+                    <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{partLabel(part.kind)}</p>
+                    <ul className="divide-y divide-line/70">
+                      {part.lines.length === 0 && <li className="px-3 py-2 text-ink-muted">—</li>}
+                      {part.lines.map((line) => (
+                        <li key={line.key} className={cn('flex items-baseline justify-between gap-3 px-3 py-1.5', line.duplicate && 'text-ink-faint line-through')}>
+                          <span className="min-w-0 truncate">
+                            {line.name}
+                            {line.where && <span className="ml-1 text-ink-muted no-underline">· {line.where}</span>}
+                          </span>
+                          <span className="shrink-0 tabular-nums">
+                            {line.qty !== 1 && <span className="mr-1 text-ink-muted">{formatNumber(line.qty)} ×</span>}
+                            {formatGEL(line.total)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <CustomerFields value={value} onChange={setForm} />
             {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
             <p className="text-xs text-ink-muted">{t.market.feeNote}</p>

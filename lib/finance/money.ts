@@ -179,6 +179,65 @@ export function sceneLinesByStore(plan: FloorPlan, scene: DesignScene, storeOf: 
   return result;
 }
 
+/** Units of each product an earlier checkout of the project already sent to a store. */
+export type OrderedQuantities = Record<number, number>;
+
+/**
+ * The lines of one checkout when a project has both halves.
+ *
+ * The studio inherits the calculator's picks (a sofa picked in the calculator is placed in
+ * the scene), so the design's lines are the fuller list and a calculator line for a product
+ * the design already has is a copy, not another unit. Six identical chairs in the design are
+ * six chairs. Units an earlier checkout of this project already sent to a store are taken
+ * off the top, product by product: one chair ordered last week and six in the design today
+ * means five more chairs.
+ */
+export function mergeLines(design: LinesByStore | null, calculator: LinesByStore | null, orderedQty: OrderedQuantities = {}): LinesByStore & { skipped: number } {
+  const merged: LinesByStore & { skipped: number } = { groups: new Map(), unassigned: [], skipped: 0 };
+  const entriesOf = (source: LinesByStore): Array<[number | null, OrderLineDraft]> => [
+    ...[...source.groups.entries()].flatMap(([storeId, lines]) => lines.map((l): [number | null, OrderLineDraft] => [storeId, l])),
+    ...source.unassigned.map((l): [number | null, OrderLineDraft] => [null, l]),
+  ];
+  const designProducts = new Set<number>();
+  const sequence: Array<[number | null, OrderLineDraft]> = [];
+  if (design) {
+    for (const entry of entriesOf(design)) {
+      if (entry[1].productId != null) designProducts.add(entry[1].productId);
+      sequence.push(entry);
+    }
+  }
+  if (calculator) {
+    for (const entry of entriesOf(calculator)) {
+      if (entry[1].productId != null && designProducts.has(entry[1].productId)) {
+        merged.skipped++;
+        continue;
+      }
+      sequence.push(entry);
+    }
+  }
+  const covered: OrderedQuantities = { ...orderedQty };
+  for (const [storeId, line] of sequence) {
+    if (line.productId == null) {
+      push(merged, storeId, line);
+      continue;
+    }
+    const remaining = covered[line.productId] ?? 0;
+    if (remaining >= line.qty) {
+      covered[line.productId] = remaining - line.qty;
+      merged.skipped++;
+      continue;
+    }
+    if (remaining > 0) {
+      covered[line.productId] = 0;
+      const qty = round2(line.qty - remaining);
+      push(merged, storeId, { ...line, qty, total: lineTotal(qty, line.unitPrice) });
+      continue;
+    }
+    push(merged, storeId, line);
+  }
+  return merged;
+}
+
 export interface StoreLike {
   id: number;
   commissionRate: number | string | null;

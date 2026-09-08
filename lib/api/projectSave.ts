@@ -56,14 +56,14 @@ export function isUnknownProduct(result: RepricedPicks | { unknownProductId: num
 }
 
 /**
- * The caller's own, not yet ordered project — the row a save writes into instead of adding a
- * new one. Guests never update (nothing proves the row is theirs), and an ordered project is
- * history: saving over it would desync the partners' orders, so it gets a new row.
+ * The caller's own project — the row a save writes into instead of adding a new one. Guests
+ * never update (nothing proves the row is theirs). An ordered project stays the same
+ * project: the orders are snapshots of what was sent, so saving the other half into the row
+ * later (the 3D design after the calculation was ordered) desyncs nothing, and the next
+ * checkout charges and sends only what is new.
  */
 export async function ownProject(projectId: number | undefined, userId: number | null) {
   if (!projectId || !userId) return null;
   const rows = await db.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId))).limit(1);
-  const project = rows[0];
-  if (!project || project.status === 'submitted') return null;
-  return project;
+  return rows[0] ?? null;
 }

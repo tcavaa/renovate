@@ -35,9 +35,10 @@ import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
-import { CheckoutDialog } from '@/components/checkout/CheckoutDialog';
-import { useT } from '@/lib/i18n/client';
-import { homeStateLabel } from '@/lib/i18n/labels';
+import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
+import { designCheckoutPart } from '@/lib/projects/checkoutParts';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { homeStateLabel, localizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 
 const CALLBACK_URL = '/calculator/summary?autoSave=1';
@@ -45,6 +46,7 @@ const CALLBACK_URL = '/calculator/summary?autoSave=1';
 export default function SummaryPage() {
   const router = useRouter();
   const ka = useT();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const { status } = useSession();
 
@@ -90,6 +92,19 @@ export default function SummaryPage() {
   // The platform's own line: a fee per square metre of the flat, shown, not collected.
   const totalM2 = useMemo(() => rooms.reduce((s, r) => s + r.floorM2, 0), [rooms]);
   const fee = platformFee(totalM2, fees.calculatorFeePerM2);
+
+  const designPart = useDesignStore((s) => (designExists ? designCheckoutPart(s.plan, s.items, s.finishes, fees.designFeePerM2, locale) : null));
+  const checkoutParts: CheckoutPart[] = summary
+    ? [
+        {
+          kind: 'calculator',
+          totalM2,
+          feePerM2: fees.calculatorFeePerM2,
+          lines: [...summary.products, ...summary.furniture].map((p, i) => ({ key: `${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: null })),
+        },
+        ...(designPart ? [designPart] : []),
+      ]
+    : [];
 
   /** Writes the project once and returns its id — the save button and the checkout share it. */
   const saveOnce = useCallback(async (): Promise<number> => {
@@ -241,16 +256,7 @@ export default function SummaryPage() {
         </div>
       </StepNav>
 
-      <CheckoutDialog
-        open={checkoutOpen}
-        onOpenChange={setCheckoutOpen}
-        saveProject={saveOnce}
-        fee={fee}
-        totalM2={totalM2}
-        feePerM2={fees.calculatorFeePerM2}
-        goodsTotal={summary.subtotalProducts + summary.subtotalFurniture}
-        storeCount={null}
-      />
+      <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} saveProject={saveOnce} projectId={currentProjectId} parts={checkoutParts} />
 
       <Dialog
         open={successModalOpen}

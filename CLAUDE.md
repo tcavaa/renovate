@@ -507,8 +507,8 @@ design grew out of a calculation that was never saved it sends the calculator's 
 reads the halves back — `selectedProducts IS NOT NULL` is a calculation (an empty object
 when nothing was picked), `plan IS NOT NULL` a design — and `ProjectKindTags` shows both
 tags on the profile list, the project page and the admin list. A new plan (`replaceRooms`,
-`setPlan`) drops the id: a new flat is a new project. An ordered project is history and a
-save over it gets a new row.
+`setPlan`) drops the id: a new flat is a new project. Ordering does not fork a project either
+— see the marketplace section.
 
 `CalculateCostsButton` is the other direction: a design-first project opens in the
 calculator with the plan's rooms (`planToCalculatorRooms` keeps their positions) and the
@@ -597,8 +597,18 @@ worker profile → "დაკვეთა" → BookingDialog → POST /api/booki
   → a worker order; with a project its lines are the calculator's labour estimate
 ```
 
-A project is ordered once (`PROJECT_ALREADY_ORDERED` on a second try). Items nobody sells
-(product without a store) are left out and reported as `unassigned`.
+A project can be ordered in two sittings — the calculation first, the 3D design later, or
+both at once — and stays one row throughout: `ownProject` writes into an ordered project
+too, because the orders are snapshots and desync nothing. Each half's fee is charged once
+(one `checkouts` row per half, so the revenue report keeps calculator and design fees
+apart), `mergeLines` unites the two halves: the studio's lines win over the calculator's
+copies of the same product (the studio inherited those picks), repeated items stay repeated
+(six chairs are six chairs), and units an earlier checkout already sent to a store come off
+the top product by product (`projectOrderState.orderedQty`). When nothing new
+would be charged or sent the route answers `PROJECT_ALREADY_ORDERED`. The checkout dialog
+shows one quick line per half — fee, products, a half already paid marked as such — with the
+full list a click away, and `GET /api/checkout?projectId=` tells it what was ordered before.
+Items nobody sells (product without a store) are left out and reported as `unassigned`.
 
 **Partner portal (`/partner`)** — a `store` / `worker` account sees its own orders and
 nothing else: dashboard (unread, open, this month's sales, the platform's cut, their share),

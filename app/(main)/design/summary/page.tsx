@@ -16,7 +16,8 @@ import { priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
-import { CheckoutDialog } from '@/components/checkout/CheckoutDialog';
+import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
+import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatM2 } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
@@ -108,7 +109,11 @@ export default function DesignSummaryPage() {
   const style = getStyle(styleId);
   const areaM2 = totalFloorAreaM2(plan);
   const fee = platformFee(areaM2, fees.designFeePerM2);
-  const storeCount = cost.baskets.filter((b) => b.store).length;
+  const designPart = designCheckoutPart(plan, items, finishes, fees.designFeePerM2, locale);
+  const checkoutParts: CheckoutPart[] = [
+    ...(calculatorPicks && calculator.rooms.length > 0 ? [calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale)] : []),
+    ...(designPart ? [designPart] : []),
+  ];
 
   return (
     <>
@@ -274,16 +279,7 @@ export default function DesignSummaryPage() {
         </p>
       </StepNav>
 
-      <CheckoutDialog
-        open={checkoutOpen}
-        onOpenChange={setCheckoutOpen}
-        saveProject={saveOnce}
-        fee={fee}
-        totalM2={areaM2}
-        feePerM2={fees.designFeePerM2}
-        goodsTotal={cost.furnitureTotal + cost.finishesTotal + cost.deliveryTotal}
-        storeCount={storeCount}
-      />
+      <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} saveProject={saveOnce} projectId={projectId} parts={checkoutParts} />
     </>
   );
 }

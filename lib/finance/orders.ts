@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import {
   checkouts,
@@ -26,6 +26,8 @@ import {
   effectiveCommissionPct,
   feePerM2For,
   labourLines,
+  mergeLines,
+  type OrderedQuantities,
   orderTotals,
   platformFee,
   round2,
@@ -37,6 +39,7 @@ import {
 } from './money';
 import { notifyCustomerCheckout, notifyCustomerOrderUpdate, notifyPartnerNewOrder, type CustomerContact } from './notify';
 import { loadPlatformSettings } from './settings';
+import { projectKind } from '@/lib/projects/saved';
 
 /**
  * Writing and reading orders.
@@ -53,10 +56,11 @@ export function checkoutKindOf(project: Pick<Project, 'plan'>): CheckoutKind {
 }
 
 export interface CheckoutResult {
+  /** The checkout the orders hang off — the last of the fee rows written. */
   checkoutId: number;
-  kind: CheckoutKind;
+  /** The halves charged this time; empty when only new products were ordered. */
+  fees: Array<{ kind: CheckoutKind; feePerM2: number; fee: number }>;
   totalM2: number;
-  feePerM2: number;
   platformFee: number;
   goodsTotal: number;
   commissionTotal: number;
@@ -72,6 +76,40 @@ export interface CheckoutResult {
   }>;
   /** Lines nobody sells — shown to the customer so the missing pieces are not a surprise. */
   unassigned: number;
+  /** Lines an earlier checkout of this project already sent to a store, left out this time. */
+  alreadyOrdered: number;
+}
+
+/** Thrown when a checkout would charge nothing and send nothing — everything is already ordered. */
+export class NothingToOrder extends Error {
+  constructor() {
+    super('nothing to order');
+    this.name = 'NothingToOrder';
+  }
+}
+
+/** What earlier checkouts of a project already did, so the next one charges and sends only what is new. */
+export interface ProjectOrderState {
+  orderedKinds: CheckoutKind[];
+  /** Units per product already sent to a store, on orders that were not cancelled. */
+  orderedQty: OrderedQuantities;
+}
+
+export async function projectOrderState(projectId: number): Promise<ProjectOrderState> {
+  const [kindRows, productRows] = await Promise.all([
+    db.select({ kind: checkouts.kind }).from(checkouts).where(eq(checkouts.projectId, projectId)),
+    db
+      .select({ productId: orderItems.productId, qty: orderItems.qty })
+      .from(orderItems)
+      .innerJoin(orders, eq(orderItems.orderId, orders.id))
+      .where(and(eq(orders.projectId, projectId), ne(orders.status, 'cancelled'), eq(orderItems.removed, false))),
+  ]);
+  const orderedQty: OrderedQuantities = {};
+  for (const row of productRows) {
+    if (row.productId == null) continue;
+    orderedQty[row.productId] = round2((orderedQty[row.productId] ?? 0) + Number(row.qty));
+  }
+  return { orderedKinds: [...new Set(kindRows.map((r) => r.kind))], orderedQty };
 }
 
 async function storeLookup(productIds: number[]): Promise<(id: number) => number | null> {
@@ -82,18 +120,22 @@ async function storeLookup(productIds: number[]): Promise<(id: number) => number
   return (id) => map.get(id) ?? null;
 }
 
-/** The project's picks grouped by store, whichever way the project was made. */
-async function projectLines(project: Project): Promise<LinesByStore> {
-  if (project.plan) {
-    const plan = project.plan as FloorPlan;
-    const scene = (project.scene ?? { items: [], finishes: [] }) as DesignScene;
-    const ids = [...scene.items.map((i) => i.product?.productId), ...scene.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number');
-    return sceneLinesByStore(plan, scene, await storeLookup(ids));
-  }
-  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
+/** The calculator's picks by store, or null when the project has no calculator half. */
+async function calculatorLinesOf(project: Project): Promise<LinesByStore | null> {
+  if (project.selectedProducts == null) return null;
+  const selectedProducts = project.selectedProducts as Record<string, SelectedProduct>;
   const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
   const ids = [...Object.values(selectedProducts).map((p) => p.productId), ...Object.values(selectedFurniture).flat().map((p) => p.productId)];
   return calculatorLinesByStore(selectedProducts, selectedFurniture, (project.rooms ?? []) as Room[], await storeLookup(ids));
+}
+
+/** The studio's products by store, or null when the project has no design half. */
+async function sceneLinesOf(project: Project): Promise<LinesByStore | null> {
+  if (!project.plan || !project.scene) return null;
+  const plan = project.plan as FloorPlan;
+  const scene = project.scene as DesignScene;
+  const ids = [...scene.items.map((i) => i.product?.productId), ...scene.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number');
+  return sceneLinesByStore(plan, scene, await storeLookup(ids));
 }
 
 function itemRows(orderId: number, lines: OrderLineDraft[]) {
@@ -114,41 +156,65 @@ function itemRows(orderId: number, lines: OrderLineDraft[]) {
 }
 
 /**
- * Places the order for a whole project. Returns what the customer is shown: the fee, and
- * one line per store that will now be contacting them.
+ * Places the order for a project — whatever of it has not been ordered yet.
+ *
+ * A project is one row whichever way it was made, and it can be ordered in two sittings:
+ * the calculation first, the 3D design later, or everything at once. Each half's fee is
+ * charged once (one `checkouts` row per half, so the revenue report keeps them apart), the
+ * lines of both halves are merged product by product, and products an earlier checkout
+ * already sent to a store are left out rather than ordered twice. Returns what the customer
+ * is shown: the fees, and one line per store that will now be contacting them.
  */
 export async function createCheckoutForProject(project: Project, customer: CustomerContact, userId: number | null): Promise<CheckoutResult> {
   const settings = await loadPlatformSettings();
-  const kind = checkoutKindOf(project);
-  const lines = await projectLines(project);
+  const kind = projectKind(project);
+  const state = await projectOrderState(project.id);
+
+  const [calculatorLines, designLines] = await Promise.all([calculatorLinesOf(project), sceneLinesOf(project)]);
+  const lines = mergeLines(designLines, calculatorLines, state.orderedQty);
+
+  const totalM2 = Number(project.totalM2) || 0;
+  const feeKinds: CheckoutKind[] = [];
+  if (kind.hasCalculator && !state.orderedKinds.includes('calculator')) feeKinds.push('calculator');
+  if (kind.hasDesign && !state.orderedKinds.includes('design')) feeKinds.push('design');
+  const hasLines = lines.groups.size > 0;
+  if (feeKinds.length === 0 && !hasLines) throw new NothingToOrder();
 
   const storeIds = [...lines.groups.keys()];
   const storeRows = storeIds.length ? await db.select().from(stores).where(inArray(stores.id, storeIds)) : [];
   const storesById = new Map(storeRows.map((s) => [s.id, s]));
   const drafts = buildStoreOrders(lines.groups, storesById, settings.storeCommissionPct);
 
-  const totalM2 = Number(project.totalM2) || 0;
-  const feePerM2 = feePerM2For(kind, settings);
-  const fee = platformFee(totalM2, feePerM2);
+  const fees = feeKinds.map((k) => {
+    const feePerM2 = feePerM2For(k, settings);
+    return { kind: k, feePerM2, fee: platformFee(totalM2, feePerM2) };
+  });
   const goodsTotal = round2(drafts.reduce((s, d) => s + d.subtotal + d.deliveryFee, 0));
   const commissionTotal = round2(drafts.reduce((s, d) => s + d.commissionAmount, 0));
+  // Only new products, every fee already paid: the goods still need a checkout row to hang
+  // off, charged nothing, under the half the project is furthest along in.
+  const rows = fees.length ? fees : [{ kind: kind.hasDesign ? ('design' as const) : ('calculator' as const), feePerM2: 0, fee: 0 }];
 
   const written = await db.transaction(async (tx) => {
-    const [checkoutInsert] = await tx.insert(checkouts).values({
-      projectId: project.id,
-      userId,
-      kind,
-      totalM2: String(totalM2),
-      feePerM2: String(feePerM2),
-      platformFee: String(fee),
-      goodsTotal: String(goodsTotal),
-      commissionTotal: String(commissionTotal),
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      customerEmail: customer.email,
-      note: customer.note,
-    });
-    const checkoutId = checkoutInsert.insertId;
+    let checkoutId = 0;
+    for (const [index, row] of rows.entries()) {
+      const primary = index === rows.length - 1;
+      const [inserted] = await tx.insert(checkouts).values({
+        projectId: project.id,
+        userId,
+        kind: row.kind,
+        totalM2: String(totalM2),
+        feePerM2: String(row.feePerM2),
+        platformFee: String(row.fee),
+        goodsTotal: String(primary ? goodsTotal : 0),
+        commissionTotal: String(primary ? commissionTotal : 0),
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        customerEmail: customer.email,
+        note: customer.note,
+      });
+      checkoutId = inserted.insertId;
+    }
     const created: Array<{ id: number; draft: (typeof drafts)[number] }> = [];
     for (const draft of drafts) {
       const [orderInsert] = await tx.insert(orders).values({
@@ -175,14 +241,14 @@ export async function createCheckoutForProject(project: Project, customer: Custo
     return { checkoutId, created };
   });
 
-  log.info('checkout placed', { checkoutId: written.checkoutId, projectId: project.id, kind, fee, orders: written.created.length, commissionTotal });
+  const platformFeeTotal = round2(fees.reduce((s, f) => s + f.fee, 0));
+  log.info('checkout placed', { checkoutId: written.checkoutId, projectId: project.id, fees: feeKinds, fee: platformFeeTotal, orders: written.created.length, commissionTotal, alreadyOrdered: lines.skipped });
 
   const result: CheckoutResult = {
     checkoutId: written.checkoutId,
-    kind,
+    fees,
     totalM2,
-    feePerM2,
-    platformFee: fee,
+    platformFee: platformFeeTotal,
     goodsTotal,
     commissionTotal,
     orders: written.created.map(({ id, draft }) => {
@@ -199,6 +265,7 @@ export async function createCheckoutForProject(project: Project, customer: Custo
       };
     }),
     unassigned: lines.unassigned.length,
+    alreadyOrdered: lines.skipped,
   };
 
   // Mail is best-effort and outside the transaction: the rows are the record.
@@ -217,12 +284,14 @@ export async function createCheckoutForProject(project: Project, customer: Custo
       });
     })
   );
-  await notifyCustomerCheckout({
-    customer,
-    checkoutId: written.checkoutId,
-    platformFee: fee,
-    orders: result.orders.map((o) => ({ id: o.id, partnerName: o.storeNameKa, subtotal: o.subtotal, deliveryFee: o.deliveryFee })),
-  });
+  if (result.orders.length > 0 || platformFeeTotal > 0) {
+    await notifyCustomerCheckout({
+      customer,
+      checkoutId: written.checkoutId,
+      platformFee: platformFeeTotal,
+      orders: result.orders.map((o) => ({ id: o.id, partnerName: o.storeNameKa, subtotal: o.subtotal, deliveryFee: o.deliveryFee })),
+    });
+  }
   return result;
 }
 
@@ -554,7 +623,7 @@ export async function ordersForProject(projectId: number) {
   return rows.map((r) => ({ ...r, itemCount: Number(r.itemCount), items: lines.filter((l) => l.orderId === r.id) }));
 }
 
-export async function checkoutForProject(projectId: number) {
-  const rows = await db.select().from(checkouts).where(eq(checkouts.projectId, projectId)).orderBy(desc(checkouts.createdAt)).limit(1);
-  return rows[0] ?? null;
+/** Every checkout of a project, oldest first — one per half charged, plus any goods-only re-order. */
+export async function checkoutsForProject(projectId: number) {
+  return db.select().from(checkouts).where(eq(checkouts.projectId, projectId)).orderBy(asc(checkouts.createdAt), asc(checkouts.id));
 }
