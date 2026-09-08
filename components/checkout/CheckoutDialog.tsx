@@ -36,6 +36,7 @@ export function CheckoutDialog({
   saveProject,
   projectId,
   parts,
+  onOrdered,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +45,8 @@ export function CheckoutDialog({
   /** The saved project, when known, so earlier checkouts of it can be shown. */
   projectId: number | null;
   parts: CheckoutPart[];
+  /** Called once an order went through — a page showing the orders can refresh itself. */
+  onOrdered?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -110,9 +113,23 @@ export function CheckoutDialog({
       skipped: lines.filter((l) => l.duplicate).length,
     };
   });
+  // Closing forgets the sitting: the next opening starts from a fresh form and re-reads what
+  // has been ordered, so a second order from the same page does not show the first one's receipt.
+  const close = (next: boolean) => {
+    if (!next) {
+      setResult(null);
+      setError(null);
+      setFull(false);
+      setState(null);
+    }
+    onOpenChange(next);
+  };
+
   const feeTotal = view.reduce((s, p) => s + p.fee, 0);
   const goodsTotal = view.reduce((s, p) => s + p.goods, 0);
   const skipped = view.reduce((s, p) => s + p.skipped, 0);
+  // Everything already charged and sent: say so instead of letting the server refuse.
+  const nothingNew = state != null && feeTotal === 0 && view.every((p) => p.lines.every((l) => l.duplicate));
   const partLabel = (kind: CheckoutKind) => (kind === 'design' ? t.market.partDesign : t.market.partCalculator);
 
   const submit = async (e: React.FormEvent) => {
@@ -132,6 +149,7 @@ export function CheckoutDialog({
         return;
       }
       setResult(json.data);
+      onOrdered?.();
     } catch (err) {
       setError((err as Error).message === 'save-failed' ? t.market.saveFirstError : apiErrorMessage(t, (err as Error).message));
     } finally {
@@ -140,7 +158,7 @@ export function CheckoutDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-lg">
         {result ? (
           <>
@@ -190,7 +208,7 @@ export function CheckoutDialog({
                   <Link href="/register">{t.nav.register}</Link>
                 </Button>
               )}
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => close(false)}>
                 {t.market.close}
               </Button>
             </div>
@@ -226,7 +244,11 @@ export function CheckoutDialog({
               </div>
             </div>
 
-            {skipped > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: skipped })}</p>}
+            {nothingNew ? (
+              <p className="border border-line bg-bg-base px-3 py-2 text-sm text-ink-muted">{t.market.nothingToOrder}</p>
+            ) : (
+              skipped > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: skipped })}</p>
+            )}
 
             <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', full && 'rotate-180')} />
@@ -260,7 +282,7 @@ export function CheckoutDialog({
             <CustomerFields value={value} onChange={setForm} />
             {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
             <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
-            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting}>
+            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || nothingNew}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? t.market.submitting : t.market.submit}
             </Button>

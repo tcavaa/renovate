@@ -629,7 +629,8 @@ assigns partner roles and links the account to its store / worker. The dashboard
 month's revenue and flags orders waiting on a partner and partners without e-mail or login.
 
 The customer sees the orders on the project page (`components/orders/ProjectOrders.tsx`):
-status, total, delivery, and whatever the partner wrote back.
+status, total, delivery, and whatever the partner wrote back — and can order a saved project
+from there (`OrderProjectButton`, the same dialog built from the row as saved).
 
 `tests/unit/finance/money.test.ts` covers the arithmetic — fee, commission, grouping,
 delivery, struck-out lines, report periods — and `lib/finance/money.ts` is in the coverage

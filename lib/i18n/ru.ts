@@ -1010,6 +1010,7 @@ export const ru: Dictionary = {
     hideFull: 'Скрыть список',
     alreadyOrderedKind: 'уже заказано',
     alreadyOrderedLines: '{n} позиций уже заказаны раньше и повторно не отправляются',
+    nothingToOrder: 'В этом проекте всё уже заказано — отправлять нечего',
     showItems: 'Позиции заказа ({n})',
   },
   partner: {

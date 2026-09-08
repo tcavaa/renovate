@@ -1012,6 +1012,7 @@ export const en: Dictionary = {
     hideFull: 'Hide the full list',
     alreadyOrderedKind: 'already ordered',
     alreadyOrderedLines: '{n} items were ordered earlier and are not sent again',
+    nothingToOrder: 'Everything in this project is already ordered — nothing new to send',
     showItems: 'Order lines ({n})',
   },
   partner: {

@@ -1006,6 +1006,7 @@ export const ka = {
     hideFull: 'სრული სიის დამალვა',
     alreadyOrderedKind: 'უკვე შეკვეთილია',
     alreadyOrderedLines: '{n} პოზიცია უკვე შეკვეთილია ადრე და ხელახლა არ იგზავნება',
+    nothingToOrder: 'ამ პროექტში ყველაფერი უკვე შეკვეთილია — ახალი არაფერია გასაგზავნი',
     showItems: 'შეკვეთის პოზიციები ({n})',
   },
   partner: {
