@@ -43,6 +43,8 @@ public/uploads/plans/*
 !public/uploads/plans/.gitkeep
 public/uploads/models/*
 !public/uploads/models/.gitkeep
+# photos uploaded through admin are named <epoch-ms>-<hex>; the seed's images are named by slug
+public/uploads/**/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*
 
 # --- local tooling ---
 .claude/
