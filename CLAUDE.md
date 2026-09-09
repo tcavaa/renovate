@@ -847,6 +847,17 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   never edit a generated file). `pnpm db:migrate` applies them and is what
   `deploy/deploy.sh` runs. A database created with `db:push` before migrations existed needs
   `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only.
+- **cPanel / Passenger** (shared hosting, `deploy/cpanel.sh`): the app runs under cPanel's
+  "Setup Node.js App" (Node 20+, mode Production, startup file `server.cjs`, which hands off
+  to the standalone server `next build` emits). The repo is cloned with Git Version Control
+  into `~/renovate` — never into a document root — and the subdomain's document root only
+  holds the `.htaccess` cPanel writes. Environment variables live in the Node.js app's
+  settings (plus `.env.production` for the build-time `NEXT_PUBLIC_*`); `AUTH_URL` and
+  `AUTH_TRUST_HOST=true` are required behind Passenger. `deploy/cpanel.sh` installs, builds,
+  puts `public/` and `.next/static` beside the standalone server, keeps uploads in
+  `~/renovate-uploads` (a `next build` empties `.next`), migrates and touches
+  `tmp/restart.txt`, which is how Passenger restarts. Shared hosts often kill `next build`
+  for memory; then build locally and upload `.next/` before running the assembly steps.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
