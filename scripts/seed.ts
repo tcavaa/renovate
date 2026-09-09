@@ -1,7 +1,5 @@
 /* eslint-disable no-console */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';

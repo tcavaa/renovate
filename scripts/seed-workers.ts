@@ -10,9 +10,7 @@
  * photos are the finish textures already in `public/textures`, which is what a tiler's or a
  * plasterer's "work done" photos look like; a real partner uploads their own.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { eq, inArray } from 'drizzle-orm';
 import { db, pool } from '../lib/db';

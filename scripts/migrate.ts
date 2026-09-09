@@ -12,9 +12,7 @@
  *
  * `drizzle-kit push` stays available for local schema experiments and nothing else.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';

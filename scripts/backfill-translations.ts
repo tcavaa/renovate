@@ -9,9 +9,7 @@
  * stores, workers, categories), the archetype label plus the model's display name for 3D
  * products (`Double bed Woody`), and a humanised slug for texture products.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { and, eq, isNull } from 'drizzle-orm';
 import { db, pool } from '../lib/db';

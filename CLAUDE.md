@@ -836,6 +836,9 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 - **Environment** is validated once at startup by `lib/env.ts` (Zod). A missing or malformed
   variable stops the process with the variable named; production insists on a real
   `AUTH_SECRET` and `DATABASE_PASSWORD`. Server code imports `env`, never `process.env`.
+  Scripts run with `tsx` load `.env.local` / `.env` through `import './lib/loadEnv';` as their
+  **first import** — imports are hoisted, so a `config()` call after them ran after `lib/env.ts`
+  had already validated an empty environment (masked in development by the defaults).
 - **Logs** are JSON lines from `lib/log.ts` to stdout and to `logs/app-YYYY-MM-DD.log`
   (`LOG_DIR`, git-ignored). `handle()` in `lib/api/route.ts` logs every request with route,
   status and duration, and every unhandled exception with its stack. PM2 captures stdout into
@@ -847,17 +850,23 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   never edit a generated file). `pnpm db:migrate` applies them and is what
   `deploy/deploy.sh` runs. A database created with `db:push` before migrations existed needs
   `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only.
-- **cPanel / Passenger** (shared hosting, `deploy/cpanel.sh`): the app runs under cPanel's
-  "Setup Node.js App" (Node 20+, mode Production, startup file `server.cjs`, which hands off
-  to the standalone server `next build` emits). The repo is cloned with Git Version Control
-  into `~/renovate` — never into a document root — and the subdomain's document root only
-  holds the `.htaccess` cPanel writes. Environment variables live in the Node.js app's
-  settings (plus `.env.production` for the build-time `NEXT_PUBLIC_*`); `AUTH_URL` and
-  `AUTH_TRUST_HOST=true` are required behind Passenger. `deploy/cpanel.sh` installs, builds,
-  puts `public/` and `.next/static` beside the standalone server, keeps uploads in
-  `~/renovate-uploads` (a `next build` empties `.next`), migrates and touches
-  `tmp/restart.txt`, which is how Passenger restarts. Shared hosts often kill `next build`
-  for memory; then build locally and upload `.next/` before running the assembly steps.
+- **cPanel / Passenger** (shared hosting, no login shell needed): the app runs under cPanel's
+  "Setup Node.js App" (Node 20+, mode Production, application root `renovate`, startup file
+  `server.cjs`, which loads the repo's `.env` and hands off to the standalone server `next
+  build` emits). The repo is cloned with Git Version Control into `~/renovate` — never into a
+  document root — and **"Deploy HEAD Commit" runs `.cpanel.yml`**, which calls
+  `deploy/cpanel.sh`: activates the app's `~/nodevenv`, installs (dev dependencies included —
+  pnpm skips them when `NODE_ENV=production`), builds, puts `public/` and `.next/static`
+  beside the standalone server, applies migrations and touches `tmp/restart.txt`, which is how
+  Passenger restarts. Server variables live in `~/renovate/.env` (git-ignored; `AUTH_URL`,
+  `AUTH_TRUST_HOST=true` and `LOG_DIR` included — the Node.js app's own settings are not
+  visible to deployment tasks). Uploads live in the subdomain's **document root**
+  (`<docroot>/uploads`, found from the `.htaccess` cPanel wrote, or `DOCROOT`), and the
+  standalone server writes into it through a symlink: in production Next serves only the
+  public files that existed at start-up, while Apache serves anything that exists in the
+  document root before Passenger sees the request. The script never touches a tracked file —
+  cPanel refuses to deploy over a checkout with uncommitted changes. Shared hosts often kill
+  `next build` for memory; then build locally and upload `.next/` before the assembly steps.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The

@@ -18,9 +18,7 @@
  * Prices and Georgian names are placeholders, like the rest of the catalogue.
  */
 
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';

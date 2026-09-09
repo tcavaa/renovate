@@ -12,9 +12,7 @@
  * costs nothing and is deterministic, which is what you want when the question is "did my
  * change to the solver help", not "what does the model think today".
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';

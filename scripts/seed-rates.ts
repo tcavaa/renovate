@@ -8,9 +8,7 @@
  * `drizzle-kit push` is interactive and hangs in scripts, so the DDL is applied directly.
  */
 
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { sql } from 'drizzle-orm';
 import { db, pool } from '../lib/db';

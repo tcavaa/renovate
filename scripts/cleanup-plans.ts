@@ -11,9 +11,7 @@
  * if a project's `floorPlanUrl` or `plan.imageUrl` points at it. Works with either storage
  * driver. Run it nightly from cron on the VPS.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 async function main() {
   const { storage } = await import('../lib/storage');

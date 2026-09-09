@@ -17,9 +17,7 @@
  * real end to end. Swapping them for signed partners is a data change, not a code change.
  */
 
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';

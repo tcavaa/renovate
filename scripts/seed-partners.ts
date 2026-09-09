@@ -10,9 +10,7 @@
  * order notifications have somewhere to go in development — replace them with real addresses
  * in admin. Also makes sure the `platform_settings` row exists with the defaults.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';

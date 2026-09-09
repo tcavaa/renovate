@@ -15,9 +15,7 @@
  * edited in admin survives a re-seed unless the manifest says otherwise.
  */
 
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';

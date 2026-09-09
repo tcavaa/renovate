@@ -60,3 +60,6 @@ logs/*
 coverage/
 playwright-report/
 test-results/
+# --- Passenger restart marker and npm artefacts from cPanel deploys ---
+tmp/
+package-lock.json

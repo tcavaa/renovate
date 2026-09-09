@@ -5,9 +5,7 @@
  * `drizzle-kit push` is interactive and hangs in a non-interactive shell, so index changes
  * are applied with plain DDL. Safe to re-run: existing indexes are skipped.
  */
-import { config } from 'dotenv';
-config({ path: '.env.local' });
-config({ path: '.env' });
+import './lib/loadEnv';
 import mysql from 'mysql2/promise';
 
 const wanted: Array<[string, string, string]> = [
