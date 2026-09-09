@@ -23,17 +23,34 @@
 #   NEXT_DIST_DIR   the build directory, default .next
 set -euo pipefail
 
+# cPanel runs deployment tasks in the background with a minimal environment.
+: "${HOME:=$(eval echo "~$(id -un)")}"
+export HOME
+
 APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${NEXT_DIST_DIR:-.next}"
 cd "$APP_ROOT"
+
+# Everything below is also written to logs/deploy.log, which File Manager can open. cPanel
+# keeps its own copy of the output in ~/.cpanel/logs, but only shows a date and a commit for
+# a deploy that succeeded — a failed one leaves "Not available" and nothing else.
+mkdir -p logs
+exec > >(tee -a logs/deploy.log) 2>&1
+echo "==> deploy started $(date -u +%Y-%m-%dT%H:%M:%SZ), commit $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
+trap 'echo "==> deploy FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 # Without a login shell (cPanel deployment tasks, or a terminal that was not activated) node
 # is not on PATH: use the Node.js app's own environment, whatever version was picked.
 if ! command -v node >/dev/null 2>&1; then
   for activate in "$HOME"/nodevenv/"$(basename "$APP_ROOT")"/*/bin/activate "$HOME"/nodevenv/*/*/bin/activate; do
     if [ -f "$activate" ]; then
+      # The activate file reads variables a background task does not have (PS1, the
+      # deactivate bookkeeping); under `set -u` that aborted the whole deploy right here.
+      set +eu
       # shellcheck disable=SC1090
       source "$activate"
+      set -eu
+      echo "using $activate"
       break
     fi
   done
@@ -42,6 +59,7 @@ if ! command -v node >/dev/null 2>&1; then
   echo "node is not on PATH and no ~/nodevenv/*/bin/activate was found — create the Node.js app in cPanel first" >&2
   exit 1
 fi
+echo "node $(node --version) at $(command -v node)"
 node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 20 || (major === 20 && minor < 9)) { console.error("Node " + process.versions.node + " is too old: Next 16 needs 20.9+"); process.exit(1); }'
 
 # The build inlines NEXT_PUBLIC_* and validates the server variables (lib/env.ts), so the
@@ -141,4 +159,4 @@ NODE_ENV=production $PNPM db:migrate
 
 echo "==> restart (Passenger)"
 mkdir -p tmp && touch tmp/restart.txt
-echo "done — open the site; the first request after a restart takes a few seconds"
+echo "==> deploy finished $(date -u +%Y-%m-%dT%H:%M:%SZ) — open the site; the first request after a restart takes a few seconds"
