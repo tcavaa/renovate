@@ -865,8 +865,13 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   standalone server writes into it through a symlink: in production Next serves only the
   public files that existed at start-up, while Apache serves anything that exists in the
   document root before Passenger sees the request. The script never touches a tracked file —
-  cPanel refuses to deploy over a checkout with uncommitted changes. Shared hosts often kill
-  `next build` for memory; then build locally and upload `.next/` before the assembly steps.
+  cPanel refuses to deploy over a checkout with uncommitted changes. **A failed deploy is
+  silent**: the Deploy button only says "queued", and "Last Deployment Information" stays
+  "Not available" — read `~/renovate/logs/deploy.log`, which the script writes itself (the
+  failure trap names the line and command; Passenger's own log is `logs/main.logs` beside
+  it). The nodevenv `activate` file has to be sourced with `set +eu`: it reads variables a
+  background task does not have. Shared hosts often kill `next build` for memory; then build
+  locally and upload `.next/` before the assembly steps.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
