@@ -1,0 +1,12 @@
+---
+# cPanel Git Version Control runs these on "Deploy HEAD Commit" (Manage → Pull or Deploy).
+# No login shell is needed: cPanel runs the tasks as the account user, from the repository
+# directory. On the `cpanel` branch (built by the "cPanel build" workflow) deploy/cpanel.sh
+# runs in release mode — copy public/, link uploads, migrate, restart; on any other branch it
+# installs and builds first. Server variables come from <repository>/.env, created once in
+# File Manager (it is git-ignored). DOCROOT is the subdomain's document root: uploads are
+# kept there so Apache serves them straight from disk.
+deployment:
+  tasks:
+    - export DOCROOT="${DOCROOT:-$HOME/renovate.rretrocar.ge}"
+    - /bin/bash -c 'cd "$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME/renovate")" && bash deploy/cpanel.sh'

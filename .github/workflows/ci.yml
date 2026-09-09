@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Placeholder configuration so `lib/env.ts` validates and `next build` can run without a
+  # database. Nothing here is a real secret.
+  NODE_ENV: test
+  DATABASE_HOST: 127.0.0.1
+  DATABASE_USER: ci
+  DATABASE_PASSWORD: ci
+  DATABASE_NAME: renovate_ci
+  AUTH_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  LOG_FILE: 'false'
+
+jobs:
+  checks:
+    name: Type-check, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and integration tests (with coverage gate)
+        run: pnpm test -- --coverage
+
+      - name: Floor-plan parser tests
+        run: pnpm test:parser
+
+      - name: Plan solver tests
+        run: pnpm test:solver
+
+      - name: Production build
+        run: pnpm build
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7

@@ -1,0 +1,65 @@
+# --- dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- Next.js build output ---
+.next/
+out/
+next-env.d.ts
+
+# --- TypeScript ---
+*.tsbuildinfo
+
+# --- environment / secrets ---
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+!.env.example
+
+# --- logs / debug ---
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- editors ---
+.vscode/
+.idea/
+*.swp
+
+# --- tests / coverage ---
+coverage/
+
+# --- runtime uploads ---
+# Floor plans uploaded by visitors are runtime data, not source.
+# Product, furniture and store images are referenced by the seed scripts and stay tracked.
+public/uploads/plans/*
+!public/uploads/plans/.gitkeep
+public/uploads/models/*
+!public/uploads/models/.gitkeep
+# photos uploaded through admin are named <epoch-ms>-<hex>; the seed's images are named by slug
+public/uploads/**/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*
+
+# --- local tooling ---
+.claude/
+
+# builds made beside a running dev server (NEXT_DIST_DIR=.next-build pnpm build)
+.next-build/
+
+# --- runtime logs (see lib/log.ts) ---
+logs/*
+!logs/.gitkeep
+
+# --- test output ---
+coverage/
+playwright-report/
+test-results/
+# --- Passenger restart marker and npm artefacts from cPanel deploys ---
+tmp/
+package-lock.json

@@ -1,0 +1,3 @@
+module.exports=[93589,a=>{"use strict";var b=a.i(33360);let c=(0,a.i(52486).default)("LoaderCircle",[["path",{d:"M21 12a9 9 0 1 1-6.219-8.56",key:"13zald"}]]);a.s(["default",0,function(){return(0,b.jsx)("div",{className:"flex min-h-[50vh] items-center justify-center",children:(0,b.jsx)(c,{className:"h-8 w-8 animate-spin text-brand"})})}],93589)},24808,function(a){a.n(a.i(93589))}];
+
+//# sourceMappingURL=app_%28main%29_loading_tsx_1irjw24._.js.map

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "functions": {
+    "/_middleware": {
+      "runtime": "nodejs",
+      "matchers": [
+        {
+          "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/admin(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
+          "originalSource": "/admin/:path*"
+        },
+        {
+          "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/partner(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
+          "originalSource": "/partner/:path*"
+        },
+        {
+          "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/profile(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
+          "originalSource": "/profile/:path*"
+        }
+      ]
+    },
+    "/api/admin/revenue/export": {},
+    "/api/admin/settings": {},
+    "/api/auth/forgot": {},
+    "/api/auth/register": {},
+    "/api/auth/reset": {},
+    "/api/auth/verify": {},
+    "/api/bookings": {},
+    "/api/calculator/materials": {},
+    "/api/calculator/rates": {},
+    "/api/calculator/rates/[id]": {},
+    "/api/categories": {},
+    "/api/categories/[id]": {},
+    "/api/checkout": {},
+    "/api/design/catalog": {},
+    "/api/design/parse-plan": {},
+    "/api/design/projects": {},
+    "/api/design/upload-plan": {},
+    "/api/health": {},
+    "/api/orders/[id]": {},
+    "/api/products": {},
+    "/api/products/[id]": {},
+    "/api/projects": {},
+    "/api/settings": {},
+    "/api/stores": {},
+    "/api/stores/[id]": {},
+    "/api/upload": {},
+    "/api/upload/model": {},
+    "/api/users/[id]": {},
+    "/api/workers": {},
+    "/api/workers/[id]": {}
+  }
+}

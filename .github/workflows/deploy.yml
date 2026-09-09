@@ -1,0 +1,46 @@
+name: Deploy
+
+# A pushed tag `v*` deploys that tag to the VPS through `deploy/deploy.sh`, which builds a
+# fresh release, migrates, switches PM2 over, and rolls back on a failed health check.
+#
+# Repository secrets required:
+#   DEPLOY_HOST      VPS hostname or IP
+#   DEPLOY_USER      SSH user that owns APP_DIR and runs PM2
+#   DEPLOY_SSH_KEY   private key for that user (deploy key with read access to this repo on the server side)
+#   DEPLOY_PATH      APP_DIR on the server, e.g. /var/www/renovate
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Re-run checks on the tag
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy ${{ github.ref_name }}
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            export APP_DIR="${{ secrets.DEPLOY_PATH }}"
+            cd "$APP_DIR"
+            # The deploy script lives in the repo; fetch the tagged copy of it first.
+            rm -rf .deploy-src && git clone --quiet --depth 1 --branch "${{ github.ref_name }}" git@github.com:${{ github.repository }}.git .deploy-src
+            bash .deploy-src/deploy/deploy.sh "${{ github.ref_name }}"
+            rm -rf .deploy-src
