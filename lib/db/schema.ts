@@ -7,9 +7,9 @@ import {
   boolean,
   timestamp,
   mysqlEnum,
-  json,
   index,
 } from 'drizzle-orm/mysql-core';
+import { json } from './json';
 
 export const users = mysqlTable('users', {
   id: int('id').primaryKey().autoincrement(),
