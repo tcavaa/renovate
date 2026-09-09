@@ -9,11 +9,20 @@
 #   source ~/nodevenv/renovate/20/bin/activate   # the line cPanel shows at the top of the Node.js app
 #   cd ~/renovate && bash deploy/cpanel.sh
 #
-# What it does: finds the Node.js app's environment, installs dependencies, builds the
-# standalone server, puts public/ and .next/static beside it, keeps uploads in a folder that
-# survives rebuilds (next build wipes .next) and hands that folder to Apache, applies pending
-# migrations and asks Passenger to restart. It never touches a tracked file: cPanel refuses to
-# deploy over a checkout with uncommitted changes, so everything it writes is git-ignored.
+# Two modes, chosen by what the checkout contains:
+#
+#   release  — the `cpanel` branch, published by the "cPanel build" GitHub Actions workflow:
+#              the source tree plus the built standalone server under .next/standalone with a
+#              .prebuilt marker. Nothing is installed or built here: the script copies public/,
+#              links the uploads folder, applies migrations with plain node (deploy/migrate.cjs)
+#              and restarts Passenger. This is the mode for shared hosting, where the account's
+#              memory cap kills `pnpm install` and `next build`.
+#   build    — any other branch: installs (dev dependencies included), builds the standalone
+#              server with as little memory as possible (one worker, no in-build type check),
+#              assembles it, migrates and restarts. Fine on a host with a few GB to spare.
+#
+# Either way it never touches a tracked file: cPanel refuses to deploy over a checkout with
+# uncommitted changes, so everything it writes is git-ignored.
 #
 # Settings (environment variables, all optional):
 #   DOCROOT         the subdomain's document root; found from the .htaccess cPanel wrote for
@@ -90,30 +99,45 @@ MSG
   exit 1
 fi
 
-# pnpm goes into the Node.js app's own global folder (that is where npm -g points inside a
-# nodevenv); when even that is refused, npx runs the pinned version without installing it.
-PNPM=pnpm
-if ! command -v pnpm >/dev/null 2>&1; then
-  if npm install -g pnpm@9.15.0 >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
-    :
-  else
-    PNPM="npx --yes pnpm@9.15.0"
+STANDALONE="$DIST/standalone"
+if [ -f "$STANDALONE/.prebuilt" ]; then
+  echo "==> release mode: $(head -1 "$STANDALONE/.prebuilt")"
+else
+  # pnpm goes into the Node.js app's own global folder (that is where npm -g points inside a
+  # nodevenv); when even that is refused, npx runs the pinned version without installing it.
+  PNPM=pnpm
+  if ! command -v pnpm >/dev/null 2>&1; then
+    if npm install -g pnpm@9.15.0 >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+      :
+    else
+      PNPM="npx --yes pnpm@9.15.0"
+    fi
   fi
+
+  echo "==> install"
+  # pnpm skips devDependencies when NODE_ENV=production, and the build needs them (typescript,
+  # tailwind, tsx for the migrations). Passenger's environment may well set it; override here.
+  # Its worker pool is sized from the CPU count minus PNPM_WORKERS (pnpm 9.15: max(2, cpus −
+  # PNPM_WORKERS) − 1), and every worker is a whole V8 instance — on a big shared box that is
+  # dozens of them, which is what "Failed to reserve virtual memory for CodeRange" was. Two
+  # workers and one child process at a time keep it inside a small memory cap.
+  CPUS="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
+  export PNPM_WORKERS="$(( CPUS > 3 ? CPUS - 3 : 1 ))"
+  NODE_ENV=development $PNPM install --frozen-lockfile --child-concurrency=1 --network-concurrency=4
+
+  echo "==> build"
+  # RENOVATE_LOW_MEMORY: one build worker and no in-build type check (next.config.mjs).
+  NODE_ENV=production RENOVATE_LOW_MEMORY=1 NEXT_TELEMETRY_DISABLED=1 $PNPM build
 fi
 
-echo "==> install"
-# pnpm skips devDependencies when NODE_ENV=production, and the build needs them (typescript,
-# tailwind, tsx for the migrations). Passenger's environment may well set it; override here.
-NODE_ENV=development $PNPM install --frozen-lockfile
-
-echo "==> build"
-NODE_ENV=production $PNPM build
-
 echo "==> assemble the standalone server"
-STANDALONE="$DIST/standalone"
-mkdir -p "$STANDALONE/$DIST"
-rm -rf "$STANDALONE/$DIST/static" "$STANDALONE/public"
-cp -r "$DIST/static" "$STANDALONE/$DIST/static"
+if [ -d "$DIST/static" ]; then
+  # A local build leaves the client assets beside the standalone folder; CI puts them inside.
+  mkdir -p "$STANDALONE/$DIST"
+  rm -rf "$STANDALONE/$DIST/static"
+  cp -r "$DIST/static" "$STANDALONE/$DIST/static"
+fi
+rm -rf "$STANDALONE/public"
 cp -r public "$STANDALONE/public"
 
 # Uploads live outside the build output (`next build` empties .next) and, when the document
@@ -160,8 +184,13 @@ cat > "$SHARED_UPLOADS/.htaccess" <<'HT'
 HT
 
 echo "==> migrate"
-# scripts/migrate.ts reads .env.local then .env from the repository root.
-NODE_ENV=production $PNPM db:migrate
+if [ -f "$STANDALONE/.prebuilt" ]; then
+  # No tsx here: deploy/migrate.cjs mirrors drizzle's migrator with the standalone's mysql2.
+  NODE_ENV=production node deploy/migrate.cjs
+else
+  # scripts/migrate.ts reads .env.local then .env from the repository root.
+  NODE_ENV=production $PNPM db:migrate
+fi
 
 echo "==> restart (Passenger)"
 mkdir -p tmp && touch tmp/restart.txt

@@ -850,28 +850,33 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   never edit a generated file). `pnpm db:migrate` applies them and is what
   `deploy/deploy.sh` runs. A database created with `db:push` before migrations existed needs
   `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only.
-- **cPanel / Passenger** (shared hosting, no login shell needed): the app runs under cPanel's
-  "Setup Node.js App" (Node 20+, mode Production, application root `renovate`, startup file
-  `server.cjs`, which loads the repo's `.env` and hands off to the standalone server `next
-  build` emits). The repo is cloned with Git Version Control into `~/renovate` — never into a
-  document root — and **"Deploy HEAD Commit" runs `.cpanel.yml`**, which calls
-  `deploy/cpanel.sh`: activates the app's `~/nodevenv`, installs (dev dependencies included —
-  pnpm skips them when `NODE_ENV=production`), builds, puts `public/` and `.next/static`
-  beside the standalone server, applies migrations and touches `tmp/restart.txt`, which is how
-  Passenger restarts. Server variables live in `~/renovate/.env` (git-ignored; `AUTH_URL`,
-  `AUTH_TRUST_HOST=true` and `LOG_DIR` included — the Node.js app's own settings are not
-  visible to deployment tasks). Uploads live in the subdomain's **document root**
-  (`<docroot>/uploads`, found from the `.htaccess` cPanel wrote, or `DOCROOT`), and the
-  standalone server writes into it through a symlink: in production Next serves only the
-  public files that existed at start-up, while Apache serves anything that exists in the
-  document root before Passenger sees the request. The script never touches a tracked file —
+- **cPanel / Passenger** (shared hosting, no login shell): the app runs under cPanel's "Setup
+  Node.js App" (Node 22, mode Production, application root `renovate`, startup file
+  `server.cjs`, which loads `~/renovate/.env` through `deploy/lib/env.cjs` and hands off to
+  the standalone server). The repo is cloned with Git Version Control into `~/renovate` —
+  never into a document root — with the **`cpanel` branch checked out**, and "Deploy HEAD
+  Commit" runs `.cpanel.yml` → `deploy/cpanel.sh`. **The host cannot build**: its per-account
+  memory cap kills `pnpm install` (a worker pool of V8 instances) and `next build`, so the
+  `cPanel build` GitHub Actions workflow builds on Linux after CI passes on `main` and
+  publishes `main`'s tree plus `.next/standalone` (marker `.next/standalone/.prebuilt`) as
+  one new commit on `cpanel`, every time — pulls always fast-forward. The script sees the
+  marker and runs in **release mode**: copy `public/`, link uploads, `node deploy/migrate.cjs`
+  (drizzle's migrator re-done in plain node with the standalone's own `mysql2`, which
+  `serverExternalPackages` keeps out of the server chunks for exactly this), touch
+  `tmp/restart.txt`. Without the marker it installs and builds itself with
+  `RENOVATE_LOW_MEMORY=1` (one worker, no in-build type check) — for a host with memory.
+  `~/renovate/.env` holds the server variables (`AUTH_URL`, `AUTH_TRUST_HOST=true`, `LOG_DIR`
+  included; the Node.js app's own settings are invisible to deployment tasks). Uploads live
+  in the subdomain's **document root** (`<docroot>/uploads`, found from cPanel's `.htaccess`
+  or `DOCROOT`) and the standalone server writes there through a symlink: in production Next
+  serves only the public files that existed at start-up, while Apache serves anything in the
+  document root before Passenger sees the request. Nothing the script writes is tracked —
   cPanel refuses to deploy over a checkout with uncommitted changes. **A failed deploy is
-  silent**: the Deploy button only says "queued", and "Last Deployment Information" stays
-  "Not available" — read `~/renovate/logs/deploy.log`, which the script writes itself (the
-  failure trap names the line and command; Passenger's own log is `logs/main.logs` beside
-  it). The nodevenv `activate` file has to be sourced with `set +eu`: it reads variables a
-  background task does not have. Shared hosts often kill `next build` for memory; then build
-  locally and upload `.next/` before the assembly steps.
+  silent** ("Last Deployment Information" stays "Not available"): read
+  `~/renovate/logs/deploy.log` (the script's own; a failure trap names the command) or
+  cPanel's copy in `~/.cpanel/logs`; Passenger's log is `~/renovate/logs/main.logs`. Two
+  things bit there already: the nodevenv `activate` file needs `set +eu` (it reads variables
+  a background task lacks), and `exec > >(tee …)` needs `/dev/fd`, which CageFS has not.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The

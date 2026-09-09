@@ -1,0 +1,91 @@
+name: cPanel build
+
+# Builds the standalone server on GitHub's runners and publishes it to the `cpanel` branch,
+# which the cPanel Git Version Control repository checks out. The shared host cannot build the
+# app itself — its per-account memory cap kills `pnpm install` and `next build` — so the branch
+# carries the source tree plus `.next/standalone` (marked with `.next/standalone/.prebuilt`),
+# and deploy/cpanel.sh runs in release mode there: copy public/, link uploads, migrate, restart.
+#
+# Runs after CI has passed on main. Each publish is one commit on top of the previous one, so
+# cPanel's "Update from Remote" always fast-forwards. NEXT_PUBLIC_APP_URL is baked into the
+# client bundle at build time: set the repository variable NEXT_PUBLIC_APP_URL to change it.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cpanel-build
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: '1'
+  # Placeholders so lib/env.ts validates while the build collects page data; every page is
+  # rendered on request, so nothing here reaches the built output or a database.
+  DATABASE_HOST: 127.0.0.1
+  DATABASE_USER: ci
+  DATABASE_PASSWORD: ci
+  DATABASE_NAME: renovate_ci
+  AUTH_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+  NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || 'https://renovate.rretrocar.ge' }}
+
+jobs:
+  publish:
+    name: Build and publish the cpanel branch
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: NODE_ENV=development pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Assemble the standalone server
+        run: |
+          set -euo pipefail
+          mkdir -p .next/standalone/.next
+          cp -r .next/static .next/standalone/.next/static
+          # public/ is copied and uploads linked on the server by deploy/cpanel.sh.
+          rm -rf .next/standalone/public
+          printf '%s\n%s\n' "${GITHUB_SHA}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .next/standalone/.prebuilt
+          du -sh .next/standalone
+
+      - name: Publish to the cpanel branch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # The branch's tree is this commit's tree plus the built server; its history is its
+          # own — one commit per publish on top of the last, so pulls fast-forward.
+          git add -f .next/standalone
+          TREE="$(git write-tree)"
+          PARENT=""
+          if git fetch --depth=1 origin cpanel 2>/dev/null; then
+            PARENT="$(git rev-parse --verify FETCH_HEAD)"
+          fi
+          SUBJECT="$(git log -1 --pretty=%s "${GITHUB_SHA}")"
+          COMMIT="$(git commit-tree "${TREE}" ${PARENT:+-p "${PARENT}"} -m "cPanel build of ${GITHUB_SHA::7}: ${SUBJECT}")"
+          git push origin "${COMMIT}:refs/heads/cpanel"
+          echo "published ${COMMIT} to cpanel"

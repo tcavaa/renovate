@@ -101,8 +101,5 @@
     "overrides": {
       "@types/three": "0.169.0"
     }
-  },
-  "overrides": {
-    "@types/three": "0.169.0"
   }
 }

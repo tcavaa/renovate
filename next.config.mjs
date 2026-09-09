@@ -68,10 +68,20 @@ const assetHeaders = [
   { source: '/samples/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
 ];
 
+// Shared hosting (cPanel) builds under a per-account memory cap, and the build's worker pool
+// is sized from the machine's CPU count — dozens of processes on a big shared box. With
+// RENOVATE_LOW_MEMORY=1 (set by deploy/cpanel.sh) the build runs on one worker and skips
+// the in-build type check; `pnpm type-check` runs before every push and in CI.
+const lowMemory = process.env.RENOVATE_LOW_MEMORY === '1';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  typescript: { ignoreBuildErrors: lowMemory },
+  // Shipped in the standalone server's node_modules instead of being bundled into the server
+  // chunks, so deploy/migrate.cjs can load it on a host that has no other node_modules.
+  serverExternalPackages: ['mysql2'],
   // Self-contained server for PM2: deploy/deploy.sh copies public/ and .next/static beside it.
   output: 'standalone',
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
@@ -88,6 +98,7 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    ...(lowMemory ? { cpus: 1 } : {}),
   },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }, ...assetHeaders];
