@@ -27,15 +27,21 @@ set -euo pipefail
 : "${HOME:=$(eval echo "~$(id -un)")}"
 export HOME
 
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${NEXT_DIST_DIR:-.next}"
 cd "$APP_ROOT"
 
 # Everything below is also written to logs/deploy.log, which File Manager can open. cPanel
 # keeps its own copy of the output in ~/.cpanel/logs, but only shows a date and a commit for
-# a deploy that succeeded — a failed one leaves "Not available" and nothing else.
-mkdir -p logs
-exec > >(tee -a logs/deploy.log) 2>&1
+# a deploy that succeeded — a failed one leaves "Not available" and nothing else. The script
+# re-runs itself through a pipe: `exec > >(tee …)` needs /dev/fd, which CageFS does not have,
+# and that one line failed the first real deploy.
+if [ -z "${RENOVATE_DEPLOY_CHILD:-}" ]; then
+  mkdir -p logs
+  RENOVATE_DEPLOY_CHILD=1 bash "$SELF" "$@" 2>&1 | tee -a logs/deploy.log
+  exit "${PIPESTATUS[0]}"
+fi
 echo "==> deploy started $(date -u +%Y-%m-%dT%H:%M:%SZ), commit $(git rev-parse --short HEAD 2>/dev/null || echo '?')"
 trap 'echo "==> deploy FAILED at line $LINENO: $BASH_COMMAND" >&2' ERR
 
