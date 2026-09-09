@@ -1,5 +1,8 @@
 # --- dependencies ---
 node_modules/
+# cPanel's Node.js app creates node_modules as a symlink into ~/nodevenv (dangling until an
+# install); a directory-only rule does not cover a symlink, and an untracked file blocks deploys.
+node_modules
 .pnpm-store/
 
 # --- Next.js build output ---
