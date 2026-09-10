@@ -12,6 +12,7 @@ import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/typ
 import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
 import { projectKind } from '@/lib/projects/saved';
 import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
+import { FoldSection } from '@/components/projects/FoldSection';
 
 /**
  * A saved project, in full: meta, the layout, the rooms, materials, products, furniture,
@@ -43,6 +44,7 @@ export function ProjectDetail({
   backLabel,
   extraMeta = [],
   actions,
+  renders,
   after,
 }: {
   project: Project;
@@ -54,6 +56,8 @@ export function ProjectDetail({
   extraMeta?: MetaItem[];
   /** Buttons on the right of the head — the owner gets "open in 3D". */
   actions?: React.ReactNode;
+  /** The photos and renders block, placed just before the breakdown. */
+  renders?: React.ReactNode;
   /** Rendered under the breakdown — the orders placed against the project. */
   after?: React.ReactNode;
 }) {
@@ -79,17 +83,16 @@ export function ProjectDetail({
         {backLabel}
       </Link>
 
-      <header className="mt-4 flex flex-col gap-6 border-b border-line pb-8 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ProjectKindTags t={t} kind={kind} />
-            <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
-          </div>
-          <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
-            {project.nameKa ?? t.profile.fallbackName} <span className="text-ink-faint">#{project.id}</span>
-          </h1>
+      {/* Title on its own line, the actions under it: side by side the buttons squeezed the name into a column of words. */}
+      <header className="mt-4 border-b border-line pb-8">
+        <div className="flex flex-wrap items-center gap-2">
+          <ProjectKindTags t={t} kind={kind} />
+          <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
         </div>
-        {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+        <h1 className="mt-3 max-w-4xl font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+          {project.nameKa ?? t.profile.fallbackName} <span className="text-ink-faint">#{project.id}</span>
+        </h1>
+        {actions && <div className="mt-6 flex flex-wrap items-center gap-2">{actions}</div>}
       </header>
 
       <dl className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
@@ -108,8 +111,11 @@ export function ProjectDetail({
         {design && design.total > 0 ? <Figure label={t.profile.designTotal} value={formatGEL(design.total)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(summary.grandTotalWithMargin)} emphasis />}
       </div>
 
-      <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <Section title={t.calculator.layoutTitle} count={rooms.length}>
+      {/* Every block folds on its title; the breakdown at the end stays open. */}
+      <div className="mt-8">
+        <FoldSection title={`${t.calculator.layoutTitle} · ${t.summary.rooms}`} count={rooms.length} aside={<span className="font-serif text-lg font-semibold text-ink">{formatM2L(t, Number(project.totalM2))}</span>}>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div>
           {rooms.length > 0 || plan ? (
             <div className="border border-line bg-white p-4">
               <PlanSketch plan={plan} rooms={rooms} className="block h-auto w-full" />
@@ -117,9 +123,9 @@ export function ProjectDetail({
           ) : (
             <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
           )}
-        </Section>
+        </div>
 
-        <Section title={t.summary.rooms} count={rooms.length} aside={<span className="font-serif text-lg font-semibold text-ink">{formatM2L(t, Number(project.totalM2))}</span>}>
+        <div>
           {rooms.length === 0 ? (
             <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
           ) : (
@@ -149,11 +155,11 @@ export function ProjectDetail({
               ))}
             </ul>
           )}
-        </Section>
-      </div>
+        </div>
+        </div>
+        </FoldSection>
 
-      <div className="mt-12 space-y-12">
-        <Section title={t.summary.materials} count={summary.materials.length}>
+        <FoldSection title={t.summary.materials} count={summary.materials.length} defaultOpen={summary.materials.length > 0}>
           <Table
             head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
             rows={summary.materials.map((m) => {
@@ -163,18 +169,18 @@ export function ProjectDetail({
             empty={t.summary.materialsEmpty}
             subtotal={summary.materials.length ? { label: t.summary.subtotal, value: summary.subtotalMaterials } : undefined}
           />
-        </Section>
+        </FoldSection>
 
-        <Section title={t.summary.products} count={summary.products.length}>
+        <FoldSection title={t.summary.products} count={summary.products.length} defaultOpen={summary.products.length > 0}>
           <ProductsTable items={summary.products} subtotal={summary.subtotalProducts} emptyText={t.summary.productsEmpty} t={t} locale={locale} rooms={rooms} />
-        </Section>
+        </FoldSection>
 
-        <Section title={t.summary.furniture} count={summary.furniture.length}>
+        <FoldSection title={t.summary.furniture} count={summary.furniture.length} defaultOpen={summary.furniture.length > 0}>
           <ProductsTable items={summary.furniture} subtotal={summary.subtotalFurniture} emptyText={design && design.groups.length > 0 ? t.profile.furnitureInStudio : t.summary.furnitureEmpty} t={t} locale={locale} />
-        </Section>
+        </FoldSection>
 
         {design && design.groups.length > 0 && (
-          <Section title={t.profile.designProducts} count={design.count} aside={<span className="font-serif text-lg font-semibold text-ink">{formatGEL(design.total)}</span>}>
+          <FoldSection title={t.profile.designProducts} count={design.count} aside={<span className="font-serif text-lg font-semibold text-ink">{formatGEL(design.total)}</span>}>
             <p className="text-sm text-ink-muted">{t.profile.designProductsHint}</p>
             <div className="space-y-6">
               {design.groups.map((group) => (
@@ -189,19 +195,21 @@ export function ProjectDetail({
                 </div>
               ))}
             </div>
-          </Section>
+          </FoldSection>
         )}
 
-        <Section title={t.summary.workers} count={summary.workerCosts.length}>
+        <FoldSection title={t.summary.workers} count={summary.workerCosts.length} defaultOpen={summary.workerCosts.length > 0}>
           <Table
             head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
             rows={summary.workerCosts.map((w) => [workTypeLabel(t, w.key), formatNumber(w.qty), unitLabel(t, w.qtyUnit), formatGEL(w.pricePerQty, true), formatGEL(w.totalGEL)])}
             empty={t.summary.workEmpty}
             subtotal={summary.workerCosts.length ? { label: t.summary.subtotal, value: summary.subtotalWorkers } : undefined}
           />
-        </Section>
+        </FoldSection>
 
-        <Section title={t.summary.breakdown}>
+        {renders}
+
+        <Section title={t.summary.breakdown} className="pt-8">
           <div className="max-w-xl border border-line bg-bg-surface p-5 md:p-6">
             <div className="space-y-2">
               <MoneyRow label={t.summary.materials} value={summary.subtotalMaterials + summary.subtotalProducts} />
@@ -229,9 +237,9 @@ export function ProjectDetail({
 // Building blocks
 // ---------------------------------------------------------------------------
 
-function Section({ title, count, aside, children }: { title: string; count?: number; aside?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, count, aside, className, children }: { title: string; count?: number; aside?: React.ReactNode; className?: string; children: React.ReactNode }) {
   return (
-    <section>
+    <section className={className}>
       <div className="mb-4 flex items-baseline justify-between border-b border-line pb-3">
         <h2 className="font-serif text-2xl font-semibold text-ink">{title}</h2>
         {aside ?? (count !== undefined && <span className="text-sm tabular-nums text-ink-muted">{count}</span>)}

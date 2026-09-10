@@ -7,6 +7,7 @@ import { getT, getLocale } from '@/lib/i18n/server';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
+import { ProjectRenders } from '@/components/projects/ProjectRenders';
 import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 import { ProjectOrders } from '@/components/orders/ProjectOrders';
 
@@ -55,6 +56,7 @@ export default async function AdminProjectDetailPage(props: { params: Promise<{ 
           value: userName ? `${userName} (${userEmail})` : ka.admin.guestUser,
         },
       ]}
+      renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
       after={<ProjectOrders projectId={project.id} t={ka} locale={locale} orderHref={(id) => `/admin/orders/${id}`} />}
     />
   );
