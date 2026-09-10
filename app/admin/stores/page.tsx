@@ -35,6 +35,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
   }
   if (p.get('status') === 'active') where.push(eq(stores.isActive, true));
   if (p.get('status') === 'inactive') where.push(eq(stores.isActive, false));
+  if (p.get('status') === 'pending') where.push(eq(stores.approvalStatus, 'pending'));
   if (p.get('city')) where.push(eq(stores.city, p.get('city')));
   const filter = where.length ? and(...where) : undefined;
 
@@ -61,6 +62,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
         deliveryDays: stores.deliveryDays,
         deliveryFeeGel: stores.deliveryFeeGel,
         isActive: stores.isActive,
+        approvalStatus: stores.approvalStatus,
         // A left join + group by rather than a correlated subquery: Drizzle emits the latter
         // without correlating it to the outer row, so every store came back with zero.
         productCount,
@@ -95,7 +97,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
         fields={[
           { name: 'q', type: 'search' },
           { name: 'city', type: 'select', label: f.city, options: cities.filter((c) => c.city).map((c) => ({ value: c.city!, label: c.city! })) },
-          { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }] },
+          { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }, { value: 'pending', label: f.pending }] },
         ]}
         sorts={[
           { value: 'name:asc', label: f.sortName },
@@ -153,7 +155,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
                 )}
               </td>
               <td className="px-4 py-2.5">
-                {s.isActive ? <Badge variant="success">{ka.admin.badges.active}</Badge> : <Badge variant="secondary">{ka.admin.badges.inactive}</Badge>}
+                {s.approvalStatus === 'pending' ? <Badge variant="warning">{ka.admin.approvalPending}</Badge> : s.isActive ? <Badge variant="success">{ka.admin.badges.active}</Badge> : <Badge variant="secondary">{ka.admin.badges.inactive}</Badge>}
               </td>
               <td className="px-4 py-2.5 text-right">
                 <Button variant="outline" size="sm" asChild>

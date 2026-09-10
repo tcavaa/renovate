@@ -8,11 +8,12 @@ import { loadPartnerContext } from '@/lib/partner/context';
 import { loadPlatformSettings } from '@/lib/finance/settings';
 import { effectiveCommissionPct } from '@/lib/finance/money';
 import { Button } from '@/components/ui/button';
+import { WorkerSelfForm } from '@/components/partner/WorkerSelfForm';
 import { formatGEL, formatNumber } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-/** A worker's own card: what customers see, and the commission the platform keeps. */
+/** A worker's own card: what customers see, the commission the platform keeps, and the form to change the service and price. */
 export default async function PartnerProfilePage(props: { searchParams: Promise<{ store?: string; worker?: string }> }) {
   const search = await props.searchParams;
   const t = await getT();
@@ -32,12 +33,14 @@ export default async function PartnerProfilePage(props: { searchParams: Promise<
           <h1 className="mt-2 font-serif text-3xl font-bold">{worker.nameKa}</h1>
           <p className="mt-1 text-sm text-ink-muted">{worker.specialty}</p>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/workers/${worker.id}`}>
-            {t.partner.publicProfile}
-            <ArrowUpRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        {worker.isActive && (
+          <Button asChild variant="outline">
+            <Link href={`/workers/${worker.id}`}>
+              {t.partner.publicProfile}
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
       </div>
       <dl className="grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -52,8 +55,14 @@ export default async function PartnerProfilePage(props: { searchParams: Promise<
           </div>
         ))}
       </dl>
-      {worker.bio && <p className="max-w-2xl text-sm leading-relaxed text-ink-soft">{worker.bio}</p>}
-      <p className="max-w-2xl text-xs text-ink-muted">{t.partner.productsHint}</p>
+      {/* Admin previewing a worker edits them in admin; the worker edits themselves here. */}
+      {ctx.isAdmin ? (
+        <Button asChild variant="outline">
+          <Link href={`/admin/workers/${worker.id}`}>{t.admin.actions.edit}</Link>
+        </Button>
+      ) : (
+        <WorkerSelfForm worker={worker} />
+      )}
     </div>
   );
 }

@@ -33,6 +33,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
   if (p.get('verified') === 'no') where.push(eq(workers.isVerified, false));
   if (p.get('status') === 'active') where.push(eq(workers.isActive, true));
   if (p.get('status') === 'inactive') where.push(eq(workers.isActive, false));
+  if (p.get('status') === 'pending') where.push(eq(workers.approvalStatus, 'pending'));
   if (p.num('ratingMin') != null) where.push(gte(workers.rating, String(p.num('ratingMin'))));
   const filter = where.length ? and(...where) : undefined;
 
@@ -69,7 +70,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
           { name: 'q', type: 'search' },
           { name: 'specialty', type: 'select', label: f.specialty, options: SPECIALTIES.map((s) => ({ value: s, label: workerSpecialtyLabel(ka, s) })) },
           { name: 'verified', type: 'select', label: f.verified, options: [{ value: 'yes', label: f.verified }, { value: 'no', label: f.unverified }] },
-          { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }] },
+          { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }, { value: 'pending', label: f.pending }] },
           { name: 'ratingMin', type: 'number', placeholder: f.ratingMin, min: 0, step: 0.5 },
         ]}
         sorts={[
@@ -111,7 +112,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
                 {Number(w.rating).toFixed(1)} <span className="text-xs text-ink-muted">({w.reviewCount})</span>
               </td>
               <td className="px-4 py-2.5">
-                {w.isActive ? <Badge variant="success">{ka.admin.badges.active}</Badge> : <Badge variant="secondary">{ka.admin.badges.inactive}</Badge>}
+                {w.approvalStatus === 'pending' ? <Badge variant="warning">{ka.admin.approvalPending}</Badge> : w.isActive ? <Badge variant="success">{ka.admin.badges.active}</Badge> : <Badge variant="secondary">{ka.admin.badges.inactive}</Badge>}
               </td>
               <td className="px-4 py-2.5 text-right">
                 <Button variant="outline" size="sm" asChild>

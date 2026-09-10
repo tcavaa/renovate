@@ -12,6 +12,8 @@ import { CalculateCostsButton } from '@/components/projects/CalculateCostsButton
 import { OrderProjectButton } from '@/components/projects/OrderProjectButton';
 import { savedProjectInput } from '@/lib/projects/saved';
 import { ProjectOrders } from '@/components/orders/ProjectOrders';
+import { ProjectRenders } from '@/components/projects/ProjectRenders';
+import { DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
 import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
@@ -58,9 +60,15 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
           <CalculateCostsButton project={savedProjectInput(project)} size="lg" />
           <OpenIn3dButton project={savedProjectInput(project)} size="lg" />
           <OrderProjectButton project={savedProjectInput(project)} />
+          {project.status !== 'submitted' && <DeleteProjectButton projectId={project.id} size="default" afterHref="/profile" />}
         </>
       }
-      after={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
+      after={
+        <>
+          {project.plan != null && <ProjectRenders projectId={project.id} t={ka} locale={locale} />}
+          <ProjectOrders projectId={project.id} t={ka} locale={locale} />
+        </>
+      }
     />
   );
 }

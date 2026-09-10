@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { stores } from '@/lib/db/schema';
 import { StoreForm } from '@/components/admin/StoreForm';
+import { PartnerApproval } from '@/components/admin/PartnerApproval';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,7 @@ export default async function EditStorePage(props: { params: Promise<{ id: strin
   return (
     <div className="space-y-6">
       <h1 className="font-serif text-3xl font-bold">{rows[0].nameKa}</h1>
+      <PartnerApproval kind="store" id={rows[0].id} status={rows[0].approvalStatus} />
       <StoreForm store={rows[0]} />
     </div>
   );

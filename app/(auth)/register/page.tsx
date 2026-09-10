@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { Loader2 } from 'lucide-react';
+import { ArrowUpRight, Hammer, Loader2, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthForm, Field, Notice } from '@/components/auth/AuthForm';
@@ -81,6 +81,28 @@ export default function RegisterPage() {
           {t.auth.registerButton}
         </Button>
       </form>
+
+      {/* Partners — stores and workers — register through their own forms and wait for admin. */}
+      <div className="mt-8 border-t border-line pt-6">
+        <p className="eyebrow">{t.auth.partnerTitle}</p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-muted">{t.auth.partnerDesc}</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Link href="/register/store" className="group flex items-center gap-3 border border-line bg-bg-surface p-4 transition-colors hover:border-ink">
+            <span className="grid h-10 w-10 shrink-0 place-items-center border border-line text-ink-muted group-hover:border-ink group-hover:text-ink">
+              <Store className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1 font-serif text-base font-semibold text-ink">{t.auth.registerStore}</span>
+            <ArrowUpRight className="h-4 w-4 text-ink-faint transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+          <Link href="/register/worker" className="group flex items-center gap-3 border border-line bg-bg-surface p-4 transition-colors hover:border-ink">
+            <span className="grid h-10 w-10 shrink-0 place-items-center border border-line text-ink-muted group-hover:border-ink group-hover:text-ink">
+              <Hammer className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1 font-serif text-base font-semibold text-ink">{t.auth.registerWorker}</span>
+            <ArrowUpRight className="h-4 w-4 text-ink-faint transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      </div>
     </AuthForm>
   );
 }

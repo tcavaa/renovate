@@ -2,11 +2,12 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
-import { ArrowUpRight, Box, ChevronRight, ExternalLink, MapPin, Phone, Truck } from 'lucide-react';
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { Box, ChevronRight, ExternalLink, MapPin, Phone, Truck } from 'lucide-react';
+import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
+import { ProductModelDrawer } from '@/components/catalog/ProductModelDrawer';
 import { Button } from '@/components/ui/button';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName, localizedText, pickLocalizedName, styleLabel, unitLabel } from '@/lib/i18n/labels';
@@ -69,7 +70,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
     .select({ product: products, store: stores })
     .from(products)
     .leftJoin(stores, eq(products.storeId, stores.id))
-    .where(and(eq(products.isActive, true), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
+    .where(and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
     .orderBy(desc(products.isFeatured), desc(products.id))
     .limit(4);
   const related = relatedRows.map((r) => r.product);
@@ -133,22 +134,12 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
             <span className="text-sm text-ink-muted">/ {unitLabel(t, product.unit)}</span>
           </div>
 
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-            <Button asChild variant="ink" size="lg" className="group flex-1">
-              <Link href="/calculator">
-                {t.catalog.addToProject}
-                <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-              </Link>
-            </Button>
-            {product.model3dUrl && (
-              <Button asChild variant="outline" size="lg" className="flex-1">
-                <Link href="/design">
-                  <Box className="h-4 w-4" />
-                  {t.catalog.seeIn3d}
-                </Link>
-              </Button>
-            )}
-          </div>
+          {/* The model opens in a drawer on this page; the studio is where it goes into a room. */}
+          {product.model3dUrl && (
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <ProductModelDrawer modelUrl={product.model3dUrl} name={name} price={Number(product.pricePerUnit)} />
+            </div>
+          )}
 
           {store && (
             <div className="mt-8 border border-line bg-bg-surface">

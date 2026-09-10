@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, ArrowUpRight, Loader2, Plus } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ArrowUpRight, Check, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -12,8 +12,9 @@ import { FinishPanel } from '@/components/design/FinishPanel';
 import { HoverCard, type HoverCardHandle } from '@/components/design/HoverCard';
 import { StudioRail, type RailTab } from '@/components/design/StudioRail';
 import { FloatingPanel } from '@/components/design/FloatingPanel';
-import { AddFurniturePanel } from '@/components/design/AddFurniturePanel';
+import { AddFurniturePanel, FURNITURE_DRAG_TYPE } from '@/components/design/AddFurniturePanel';
 import { OpeningsPanel } from '@/components/design/OpeningsPanel';
+import { PhotoDialog, type StudioShot } from '@/components/design/PhotoDialog';
 import { ViewSwitch, ZoomControls, type StudioView } from '@/components/design/StudioControls';
 import { PlanCanvas } from '@/components/design/PlanCanvas';
 import { useDesignStore } from '@/store/designStore';
@@ -23,6 +24,8 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { saveDesign } from '@/lib/design/saveDesign';
+import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
@@ -43,8 +46,11 @@ type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall' } | null;
 
 /**
  * The studio: a full-bleed canvas with everything else floating over it. A left rail opens
- * one panel at a time (rooms, furniture, finishes, cost); selecting a piece opens its card on
- * the right; the view switch sits top-centre, zoom bottom-right, the running total bottom-left.
+ * one panel at a time (rooms, doors & windows, furniture, finishes, cost) — each opens on
+ * the whole flat with the rooms listed by name and narrows to one room when one is picked;
+ * selecting a piece opens its card on the right; the view switch, the time of day and the
+ * camera sit top-centre, zoom bottom-right, the running total bottom-left. Furniture can be
+ * dragged from the catalogue list straight into the 3D view.
  */
 export default function StudioPage() {
   const t = useT();
@@ -67,6 +73,7 @@ export default function StudioPage() {
     removeItem,
     generate,
     setFinish,
+    addItem,
     beginAdd,
     finishCarry,
     cancelCarry,
@@ -74,9 +81,11 @@ export default function StudioPage() {
     applyPendingPicks,
     addOpening,
     moveOpening,
+    moveOpeningToWall,
     updateOpening,
     setOpeningWall,
     removeOpening,
+    saveState,
   } = useDesignStore();
   const { products } = useDesignCatalog();
 
@@ -88,19 +97,21 @@ export default function StudioPage() {
 
   const [view, setView] = useState<StudioView>('3d');
   const [showWalls, setShowWalls] = useState(true);
+  const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [rail, setRail] = useState<RailTab | null>('rooms');
   const [rotateBlocked, setRotateBlocked] = useState(false);
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
   /** The "items" panel flips between the room's list and the catalogue browser. */
   const [adding, setAdding] = useState(false);
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
-  // The openings and add-furniture panels edit the focused room; picking a room there is
-  // the same as focusing it, so the 3D view follows the choice.
-  const editRoomId = focusRoomId ?? plan?.rooms[0]?.id ?? '';
+  const [shot, setShot] = useState<StudioShot | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  /** A product dropped from the list: where it landed, applied once the viewer is carrying it. */
+  const pendingDrop = useRef<{ x: number; y: number } | null>(null);
 
   // The workspace itself goes full screen (not the page), so the header and step strip drop
   // away and the canvas gets every pixel; the floating chrome stays with it.
@@ -169,6 +180,15 @@ export default function StudioPage() {
     [finishCarry, selectItem]
   );
 
+  // A product dropped from the list is carried by the viewer from the next render; set it
+  // down where it was dropped as soon as that is so.
+  useEffect(() => {
+    const drop = pendingDrop.current;
+    if (!carryingItemId || !drop || !viewerApi) return;
+    pendingDrop.current = null;
+    viewerApi.dropCarriedAt(drop.x, drop.y);
+  }, [carryingItemId, viewerApi]);
+
   const rotateSelected = useCallback(
     (steps: number) => {
       if (!selected || !plan) return;
@@ -192,7 +212,8 @@ export default function StudioPage() {
 
   useEffect(() => setRotateBlocked(false), [selectedItemId]);
 
-  // R rotates the selection, Escape clears it, 1/2/3 switch the view.
+  // R rotates the selection, Escape clears it, 1/2/3 switch the view. WASD and the arrows
+  // pan the 3D view and are handled by the viewer itself.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey) return;
@@ -222,6 +243,9 @@ export default function StudioPage() {
     return counts;
   }, [items]);
 
+  /** Saves the design as it stands (a draft is enough) and returns the project id. */
+  const ensureSaved = useCallback(() => saveDesign({ draft: true, nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}` }), [t.design.title]);
+
   if (!plan || plan.rooms.length === 0) {
     return (
       <>
@@ -241,12 +265,51 @@ export default function StudioPage() {
   const visibleItems = focusRoom ? items.filter((i) => i.roomId === focusRoom.id) : items;
   // Cheap enough per render (a few dozen boxes), and this line sits below an early return.
   const tightSpots: Map<string, TightSpot> = plan ? tightSpotsByItem(plan.rooms, items) : new Map();
+  const roomNameOf = (id: string) => plan.rooms.find((r) => r.id === id)?.name ?? '';
+  /** The whole flat's furniture grouped by room, in plan order, for the list. */
+  const itemGroups = focusRoom ? [{ room: focusRoom, items: visibleItems }] : plan.rooms.map((room) => ({ room, items: items.filter((i) => i.roomId === room.id) })).filter((g) => g.items.length > 0);
+
+  /** A product dragged from the catalogue list and let go over the canvas. */
+  const onDrop = (event: React.DragEvent) => {
+    const raw = event.dataTransfer.getData(FURNITURE_DRAG_TYPE);
+    if (!raw) return;
+    event.preventDefault();
+    const product = products.find((p) => p.id === Number(raw));
+    if (!product) return;
+    if (view === '2d' || !viewerApi) {
+      // No 3D pointer to land on: put it somewhere sensible in the focused (or largest) room.
+      const largest = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
+      addItem(product, focusRoomId ?? largest.id);
+      return;
+    }
+    const at = viewerApi.floorPointAt(event.clientX, event.clientY);
+    const roomId = at?.roomId ?? focusRoomId ?? null;
+    pendingDrop.current = { x: event.clientX, y: event.clientY };
+    if (beginAdd(product, roomId) === null) pendingDrop.current = null;
+  };
+
+  const takePhoto = () => {
+    if (!viewerApi) return;
+    const dataUrl = viewerApi.screenshot();
+    if (!dataUrl) return;
+    setShot({ dataUrl, roomName: focusRoom?.name ?? null, camera: viewerApi.cameraPose() });
+    setPhotoOpen(true);
+  };
 
   return (
     <>
       <DesignSteps current={4} />
 
-      <div ref={workspaceRef} className={cn('relative w-full overflow-hidden bg-sand-light', fullscreen ? 'h-screen' : 'h-[calc(100vh-72px-48px)] min-h-[560px]')}>
+      <div
+        ref={workspaceRef}
+        className={cn('relative w-full overflow-hidden bg-sand-light', fullscreen ? 'h-screen' : 'h-[calc(100vh-72px-48px)] min-h-[560px]')}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes(FURNITURE_DRAG_TYPE)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+        }}
+        onDrop={onDrop}
+      >
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
@@ -256,6 +319,10 @@ export default function StudioPage() {
                   plan={plan}
                   selectedRoomId={focusRoomId}
                   onSelectRoom={(id) => setFocusRoom(id)}
+                  selectedOpeningId={rail === 'openings' ? selectedOpeningId : null}
+                  onSelectOpening={rail === 'openings' ? (_roomId, id) => setSelectedOpeningId(id) : undefined}
+                  onMoveOpening={rail === 'openings' ? moveOpening : undefined}
+                  onMoveOpeningToWall={rail === 'openings' ? moveOpeningToWall : undefined}
                   className="block h-full w-full cursor-pointer"
                 />
               </div>
@@ -269,6 +336,7 @@ export default function StudioPage() {
               showWalls={showWalls}
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
               editMode={rail === 'openings' ? 'openings' : 'furniture'}
+              daylightHour={DAYLIGHT_HOURS[daylight]}
               selectedOpeningId={selectedOpeningId}
               onMoveOpening={moveOpening}
               onSelectOpening={setSelectedOpeningId}
@@ -288,9 +356,14 @@ export default function StudioPage() {
         <div className="pointer-events-none absolute inset-x-4 top-4 flex items-start justify-between gap-4">
           <div className="pointer-events-auto glass flex items-center gap-2 py-1.5 pl-4 pr-2">
             <span className="text-sm font-medium">{focusRoom ? focusRoom.name : t.design.wholeFlat}</span>
-            <Badge variant="outline">
-              {visibleItems.length}
-            </Badge>
+            <Badge variant="outline">{visibleItems.length}</Badge>
+            {saveState === 'saving' && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-muted" aria-label={t.design.saving} />}
+            {saveState === 'saved' && (
+              <span className="flex items-center gap-1 text-[11px] text-ink-muted" title={t.design.autosaved}>
+                <Check className="h-3 w-3 text-success" />
+                {t.design.autosaved}
+              </span>
+            )}
           </div>
           <div className="pointer-events-auto">
             <ViewSwitch
@@ -299,6 +372,9 @@ export default function StudioPage() {
               showWalls={showWalls}
               onToggleWalls={() => setShowWalls((v) => !v)}
               onRegenerate={() => generate(products)}
+              daylight={daylight}
+              onDaylight={setDaylight}
+              onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
             />
           </div>
           <Link
@@ -311,7 +387,7 @@ export default function StudioPage() {
         </div>
 
         {/* ---- left rail + panel ---- */}
-        {/* Panels that edit one room default to the focused room, then the first one. */}
+        {/* Every panel opens on the whole flat; picking a room in one focuses it in 3D too. */}
         <div className="pointer-events-none absolute bottom-20 left-4 top-20 flex items-start gap-3">
           <div className="pointer-events-auto">
             <StudioRail active={rail} onChange={setRail} />
@@ -335,41 +411,40 @@ export default function StudioPage() {
                 </FloatingPanel>
               )}
               {rail === 'openings' && (
-                <FloatingPanel title={t.design.openingsTitle} subtitle={plan.rooms.find((r) => r.id === (editRoomId))?.name} onClose={() => setRail(null)} className="h-full">
+                <FloatingPanel title={t.design.openingsTitle} subtitle={focusRoom?.name ?? t.design.wholeFlat} onClose={() => setRail(null)} className="h-full">
                   <OpeningsPanel
                     rooms={plan.rooms}
-                    roomId={editRoomId}
+                    roomId={focusRoomId}
                     selectedId={selectedOpeningId}
                     onRoom={(id) => {
                       setFocusRoom(id);
                       setSelectedOpeningId(null);
                     }}
                     onSelect={setSelectedOpeningId}
-                    onAdd={(kind) => {
-                      const roomId = editRoomId;
+                    onAdd={(roomId, kind) => {
                       const id = addOpening(roomId, kind);
                       if (id) setSelectedOpeningId(id);
                       return !!id;
                     }}
-                    onMove={(id, tt) => moveOpening(editRoomId, id, tt)}
-                    onUpdate={(id, patch) => updateOpening(editRoomId, id, patch)}
-                    onWall={(id, wallIndex) => setOpeningWall(editRoomId, id, wallIndex)}
-                    onRemove={(id) => {
-                      removeOpening(editRoomId, id);
+                    onMove={moveOpening}
+                    onUpdate={updateOpening}
+                    onWall={setOpeningWall}
+                    onRemove={(roomId, id) => {
+                      removeOpening(roomId, id);
                       if (selectedOpeningId === id) setSelectedOpeningId(null);
                     }}
                   />
                 </FloatingPanel>
               )}
               {rail === 'items' && adding && (
-                <FloatingPanel title={t.design.addFurniture} subtitle={plan.rooms.find((r) => r.id === (editRoomId))?.name} onClose={() => setRail(null)} className="h-full">
+                <FloatingPanel title={t.design.addFurniture} subtitle={focusRoom?.name ?? t.design.wholeFlat} onClose={() => setRail(null)} className="h-full">
                   <AddFurniturePanel
                     catalog={products}
                     rooms={plan.rooms}
-                    roomId={editRoomId}
+                    roomId={focusRoomId}
                     styleId={styleId}
                     onRoom={setFocusRoom}
-                    onAdd={(product) => beginAdd(product, editRoomId) !== null}
+                    onAdd={(product) => beginAdd(product, focusRoomId) !== null}
                     onBack={() => setAdding(false)}
                   />
                 </FloatingPanel>
@@ -379,7 +454,7 @@ export default function StudioPage() {
                   <button
                     type="button"
                     onClick={() => setAdding(true)}
-                    className="mb-3 flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2 text-sm font-medium text-white transition-colors hover:bg-brand hover:border-brand"
+                    className="mb-3 flex w-full items-center justify-center gap-2 border border-ink bg-ink py-2 text-sm font-medium text-white transition-colors hover:border-brand hover:bg-brand"
                   >
                     <Plus className="h-4 w-4" />
                     {t.design.addFurniture}
@@ -388,39 +463,51 @@ export default function StudioPage() {
                   {visibleItems.length === 0 ? (
                     <p className="py-6 text-center text-sm text-ink-muted">{t.design.emptyRoom}</p>
                   ) : (
-                    <ul className="space-y-1">
-                      {visibleItems.map((item) => (
-                        <li key={item.id}>
-                          <button
-                            type="button"
-                            onClick={() => onSelectItem(item.id)}
-                            className={cn(
-                              'flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors',
-                              selectedItemId === item.id ? 'bg-ink text-white' : 'hover:bg-white'
-                            )}
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate font-medium">{item.product ? localizedName(locale, item.product) : '—'}</span>
-                              <span className={cn('block truncate text-xs', selectedItemId === item.id ? 'text-white/70' : 'text-ink-muted')}>
-                                {archetypeLabel(item.kind, locale)}
-                              </span>
-                              {tightSpots.has(item.id) && (
-                                <span className={cn('mt-0.5 flex items-center gap-1 text-[11px] font-medium', selectedItemId === item.id ? 'text-amber-300' : 'text-warning')}>
-                                  <AlertTriangle className="h-3 w-3" />
-                                  {fill(t.design.tightPassage, { n: Math.round(tightSpots.get(item.id)!.gapM * 100) })}
-                                </span>
-                              )}
-                            </span>
-                            {item.product && <span className="shrink-0 text-xs tabular-nums">{formatGEL(item.product.totalPrice)}</span>}
-                          </button>
-                        </li>
+                    <div className="space-y-3">
+                      {itemGroups.map((group) => (
+                        <div key={group.room.id}>
+                          {!focusRoom && (
+                            <button type="button" onClick={() => setFocusRoom(group.room.id)} className="mb-1 flex w-full items-baseline justify-between border-b border-line pb-1 text-left">
+                              <span className="font-serif text-sm font-semibold text-ink">{group.room.name}</span>
+                              <span className="text-[11px] tabular-nums text-ink-muted">{group.items.length}</span>
+                            </button>
+                          )}
+                          <ul className="space-y-1">
+                            {group.items.map((item) => (
+                              <li key={item.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectItem(item.id)}
+                                  className={cn(
+                                    'flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors',
+                                    selectedItemId === item.id ? 'bg-ink text-white' : 'hover:bg-white'
+                                  )}
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block truncate font-medium">{item.product ? localizedName(locale, item.product) : '—'}</span>
+                                    <span className={cn('block truncate text-xs', selectedItemId === item.id ? 'text-white/70' : 'text-ink-muted')}>
+                                      {archetypeLabel(item.kind, locale)}
+                                    </span>
+                                    {tightSpots.has(item.id) && (
+                                      <span className={cn('mt-0.5 flex items-center gap-1 text-[11px] font-medium', selectedItemId === item.id ? 'text-amber-300' : 'text-warning')}>
+                                        <AlertTriangle className="h-3 w-3" />
+                                        {fill(t.design.tightPassage, { n: Math.round(tightSpots.get(item.id)!.gapM * 100) })}
+                                      </span>
+                                    )}
+                                  </span>
+                                  {item.product && <span className="shrink-0 text-xs tabular-nums">{formatGEL(item.product.totalPrice)}</span>}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </FloatingPanel>
               )}
               {rail === 'finishes' && (
-                <FloatingPanel title={t.design.finishesTitle} subtitle={selectedSurface ? plan.rooms.find((r) => r.id === selectedSurface.roomId)?.name : focusRoom?.name ?? t.design.finishForAllRooms} onClose={() => setRail(null)} className="h-full">
+                <FloatingPanel title={t.design.finishesTitle} subtitle={selectedSurface ? roomNameOf(selectedSurface.roomId) : focusRoom?.name ?? t.design.finishForAllRooms} onClose={() => setRail(null)} className="h-full">
                   <FinishPanel
                     roomId={selectedSurface?.roomId ?? focusRoomId}
                     surface={selectedSurface?.surface ?? null}
@@ -428,6 +515,10 @@ export default function StudioPage() {
                     catalog={products}
                     styleId={styleId}
                     finishes={finishes}
+                    onRoom={(id) => {
+                      setSelectedSurface(null);
+                      setFocusRoom(id);
+                    }}
                     onPick={(surface, product) =>
                       setFinish(
                         selectedSurface ? [selectedSurface.roomId] : focusRoomId ? [focusRoomId] : plan.rooms.map((r) => r.id),
@@ -514,6 +605,8 @@ export default function StudioPage() {
 
         <HoverCard ref={hoverCard} />
       </div>
+
+      <PhotoDialog shot={shot} open={photoOpen} onOpenChange={setPhotoOpen} ensureSaved={ensureSaved} />
     </>
   );
 }

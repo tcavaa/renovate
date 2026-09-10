@@ -9,6 +9,7 @@ import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
 import { projectKind, savedProjectInput } from '@/lib/projects/saved';
 import { CalculateCostsButton } from '@/components/projects/CalculateCostsButton';
 import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
+import { DeleteDraftsButton, DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
 import { Figure } from '@/components/calculator/MaterialsTable';
 import { Button } from '@/components/ui/button';
 import { getT, getLocale } from '@/lib/i18n/server';
@@ -35,6 +36,7 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
   const rows = await db.select().from(projects).where(eq(projects.userId, userId)).orderBy(desc(projects.createdAt));
   const totalSpent = rows.reduce((s, p) => s + (p.totalCost ? Number(p.totalCost) : 0), 0);
   const totalM2 = rows.reduce((s, p) => s + Number(p.totalM2), 0);
+  const draftIds = rows.filter((p) => p.status === 'draft').map((p) => p.id);
 
   return (
     <div className="py-4 md:py-8">
@@ -69,10 +71,13 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
       </div>
 
       <section className="mt-12">
-        <div className="flex items-baseline justify-between border-b border-line pb-3">
-          <h2 className="font-serif text-2xl font-semibold text-ink">{t.nav.projects}</h2>
-          <span className="text-sm tabular-nums text-ink-muted">{rows.length}</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
+          <h2 className="font-serif text-2xl font-semibold text-ink">
+            {t.nav.projects} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{rows.length}</span>
+          </h2>
+          <DeleteDraftsButton ids={draftIds} />
         </div>
+        {draftIds.length > 0 && <p className="mt-3 text-xs text-ink-muted">{t.profile.draftHint}</p>}
 
         {rows.length === 0 ? (
           <div className="mt-6 border border-dashed border-line p-16 text-center">
@@ -109,6 +114,7 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
                     <div className="flex flex-wrap items-center gap-2">
                       <CalculateCostsButton project={savedProjectInput(p)} size="sm" />
                       <OpenIn3dButton project={savedProjectInput(p)} size="sm" />
+                      {p.status !== 'submitted' && <DeleteProjectButton projectId={p.id} />}
                     </div>
                   </div>
                 </li>

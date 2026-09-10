@@ -100,8 +100,11 @@ export function SummaryCard({ summary, platformFee }: { summary: ProjectSummary;
                 <table className="w-full text-sm">
                   <tbody>
                     {summary.products.map((p) => (
-                      <tr key={`${p.productId}-${p.categorySlug ?? ''}`} className="border-b border-line/60 last:border-0">
-                        <td className="py-2 pr-2">{localizedName(locale, p)}</td>
+                      <tr key={`${p.productId}-${p.categorySlug ?? ''}-${p.roomId ?? ''}`} className="border-b border-line/60 last:border-0">
+                        <td className="py-2 pr-2">
+                          {localizedName(locale, p)}
+                          {p.roomId && <span className="ml-2 text-xs text-ink-muted">· {summary.rooms.find((r) => r.id === p.roomId)?.nameKa ?? ''}</span>}
+                        </td>
                         <td className="py-2 pr-2 text-right tabular-nums">
                           {formatNumber(p.qty)} {unitLabel(t, p.unit)}
                         </td>

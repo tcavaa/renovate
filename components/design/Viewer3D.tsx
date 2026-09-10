@@ -37,6 +37,8 @@ import { tightSpotsByItem } from '@/lib/design/clearance';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
 import { isPlacementValid, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
+import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
+import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import type { DesignScene, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { Headlamp, WalkControls } from './WalkControls';
 
@@ -52,6 +54,18 @@ export interface ViewerApi {
   reset: () => void;
   /** Where the item riding on the pointer would land right now, or null when nothing is carried. */
   carryPose: () => { position: Vec2; rotation: number; roomId: string } | null;
+  /** The floor point under a screen position and the room it is in, or null off the plane. */
+  floorPointAt: (clientX: number, clientY: number) => { position: Vec2; roomId: string | null } | null;
+  /**
+   * Moves the carried item to a screen position and sets it down there when it fits.
+   * Returns false when nothing is carried or the spot does not fit (the item stays on the
+   * pointer so the person can move it somewhere it does).
+   */
+  dropCarriedAt: (clientX: number, clientY: number) => boolean;
+  /** The current frame as a PNG data URL, or null when the canvas cannot be read. */
+  screenshot: () => string | null;
+  /** Where the camera is, for keeping with a photo. */
+  cameraPose: () => { position: [number, number, number]; target: [number, number, number] };
 }
 
 export interface Viewer3DProps {
@@ -62,6 +76,8 @@ export interface Viewer3DProps {
   showWalls?: boolean;
   viewMode?: ViewMode;
   editMode?: EditMode;
+  /** Hour on a 24-hour clock that sets the sun, the sky and whether the lamps are on. */
+  daylightHour?: number;
   /** An item that follows the pointer until it is clicked down — see `designStore.beginAdd`. */
   carryingItemId?: string | null;
   /** The carried item was clicked down somewhere it fits and is placed. */
@@ -83,6 +99,7 @@ export interface Viewer3DProps {
 
 export function Viewer3D(props: Viewer3DProps) {
   const style = getStyle(props.scene.styleId);
+  const daylight = useMemo(() => lightingForHour(props.daylightHour ?? 13, style), [props.daylightHour, style]);
 
   return (
     <div className={props.className}>
@@ -93,22 +110,27 @@ export function Viewer3D(props: Viewer3DProps) {
         camera={{ fov: 48, near: 0.05, far: 200 }}
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.05;
+          gl.toneMappingExposure = daylight.exposure;
         }}
         onPointerMissed={() => {
           props.onSelectItem?.(null);
           props.onSelectSurface?.(null);
         }}
       >
-        <color attach="background" args={[style.lighting.ambient]} />
-        <fog attach="fog" args={[style.lighting.ambient, 34, 90]} />
+        <color attach="background" args={[daylight.background]} />
+        <fog attach="fog" args={[daylight.background, 34, 90]} />
         <Suspense fallback={null}>
-          <SceneContent {...props} />
+          <SceneContent {...props} daylight={daylight} />
         </Suspense>
       </Canvas>
     </div>
   );
 }
+
+// Physical keys, so W is W on a Georgian layout too (it types წ there).
+const PAN_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+/** Metres per second the view slides at; shift doubles it. */
+const PAN_SPEED = 3.2;
 
 // Scratch objects, so the per-frame work allocates nothing.
 const tempVector = new THREE.Vector3();
@@ -166,14 +188,78 @@ function SceneContent({
   onMoveOpening,
   onSelectOpening,
   onApi,
-}: Viewer3DProps) {
+  daylight,
+}: Viewer3DProps & { daylight: Daylight }) {
   const style = getStyle(scene.styleId);
-  const { camera, gl } = useThree();
+  const { camera, gl, scene: threeScene } = useThree();
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
   const walking = viewMode === 'walk';
+
+  // Exposure follows the hour: a touch over 1 by day, well under at night.
+  useEffect(() => {
+    gl.toneMappingExposure = daylight.exposure;
+  }, [gl, daylight.exposure]);
+
+  // -------------------------------------------------------------------------
+  // Keyboard panning (orbit view)
+  // -------------------------------------------------------------------------
+
+  /**
+   * WASD and the arrows slide the view across the flat. The camera and its orbit target move
+   * together along the camera's own forward and right, projected onto the floor, so "W"
+   * always means "up the screen" whichever way the view has been turned.
+   */
+  const panKeys = useRef(new Set<string>());
+  useEffect(() => {
+    if (walking) return;
+    const pressed = panKeys.current;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)) return;
+      if (!PAN_KEYS.has(event.code)) return;
+      pressed.add(event.code);
+      event.preventDefault();
+    };
+    const onKeyUp = (event: KeyboardEvent) => pressed.delete(event.code);
+    const onBlur = () => pressed.clear();
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+      pressed.clear();
+    };
+  }, [walking]);
+
+  useFrame((_, delta) => {
+    if (walking) return;
+    const pressed = panKeys.current;
+    if (pressed.size === 0) return;
+    const forward = (pressed.has('KeyW') || pressed.has('ArrowUp') ? 1 : 0) - (pressed.has('KeyS') || pressed.has('ArrowDown') ? 1 : 0);
+    const right = (pressed.has('KeyD') || pressed.has('ArrowRight') ? 1 : 0) - (pressed.has('KeyA') || pressed.has('ArrowLeft') ? 1 : 0);
+    if (forward === 0 && right === 0) return;
+    const fast = pressed.has('ShiftLeft') || pressed.has('ShiftRight');
+    const step = PAN_SPEED * (fast ? 2 : 1) * Math.min(delta, 0.05);
+    // Camera forward on the floor plane; right is perpendicular to it.
+    camera.getWorldDirection(tempVector);
+    tempVector.y = 0;
+    if (tempVector.lengthSq() < 1e-6) tempVector.set(0, 0, -1);
+    tempVector.normalize();
+    tempVector2.set(-tempVector.z, 0, tempVector.x);
+    tempVector3.set(0, 0, 0).addScaledVector(tempVector, forward * step).addScaledVector(tempVector2, right * step);
+    camera.position.add(tempVector3);
+    const orbit = orbitRef.current;
+    if (orbit) {
+      orbit.target.add(tempVector3);
+      orbit.update();
+    }
+  });
 
   /**
    * The parent's callbacks, always current, without being dependencies. The drag listeners
@@ -187,6 +273,35 @@ function SceneContent({
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
   useEffect(() => () => materials.dispose(), [materials]);
+
+  // At night the windows glow: every pane shares one glass material, so lighting it up
+  // lights every window in the flat at once — which, seen from outside, is the point.
+  useEffect(() => {
+    const glass = materials.get('glass');
+    if (daylight.interiorLightsOn) {
+      glass.emissive = new THREE.Color(style.lighting.lamp);
+      glass.emissiveIntensity = 0.55 * daylight.interiorIntensity;
+      glass.opacity = 0.5;
+    } else {
+      glass.emissive = new THREE.Color('#000000');
+      glass.emissiveIntensity = 0;
+      glass.opacity = 0.28;
+    }
+    glass.needsUpdate = true;
+  }, [materials, daylight.interiorLightsOn, daylight.interiorIntensity, style.lighting.lamp]);
+
+  // One lamp per room when the flat's lights are on, hung just under the ceiling and sized
+  // to the room so a hallway is not lit like a living room.
+  const roomLamps = useMemo(
+    () =>
+      plan.rooms.map((room) => {
+        const centre = polygonCentroid(room.polygon);
+        const bounds = polygonBounds(room.polygon);
+        const span = Math.max(bounds.width, bounds.depth, 2);
+        return { id: room.id, position: [centre.x, Math.max(1.8, room.heightM - 0.35), centre.z] as [number, number, number], distance: span * 1.6, intensity: 6 + room.areaM2 * 0.9 };
+      }),
+    [plan.rooms]
+  );
 
   const shellOptions = useMemo(
     () => ({
@@ -311,6 +426,22 @@ function SceneContent({
     };
   }, [carryingItemId, itemsById, plan.rooms, scene.items, outlines, gl]);
 
+  /** Converts a screen position into a point on the horizontal plane at `planeY`. */
+  const floorPoint = useCallback(
+    (clientX: number, clientY: number, planeY: number): Vec2 | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      dragNdc.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+      );
+      dragRaycaster.setFromCamera(dragNdc, camera);
+      dragPlane.constant = -planeY;
+      const hit = dragRaycaster.ray.intersectPlane(dragPlane, dragHit);
+      return hit ? { x: hit.x, z: hit.z } : null;
+    },
+    [camera, gl]
+  );
+
   // -------------------------------------------------------------------------
   // Camera framing
   // -------------------------------------------------------------------------
@@ -356,10 +487,37 @@ function SceneContent({
         const carry = carryRef.current;
         return carry?.result ? { position: carry.result.position, rotation: carry.result.rotation, roomId: carry.room.id } : null;
       },
+      floorPointAt: (clientX, clientY) => {
+        const point = floorPoint(clientX, clientY, 0);
+        if (!point) return null;
+        return { position: point, roomId: roomAtPoint(plan.rooms, point)?.id ?? null };
+      },
+      dropCarriedAt: (clientX, clientY) => {
+        const carry = carryRef.current;
+        if (!carry) return false;
+        carryUpdateRef.current?.(clientX, clientY);
+        if (!carry.result?.valid) return false;
+        callbacks.current.onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id);
+        callbacks.current.onCarryPlaced?.(carry.itemId);
+        return true;
+      },
+      screenshot: () => {
+        try {
+          // Render first: without `preserveDrawingBuffer` the canvas is blank between frames.
+          gl.render(threeScene, camera);
+          return gl.domElement.toDataURL('image/png');
+        } catch {
+          return null;
+        }
+      },
+      cameraPose: () => {
+        const target = orbitRef.current?.target ?? new THREE.Vector3();
+        return { position: [camera.position.x, camera.position.y, camera.position.z], target: [target.x, target.y, target.z] };
+      },
     };
     onApi(api);
     return () => onApi(null);
-  }, [onApi, camera, plan, focusRoomId]);
+  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway
@@ -419,22 +577,6 @@ function SceneContent({
   const openingDragRef = useRef<OpeningDragState | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
   const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; x: number; y: number } | null>(null);
-
-  /** Converts a screen position into a point on the horizontal plane at `planeY`. */
-  const floorPoint = useCallback(
-    (clientX: number, clientY: number, planeY: number): Vec2 | null => {
-      const rect = gl.domElement.getBoundingClientRect();
-      dragNdc.set(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1
-      );
-      dragRaycaster.setFromCamera(dragNdc, camera);
-      dragPlane.constant = -planeY;
-      const hit = dragRaycaster.ray.intersectPlane(dragPlane, dragHit);
-      return hit ? { x: hit.x, z: hit.z } : null;
-    },
-    [camera, gl]
-  );
 
   const handleMove = (event: ThreeEvent<PointerEvent>) => {
     if (carryRef.current) return; // the carried item owns the pointer
@@ -708,12 +850,13 @@ function SceneContent({
 
   return (
     <>
-      <hemisphereLight args={[style.lighting.ambient, '#8A8078', style.lighting.ambientIntensity]} />
+      <hemisphereLight args={[daylight.skyColor, daylight.groundColor, daylight.hemisphereIntensity]} />
+      <ambientLight intensity={daylight.ambientIntensity} color={daylight.skyColor} />
       <directionalLight
         castShadow
-        position={[12, 18, 8]}
-        intensity={style.lighting.sunIntensity}
-        color={style.lighting.sun}
+        position={daylight.sunPosition}
+        intensity={daylight.sunIntensity}
+        color={daylight.sunColor}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-24}
         shadow-camera-right={24}
@@ -722,15 +865,20 @@ function SceneContent({
         shadow-camera-far={70}
         shadow-bias={-0.0005}
       />
-      {/* A soft fill from the opposite side keeps interiors from going flat black. */}
-      <directionalLight position={[-10, 9, -8]} intensity={0.35} color={style.lighting.lamp} />
+      {/* A soft fill from the opposite side keeps interiors from going flat black by day. */}
+      <directionalLight position={[-daylight.sunPosition[0], 9, -daylight.sunPosition[2]]} intensity={0.35 * (0.3 + 0.7 * daylight.daylight)} color={style.lighting.lamp} />
+      {/* Evening and night: the flat's own lamps, one per room. */}
+      {daylight.interiorLightsOn &&
+        roomLamps.map((lamp) => (
+          <pointLight key={lamp.id} position={lamp.position} intensity={lamp.intensity * daylight.interiorIntensity} distance={lamp.distance} decay={1.5} color={style.lighting.lamp} />
+        ))}
       {/*
         Standing inside, sunlight through the windows alone leaves the far side of a room
         black, so walk mode adds flat fill plus a soft light that travels with the viewer.
       */}
       {walking && (
         <>
-          <ambientLight intensity={0.6} color={style.lighting.ambient} />
+          <ambientLight intensity={0.6 * (0.35 + 0.65 * daylight.daylight)} color={daylight.skyColor} />
           <Headlamp color={style.lighting.lamp} />
         </>
       )}

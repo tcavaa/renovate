@@ -42,3 +42,23 @@ describe('categorySlugFromKey', () => {
     expect(categorySlugFromKey('paint')).toBe('paint');
   });
 });
+
+describe('per-room selection keys', () => {
+  it('round-trips the room through the key', async () => {
+    const { roomIdFromKey, selectionKey } = await import('@/lib/calculator/quantities');
+    expect(selectionKey('laminate')).toBe('laminate_global');
+    expect(selectionKey('laminate', 'r1_x-y')).toBe('laminate_room:r1_x-y');
+    expect(categorySlugFromKey('laminate_room:r1_x-y')).toBe('laminate');
+    expect(roomIdFromKey('laminate_room:r1_x-y')).toBe('r1_x-y');
+    expect(roomIdFromKey('laminate_global')).toBeNull();
+  });
+
+  it('quantifies a finish for one room from that room alone', async () => {
+    const { suggestedQuantityForRoom } = await import('@/lib/calculator/quantities');
+    const bathroom = computeRoomAreas({ id: 'b', type: 'bathroom', nameKa: 'b', width: 2, length: 2, height: 2.7 });
+    expect(suggestedQuantityForRoom('floor-tiles', bathroom)).toBe(Math.round(4 * 1.1));
+    expect(suggestedQuantityForRoom('wall-tiles', bathroom)).toBe(Math.round(bathroom.wallM2));
+    expect(suggestedQuantityForRoom('paint', bathroom)).toBe(Math.round(bathroom.wallM2 * 0.16) || 1);
+    expect(suggestedQuantityForRoom('doors', bathroom)).toBe(1);
+  });
+});

@@ -103,6 +103,10 @@ export const RATE_RULES = {
   parsePlan: { key: 'parse-plan', limit: 10, windowMs: 60 * 60_000 },
   /** Guest project saves insert rows. */
   saveProject: { key: 'save-project', limit: 20, windowMs: 60 * 60_000 },
+  /** Autosave from a signed-in session: a debounced write per edit burst, so far more than a hand can click "save". */
+  autosave: { key: 'autosave', limit: 400, windowMs: 60 * 60_000 },
+  /** Studio photos: each one stores a screenshot. */
+  render: { key: 'render', limit: 60, windowMs: 60 * 60_000 },
   /** Checkouts and bookings write rows and send partners mail. */
   checkout: { key: 'checkout', limit: 10, windowMs: 60 * 60_000 },
   /** Password-reset and verification mails: each one is an e-mail somebody has to receive. */

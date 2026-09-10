@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
+import { categorySlugFromKey, roomIdFromKey, selectionKey } from '@/lib/calculator/quantities';
 import type {
   CalculatorState,
   HomeState,
@@ -15,6 +16,9 @@ interface CalculatorStore extends CalculatorState {
   /** The saved project this calculation belongs to, so saving again writes into the same row. */
   projectId: number | null;
   setProjectId: (id: number | null) => void;
+  /** What the autosave is doing right now. Not persisted. */
+  saveState: 'idle' | 'saving' | 'saved' | 'error';
+  setSaveState: (state: CalculatorStore['saveState']) => void;
   /** Opens a saved project's rooms and picks for (re)calculation — the "calculate costs" button. */
   openSavedProject: (input: {
     projectId: number;
@@ -37,6 +41,12 @@ interface CalculatorStore extends CalculatorState {
   removeRoom: (id: string) => void;
   setStep: (step: 1 | 2 | 3 | 4 | 5) => void;
   selectProduct: (key: string, product: SelectedProduct) => void;
+  /**
+   * A finish for the whole flat or for one room. Within a category the two are exclusive:
+   * picking "the same everywhere" drops the per-room picks, picking for a room drops the
+   * whole-flat one — so a laminate is never counted twice for the same floor.
+   */
+  selectFinish: (categorySlug: string, roomId: string | null, product: SelectedProduct) => void;
   removeProduct: (key: string) => void;
   addFurniture: (roomId: string, product: SelectedProduct) => void;
   removeFurniture: (roomId: string, productId: number) => void;
@@ -59,6 +69,8 @@ export const useCalculatorStore = create<CalculatorStore>()(
   persist(
     (set) => ({
       ...initial,
+      saveState: 'idle',
+      setSaveState: (saveState) => set({ saveState }),
       setProjectId: (projectId) => set({ projectId }),
       openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture }) =>
         set({ projectId, rooms, homeState, selectedProducts, selectedFurniture, step: 1 }),
@@ -102,6 +114,21 @@ export const useCalculatorStore = create<CalculatorStore>()(
         set((s) => ({
           selectedProducts: { ...s.selectedProducts, [key]: product },
         })),
+      selectFinish: (categorySlug, roomId, product) =>
+        set((s) => {
+          const next: Record<string, SelectedProduct> = {};
+          for (const [key, value] of Object.entries(s.selectedProducts)) {
+            if (categorySlugFromKey(key) !== categorySlug) {
+              next[key] = value;
+              continue;
+            }
+            const keyRoom = roomIdFromKey(key);
+            // Whole-flat pick clears every room pick; a room pick clears the whole-flat one.
+            if (roomId ? keyRoom !== null : false) next[key] = value;
+          }
+          next[selectionKey(categorySlug, roomId)] = roomId ? { ...product, roomId } : product;
+          return { selectedProducts: next };
+        }),
       removeProduct: (key) =>
         set((s) => {
           const { [key]: _removed, ...rest } = s.selectedProducts;
@@ -130,6 +157,15 @@ export const useCalculatorStore = create<CalculatorStore>()(
       storage: createJSONStorage(() => localStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
+      // The autosave's status is a fact about this session, not about the project.
+      partialize: (s) => ({
+        homeState: s.homeState,
+        rooms: s.rooms,
+        selectedProducts: s.selectedProducts,
+        selectedFurniture: s.selectedFurniture,
+        step: s.step,
+        projectId: s.projectId,
+      }),
     }
   )
 );
@@ -150,6 +186,7 @@ const selectedProductSchema = z.object({
   totalPrice: z.number(),
   imageUrl: z.string().nullable(),
   categorySlug: z.string().optional(),
+  roomId: z.string().optional(),
 });
 
 const persistedSchema = z.object({

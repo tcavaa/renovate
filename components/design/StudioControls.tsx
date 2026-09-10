@@ -1,24 +1,37 @@
 'use client';
 
-import { Eye, Maximize2, Minimize2, Minus, Plus, RefreshCw, Scan, SquareDashed } from 'lucide-react';
+import { Camera, Eye, Maximize2, Minimize2, Minus, Moon, Plus, RefreshCw, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import { DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
 
 export type StudioView = '2d' | '3d' | 'walk';
 
-/** Segmented 2D / 3D / walk switch with the wall and regenerate toggles beside it. */
+const PRESET_ICONS: Record<DaylightPreset, LucideIcon> = { morning: Sunrise, noon: Sun, evening: Sunset, night: Moon };
+
+/**
+ * Segmented 2D / 3D / walk switch with the wall and regenerate toggles beside it, the time
+ * of day, and the camera that asks for a realistic photo of the current view.
+ */
 export function ViewSwitch({
   view,
   onView,
   showWalls,
   onToggleWalls,
   onRegenerate,
+  daylight,
+  onDaylight,
+  onPhoto,
 }: {
   view: StudioView;
   onView: (view: StudioView) => void;
   showWalls: boolean;
   onToggleWalls: () => void;
   onRegenerate: () => void;
+  daylight: DaylightPreset;
+  onDaylight: (preset: DaylightPreset) => void;
+  /** Absent while the 3D view is not up (2D plan, viewer still loading). */
+  onPhoto?: () => void;
 }) {
   const t = useT();
   const options: Array<{ id: StudioView; label: string }> = [
@@ -26,6 +39,12 @@ export function ViewSwitch({
     { id: '3d', label: '3D' },
     { id: 'walk', label: t.design.walkthrough },
   ];
+  const presetLabel: Record<DaylightPreset, string> = {
+    morning: t.design.daylightMorning,
+    noon: t.design.daylightNoon,
+    evening: t.design.daylightEvening,
+    night: t.design.daylightNight,
+  };
   return (
     <div className="flex items-center gap-2">
       <div className="glass flex p-1" role="tablist">
@@ -51,6 +70,30 @@ export function ViewSwitch({
       </IconButton>
       <IconButton label={t.design.regenerate} onClick={onRegenerate}>
         <RefreshCw className="h-4 w-4" />
+      </IconButton>
+      <div className="glass flex p-1" role="radiogroup" aria-label={t.design.daylight}>
+        {DAYLIGHT_PRESETS.map((preset) => {
+          const Icon = PRESET_ICONS[preset];
+          const active = daylight === preset;
+          return (
+            <button
+              key={preset}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              title={presetLabel[preset]}
+              aria-label={presetLabel[preset]}
+              disabled={view === '2d'}
+              onClick={() => onDaylight(preset)}
+              className={cn('grid h-9 w-9 place-items-center transition-colors disabled:opacity-40', active ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
+            >
+              <Icon className="h-4 w-4" />
+            </button>
+          );
+        })}
+      </div>
+      <IconButton label={t.design.photo} disabled={!onPhoto} onClick={() => onPhoto?.()}>
+        <Camera className="h-4 w-4" />
       </IconButton>
     </div>
   );

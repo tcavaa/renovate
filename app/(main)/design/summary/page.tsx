@@ -23,6 +23,7 @@ import { formatGEL, formatM2 } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { getStyle } from '@/lib/design/styles';
+import { saveDesign } from '@/lib/design/saveDesign';
 
 export default function DesignSummaryPage() {
   const t = useT();
@@ -62,36 +63,15 @@ export default function DesignSummaryPage() {
     );
   }
 
-  /** Writes the design once and returns its id — the save button and the checkout share it. */
+  /**
+   * Writes the design once and returns its id — the save button and the checkout share it.
+   * An explicit save, so a draft the autosave left behind becomes a saved project.
+   */
   const saveOnce = async (): Promise<number> => {
     if (savedId != null) return savedId;
-    const res = await fetch('/api/design/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}`,
-        homeState: homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame'),
-        plan,
-        scene,
-        floorPlanUrl,
-        // The calculation this design grew out of is written into the same row; when it was
-        // never saved, its picks travel along so the row has both halves anyway.
-        projectId: projectId ?? undefined,
-        calculator:
-          calculatorPicks && calculator.rooms.length > 0 && calculator.homeState
-            ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture }
-            : undefined,
-      }),
-    });
-    const json = (await res.json()) as {
-      data: { id: number } | null;
-      error: string | null;
-    };
-    if (json.error || !json.data) throw new Error(json.error ?? 'save-failed');
-    setSavedId(json.data.id);
-    setProjectId(json.data.id);
-    if (calculatorPicks) calculator.setProjectId(json.data.id);
-    return json.data.id;
+    const id = await saveDesign({ draft: false, nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}` });
+    setSavedId(id);
+    return id;
   };
 
   const save = async () => {

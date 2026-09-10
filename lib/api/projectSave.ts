@@ -1,5 +1,5 @@
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
-import { categorySlugFromKey, suggestedQuantity } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, roomIdFromKey, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -33,9 +33,15 @@ export async function repriceCalculatorPicks(
   const selectedProducts: Record<string, SelectedProduct> = {};
   for (const [key, snapshot] of Object.entries(incomingProducts)) {
     const categorySlug = snapshot.categorySlug ?? categorySlugFromKey(key);
-    const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, suggestedQuantity(categorySlug, totals));
+    // A finish chosen for one room is quantified from that room's own areas; a room that no
+    // longer exists (deleted after the pick) is dropped rather than priced for the whole flat.
+    const roomId = roomIdFromKey(key);
+    const room = roomId ? rooms.find((r) => r.id === roomId) : null;
+    if (roomId && !room) continue;
+    const qty = room ? suggestedQuantityForRoom(categorySlug, room) : suggestedQuantity(categorySlug, totals);
+    const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, qty);
     if (!repriced) return { unknownProductId: snapshot.productId };
-    selectedProducts[key] = repriced;
+    selectedProducts[key] = room ? { ...repriced, roomId: room.id } : repriced;
   }
   const selectedFurniture: Record<string, SelectedProduct[]> = {};
   for (const [roomId, list] of Object.entries(incomingFurniture)) {

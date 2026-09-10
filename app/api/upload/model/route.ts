@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { API_ERRORS, fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok, requireCatalogEditor } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
 import { MODEL_EXTENSION, sniffModel } from '@/lib/uploads/sniff';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
@@ -16,12 +16,12 @@ export const dynamic = 'force-dynamic';
 export const MAX_MODEL_BYTES = 40 * 1024 * 1024;
 
 /**
- * Admin upload of a furniture model for the studio. GLB only, identified by its bytes: the
+ * Upload of a furniture model for the studio, by admin or a store for its own products. GLB only, identified by its bytes: the
  * product form stores the returned URL in `products.model3dUrl`, which is what makes a
  * product placeable at all.
  */
 export const POST = handle('POST /api/upload/model', 'Upload failed', async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireCatalogEditor();
   if (admin.response) return admin.response;
 
   const formData = await req.formData();

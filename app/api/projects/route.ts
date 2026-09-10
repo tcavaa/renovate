@@ -26,13 +26,13 @@ export const GET = handle('GET /api/projects', 'Failed to load projects', async 
 });
 
 export const POST = handle('POST /api/projects', 'Failed to save project', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.saveProject);
-  if (limited) return limited;
-
   const parsed = saveProjectSchema.safeParse(await req.json());
+  // Autosaves come every few seconds while someone works; they get their own, wider bucket.
+  const limited = rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
+  if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { rooms, homeState, nameKa, projectId } = parsed.data;
+  const { rooms, homeState, nameKa, projectId, draft } = parsed.data;
 
   // The client's prices and quantities are a preview; see repriceCalculatorPicks.
   const repriced = await repriceCalculatorPicks(
@@ -77,7 +77,14 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     const scene = existing.scene as { mode?: string } | null;
     await db
       .update(projects)
-      .set({ ...calculatorColumns, mode: 'full', ...(scene && scene.mode !== 'full' ? { scene: { ...scene, mode: 'full' } } : {}) })
+      .set({
+        ...calculatorColumns,
+        mode: 'full',
+        ...(scene && scene.mode !== 'full' ? { scene: { ...scene, mode: 'full' } } : {}),
+        // An explicit save confirms a draft; an autosave leaves the status as it is, and an
+        // ordered project stays ordered either way.
+        ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
+      })
       .where(eq(projects.id, existing.id));
     return ok({ id: existing.id, summary });
   }
@@ -87,7 +94,7 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     sessionId: null,
     nameKa,
     ...calculatorColumns,
-    status: userId ? 'saved' : 'draft',
+    status: userId && !draft ? 'saved' : 'draft',
   });
 
   return ok({ id: inserted[0].insertId, summary });

@@ -1,9 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { nanoid } from 'nanoid';
-import { ArrowUpRight, Check, Home, PenLine, Rows3, Sofa, Upload } from 'lucide-react';
+import { AlertCircle, Check, Home, PenLine, Rows3, Sofa, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
@@ -12,32 +12,44 @@ import { RoomForm } from '@/components/calculator/RoomForm';
 import { RoomList } from '@/components/calculator/RoomList';
 import { RoomLayoutEditor, type DrawnRect } from '@/components/calculator/RoomLayoutEditor';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
+import { StepNav } from '@/components/flow/StepNav';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
+import { fill } from '@/lib/admin/list';
 import { planFromCalculatorRooms } from '@/lib/design/planGeometry';
 import { computeRoomAreas } from '@/lib/calculator/materials';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import { findFreeSpot } from '@/lib/calculator/layout';
 import type { Room } from '@/lib/calculator/types';
+import type { FloorPlan } from '@/lib/design/types';
 
 type PlanMode = 'upload' | 'manual' | 'draw';
 
 /**
- * Step 1 of the studio: what kind of project, and the plan it starts from — uploaded, typed
- * room by room, or drawn on the grid. Typed and drawn rooms live here until the user
- * continues; then they become the plan the rest of the journey builds on.
+ * Step 1 of the studio: the plan it starts from — uploaded, typed room by room, or drawn on
+ * the grid — and then what kind of project this is. Nothing leaves this page until the one
+ * continue button at the bottom: an uploaded plan waits here, typed and drawn rooms wait
+ * here, and the "what do you need" choice has to be made rather than assumed.
  */
 export default function DesignStartPage() {
   const t = useT();
   const router = useRouter();
-  const { mode, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId } = useDesignStore();
+  const { mode, modeChosen, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId } = useDesignStore();
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
   const [planMode, setPlanMode] = useState<PlanMode>('upload');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  /** A plan read from an upload (or borrowed from the calculator), waiting for "continue". */
+  const [uploaded, setUploaded] = useState<{ plan: FloorPlan; imageUrl: string | null } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const planReady = planMode === 'upload' ? !!uploaded : rooms.length > 0;
+  useEffect(() => {
+    if (error && planReady && modeChosen) setError(null);
+  }, [error, planReady, modeChosen]);
 
   const useCalculator = () => {
     const calc = useCalculatorStore.getState();
@@ -45,11 +57,11 @@ export default function DesignStartPage() {
     // The calculation and this design are one project: carry its home state, picks and id.
     if (calc.homeState) {
       startFromCalculator({ rooms: calc.rooms, homeState: calc.homeState, selectedProducts: calc.selectedProducts, selectedFurniture: calc.selectedFurniture, projectId: calc.projectId });
-    } else {
-      setPlan(planFromCalculatorRooms(calc.rooms));
-      setProjectId(calc.projectId);
+      router.push('/design/plan');
+      return;
     }
-    router.push('/design/plan');
+    setProjectId(calc.projectId);
+    setUploaded({ plan: planFromCalculatorRooms(calc.rooms), imageUrl: null });
   };
 
   const addPlaced = (room: Room) => {
@@ -83,9 +95,23 @@ export default function DesignStartPage() {
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
-  const continueWithRooms = () => {
-    if (rooms.length === 0) return;
-    setPlan(planFromCalculatorRooms(rooms));
+
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  /** The one way forward: a plan of some kind, and a decision about what it is for. */
+  const continueToRooms = () => {
+    if (!planReady) {
+      setError(t.design.needPlanFirst);
+      scrollTo('plan-section');
+      return;
+    }
+    if (!modeChosen) {
+      setError(t.design.needModeFirst);
+      scrollTo('mode-section');
+      return;
+    }
+    if (planMode === 'upload' && uploaded) setPlan(uploaded.plan, uploaded.imageUrl);
+    else setPlan(planFromCalculatorRooms(rooms));
     router.push('/design/plan');
   };
 
@@ -101,7 +127,7 @@ export default function DesignStartPage() {
       <div className="container py-10 md:py-14">
         <StepHeader step={1} total={5} title={t.design.title} subtitle={t.design.subtitle} />
 
-        <section className="mt-10 space-y-5">
+        <section id="plan-section" className="mt-10 space-y-5">
           <SectionHead index="01" title={t.design.uploadTitle} subtitle={t.calculator.planSubtitle} aside={<span className="text-xs">{t.design.uploadFormats}</span>} />
           <div className="grid border-l border-t border-line sm:grid-cols-3" role="tablist">
             {options.map((o, i) => {
@@ -130,11 +156,16 @@ export default function DesignStartPage() {
             <div className="border border-line bg-bg-surface p-5 md:p-6">
               <PlanUploadCard
                 showSample
-                onPlan={(plan, imageUrl) => {
-                  setPlan(plan, imageUrl);
-                  router.push('/design/plan');
-                }}
+                showContinue={false}
+                onPlan={(plan, imageUrl) => setUploaded({ plan, imageUrl })}
+                onReset={() => setUploaded(null)}
               />
+              {uploaded && (
+                <p className="mt-4 flex items-center gap-2 text-sm font-medium text-success">
+                  <Check className="h-4 w-4" />
+                  {fill(t.design.planReady, { n: uploaded.plan.rooms.length })}
+                </p>
+              )}
               {calculatorRooms.length > 0 && (
                 <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
                   <p className="text-sm text-ink-muted">{t.design.noPlanDesc}</p>
@@ -149,34 +180,26 @@ export default function DesignStartPage() {
           {planMode === 'manual' && <RoomForm onAdd={addPlaced} />}
 
           {planMode !== 'upload' && (
-            <>
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-                <div>
-                  <p className="eyebrow mb-2">{t.calculator.layoutTitle}</p>
-                  <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onResize={resizeRoom} onDraw={planMode === 'draw' ? addDrawn : undefined} />
-                </div>
-                <div className="lg:sticky lg:top-24 lg:self-start">
-                  <p className="eyebrow mb-2">{t.rooms.title}</p>
-                  <RoomList rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onUpdate={editRoom} onReorder={reorderRoom} onRemove={(id) => setRooms((rs) => rs.filter((r) => r.id !== id))} />
-                </div>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+              <div>
+                <p className="eyebrow mb-2">{t.calculator.layoutTitle}</p>
+                <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onResize={resizeRoom} onDraw={planMode === 'draw' ? addDrawn : undefined} />
               </div>
-              <div className="flex justify-end">
-                <Button type="button" variant="ink" size="lg" className="group" onClick={continueWithRooms} disabled={rooms.length === 0}>
-                  {t.design.continueWithRooms}
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </Button>
+              <div className="lg:sticky lg:top-24 lg:self-start">
+                <p className="eyebrow mb-2">{t.rooms.title}</p>
+                <RoomList rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onUpdate={editRoom} onReorder={reorderRoom} onRemove={(id) => setRooms((rs) => rs.filter((r) => r.id !== id))} />
               </div>
-            </>
+            </div>
           )}
         </section>
 
-        <section className="mt-14 space-y-5">
+        <section id="mode-section" className="mt-14 space-y-5">
           <SectionHead index="02" title={t.design.modeTitle} subtitle={t.design.modeSubtitle} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <ModeCard active={mode === 'design_only'} onClick={() => setMode('design_only')} icon={<Sofa className="h-5 w-5" />} label={t.design.modeDesignOnlyLabel} description={t.design.modeDesignOnlyDesc} />
-            <ModeCard active={mode === 'full'} onClick={() => setMode('full')} icon={<Home className="h-5 w-5" />} label={t.design.modeFullLabel} description={t.design.modeFullDesc} />
+            <ModeCard active={modeChosen && mode === 'design_only'} onClick={() => setMode('design_only')} icon={<Sofa className="h-5 w-5" />} label={t.design.modeDesignOnlyLabel} description={t.design.modeDesignOnlyDesc} />
+            <ModeCard active={modeChosen && mode === 'full'} onClick={() => setMode('full')} icon={<Home className="h-5 w-5" />} label={t.design.modeFullLabel} description={t.design.modeFullDesc} />
           </div>
-          {mode === 'full' && (
+          {modeChosen && mode === 'full' && (
             <div className="space-y-3 pt-2">
               <div>
                 <p className="eyebrow">{t.homeState.title}</p>
@@ -187,6 +210,15 @@ export default function DesignStartPage() {
           )}
         </section>
       </div>
+
+      <StepNav next={{ label: t.design.continueButton, onClick: continueToRooms }}>
+        {error && (
+          <p role="alert" aria-live="polite" className="flex items-center gap-2 text-sm font-medium text-danger">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </p>
+        )}
+      </StepNav>
     </>
   );
 }

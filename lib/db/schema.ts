@@ -89,6 +89,12 @@ export const stores = mysqlTable('stores', {
   descriptionRu: text('description_ru'),
   /** Platform commission on this store's orders, percent. Null = the platform default. */
   commissionRate: decimal('commission_rate', { precision: 5, scale: 2 }).default('5.00'),
+  /**
+   * A store that registered itself starts `pending` and is invisible — no products in the
+   * catalogue, no store in the sidebar — until admin approves it. Rows admin creates and
+   * every row from before self-registration are `approved`.
+   */
+  approvalStatus: mysqlEnum('approval_status', ['pending', 'approved', 'rejected']).default('approved').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -196,6 +202,8 @@ export const workers = mysqlTable('workers', {
   experienceYears: int('experience_years'),
   completedJobs: int('completed_jobs').default(0),
   isVerified: boolean('is_verified').default(false).notNull(),
+  /** Self-registered workers wait here (`pending`, inactive) until admin approves them. */
+  approvalStatus: mysqlEnum('approval_status', ['pending', 'approved', 'rejected']).default('approved').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => ({
@@ -270,6 +278,30 @@ export const projects = mysqlTable('projects', {
 }, (t) => ({
   // Profile and admin lists: a user's projects, newest first.
   userCreatedIdx: index('projects_user_created_idx').on(t.userId, t.createdAt),
+}));
+
+/**
+ * A photo taken in the studio and the realistic render requested from it.
+ *
+ * `sourceUrl` is the studio's own screenshot, stored the moment the user asks for a render
+ * and downloadable at once; `renderUrl` is filled in when the render is produced (by hand
+ * or by an image model — there is no generator wired in yet, so rows wait in `queued`).
+ * `camera` keeps the view so the render can be redone from the same spot.
+ */
+export const projectRenders = mysqlTable('project_renders', {
+  id: int('id').primaryKey().autoincrement(),
+  projectId: int('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: int('user_id').references(() => users.id, { onDelete: 'set null' }),
+  sourceUrl: varchar('source_url', { length: 500 }).notNull(),
+  renderUrl: varchar('render_url', { length: 500 }),
+  status: mysqlEnum('status', ['queued', 'processing', 'ready', 'failed']).default('queued').notNull(),
+  /** Room in focus when the photo was taken, if any. */
+  roomName: varchar('room_name', { length: 255 }),
+  camera: json('camera'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
+}, (t) => ({
+  projectIdx: index('project_renders_project_idx').on(t.projectId, t.createdAt),
 }));
 
 // ---------------------------------------------------------------------------
@@ -393,6 +425,8 @@ export type WorkerReview = typeof workerReviews.$inferSelect;
 export type WorkerWork = typeof workerWorks.$inferSelect;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
+export type ProjectRender = typeof projectRenders.$inferSelect;
+export type ApprovalStatus = Store['approvalStatus'];
 export type PlatformSettingsRow = typeof platformSettings.$inferSelect;
 export type Checkout = typeof checkouts.$inferSelect;
 export type Order = typeof orders.$inferSelect;

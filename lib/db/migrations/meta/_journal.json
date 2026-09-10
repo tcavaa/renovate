@@ -36,6 +36,13 @@
       "when": 1788819311634,
       "tag": "0004_marketplace",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1788995283717,
+      "tag": "0005_partner_registration_renders",
+      "breakpoints": true
     }
   ]
 }

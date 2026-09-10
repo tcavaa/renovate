@@ -1,4 +1,5 @@
 import type { aggregateRoomTotals } from './materials';
+import type { Room } from './types';
 
 export type RoomTotals = ReturnType<typeof aggregateRoomTotals>;
 
@@ -39,7 +40,44 @@ export function suggestedQuantity(categorySlug: string, totals: RoomTotals): num
   }
 }
 
+/**
+ * The quantity for one room on its own — a floor or wall finish chosen for that room
+ * rather than for the whole flat. Same rules as `suggestedQuantity`, applied to the room's
+ * own areas: a tile picked for the bathroom covers the bathroom floor, a paint picked for
+ * the bedroom covers the bedroom's walls.
+ */
+export function suggestedQuantityForRoom(categorySlug: string, room: Room): number {
+  const floor = room.floorM2;
+  const wall = room.wallM2;
+  switch (categorySlug) {
+    case 'floor-tiles':
+    case 'laminate':
+      return Math.round(floor * 1.1) || 1;
+    case 'wall-tiles':
+      return Math.round(wall) || 1;
+    case 'paint':
+      return Math.round(wall * 0.16) || 1;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Calculator selection keys: `<slug>_global` is a product chosen for the whole flat,
+ * `<slug>_room:<roomId>` one chosen for a single room. Room ids come from nanoid (no
+ * colons), so the room part is everything after the marker.
+ */
+export function selectionKey(categorySlug: string, roomId?: string | null): string {
+  return roomId ? `${categorySlug}_room:${roomId}` : `${categorySlug}_global`;
+}
+
 /** The category slug a calculator selection key was made from (`laminate_global` → `laminate`). */
 export function categorySlugFromKey(key: string): string {
-  return key.replace(/_global$/, '');
+  return key.replace(/_room:.*$/, '').replace(/_global$/, '');
+}
+
+/** The room a per-room selection key names, or null for a whole-flat key. */
+export function roomIdFromKey(key: string): string | null {
+  const at = key.indexOf('_room:');
+  return at >= 0 ? key.slice(at + '_room:'.length) || null : null;
 }
