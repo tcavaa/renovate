@@ -45,7 +45,7 @@ export function ProjectDetail({
   extraMeta = [],
   actions,
   renders,
-  after,
+  orders,
 }: {
   project: Project;
   summary: ProjectSummary;
@@ -56,10 +56,10 @@ export function ProjectDetail({
   extraMeta?: MetaItem[];
   /** Buttons on the right of the head — the owner gets "open in 3D". */
   actions?: React.ReactNode;
-  /** The photos and renders block, placed just before the breakdown. */
+  /** The photos and renders block, one of the folding blocks before the breakdown. */
   renders?: React.ReactNode;
-  /** Rendered under the breakdown — the orders placed against the project. */
-  after?: React.ReactNode;
+  /** The orders placed against the project — the last folding block before the breakdown. */
+  orders?: React.ReactNode;
 }) {
   const rooms = summary.rooms as Room[];
   const plan = (project.plan as FloorPlan | null) ?? null;
@@ -209,6 +209,8 @@ export function ProjectDetail({
 
         {renders}
 
+        {orders}
+
         <Section title={t.summary.breakdown} className="pt-8">
           <div className="max-w-xl border border-line bg-bg-surface p-5 md:p-6">
             <div className="space-y-2">
@@ -227,8 +229,6 @@ export function ProjectDetail({
           </div>
         </Section>
       </div>
-
-      {after}
     </div>
   );
 }

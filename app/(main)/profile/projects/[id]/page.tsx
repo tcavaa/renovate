@@ -64,7 +64,7 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
         </>
       }
       renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
-      after={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
+      orders={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
     />
   );
 }

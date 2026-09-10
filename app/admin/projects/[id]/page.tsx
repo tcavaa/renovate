@@ -57,7 +57,7 @@ export default async function AdminProjectDetailPage(props: { params: Promise<{ 
         },
       ]}
       renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
-      after={<ProjectOrders projectId={project.id} t={ka} locale={locale} orderHref={(id) => `/admin/orders/${id}`} />}
+      orders={<ProjectOrders projectId={project.id} t={ka} locale={locale} orderHref={(id) => `/admin/orders/${id}`} />}
     />
   );
 }
