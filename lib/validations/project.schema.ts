@@ -12,6 +12,7 @@ const selectedProductSchema = z.object({
   totalPrice: z.number(),
   imageUrl: z.string().nullable().optional(),
   categorySlug: z.string().optional(),
+  roomId: z.string().max(64).optional(),
 });
 
 export const saveProjectSchema = calculatorRequestSchema.extend({
@@ -20,6 +21,8 @@ export const saveProjectSchema = calculatorRequestSchema.extend({
   selectedFurniture: z.record(z.array(selectedProductSchema)).default({}),
   /** An existing project of the caller's to write into, so a calculation and a design share one row. */
   projectId: z.number().int().positive().optional(),
+  /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
+  draft: z.boolean().optional(),
 });
 
 /** The calculator's half of a project, as a design save carries it along. */

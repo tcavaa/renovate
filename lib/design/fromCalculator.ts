@@ -20,19 +20,23 @@ import type { FloorPlan, PlacedItem, SurfaceFinish } from './types';
 export interface CalculatorPicks {
   /** Furniture chosen per room on /calculator/furniture. */
   furniture: Array<{ roomId: string; productId: number }>;
-  /** Materials chosen on /calculator/catalog — the ones with a texture become finishes. */
+  /** Materials chosen for the whole flat on /calculator/catalog — the ones with a texture become finishes. */
   productIds: number[];
+  /** Finishes chosen for one room each on /calculator/catalog. */
+  roomProducts?: Array<{ roomId: string; productId: number }>;
 }
 
 export function picksFromCalculator(
   selectedProducts: Record<string, SelectedProduct>,
   selectedFurniture: Record<string, SelectedProduct[]>
 ): CalculatorPicks {
+  const products = Object.values(selectedProducts);
   return {
     furniture: Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
       list.map((p) => ({ roomId, productId: p.productId }))
     ),
-    productIds: Object.values(selectedProducts).map((p) => p.productId),
+    productIds: products.filter((p) => !p.roomId).map((p) => p.productId),
+    roomProducts: products.filter((p) => !!p.roomId).map((p) => ({ roomId: p.roomId!, productId: p.productId })),
   };
 }
 
@@ -121,6 +125,27 @@ export function applyFinishPicks(
 ): SurfaceFinish[] {
   const byId = new Map(catalog.map((p) => [p.id, p]));
   let next = [...finishes];
+  const perRoom = new Set<string>();
+  const apply = (room: FloorPlan['rooms'][number], surface: 'floor' | 'wall', product: CatalogProduct) => {
+    // A tile picked in the studio outranks the calculator's — it was chosen later, by eye.
+    if (next.some((f) => f.roomId === room.id && f.surface === surface && f.origin === 'studio')) return;
+    next = next.filter((f) => !(f.roomId === room.id && f.surface === surface));
+    next.push(finishFromProduct(room, surface, product, 'calculator'));
+  };
+
+  // Finishes chosen for one room go on that room, whatever kind of room it is: the person
+  // picked this tile for this bathroom and that paint for that bedroom on purpose.
+  for (const pick of picks.roomProducts ?? []) {
+    const product = byId.get(pick.productId);
+    const room = plan.rooms.find((r) => r.id === pick.roomId);
+    if (!product || !room) continue;
+    for (const surface of ['floor', 'wall'] as const) {
+      if (!isSurfaceProduct(product, surface)) continue;
+      apply(room, surface, product);
+      perRoom.add(`${room.id}:${surface}`);
+    }
+  }
+  // Whole-flat picks fill in the rest by wetness, skipping surfaces a room already chose.
   for (const id of picks.productIds) {
     const product = byId.get(id);
     if (!product) continue;
@@ -129,10 +154,8 @@ export function applyFinishPicks(
       const wet = !!surfaceSpecs(product).wet;
       for (const room of plan.rooms) {
         if (isWetRoom(room.type) !== wet) continue;
-        // A tile picked in the studio outranks the calculator's — it was chosen later, by eye.
-        if (next.some((f) => f.roomId === room.id && f.surface === surface && f.origin === 'studio')) continue;
-        next = next.filter((f) => !(f.roomId === room.id && f.surface === surface));
-        next.push(finishFromProduct(room, surface, product, 'calculator'));
+        if (perRoom.has(`${room.id}:${surface}`)) continue;
+        apply(room, surface, product);
       }
     }
   }

@@ -26,6 +26,40 @@ export function edgeOf(room: PlanRoom, wallIndex: number): PlanEdge | null {
   return roomEdges(room.polygon).find((e) => e.index === wallIndex) ?? null;
 }
 
+/** A spot on a wall: which room, which of its edges, and how far along it. */
+export interface WallTarget {
+  roomId: string;
+  wallIndex: number;
+  t: number;
+}
+
+export function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const len2 = dx * dx + dz * dz;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2)) : 0;
+  return Math.hypot(p.x - (a.x + dx * t), p.z - (a.z + dz * t));
+}
+
+/**
+ * The wall nearest to `point` across every room, within `maxDistance` metres. A shared wall
+ * exists twice (once per room); when both copies are equally close, `preferRoomId` wins, so
+ * a door dragged along its own room's wall stays that room's door.
+ */
+export function nearestWall(rooms: PlanRoom[], point: Vec2, maxDistance: number, preferRoomId?: string | null): { room: PlanRoom; edge: PlanEdge; distance: number } | null {
+  let best: { room: PlanRoom; edge: PlanEdge; distance: number } | null = null;
+  for (const room of rooms) {
+    for (const edge of roomEdges(room.polygon)) {
+      const distance = distanceToSegment(point, edge.a, edge.b);
+      if (distance > maxDistance) continue;
+      const closer = !best || distance < best.distance - 1e-6;
+      const tie = !!best && Math.abs(distance - best.distance) <= 1e-6 && room.id === preferRoomId && best.room.id !== preferRoomId;
+      if (closer || tie) best = { room, edge, distance };
+    }
+  }
+  return best;
+}
+
 /** Where the opening's centre sits in the flat. */
 export function openingWorldPoint(room: PlanRoom, opening: Opening): Vec2 | null {
   const edge = edgeOf(room, opening.wallIndex);
@@ -121,13 +155,22 @@ export function removeOpening(rooms: PlanRoom[], roomId: string, openingId: stri
   return next;
 }
 
+export interface AddOpeningOptions {
+  /** Where along the wall (0..1) to put it; otherwise a free spot is found. */
+  t?: number;
+  /** Size to keep — a moved opening brings its own; otherwise the kind's defaults. */
+  widthM?: number;
+  heightM?: number;
+  sillM?: number;
+}
+
 /**
  * Adds an opening to a wall — the given one, or the longest wall with nothing on it. A door
  * on a wall another room shares gets its twin cut in that room too, so it opens into a room
  * rather than into the back of a wall; a window on a shared wall is refused (returns the
  * rooms unchanged), because a window into the neighbour's bedroom is never what was meant.
  */
-export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThicknessM: number): { rooms: PlanRoom[]; openingId: string | null } {
+export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThicknessM: number, options: AddOpeningOptions = {}): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);
   if (!room) return { rooms, openingId: null };
   const edges = roomEdges(room.polygon);
@@ -144,14 +187,16 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
       })[0];
   if (!chosen || chosen.length < minLength) return { rooms, openingId: null };
 
-  // A free spot along the wall: the centre, or beside what is already there.
-  const taken = room.openings.filter((o) => o.wallIndex === chosen.index).map((o) => o.t);
-  const width = Math.min(defaults.widthM, chosen.length - CORNER_MARGIN_M * 2);
-  let t = 0.5;
-  for (const candidate of [0.5, 0.25, 0.75, 0.15, 0.85]) {
-    if (!taken.some((x) => Math.abs(x - candidate) * chosen.length < width + 0.2)) {
-      t = candidate;
-      break;
+  const width = Math.min(options.widthM ?? defaults.widthM, chosen.length - CORNER_MARGIN_M * 2);
+  let t = options.t ?? 0.5;
+  if (options.t == null) {
+    // A free spot along the wall: the centre, or beside what is already there.
+    const taken = room.openings.filter((o) => o.wallIndex === chosen.index).map((o) => o.t);
+    for (const candidate of [0.5, 0.25, 0.75, 0.15, 0.85]) {
+      if (!taken.some((x) => Math.abs(x - candidate) * chosen.length < width + 0.2)) {
+        t = candidate;
+        break;
+      }
     }
   }
   t = projectToEdge(chosen, pointOnEdge(chosen, t), width);
@@ -169,8 +214,8 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     wallIndex: chosen.index,
     t,
     widthM: width,
-    heightM: defaults.heightM,
-    sillM: defaults.sillM,
+    heightM: options.heightM ?? defaults.heightM,
+    sillM: options.sillM ?? defaults.sillM,
     roomId,
     connectsToRoomId: neighbour ? neighbour.room.id : null,
     exterior: !neighbour,
@@ -188,6 +233,35 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     next = replaceIn(next, neighbour.room.id, (r) => ({ ...r, openings: [...r.openings, twin] }));
   }
   return { rooms: next, openingId: id };
+}
+
+/**
+ * Puts an opening down on any wall of any room, at `target.t`, keeping its size and kind.
+ * Along its own wall (or the neighbour's copy of that shared wall) this is a plain slide;
+ * anywhere else the opening — and its twin — is cut out and cut in again, so it gets a
+ * new id, which is returned. A window dropped on a shared wall is refused: `openingId` is
+ * null and the rooms come back unchanged.
+ */
+export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: string, target: WallTarget, wallThicknessM: number): { rooms: PlanRoom[]; openingId: string | null } {
+  const room = rooms.find((r) => r.id === roomId);
+  const opening = room?.openings.find((o) => o.id === openingId);
+  if (!room || !opening) return { rooms, openingId: null };
+  if (target.roomId === roomId && target.wallIndex === opening.wallIndex) {
+    return { rooms: moveOpening(rooms, roomId, openingId, target.t), openingId };
+  }
+  const twin = twinOf(rooms, opening);
+  if (twin && target.roomId === twin.room.id && target.wallIndex === twin.opening.wallIndex) {
+    return { rooms: moveOpening(rooms, twin.room.id, twin.opening.id, target.t), openingId };
+  }
+  const removed = removeOpening(rooms, roomId, openingId);
+  const added = addOpening(removed, target.roomId, opening.kind, target.wallIndex, wallThicknessM, {
+    t: target.t,
+    widthM: opening.widthM,
+    heightM: opening.heightM,
+    sillM: opening.sillM,
+  });
+  if (!added.openingId) return { rooms, openingId: null };
+  return added;
 }
 
 /** Moves an opening to a different wall of the same room, centred on it. */

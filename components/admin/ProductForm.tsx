@@ -46,14 +46,20 @@ interface Props {
   product?: Product;
   categories: Category[];
   stores: Store[];
+  /**
+   * The partner portal: the store is fixed to the account's own, "featured" is not offered,
+   * and saving returns to the store's own product list instead of admin's.
+   */
+  partner?: { storeId: number; backHref: string };
 }
 
-export function ProductForm({ product, categories, stores }: Props) {
+export function ProductForm({ product, categories, stores, partner }: Props) {
   const router = useRouter();
   const ka = useT();
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const backHref = partner?.backHref ?? '/admin/products';
   const [form, setForm] = useState({
     nameKa: product?.nameKa ?? '',
     nameEn: product?.nameEn ?? '',
@@ -70,7 +76,7 @@ export function ProductForm({ product, categories, stores }: Props) {
     imageUrl: product?.imageUrl ?? '',
     isActive: product?.isActive ?? true,
     isFeatured: product?.isFeatured ?? false,
-    storeId: product?.storeId ? String(product.storeId) : '',
+    storeId: partner ? String(partner.storeId) : product?.storeId ? String(product.storeId) : '',
     styleTags: asStyleTags(product?.styleTags),
     model3dKind: product?.model3dKind ?? '',
     model3dUrl: product?.model3dUrl ?? '',
@@ -123,7 +129,7 @@ export function ProductForm({ product, categories, stores }: Props) {
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/products');
+    router.push(backHref);
     router.refresh();
   };
 
@@ -133,7 +139,7 @@ export function ProductForm({ product, categories, stores }: Props) {
     setLoading(true);
     await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
     setLoading(false);
-    router.push('/admin/products');
+    router.push(backHref);
     router.refresh();
   };
 
@@ -201,22 +207,26 @@ export function ProductForm({ product, categories, stores }: Props) {
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.forms.store}</Label>
-              <Select
-                value={form.storeId || 'none'}
-                onValueChange={(v) => update('storeId', v === 'none' ? '' : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{ka.admin.forms.storeNone}</SelectItem>
-                  {stores.map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>
-                      {s.nameKa}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {partner ? (
+                <Input value={stores.find((s) => s.id === partner.storeId)?.nameKa ?? ''} disabled />
+              ) : (
+                <Select
+                  value={form.storeId || 'none'}
+                  onValueChange={(v) => update('storeId', v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{ka.admin.forms.storeNone}</SelectItem>
+                    {stores.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.nameKa}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.table.unit}</Label>
@@ -420,14 +430,16 @@ export function ProductForm({ product, categories, stores }: Props) {
               />
               {ka.admin.forms.active}
             </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.isFeatured}
-                onChange={(e) => update('isFeatured', e.target.checked)}
-              />
-              {ka.admin.forms.featured}
-            </label>
+            {!partner && (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.isFeatured}
+                  onChange={(e) => update('isFeatured', e.target.checked)}
+                />
+                {ka.admin.forms.featured}
+              </label>
+            )}
           </div>
 
           {error && (

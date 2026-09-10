@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { fail, handle, ok, requireUploader } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
 import { IMAGE_EXTENSION, sniffImage } from '@/lib/uploads/sniff';
 
@@ -9,10 +9,10 @@ export const dynamic = 'force-dynamic';
 const MAX_BYTES = 8 * 1024 * 1024;
 const FOLDER_WHITELIST = new Set(['products', 'workers', 'categories', 'stores', 'misc']);
 
-/** Admin image upload for products, workers, categories and stores. Visitors upload plans elsewhere. */
+/** Image upload for products, workers, categories and stores — admin and linked partners. Visitors upload plans elsewhere. */
 export const POST = handle('POST /api/upload', 'Upload failed', async (req) => {
-  const admin = await requireAdmin();
-  if (admin.response) return admin.response;
+  const uploader = await requireUploader();
+  if (uploader.response) return uploader.response;
 
   const formData = await req.formData();
   const file = formData.get('file');

@@ -1,0 +1,3 @@
+module.exports=[93589,a=>{"use strict";var b=a.i(33360),c=a.i(17473);a.s(["default",0,function(){return(0,b.jsx)("div",{className:"flex min-h-[50vh] items-center justify-center",children:(0,b.jsx)(c.Loader2,{className:"h-8 w-8 animate-spin text-brand"})})}])},24808,function(a){a.n(a.i(93589))},17473,a=>{"use strict";let b=(0,a.i(52486).default)("LoaderCircle",[["path",{d:"M21 12a9 9 0 1 1-6.219-8.56",key:"13zald"}]]);a.s(["Loader2",0,b],17473)}];
+
+//# sourceMappingURL=_1akjc2j._.js.map

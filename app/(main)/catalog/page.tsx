@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
-import { and, asc, count, desc, eq, gte, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
@@ -49,17 +49,21 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
     hasFilters: params.hasFilters,
   };
 
+  // A product is public when it is active and its store (if any) is — a store that registered
+  // itself is inactive until admin approves it, and its shelf stays out of sight until then.
+  const publicProduct = and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)))!;
+
   const [visibleCategories, activeStores, countRows] = await Promise.all([
     db.select().from(categories).where(eq(categories.isVisible, true)).orderBy(asc(categories.phase), asc(categories.sortOrder)),
     db.select().from(stores).where(eq(stores.isActive, true)).orderBy(asc(stores.nameKa)),
-    db.select({ categoryId: products.categoryId, n: count() }).from(products).where(eq(products.isActive, true)).groupBy(products.categoryId),
+    db.select({ categoryId: products.categoryId, n: count() }).from(products).leftJoin(stores, eq(products.storeId, stores.id)).where(publicProduct).groupBy(products.categoryId),
   ]);
   const counts = Object.fromEntries(countRows.map((r) => [r.categoryId, r.n])) as Record<number, number>;
 
   const activeCategory = state.category ? visibleCategories.find((c) => c.slug === state.category) ?? null : null;
   const activeStore = state.store ? activeStores.find((s) => String(s.id) === state.store) ?? null : null;
 
-  const where: SQL[] = [eq(products.isActive, true)];
+  const where: SQL[] = [publicProduct];
   if (state.category) where.push(eq(products.categoryId, activeCategory?.id ?? -1));
   if (state.store) where.push(eq(products.storeId, activeStore?.id ?? -1));
   if (styles.length) where.push(or(...styles.map((s) => sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(s)})`))!);
@@ -80,7 +84,7 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
   }[params.sort];
 
   const [[{ total }], rows] = await Promise.all([
-    db.select({ total: count() }).from(products).where(and(...where)),
+    db.select({ total: count() }).from(products).leftJoin(stores, eq(products.storeId, stores.id)).where(and(...where)),
     db
       .select({ product: products, store: stores })
       .from(products)

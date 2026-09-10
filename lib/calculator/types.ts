@@ -50,6 +50,8 @@ export interface SelectedProduct {
   totalPrice: number;
   imageUrl: string | null;
   categorySlug?: string;
+  /** Set when the product was chosen for one room (a finish), not for the whole flat. */
+  roomId?: string;
 }
 
 export interface CalculatorState {

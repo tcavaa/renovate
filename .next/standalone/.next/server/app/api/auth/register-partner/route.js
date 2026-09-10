@@ -1,0 +1,11 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/auth/register-partner/route.js")
+R.c("server/chunks/[root-of-the-server]__1gurj8g._.js")
+R.c("server/chunks/lib_i18n_04rx_be._.js")
+R.c("server/chunks/_0ai6dy3._.js")
+R.c("server/chunks/_1qi7rsj._.js")
+R.c("server/chunks/[root-of-the-server]__06db85a._.js")
+R.c("server/chunks/lib_email_ts_0us6_4v._.js")
+R.c("server/chunks/_07c1nce._.js")
+R.c("server/chunks/_next-internal_server_app_api_auth_register-partner_route_actions_0v80s6j.js")
+R.m(31277)
+module.exports=R.m(31277).exports

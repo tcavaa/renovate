@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from 'next/cache';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
@@ -50,6 +50,9 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
     .where(
       and(
         eq(products.isActive, true),
+        // A store that registered itself is inactive until admin approves it; its products
+        // stay out of the studio until then, whatever their own flag says.
+        or(isNull(products.storeId), eq(stores.isActive, true)),
         inArray(
           products.categoryId,
           designCategories.map((c) => c.id)

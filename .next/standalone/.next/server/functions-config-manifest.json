@@ -22,6 +22,7 @@
     "/api/admin/settings": {},
     "/api/auth/forgot": {},
     "/api/auth/register": {},
+    "/api/auth/register-partner": {},
     "/api/auth/reset": {},
     "/api/auth/verify": {},
     "/api/bookings": {},
@@ -34,19 +35,24 @@
     "/api/design/catalog": {},
     "/api/design/parse-plan": {},
     "/api/design/projects": {},
+    "/api/design/renders": {},
+    "/api/design/renders/[id]": {},
     "/api/design/upload-plan": {},
     "/api/health": {},
     "/api/orders/[id]": {},
     "/api/products": {},
     "/api/products/[id]": {},
     "/api/projects": {},
+    "/api/projects/[id]": {},
     "/api/settings": {},
     "/api/stores": {},
     "/api/stores/[id]": {},
+    "/api/stores/[id]/approval": {},
     "/api/upload": {},
     "/api/upload/model": {},
     "/api/users/[id]": {},
     "/api/workers": {},
-    "/api/workers/[id]": {}
+    "/api/workers/[id]": {},
+    "/api/workers/[id]/approval": {}
   }
 }

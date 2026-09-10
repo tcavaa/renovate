@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm';
+import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { workers } from '@/lib/db/schema';
 import { workerSchema } from '@/lib/validations/worker.schema';
+import { workerSelfSchema } from '@/lib/validations/partner.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
 
 export const runtime = 'nodejs';
@@ -17,15 +19,23 @@ export const GET = handle('GET /api/workers/[id]', 'Failed to load worker', asyn
 });
 
 export const PUT = handle('PUT /api/workers/[id]', 'Failed to update worker', async (req, { params }) => {
-  const admin = await requireAdmin();
-  if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;
+  const session = await auth();
+  if (!session?.user?.id) return fail(API_ERRORS.UNAUTHORIZED, 401);
 
-  const parsed = workerSchema.partial().safeParse(await req.json());
+  // A worker edits their own card — service, price, contact, bio — and nothing admin owns:
+  // rating, verification, commission and whether they are live stay out of reach.
+  const self = session.user.role === 'worker' && session.user.workerId === id;
+  if (!self) {
+    const admin = await requireAdmin();
+    if (admin.response) return admin.response;
+  }
+
+  const parsed = (self ? workerSelfSchema.partial() : workerSchema.partial()).safeParse(await req.json());
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const d = parsed.data;
+  const d = parsed.data as Partial<import('@/lib/validations/worker.schema').WorkerInput>;
   await db
     .update(workers)
     .set({

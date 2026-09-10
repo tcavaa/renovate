@@ -17,6 +17,8 @@ export interface PartnerContext {
   name: string | null;
   commissionRate: number | null;
   email: string | null;
+  /** A self-registered partner waits here until admin approves; admin-created ones are approved. */
+  approvalStatus: 'pending' | 'approved' | 'rejected' | null;
   isAdmin: boolean;
   userId: number;
 }
@@ -35,14 +37,14 @@ export async function loadPartnerContext(search?: { store?: string; worker?: str
   }
   const base = { ref: { storeId: storeId ?? null, workerId: workerId ?? null }, isAdmin, userId: Number(session.user.id) };
   if (storeId) {
-    const [row] = await db.select({ nameKa: stores.nameKa, commissionRate: stores.commissionRate, email: stores.email }).from(stores).where(eq(stores.id, storeId)).limit(1);
-    return { ...base, type: 'store', name: row?.nameKa ?? `#${storeId}`, commissionRate: row?.commissionRate == null ? null : Number(row.commissionRate), email: row?.email ?? null };
+    const [row] = await db.select({ nameKa: stores.nameKa, commissionRate: stores.commissionRate, email: stores.email, approvalStatus: stores.approvalStatus }).from(stores).where(eq(stores.id, storeId)).limit(1);
+    return { ...base, type: 'store', name: row?.nameKa ?? `#${storeId}`, commissionRate: row?.commissionRate == null ? null : Number(row.commissionRate), email: row?.email ?? null, approvalStatus: row?.approvalStatus ?? null };
   }
   if (workerId) {
-    const [row] = await db.select({ nameKa: workers.nameKa, commissionRate: workers.commissionRate, email: workers.email }).from(workers).where(eq(workers.id, workerId)).limit(1);
-    return { ...base, type: 'worker', name: row?.nameKa ?? `#${workerId}`, commissionRate: row?.commissionRate == null ? null : Number(row.commissionRate), email: row?.email ?? null };
+    const [row] = await db.select({ nameKa: workers.nameKa, commissionRate: workers.commissionRate, email: workers.email, approvalStatus: workers.approvalStatus }).from(workers).where(eq(workers.id, workerId)).limit(1);
+    return { ...base, type: 'worker', name: row?.nameKa ?? `#${workerId}`, commissionRate: row?.commissionRate == null ? null : Number(row.commissionRate), email: row?.email ?? null, approvalStatus: row?.approvalStatus ?? null };
   }
-  return { ...base, type: null, name: null, commissionRate: null, email: null };
+  return { ...base, type: null, name: null, commissionRate: null, email: null, approvalStatus: null };
 }
 
 /** Keeps admin's `?store=` / `?worker=` preview on every portal link. */

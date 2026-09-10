@@ -43,6 +43,8 @@ export const API_ERRORS = {
   MODEL_INVALID: 'MODEL_INVALID',
   MODEL_TOO_LARGE: 'MODEL_TOO_LARGE',
   MODEL_UNSUPPORTED_COMPRESSION: 'MODEL_UNSUPPORTED_COMPRESSION',
+  STORE_NAME_EXISTS: 'STORE_NAME_EXISTS',
+  PROJECT_HAS_ORDERS: 'PROJECT_HAS_ORDERS',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];
@@ -84,6 +86,32 @@ export async function requirePartner() {
     return { session: null, response: fail(API_ERRORS.PARTNER_NOT_LINKED, 403) };
   }
   return { session, response: null };
+}
+
+/**
+ * Admin, or a store account: the people who may write products. A store may only touch its
+ * own products — the routes check the product's `storeId` against `session.user.storeId`.
+ */
+export async function requireCatalogEditor() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  if (session.user.role === 'admin') return { session, response: null };
+  if (session.user.role === 'store' && session.user.storeId) return { session, response: null };
+  if (session.user.role === 'store') return { session: null, response: fail(API_ERRORS.PARTNER_NOT_LINKED, 403) };
+  return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
+}
+
+/** Admin or any linked partner: who may upload images and models. */
+export async function requireUploader() {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  const { role, storeId, workerId } = session.user;
+  if (role === 'admin' || (role === 'store' && storeId) || (role === 'worker' && workerId)) return { session, response: null };
+  return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
 }
 
 /** A positive integer route parameter, or a ready 400. */

@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { formatM2 } from '@/lib/utils';
-import { LAYOUT_GRID_M, layoutBounds, overlappingRoomIds, snap } from '@/lib/calculator/layout';
+import { LAYOUT_GRID_M, layoutBounds, overlappingRoomIds, snapCm, snapToNeighbours, type Rect, type SnapGuide } from '@/lib/calculator/layout';
 import type { Room } from '@/lib/calculator/types';
 import { cn } from '@/lib/utils';
 
@@ -16,9 +16,8 @@ export interface DrawnRect {
 }
 
 const MIN_SIDE_M = 1;
-/** Sizes snap to the centimetre while dragging; a 3.32 m room is a 3.32 m room. Positions keep the coarser grid. */
-const SIZE_GRID_M = 0.01;
-const snapSize = (v: number) => snap(v, SIZE_GRID_M);
+/** Sizes and positions both land on the centimetre; a 3.32 m room is a 3.32 m room. */
+const snapSize = snapCm;
 
 /** Which handle is held: corners scale proportionally, sides change one dimension. */
 type Handle = 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'w' | 'e';
@@ -26,14 +25,15 @@ const CORNERS: Handle[] = ['nw', 'ne', 'sw', 'se'];
 const SIDES: Handle[] = ['n', 's', 'w', 'e'];
 
 type Gesture =
-  | { kind: 'move'; id: string; dx: number; dz: number; rect: DrawnRect }
+  | { kind: 'move'; id: string; dx: number; dz: number; rect: DrawnRect; guides: SnapGuide[] }
   | { kind: 'resize'; id: string; handle: Handle; start: DrawnRect; rect: DrawnRect; ratio: number }
   | { kind: 'draw'; x0: number; z0: number; x1: number; z1: number };
 
 /**
- * The flat as rectangles on a grid, in metres. Rooms move by dragging their middle; the
- * selected room grows handles — corners scale it proportionally, sides change its width or
- * its length. In draw mode a drag on empty space becomes a new room. Plain SVG with a
+ * The flat as rectangles on a grid, in metres. Rooms move by dragging their middle — to the
+ * centimetre, and a room pushed up to a neighbour jumps onto its wall so the two share it.
+ * The selected room grows handles — corners scale it proportionally, sides change its width
+ * or its length. In draw mode a drag on empty space becomes a new room. Plain SVG with a
  * metre-sized viewBox, so the same code renders at any width and the maths stays in metres.
  */
 export function RoomLayoutEditor({
@@ -83,7 +83,7 @@ export function RoomLayoutEditor({
     const w = toWorld(e);
     onSelect(room.id);
     const rect = rectOf(room);
-    setGesture({ kind: 'move', id: room.id, dx: w.x - rect.x, dz: w.z - rect.z, rect });
+    setGesture({ kind: 'move', id: room.id, dx: w.x - rect.x, dz: w.z - rect.z, rect, guides: [] });
     capture(e);
   };
 
@@ -99,7 +99,7 @@ export function RoomLayoutEditor({
     onSelect(null);
     if (!onDraw) return;
     const w = toWorld(e);
-    setGesture({ kind: 'draw', x0: snap(w.x), z0: snap(w.z), x1: snap(w.x), z1: snap(w.z) });
+    setGesture({ kind: 'draw', x0: snapSize(w.x), z0: snapSize(w.z), x1: snapSize(w.x), z1: snapSize(w.z) });
     capture(e);
   };
 
@@ -129,14 +129,18 @@ export function RoomLayoutEditor({
       length = Math.max(MIN_SIDE_M, snapSize(bottom - w.z));
       z = bottom - length;
     }
-    return { x: Math.max(0, x), z: Math.max(0, z), width, length };
+    return { x: Math.max(0, snapCm(x)), z: Math.max(0, snapCm(z)), width, length };
   };
 
   const move = (e: React.PointerEvent) => {
     if (!gesture) return;
     const w = toWorld(e);
     if (gesture.kind === 'move') {
-      setGesture({ ...gesture, rect: { ...gesture.rect, x: Math.max(0, snap(w.x - gesture.dx)), z: Math.max(0, snap(w.z - gesture.dz)) } });
+      // Free to the centimetre, then pulled onto whichever neighbour's wall is within reach.
+      const free: Rect = { ...gesture.rect, x: Math.max(0, snapCm(w.x - gesture.dx)), z: Math.max(0, snapCm(w.z - gesture.dz)) };
+      const others = placed.filter((r) => r.id !== gesture.id).map(rectOf);
+      const snapped = snapToNeighbours(free, others);
+      setGesture({ ...gesture, rect: { ...gesture.rect, x: Math.max(0, snapped.x), z: Math.max(0, snapped.z) }, guides: snapped.guides });
     } else if (gesture.kind === 'resize') {
       setGesture({ ...gesture, rect: resized(gesture, w) });
     } else {
@@ -154,8 +158,8 @@ export function RoomLayoutEditor({
     } else if (onDraw) {
       const x = Math.min(gesture.x0, gesture.x1);
       const z = Math.min(gesture.z0, gesture.z1);
-      const width = Math.abs(gesture.x1 - gesture.x0);
-      const length = Math.abs(gesture.z1 - gesture.z0);
+      const width = snapCm(Math.abs(gesture.x1 - gesture.x0));
+      const length = snapCm(Math.abs(gesture.z1 - gesture.z0));
       if (width >= MIN_SIDE_M && length >= MIN_SIDE_M) onDraw({ x, z, width, length });
     }
   };
@@ -165,6 +169,7 @@ export function RoomLayoutEditor({
       ? { x: Math.min(gesture.x0, gesture.x1), z: Math.min(gesture.z0, gesture.z1), width: Math.abs(gesture.x1 - gesture.x0), length: Math.abs(gesture.z1 - gesture.z0) }
       : null;
   const liveRect = gesture && gesture.kind !== 'draw' ? gesture.rect : null;
+  const guides = gesture?.kind === 'move' ? gesture.guides : [];
   const handleSize = Math.max(0.18, Math.min(0.3, bounds.width / 60));
 
   return (
@@ -246,6 +251,15 @@ export function RoomLayoutEditor({
           );
         })}
 
+        {/* The wall a dragged room has snapped onto, drawn across both rooms so the join reads. */}
+        {guides.map((g, i) =>
+          g.axis === 'x' ? (
+            <line key={i} x1={g.at} y1={g.from} x2={g.at} y2={g.to} stroke="#E85D26" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+          ) : (
+            <line key={i} x1={g.from} y1={g.at} x2={g.to} y2={g.at} stroke="#E85D26" strokeWidth={2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+          )
+        )}
+
         {draftRect && draftRect.width > 0 && draftRect.length > 0 && (
           <rect x={draftRect.x} y={draftRect.z} width={draftRect.width} height={draftRect.length} fill="rgba(232,93,38,0.12)" stroke="#E85D26" strokeWidth={1.5} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
         )}
@@ -254,7 +268,12 @@ export function RoomLayoutEditor({
       <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-3 text-[11px] text-ink-muted">
         <span className="bg-white/90 px-2 py-1">{onDraw ? t.calculator.drawHint : t.calculator.layoutHint}</span>
       </div>
-      {(draftRect && draftRect.width >= MIN_SIDE_M && draftRect.length >= MIN_SIDE_M) || gesture?.kind === 'resize' ? (
+      {gesture?.kind === 'move' ? (
+        <div className="pointer-events-none absolute right-3 top-3 bg-ink px-2 py-1 text-[11px] tabular-nums text-white">
+          x {liveRect!.x.toFixed(2)} · y {liveRect!.z.toFixed(2)} {t.units.m}
+          {guides.length > 0 && <span className="ml-2 text-brand-300">· {t.calculator.snappedToNeighbour}</span>}
+        </div>
+      ) : (draftRect && draftRect.width >= MIN_SIDE_M && draftRect.length >= MIN_SIDE_M) || gesture?.kind === 'resize' ? (
         <div className="pointer-events-none absolute right-3 top-3 bg-ink px-2 py-1 text-[11px] tabular-nums text-white">
           {(draftRect ?? liveRect)!.width.toFixed(2)} × {(draftRect ?? liveRect)!.length.toFixed(2)} {t.units.m} · {formatM2((draftRect ?? liveRect)!.width * (draftRect ?? liveRect)!.length)}
         </div>

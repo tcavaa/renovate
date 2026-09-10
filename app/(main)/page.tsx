@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
@@ -48,6 +48,8 @@ export default async function HomePage() {
           .where(
             and(
               eq(products.isActive, true),
+              // Only approved partners' products on the wall.
+              or(isNull(products.storeId), eq(stores.isActive, true)),
               isNotNull(products.imageUrl),
               isNotNull(products.model3dUrl),
               inArray(products.categoryId, designCategories.map((c) => c.id)),

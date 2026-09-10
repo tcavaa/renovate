@@ -152,7 +152,8 @@ export function calculatorLinesByStore(
 ): LinesByStore {
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
   const roomName = new Map(rooms.map((r) => [r.id, r.nameKa]));
-  for (const p of Object.values(selectedProducts)) push(result, storeOf(p.productId), line(p, null));
+  // A finish picked for one room names that room on the order line, like furniture does.
+  for (const p of Object.values(selectedProducts)) push(result, storeOf(p.productId), line(p, p.roomId ? roomName.get(p.roomId) ?? null : null));
   for (const [roomId, list] of Object.entries(selectedFurniture)) {
     for (const p of list) push(result, storeOf(p.productId), line(p, roomName.get(roomId) ?? null));
   }

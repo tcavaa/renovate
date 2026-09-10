@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Plus, Search } from 'lucide-react';
+import { ArrowLeft, GripVertical, Plus, Search } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, styleLabel } from '@/lib/i18n/labels';
 import { archetypeLabel } from '@/lib/design/catalog';
@@ -11,11 +11,18 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import type { PlanRoom, StyleId } from '@/lib/design/types';
 import { formatGEL, cn } from '@/lib/utils';
 
+/** What a dragged row carries: the studio's drop handler reads the product id back. */
+export const FURNITURE_DRAG_TYPE = 'application/x-renovate-product';
+
 /**
  * Browse the whole placeable catalogue and drop a product into a room. Search runs over the
  * name, brand and store; the type filter lists only the archetypes the catalogue actually
  * has models for; the style chips filter on the product's style tags. The current style is
  * preselected so the first screen is what the studio would have chosen itself.
+ *
+ * Two ways in: the "+" puts the product on the pointer for the chosen room (or, for the
+ * whole flat, the first room with space), and every row can be dragged straight into the
+ * 3D view and dropped where it should stand.
  */
 export function AddFurniturePanel({
   catalog,
@@ -28,10 +35,11 @@ export function AddFurniturePanel({
 }: {
   catalog: CatalogProduct[];
   rooms: PlanRoom[];
-  roomId: string;
+  /** The room to add into, or null for the whole flat. */
+  roomId: string | null;
   styleId: StyleId;
-  onRoom: (roomId: string) => void;
-  /** Returns false when the room had no space for the product. */
+  onRoom: (roomId: string | null) => void;
+  /** Returns false when no room had space for the product. */
   onAdd: (product: CatalogProduct) => boolean;
   onBack: () => void;
 }) {
@@ -85,7 +93,8 @@ export function AddFurniturePanel({
 
       <label className="block">
         <span className="eyebrow">{t.design.chooseRoom}</span>
-        <select value={roomId} onChange={(e) => onRoom(e.target.value)} className="mt-1 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none">
+        <select value={roomId ?? ''} onChange={(e) => onRoom(e.target.value || null)} className="mt-1 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none">
+          <option value="">{t.design.wholeFlat}</option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -119,16 +128,33 @@ export function AddFurniturePanel({
         })}
       </div>
 
-      <p className="text-[11px] text-ink-muted">{results.length}</p>
+      <p className="flex items-center justify-between text-[11px] text-ink-muted">
+        <span>{results.length}</span>
+        <span className="flex items-center gap-1">
+          <GripVertical className="h-3 w-3" />
+          {t.design.dropHereHint}
+        </span>
+      </p>
 
       <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
         {results.length === 0 && <li className="py-6 text-center text-sm text-ink-muted">{t.design.noMatches}</li>}
         {results.map((p) => {
           const flash = notice?.id === p.id ? notice : null;
           return (
-            <li key={p.id} className="flex items-center gap-3 border border-line bg-white p-2">
+            <li
+              key={p.id}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(FURNITURE_DRAG_TYPE, String(p.id));
+                e.dataTransfer.setData('text/plain', localizedName(locale, p));
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              title={t.design.dragToPlace}
+              className="flex cursor-grab items-center gap-3 border border-line bg-white p-2 active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4 shrink-0 text-ink-faint" />
               <span className="relative h-12 w-12 shrink-0 overflow-hidden bg-bg-base">
-                {p.imageUrl ? <Image src={p.imageUrl} alt="" fill sizes="48px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
+                {p.imageUrl ? <Image src={p.imageUrl} alt="" fill sizes="48px" className="pointer-events-none object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-ink">{localizedName(locale, p)}</span>

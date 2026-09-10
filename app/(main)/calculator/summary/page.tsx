@@ -37,6 +37,7 @@ import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { designCheckoutPart } from '@/lib/projects/checkoutParts';
+import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel, localizedName } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
@@ -114,29 +115,16 @@ export default function SummaryPage() {
       ]
     : [];
 
-  /** Writes the project once and returns its id — the save button and the checkout share it. */
+  /**
+   * Writes the project once and returns its id — the save button and the checkout share it.
+   * An explicit save, so a draft the autosave left behind becomes a saved project.
+   */
   const saveOnce = useCallback(async (): Promise<number> => {
     if (savedId != null) return savedId;
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        homeState,
-        rooms,
-        nameKa: ka.calculator.projectName,
-        selectedProducts,
-        selectedFurniture,
-        // A project opened from the profile, or one this session already saved, is written
-        // into rather than duplicated. Read at call time: it is an id, not something to re-render on.
-        projectId: useCalculatorStore.getState().projectId ?? undefined,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok || !json.data?.id) throw new Error(json.error ?? 'save-failed');
-    setSavedId(json.data.id);
-    useCalculatorStore.getState().setProjectId(json.data.id);
-    return json.data.id as number;
-  }, [savedId, homeState, rooms, selectedProducts, selectedFurniture, ka]);
+    const id = await saveCalculatorProject({ draft: false, nameKa: ka.calculator.projectName });
+    setSavedId(id);
+    return id;
+  }, [savedId, ka]);
 
   const persistProject = useCallback(async () => {
     if (inFlightRef.current) return;

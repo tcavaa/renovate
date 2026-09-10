@@ -136,6 +136,8 @@ export const saveDesignSchema = z.object({
   projectId: z.number().int().positive().optional(),
   /** The calculator's picks when the design came out of a calculation that was never saved. */
   calculator: calculatorPicksPayloadSchema.optional(),
+  /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
+  draft: z.boolean().optional(),
 });
 
 export type SaveDesignInput = z.infer<typeof saveDesignSchema>;

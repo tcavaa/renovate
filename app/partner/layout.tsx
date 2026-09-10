@@ -34,7 +34,22 @@ export default async function PartnerLayout({ children }: { children: React.Reac
             <p className="mt-2 text-sm text-ink-muted">{t.partner.notLinkedDesc}</p>
           </div>
         ) : (
-          children
+          <>
+            {/* A self-registered partner sees where their application stands. */}
+            {ctx?.approvalStatus === 'pending' && (
+              <div className="mb-6 border border-warning/50 bg-warning/5 px-5 py-4">
+                <p className="font-serif text-base font-semibold text-ink">{t.partner.pendingTitle}</p>
+                <p className="mt-1 text-sm text-ink-muted">{t.partner.pendingDesc}</p>
+              </div>
+            )}
+            {ctx?.approvalStatus === 'rejected' && (
+              <div className="mb-6 border border-danger/40 bg-danger/5 px-5 py-4">
+                <p className="font-serif text-base font-semibold text-ink">{t.partner.rejectedTitle}</p>
+                <p className="mt-1 text-sm text-ink-muted">{t.partner.rejectedDesc}</p>
+              </div>
+            )}
+            {children}
+          </>
         )}
       </main>
     </div>

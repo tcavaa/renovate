@@ -27,7 +27,7 @@ import {
 import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
-import { addOpening as addOpeningTo, moveOpening as moveOpeningIn, removeOpening as removeOpeningFrom, setOpeningWall as setOpeningWallIn, updateOpening as updateOpeningIn } from '@/lib/design/openings';
+import { addOpening as addOpeningTo, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningWall as setOpeningWallIn, updateOpening as updateOpeningIn, type WallTarget } from '@/lib/design/openings';
 import type {
   DesignMode,
   DesignScene,
@@ -45,6 +45,12 @@ export type StudioStep = 1 | 2 | 3 | 4 | 5;
 
 interface DesignState {
   mode: DesignMode;
+  /**
+   * Whether the person has actually chosen a mode. `mode` always holds a value because
+   * everything downstream prices against it, but the first step must not look pre-answered:
+   * the choice between "design only" and "renovation too" is theirs to make.
+   */
+  modeChosen: boolean;
   /** Set when the journey started in the calculator; the summary prices against it. */
   homeState: HomeState | null;
   /** The saved project this design belongs to, so saving writes into the same row as the calculation. */
@@ -65,9 +71,12 @@ interface DesignState {
   /** Calculator picks arrived for a design that already exists; the studio applies them on entry. */
   pendingPicks: boolean;
   step: StudioStep;
+  /** What the autosave is doing right now. Not persisted. */
+  saveState: 'idle' | 'saving' | 'saved' | 'error';
 }
 
 interface DesignActions {
+  setSaveState: (state: DesignState['saveState']) => void;
   setMode: (mode: DesignMode) => void;
   setHomeState: (homeState: HomeState) => void;
   setProjectId: (id: number | null) => void;
@@ -108,13 +117,18 @@ interface DesignActions {
   addItem: (product: CatalogProduct, roomId: string) => string | null;
   /**
    * Adds a product and hands it to the pointer: the viewer moves it with the mouse, R turns
-   * it, a click sets it down where it fits, Escape (`cancelCarry`) removes it again.
+   * it, a click sets it down where it fits, Escape (`cancelCarry`) removes it again. With no
+   * room (the whole flat) it starts in the first room that has space, largest first.
    */
-  beginAdd: (product: CatalogProduct, roomId: string) => string | null;
+  beginAdd: (product: CatalogProduct, roomId: string | null) => string | null;
   finishCarry: () => void;
   cancelCarry: () => void;
   addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null) => string | null;
+  /** A door or window dragged in from the palette onto a wall. Returns the new id, or null when refused. */
+  dropOpening: (kind: OpeningKind, target: WallTarget) => string | null;
   moveOpening: (roomId: string, openingId: string, t: number) => void;
+  /** Puts an opening down on any wall of any room. Returns its id afterwards (new when it changed wall), or null when refused. */
+  moveOpeningToWall: (roomId: string, openingId: string, target: WallTarget) => string | null;
   updateOpening: (roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind'>>) => void;
   setOpeningWall: (roomId: string, openingId: string, wallIndex: number) => void;
   removeOpening: (roomId: string, openingId: string) => void;
@@ -133,6 +147,7 @@ const PERSIST_VERSION = 1;
 
 const initial: DesignState = {
   mode: 'design_only',
+  modeChosen: false,
   homeState: null,
   projectId: null,
   calculatorPicks: null,
@@ -147,15 +162,17 @@ const initial: DesignState = {
   carryingItemId: null,
   pendingPicks: false,
   step: 1,
+  saveState: 'idle',
 };
 
 export const useDesignStore = create<DesignState & DesignActions>()(
   persist(
     (set, get) => ({
       ...initial,
+      setSaveState: (saveState) => set({ saveState }),
 
       // Renovation needs a starting state to price from; white frame is the common case.
-      setMode: (mode) => set((s) => ({ mode, homeState: mode === 'full' ? s.homeState ?? 'white_frame' : s.homeState })),
+      setMode: (mode) => set((s) => ({ mode, modeChosen: true, homeState: mode === 'full' ? s.homeState ?? 'white_frame' : s.homeState })),
       setHomeState: (homeState) => set({ homeState }),
       setProjectId: (projectId) => set({ projectId }),
 
@@ -206,6 +223,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           floorPlanUrl,
           homeState,
           mode: scene.mode,
+          modeChosen: true,
           styleId: scene.styleId,
           budgetGel: scene.budgetGel,
           items: scene.items,
@@ -369,12 +387,13 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           const keepDesign = projectId != null && s.projectId === projectId && reusable && s.items.length > 0;
           if (keepDesign) {
             landing = 'studio';
-            return { plan, projectId, mode: 'full', homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 4 };
+            return { plan, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 4 };
           }
           return {
             plan,
             projectId,
             mode: 'full',
+            modeChosen: true,
             homeState,
             calculatorPicks,
             pendingPicks: false,
@@ -432,17 +451,27 @@ export const useDesignStore = create<DesignState & DesignActions>()(
 
       beginAdd: (product, roomId) => {
         const { plan, items } = get();
-        const room = plan?.rooms.find((r) => r.id === roomId);
         const kind = product.model3dKind;
         const archetype = kind ? getArchetype(kind) : undefined;
-        if (!plan || !room || !kind || !archetype || !product.model3dUrl) return null;
+        if (!plan || !kind || !archetype || !product.model3dUrl) return null;
         const size =
           product.widthCm && product.depthCm && product.heightCm
             ? { width: product.widthCm / 100, depth: product.depthCm / 100, height: product.heightCm / 100 }
             : archetype.size;
         // A free spot when there is one, so a click without moving already lands; otherwise
         // the middle of the room, shown red until the pointer carries it somewhere it fits.
-        const found = placeAdditional(room, kind, items, size);
+        // For the whole flat, the rooms are tried largest first and the first with space wins.
+        const candidates = roomId ? plan.rooms.filter((r) => r.id === roomId) : [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2);
+        if (candidates.length === 0) return null;
+        let room = candidates[0];
+        let found: PlacedItem | null = null;
+        for (const candidate of candidates) {
+          found = placeAdditional(candidate, kind, items, size);
+          if (found) {
+            room = candidate;
+            break;
+          }
+        }
         const centre = {
           x: room.polygon.reduce((sum, pt) => sum + pt.x, 0) / room.polygon.length,
           z: room.polygon.reduce((sum, pt) => sum + pt.z, 0) / room.polygon.length,
@@ -485,8 +514,24 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         set({ plan: { ...plan, rooms: result.rooms } });
         return result.openingId;
       },
+      dropOpening: (kind, target) => {
+        const { plan } = get();
+        if (!plan) return null;
+        const result = addOpeningTo(plan.rooms, target.roomId, kind, target.wallIndex, plan.wallThicknessM, { t: target.t });
+        if (!result.openingId) return null;
+        set({ plan: { ...plan, rooms: result.rooms } });
+        return result.openingId;
+      },
       moveOpening: (roomId, openingId, t) =>
         set((s) => (s.plan ? { plan: { ...s.plan, rooms: moveOpeningIn(s.plan.rooms, roomId, openingId, t) } } : s)),
+      moveOpeningToWall: (roomId, openingId, target) => {
+        const { plan } = get();
+        if (!plan) return null;
+        const result = moveOpeningToWallIn(plan.rooms, roomId, openingId, target, plan.wallThicknessM);
+        if (!result.openingId) return null;
+        set({ plan: { ...plan, rooms: result.rooms } });
+        return result.openingId;
+      },
       updateOpening: (roomId, openingId, patch) =>
         set((s) => (s.plan ? { plan: { ...s.plan, rooms: updateOpeningIn(s.plan.rooms, roomId, openingId, patch) } } : s)),
       setOpeningWall: (roomId, openingId, wallIndex) =>
@@ -530,6 +575,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
       // `scene` is a getter, not state; persisting the catalogue would go stale.
       partialize: (s) => ({
         mode: s.mode,
+        modeChosen: s.modeChosen,
         homeState: s.homeState,
         projectId: s.projectId,
         calculatorPicks: s.calculatorPicks,
@@ -576,12 +622,14 @@ function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): Surfac
  */
 const persistedSchema = z.object({
   mode: z.enum(['full', 'design_only']),
+  modeChosen: z.boolean().optional(),
   homeState: z.enum(['black_frame', 'white_frame', 'green_frame']).nullable(),
   projectId: z.number().int().positive().nullable().optional(),
   calculatorPicks: z
     .object({
       furniture: z.array(z.object({ roomId: z.string(), productId: z.number().int() })),
       productIds: z.array(z.number().int()),
+      roomProducts: z.array(z.object({ roomId: z.string(), productId: z.number().int() })).optional(),
     })
     .nullable(),
   styleId: z.enum(['modern', 'scandinavian', 'industrial', 'vintage']),
@@ -600,6 +648,8 @@ function migratePersisted(persisted: unknown, version: number): DesignState {
   return {
     ...initial,
     ...parsed.data,
+    // Work saved before the choice existed already has a mode; only a blank slate asks.
+    modeChosen: parsed.data.modeChosen ?? parsed.data.plan != null,
     projectId: parsed.data.projectId ?? null,
     plan: parsed.data.plan as FloorPlan | null,
     items: parsed.data.items as PlacedItem[],

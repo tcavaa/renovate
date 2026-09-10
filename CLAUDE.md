@@ -75,6 +75,7 @@ pnpm test:coverage  # same with the coverage gate CI enforces
 pnpm test:e2e       # Playwright flows against :3000 (needs the DB; not in CI)
 pnpm uploads:cleanup  # delete plan uploads no project references (--dry-run to preview)
 pnpm db:backfill-translations  # en/ru names for rows that only have Georgian ones
+pnpm pdf:worker     # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 NEXT_DIST_DIR=.next-build pnpm build  # production build beside a live dev server
 ```
 
@@ -89,7 +90,7 @@ Admin login after seed: `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `.env.local` (defa
 
 ```
 app/
-  (auth)/login, register
+  (auth)/login, register, register/store, register/worker   ⟵ partners register themselves
   (main)/
     page.tsx                       landing
     calculator/                    step 1 (home state + rooms)
@@ -103,35 +104,48 @@ app/
     catalog/[slug]  workers/  about/  contact/  profile/  privacy/  terms/
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
-    products/ categories/ stores/ projects/ workers/ upload/ calculator/materials
+    products/ categories/ stores/ projects/ projects/[id] (GET, DELETE) workers/ upload/ calculator/materials
+    auth/register-partner/         a store or worker registering themselves (pending until admin approves)
+    stores/[id]/approval  workers/[id]/approval   admin's verdict on a self-registered partner
     design/
       catalog/                     the whole design catalogue in one response (client-side matching)
-      projects/                    save / list design projects
+      projects/                    save / list design projects (`draft: true` = autosave)
+      renders/ renders/[id]        studio photos and the realistic renders queued from them
       upload-plan/                 floor-plan image upload (open to visitors, not admin-only)
       parse-plan/                  reads an uploaded plan with Claude; 503 + fallback:'cv' without a key
+  partner/products/new, products/[id]   a store adds and edits its own products
 components/
   ui/          button card input select dialog accordion badge label skeleton textarea tabs
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu
-  calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard
-  design/      DesignSteps PlanCanvas StylePicker Viewer3D ItemCard SwapPanel
-  catalog/ workers/ admin/ legal/ contact/ providers/
+  calculator/  StepIndicator HomeStateSelector RoomForm RoomList RoomLayoutEditor MaterialsTable SummaryCard
+               CalculatorAutosave
+  design/      DesignSteps PlanCanvas PlanUploadCard StylePicker Viewer3D ItemCard SwapPanel
+               OpeningsPanel AddFurniturePanel FinishPanel StudioRail StudioControls PhotoDialog DesignAutosave
+  auth/        AuthForm PartnerRegisterForm
+  partner/     PartnerSidebar WorkerServiceFields WorkerSelfForm
+  admin/       ProductForm (also used by the partner portal) StoreForm WorkerForm PartnerApproval ModelUploader …
+  catalog/     ProductCard ProductGrid CatalogSidebar ProductModelDrawer
+  projects/    OpenIn3dButton CalculateCostsButton ProjectDetail ProjectRenders DeleteProjectButton PlanSketch
+  workers/ legal/ contact/ providers/ orders/ checkout/
 lib/
-  calculator/  constants.ts (rates) · materials.ts (pure engine) · types.ts
+  calculator/  constants.ts (rates) · materials.ts (pure engine) · quantities.ts (selection keys) · layout.ts
+               (layout editor snapping) · saveProject.ts (client) · types.ts
   design/      types.ts · styles.ts · catalog.ts (archetypes + room programs) · planParser.ts
-               planGeometry.ts · planImage.ts (browser) · autoLayout.ts · matcher.ts · pricing.ts
-               aiPlan.ts · planSolver.ts · measure.ts (the AI reading path)
-  design3d/    materials.ts · primitives.ts · buildScene.ts · outline.ts
-  db/          schema.ts · index.ts (mysql2 pool + drizzle)
+               planGeometry.ts · planImage.ts (browser) · planPdf.ts (browser) · autoLayout.ts · matcher.ts
+               pricing.ts · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
+               saveDesign.ts (client) · aiPlan.ts · planSolver.ts · measure.ts (the AI reading path)
+  design3d/    materials.ts · primitives.ts · buildScene.ts · outline.ts · daylight.ts · modelPreview.ts
+  db/          schema.ts · index.ts (mysql2 pool + drizzle) · migrations/
   i18n/        ka.ts (primary) en.ts ru.ts client.tsx server.ts labels.ts index.ts
-  validations/ zod schemas per entity
+  validations/ zod schemas per entity (partner.schema.ts = self-registration + worker self-edit)
   utils.ts     cn() formatGEL() formatM2() formatUnit() slugify()
 store/         calculatorStore.ts · designStore.ts
-hooks/         useProducts · useCategories · useCalculator · useWorkers · useDesignCatalog
+hooks/         useProducts · useCategories · useCalculator · useWorkers · useDesignCatalog · useAutosave
 scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · seed-models.ts
                lib/objGroups.ts · lib/textureClassify.ts · extract-assets.sh · test-plan-*.ts
 public/
-  uploads/products/  uploads/furniture/  uploads/stores/  uploads/plans/
-  textures/  models/  samples/plan-2br.png
+  uploads/products/  uploads/furniture/  uploads/stores/  uploads/plans/  uploads/renders/
+  textures/  models/  samples/plan-2br.png  vendor/pdf.worker.min.mjs (pdf.js, served same-origin for the CSP)
 ```
 
 ---
@@ -142,12 +156,13 @@ public/
 |---|---|
 | `users` | id, name, email (unique), passwordHash, role enum |
 | `categories` | nameKa/nameEn, slug, icon, `phase` (1–18 renovation phase, 20 = furniture), `calculationType` enum, isVisible, `isFurniture`, sortOrder |
-| `stores` | nameKa (**unique**), `descriptionKa`, logoUrl, websiteUrl, phone, address, `city`, `rating`, `reviewCount`, `deliveryDays`, `deliveryFeeGel`, commissionRate, isActive |
+| `stores` | nameKa (**unique**), `descriptionKa`, logoUrl, websiteUrl, phone, address, `city`, `rating`, `reviewCount`, `deliveryDays`, `deliveryFeeGel`, commissionRate, **`approvalStatus`** (`pending` / `approved` / `rejected` — self-registered stores start pending and inactive), isActive |
 | `products` | categoryId, storeId, nameKa, slug, sku, pricePerUnit (decimal-as-string), unit enum, coveragePerUnit, brand, imageUrl, `images` json, `specs` json, `tags` json, **`styleTags` json**, **`model3dKind`**, **`model3dUrl`**, **`textureUrl`**, **`colorHex`**, **`widthCm`/`depthCm`/`heightCm`**, isActive, isFeatured |
-| `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified |
+| `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified, **`approvalStatus`** (as for stores) |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
-| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` / `saved` / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
+| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` = autosaved or guest / `saved` = confirmed with the save button / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
+| `project_renders` | projectId (cascade), userId, `sourceUrl` (the studio's own screenshot, stored at once), `renderUrl` (filled when the realistic render exists), status `queued` → `processing` → `ready` / `failed`, `roomName`, `camera` json |
 | `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
 | `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
 | `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker, storeId / workerId, status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
@@ -158,6 +173,12 @@ public/
 A design project is distinguished from a calculator project by `plan IS NOT NULL`.
 
 Decimals are stored and read as **strings** (Drizzle mysql `decimal`). Always `Number(...)` before math and `String(...)` before insert.
+
+**Calculator selection keys** (`selectedProducts`): `<slug>_global` is a product chosen for the
+whole flat, `<slug>_room:<roomId>` one chosen for a single room (floor and wall finishes only).
+`lib/calculator/quantities.ts` owns the format — `selectionKey`, `categorySlugFromKey`,
+`roomIdFromKey` — and a per-room snapshot also carries `roomId` so the summaries, the order
+lines and the studio can name the room. Never build or parse these strings by hand.
 
 ### Managing the catalogue
 
@@ -214,6 +235,39 @@ matching style first, each with its photo.
 The `model3dKind` options come from `ARCHETYPES` directly, so adding an archetype makes it
 selectable without touching the admin form. A stored kind that is no longer in the registry
 stays listed (marked `?`) rather than silently blanking the select and being lost on save.
+
+### Partners register themselves; admin approves (`lib/validations/partner.schema.ts`)
+
+`/register` carries two more doors under the ordinary form: `/register/store` and
+`/register/worker`. `POST /api/auth/register-partner` creates the `stores` / `workers` row
+**first** — `approvalStatus: 'pending'`, `isActive: false` — then the account with the
+matching role and `storeId` / `workerId`, and signs the person in. They land in the partner
+portal with a "waiting for verification" banner (`loadPartnerContext` carries
+`approvalStatus`) and can already fill in products or their card.
+
+**What "pending" hides.** A store's `isActive` is the visibility switch everywhere it was
+before (store sidebar, studio's store list, workers' `isActive` for the directory). Products
+of a pending store are the new case: every public product query — `/catalog`, the landing
+wall, `GET /api/products`, `lib/api/designCatalog.ts`, the related products on a product
+page — joins `stores` and requires `products.storeId IS NULL OR stores.isActive`, so a pending
+store can add products without them showing. Do the same in any new public product query.
+
+Admin decides on the store / worker edit page (`PartnerApproval`, `POST
+/api/stores/[id]/approval` and `/api/workers/[id]/approval`): approving sets `approved` +
+`isActive` (workers also become `isVerified`), rejecting keeps them off. The dashboard's
+"needs attention" list and the `status=pending` filter on the admin store and worker lists
+are where they surface.
+
+**What partners may edit.** `requireCatalogEditor()` in `lib/api/route.ts` admits admin or a
+linked `store` account to the product routes; a store may only write its own products
+(`storeId` forced, `isFeatured`/`sortOrder` ignored), through the same `ProductForm` with a
+`partner` prop (`/partner/products/new`, `/partner/products/[id]`). `requireUploader()` opens
+`/api/upload` and `/api/upload/model` to linked partners. A worker edits their own card at
+`/partner/profile` with `WorkerSelfForm` — the same service and price fields as registration
+(`WorkerServiceFields`), sent to `PUT /api/workers/[id]` which accepts `workerSelfSchema`
+from the worker themself and the full admin schema from admin; rating, verification,
+commission and activation are never theirs. Admin previewing a partner with `?store=` /
+`?worker=` is sent to the admin forms instead.
 
 ### Admin lists: filters, sort and paging live in the URL
 
@@ -316,6 +370,18 @@ upload image (browser)
   → manipulate.ts        snapping, collision and walkability for everything the user moves
   → pricing.ts           scene → cost breakdown grouped by partner store
 ```
+
+**Step 1 asks before it assumes** (`app/(main)/design/page.tsx`). Nothing leaves the page
+until the one continue button at the bottom: an uploaded plan waits in page state
+(`PlanUploadCard` with `showContinue={false}` hands the plan over as soon as the area is
+valid, and takes it back through `onReset` when it is not), typed and drawn rooms wait in
+page state, and "what do you need" (design only / renovation + design) is **not**
+pre-selected — `designStore.modeChosen` says whether it was, and the button refuses with a
+message until both a plan and a mode exist. The calculator keeps the card's own continue
+button; only the studio hides it. A plan that came from a PDF was rasterised first
+(`lib/design/planPdf.ts`: page 1 through pdf.js at ~2200 px, then an ordinary PNG `File`),
+so the upload route, the Claude reader and the CV parser only ever see images; the worker
+is served from `public/vendor` because the CSP allows workers from this origin only.
 
 **Nothing in this pipeline calls an AI.** The scene is built procedurally from structured
 data — deterministic, free per view, same result every time, fully interactive. That was the
@@ -427,6 +493,18 @@ chosen finishes; switching style resets them.
 Room names follow their type on the plan page: a generated name ("მისაღები ოთახი 1") is
 replaced when the type changes ("საძინებელი 2"); a name the user typed is kept.
 
+**Finishes are chosen per room in the calculator too** (`/calculator/catalog`). For a
+category whose `calculationType` is `per_m2_floor` or `per_m2_wall` the step shows a scope
+row: "the same in every room" or one chip per room — the kitchen, bathroom and toilet are
+rooms like any other there, so they are always a separate choice. Within one category the
+two are exclusive (`calculatorStore.selectFinish`: a whole-flat pick drops the room picks,
+a room pick drops the whole-flat one) so a floor is never counted twice. A room pick is
+quantified from that room alone (`suggestedQuantityForRoom`), also on the server
+(`repriceCalculatorPicks` reads the room off the key; a pick for a room that no longer
+exists is dropped). In the studio `applyFinishPicks` puts room picks on their room first and
+lets whole-flat picks fill the rest by wetness. The step's "next" asks whether furniture is
+wanted at all — no goes straight to the summary; it can still be chosen in 3D later.
+
 Clicking a floor or a wall in the 3D view selects that surface (`onSelectSurface`): the
 right panel shows the finish picker for that room with the clicked surface first, and a
 choice there applies to that room only. Clicking empty space clears it.
@@ -443,6 +521,23 @@ cuts a twin when the chosen wall is shared (and refuses a window there). Writing
 found a real bug in `deriveOpenings`: the shared run is measured in plan order but applied in
 id order, so when the two disagreed each door landed on the wrong wall of its room.
 
+The same editing exists on the **plan review step** (`/design/plan`), where the 2D plan is
+the editor. `PlanCanvas` hit-tests the door and window segments (a few CSS px around the
+line) and a press starts a drag that can end in three places: along the same wall
+(`onMoveOpening`), on **any wall of any room** (`onMoveOpeningToWall` →
+`openings.moveOpeningToWall`, which slides when the wall is the same or its twin's copy and
+otherwise cuts the opening out and in again with its size kept, so it gets a new id), or on
+the bin the page shows while dragging (`trashRef` + `onRemoveOpening`). The wall under the
+pointer is `nearestWall`: inside a room, the nearest of that room's walls; outside every
+room, the nearest wall within reach. A palette beside the plan (`OpeningPalette`, one door
+and one window, HTML5 drag and drop) drops new openings the same way (`onDropOpening` →
+`addOpening` with an explicit `t`); a window let go on a shared wall is refused and the page
+says so. The selected room's openings sit under the plan as small cards four to a row —
+`OpeningsPanel` with `layout="grid"` and `showRoomSelect={false}`; the studio keeps the
+`list` layout for its narrow floating panel, where the panel opens on the **whole flat** —
+every room under its name with its own add buttons — and narrows to one room when one is
+picked; `roomId: null` means the flat, and every handler carries the room id explicitly.
+
 ### Adding furniture in the studio
 
 The items tab's "add furniture" opens a catalogue browser (search, archetype, style chips)
@@ -454,6 +549,18 @@ viewer the piece follows the mouse, the outline is green where it fits and red w
 not, R turns it (`ViewerApi.carryPose` gives the page the spot under the pointer to turn it
 at), a click sets it down only on green, and Escape (`cancelCarry`) removes it. Picking a
 room in either panel focuses it in 3D.
+
+Every row of that catalogue list is also **draggable straight into the 3D view** (HTML5
+drag and drop, `FURNITURE_DRAG_TYPE` on the `dataTransfer`): the studio's workspace accepts
+the drop, asks the viewer which floor point and room lie under the pointer
+(`ViewerApi.floorPointAt`), calls `beginAdd` for that room, and — once the viewer is carrying
+the new item on the next render — sets it down there with `ViewerApi.dropCarriedAt`. A spot
+that does not fit leaves the item on the pointer, outlined red, for the person to move. In
+the 2D view a drop simply `addItem`s into the focused (or largest) room. With the whole flat
+selected, `beginAdd(product, null)` tries the rooms largest first and starts in the first
+with space. The items list and the finishes panel open on the whole flat as well: items
+grouped under room names, finishes as one "all rooms" picker followed by every room with
+what it currently has, a click narrowing to that room.
 
 ### The product has to fit the slot (`matcher.ts` → `placeFitting`)
 
@@ -494,6 +601,54 @@ the turn made a sofa impossible to rotate in any room without spare floor.
 by the thickness of the wall between them, so each door contributes a portal box that bridges
 the two — otherwise you could not walk through your own doorways.
 
+### Keyboard panning, time of day, photos (`Viewer3D.tsx`, `lib/design3d/daylight.ts`)
+
+In the orbit view **WASD and the arrows slide the view** across the flat: the camera and
+its orbit target move together along the camera's own forward and right projected onto the
+floor, so W is always "up the screen"; shift doubles the speed. Matched on `event.code`
+like everything else, ignored while an input has focus, and owned by the viewer (walk mode
+has its own controls) — the studio page only handles 1/2/3, R and Escape.
+
+**Time of day** is a preset in the top bar (morning / noon / evening / night → hours 8, 13,
+19, 23). `lightingForHour(hour, style)` is pure arithmetic over a 24-hour clock: the sun's
+position swings east to west and rises and sets, its colour warms when low, the sky and the
+exposure follow, and from dusk the flat's own lights come on — one `pointLight` per room
+under the ceiling, sized to the room, plus the shared window glass material turned
+emissive so the windows glow from outside. The style still tints the sun and the lamps.
+Tested in `tests/unit/design/daylight.test.ts`.
+
+**Photos.** The camera button (`ViewerApi.screenshot`: render, then `toDataURL` — the
+canvas does not keep its buffer between frames) opens `PhotoDialog` with the shot and asks
+whether to make a realistic photo of it. Yes saves the design if it is not saved yet (a
+draft is enough — `ensureSaved` → `saveDesign`), posts the PNG with the room name and the
+camera pose to `POST /api/design/renders`, which stores it under `renders/` and queues a
+`project_renders` row, and then tells the person the render is being made, that they can
+keep taking photos or moving furniture, and that it will be in their profile under the
+project — where `ProjectRenders` lists every shot with its status and a download of the
+screenshot now and of the render once `renderUrl` is set. Guests are asked to sign in
+first. **No generator is wired to the queue yet**: rows wait in `queued` until an image model
+(or a person) fills `renderUrl` and flips the status.
+
+### Autosave and drafts (`hooks/useAutosave.ts`, `saveDesign.ts`, `saveProject.ts`)
+
+A signed-in user's work is written to their project row as they go. `DesignAutosave` (in
+the design layout) and `CalculatorAutosave` (in the calculator layout) hash the store slices
+that matter into a signature; `useAutosave` waits 2.5 s after the last change, never races
+an in-flight write, never writes the same signature twice, and does nothing for guests
+("log in to save" remains their path). Both go through the same client helpers the summary
+buttons use — `saveDesign` / `saveCalculatorProject` — so an autosave and a press of "save"
+send identical payloads into the same row (`projectId` is written back to both stores).
+The payload carries `draft: true`; the routes then insert as `draft` and leave an existing
+row's status alone, while an explicit save (`draft: false`) turns a draft into `saved` and
+never touches `submitted`. Autosaves have their own rate bucket (`RATE_RULES.autosave`) so
+the 20-per-hour limit on explicit saves still holds. A new plan (`setPlan`, `replaceRooms`)
+still clears `projectId`, so a new flat is a new row — expect a draft per flat someone
+started. Drafts (and saved projects) are deletable from the profile: `DELETE
+/api/projects/[id]` (owner, or admin; ordered projects are refused with
+`PROJECT_HAS_ORDERS`), removes the renders' files, and `DeleteProjectButton` /
+`DeleteDraftsButton` also forget the id in the browser so the next autosave does not write
+into a row that is gone.
+
 ### Two modes
 
 - `mode: 'design_only'` — the home is finished; only furniture and decor are costed.
@@ -503,8 +658,15 @@ the two — otherwise you could not walk through your own doorways.
 
 Room sizes are exact: the form and the room list take any value to the centimetre
 (`step 0.01`; the list's `SizeInput` commits on blur so "3." is not rewritten under the
-cursor), and handle drags snap sizes to 1 cm while positions keep the 25 cm grid. A 3.32 m
-room is a 3.32 m room.
+cursor), and handle drags snap sizes **and positions** to 1 cm (`MOVE_STEP_M`); the 25 cm
+grid is only drawn. A 3.32 m room is a 3.32 m room. What replaces the grid is
+`snapToNeighbours` in `lib/calculator/layout.ts`: while a room is dragged, each axis looks
+at every other room it is roughly alongside and jumps onto the nearest edge within 30 cm —
+its left wall onto their right wall (or the reverse), flush left walls, flush top walls —
+so pushing a room up to a neighbour puts the two on one shared wall, with an orange guide
+line drawn across both while it snaps. Stationary rooms never move; the tests in
+`tests/unit/calculator/layout.test.ts` pin the rules. The same editor serves the studio's
+step 1.
 
 The calculator starts from the plan, not the home state: upload a 2D plan, enter rooms by
 hand, or draw one — three tabs in a row, the home state below. Every room carries an optional
@@ -734,6 +896,16 @@ Each of these cost real debugging time. Don't undo them.
     visibility, so a cut-away wall still caught every click aimed at the sofa behind it.
     Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
     opening slabs); the default raycaster only tests layer 0.
+15. **`fetch(dataUrl)` is refused by the CSP.** `connect-src` is `'self' blob:`, so the usual
+    trick for turning a canvas data URL into a Blob dies silently in the console. The photo
+    dialog decodes the base64 by hand (`dataUrlToBlob`). Images may *display* data URLs
+    (`img-src` allows them); nothing may fetch them.
+16. **The shared glass material is the night-time windows.** Every window pane uses one
+    cached `glass` material, so setting its `emissive` at night lights every window at once
+    — the one place tinting a shared material is the point, not the bug of gotcha 7.
+17. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
+    between frames, so `ViewerApi.screenshot` calls `gl.render(scene, camera)` and reads the
+    canvas in the same tick.
 "
 ## Partner models (`scripts/convert-models.ts`)
 
@@ -901,7 +1073,10 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 ## Known gaps / roadmap
 
 - Uploads are local disk; S3 planned. No PDF export. No SMS.
-- The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Partners cannot add or edit their own products yet (admin does it); reviews and portfolio are seeded, not partner-managed.
+- The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
+- **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
+- PDF plans: only the first page is rasterised; a multi-page set has to be split by hand.
+- Autosave keeps one draft per flat someone started (a new plan is a new row); the profile's "delete drafts" is the broom.
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**
   (its folder holds a `.max` kitchen and nothing else) — and no partner sells a wardrobe,
   kitchen, bathroom fixture, rug, lamp, plant, desk or bookshelf. Those slots are filled by
@@ -985,6 +1160,12 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
   the "finish the previous step first" card. `Figure` (in `MaterialsTable`) is the large
   number-in-a-cell used for stats and subtotals.
+- **Product page** (`/catalog/[slug]`): no "add to project" button any more — the calculator
+  and the studio are where products are chosen. "See in 3D" (`ProductModelDrawer`) opens a
+  drawer on the same page with the product's own GLB on a turntable (`lib/design3d/modelPreview.ts`,
+  plain three.js loaded on demand, the product's materials as shipped) and a link into the
+  studio at the bottom. The drawer's content is portalled, so the host element is a callback
+  ref in state — an effect keyed on `open` alone ran before the host existed.
 - **Catalogue** (`/catalog`): server-rendered with a real sidebar — categories in two groups
   (materials by phase, then furniture) with live counts, and partner stores — and a toolbar
   above the grid with search, a multi-select style dropdown (`style=modern,vintage`, OR),

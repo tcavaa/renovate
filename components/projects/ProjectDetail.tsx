@@ -166,7 +166,7 @@ export function ProjectDetail({
         </Section>
 
         <Section title={t.summary.products} count={summary.products.length}>
-          <ProductsTable items={summary.products} subtotal={summary.subtotalProducts} emptyText={t.summary.productsEmpty} t={t} locale={locale} />
+          <ProductsTable items={summary.products} subtotal={summary.subtotalProducts} emptyText={t.summary.productsEmpty} t={t} locale={locale} rooms={rooms} />
         </Section>
 
         <Section title={t.summary.furniture} count={summary.furniture.length}>
@@ -291,11 +291,12 @@ export function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
   );
 }
 
-export function ProductsTable({ items, subtotal, emptyText, t, locale }: { items: SelectedProduct[]; subtotal: number; emptyText: string; t: Dictionary; locale: Locale }) {
+export function ProductsTable({ items, subtotal, emptyText, t, locale, rooms = [] }: { items: SelectedProduct[]; subtotal: number; emptyText: string; t: Dictionary; locale: Locale; rooms?: Pick<Room, 'id' | 'nameKa'>[] }) {
+  const roomName = new Map(rooms.map((r) => [r.id, r.nameKa]));
   return (
     <Table
       head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
-      rows={items.map((p) => [localizedName(locale, p), formatNumber(p.qty), unitLabel(t, p.unit), formatGEL(p.pricePerUnit, true), formatGEL(p.totalPrice)])}
+      rows={items.map((p) => [`${localizedName(locale, p)}${p.roomId && roomName.get(p.roomId) ? ` · ${roomName.get(p.roomId)}` : ''}`, formatNumber(p.qty), unitLabel(t, p.unit), formatGEL(p.pricePerUnit, true), formatGEL(p.totalPrice)])}
       empty={emptyText}
       subtotal={items.length ? { label: t.summary.subtotal, value: subtotal } : undefined}
     />

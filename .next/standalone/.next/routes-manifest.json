@@ -174,6 +174,14 @@
       "namedRegex": "^/api/categories/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/design/renders/[id]",
+      "regex": "^/api/design/renders/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/design/renders/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/orders/[id]",
       "regex": "^/api/orders/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -190,12 +198,28 @@
       "namedRegex": "^/api/products/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/projects/[id]",
+      "regex": "^/api/projects/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/projects/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/stores/[id]",
       "regex": "^/api/stores/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/stores/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/stores/[id]/approval",
+      "regex": "^/api/stores/([^/]+?)/approval(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/stores/(?<nxtPid>[^/]+?)/approval(?:/)?$"
     },
     {
       "page": "/api/users/[id]",
@@ -214,6 +238,14 @@
       "namedRegex": "^/api/workers/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/workers/[id]/approval",
+      "regex": "^/api/workers/([^/]+?)/approval(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/workers/(?<nxtPid>[^/]+?)/approval(?:/)?$"
+    },
+    {
       "page": "/catalog/[slug]",
       "regex": "^/catalog/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -228,6 +260,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/partner/orders/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/partner/products/[id]",
+      "regex": "^/partner/products/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/partner/products/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/profile/projects/[id]",
@@ -386,6 +426,12 @@
       "namedRegex": "^/api/auth/register(?:/)?$"
     },
     {
+      "page": "/api/auth/register-partner",
+      "regex": "^/api/auth/register\\-partner(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/register\\-partner(?:/)?$"
+    },
+    {
       "page": "/api/auth/reset",
       "regex": "^/api/auth/reset(?:/)?$",
       "routeKeys": {},
@@ -444,6 +490,12 @@
       "regex": "^/api/design/projects(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/design/projects(?:/)?$"
+    },
+    {
+      "page": "/api/design/renders",
+      "regex": "^/api/design/renders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/design/renders(?:/)?$"
     },
     {
       "page": "/api/design/upload-plan",
@@ -602,6 +654,12 @@
       "namedRegex": "^/partner/products(?:/)?$"
     },
     {
+      "page": "/partner/products/new",
+      "regex": "^/partner/products/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/partner/products/new(?:/)?$"
+    },
+    {
       "page": "/partner/profile",
       "regex": "^/partner/profile(?:/)?$",
       "routeKeys": {},
@@ -624,6 +682,18 @@
       "regex": "^/register(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/register(?:/)?$"
+    },
+    {
+      "page": "/register/store",
+      "regex": "^/register/store(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register/store(?:/)?$"
+    },
+    {
+      "page": "/register/worker",
+      "regex": "^/register/worker(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/register/worker(?:/)?$"
     },
     {
       "page": "/reset-password",

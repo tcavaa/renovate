@@ -85,7 +85,7 @@ export default async function AdminDashboardPage() {
       .where(and(eq(categories.isVisible, true), isNull(products.id))),
   ]);
 
-  const [monthRevenue, [orderStats], [partnersNoEmail], [storesNoAccount]] = await Promise.all([
+  const [monthRevenue, [orderStats], [partnersNoEmail], [storesNoAccount], [pendingPartners]] = await Promise.all([
     revenueReport(periodRange('month')),
     db
       .select({
@@ -95,6 +95,8 @@ export default async function AdminDashboardPage() {
       .from(orders),
     db.select({ c: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.isActive} = 1 AND (${stores.email} IS NULL OR ${stores.email} = '')) + (SELECT COUNT(*) FROM ${workers} WHERE ${workers.isActive} = 1 AND (${workers.email} IS NULL OR ${workers.email} = ''))` }).from(sql`(SELECT 1) AS one`),
     db.select({ c: sql<number>`COUNT(*)` }).from(stores).where(and(eq(stores.isActive, true), sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.storeId} = ${stores.id})`)),
+    // Stores and workers who registered themselves and wait for a verdict.
+    db.select({ stores: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.approvalStatus} = 'pending')`, workers: sql<number>`(SELECT COUNT(*) FROM ${workers} WHERE ${workers.approvalStatus} = 'pending')` }).from(sql`(SELECT 1) AS one`),
   ]);
 
   const designCategoryIds = designCategoryRows.map((c) => c.id);
@@ -111,6 +113,8 @@ export default async function AdminDashboardPage() {
   const unverifiedWorkers = Number(workerStats.total) - Number(workerStats.verified ?? 0);
 
   const attention: Array<{ text: string; href: string }> = [];
+  if (Number(pendingPartners.stores ?? 0) > 0) attention.push({ text: `${ka.admin.pendingPartners}: ${ka.admin.stores} ${Number(pendingPartners.stores)}`, href: '/admin/stores?status=pending' });
+  if (Number(pendingPartners.workers ?? 0) > 0) attention.push({ text: `${ka.admin.pendingPartners}: ${ka.admin.workers} ${Number(pendingPartners.workers)}`, href: '/admin/workers?status=pending' });
   if (Number(orderStats.pending ?? 0) > 0) attention.push({ text: fill(d.pendingOrders, { n: Number(orderStats.pending) }), href: '/admin/orders?status=new' });
   if (Number(partnersNoEmail.c) > 0) attention.push({ text: fill(d.partnersWithoutEmail, { n: Number(partnersNoEmail.c) }), href: '/admin/stores' });
   if (Number(storesNoAccount.c) > 0) attention.push({ text: fill(d.partnersWithoutAccount, { n: Number(storesNoAccount.c) }), href: '/admin/users?role=store' });

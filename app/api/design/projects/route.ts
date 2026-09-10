@@ -32,13 +32,13 @@ export const GET = handle('GET /api/design/projects', 'Failed to load designs', 
 });
 
 export const POST = handle('POST /api/design/projects', 'Failed to save design', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.saveProject);
-  if (limited) return limited;
-
   const parsed = saveDesignSchema.safeParse(await req.json());
+  // Autosaves come every few seconds while someone works; they get their own, wider bucket.
+  const limited = rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
+  if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { nameKa, homeState, floorPlanUrl, projectId } = parsed.data;
+  const { nameKa, homeState, floorPlanUrl, projectId, draft } = parsed.data;
   const plan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
   const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
@@ -114,7 +114,15 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   // Writing into the caller's own project keeps whatever calculator half it already has.
   const existing = await ownProject(projectId, userId);
   if (existing) {
-    await db.update(projects).set({ ...designColumns, ...(calculatorColumns ?? {}) }).where(eq(projects.id, existing.id));
+    await db
+      .update(projects)
+      .set({
+        ...designColumns,
+        ...(calculatorColumns ?? {}),
+        // An explicit save confirms a draft; an autosave leaves the status as it is.
+        ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
+      })
+      .where(eq(projects.id, existing.id));
     return ok({ id: existing.id, cost });
   }
 
@@ -125,7 +133,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     ...designColumns,
     selectedProducts: calculatorColumns?.selectedProducts ?? null,
     selectedFurniture: calculatorColumns?.selectedFurniture ?? null,
-    status: userId ? 'saved' : 'draft',
+    status: userId && !draft ? 'saved' : 'draft',
   });
 
   return ok({ id: inserted[0].insertId, cost });
