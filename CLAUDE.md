@@ -722,6 +722,16 @@ signing in; that is the "log in to save" path.
 The design page's mode block defaults to design only; choosing renovation + design reveals
 the calculator's three home states, and the studio prices against the chosen one.
 
+### The project page folds (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
+
+`/profile/projects/[id]` and `/admin/projects/[id]` share `ProjectDetail`: the title on its
+own line with the action buttons under it (side by side, the buttons squeezed the name into a
+column of words), then the blocks in a fixed order — layout · rooms, materials, products,
+furniture, the studio's products, workers, photos & renders (the `renders` slot) — each a
+`FoldSection` (client; the title row toggles, + / − in the corner, folded by default when
+the block is empty), and last, never folded, the breakdown, with the orders (`after`) below
+it. `ProjectRenders` renders its own `FoldSection`, so a page passes it in whole.
+
 ### Saved projects reopen in 3D (`components/projects/OpenIn3dButton.tsx`)
 
 The profile list, the project page and the calculator summary carry the one button with
