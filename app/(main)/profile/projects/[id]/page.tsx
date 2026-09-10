@@ -63,12 +63,8 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
           {project.status !== 'submitted' && <DeleteProjectButton projectId={project.id} size="default" afterHref="/profile" />}
         </>
       }
-      after={
-        <>
-          {project.plan != null && <ProjectRenders projectId={project.id} t={ka} locale={locale} />}
-          <ProjectOrders projectId={project.id} t={ka} locale={locale} />
-        </>
-      }
+      renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
+      orders={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
     />
   );
 }

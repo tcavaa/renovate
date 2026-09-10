@@ -6,39 +6,39 @@ import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { checkoutsForProject, ordersForProject } from '@/lib/finance/orders';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
+import { FoldSection } from '@/components/projects/FoldSection';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
 /**
  * The orders a project turned into, for its owner (and admin): one card per partner with
- * status, total and whatever the partner wrote back. Server component — reads the database.
+ * status, total and whatever the partner wrote back. Server component — reads the database;
+ * sits in the project page as one of its folding blocks, with the fees recorded at checkout
+ * beside the title.
  */
 export async function ProjectOrders({ projectId, t, locale, orderHref }: { projectId: number; t: Dictionary; locale: Locale; orderHref?: (id: number) => string }) {
   const [orders, checkouts] = await Promise.all([ordersForProject(projectId), checkoutsForProject(projectId)]);
   const fees = checkouts.filter((c) => Number(c.platformFee) > 0);
   const dateLocale = dateLocaleFor(locale);
 
+  const feeSummary =
+    fees.length > 0 ? (
+      <span className="text-right">
+        {t.market.feeRecorded}:
+        {fees.map((c) => (
+          <span key={c.id} className="ml-2 inline-block">
+            <span className="text-xs">{c.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}</span> <span className="font-semibold text-ink">{formatGEL(Number(c.platformFee))}</span>
+            <span className="ml-1 text-xs">({fill(t.market.platformFeeHint, { fee: formatGEL(Number(c.feePerM2)), m2: formatM2(Number(c.totalM2)) })})</span>
+          </span>
+        ))}
+      </span>
+    ) : undefined;
+
   return (
-    <section className="mt-12">
-      <div className="flex items-baseline justify-between border-b border-line pb-3">
-        <h2 className="font-serif text-2xl font-semibold text-ink">
-          {t.market.ordersTitle} <span className="ml-2 text-base font-normal text-ink-muted">({orders.length})</span>
-        </h2>
-        {fees.length > 0 && (
-          <p className="text-right text-sm text-ink-muted">
-            {t.market.feeRecorded}:
-            {fees.map((c) => (
-              <span key={c.id} className="ml-2 inline-block">
-                <span className="text-xs">{c.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}</span> <span className="font-semibold text-ink">{formatGEL(Number(c.platformFee))}</span>
-                <span className="ml-1 text-xs">({fill(t.market.platformFeeHint, { fee: formatGEL(Number(c.feePerM2)), m2: formatM2(Number(c.totalM2)) })})</span>
-              </span>
-            ))}
-          </p>
-        )}
-      </div>
+    <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>
       {orders.length === 0 ? (
-        <p className="mt-4 border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
+        <p className="border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
       ) : (
-        <ul className="mt-4 grid gap-4 md:grid-cols-2">
+        <ul className="grid gap-4 md:grid-cols-2">
           {orders.map((o) => {
             const partner = o.partnerType === 'store' ? { nameKa: o.storeNameKa ?? '—', nameEn: o.storeNameEn, nameRu: o.storeNameRu, phone: o.storePhone } : { nameKa: o.workerNameKa ?? '—', nameEn: o.workerNameEn, nameRu: o.workerNameRu, phone: o.workerPhone };
             const title = fill(t.market.orderNo, { id: o.id });
@@ -112,6 +112,6 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
           })}
         </ul>
       )}
-    </section>
+    </FoldSection>
   );
 }

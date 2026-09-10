@@ -5,12 +5,13 @@ import { db } from '@/lib/db';
 import { projectRenders } from '@/lib/db/schema';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
+import { FoldSection } from '@/components/projects/FoldSection';
 import { cn } from '@/lib/utils';
 
 /**
  * The photos taken in the studio for this project and the realistic renders made from
  * them: the screenshot is downloadable at once, the render when it is ready. Server
- * component — reads the database.
+ * component — reads the database; sits in the project page as one of its folding blocks.
  */
 export async function ProjectRenders({ projectId, t, locale }: { projectId: number; t: Dictionary; locale: Locale }) {
   const rows = await db.select().from(projectRenders).where(eq(projectRenders.projectId, projectId)).orderBy(desc(projectRenders.createdAt));
@@ -23,13 +24,8 @@ export async function ProjectRenders({ projectId, t, locale }: { projectId: numb
   };
 
   return (
-    <section className="mt-12">
-      <div className="flex items-baseline justify-between border-b border-line pb-3">
-        <h2 className="font-serif text-2xl font-semibold text-ink">
-          {t.profile.renders} <span className="ml-2 text-base font-normal text-ink-muted">({rows.length})</span>
-        </h2>
-      </div>
-      <p className="mt-2 text-sm text-ink-muted">{t.profile.rendersHint}</p>
+    <FoldSection title={t.profile.renders} count={rows.length} defaultOpen={rows.length > 0}>
+      <p className="text-sm text-ink-muted">{t.profile.rendersHint}</p>
       {rows.length === 0 ? (
         <p className="mt-4 border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
       ) : (
@@ -67,6 +63,6 @@ export async function ProjectRenders({ projectId, t, locale }: { projectId: numb
           })}
         </ul>
       )}
-    </section>
+    </FoldSection>
   );
 }
