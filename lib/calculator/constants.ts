@@ -33,6 +33,7 @@ export const ROOM_TYPES: Record<RoomType, { labelKa: string; defaultHeight: numb
   balcony: { labelKa: 'აივანი', defaultHeight: 2.5 },
   storage: { labelKa: 'საწყობი', defaultHeight: 2.5 },
   office: { labelKa: 'საოფისე ოთახი', defaultHeight: 2.8 },
+  closet: { labelKa: 'გარდერობი', defaultHeight: 2.6 },
 };
 
 export const WET_ROOM_TYPES: RoomType[] = ['bathroom', 'toilet', 'kitchen'];
@@ -53,6 +54,14 @@ export const WORKER_RATES = {
   painting: { labelKa: 'მხატვრობა / შეღებვა', pricePerM2: 8, unit: 'm2' as const },
   electrical_finish: { labelKa: 'ელექტრო (სახე)', pricePerM2: 10, unit: 'm2' as const },
   plumbing_finish: { labelKa: 'სანტექნიკა (სახე)', pricePerM2: 15, unit: 'm2' as const },
+  // Per-point work the technical and electrical layers count (the studio's sockets, lights,
+  // pipes, radiators); the estimate's materials for them live in lib/design/technicalRates.ts.
+  electrical_point: { labelKa: 'ელ. წერტილი (როზეტი / ჩამრთველი)', pricePerUnit: 25, unit: 'unit' as const },
+  lighting_point: { labelKa: 'განათების წერტილი', pricePerUnit: 35, unit: 'unit' as const },
+  plumbing_point: { labelKa: 'სანტექნიკის წერტილი', pricePerUnit: 90, unit: 'unit' as const },
+  radiator_install: { labelKa: 'რადიატორის მონტაჟი', pricePerUnit: 120, unit: 'unit' as const },
+  ac_install: { labelKa: 'კონდიციონერის მონტაჟი', pricePerUnit: 180, unit: 'unit' as const },
+  extractor_install: { labelKa: 'გამწოვის მონტაჟი', pricePerUnit: 60, unit: 'unit' as const },
 } as const;
 
 export type WorkerRateKey = keyof typeof WORKER_RATES;

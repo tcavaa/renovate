@@ -38,7 +38,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { nameKa, homeState, floorPlanUrl, projectId, draft } = parsed.data;
+  const { nameKa, homeState, floorPlanUrl, projectId, draft, versions } = parsed.data;
   const plan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
   const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
@@ -105,7 +105,10 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     rooms,
     plan,
     scene,
-    totalMaterialsCost: String(cost.materialsTotal + cost.finishesTotal),
+    // Versions are snapshots the person keeps to come back to; they are stored as sent (the
+    // live scene above is the one that is repriced).
+    ...(versions ? { versions } : {}),
+    totalMaterialsCost: String(cost.materialsTotal + cost.finishesTotal + cost.technicalTotal + cost.openingsTotal),
     totalFurnitureCost: String(cost.furnitureTotal),
     totalWorkersCost: String(cost.labourTotal),
     totalCost: String(cost.grandTotal),

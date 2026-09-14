@@ -2,51 +2,44 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { nanoid } from 'nanoid';
-import { AlertCircle, Check, Home, PenLine, Rows3, Sofa, Upload } from 'lucide-react';
+import { AlertCircle, Check, Home, PenLine, Sofa, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
-import { RoomForm } from '@/components/calculator/RoomForm';
-import { RoomList } from '@/components/calculator/RoomList';
-import { RoomLayoutEditor, type DrawnRect } from '@/components/calculator/RoomLayoutEditor';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
+import { StageBrief } from '@/components/flow/StageBrief';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useT } from '@/lib/i18n/client';
-import { roomTypeLabel } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import { planFromCalculatorRooms } from '@/lib/design/planGeometry';
-import { computeRoomAreas } from '@/lib/calculator/materials';
-import { ROOM_TYPES } from '@/lib/calculator/constants';
-import { findFreeSpot } from '@/lib/calculator/layout';
-import type { Room } from '@/lib/calculator/types';
+import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
 import type { FloorPlan } from '@/lib/design/types';
 
-type PlanMode = 'upload' | 'manual' | 'draw';
+type PlanMode = 'upload' | 'scratch';
 
 /**
- * Step 1 of the studio: the plan it starts from — uploaded, typed room by room, or drawn on
- * the grid — and then what kind of project this is. Nothing leaves this page until the one
- * continue button at the bottom: an uploaded plan waits here, typed and drawn rooms wait
- * here, and the "what do you need" choice has to be made rather than assumed.
+ * Step 1 of the journey: where the plan comes from — an uploaded drawing (PDF or image),
+ * the rooms from the calculator, or a blank sheet to draw on in the next step — the
+ * default wall height and thickness the drawing will use, and what kind of project this is.
+ * Nothing leaves this page until the one continue button at the bottom.
  */
 export default function DesignStartPage() {
   const t = useT();
   const router = useRouter();
-  const { mode, modeChosen, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId } = useDesignStore();
+  const { mode, modeChosen, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId, plan, setPlanDefaults } = useDesignStore();
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
   const [planMode, setPlanMode] = useState<PlanMode>('upload');
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   /** A plan read from an upload (or borrowed from the calculator), waiting for "continue". */
   const [uploaded, setUploaded] = useState<{ plan: FloorPlan; imageUrl: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [wallHeight, setWallHeight] = useState(String(plan?.wallHeightM ?? 2.8));
+  const [thickness, setThickness] = useState(plan?.wallThicknessM ?? 0.12);
 
-  const planReady = planMode === 'upload' ? !!uploaded : rooms.length > 0;
+  const planReady = planMode === 'upload' ? !!uploaded : true;
   useEffect(() => {
     if (error && planReady && modeChosen) setError(null);
   }, [error, planReady, modeChosen]);
@@ -64,41 +57,9 @@ export default function DesignStartPage() {
     setUploaded({ plan: planFromCalculatorRooms(calc.rooms), imageUrl: null });
   };
 
-  const addPlaced = (room: Room) => {
-    setRooms((rs) => [...rs, { ...room, ...findFreeSpot(rs, room.width, room.length) }]);
-    setSelectedRoomId(room.id);
-  };
-  const addDrawn = (rect: DrawnRect) => {
-    const type = 'living_room';
-    const count = rooms.filter((r) => r.type === type).length + 1;
-    const room = computeRoomAreas({ id: nanoid(), type, nameKa: `${roomTypeLabel(t, type)} ${count}`, width: Number(rect.width.toFixed(2)), length: Number(rect.length.toFixed(2)), height: ROOM_TYPES[type].defaultHeight });
-    setRooms((rs) => [...rs, { ...room, x: rect.x, z: rect.z }]);
-    setSelectedRoomId(room.id);
-  };
-  const editRoom = (id: string, updates: Partial<Room>) =>
-    setRooms((rs) =>
-      rs.map((r) => {
-        if (r.id !== id) return r;
-        const m = { ...r, ...updates };
-        return { ...computeRoomAreas({ id, type: m.type, nameKa: m.nameKa, width: m.width, length: m.length, height: m.height }), x: r.x, z: r.z };
-      })
-    );
-  const resizeRoom = (id: string, rect: DrawnRect) =>
-    setRooms((rs) => rs.map((r) => (r.id === id ? { ...computeRoomAreas({ id, type: r.type, nameKa: r.nameKa, width: Number(rect.width.toFixed(2)), length: Number(rect.length.toFixed(2)), height: r.height }), x: rect.x, z: rect.z } : r)));
-  const moveRoom = (id: string, x: number, z: number) => setRooms((rs) => rs.map((r) => (r.id === id ? { ...r, x, z } : r)));
-  const reorderRoom = (id: string, direction: -1 | 1) =>
-    setRooms((rs) => {
-      const i = rs.findIndex((r) => r.id === id);
-      const j = i + direction;
-      if (i < 0 || j < 0 || j >= rs.length) return rs;
-      const next = [...rs];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  /** The one way forward: a plan of some kind, and a decision about what it is for. */
+  /** The one way forward: a plan of some kind (or a blank sheet), and a decision about what it is for. */
   const continueToRooms = () => {
     if (!planReady) {
       setError(t.design.needPlanFirst);
@@ -110,26 +71,32 @@ export default function DesignStartPage() {
       scrollTo('mode-section');
       return;
     }
-    if (planMode === 'upload' && uploaded) setPlan(uploaded.plan, uploaded.imageUrl);
-    else setPlan(planFromCalculatorRooms(rooms));
+    const heightM = Math.min(6, Math.max(1.8, Number(wallHeight) || 2.8));
+    if (planMode === 'upload' && uploaded) {
+      setPlan({ ...uploaded.plan, wallThicknessM: thickness, wallHeightM: heightM }, uploaded.imageUrl);
+    } else if (planMode === 'scratch') {
+      // A blank sheet: the walls are drawn on the next step.
+      setPlan({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: thickness, wallHeightM: heightM, walls: [] }, null);
+    }
+    setPlanDefaults({ wallThicknessM: thickness, wallHeightM: heightM });
     router.push('/design/plan');
   };
 
   const options: Array<{ id: PlanMode; icon: React.ReactNode; label: string; desc: string }> = [
     { id: 'upload', icon: <Upload className="h-5 w-5" />, label: t.calculator.optionUpload, desc: t.calculator.optionUploadDesc },
-    { id: 'manual', icon: <Rows3 className="h-5 w-5" />, label: t.calculator.optionManual, desc: t.calculator.optionManualDesc },
-    { id: 'draw', icon: <PenLine className="h-5 w-5" />, label: t.calculator.optionDraw, desc: t.calculator.optionDrawDesc },
+    { id: 'scratch', icon: <PenLine className="h-5 w-5" />, label: t.build.optionScratch, desc: t.build.optionScratchDesc },
   ];
 
   return (
     <>
       <DesignSteps current={1} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={1} total={5} title={t.design.title} subtitle={t.design.subtitle} />
+        <StepHeader step={1} total={8} title={t.build.s1Title} subtitle={t.design.subtitle} />
+        <StageBrief step={1} className="mt-6" />
 
         <section id="plan-section" className="mt-10 space-y-5">
           <SectionHead index="01" title={t.design.uploadTitle} subtitle={t.calculator.planSubtitle} aside={<span className="text-xs">{t.design.uploadFormats}</span>} />
-          <div className="grid border-l border-t border-line sm:grid-cols-3" role="tablist">
+          <div className="grid gap-3 sm:grid-cols-2" role="tablist">
             {options.map((o, i) => {
               const active = planMode === o.id;
               return (
@@ -139,9 +106,9 @@ export default function DesignStartPage() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setPlanMode(o.id)}
-                  className={cn('group flex items-start gap-4 border-b border-r border-line p-5 text-left transition-colors', active ? 'bg-ink text-white' : 'bg-bg-surface hover:bg-sand-light')}
+                  className={cn('group flex items-start gap-4 rounded-[16px] border p-5 text-left transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
                 >
-                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
+                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
                   <span className="min-w-0">
                     <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
                     <span className="mt-0.5 block font-serif text-lg font-semibold leading-tight">{o.label}</span>
@@ -153,13 +120,8 @@ export default function DesignStartPage() {
           </div>
 
           {planMode === 'upload' && (
-            <div className="border border-line bg-bg-surface p-5 md:p-6">
-              <PlanUploadCard
-                showSample
-                showContinue={false}
-                onPlan={(plan, imageUrl) => setUploaded({ plan, imageUrl })}
-                onReset={() => setUploaded(null)}
-              />
+            <div className="rounded-[16px] border border-line bg-bg-surface p-5 md:p-6">
+              <PlanUploadCard showSample showContinue={false} onPlan={(p, imageUrl) => setUploaded({ plan: p, imageUrl })} onReset={() => setUploaded(null)} />
               {uploaded && (
                 <p className="mt-4 flex items-center gap-2 text-sm font-medium text-success">
                   <Check className="h-4 w-4" />
@@ -177,20 +139,33 @@ export default function DesignStartPage() {
             </div>
           )}
 
-          {planMode === 'manual' && <RoomForm onAdd={addPlaced} />}
-
-          {planMode !== 'upload' && (
-            <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-              <div>
-                <p className="eyebrow mb-2">{t.calculator.layoutTitle}</p>
-                <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onResize={resizeRoom} onDraw={planMode === 'draw' ? addDrawn : undefined} />
-              </div>
-              <div className="lg:sticky lg:top-24 lg:self-start">
-                <p className="eyebrow mb-2">{t.rooms.title}</p>
-                <RoomList rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onUpdate={editRoom} onReorder={reorderRoom} onRemove={(id) => setRooms((rs) => rs.filter((r) => r.id !== id))} />
-              </div>
+          {planMode === 'scratch' && (
+            <div className="rounded-[16px] border border-dashed border-line bg-bg-surface p-6 text-sm text-ink-muted">
+              <p className="font-medium text-ink">{t.build.planEmptyTitle}</p>
+              <p className="mt-1">{t.build.optionScratchDesc}</p>
             </div>
           )}
+
+          <div className="rounded-[16px] border border-line bg-bg-surface p-5">
+            <p className="text-sm font-semibold text-ink">{t.build.defaultsTitle}</p>
+            <p className="mt-1 text-xs text-ink-muted">{t.build.defaultsHint}</p>
+            <div className="mt-4 flex flex-wrap items-end gap-6">
+              <label className="block">
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.defaultWallHeight}</span>
+                <input type="number" inputMode="decimal" min={1.8} max={6} step={0.05} value={wallHeight} onChange={(e) => setWallHeight(e.target.value)} className="h-10 w-32 rounded-[10px] border border-line bg-white px-3 text-sm tabular-nums" />
+              </label>
+              <div>
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.defaultWallThickness}</span>
+                <div className="flex gap-1" role="radiogroup">
+                  {WALL_THICKNESS_OPTIONS_M.map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={Math.abs(thickness - m) < 1e-6} onClick={() => setThickness(m)} className={cn('h-10 rounded-[10px] px-3 text-sm font-semibold tabular-nums transition-colors', Math.abs(thickness - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                      {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="mode-section" className="mt-14 space-y-5">
@@ -229,14 +204,14 @@ function ModeCard({ active, onClick, icon, label, description }: { active: boole
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn('group flex items-start gap-4 border p-4 text-left transition-colors duration-300', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
+      className={cn('group flex items-start gap-4 rounded-[16px] border p-4 text-left transition-colors duration-300', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
     >
-      <span className={cn('grid h-10 w-10 shrink-0 place-items-center border', active ? 'border-white/20 text-white' : 'border-line text-ink-muted')}>{icon}</span>
+      <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20 text-white' : 'border-line text-ink-muted')}>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block font-serif text-lg font-semibold leading-tight">{label}</span>
         <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{description}</span>
       </span>
-      <span className={cn('grid h-5 w-5 shrink-0 place-items-center border', active ? 'border-white bg-white text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
+      <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-white bg-white text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
         <Check className="h-3 w-3" />
       </span>
     </button>

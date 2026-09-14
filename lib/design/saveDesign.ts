@@ -34,6 +34,7 @@ export async function saveDesign(options: { draft: boolean; nameKa: string }): P
           ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture }
           : undefined,
       draft: options.draft,
+      versions: s.versions,
     }),
   });
   const json = (await res.json()) as { data: { id: number } | null; error: string | null };

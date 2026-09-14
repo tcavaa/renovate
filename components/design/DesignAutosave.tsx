@@ -24,13 +24,16 @@ export function DesignAutosave() {
   const homeState = useDesignStore((s) => s.homeState);
   const floorPlanUrl = useDesignStore((s) => s.floorPlanUrl);
   const calculatorPicks = useDesignStore((s) => s.calculatorPicks);
+  const electrical = useDesignStore((s) => s.electrical);
+  const versions = useDesignStore((s) => s.versions);
+  const styleProfile = useDesignStore((s) => s.styleProfile);
   const projectId = useDesignStore((s) => s.projectId);
   const setSaveState = useDesignStore((s) => s.setSaveState);
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
 
   const signature = useMemo(
-    () => JSON.stringify({ plan, items, finishes, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calc: calculatorPicks ? calculatorRooms : null }),
-    [plan, items, finishes, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calculatorRooms]
+    () => JSON.stringify({ plan, items, finishes, electrical, versions: versions.map((v) => v.id), styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calc: calculatorPicks ? calculatorRooms : null }),
+    [plan, items, finishes, electrical, versions, styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calculatorRooms]
   );
 
   useAutosave({

@@ -9,7 +9,8 @@ export type RoomType =
   | 'hallway'
   | 'balcony'
   | 'storage'
-  | 'office';
+  | 'office'
+  | 'closet';
 
 export type UnitType = 'm2' | 'linear_m' | 'piece' | 'liter' | 'kg' | 'm3' | 'pack' | 'set';
 

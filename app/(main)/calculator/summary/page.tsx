@@ -56,9 +56,11 @@ export default function SummaryPage() {
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
+  const resetDesign = useDesignStore((s) => s.reset);
   const designProjectId = useDesignStore((s) => s.projectId);
   const designHasItems = useDesignStore((s) => s.items.length > 0 && s.plan != null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
@@ -159,6 +161,23 @@ export default function SummaryPage() {
     router.push('/profile');
   }, [reset, router]);
 
+  /**
+   * "Start over" empties both stores — the calculator's rooms and picks, and the plan the
+   * drawing board keeps in the design store — and returns to the first step. Unless the
+   * project was saved with the button just now, it asks first: an autosaved draft is not
+   * something the person chose to keep, and the rooms and picks are gone for good.
+   */
+  const startOver = useCallback(() => {
+    setResetOpen(false);
+    reset();
+    resetDesign();
+    router.push('/calculator');
+  }, [reset, resetDesign, router]);
+  const askStartOver = () => {
+    if (savedId != null) startOver();
+    else setResetOpen(true);
+  };
+
   useEffect(() => {
     if (!successModalOpen) return;
     const t = setTimeout(() => {
@@ -223,7 +242,7 @@ export default function SummaryPage() {
                   {ka.summary.saveProject}
                 </Button>
               )}
-              <Button variant="ghost" onClick={() => reset()}>
+              <Button variant="ghost" onClick={askStartOver}>
                 <RotateCcw className="h-4 w-4" />
                 {ka.calculator.startOver}
               </Button>
@@ -253,6 +272,27 @@ export default function SummaryPage() {
       </StepNav>
 
       <CheckoutDialog open={checkoutOpen} onOpenChange={setCheckoutOpen} saveProject={saveOnce} projectId={currentProjectId} parts={checkoutParts} />
+
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger">
+              <RotateCcw className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">{ka.calculator.resetTitle}</DialogTitle>
+            <DialogDescription className="text-center">{ka.calculator.resetDesc}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" onClick={() => setResetOpen(false)}>
+              {ka.common.cancel}
+            </Button>
+            <Button variant="ink" onClick={startOver}>
+              <RotateCcw className="h-4 w-4" />
+              {ka.calculator.resetConfirm}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={successModalOpen}

@@ -3,6 +3,9 @@ import { calculatorPicksPayloadSchema } from './project.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
 
+export const elementOriginSchema = z.enum(['existing', 'user', 'generated']);
+export const buildMaterialSchema = z.enum(['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass']);
+
 const openingSchema = z.object({
   id: z.string(),
   kind: z.enum(['door', 'window', 'archway']),
@@ -14,6 +17,63 @@ const openingSchema = z.object({
   roomId: z.string(),
   connectsToRoomId: z.string().nullable().optional(),
   exterior: z.boolean(),
+  material: buildMaterialSchema.optional(),
+  hinge: z.enum(['left', 'right']).optional(),
+  swing: z.enum(['in', 'out']).optional(),
+  openAngleDeg: z.number().min(0).max(180).optional(),
+  origin: elementOriginSchema.optional(),
+  locked: z.boolean().optional(),
+});
+
+export const wallSchema = z.object({
+  id: z.string().min(1).max(64),
+  a: vec2,
+  b: vec2,
+  thicknessM: z.number().min(0.03).max(1),
+  heightM: z.number().min(1).max(8).optional(),
+  material: buildMaterialSchema.optional(),
+  origin: elementOriginSchema,
+  locked: z.boolean().optional(),
+});
+
+export const columnSchema = z.object({
+  id: z.string().min(1).max(64),
+  position: vec2,
+  widthM: z.number().min(0.05).max(3),
+  depthM: z.number().min(0.05).max(3),
+  heightM: z.number().min(0.2).max(8).optional(),
+  material: buildMaterialSchema.optional(),
+  origin: elementOriginSchema,
+  locked: z.boolean().optional(),
+});
+
+export const beamSchema = z.object({
+  id: z.string().min(1).max(64),
+  a: vec2,
+  b: vec2,
+  widthM: z.number().min(0.05).max(3),
+  depthM: z.number().min(0.05).max(3),
+  elevationM: z.number().min(0).max(8),
+  material: buildMaterialSchema.optional(),
+  origin: elementOriginSchema,
+  locked: z.boolean().optional(),
+});
+
+export const technicalKindSchema = z.enum(['water_supply', 'sewer', 'floor_drain', 'electrical_panel', 'gas', 'radiator', 'ac_unit', 'extractor', 'boiler', 'heating_pipe']);
+
+export const technicalPointSchema = z.object({
+  id: z.string().min(1).max(64),
+  kind: technicalKindSchema,
+  roomId: z.string().max(64).nullable(),
+  position: vec2,
+  elevationM: z.number().min(0).max(8).optional(),
+  note: z.string().max(300).optional(),
+  origin: elementOriginSchema,
+});
+
+export const technicalSetupSchema = z.object({
+  points: z.array(technicalPointSchema).max(200),
+  works: z.array(z.string().max(40)).max(40).optional(),
 });
 
 export const planRoomSchema = z.object({
@@ -28,6 +88,7 @@ export const planRoomSchema = z.object({
     'balcony',
     'storage',
     'office',
+    'closet',
   ]),
   name: z.string().max(120),
   polygon: z.array(vec2).min(3).max(64),
@@ -36,6 +97,8 @@ export const planRoomSchema = z.object({
   perimeterM: z.number().min(0).max(500),
   openings: z.array(openingSchema).max(40),
   lowConfidence: z.boolean().optional(),
+  wallIds: z.array(z.string().max(64)).max(64).optional(),
+  origin: elementOriginSchema.optional(),
 });
 
 export const floorPlanSchema = z.object({
@@ -45,6 +108,11 @@ export const floorPlanSchema = z.object({
   source: z.enum(['parsed', 'manual', 'calculator', 'sample']),
   imageUrl: z.string().max(500).nullable().optional(),
   wallThicknessM: z.number().min(0.02).max(1),
+  wallHeightM: z.number().min(1).max(8).optional(),
+  walls: z.array(wallSchema).max(400).optional(),
+  columns: z.array(columnSchema).max(100).optional(),
+  beams: z.array(beamSchema).max(100).optional(),
+  technical: technicalSetupSchema.optional(),
 });
 
 const sceneStoreSchema = z.object({
@@ -100,11 +168,21 @@ export const placedItemSchema = z.object({
   product: sceneProductSchema.nullable(),
   pinned: z.boolean().optional(),
   origin: itemOriginSchema.optional(),
+  mirrored: z.boolean().optional(),
+  locked: z.boolean().optional(),
+});
+
+export const finishZoneSchema = z.object({
+  id: z.string().min(1).max(64),
+  polygon: z.array(vec2).min(3).max(64),
+  name: z.string().max(80).optional(),
 });
 
 export const surfaceFinishSchema = z.object({
   roomId: z.string().max(64),
   surface: z.enum(['floor', 'wall', 'ceiling']),
+  wallIndex: z.number().int().min(0).max(64).nullable().optional(),
+  zone: finishZoneSchema.nullable().optional(),
   colorHex: z.string().max(9),
   textureUrl: z.string().max(500).nullable(),
   textureScaleM: z.number().positive().max(20),
@@ -116,13 +194,54 @@ export const surfaceFinishSchema = z.object({
   origin: itemOriginSchema.optional(),
 });
 
+export const electricalKindSchema = z.enum(['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'tv', 'internet', 'light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture']);
+export const lightCategorySchema = z.enum(['primary', 'secondary', 'furniture', 'bedside', 'indirect', 'decorative']);
+
+export const electricalPointSchema = z.object({
+  id: z.string().min(1).max(64),
+  roomId: z.string().max(64),
+  kind: electricalKindSchema,
+  category: lightCategorySchema.optional(),
+  position: vec2,
+  elevationM: z.number().min(0).max(8),
+  wallIndex: z.number().int().min(0).max(64).nullable().optional(),
+  t: z.number().min(0).max(1).nullable().optional(),
+  count: z.number().int().min(1).max(6).optional(),
+  on: z.boolean().optional(),
+  lengthM: z.number().min(0.1).max(30).optional(),
+  origin: elementOriginSchema.optional(),
+  locked: z.boolean().optional(),
+});
+
+const styleIdSchema = z.enum(['modern', 'scandinavian', 'industrial', 'vintage']);
+
+export const styleProfileSchema = z.object({
+  answers: z.record(z.string().max(40)),
+  scores: z.object({ modern: z.number(), scandinavian: z.number(), industrial: z.number(), vintage: z.number() }),
+  direct: z.boolean().optional(),
+});
+
 export const designSceneSchema = z.object({
-  styleId: z.enum(['modern', 'scandinavian', 'industrial', 'vintage']),
+  styleId: styleIdSchema,
   mode: z.enum(['full', 'design_only']),
   budgetGel: z.number().min(0).max(10_000_000).nullable(),
   items: z.array(placedItemSchema).max(600),
-  finishes: z.array(surfaceFinishSchema).max(200),
+  finishes: z.array(surfaceFinishSchema).max(400),
+  electrical: z.array(electricalPointSchema).max(600).optional(),
+  styleProfile: styleProfileSchema.nullable().optional(),
 });
+
+/** A kept version of the flat: the plan and scene as they were, with a name. */
+export const designVersionSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  kind: z.enum(['existing', 'auto', 'manual']),
+  createdAt: z.string().max(40),
+  plan: floorPlanSchema,
+  scene: designSceneSchema,
+});
+
+export const MAX_VERSIONS = 12;
 
 export const saveDesignSchema = z.object({
   nameKa: z.string().min(1).max(255).default('ჩემი დიზაინი'),
@@ -138,6 +257,8 @@ export const saveDesignSchema = z.object({
   calculator: calculatorPicksPayloadSchema.optional(),
   /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
   draft: z.boolean().optional(),
+  /** The kept versions of the flat, oldest first. */
+  versions: z.array(designVersionSchema).max(MAX_VERSIONS).optional(),
 });
 
 export type SaveDesignInput = z.infer<typeof saveDesignSchema>;

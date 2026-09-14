@@ -7,19 +7,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { StylePicker } from '@/components/design/StylePicker';
+import { StyleQuiz } from '@/components/design/StyleQuiz';
+import { GenerationOverlay } from '@/components/design/GenerationOverlay';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
+import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useT } from '@/lib/i18n/client';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { scoreQuiz } from '@/lib/design/styleQuiz';
 
+/**
+ * Step 4: the style test — five questions and a verdict — with the four plates under it for
+ * a direct pick, and an optional furniture budget. "Generate" lays the flat out and opens
+ * the studio.
+ */
 export default function StylePage() {
   const t = useT();
   const router = useRouter();
-  const { plan, styleId, budgetGel, setStyle, setBudget, generate } = useDesignStore();
+  const { plan, styleId, styleProfile, budgetGel, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
@@ -27,7 +36,7 @@ export default function StylePage() {
   if (!plan || plan.rooms.length === 0) {
     return (
       <>
-        <DesignSteps current={3} />
+        <DesignSteps current={4} />
         <EmptyStep message={t.design.needPlanDesc} back={t.design.startOver} href="/design" />
       </>
     );
@@ -37,22 +46,21 @@ export default function StylePage() {
     setGenerating(true);
     const budget = budgetInput ? Number(budgetInput) : null;
     setBudget(Number.isFinite(budget as number) ? budget : null, products);
-    // Layout + matching are synchronous and fast; yield once so the button can show its
-    // spinner rather than freezing mid-click.
+    // Layout + matching are synchronous and fast; yield once so the overlay can appear.
     await new Promise((resolve) => setTimeout(resolve, 16));
     generate(products);
-    router.push('/design/studio');
+    setStep(5);
   };
 
   return (
     <>
-      <DesignSteps current={3} />
+      <DesignSteps current={4} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={3}
-          total={5}
-          title={t.design.styleTitle}
-          subtitle={t.design.styleSubtitle}
+          step={4}
+          total={8}
+          title={t.build.quizTitle}
+          subtitle={t.build.quizSubtitle}
           meta={
             <>
               <span>{plan.rooms.length} × {t.design.step2}</span>
@@ -61,14 +69,36 @@ export default function StylePage() {
             </>
           }
         />
+        <StageBrief step={4} className="mt-6" />
 
-        <section className="mt-10">
-          <StylePicker value={styleId} onChange={(id) => setStyle(id, products)} />
+        <section className="mt-8">
+          <StyleQuiz
+            profile={styleProfile}
+            styleId={styleId}
+            onResult={(id, profile) => {
+              setStyleProfile(profile);
+              setStyle(id, products);
+            }}
+            onRetake={() => setStyleProfile(null)}
+          />
+        </section>
+
+        <section className="mt-10 space-y-5">
+          <SectionHead title={t.build.quizOrPick} subtitle={t.design.styleSubtitle} />
+          <StylePicker
+            value={styleId}
+            onChange={(id) => {
+              setStyle(id, products);
+              // A direct pick is a profile of its own: the answers stay, the choice is marked.
+              const scored = styleProfile ? scoreQuiz(styleProfile.answers) : null;
+              setStyleProfile({ answers: styleProfile?.answers ?? {}, scores: scored?.profile.scores ?? { modern: 0, scandinavian: 0, industrial: 0, vintage: 0 }, direct: true });
+            }}
+          />
         </section>
 
         <section className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <SectionHead title={t.design.budgetTitle} subtitle={t.design.budgetSubtitle} />
-          <div className="flex flex-wrap items-end gap-3 border border-line bg-bg-surface p-5">
+          <div className="flex flex-wrap items-end gap-3 rounded-[16px] border border-line bg-bg-surface p-5">
             <div className="w-56">
               <Label htmlFor="budget" className="eyebrow">
                 {t.design.budgetTitle} · ₾
@@ -83,11 +113,11 @@ export default function StylePage() {
           </div>
         </section>
 
-        {error && <p className="mt-6 border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{t.design.catalogError}</p>}
+        {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{t.design.catalogError}</p>}
       </div>
 
       <StepNav
-        back={{ href: '/design/plan', label: t.calculator.backButton }}
+        back={{ href: '/design/technical', label: t.calculator.backButton }}
         next={{
           label: generating ? t.design.generating : t.design.generate,
           onClick: handleGenerate,
@@ -96,6 +126,7 @@ export default function StylePage() {
           icon: <Sparkles className="h-4 w-4" />,
         }}
       />
+      <GenerationOverlay open={generating} onDone={() => router.push('/design/studio')} />
     </>
   );
 }

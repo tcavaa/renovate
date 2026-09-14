@@ -1,0 +1,212 @@
+/**
+ * The technical setup: what the building provides before anything is designed.
+ *
+ * Pipes, drains, the panel, radiators, air conditioning — each is a point on the plan with a
+ * kind and a height. They do two things downstream: the layout engine keeps the toilet by
+ * the sewer and the sink by the water (`technicalAnchors`), and the budget counts every
+ * point as work to be done. The works list (`WORK_ITEMS`) is the other half of the step: the
+ * phases the renovation needs, pre-ticked from the home state and editable, which replace
+ * the home state's fixed phase list in the estimate.
+ *
+ * Pure data and pure functions; the editor and the layout engine read them.
+ */
+
+import type { HomeState, RoomType } from '@/lib/calculator/types';
+import { HOME_STATES } from '@/lib/calculator/constants';
+import { pointInPolygon, roomEdges } from './planGeometry';
+import { closestOnSegment } from './walls';
+import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
+
+export interface TechnicalKindInfo {
+  /** Where it sits: on a wall, on the floor, or either. */
+  placement: 'wall' | 'floor' | 'any';
+  /** Usual height of the point above the floor. */
+  defaultElevationM: number;
+  /** The rooms it usually belongs to; the tray lists these first. */
+  rooms: RoomType[];
+  /** The archetypes that want to stand near this point. */
+  attracts: string[];
+}
+
+export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
+  water_supply: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: ['sink', 'shower', 'bathtub', 'washer', 'kitchen_run', 'kitchen_island'] },
+  sewer: { placement: 'any', defaultElevationM: 0, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'kitchen_run'] },
+  floor_drain: { placement: 'floor', defaultElevationM: 0, rooms: ['bathroom', 'toilet'], attracts: ['shower', 'bathtub', 'washer'] },
+  electrical_panel: { placement: 'wall', defaultElevationM: 1.4, rooms: ['hallway'], attracts: [] },
+  gas: { placement: 'wall', defaultElevationM: 1.0, rooms: ['kitchen'], attracts: ['kitchen_run'] },
+  radiator: { placement: 'wall', defaultElevationM: 0.15, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway'], attracts: [] },
+  ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office'], attracts: [] },
+  extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: [] },
+  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['kitchen', 'bathroom', 'balcony'], attracts: [] },
+  heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway'], attracts: [] },
+};
+
+export const TECHNICAL_KIND_LIST = Object.keys(TECHNICAL_KINDS) as TechnicalKind[];
+
+/** The works a renovation may need, in the order they happen; `phase` is the calculator's phase number. */
+export interface WorkItem {
+  key: string;
+  phase: number;
+}
+
+export const WORK_ITEMS: WorkItem[] = [
+  { key: 'demolition', phase: 1 },
+  { key: 'plumbing', phase: 2 },
+  { key: 'electrical', phase: 3 },
+  { key: 'insulation', phase: 5 },
+  { key: 'screed', phase: 6 },
+  { key: 'plastering', phase: 7 },
+  { key: 'waterproofing', phase: 8 },
+  { key: 'tiling', phase: 9 },
+  { key: 'doors_windows', phase: 10 },
+  { key: 'flooring', phase: 11 },
+  { key: 'ceiling', phase: 12 },
+  { key: 'painting', phase: 13 },
+  { key: 'electrical_finish', phase: 14 },
+  { key: 'plumbing_finish', phase: 15 },
+  { key: 'sanitary', phase: 16 },
+  { key: 'furniture', phase: 17 },
+  { key: 'cleaning', phase: 18 },
+];
+
+/**
+ * The works grouped by the stage of the house they take it through: from a black frame to a
+ * white one (the rough works), from white to green (the finishing), and from green to
+ * moving in. The checklist offers each stage as its own group so the person ticks what
+ * their renovation needs by where their home stands today.
+ */
+export interface WorkStage {
+  /** The home state the stage starts from — its name is the group's title. */
+  homeState: HomeState;
+  phases: [number, number];
+}
+
+export const WORK_STAGES: WorkStage[] = [
+  { homeState: 'black_frame', phases: [1, 8] },
+  { homeState: 'white_frame', phases: [9, 16] },
+  { homeState: 'green_frame', phases: [17, 18] },
+];
+
+/** The works of one stage, in the order they happen. */
+export function worksForStage(stage: WorkStage): WorkItem[] {
+  return WORK_ITEMS.filter((w) => w.phase >= stage.phases[0] && w.phase <= stage.phases[1]);
+}
+
+/** The works a home state implies — the starting point of the checklist. */
+export function defaultWorksForHomeState(homeState: HomeState): string[] {
+  const phases = new Set(HOME_STATES[homeState].includedPhases);
+  return WORK_ITEMS.filter((w) => phases.has(w.phase)).map((w) => w.key);
+}
+
+/** The calculator's phase numbers for a list of works. */
+export function phasesForWorks(works: string[]): number[] {
+  const wanted = new Set(works);
+  return WORK_ITEMS.filter((w) => wanted.has(w.key)).map((w) => w.phase);
+}
+
+/** The phases an estimate should run: the ticked works when there are any, the home state otherwise. */
+export function effectivePhases(homeState: HomeState, works?: string[] | null): number[] {
+  if (works && works.length > 0) return phasesForWorks(works);
+  return HOME_STATES[homeState].includedPhases;
+}
+
+// ---------------------------------------------------------------------------
+// Anchors for the layout engine
+// ---------------------------------------------------------------------------
+
+export interface TechnicalAnchor {
+  kind: TechnicalKind;
+  point: Vec2;
+}
+
+/** The technical points that belong to a room: inside it, or within reach of its walls. */
+export function technicalPointsIn(plan: FloorPlan, room: PlanRoom, reachM = 0.35): TechnicalPoint[] {
+  const points = plan.technical?.points ?? [];
+  return points.filter((p) => {
+    if (p.roomId === room.id) return true;
+    if (p.roomId && p.roomId !== room.id) return false;
+    if (pointInPolygon(p.position, room.polygon)) return true;
+    return roomEdges(room.polygon).some((e) => closestOnSegment(p.position, e.a, e.b).distance <= reachM);
+  });
+}
+
+/** Per room, the points each archetype wants to be near. */
+export function technicalAnchors(plan: FloorPlan): Record<string, TechnicalAnchor[]> {
+  const out: Record<string, TechnicalAnchor[]> = {};
+  for (const room of plan.rooms) {
+    const points = technicalPointsIn(plan, room);
+    if (points.length > 0) out[room.id] = points.map((p) => ({ kind: p.kind, point: p.position }));
+  }
+  return out;
+}
+
+/** The anchors an archetype cares about, nearest first. */
+export function anchorsFor(kind: string, anchors: TechnicalAnchor[] | undefined): TechnicalAnchor[] {
+  if (!anchors) return [];
+  return anchors.filter((a) => TECHNICAL_KINDS[a.kind].attracts.includes(kind));
+}
+
+// ---------------------------------------------------------------------------
+// Suggestions
+// ---------------------------------------------------------------------------
+
+export interface TechnicalSuggestion {
+  code: 'far_from_sewer' | 'far_from_water' | 'radiator_not_exterior' | 'no_extractor' | 'no_drain';
+  roomId: string;
+  itemId?: string;
+  pointId?: string;
+  distanceM?: number;
+}
+
+/** Furniture is a fixture: how far it may stand from the pipe it needs before we say so. */
+export const MAX_FIXTURE_DISTANCE_M = 1.6;
+
+/**
+ * What the technical setup says about the design as it stands: a toilet far from the sewer,
+ * a sink far from the water, a radiator on an interior wall, a bathroom with no extractor.
+ * Hints, not rules — the person decides.
+ */
+export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): TechnicalSuggestion[] {
+  const out: TechnicalSuggestion[] = [];
+  const anchors = technicalAnchors(plan);
+  for (const room of plan.rooms) {
+    const here = anchors[room.id] ?? [];
+    const sewer = here.filter((a) => a.kind === 'sewer' || a.kind === 'floor_drain');
+    const water = here.filter((a) => a.kind === 'water_supply');
+    for (const item of items.filter((i) => i.roomId === room.id)) {
+      if (['toilet', 'shower', 'bathtub'].includes(item.slot) && sewer.length > 0) {
+        const d = nearest(item.position, sewer);
+        if (d > MAX_FIXTURE_DISTANCE_M) out.push({ code: 'far_from_sewer', roomId: room.id, itemId: item.id, distanceM: round1(d) });
+      }
+      if (['sink', 'kitchen_run', 'washer'].includes(item.slot) && water.length > 0) {
+        const d = nearest(item.position, water);
+        if (d > MAX_FIXTURE_DISTANCE_M + 0.6) out.push({ code: 'far_from_water', roomId: room.id, itemId: item.id, distanceM: round1(d) });
+      }
+    }
+    const points = technicalPointsIn(plan, room);
+    for (const point of points) {
+      if (point.kind !== 'radiator') continue;
+      // A radiator belongs under a window, on an exterior wall.
+      const edges = roomEdges(room.polygon);
+      const near = edges
+        .map((e) => ({ e, d: closestOnSegment(point.position, e.a, e.b).distance }))
+        .sort((p, q) => p.d - q.d)[0];
+      if (!near || near.d > 0.4) continue;
+      const exterior = room.openings.some((o) => o.wallIndex === near.e.index && o.exterior);
+      if (!exterior) out.push({ code: 'radiator_not_exterior', roomId: room.id, pointId: point.id });
+    }
+    if (room.type === 'bathroom' || room.type === 'toilet') {
+      if (!points.some((p) => p.kind === 'extractor')) out.push({ code: 'no_extractor', roomId: room.id });
+      if (room.type === 'bathroom' && !points.some((p) => p.kind === 'floor_drain' || p.kind === 'sewer')) out.push({ code: 'no_drain', roomId: room.id });
+    }
+  }
+  return out;
+}
+
+function nearest(point: Vec2, anchors: TechnicalAnchor[]): number {
+  return Math.min(...anchors.map((a) => Math.hypot(a.point.x - point.x, a.point.z - point.z)));
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}

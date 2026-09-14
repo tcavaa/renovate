@@ -1,6 +1,6 @@
 import type { Project } from '@/lib/db/schema';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
+import type { DesignScene, DesignVersion, FloorPlan, SceneProduct } from '@/lib/design/types';
 
 /** The slice of a saved project the studio needs to reopen it. Serialisable, so a server page can pass it. */
 export interface SavedProjectInput {
@@ -12,6 +12,8 @@ export interface SavedProjectInput {
   plan: FloorPlan | null;
   scene: DesignScene | null;
   floorPlanUrl: string | null;
+  /** The kept versions of the flat, oldest first. */
+  versions: DesignVersion[];
   hasCalculator: boolean;
   hasDesign: boolean;
 }
@@ -26,6 +28,7 @@ export function savedProjectInput(p: Project): SavedProjectInput {
     plan: (p.plan as FloorPlan | null) ?? null,
     scene: (p.scene as DesignScene | null) ?? null,
     floorPlanUrl: p.floorPlanUrl ?? null,
+    versions: Array.isArray(p.versions) ? (p.versions as DesignVersion[]) : [],
     ...projectKind(p),
   };
 }

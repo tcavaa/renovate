@@ -20,9 +20,12 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { loadModel } from './modelLoader';
 import { isSharedWithAnyRoom, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { wallForEdge } from '@/lib/design/walls';
+import { leafOnOtherSide } from '@/lib/design/openings';
+import { wallFinishFor } from '@/lib/design/zones';
+import { buildElectrical, buildStructure, buildZones } from './buildStructure';
 import type {
   DesignScene,
   FloorPlan,
@@ -37,13 +40,21 @@ import { StyleMaterials } from './materials';
 import { box, cylinder, tag } from './primitives';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface' | 'opening';
+  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone';
   itemId?: string;
   openingId?: string;
   roomId: string;
   surface?: 'floor' | 'wall' | 'ceiling';
   /** Outward normal of a wall, for the doll's-house cutaway. Walls only. */
   outward?: { x: number; z: number };
+  /** The plan's wall a wall face belongs to, so the build tool can pick it. */
+  wallId?: string;
+  /** The room edge a wall face is, for per-wall finishes. */
+  wallIndex?: number;
+  columnId?: string;
+  beamId?: string;
+  electricalId?: string;
+  zoneId?: string;
 }
 
 export interface BuildSceneOptions {
@@ -81,8 +92,14 @@ export function buildRoomShells(
   for (const [index, room] of visibleRooms(plan, options).entries()) {
     root.add(buildRoomShell(room, index, plan, finishes, style, materials, options));
   }
+  // Free-standing walls, columns and beams, and the floor patches with their own finish.
+  if (options.showWalls !== false && !options.onlyRoomId) root.add(buildStructure(plan, style, materials));
+  root.add(buildZones(plan, finishes, materials, style));
   return root;
 }
+
+/** Sockets, switches and light fittings; rebuilt when the electrical layer changes. */
+export { buildElectrical };
 
 /**
  * Whole scene in one group — shells plus furniture. The viewer keeps the two halves apart
@@ -193,6 +210,9 @@ function buildRoomShell(
     for (const edge of edges) {
       const openings = room.openings.filter((o) => o.wallIndex === edge.index);
       const isFeature = edge.index === featureIndex && !isWet;
+      // This wall's own finish, if the person gave it one; the room's otherwise.
+      const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? wallFinish;
+      const ownFinish = edgeFinish !== wallFinish;
 
       const spec = isWet
         ? style.surfaces.wetWall
@@ -203,30 +223,34 @@ function buildRoomShell(
       const wallMaterial = materials.surface(
         spec,
         { u: edge.length, v: room.heightM },
-        isFeature && !wallFinish?.product ? {} : finishOverrides(wallFinish)
+        isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish)
       );
 
-      // Each room extrudes its own wall outwards from its polygon. Two rooms either side of
-      // one wall are a wall thickness apart, so a full-thickness extrusion from each puts
-      // room A's outer face exactly on room B's inner face — and the two colours z-fight,
-      // flicking as the camera moves. A shared wall is therefore extruded only to the middle,
-      // where the two halves meet on a plane nobody can see. Exterior walls keep their depth.
-      const shared = isSharedWithAnyRoom(room, edge, plan.rooms, plan.wallThicknessM * 1.5);
-      const depth = shared ? plan.wallThicknessM / 2 : plan.wallThicknessM;
+      // Each room extrudes its own wall outwards from its polygon, as thick as the plan's
+      // wall behind that edge. Two rooms either side of one wall are a wall thickness apart,
+      // so a full-thickness extrusion from each puts room A's outer face exactly on room B's
+      // inner face — and the two colours z-fight, flicking as the camera moves. A shared wall
+      // is therefore extruded only to the middle, where the two halves meet on a plane
+      // nobody can see. Exterior walls keep their depth.
+      const planWall = wallForEdge(plan, room, edge);
+      const thickness = planWall?.thicknessM ?? plan.wallThicknessM;
+      const shared = isSharedWithAnyRoom(room, edge, plan.rooms, thickness * 1.5);
+      const depth = shared ? thickness / 2 : thickness;
+      const height = planWall?.heightM ?? room.heightM;
       // Nudge each room's wall height by a hair so shared walls between two rooms do not
       // z-fight along their top edge when seen from above.
-      const wall = buildWall(edge, room.heightM + index * 0.0006, depth, openings, wallMaterial);
+      const wall = buildWall(edge, height + index * 0.0006, depth, openings, wallMaterial);
       const outward = { x: -edge.inward.x, z: -edge.inward.z };
-      tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward } satisfies SceneUserData);
+      tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index } satisfies SceneUserData);
       group.add(wall);
 
       const baseboard = buildBaseboard(edge, openings, materials.get('ceramic'));
       // Skirting belongs to its wall, so it hides and shows with it.
-      tag(baseboard, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward } satisfies SceneUserData);
+      tag(baseboard, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index } satisfies SceneUserData);
       group.add(baseboard);
 
       for (const opening of openings) {
-        const trim = buildOpeningTrim(edge, opening, plan.wallThicknessM, materials);
+        const trim = buildOpeningTrim(edge, opening, thickness, materials);
         trim.name = `opening-${opening.id}`;
         // Everything in the trim answers to the opening, so a click on a jamb picks the door.
         trim.traverse((child) => {
@@ -358,7 +382,7 @@ function buildOpeningTrim(
 ): THREE.Group {
   const group = new THREE.Group();
   const point = pointOnEdge(edge, opening.t);
-  const frameMaterial = materials.get('ceramic', { roughness: 0.6 });
+  const frameMaterial = opening.material === 'wood' ? materials.get('wood') : opening.material === 'metal' || opening.material === 'aluminium' ? materials.get('metal', { roughness: 0.45 }) : materials.get('ceramic', { roughness: 0.6 });
 
   // Local +X runs along the wall and local +Z through it, so a box reads as
   // (width along the opening, height, thickness through the wall).
@@ -380,6 +404,8 @@ function buildOpeningTrim(
   const frame = 0.055;
   // The wall runs from the polygon edge outwards, so its middle is half a thickness out.
   const midWall = -thickness / 2;
+  // What the door or window is made of colours its frame and leaf.
+  const leafMaterial = opening.material === 'metal' || opening.material === 'aluminium' ? materials.get('metal', { roughness: 0.45 }) : opening.material === 'glass' ? materials.get('glass') : opening.material === 'pvc' ? materials.get('ceramic', { roughness: 0.5 }) : materials.get('wood');
 
   // Jambs
   for (const sign of [1, -1]) {
@@ -402,31 +428,41 @@ function buildOpeningTrim(
     place(box(w, h, 0.012, materials.get('glass')), 0, sill + h / 2, midWall);
     place(box(0.03, h, 0.022, frameMaterial), 0, sill + h / 2, midWall);
     place(box(w, 0.03, 0.022, frameMaterial), 0, sill + h / 2, midWall);
-  } else if (opening.kind === 'door') {
-    // The leaf hangs from one jamb and swings into the room.
+  } else if (opening.kind === 'door' && !leafOnOtherSide(opening)) {
+    // The leaf hangs from one jamb — the left one seen from inside the room unless the plan
+    // says otherwise — and swings into the room (or out of it) by the angle the plan gives.
+    // An interior door is two openings, one per room, describing one leaf: the half whose
+    // swing is "out" leaves the leaf to its twin, which swings "in" to the room it opens into.
     //
     // It has to rotate about the hinge, not about its own middle, so the leaf is a child of a
     // pivot placed at the jamb and offset half its width along the wall. Rotating the leaf
     // itself would spin it around its centre like a revolving door.
     const leafWidth = w - 0.03;
     const leafHeight = h - 0.03;
-    const openAngle = Math.PI * 0.42; // ~75°, clearly open without lying flat on the wall
+    const openAngle = ((opening.openAngleDeg ?? 75) * Math.PI) / 180;
+    const hingeRight = opening.hinge === 'right';
+    const swingOut = opening.swing === 'out';
+    // Seen from inside, "left" is the jamb at the start of the edge when the edge runs
+    // left-to-right for someone facing the wall — which, with the room on the left of every
+    // edge, is the jamb towards `edge.b`.
+    const hingeSign = hingeRight ? -1 : 1;
+    const turn = (hingeRight ? 1 : -1) * (swingOut ? -1 : 1) * openAngle;
 
     const pivot = new THREE.Group();
     pivot.position.set(
-      point.x - edge.dir.x * (w / 2) + edge.inward.x * midWall,
+      point.x + edge.dir.x * (hingeSign * (w / 2)) + edge.inward.x * midWall,
       0,
-      point.z - edge.dir.z * (w / 2) + edge.inward.z * midWall
+      point.z + edge.dir.z * (hingeSign * (w / 2)) + edge.inward.z * midWall
     );
-    pivot.rotation.y = yaw + openAngle;
+    pivot.rotation.y = yaw + turn;
 
-    const leaf = own(box(leafWidth, leafHeight, 0.04, materials.get('wood')));
-    leaf.position.set(leafWidth / 2, sill + leafHeight / 2, 0);
+    const leaf = own(box(leafWidth, leafHeight, 0.04, leafMaterial));
+    leaf.position.set((-hingeSign * leafWidth) / 2, sill + leafHeight / 2, 0);
     pivot.add(leaf);
 
     // Handle on the far edge from the hinge, at the usual height.
     const handle = own(
-      cylinder(0.017, 0.017, 0.11, materials.get('metal'), [leafWidth - 0.07, sill + 1.05, 0.05], 8)
+      cylinder(0.017, 0.017, 0.11, materials.get('metal'), [-hingeSign * (leafWidth - 0.07), sill + 1.05, 0.05], 8)
     );
     handle.rotation.x = Math.PI / 2;
     pivot.add(handle);
@@ -485,12 +521,13 @@ function finishOverrides(finish: SurfaceFinish | undefined) {
   };
 }
 
+/** The room's base finish for a surface — never a single wall's or a zone's. */
 function findFinish(
   finishes: SurfaceFinish[],
   roomId: string,
   surface: SurfaceFinish['surface']
 ): SurfaceFinish | undefined {
-  return finishes.find((f) => f.roomId === roomId && f.surface === surface);
+  return finishes.find((f) => f.roomId === roomId && f.surface === surface && f.wallIndex == null && !f.zone);
 }
 
 // ---------------------------------------------------------------------------
@@ -528,6 +565,7 @@ export function syncPlacedItems(
     }
     child.position.set(item.position.x, item.elevationM, item.position.z);
     child.rotation.y = item.rotation;
+    child.scale.x = item.mirrored ? -1 : 1;
     if ((child.userData as SceneUserData).roomId !== item.roomId) {
       tag(child, { pickKind: 'item', itemId: item.id, roomId: item.roomId } satisfies SceneUserData);
     }
@@ -568,6 +606,9 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
   wrapper.name = `item-${item.id}`;
   wrapper.position.set(item.position.x, item.elevationM, item.position.z);
   wrapper.rotation.y = item.rotation;
+  // A mirrored piece is the same model flipped across its facing axis; three.js flips the
+  // face culling for a negative determinant, so it renders right way out.
+  wrapper.scale.x = item.mirrored ? -1 : 1;
 
   const data: SceneUserData = { pickKind: 'item', itemId: item.id, roomId: item.roomId };
   tag(wrapper, { ...data });
@@ -621,62 +662,6 @@ function ghostFor(item: PlacedItem): THREE.Object3D {
   group.name = 'model-ghost';
   group.add(box);
   return group;
-}
-
-// ---------------------------------------------------------------------------
-// Partner GLB models
-// ---------------------------------------------------------------------------
-
-interface CachedModel {
-  object: THREE.Object3D;
-  /** Extents as authored — unit-sized by the conversion script — for scaling instances. */
-  size: THREE.Vector3;
-}
-
-const gltfLoader = new GLTFLoader();
-gltfLoader.setMeshoptDecoder(MeshoptDecoder);
-const modelCache = new Map<string, Promise<CachedModel>>();
-
-/**
- * Loads a partner model once per URL and hands out clones.
- *
- * The GLBs carry their own PBR materials — the partner's fabric, veneer or leather where the
- * archive had the maps, a base colour where it did not — so nothing is overridden here. What
- * they do not carry is normals (the source exports have `vn=0`), so those are computed on the
- * cached original rather than per instance.
- */
-function loadModel(url: string): Promise<THREE.Object3D> {
-  let entry = modelCache.get(url);
-  if (!entry) {
-    entry = gltfLoader.loadAsync(url).then((gltf) => {
-      const object = gltf.scene;
-      object.traverse((child) => {
-        if (child instanceof THREE.Mesh && !child.geometry.attributes.normal) {
-          child.geometry.computeVertexNormals();
-        }
-      });
-      // A wrapper sits at the centre of the item's footprint, on the floor, so the model has
-      // to stand on y = 0 centred on x/z. The converters export exactly that; a file uploaded
-      // in admin comes with whatever origin its tool chose — Meshy centres on the bounding
-      // box, so half the piece sat below the floor. Shift once here, on a pivot above the
-      // file's own transform, and every clone inherits it.
-      const box = new THREE.Box3().setFromObject(object);
-      const size = box.getSize(new THREE.Vector3());
-      const centre = box.getCenter(new THREE.Vector3());
-      const pivot = new THREE.Group();
-      pivot.add(object);
-      pivot.position.set(-centre.x, -box.min.y, -centre.z);
-      const root = new THREE.Group();
-      root.add(pivot);
-      return { object: root, size };
-    });
-    modelCache.set(url, entry);
-  }
-  return entry.then(({ object, size }) => {
-    const clone = object.clone(true);
-    clone.userData.authoredSize = size;
-    return clone;
-  });
 }
 
 /**
