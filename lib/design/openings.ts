@@ -97,6 +97,56 @@ export function twinOf(rooms: PlanRoom[], opening: Opening): { room: PlanRoom; o
   return twin ? { room, opening: twin } : null;
 }
 
+/**
+ * The two halves of an interior door describe one leaf from two sides. Each room's edge runs
+ * the other way along the shared wall, so the jamb that is "left" from one room is "right"
+ * from the other, and a leaf that swings "in" to one room swings "out" of the other. These
+ * give the twin's values for the primary's, so both halves agree on one leaf in the world.
+ */
+export function mirrorHinge(hinge: Opening['hinge']): NonNullable<Opening['hinge']> {
+  return (hinge ?? 'left') === 'left' ? 'right' : 'left';
+}
+
+export function mirrorSwing(swing: Opening['swing']): NonNullable<Opening['swing']> {
+  return (swing ?? 'in') === 'in' ? 'out' : 'in';
+}
+
+/** True when this half of a door does not draw the leaf: its twin, swinging into its own room, does. */
+export function leafOnOtherSide(opening: Opening): boolean {
+  return opening.kind === 'door' && !!opening.connectsToRoomId && (opening.swing ?? 'in') === 'out';
+}
+
+/**
+ * Makes every twin agree with its primary on the leaf: plans from before the halves were
+ * mirrored (and the parser's doors) had both halves hinged "left" — the opposite corners —
+ * and both swinging "in", so the same door showed two leaves. The half met first in room
+ * order is the primary; the twin takes the mirrored hinge and swing and the same material
+ * and angle.
+ */
+export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
+  const done = new Set<string>();
+  let out = rooms;
+  for (const room of rooms) {
+    for (const opening of room.openings) {
+      if (done.has(opening.id) || opening.kind === 'window' || !opening.connectsToRoomId) continue;
+      const twin = twinOf(out, opening);
+      if (!twin) continue;
+      done.add(opening.id);
+      done.add(twin.opening.id);
+      const wanted: Partial<Opening> = {
+        hinge: mirrorHinge(opening.hinge),
+        swing: mirrorSwing(opening.swing),
+        ...(opening.material ? { material: opening.material } : {}),
+        ...(opening.openAngleDeg != null ? { openAngleDeg: opening.openAngleDeg } : {}),
+      };
+      const same = Object.entries(wanted).every(([k, v]) => (twin.opening as unknown as Record<string, unknown>)[k] === v);
+      if (same) continue;
+      out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, wanted));
+    }
+  }
+  return out;
+}
+
 const replaceIn = (rooms: PlanRoom[], roomId: string, fn: (room: PlanRoom) => PlanRoom) => rooms.map((r) => (r.id === roomId ? fn(r) : r));
 const patchOpening = (room: PlanRoom, id: string, patch: Partial<Opening>): PlanRoom => ({ ...room, openings: room.openings.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
 
@@ -162,6 +212,11 @@ export interface AddOpeningOptions {
   widthM?: number;
   heightM?: number;
   sillM?: number;
+  /** Doors: which jamb and which way, for the room it is added to; the twin gets the mirror. */
+  hinge?: Opening['hinge'];
+  swing?: Opening['swing'];
+  material?: Opening['material'];
+  openAngleDeg?: number;
 }
 
 /**
@@ -219,9 +274,13 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     roomId,
     connectsToRoomId: neighbour ? neighbour.room.id : null,
     exterior: !neighbour,
+    ...(kind === 'door' ? { hinge: options.hinge ?? 'left', swing: options.swing ?? 'in' } : {}),
+    ...(options.material ? { material: options.material } : {}),
+    ...(options.openAngleDeg != null ? { openAngleDeg: options.openAngleDeg } : {}),
   };
   let next = replaceIn(rooms, roomId, (r) => ({ ...r, openings: [...r.openings, opening] }));
   if (neighbour && neighbour.edge) {
+    // The twin is the same leaf seen from the other room: the other jamb, the other way.
     const twin: Opening = {
       ...opening,
       id: `${neighbour.room.id}-${roomId}-d-${stamp}`,
@@ -229,6 +288,7 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
       t: projectToEdge(neighbour.edge, point, width),
       roomId: neighbour.room.id,
       connectsToRoomId: roomId,
+      ...(kind === 'door' ? { hinge: mirrorHinge(opening.hinge), swing: mirrorSwing(opening.swing) } : {}),
     };
     next = replaceIn(next, neighbour.room.id, (r) => ({ ...r, openings: [...r.openings, twin] }));
   }
@@ -259,6 +319,10 @@ export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: 
     widthM: opening.widthM,
     heightM: opening.heightM,
     sillM: opening.sillM,
+    hinge: opening.hinge,
+    swing: opening.swing,
+    material: opening.material,
+    openAngleDeg: opening.openAngleDeg,
   });
   if (!added.openingId) return { rooms, openingId: null };
   return added;

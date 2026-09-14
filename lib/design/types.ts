@@ -24,6 +24,16 @@ export interface Vec2 {
 
 export type OpeningKind = 'door' | 'window' | 'archway';
 
+/**
+ * Who put an element there. `existing` came with the flat (the uploaded plan, or what the
+ * person drew as the existing house), `user` was added or changed by the person later, and
+ * `generated` was placed by the app — the 3D view and the layers panel colour-code the three.
+ */
+export type ElementOrigin = 'existing' | 'user' | 'generated';
+
+/** What a door, a window, a column or a beam is made of. */
+export type BuildMaterial = 'concrete' | 'brick' | 'block' | 'drywall' | 'wood' | 'metal' | 'aluminium' | 'pvc' | 'glass';
+
 export interface Opening {
   id: string;
   kind: OpeningKind;
@@ -41,6 +51,102 @@ export interface Opening {
   connectsToRoomId?: string | null;
   /** True when the wall it sits on faces outside the flat. */
   exterior: boolean;
+  /** What the frame and leaf are made of. */
+  material?: BuildMaterial;
+  /** Doors: which jamb the leaf hangs from, seen from inside the room, and which way it swings. */
+  hinge?: 'left' | 'right';
+  swing?: 'in' | 'out';
+  /** Doors: how far the leaf stands open in the 3D view, degrees. 0 = closed. */
+  openAngleDeg?: number;
+  origin?: ElementOrigin;
+  locked?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Structure: walls, columns, beams
+// ---------------------------------------------------------------------------
+
+/**
+ * A wall drawn as a line — its centreline from `a` to `b` — with a real thickness. Rooms are
+ * the closed loops the walls make (`lib/design/walls.ts`); a wall that closes nothing is
+ * still a wall and is drawn as one.
+ */
+export interface Wall {
+  id: string;
+  a: Vec2;
+  b: Vec2;
+  thicknessM: number;
+  /** Height when it differs from the flat's `wallHeightM`. */
+  heightM?: number;
+  material?: BuildMaterial;
+  origin: ElementOrigin;
+  locked?: boolean;
+}
+
+/** A structural column: a box standing on the floor, `widthM` along x and `depthM` along z. */
+export interface Column {
+  id: string;
+  position: Vec2;
+  widthM: number;
+  depthM: number;
+  /** Full height unless set. */
+  heightM?: number;
+  material?: BuildMaterial;
+  origin: ElementOrigin;
+  locked?: boolean;
+}
+
+/** A beam under the ceiling from `a` to `b`: `widthM` across, `depthM` tall, its underside `elevationM` above the floor. */
+export interface Beam {
+  id: string;
+  a: Vec2;
+  b: Vec2;
+  widthM: number;
+  depthM: number;
+  elevationM: number;
+  material?: BuildMaterial;
+  origin: ElementOrigin;
+  locked?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Technical setup: what the building already provides, before anything is designed
+// ---------------------------------------------------------------------------
+
+export type TechnicalKind =
+  | 'water_supply'
+  | 'sewer'
+  | 'floor_drain'
+  | 'electrical_panel'
+  | 'gas'
+  | 'radiator'
+  | 'ac_unit'
+  | 'extractor'
+  | 'boiler'
+  | 'heating_pipe';
+
+/**
+ * A pipe, a drain, a panel, a radiator — where it is (or will be). The layout engine keeps
+ * the toilet near the sewer and the sink near the water; the budget counts them.
+ */
+export interface TechnicalPoint {
+  id: string;
+  kind: TechnicalKind;
+  roomId: string | null;
+  position: Vec2;
+  /** Height of the point above the floor, where it matters (a radiator, a panel). */
+  elevationM?: number;
+  note?: string;
+  origin: ElementOrigin;
+}
+
+/** Keys of the works the renovation needs — see `WORK_ITEMS` in `lib/design/technical.ts`. */
+export type WorkKey = string;
+
+export interface TechnicalSetup {
+  points: TechnicalPoint[];
+  /** The works ticked on the technical step; when set they replace the home state's phases. */
+  works?: WorkKey[];
 }
 
 export interface PlanRoom {
@@ -60,6 +166,9 @@ export interface PlanRoom {
   openings: Opening[];
   /** Set by the parser when it is unsure; drives the "please check this" hint in the editor. */
   lowConfidence?: boolean;
+  /** For a plan built from walls: the wall each polygon edge lies on, same order as `polygon`. */
+  wallIds?: string[];
+  origin?: ElementOrigin;
 }
 
 export interface FloorPlan {
@@ -71,8 +180,15 @@ export interface FloorPlan {
   /** Where the plan came from — shown in the UI, and drives the "please check" nudge. */
   source: 'parsed' | 'manual' | 'calculator' | 'sample';
   imageUrl?: string | null;
-  /** Wall thickness used when extruding, metres. */
+  /** Wall thickness used when extruding, metres — the default for walls without their own. */
   wallThicknessM: number;
+  /** Default height of the walls, metres; rooms and walls may carry their own. */
+  wallHeightM?: number;
+  /** The walls as drawn. When present the rooms are derived from them (`roomsFromWalls`). */
+  walls?: Wall[];
+  columns?: Column[];
+  beams?: Beam[];
+  technical?: TechnicalSetup;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +274,10 @@ export interface PlacedItem {
   /** True when the user moved/replaced this item, so re-suggesting must not clobber it. */
   pinned?: boolean;
   origin?: ItemOrigin;
+  /** Mirrored across its own facing axis (a left-hand corner sofa from a right-hand model). */
+  mirrored?: boolean;
+  /** Locked pieces do not move on drag; the inspector unlocks them. */
+  locked?: boolean;
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */
@@ -195,10 +315,26 @@ export interface SceneStore {
   deliveryFeeGel: number | null;
 }
 
-/** A finish applied to a room surface (floor / walls / ceiling). */
+/** A part of a floor that gets its own finish — half a bathroom in tile, a rug-sized parquet inlay. */
+export interface FinishZone {
+  id: string;
+  /** Closed polygon in metres, inside the room. */
+  polygon: Vec2[];
+  name?: string;
+}
+
+/**
+ * A finish applied to a room surface (floor / walls / ceiling). Without `wallIndex` or
+ * `zone` it is the room's base finish for that surface; with `wallIndex` it covers one wall
+ * only, with `zone` one patch of the floor — both sit on top of the base finish.
+ */
 export interface SurfaceFinish {
   roomId: string;
   surface: 'floor' | 'wall' | 'ceiling';
+  /** One wall of the room (its polygon edge index) instead of all of them. */
+  wallIndex?: number | null;
+  /** One patch of the floor instead of all of it. */
+  zone?: FinishZone | null;
   /** Fallback colour when no product/texture is chosen. */
   colorHex: string;
   textureUrl: string | null;
@@ -211,12 +347,85 @@ export interface SurfaceFinish {
   origin?: ItemOrigin;
 }
 
+// ---------------------------------------------------------------------------
+// Electrical and lighting
+// ---------------------------------------------------------------------------
+
+export type ElectricalKind =
+  | 'socket'
+  | 'socket_double'
+  | 'socket_high'
+  | 'socket_kitchen'
+  | 'switch'
+  | 'tv'
+  | 'internet'
+  | 'light_ceiling'
+  | 'light_wall'
+  | 'light_spot'
+  | 'light_strip'
+  | 'light_furniture';
+
+/** The lighting categories the plan distinguishes: primary, secondary, furniture, bedside, indirect, decorative. */
+export type LightCategory = 'primary' | 'secondary' | 'furniture' | 'bedside' | 'indirect' | 'decorative';
+
+/**
+ * A socket, a switch, a light — on a wall (`wallIndex` + `t`, at `elevationM`), on the
+ * ceiling (`light_ceiling`, no wall) or on the floor plan (a strip under a bed). Heights
+ * default to the usual practice and are always editable.
+ */
+export interface ElectricalPoint {
+  id: string;
+  roomId: string;
+  kind: ElectricalKind;
+  category?: LightCategory;
+  position: Vec2;
+  /** Height of the point above the finished floor. Ceiling lights use the room height. */
+  elevationM: number;
+  /** For wall-mounted points: the room's polygon edge and the spot along it. */
+  wallIndex?: number | null;
+  t?: number | null;
+  /** How many outlets in one plate (a double socket). */
+  count?: number;
+  /** Lights only: switched on in the 3D view. */
+  on?: boolean;
+  /** Width along the wall for strips and long fixtures, metres. */
+  lengthM?: number;
+  origin?: ElementOrigin;
+  locked?: boolean;
+}
+
 export interface DesignScene {
   styleId: StyleId;
   mode: DesignMode;
   budgetGel: number | null;
   items: PlacedItem[];
   finishes: SurfaceFinish[];
+  /** Sockets, switches and lights. Absent on scenes saved before the layer existed. */
+  electrical?: ElectricalPoint[];
+  /** How the style was chosen: the five answers of the style test, when it was taken. */
+  styleProfile?: StyleProfile | null;
+}
+
+/** The result of the style test: one answer per question, and how each style scored. */
+export interface StyleProfile {
+  answers: Record<string, string>;
+  scores: Record<StyleId, number>;
+  /** Chosen directly from the four plates instead of through the questions. */
+  direct?: boolean;
+}
+
+/**
+ * A snapshot of the flat the person can always return to. Version 01 is the existing house
+ * as it was defined; a new one is kept the first time the walls, doors or windows change,
+ * and whenever the person asks for one.
+ */
+export interface DesignVersion {
+  id: string;
+  name: string;
+  kind: 'existing' | 'auto' | 'manual';
+  createdAt: string;
+  plan: FloorPlan;
+  scene: DesignScene;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,16 +503,36 @@ export interface StoreBasket {
 }
 
 export interface DesignCost {
-  /** Furniture and decor only. */
+  /** Every placed product — furniture, decor and the lamps (see `lightingTotal` for those alone). */
   furnitureTotal: number;
-  /** Floor/wall/ceiling finish products. Zero in design_only mode. */
+  /** The part of `furnitureTotal` that is lighting products. */
+  lightingTotal: number;
+  /** Floor/wall/ceiling finish products the person chose, in either mode. */
   finishesTotal: number;
   /** Labour from the existing calculator engine. Zero in design_only mode. */
   labourTotal: number;
   /** Bulk renovation materials from the existing engine. Zero in design_only mode. */
   materialsTotal: number;
   deliveryTotal: number;
+  /** Doors and windows, estimated. */
+  openingsTotal: number;
+  /** Sockets, switches, lights, pipes, radiators, air conditioning — materials and their labour. */
+  technicalTotal: number;
   grandTotal: number;
   perRoom: Array<{ roomId: string; roomName: string; total: number }>;
   baskets: StoreBasket[];
+  /** Every row of the budget with its quantity — see `BudgetLine` in lib/design/pricing.ts. */
+  lines: Array<{
+    section: 'furniture' | 'lighting' | 'finishes' | 'openings' | 'electrical' | 'plumbing' | 'heating' | 'climate' | 'materials' | 'labour' | 'delivery';
+    key: string;
+    name?: string;
+    roomName?: string;
+    qty: number;
+    unit: string;
+    unitPrice: number;
+    total: number;
+    estimated: boolean;
+  }>;
+  /** Square metres per finish product across the flat. */
+  coverage: Array<{ product: SceneProduct; areaM2: number; total: number; rooms: string[] }>;
 }

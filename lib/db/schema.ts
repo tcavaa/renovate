@@ -273,6 +273,8 @@ export const projects = mysqlTable('projects', {
   plan: json('plan'),
   /** DesignScene — surface finishes and furniture placements. See lib/design/types.ts */
   scene: json('scene'),
+  /** DesignVersion[] — the kept versions of the flat (version 01 is the existing house). */
+  versions: json('versions'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({

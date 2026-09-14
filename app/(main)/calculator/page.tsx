@@ -2,45 +2,47 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { nanoid } from 'nanoid';
-import { AlertCircle, PenLine, Rows3, Upload } from 'lucide-react';
+import { AlertCircle, PenLine, Upload } from 'lucide-react';
+import Image from 'next/image';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
-import { RoomForm } from '@/components/calculator/RoomForm';
-import { RoomList } from '@/components/calculator/RoomList';
-import { RoomLayoutEditor, type DrawnRect } from '@/components/calculator/RoomLayoutEditor';
-import Image from 'next/image';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { PlanSketch } from '@/components/projects/PlanSketch';
+import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
+import { RoomsPanel } from '@/components/plan/RoomsPanel';
+import { ElementInspector } from '@/components/plan/ElementInspector';
 import { Button } from '@/components/ui/button';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
+import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
-import { roomTypeLabel } from '@/lib/i18n/labels';
 import { calculatorRoomsFromPlan } from '@/lib/design/planGeometry';
-import { computeRoomAreas } from '@/lib/calculator/materials';
-import { ROOM_TYPES } from '@/lib/calculator/constants';
-import { findFreeSpot } from '@/lib/calculator/layout';
 import { cn } from '@/lib/utils';
-import type { Room } from '@/lib/calculator/types';
 
-type PlanMode = 'upload' | 'manual' | 'draw';
+type PlanMode = 'upload' | 'draw';
 
+/**
+ * Step 1 of the calculator: the plan — uploaded, or drawn on the same board the studio uses
+ * (walls as lines, rooms as rectangles, doors and windows) — and the home's condition. The
+ * plan lives in the design store; the calculator's rooms are read off it after every edit,
+ * so the same drawing carries into 3D untouched.
+ */
 export default function CalculatorStep1Page() {
   const router = useRouter();
   const t = useT();
-  const { homeState, rooms, setHomeState, addRoom, replaceRooms, updateRoom, removeRoom, moveRoom, reorderRoom } = useCalculatorStore();
+  const { homeState, rooms, setHomeState, replaceRooms } = useCalculatorStore();
+  const plan = useCalculatorPlan();
   const setPlan = useDesignStore((s) => s.setPlan);
-  const designPlan = useDesignStore((s) => s.plan);
   const floorPlanUrl = useDesignStore((s) => s.floorPlanUrl);
+  const selection = useDesignStore((s) => s.selectedElement);
+  const focusRoomId = useDesignStore((s) => s.focusRoomId);
+  const electrical = useDesignStore((s) => s.electrical);
+  const actions = useDesignStore();
   const [replacingPlan, setReplacingPlan] = useState(false);
-  // The studio's plan for these very rooms — a project designed first, or a plan uploaded
-  // here earlier — so step 1 shows it as done instead of asking for it again.
-  const planOnFile = !!designPlan && rooms.length > 0 && designPlan.rooms.length === rooms.length && designPlan.rooms.every((r) => rooms.some((room) => room.id === r.id));
-  const [mode, setMode] = useState<PlanMode>('upload');
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const planOnFile = !!plan && rooms.length > 0 && plan.rooms.length === rooms.length && plan.rooms.every((r) => rooms.some((room) => room.id === r.id));
+  const [mode, setMode] = useState<PlanMode>(() => (plan && plan.rooms.length > 0 ? 'draw' : 'upload'));
   const [error, setError] = useState<string | null>(null);
   const [planNotice, setPlanNotice] = useState<number | null>(null);
 
@@ -49,46 +51,6 @@ export default function CalculatorStep1Page() {
   useEffect(() => {
     if (canContinue && error) setError(null);
   }, [canContinue, error]);
-
-  /** A typed room takes the first free spot on the plan, so it shows up on the layout at once. */
-  const addPlaced = (room: Room) => {
-    const spot = findFreeSpot(rooms, room.width, room.length);
-    addRoom({ ...room, ...spot });
-    setSelectedRoomId(room.id);
-  };
-
-  /** A drawn rectangle becomes a room of the most common type; name and type are edited in the list. */
-  const addDrawn = (rect: DrawnRect) => {
-    const type = 'living_room';
-    const count = rooms.filter((r) => r.type === type).length + 1;
-    const room = computeRoomAreas({
-      id: nanoid(),
-      type,
-      nameKa: `${roomTypeLabel(t, type)} ${count}`,
-      width: Number(rect.width.toFixed(2)),
-      length: Number(rect.length.toFixed(2)),
-      height: ROOM_TYPES[type].defaultHeight,
-    });
-    addRoom({ ...room, x: rect.x, z: rect.z });
-    setSelectedRoomId(room.id);
-  };
-
-  /** Name and type edits keep the derived areas honest; a type change also re-checks "wet". */
-  const editRoom = (id: string, updates: Partial<Room>) => {
-    const current = rooms.find((r) => r.id === id);
-    if (!current) return;
-    const merged = { ...current, ...updates };
-    const recomputed = computeRoomAreas({ id, type: merged.type, nameKa: merged.nameKa, width: merged.width, length: merged.length, height: merged.height });
-    updateRoom(id, { ...recomputed, x: current.x, z: current.z });
-  };
-
-  /** A handle drag: new size and corner, areas recomputed, everything else kept. */
-  const resizeRoom = (id: string, rect: DrawnRect) => {
-    const current = rooms.find((r) => r.id === id);
-    if (!current) return;
-    const recomputed = computeRoomAreas({ id, type: current.type, nameKa: current.nameKa, width: Number(rect.width.toFixed(2)), length: Number(rect.length.toFixed(2)), height: current.height });
-    updateRoom(id, { ...recomputed, x: rect.x, z: rect.z });
-  };
 
   const handleStart = () => {
     if (rooms.length === 0) {
@@ -104,10 +66,18 @@ export default function CalculatorStep1Page() {
     router.push('/calculator/materials');
   };
 
-  const options: Array<{ id: PlanMode; icon: React.ReactNode; label: string; desc: string }> = [
-    { id: 'upload', icon: <Upload className="h-5 w-5" />, label: t.calculator.optionUpload, desc: t.calculator.optionUploadDesc },
-    { id: 'manual', icon: <Rows3 className="h-5 w-5" />, label: t.calculator.optionManual, desc: t.calculator.optionManualDesc },
-    { id: 'draw', icon: <PenLine className="h-5 w-5" />, label: t.calculator.optionDraw, desc: t.calculator.optionDrawDesc },
+  /** A blank sheet to draw on: a new flat, a new project. */
+  const startDrawing = () => {
+    if (!plan || plan.rooms.length === 0) {
+      setPlan({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, null);
+      replaceRooms([]);
+    }
+    setMode('draw');
+  };
+
+  const options: Array<{ id: PlanMode; icon: React.ReactNode; label: string; desc: string; onPick: () => void }> = [
+    { id: 'upload', icon: <Upload className="h-5 w-5" />, label: t.calculator.optionUpload, desc: t.calculator.optionUploadDesc, onPick: () => setMode('upload') },
+    { id: 'draw', icon: <PenLine className="h-5 w-5" />, label: t.calculator.optionDraw, desc: t.build.optionScratchDesc, onPick: startDrawing },
   ];
 
   return (
@@ -119,8 +89,8 @@ export default function CalculatorStep1Page() {
         <section id="plan-section" className="mt-10 space-y-5">
           <SectionHead index="01" title={t.calculator.planTitle} subtitle={t.calculator.planSubtitle} />
 
-          {/* The three ways in, side by side; the chosen one opens below. */}
-          <div className="grid border-l border-t border-line sm:grid-cols-3" role="tablist">
+          {/* The two ways in, side by side; the chosen one opens below. */}
+          <div className="grid gap-3 sm:grid-cols-2" role="tablist">
             {options.map((o, i) => {
               const active = mode === o.id;
               return (
@@ -129,10 +99,10 @@ export default function CalculatorStep1Page() {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setMode(o.id)}
-                  className={cn('group flex items-start gap-4 border-b border-r border-line p-5 text-left transition-colors', active ? 'bg-ink text-white' : 'bg-bg-surface hover:bg-sand-light')}
+                  onClick={o.onPick}
+                  className={cn('group flex items-start gap-4 rounded-[16px] border p-5 text-left transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
                 >
-                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
+                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
                   <span className="min-w-0">
                     <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
                     <span className="mt-0.5 block font-serif text-lg font-semibold leading-tight">{o.label}</span>
@@ -143,39 +113,44 @@ export default function CalculatorStep1Page() {
             })}
           </div>
 
-          {mode === 'upload' && planOnFile && !replacingPlan && designPlan && (
-            <div className="grid items-center gap-5 border border-line bg-bg-surface p-5 sm:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="border border-line bg-white p-2">
+          {mode === 'upload' && planOnFile && !replacingPlan && plan && (
+            <div className="grid items-center gap-5 rounded-[16px] border border-line bg-bg-surface p-5 sm:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="rounded-[12px] border border-line bg-white p-2">
                 {floorPlanUrl ? (
                   <Image src={floorPlanUrl} alt="" width={440} height={330} unoptimized className="h-auto max-h-44 w-full object-contain" />
                 ) : (
-                  <PlanSketch plan={designPlan} rooms={rooms} className="block h-auto w-full" />
+                  <PlanSketch plan={plan} rooms={rooms} className="block h-auto w-full" />
                 )}
               </div>
               <div>
                 <p className="font-medium text-success">{t.calculator.planAlreadyUploaded.replace('{n}', String(rooms.length))}</p>
                 <p className="mt-1 text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
-                <Button type="button" variant="outline" size="sm" className="mt-3" onClick={() => setReplacingPlan(true)}>
-                  {t.calculator.replacePlan}
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setReplacingPlan(true)}>
+                    {t.calculator.replacePlan}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setMode('draw')}>
+                    {t.calculator.optionDraw}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
 
           {mode === 'upload' && (!planOnFile || replacingPlan) && (
-            <div className="border border-line bg-bg-surface p-5">
+            <div className="rounded-[16px] border border-line bg-bg-surface p-5">
               <p className="text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
               <div className="mt-4">
                 <PlanUploadCard
                   showSample
-                  onPlan={(plan, imageUrl) => {
+                  onPlan={(uploaded, imageUrl) => {
                     // A different plan is a different flat: rooms, products and furniture all start over.
-                    const fromPlan = calculatorRoomsFromPlan(plan);
+                    const fromPlan = calculatorRoomsFromPlan(uploaded);
                     replaceRooms(fromPlan);
-                    setPlan(plan, imageUrl);
+                    setPlan(uploaded, imageUrl);
                     setPlanNotice(fromPlan.length);
                     setReplacingPlan(false);
-                    setSelectedRoomId(null);
+                    setMode('draw');
                     document.getElementById('rooms-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
                 />
@@ -184,17 +159,51 @@ export default function CalculatorStep1Page() {
             </div>
           )}
 
-          {mode === 'manual' && <RoomForm onAdd={addPlaced} />}
-
-          {(mode !== 'upload' || rooms.length > 0) && (
-            <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-              <div>
-                <p className="eyebrow mb-2">{t.calculator.layoutTitle}</p>
-                <RoomLayoutEditor rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onMove={moveRoom} onResize={resizeRoom} onDraw={mode === 'draw' ? addDrawn : undefined} />
+          {mode === 'draw' && plan && (
+            <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="min-w-0">
+                <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window']} layerKeys={['walls', 'openings', 'dimensions']} height={560} />
               </div>
-              <div className="lg:sticky lg:top-24 lg:self-start">
-                <p className="eyebrow mb-2">{t.rooms.title}</p>
-                <RoomList rooms={rooms} selectedId={selectedRoomId} onSelect={setSelectedRoomId} onUpdate={editRoom} onReorder={reorderRoom} onRemove={removeRoom} />
+              <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+                <ElementInspector
+                  plan={plan}
+                  electrical={electrical}
+                  selection={selection && selection.kind !== 'room' ? selection : null}
+                  actions={{
+                    updateWall: actions.updateWall,
+                    removeWall: actions.removeWall,
+                    updateOpening: actions.updateOpening,
+                    removeOpening: actions.removeOpening,
+                    addOpening: (roomId, kind, wallIndex) => {
+                      const id = actions.addOpening(roomId, kind, wallIndex);
+                      if (id) actions.selectElement({ kind: 'opening', id, roomId });
+                    },
+                    updateColumn: actions.updateColumn,
+                    removeColumn: actions.removeColumn,
+                    updateBeam: actions.updateBeam,
+                    removeBeam: actions.removeBeam,
+                    updateTechnical: actions.updateTechnicalPoint,
+                    removeTechnical: actions.removeTechnicalPoint,
+                    updateElectrical: actions.updateElectricalPoint,
+                    removeElectrical: actions.removeElectricalPoint,
+                    updateRoom: actions.updateRoom,
+                    resizeRoom: actions.resizeRoom,
+                    removeRoom: actions.removeRoom,
+                  }}
+                />
+                <RoomsPanel
+                  plan={plan}
+                  selectedId={focusRoomId}
+                  onSelect={(id) => {
+                    actions.setFocusRoom(id);
+                    actions.selectElement(id ? { kind: 'room', id } : null);
+                  }}
+                  actions={{ updateRoom: actions.updateRoom, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
+                  onAddRectangle={(rect, type) => {
+                    const id = actions.addRectangleRoom(rect, type);
+                    if (id) actions.setFocusRoom(id);
+                  }}
+                />
               </div>
             </div>
           )}

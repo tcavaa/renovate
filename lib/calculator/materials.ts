@@ -61,7 +61,7 @@ export function aggregateRoomTotals(rooms: Room[]) {
   const totalWetRoomM2 = sum(rooms.filter((r) => r.isWetRoom).map((r) => r.floorM2));
   const doorCount = rooms.length;
   const windowCount = rooms.filter(
-    (r) => !['bathroom', 'toilet', 'hallway', 'storage'].includes(r.type)
+    (r) => !['bathroom', 'toilet', 'hallway', 'storage', 'closet'].includes(r.type)
   ).length;
   return {
     totalFloorM2: round2(totalFloorM2),
@@ -80,11 +80,13 @@ export function aggregateRoomTotals(rooms: Room[]) {
 export function calculateMaterials(
   rooms: Room[],
   homeState: HomeState,
-  book: RateBook = DEFAULT_RATE_BOOK
+  book: RateBook = DEFAULT_RATE_BOOK,
+  phasesOverride?: number[] | null
 ): MaterialItem[] {
   if (rooms.length === 0) return [];
   const t = aggregateRoomTotals(rooms);
-  const phases = HOME_STATES[homeState].includedPhases;
+  // The technical step lets the person tick the works themselves; the home state is the default.
+  const phases = phasesOverride && phasesOverride.length > 0 ? phasesOverride : HOME_STATES[homeState].includedPhases;
   const items: MaterialItem[] = [];
 
   const baseFor = (rate: MaterialRate): number => {
@@ -130,11 +132,12 @@ export function calculateMaterials(
 export function calculateWorkerCosts(
   rooms: Room[],
   homeState: HomeState,
-  book: RateBook = DEFAULT_RATE_BOOK
+  book: RateBook = DEFAULT_RATE_BOOK,
+  phasesOverride?: number[] | null
 ): WorkerCost[] {
   if (rooms.length === 0) return [];
   const t = aggregateRoomTotals(rooms);
-  const phases = HOME_STATES[homeState].includedPhases;
+  const phases = phasesOverride && phasesOverride.length > 0 ? phasesOverride : HOME_STATES[homeState].includedPhases;
   const costs: WorkerCost[] = [];
 
   // A labour line admin has switched off simply does not appear.
@@ -195,10 +198,11 @@ export function buildProjectSummary(
   homeState: HomeState,
   selectedProducts: SelectedProduct[],
   selectedFurniture: SelectedProduct[],
-  book: RateBook = DEFAULT_RATE_BOOK
+  book: RateBook = DEFAULT_RATE_BOOK,
+  phasesOverride?: number[] | null
 ): ProjectSummary {
-  const materials = calculateMaterials(rooms, homeState, book);
-  const workerCosts = calculateWorkerCosts(rooms, homeState, book);
+  const materials = calculateMaterials(rooms, homeState, book, phasesOverride);
+  const workerCosts = calculateWorkerCosts(rooms, homeState, book, phasesOverride);
 
   const subtotalMaterials = estimateMaterialsCost(materials);
   const subtotalProducts = sumProducts(selectedProducts);

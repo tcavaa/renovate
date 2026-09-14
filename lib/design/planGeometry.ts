@@ -452,6 +452,9 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
         roomId: a.id,
         connectsToRoomId: b.id,
         exterior: false,
+        // One leaf, seen from two rooms: it hangs from the same jamb and swings into the
+        // more private room (the one the door was made for, when the ranks differ).
+        ...(kind === 'door' ? { hinge: 'left' as const, swing: (rank(a) >= rank(b) ? 'in' : 'out') as 'in' | 'out' } : {}),
       });
       b.openings.push({
         id: `${b.id}-${a.id}-d`,
@@ -464,12 +467,13 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
         roomId: b.id,
         connectsToRoomId: a.id,
         exterior: false,
+        ...(kind === 'door' ? { hinge: 'right' as const, swing: (rank(a) >= rank(b) ? 'out' : 'in') as 'in' | 'out' } : {}),
       });
     }
   }
 
   // --- windows on exterior walls ---
-  const noWindows: RoomType[] = ['toilet', 'storage', 'hallway'];
+  const noWindows: RoomType[] = ['toilet', 'storage', 'hallway', 'closet'];
 
   for (const room of rooms) {
     if (noWindows.includes(room.type)) continue;

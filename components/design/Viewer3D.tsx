@@ -23,6 +23,7 @@ import * as THREE from 'three';
 import {
   HIDDEN_LAYER,
   OPENING_SLAB_NAME,
+  buildElectrical,
   buildRoomShells,
   disposeOwnedGeometry,
   frameFor,
@@ -30,6 +31,10 @@ import {
   visibleRoomIds,
   type SceneUserData,
 } from '@/lib/design3d/buildScene';
+import { buildFitting, lightsFrom } from '@/lib/design3d/buildStructure';
+import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
+import { wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
+import type { ElementSelection } from '@/store/designStore';
 import { edgeOf, projectToEdge } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
@@ -39,12 +44,16 @@ import { getStyle } from '@/lib/design/styles';
 import { isPlacementValid, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
-import type { DesignScene, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { Headlamp, WalkControls } from './WalkControls';
 
 export type ViewMode = 'orbit' | 'walk';
-/** What the pointer edits: furniture (the default) or the doors and windows. */
-export type EditMode = 'furniture' | 'openings';
+/**
+ * What the pointer edits: furniture (the default), the doors and windows, the structure
+ * (walls, columns, beams — moved only when unlocked), the sockets and lights, or the
+ * finishes (a click on a floor or a wall opens its picker).
+ */
+export type EditMode = 'furniture' | 'openings' | 'build' | 'electrical' | 'finishes';
 
 /** Camera actions the studio's overlay buttons call. */
 export interface ViewerApi {
@@ -62,6 +71,15 @@ export interface ViewerApi {
    * pointer so the person can move it somewhere it does).
    */
   dropCarriedAt: (clientX: number, clientY: number) => boolean;
+  /** Moves the carried item under a screen position without setting it down (a drag from the shelf). */
+  moveCarriedTo: (clientX: number, clientY: number) => void;
+  /**
+   * Shows a ghost of an electrical fitting where it would land under a screen position —
+   * snapped to the nearest wall at its usual height — while a tile is dragged over the view.
+   * Returns false when the position is off the plan.
+   */
+  previewElectricalAt: (kind: ElectricalKind, clientX: number, clientY: number) => boolean;
+  clearElectricalPreview: () => void;
   /** The current frame as a PNG data URL, or null when the canvas cannot be read. */
   screenshot: () => string | null;
   /** Where the camera is, for keeping with a photo. */
@@ -86,10 +104,21 @@ export interface Viewer3DProps {
   /** An opening was dragged along its wall to a new `t`. */
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
   onSelectOpening?: (openingId: string | null) => void;
+  /** Sockets, switches and lights; drawn as fittings, and the lights that are on light the rooms. */
+  electrical?: ElectricalPoint[];
+  /** Walls, doors, windows, columns and beams stay where they are until unlocked. */
+  structureLocked?: boolean;
+  selectedElement?: ElementSelection;
+  /** A wall, column, beam, socket or zone was picked (or the selection cleared). */
+  onSelectElement?: (selection: ElementSelection) => void;
+  /** A wall was dragged sideways by `distance` metres along its normal (see `wallNormal`). */
+  onOffsetWall?: (wallId: string, distance: number) => void;
+  onMoveColumn?: (columnId: string, position: Vec2) => void;
+  onMoveElectrical?: (electricalId: string, position: Vec2) => void;
   onHoverItem?: (item: PlacedItem | null, screen: { x: number; y: number } | null) => void;
   onSelectItem?: (itemId: string | null) => void;
   /** A click on a room's floor or wall — the studio opens the finish picker for it. */
-  onSelectSurface?: (selection: { roomId: string; surface: 'floor' | 'wall' } | null) => void;
+  onSelectSurface?: (selection: { roomId: string; surface: 'floor' | 'wall'; wallIndex?: number } | null) => void;
   /** Commits a drag. `roomId` is set when the item was dragged into a different room. */
   onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
   /** Receives the camera API once the scene is up; `null` on unmount. */
@@ -155,6 +184,28 @@ interface OpeningDragState {
   t: number;
 }
 
+interface WallDragState {
+  wallId: string;
+  normal: Vec2;
+  start: Vec2;
+  distance: number;
+  moved: boolean;
+  ghost: THREE.Mesh;
+}
+
+interface PointDragState {
+  what: 'column' | 'electrical';
+  id: string;
+  object: THREE.Object3D;
+  origin: THREE.Vector3;
+  originYaw: number;
+  start: Vec2;
+  position: Vec2;
+  moved: boolean;
+  /** A fitting sliding along its walls: `position` is where it is, not an offset. */
+  absolute: boolean;
+}
+
 interface DragState {
   itemId: string;
   item: PlacedItem;
@@ -168,7 +219,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical'>;
 
 function SceneContent({
   plan,
@@ -181,6 +232,13 @@ function SceneContent({
   carryingItemId = null,
   onCarryPlaced,
   selectedOpeningId = null,
+  electrical = [],
+  structureLocked = true,
+  selectedElement = null,
+  onSelectElement,
+  onOffsetWall,
+  onMoveColumn,
+  onMoveElectrical,
   onHoverItem,
   onSelectItem,
   onSelectSurface,
@@ -216,16 +274,39 @@ function SceneContent({
   useEffect(() => {
     if (walking) return;
     const pressed = panKeys.current;
+    // The mouse: drag turns the view (either button), the wheel zooms, the middle button
+    // pans. While Space is held a drag pans instead, while Shift is held it moves through
+    // the space (dolly) — the scheme the studio's help card describes.
+    const setButtons = (left: number) => {
+      const orbit = orbitRef.current;
+      if (orbit) orbit.mouseButtons = { LEFT: left, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
+    };
+    setButtons(THREE.MOUSE.ROTATE);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target;
       if (target instanceof HTMLElement && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)) return;
+      if (event.code === 'Space') {
+        setButtons(THREE.MOUSE.PAN);
+        event.preventDefault();
+        return;
+      }
+      if (event.key === 'Shift') {
+        setButtons(THREE.MOUSE.DOLLY);
+        return;
+      }
       if (!PAN_KEYS.has(event.code)) return;
       pressed.add(event.code);
       event.preventDefault();
     };
-    const onKeyUp = (event: KeyboardEvent) => pressed.delete(event.code);
-    const onBlur = () => pressed.clear();
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space' || event.key === 'Shift') setButtons(THREE.MOUSE.ROTATE);
+      pressed.delete(event.code);
+    };
+    const onBlur = () => {
+      pressed.clear();
+      setButtons(THREE.MOUSE.ROTATE);
+    };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
@@ -267,8 +348,12 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced };
-  const editingOpenings = editMode === 'openings';
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical };
+  // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
+  const editingOpenings = editMode === 'openings' || (editMode === 'build' && !structureLocked);
+  const building = editMode === 'build';
+  const wiring = editMode === 'electrical';
+  const finishing = editMode === 'finishes';
 
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
@@ -303,6 +388,8 @@ function SceneContent({
     [plan.rooms]
   );
 
+  // The electrical layer's fittings, rebuilt when the layer or the plan changes; the lights
+  // that are switched on become point lights below.
   const shellOptions = useMemo(
     () => ({
       // Inside the flat you want the walls and the ceiling; from outside you want to see in.
@@ -312,6 +399,12 @@ function SceneContent({
     }),
     [walking, showWalls, focusRoomId]
   );
+  // With one room in focus the others are gone — their fittings, lights and warnings too.
+  const roomFilter = useMemo(() => visibleRoomIds(plan, shellOptions), [plan, shellOptions]);
+  const hangingLamps = useMemo(() => scene.items.filter((i) => i.slot === 'pendant'), [scene.items]);
+  const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, items: hangingLamps }), [plan, electrical, materials, roomFilter, hangingLamps]);
+  useEffect(() => () => disposeOwnedGeometry(electricalGroup), [electricalGroup]);
+  const sceneLights = useMemo(() => lightsFrom(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
 
   // The room shells change only with the plan, the finishes or the style — not with furniture.
   const shell = useMemo(
@@ -366,11 +459,12 @@ function SceneContent({
     const flagged = tightSpotsByItem(plan.rooms, scene.items);
     for (const item of scene.items) {
       if (!flagged.has(item.id) || !item.product) continue;
+      if (roomFilter && !roomFilter.has(item.roomId)) continue;
       const line = makeOutline();
       applyOutline(line, item, 0xf59e0b);
       warnings.add(line);
     }
-  }, [warnings, plan.rooms, scene.items, walking]);
+  }, [warnings, plan.rooms, scene.items, walking, roomFilter]);
   useEffect(() => () => warnings.children.forEach((c) => disposeOutline(c as THREE.LineSegments)), [warnings]);
 
   useEffect(() => {
@@ -442,6 +536,17 @@ function SceneContent({
     [camera, gl]
   );
 
+  /** The ghost fitting shown while an electrical tile is dragged over the view. */
+  const previewRef = useRef<THREE.Group | null>(null);
+  const clearPreview = useCallback(() => {
+    const ghost = previewRef.current;
+    if (!ghost) return;
+    previewRef.current = null;
+    threeScene.remove(ghost);
+    disposeOwnedGeometry(ghost);
+  }, [threeScene]);
+  useEffect(() => () => clearPreview(), [clearPreview]);
+
   // -------------------------------------------------------------------------
   // Camera framing
   // -------------------------------------------------------------------------
@@ -501,6 +606,24 @@ function SceneContent({
         callbacks.current.onCarryPlaced?.(carry.itemId);
         return true;
       },
+      moveCarriedTo: (clientX, clientY) => carryUpdateRef.current?.(clientX, clientY),
+      previewElectricalAt: (kind, clientX, clientY) => {
+        const point = floorPoint(clientX, clientY, 0);
+        const room = point ? roomAtPoint(plan.rooms, point) : null;
+        if (!point || !room) {
+          clearPreview();
+          return false;
+        }
+        const placed = placeElectrical(room, kind, point, 'preview');
+        const ghost = buildFitting(room, placed, materials, { preview: true });
+        clearPreview();
+        if (!ghost) return false;
+        ghost.renderOrder = 6;
+        threeScene.add(ghost);
+        previewRef.current = ghost;
+        return true;
+      },
+      clearElectricalPreview: clearPreview,
       screenshot: () => {
         try {
           // Render first: without `preserveDrawingBuffer` the canvas is blank between frames.
@@ -517,7 +640,7 @@ function SceneContent({
     };
     onApi(api);
     return () => onApi(null);
-  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint]);
+  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, materials, clearPreview]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway
@@ -576,13 +699,32 @@ function SceneContent({
   const carryUpdateRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
   const openingDragRef = useRef<OpeningDragState | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
-  const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; x: number; y: number } | null>(null);
+  const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; wallIndex?: number; x: number; y: number } | null>(null);
+  const wallDragRef = useRef<WallDragState | null>(null);
+  const pointDragRef = useRef<PointDragState | null>(null);
 
   const handleMove = (event: ThreeEvent<PointerEvent>) => {
     if (carryRef.current) return; // the carried item owns the pointer
     if (dragRef.current?.moved) return; // the drag loop owns the pointer
 
     const data = pick(event);
+    if (building) {
+      const structural = data?.pickKind === 'wall' || data?.pickKind === 'column' || data?.pickKind === 'beam' || data?.pickKind === 'opening' || (data?.pickKind === 'surface' && data.surface === 'wall' && !!data.wallId);
+      gl.domElement.style.cursor = structural ? (structureLocked ? 'pointer' : 'move') : 'default';
+      if (hoveredId) {
+        setHoveredId(null);
+        onHoverItem?.(null, null);
+      }
+      return;
+    }
+    if (wiring || (data?.pickKind === 'electrical' && !building && !finishing)) {
+      gl.domElement.style.cursor = data?.pickKind === 'electrical' ? 'move' : 'default';
+      if (hoveredId) {
+        setHoveredId(null);
+        onHoverItem?.(null, null);
+      }
+      return;
+    }
     if (editingOpenings) {
       gl.domElement.style.cursor = data?.pickKind === 'opening' ? 'ew-resize' : 'default';
       if (hoveredId) {
@@ -590,6 +732,9 @@ function SceneContent({
         onHoverItem?.(null, null);
       }
       return;
+    }
+    if (finishing) {
+      gl.domElement.style.cursor = data?.pickKind === 'surface' || data?.pickKind === 'zone' ? 'pointer' : 'default';
     }
     const itemId = data?.pickKind === 'item' ? (data.itemId ?? null) : null;
 
@@ -628,28 +773,95 @@ function SceneContent({
       return;
     }
     const data = pick(event);
+
+    // Build mode: walls, columns and beams are picked, and dragged when unlocked.
+    if (building && data && (data.pickKind === 'wall' || data.pickKind === 'column' || data.pickKind === 'beam' || (data.pickKind === 'surface' && data.surface === 'wall' && data.wallId))) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      openingDragRef.current = null;
+      if (data.pickKind === 'beam' && data.beamId) {
+        callbacks.current.onSelectElement?.({ kind: 'beam', id: data.beamId });
+        return;
+      }
+      if (data.pickKind === 'column' && data.columnId) {
+        callbacks.current.onSelectElement?.({ kind: 'column', id: data.columnId });
+        const column = plan.columns?.find((c) => c.id === data.columnId);
+        const object = event.object;
+        if (!structureLocked && column && !column.locked) {
+          pointDragRef.current = { what: 'column', id: column.id, object, origin: object.position.clone(), originYaw: object.rotation.y, start: floorPoint(event.clientX, event.clientY, 0) ?? column.position, position: column.position, moved: false, absolute: false };
+        }
+        return;
+      }
+      const wallId = data.wallId;
+      if (!wallId) return;
+      callbacks.current.onSelectElement?.({ kind: 'wall', id: wallId });
+      const wall = plan.walls?.find((w) => w.id === wallId);
+      if (!structureLocked && wall && !wall.locked) {
+        const start = floorPoint(event.clientX, event.clientY, 0);
+        if (!start) return;
+        // A translucent slab the wall's size, shown where the wall would land.
+        const length = wallLength(wall);
+        const height = wallHeightFor(plan, wall);
+        const ghost = new THREE.Mesh(new THREE.BoxGeometry(length, height, wall.thicknessM), new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.35, depthWrite: false }));
+        ghost.position.set((wall.a.x + wall.b.x) / 2, height / 2, (wall.a.z + wall.b.z) / 2);
+        ghost.rotation.y = -Math.atan2(wall.b.z - wall.a.z, wall.b.x - wall.a.x);
+        ghost.visible = false;
+        ghost.renderOrder = 6;
+        threeScene.add(ghost);
+        wallDragRef.current = { wallId, normal: wallNormal(wall), start, distance: 0, moved: false, ghost };
+      }
+      return;
+    }
+
+    // Sockets and lights: picked in any mode, dragged in electrical mode.
+    if (data?.pickKind === 'electrical' && data.electricalId) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      openingDragRef.current = null;
+      callbacks.current.onSelectElement?.({ kind: 'electrical', id: data.electricalId });
+      const point = electrical.find((p) => p.id === data.electricalId);
+      if ((wiring || (!building && !finishing)) && point && !point.locked) {
+        const object = electricalGroup.getObjectByName(`electrical-${point.id}`);
+        const start = floorPoint(event.clientX, event.clientY, 0);
+        if (object && start) pointDragRef.current = { what: 'electrical', id: point.id, object, origin: object.position.clone(), originYaw: object.rotation.y, start, position: point.position, moved: false, absolute: false };
+      }
+      return;
+    }
+
+    // A floor zone with its own finish.
+    if (data?.pickKind === 'zone' && data.zoneId && data.roomId) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      callbacks.current.onSelectElement?.({ kind: 'zone', id: data.zoneId, roomId: data.roomId });
+      return;
+    }
+
     if (editingOpenings) {
       dragRef.current = null;
       surfacePressRef.current = null;
       if (data?.pickKind !== 'opening' || !data.openingId) {
         openingDragRef.current = null;
+        if (!building) return;
+      }
+      if (data?.pickKind === 'opening' && data.openingId) {
+        const room = plan.rooms.find((r) => r.id === data.roomId);
+        const opening = room?.openings.find((o) => o.id === data.openingId);
+        const trim = shell.getObjectByName(`opening-${data.openingId}`);
+        if (!room || !opening || !trim) return;
+        callbacks.current.onSelectElement?.({ kind: 'opening', id: opening.id, roomId: room.id });
+        const edge = edgeOf(room, opening.wallIndex);
+        if (!edge || opening.locked) return;
+        openingDragRef.current = { room, opening, edge, trim, startX: event.clientX, startY: event.clientY, moved: false, t: opening.t };
         return;
       }
-      const room = plan.rooms.find((r) => r.id === data.roomId);
-      const opening = room?.openings.find((o) => o.id === data.openingId);
-      const trim = shell.getObjectByName(`opening-${data.openingId}`);
-      if (!room || !opening || !trim) return;
-      const edge = edgeOf(room, opening.wallIndex);
-      if (!edge) return;
-      openingDragRef.current = { room, opening, edge, trim, startX: event.clientX, startY: event.clientY, moved: false, t: opening.t };
-      return;
+      if (!building) return;
     }
     const itemId = data?.pickKind === 'item' ? data.itemId : null;
     if (!itemId) {
       dragRef.current = null;
       surfacePressRef.current =
         data?.pickKind === 'surface' && data.roomId && (data.surface === 'floor' || data.surface === 'wall')
-          ? { roomId: data.roomId, surface: data.surface, x: event.clientX, y: event.clientY }
+          ? { roomId: data.roomId, surface: data.surface, wallIndex: data.wallIndex, x: event.clientX, y: event.clientY }
           : null;
       return;
     }
@@ -709,6 +921,60 @@ function SceneContent({
     const onPointerMove = (event: PointerEvent) => {
       if (carryRef.current && !walking) {
         carryUpdateRef.current?.(event.clientX, event.clientY);
+        return;
+      }
+      const wd = wallDragRef.current;
+      if (wd) {
+        if (walking) return;
+        const ground = floorPoint(event.clientX, event.clientY, 0);
+        if (!ground) return;
+        const raw = (ground.x - wd.start.x) * wd.normal.x + (ground.z - wd.start.z) * wd.normal.z;
+        wd.distance = Math.round(raw * 100) / 100;
+        if (!wd.moved && Math.abs(raw) < 0.03) return;
+        if (!wd.moved) {
+          wd.moved = true;
+          const orbit = orbitRef.current;
+          if (orbit) orbit.enabled = false;
+          canvas.style.cursor = 'move';
+        }
+        const wall = plan.walls?.find((w) => w.id === wd.wallId);
+        if (!wall) return;
+        wd.ghost.visible = true;
+        wd.ghost.position.x = (wall.a.x + wall.b.x) / 2 + wd.normal.x * wd.distance;
+        wd.ghost.position.z = (wall.a.z + wall.b.z) / 2 + wd.normal.z * wd.distance;
+        return;
+      }
+      const pd = pointDragRef.current;
+      if (pd) {
+        if (walking) return;
+        const ground = floorPoint(event.clientX, event.clientY, 0);
+        if (!ground) return;
+        const dx = ground.x - pd.start.x;
+        const dz = ground.z - pd.start.z;
+        if (!pd.moved && Math.hypot(dx, dz) < 0.03) return;
+        if (!pd.moved) {
+          pd.moved = true;
+          const orbit = orbitRef.current;
+          if (orbit) orbit.enabled = false;
+          canvas.style.cursor = 'move';
+        }
+        // A wall fitting sticks to the walls: it slides along the one it is on and hops
+        // onto the nearest wall of its room when the pointer crosses the floor to another.
+        // Ceiling lights and strips move freely; columns too.
+        const fitting = pd.what === 'electrical' ? electrical.find((p) => p.id === pd.id) : null;
+        const fittingRoom = fitting ? plan.rooms.find((r) => r.id === fitting.roomId) : null;
+        if (fitting && fittingRoom && ELECTRICAL_KINDS[fitting.kind].placement === 'wall') {
+          const spot = wallSpotNear(fittingRoom, ground);
+          if (!spot) return;
+          pd.absolute = true;
+          pd.position = { x: Math.round(spot.position.x * 100) / 100, z: Math.round(spot.position.z * 100) / 100 };
+          pd.object.position.set(spot.position.x + spot.edge.inward.x * 0.006, pd.origin.y, spot.position.z + spot.edge.inward.z * 0.006);
+          pd.object.rotation.y = spot.edge.facing;
+          return;
+        }
+        pd.position = { x: Math.round((pd.start.x + dx) * 100) / 100, z: Math.round((pd.start.z + dz) * 100) / 100 };
+        // Slide the piece live; the store re-projects it on release.
+        pd.object.position.set(pd.origin.x + dx, pd.origin.y, pd.origin.z + dz);
         return;
       }
       const od = openingDragRef.current;
@@ -773,7 +1039,36 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced } = callbacks.current;
+      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
+
+      const wd = wallDragRef.current;
+      if (wd) {
+        wallDragRef.current = null;
+        threeScene.remove(wd.ghost);
+        wd.ghost.geometry.dispose();
+        (wd.ghost.material as THREE.Material).dispose();
+        const orbit = orbitRef.current;
+        if (orbit) orbit.enabled = true;
+        canvas.style.cursor = 'default';
+        if (wd.moved && Math.abs(wd.distance) >= 0.01) onOffsetWall?.(wd.wallId, wd.distance);
+        return;
+      }
+      const pd = pointDragRef.current;
+      if (pd) {
+        pointDragRef.current = null;
+        const orbit = orbitRef.current;
+        if (orbit) orbit.enabled = true;
+        canvas.style.cursor = 'default';
+        if (pd.moved) {
+          const target = pd.absolute ? pd.position : { x: pd.origin.x + (pd.position.x - pd.start.x), z: pd.origin.z + (pd.position.z - pd.start.z) };
+          if (pd.what === 'column') onMoveColumn?.(pd.id, target);
+          else onMoveElectrical?.(pd.id, target);
+        } else {
+          pd.object.position.copy(pd.origin);
+          pd.object.rotation.y = pd.originYaw;
+        }
+        return;
+      }
 
       const carry = carryRef.current;
       if (carry) {
@@ -804,7 +1099,7 @@ function SceneContent({
       const press = surfacePressRef.current;
       surfacePressRef.current = null;
       if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6) {
-        onSelectSurface?.({ roomId: press.roomId, surface: press.surface });
+        onSelectSurface?.({ roomId: press.roomId, surface: press.surface, wallIndex: press.wallIndex });
       }
 
       const drag = dragRef.current;
@@ -840,7 +1135,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, scene.items, floorPoint, outlines, itemsGroup]);
+  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, outlines, itemsGroup, threeScene]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {
@@ -869,6 +1164,7 @@ function SceneContent({
       <directionalLight position={[-daylight.sunPosition[0], 9, -daylight.sunPosition[2]]} intensity={0.35 * (0.3 + 0.7 * daylight.daylight)} color={style.lighting.lamp} />
       {/* Evening and night: the flat's own lamps, one per room. */}
       {daylight.interiorLightsOn &&
+        sceneLights.length === 0 &&
         roomLamps.map((lamp) => (
           <pointLight key={lamp.id} position={lamp.position} intensity={lamp.intensity * daylight.interiorIntensity} distance={lamp.distance} decay={1.5} color={style.lighting.lamp} />
         ))}
@@ -891,7 +1187,12 @@ function SceneContent({
       <group onPointerMove={handleMove} onPointerOut={handleOut} onPointerDown={handleDown}>
         <primitive object={shell} />
         <primitive object={itemsGroup} />
+        <primitive object={electricalGroup} />
       </group>
+      {/* The lights that are switched on. By day they are a glow, at night the light. */}
+      {sceneLights.map((light) => (
+        <pointLight key={light.id} position={light.position} intensity={light.intensity * (daylight.interiorLightsOn ? Math.max(0.6, daylight.interiorIntensity) : 0.3)} distance={light.distance} decay={1.5} color={style.lighting.lamp} />
+      ))}
 
       <primitive object={warnings} />
       <primitive object={outlines.active} />

@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-09-14",
+  "note": "Written by scripts/fixture-models.ts. The electrical layer’s fixtures: wall models centred on x/y with the back on z = 0 and the front along +z; ceiling models centred on x/z with the top at y = 0.",
+  "models": [
+    {
+      "slug": "socket-eu",
+      "kinds": [
+        "socket",
+        "socket_double",
+        "socket_high",
+        "socket_kitchen",
+        "internet",
+        "tv"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/socket-eu.glb",
+      "widthCm": 8,
+      "heightCm": 8,
+      "depthCm": 2,
+      "triangles": 374,
+      "bytes": 6432,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/MCMUq7R1w5",
+      "title": "EU Outlet",
+      "author": "J-Toastie",
+      "license": "CC-BY 3.0"
+    },
+    {
+      "slug": "switch",
+      "kinds": [
+        "switch"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/switch.glb",
+      "widthCm": 8,
+      "heightCm": 8,
+      "depthCm": 1,
+      "triangles": 332,
+      "bytes": 4856,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/8sR1PkyAg-F",
+      "title": "Light switch",
+      "author": "Poly by Google",
+      "license": "CC-BY 3.0"
+    },
+    {
+      "slug": "wall-lamp",
+      "kinds": [
+        "light_wall"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/wall-lamp.glb",
+      "widthCm": 27,
+      "heightCm": 43,
+      "depthCm": 14,
+      "triangles": 4446,
+      "bytes": 444496,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/industrial_wall_lamp",
+      "title": "industrial wall lamp",
+      "author": "Poly Haven",
+      "license": "CC0"
+    },
+    {
+      "slug": "bulb",
+      "kinds": [
+        "light_ceiling"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/bulb.glb",
+      "widthCm": 6,
+      "heightCm": 10,
+      "depthCm": 6,
+      "triangles": 6420,
+      "bytes": 202964,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/lightbulb_led",
+      "title": "lightbulb led",
+      "author": "Poly Haven",
+      "license": "CC0"
+    }
+  ]
+}

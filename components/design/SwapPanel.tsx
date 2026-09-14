@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Check, ChevronUp, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
+import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ItemCard } from '@/components/design/ItemCard';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
@@ -25,6 +25,11 @@ interface SwapPanelProps {
   onRemove: () => void;
   /** Set when the last rotation was refused because the item no longer fits. */
   rotateBlocked?: boolean;
+  /** Flip the piece across its facing axis. */
+  onMirror?: () => void;
+  /** A copy beside it. */
+  onDuplicate?: () => void;
+  onLock?: (locked: boolean) => void;
 }
 
 export function SwapPanel({
@@ -35,6 +40,9 @@ export function SwapPanel({
   onRotate,
   onRemove,
   rotateBlocked,
+  onMirror,
+  onDuplicate,
+  onLock,
 }: SwapPanelProps) {
   const t = useT();
   const locale = useLocale();
@@ -92,6 +100,30 @@ export function SwapPanel({
             </Button>
             <span className="ml-auto text-[11px] tabular-nums text-ink-muted">{Math.round(((item.rotation * 180) / Math.PI + 360) % 360)}°</span>
           </div>
+
+          {(onMirror || onDuplicate || onLock) && (
+            <div className="flex flex-wrap gap-1.5">
+              {onMirror && (
+                <Button type="button" variant="outline" size="sm" onClick={onMirror} aria-pressed={!!item.mirrored} title={`${t.build.mirror} · M`}>
+                  <FlipHorizontal2 className="h-4 w-4" />
+                  {t.build.mirror}
+                </Button>
+              )}
+              {onDuplicate && (
+                <Button type="button" variant="outline" size="sm" onClick={onDuplicate} title={`${t.build.duplicate} · Ctrl+D`}>
+                  <Copy className="h-4 w-4" />
+                  {t.build.duplicate}
+                </Button>
+              )}
+              {onLock && (
+                <Button type="button" variant={item.locked ? 'ink' : 'outline'} size="sm" onClick={() => onLock(!item.locked)} aria-pressed={!!item.locked}>
+                  {item.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+                  {item.locked ? t.build.unlockItem : t.build.lockItem}
+                </Button>
+              )}
+            </div>
+          )}
+          {item.locked && <p className="text-xs text-ink-muted">{t.build.itemLockedHint}</p>}
 
           {rotateBlocked && (
             <p role="alert" className="text-xs text-danger">

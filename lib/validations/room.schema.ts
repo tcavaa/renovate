@@ -10,6 +10,7 @@ export const roomTypeEnum = z.enum([
   'balcony',
   'storage',
   'office',
+  'closet',
 ]);
 
 export const roomInputSchema = z.object({

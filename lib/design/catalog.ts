@@ -586,6 +586,11 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'armchair', count: 1, minAreaM2: 4 },
     { kind: 'plant', count: 2 },
   ],
+  closet: [
+    { kind: 'wardrobe', count: 2 },
+    { kind: 'mirror', count: 1 },
+    { kind: 'pendant', count: 1 },
+  ],
 };
 
 /** Chooses the better variant when a program entry has a size-gated upgrade. */

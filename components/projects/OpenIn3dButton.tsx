@@ -19,7 +19,7 @@ export function OpenIn3dButton({ project, size = 'md', className }: { project: S
 
   const open = () => {
     if (project.plan && project.scene) {
-      openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
+      openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState, versions: project.versions });
       router.push('/design/studio');
       return;
     }

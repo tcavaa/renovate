@@ -1,0 +1,88 @@
+import { describe, expect, it } from 'vitest';
+import { budgetSections, budgetSummary, priceScene } from '@/lib/design/pricing';
+import { tradesNeeded } from '@/lib/design/trades';
+import { addOpening } from '@/lib/design/openings';
+import { refreshRoom } from '@/lib/design/planGeometry';
+import type { DesignScene, ElectricalPoint, FloorPlan, PlanRoom, Vec2 } from '@/lib/design/types';
+
+const P = (x: number, z: number): Vec2 => ({ x, z });
+const rect = (id: string, x: number, z: number, w: number, d: number, type: PlanRoom['type']): PlanRoom =>
+  refreshRoom({ id, type, name: id, polygon: [P(x, z), P(x + w, z), P(x + w, z + d), P(x, z + d)], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [] });
+
+function plan(): FloorPlan {
+  let rooms = [rect('living', 0, 0, 5, 4, 'living_room'), rect('bath', 5.12, 0, 2.5, 2, 'bathroom')];
+  rooms = addOpening(rooms, 'living', 'door', 1, 0.12).rooms; // interior door living ↔ bath (wall 1 of living is x = 5)
+  rooms = addOpening(rooms, 'living', 'window', 0, 0.12).rooms;
+  return {
+    rooms,
+    metresPerPixel: null,
+    bounds: { width: 7.6, depth: 4 },
+    source: 'manual',
+    wallThicknessM: 0.12,
+    technical: { points: [{ id: 't1', kind: 'sewer', roomId: 'bath', position: P(5.3, 0.3), origin: 'existing' }, { id: 't2', kind: 'radiator', roomId: 'living', position: P(2, 0.1), origin: 'existing' }] },
+  };
+}
+
+const socket = (id: string, origin: ElectricalPoint['origin']): ElectricalPoint => ({ id, roomId: 'living', kind: 'socket_double', position: P(1, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.2, count: 2, origin });
+const light: ElectricalPoint = { id: 'l1', roomId: 'living', kind: 'light_ceiling', position: P(2.5, 2), elevationM: 2.7, on: true, origin: 'generated' };
+
+function scene(mode: DesignScene['mode'], electrical: ElectricalPoint[]): DesignScene {
+  return { styleId: 'modern', mode, budgetGel: null, items: [], finishes: [], electrical };
+}
+
+describe('budget lines', () => {
+  it('prices nothing technical in a finished home unless the person added it', () => {
+    const cost = priceScene(plan(), scene('design_only', [socket('s1', 'generated'), light]));
+    expect(cost.technicalTotal).toBe(0);
+    expect(cost.openingsTotal).toBe(0);
+    const added = priceScene(plan(), scene('design_only', [socket('s2', 'user')]));
+    expect(added.technicalTotal).toBeGreaterThan(0);
+    const sockets = added.lines.find((l) => l.key === 'electrical_socket_double')!;
+    expect(sockets.qty).toBe(1);
+    expect(sockets.section).toBe('electrical');
+    expect(added.lines.some((l) => l.section === 'labour' && l.key === 'electrical_point')).toBe(true);
+  });
+
+  it('counts every point, pipe and opening in a renovation whose works include them', () => {
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'doors_windows', 'tiling'] });
+    const sections = budgetSections(cost);
+    expect(sections.electrical).toBeGreaterThan(0);
+    expect(sections.lighting).toBeGreaterThan(0);
+    expect(sections.plumbing).toBeGreaterThan(0);
+    expect(sections.heating).toBeGreaterThan(0);
+    // One interior door (counted once, not per room) and one window by area.
+    const doors = cost.lines.filter((l) => l.key === 'door');
+    expect(doors).toHaveLength(1);
+    const window = cost.lines.find((l) => l.key === 'window')!;
+    expect(window.qty).toBeCloseTo(1.4 * 1.4, 2);
+    expect(cost.openingsTotal).toBe(Math.round((doors[0].total + window.total) * 100) / 100);
+    // Only the ticked works are in the materials and labour.
+    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'tiling')).toBe(true);
+    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'painting')).toBe(false);
+    const summary = budgetSummary(cost);
+    expect(summary.total).toBe(cost.grandTotal);
+    expect(summary.products).toBe(0);
+    expect(summary.labour + summary.materials).toBeCloseTo(summary.total, 6);
+  });
+
+  it('leaves plumbing out when the plumbing works are not ticked', () => {
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated')]), { homeState: 'white_frame', works: ['electrical'] });
+    const sections = budgetSections(cost);
+    expect(sections.plumbing).toBe(0);
+    expect(sections.heating).toBe(0);
+    expect(sections.electrical).toBeGreaterThan(0);
+  });
+
+  it('names the trades the labour needs, biggest first', () => {
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'tiling', 'painting'] });
+    const trades = tradesNeeded(cost);
+    const slugs = trades.map((t) => t.slug);
+    expect(slugs).toContain('electrical');
+    expect(slugs).toContain('plumbing');
+    expect(slugs).toContain('tiling');
+    expect(slugs).toContain('painting');
+    expect(slugs).not.toContain('carpentry');
+    for (let i = 1; i < trades.length; i++) expect(trades[i - 1].total).toBeGreaterThanOrEqual(trades[i].total);
+    expect(tradesNeeded({ lines: [] })).toEqual([]);
+  });
+});

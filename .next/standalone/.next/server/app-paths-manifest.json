@@ -19,6 +19,8 @@
   "/(main)/design/studio/page": "app/(main)/design/studio/page.js",
   "/(main)/design/style/page": "app/(main)/design/style/page.js",
   "/(main)/design/summary/page": "app/(main)/design/summary/page.js",
+  "/(main)/design/technical/page": "app/(main)/design/technical/page.js",
+  "/(main)/design/workers/page": "app/(main)/design/workers/page.js",
   "/(main)/page": "app/(main)/page.js",
   "/(main)/privacy/page": "app/(main)/privacy/page.js",
   "/(main)/profile/page": "app/(main)/profile/page.js",

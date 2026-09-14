@@ -19,6 +19,8 @@
   "/(main)/design/studio/page": "/design/studio",
   "/(main)/design/style/page": "/design/style",
   "/(main)/design/summary/page": "/design/summary",
+  "/(main)/design/technical/page": "/design/technical",
+  "/(main)/design/workers/page": "/design/workers",
   "/(main)/page": "/",
   "/(main)/privacy/page": "/privacy",
   "/(main)/profile/page": "/profile",

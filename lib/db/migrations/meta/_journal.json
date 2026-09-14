@@ -43,6 +43,13 @@
       "when": 1788995283717,
       "tag": "0005_partner_registration_renders",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1789381237907,
+      "tag": "0006_design_versions",
+      "breakpoints": true
     }
   ]
 }

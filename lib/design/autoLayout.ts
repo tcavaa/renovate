@@ -32,6 +32,7 @@ import {
   type PlanEdge,
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
+import { anchorsFor, type TechnicalAnchor } from './technical';
 
 /** Axis-aligned box in the ground plane. */
 interface Box {
@@ -53,6 +54,10 @@ export interface LayoutOptions {
   respectDoorSwing?: boolean;
   /** Skip decorative items (rugs, art, plants) — useful for a cheap first render. */
   skipDecor?: boolean;
+  /** Per room, the technical points fixtures want to be near (the sewer for the toilet). */
+  anchors?: Record<string, TechnicalAnchor[]>;
+  /** Per room, floor boxes nothing may stand on — the columns. */
+  obstacles?: Record<string, Box[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,10 +76,13 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
   const placed: PlacedItem[] = [];
   const occupied: Box[] = [];
 
-  // Doors need a clear approach, so their swing area is occupied before anything is placed.
+  // Doors need a clear approach, so their swing area is occupied before anything is placed;
+  // a column is simply in the way.
   if (options.respectDoorSwing !== false) {
     for (const box of doorKeepouts(room, edges)) occupied.push(box);
   }
+  for (const box of options.obstacles?.[room.id] ?? []) occupied.push(box);
+  const anchors = options.anchors?.[room.id];
 
   let counter = 0;
   const nextId = (kind: string) => `${room.id}-${kind}-${counter++}`;
@@ -93,7 +101,7 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
       entry.count === 'fill' ? seatCountFor(archetype, placed) : entry.count;
 
     for (let i = 0; i < count; i++) {
-      const pose = resolvePose(archetype, i, room, edges, placed, occupied);
+      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors) });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
@@ -122,7 +130,7 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
  * Finds room for one more item of `kind` among what is already placed — the user's own bed
  * for a room whose program had no bed. Same rules, same keepouts; null when it will not fit.
  */
-export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedItem[], size?: PlacedItem['size']): PlacedItem | null {
+export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedItem[], size?: PlacedItem['size'], obstacles: Box[] = []): PlacedItem | null {
   const registered = getArchetype(kind);
   if (!registered) return null;
   // The spot is found for the real product when its size is known, not for the archetype's
@@ -136,6 +144,7 @@ export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedIt
   const placed = existing.filter((i) => i.roomId === room.id);
   const occupied: Box[] = [
     ...doorKeepouts(room, edges),
+    ...obstacles,
     ...placed
       .filter((i) => !ARCHETYPES[i.kind]?.ghost)
       .map((i) => boxFor({ position: i.position, rotation: i.rotation, size: i.size, elevationM: i.elevationM })),
@@ -167,15 +176,15 @@ function resolvePose(
   edges: PlanEdge[],
   placed: PlacedItem[],
   occupied: Box[],
-  options: { exact?: boolean } = {}
+  options: { exact?: boolean; anchors?: TechnicalAnchor[] } = {}
 ): Pose | null {
   const rule = archetype.placement;
 
   switch (rule.type) {
     case 'wall':
-      return placeAgainstWall(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.exact ?? false);
+      return placeAgainstWall(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? []);
     case 'wall-run':
-      return placeWallRun(archetype, room, edges, occupied, rule.prefer, rule.clearanceM);
+      return placeWallRun(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.anchors ?? []);
     case 'center':
       return placeCentre(archetype, room, occupied);
     case 'relative':
@@ -203,7 +212,8 @@ function placeAgainstWall(
   occupied: Box[],
   prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
   clearanceM: number,
-  exact = false
+  exact = false,
+  anchors: TechnicalAnchor[] = []
 ): Pose | null {
   const doorPoints = openingPoints(room, edges, (o) => o.kind !== 'window');
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
@@ -217,7 +227,7 @@ function placeAgainstWall(
     : [archetype.size.width];
 
   for (const width of widths) {
-    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints);
+    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors);
     if (found) return found;
   }
   return null;
@@ -236,9 +246,11 @@ function bestAlongWalls(
   prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
   clearanceM: number,
   doorPoints: Vec2[],
-  windowPoints: Vec2[]
+  windowPoints: Vec2[],
+  anchors: TechnicalAnchor[] = []
 ): Pose | null {
   const { width, depth, height } = size;
+  const anchorPoints = anchors.map((a) => a.point);
   let best: { pose: Pose; score: number } | null = null;
 
   for (const edge of edges) {
@@ -282,6 +294,10 @@ function bestAlongWalls(
       }
       if (!overlapsAny(approach, occupied)) score += 12;
 
+      // A fixture wants its pipe: the toilet by the sewer, the sink by the water. Strong
+      // enough to outweigh the wall preferences, which are about looks, not plumbing.
+      if (anchorPoints.length > 0) score += Math.max(0, 40 - minDistance(centre, anchorPoints) * 12);
+
       if (!best || score > best.score) best = { pose, score };
     }
   }
@@ -296,12 +312,20 @@ function placeWallRun(
   edges: PlanEdge[],
   occupied: Box[],
   prefer: 'longest' | 'shortest',
-  clearanceM: number
+  clearanceM: number,
+  anchors: TechnicalAnchor[] = []
 ): Pose | null {
   const { depth, height } = archetype.size;
-  const sorted = [...edges].sort((a, b) =>
-    prefer === 'longest' ? b.length - a.length : a.length - b.length
-  );
+  // The kitchen run goes on the wall the water comes to, when the plan says where that is.
+  const anchorPoints = anchors.map((a) => a.point);
+  const nearAnchor = (edge: PlanEdge) => (anchorPoints.length === 0 ? 0 : minDistance(pointOnEdge(edge, 0.5), anchorPoints));
+  const sorted = [...edges].sort((a, b) => {
+    if (anchorPoints.length > 0) {
+      const byAnchor = nearAnchor(a) - nearAnchor(b);
+      if (Math.abs(byAnchor) > 0.5) return byAnchor;
+    }
+    return prefer === 'longest' ? b.length - a.length : a.length - b.length;
+  });
 
   for (const edge of sorted) {
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);

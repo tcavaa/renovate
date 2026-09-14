@@ -624,6 +624,18 @@
       "namedRegex": "^/design/summary(?:/)?$"
     },
     {
+      "page": "/design/technical",
+      "regex": "^/design/technical(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/design/technical(?:/)?$"
+    },
+    {
+      "page": "/design/workers",
+      "regex": "^/design/workers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/design/workers(?:/)?$"
+    },
+    {
       "page": "/forgot-password",
       "regex": "^/forgot\\-password(?:/)?$",
       "routeKeys": {},

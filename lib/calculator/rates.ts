@@ -102,6 +102,12 @@ export const LABOUR_PHASE: Record<string, number> = {
   painting: 13,
   electrical_finish: 14,
   plumbing_finish: 15,
+  electrical_point: 14,
+  lighting_point: 14,
+  plumbing_point: 15,
+  radiator_install: 15,
+  ac_install: 14,
+  extractor_install: 14,
 };
 
 /**

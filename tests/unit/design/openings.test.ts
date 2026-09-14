@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addOpening, moveOpening, openingWorldPoint, projectToEdge, removeOpening, twinOf, updateOpening } from '@/lib/design/openings';
+import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingWorldPoint, projectToEdge, removeOpening, twinOf, updateOpening } from '@/lib/design/openings';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { PlanRoom } from '@/lib/design/types';
 
@@ -38,6 +38,37 @@ describe('openings', () => {
     const b = openingWorldPoint(twin!.room, twin!.opening)!;
     expect(a.x).toBeCloseTo(b.x, 5);
     expect(a.z).toBeCloseTo(b.z, 5);
+  });
+
+  it('hangs both halves of a door from the same jamb and draws one leaf', () => {
+    const rooms = flat();
+    const door = rooms[1].openings.find((o) => o.connectsToRoomId === 'hall')!;
+    const twin = twinOf(rooms, door)!.opening;
+    // Each half names the jamb from its own side of the wall; the same corner in the world.
+    expect(door.hinge).not.toBe(twin.hinge);
+    expect(door.swing).not.toBe(twin.swing);
+    expect([door, twin].filter((o) => !leafOnOtherSide(o))).toHaveLength(1);
+    // The private room's half is the one the leaf swings into.
+    expect(door.swing).toBe('in');
+
+    // A door added by hand on a shared wall gets the same treatment…
+    const hallSide = rooms[0].openings.find((o) => o.connectsToRoomId === 'bed')!;
+    const cleared = removeOpening(rooms, 'hall', hallSide.id);
+    const added = addOpening(cleared, 'hall', 'door', hallSide.wallIndex, 0.12, { t: 0.7, hinge: 'right', swing: 'in' });
+    const hallDoor = added.rooms[0].openings.find((o) => o.id === added.openingId)!;
+    const bedTwin = twinOf(added.rooms, hallDoor)!.opening;
+    expect(hallDoor.hinge).toBe('right');
+    expect(bedTwin.hinge).toBe('left');
+    expect(bedTwin.swing).toBe('out');
+
+    // …and old plans whose halves were both "left" and both "in" are put right.
+    const stale = rooms.map((r) => ({ ...r, openings: r.openings.map((o) => ({ ...o, hinge: 'left' as const, swing: 'in' as const })) }));
+    const fixed = alignTwins(stale);
+    const a = fixed.flatMap((r) => r.openings).find((o) => o.id === door.id)!;
+    const b = twinOf(fixed, a)!.opening;
+    expect(a.hinge).not.toBe(b.hinge);
+    expect(a.swing).not.toBe(b.swing);
+    expect(alignTwins(fixed)).toBe(fixed);
   });
 
   it('moves a door and its twin together, clamped away from the corners', () => {

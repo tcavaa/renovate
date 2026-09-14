@@ -27,6 +27,7 @@
     "test:solver": "tsx scripts/test-plan-solver.ts",
     "models:seed": "tsx scripts/seed-models.ts",
     "models:stock": "tsx scripts/stock-models.ts",
+    "models:fixtures": "tsx scripts/fixture-models.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",
     "db:seed:workers": "tsx scripts/seed-workers.ts",

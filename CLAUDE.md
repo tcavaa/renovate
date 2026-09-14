@@ -11,9 +11,15 @@ Georgian-language home renovation platform. Two products share one engine:
 
 1. **Renovation calculator** (built, working) — pick home state → enter rooms → auto-computed
    materials + labor estimate → pick real products from partner stores → cost summary.
-2. **Design Studio** (`/design`) — upload a 2D floor plan → parsed into rooms → pick one of
-   4 styles → a **Three.js 3D model of the apartment** is generated and furnished with
-   **real, purchasable products from partner stores**. Hover any object → store, price, link.
+2. **Design Studio** (`/design`) — one guided, eight-step journey: upload a 2D plan (or start
+   blank) → draw and check the existing house on a CAD-like board (walls as lines, doors,
+   windows, columns, beams) → mark the technical setup (water, sewer, panel, heating, AC
+   and the works needed) → a five-question style test → a **Three.js 3D model** furnished
+   with **real, purchasable products from partner stores** in a game-like build mode (bottom
+   category bar, trays, lock/unlock, undo, versions, tutorial) → sockets and lighting after
+   the furniture → materials on whole rooms, single walls or floor zones → the budget
+   (materials + products + labour, every line with a quantity) → the team of workers.
+   Hover any object → store, price, link.
 
 The differentiator: other home-design apps show generic furniture. Here every object in the
 3D scene is a real SKU with a price and a shop you can buy it from.
@@ -62,6 +68,7 @@ pnpm models:convert # partner OBJ exports → textured, compressed, validated GL
 pnpm models:convert --only=woody-bed,node-sofa   # redo a few; merges into the manifest
 pnpm models:stock   # CC0 stock furniture (Poly Haven + Kenney) → public/models/stock + manifest.json
 pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write nothing
+pnpm models:fixtures # the electrical layer's 3D fittings (sockets, switch, wall lamp, bulb) → public/models/fixtures
 pnpm models:seed    # one product per model in both manifests; deletes every other placeable product
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
@@ -95,12 +102,14 @@ app/
     page.tsx                       landing
     calculator/                    step 1 (home state + rooms)
       materials/ catalog/ furniture/ summary/     steps 2–5
-    design/                        ⟵ Design Studio (2D plan → 3D)
-      page.tsx                     mode + plan upload
-      plan/                        parsed-plan review & correction
-      style/                       style + budget picker
-      studio/                      the 3D studio (main screen)
-      summary/                     shopping list per store
+    design/                        ⟵ Design Studio, eight steps (DesignSteps / DESIGN_STEP_HREFS)
+      page.tsx                     1 plan: upload / blank sheet / calculator rooms, wall defaults, mode
+      plan/                        2 the existing house on the 2D board (walls, doors, windows, columns, beams)
+      technical/                   3 technical points + works checklist + suggestions
+      style/                       4 style test (StyleQuiz) or a direct pick, budget, generate
+      studio/                      5 the 3D studio (build mode); 6 = the same page with ?tool=finishes
+      summary/                     7 the budget: materials + products + labour, quantities per line
+      workers/                     8 the trades the budget needs, with workers to book
     catalog/[slug]  workers/  about/  contact/  profile/  privacy/  terms/
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
@@ -117,10 +126,17 @@ app/
 components/
   ui/          button card input select dialog accordion badge label skeleton textarea tabs
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu
-  calculator/  StepIndicator HomeStateSelector RoomForm RoomList RoomLayoutEditor MaterialsTable SummaryCard
-               CalculatorAutosave
-  design/      DesignSteps PlanCanvas PlanUploadCard StylePicker Viewer3D ItemCard SwapPanel
-               OpeningsPanel AddFurniturePanel FinishPanel StudioRail StudioControls PhotoDialog DesignAutosave
+  calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard CalculatorAutosave
+  plan/        PlanEditor (the 2D board, canvas) · PlanWorkspace (editor + toolbar wired to the store)
+               PlanToolbar (Sims-style tool tiles, thickness, kinds, layers) · ElementInspector
+               RoomsPanel · draw.ts (canvas routines) · palette.ts (room tints, origin and system colours)
+               icons.ts (one icon per technical system and electrical kind)
+  studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray · archetypeIcons
+               Trays (build / electric / finishes / budget) · StudioTopBar · TutorialOverlay (spotlight tour)
+               NavHelp · VersionsPanel
+  flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief (what / why / need / change / next)
+  design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D ItemCard SwapPanel
+               FinishPanel StudioControls FloatingPanel HoverCard PhotoDialog DesignAutosave WalkControls
   auth/        AuthForm PartnerRegisterForm
   partner/     PartnerSidebar WorkerServiceFields WorkerSelfForm
   admin/       ProductForm (also used by the partner portal) StoreForm WorkerForm PartnerApproval ModelUploader …
@@ -132,20 +148,24 @@ lib/
                (layout editor snapping) · saveProject.ts (client) · types.ts
   design/      types.ts · styles.ts · catalog.ts (archetypes + room programs) · planParser.ts
                planGeometry.ts · planImage.ts (browser) · planPdf.ts (browser) · autoLayout.ts · matcher.ts
-               pricing.ts · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
-               saveDesign.ts (client) · aiPlan.ts · planSolver.ts · measure.ts (the AI reading path)
-  design3d/    materials.ts · primitives.ts · buildScene.ts · outline.ts · daylight.ts · modelPreview.ts
+               pricing.ts (budget lines) · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
+               walls.ts (walls ⇄ rooms) · drawing.ts (snapping, hit tests) · technical.ts · electrical.ts
+               styleQuiz.ts · zones.ts (per-wall and floor-zone finishes) · history.ts (undo) · trades.ts
+               technicalRates.ts (estimates) · saveDesign.ts (client) · aiPlan.ts · planSolver.ts · measure.ts
+  design3d/    materials.ts · primitives.ts · buildScene.ts · buildStructure.ts (free walls, columns, beams,
+               fittings, zones, lights) · modelLoader.ts (GLB cache, furniture and fixtures) · fixtureManifest.ts
+               (generated) · outline.ts · daylight.ts · modelPreview.ts
   db/          schema.ts · index.ts (mysql2 pool + drizzle) · migrations/
   i18n/        ka.ts (primary) en.ts ru.ts client.tsx server.ts labels.ts index.ts
   validations/ zod schemas per entity (partner.schema.ts = self-registration + worker self-edit)
   utils.ts     cn() formatGEL() formatM2() formatUnit() slugify()
 store/         calculatorStore.ts · designStore.ts
 hooks/         useProducts · useCategories · useCalculator · useWorkers · useDesignCatalog · useAutosave
-scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · seed-models.ts
+scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · fixture-models.ts · seed-models.ts
                lib/objGroups.ts · lib/textureClassify.ts · extract-assets.sh · test-plan-*.ts
 public/
   uploads/products/  uploads/furniture/  uploads/stores/  uploads/plans/  uploads/renders/
-  textures/  models/  samples/plan-2br.png  vendor/pdf.worker.min.mjs (pdf.js, served same-origin for the CSP)
+  textures/  models/ (partner, stock, fixtures)  samples/plan-2br.png  vendor/pdf.worker.min.mjs (pdf.js, same-origin for the CSP)
 ```
 
 ---
@@ -161,7 +181,7 @@ public/
 | `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified, **`approvalStatus`** (as for stores) |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
-| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` = autosaved or guest / `saved` = confirmed with the save button / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json**, **`scene` json** |
+| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` = autosaved or guest / `saved` = confirmed with the save button / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json** (rooms + `walls`, `columns`, `beams`, `technical`), **`scene` json** (items, finishes incl. per-wall and zones, `electrical`, `styleProfile`), **`versions` json** (`DesignVersion[]`, migration 0006) |
 | `project_renders` | projectId (cascade), userId, `sourceUrl` (the studio's own screenshot, stored at once), `renderUrl` (filled when the realistic render exists), status `queued` → `processing` → `ready` / `failed`, `roomName`, `camera` json |
 | `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
 | `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
@@ -371,6 +391,157 @@ upload image (browser)
   → pricing.ts           scene → cost breakdown grouped by partner store
 ```
 
+### Walls are lines; rooms are what they enclose (`lib/design/walls.ts`)
+
+The plan's source of truth is `plan.walls`: centreline segments with a thickness (10 / 12 /
+15 / 20 / 25 cm offered, any value stored), an optional height and material, and an
+`origin` (`existing` / `user` / `generated`). `roomsFromWalls` splits the walls at every
+junction (crossings, T-junctions, ends that stop a hair short — `NODE_TOL_M`), prunes dead
+ends, traces the faces of the planar graph (at each junction take the first edge clockwise
+from the one arrived along; faces with positive area are rooms) and offsets each face
+inwards by half of each wall's thickness — so a room's `polygon` is still the inner floor
+every downstream module already understands, and `room.wallIds` says which wall each edge
+lies on. Rooms keep their identity across edits: a re-derived face takes over the previous
+room whose centroid it contains (ids, names, types, heights, doors re-projected by world
+position). `wallsFromRooms` goes the other way for plans that arrive as polygons (the
+parser, Claude, the calculator, old saves): facing edges of neighbours merge into one wall
+as thick as the gap between them, exterior edges get the default thickness outside, and
+vertices are moved onto the crossings of the centrelines so the graph is watertight.
+`ensureWalls` is what `setPlan` and `openSaved` call. Every wall edit in the store —
+`addWall` (merges collinear pieces), `offsetWall` (sideways along `wallNormal`, connected
+walls follow), `moveWallNode`, `removeWall`, `updateWall` — ends in `rebuildRooms`, which
+also re-homes furniture whose room merged away and re-projects the electrical points.
+`orphanWallSegments` are the pieces of wall that bound no room; the 3D view draws them as
+free-standing walls. Tested in `tests/unit/design/walls.test.ts`; touching rooms from an
+old calculator layout lose half a thickness on the shared wall, by design.
+
+### The 2D board (`components/plan/PlanEditor.tsx`)
+
+One canvas, one tool in hand: `select`, `pan`, `wall` (click, click, click; Esc, Enter or a
+right click ends the run; Shift frees the angle), `room` (a rectangle whose inside is
+exactly what was drawn; four walls around it), `door` / `window` (dropped on the nearest
+room edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`.
+`lib/design/drawing.ts` does the snapping — junction, then a point on a wall, then the axis
+lock, then alignment with any junction's x or z, then the 5 cm grid (1 cm with Shift) — and
+reports the guides the board draws. The select tool drags a wall sideways, its ends as
+handles, a door along or onto another wall, columns and points freely, and furniture
+footprints with `snapPlacement`; Delete removes the selection. `locked` keeps the structure
+pickable but immovable. The editor owns only pan/zoom (wheel zooms about the pointer, Space
+or the middle button pans; the view refits on resize until the person moves it) and the
+gesture in progress — everything else is the store's, through callbacks. `PlanWorkspace`
+wires it to the store with the toolbar and the hint line; the design flow's steps 2 and 3,
+the studio's 2D view and the calculator's first step (`useCalculatorPlan` keeps the
+calculator's `rooms` read off the plan) all use it. The transform is exposed on the canvas
+as `data-scale` / `data-offset-x/y` for tests.
+
+Three things the board does *not* do, each a correction from the architect's review: it
+never recentres itself after an edit (the view refits only when a different plan arrives —
+`designStore.planSerial`, bumped by `setPlan`, `openSaved`, `startFromCalculator`, `reset`
+— and a blank sheet opens at about a hundred square metres with the origin near the top
+left); a room rectangle snaps onto the wall that runs *alongside* it, never onto one that
+only meets its corner (`snapRectangle` ranks candidates by overlap, and the preview shows
+the snapped rectangle while it is dragged — before this a room drawn beside a flat with a
+12 cm jog got a doubled wall a hand apart); and Ctrl+Z / Ctrl+Y work on the board itself
+(`PlanEditor.onUndo/onRedo`, wired by `PlanWorkspace` unless `keyboardUndo={false}` — the
+studio handles the keys page-wide). The sheet's corner shows the flat's total area and
+room count (`showTotals`).
+
+### Technical setup (`lib/design/technical.ts`), electrical (`lib/design/electrical.ts`)
+
+Technical points (`water_supply`, `sewer`, `floor_drain`, `electrical_panel`, `gas`,
+`radiator`, `ac_unit`, `extractor`, `boiler`, `heating_pipe`) live in `plan.technical` with
+the works checklist (`WORK_ITEMS`, keyed to the calculator's phases; `effectivePhases`
+replaces the home state's phase list when works are ticked — `calculateMaterials` /
+`calculateWorkerCosts` / `buildProjectSummary` take the override as their last argument).
+`technicalAnchors` feeds the layout engine (`LayoutOptions.anchors`): a fixture scores up
+to +40 for standing near the point it needs, and a kitchen run takes the wall the water
+comes to; `LayoutOptions.obstacles` keeps furniture off the columns. `technicalSuggestions`
+is the hint list on step 3 (toilet far from the sewer, radiator on an interior wall, no
+extractor in a bathroom). The step offers the kinds as a grid of icon tiles that is always
+on screen (`components/plan/icons.ts` is the one icon per system, shared with the toolbar
+and the inspector): a tile arms the point tool with that kind and stays armed until it is
+clicked again, and a click on a point already placed picks it up instead of stacking
+another. The works checklist is three collapsible groups by the stage the works take the
+house through (`WORK_STAGES`: black → white frame, white → green, green → moving in), each
+with an all / none toggle.
+
+Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wall +
+position, height, outlets, on/off, a lighting `category`). `suggestElectrical` places them
+from the furniture with the usual heights — 45 cm sockets, 60 cm bedside, 115 cm above a
+90 cm worktop, 170 cm high sockets, 105 cm switches by the handle side of every door, one
+main light per room — and never touches points marked `origin: 'user'`; `generate` re-runs
+it. `placeElectrical` snaps a hand-placed point to the nearest wall; `reprojectElectrical`
+follows moved walls; `slideAlongWall` moves one along the wall it is on (the inspector's
+slider and its 5 cm nudges). In 3D each point is one group standing at its spot
+(`buildFitting`): real models where there are any — `public/models/fixtures`, written by
+`pnpm models:fixtures` from Poly Haven (CC0: the wall lamp, the bare LED bulb of a ceiling
+point) and poly.pizza (CC-BY 3.0, credited in the manifest: the EU socket, the switch) —
+and small procedural pieces otherwise (spots, strips); a double socket is two plates side
+by side; a ceiling point under a hanging lamp from the catalogue shows only its rose. The
+lights that are on become point lights (`lightsFrom`; at night they replace the per-room
+lamps). With one room in focus, the other rooms' fittings, lights and tight-passage
+outlines are left out along with their furniture.
+
+### Style test (`lib/design/styleQuiz.ts`), zones (`zones.ts`), versions and undo
+
+Five questions × four answers, each weighted towards a style; ties go to the palette
+answer. The result is `scene.styleProfile`; picking a plate directly marks `direct`.
+
+A finish is still `SurfaceFinish`, now with `wallIndex` (one wall) or `zone` (a floor
+patch, a polygon clipped to the room by Sutherland–Hodgman — half a room, a strip along a
+wall, or a rectangle drawn in 2D with the zone tool). `wallFinishFor` resolves a wall to
+its own finish or the room's base; `finishCoverage` is the "m² per material" list; the
+budget prices each wall and zone by its own area. `findFinish` in the builder only ever
+returns the *base* finish.
+
+The store records a snapshot (plan, items, finishes, electrical) before every change
+(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`. `versions` keeps whole
+snapshots: `ensureExistingVersion` writes version 01 (the existing house) when step 2 is
+left and again when the studio first opens; the working state is the implicit "modified
+house"; `saveVersion` keeps a named one; `restoreVersion` keeps the present first. Versions
+are persisted locally and in `projects.versions`.
+
+### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
+
+`priceScene` now returns `lines` — one `BudgetLine` per product, finish (m²), door or
+window (estimated: `OPENING_ESTIMATE_GEL`, a pair of interior door halves counted once),
+electrical kind (materials + per-point labour from the rate book: `electrical_point`,
+`lighting_point`), technical point (`TECHNICAL_RATES`: `plumbing_point`, `radiator_install`,
+`ac_install`, `extractor_install`), bulk material and labour line — plus `openingsTotal`,
+`technicalTotal`, `lightingTotal` and `coverage`. In `design_only` mode only what the person
+added (`origin: 'user'`) is new work; in `full` mode the ticked phases decide.
+`budgetSummary` folds the lines into materials + products + labour; `budgetSections`
+into the sections the budget page lists. `tradesNeeded` maps the labour keys to the six
+worker specialties for step 8.
+
+### The studio's build mode (`app/(main)/design/studio/page.tsx`)
+
+Full-bleed canvas; the categories are a rail of tiles down the left (`CategoryRail`, above
+the rooms list) and the open category's tray runs along the bottom (`Tray`), one at a time
+— build (tools + thickness + the unlock button; a drawing tool switches to the 2D view),
+furniture (the catalogue as a shelf of small tiles — a picture and a price, kinds as icons
+— click to carry or drag into 3D), electric & light (icon tiles that arm a click on the 3D
+floor or drag into it, suggest / clear), finishes (scope: whole room, this wall, half the
+floor, a drawn zone), budget (totals at a glance). Dragging from a tray is shown live: a
+product is put on the pointer in 3D the moment it crosses the canvas (`beginAdd`, then
+`ViewerApi.moveCarriedTo`) and set down on drop; a fitting shows a ghost snapped to the
+nearest wall (`previewElectricalAt`) and is added on drop. Placed fittings drag along the
+walls of their room in 3D (hopping to the nearest wall) and are re-projected on release.
+The top bar carries the room chip, undo/redo, the view switch, day/night, photo, the
+structure lock, versions, help and the next step. A tap on any floor or wall opens the
+finishes for it whatever category is open. `editMode` follows the category (`build` picks walls, columns, beams and,
+when unlocked, drags walls along their normal with a ghost slab; `electrical` drags
+fittings; `finishes` clicks surfaces with their `wallIndex`). The right panel is the item
+card (rotate, mirror, duplicate, lock, alternatives), the element inspector, the finish
+picker or the versions list. The tour (`TutorialOverlay`, eight cards, remembered in
+localStorage) opens on the first visit and lights up what each card talks about — the
+target is found by a `data-tour` attribute (`rail-furniture`, `lock`, `navhelp`,
+`history`…), everything else is dimmed and blurred, and the card sits beside it; the page
+opens what a step points at (`onStep`). `NavHelp` keeps the controls on screen: drag turns
+(either button), the middle button pans, Space + drag pans, Shift + drag dollies, WASD
+slides, 1 / 2 / 3 switch views, R turns, M mirrors, Ctrl+C / V / D copy, paste and
+duplicate, Delete deletes, Esc clears.
+
 **Step 1 asks before it assumes** (`app/(main)/design/page.tsx`). Nothing leaves the page
 until the one continue button at the bottom: an uploaded plan waits in page state
 (`PlanUploadCard` with `showContinue={false}` hands the plan over as soon as the area is
@@ -521,26 +692,30 @@ cuts a twin when the chosen wall is shared (and refuses a window there). Writing
 found a real bug in `deriveOpenings`: the shared run is measured in plan order but applied in
 id order, so when the two disagreed each door landed on the wrong wall of its room.
 
-The same editing exists on the **plan review step** (`/design/plan`), where the 2D plan is
-the editor. `PlanCanvas` hit-tests the door and window segments (a few CSS px around the
-line) and a press starts a drag that can end in three places: along the same wall
-(`onMoveOpening`), on **any wall of any room** (`onMoveOpeningToWall` →
-`openings.moveOpeningToWall`, which slides when the wall is the same or its twin's copy and
-otherwise cuts the opening out and in again with its size kept, so it gets a new id), or on
-the bin the page shows while dragging (`trashRef` + `onRemoveOpening`). The wall under the
-pointer is `nearestWall`: inside a room, the nearest of that room's walls; outside every
-room, the nearest wall within reach. A palette beside the plan (`OpeningPalette`, one door
-and one window, HTML5 drag and drop) drops new openings the same way (`onDropOpening` →
-`addOpening` with an explicit `t`); a window let go on a shared wall is refused and the page
-says so. The selected room's openings sit under the plan as small cards four to a row —
-`OpeningsPanel` with `layout="grid"` and `showRoomSelect={false}`; the studio keeps the
-`list` layout for its narrow floating panel, where the panel opens on the **whole flat** —
-every room under its name with its own add buttons — and narrows to one room when one is
-picked; `roomId: null` means the flat, and every handler carries the room id explicitly.
+The same editing exists on the 2D board (`PlanEditor`, see "The 2D board" above): a press
+on a door or window starts a drag that can end along the same wall (`onMoveOpening`) or on
+**any wall of any room** (`onMoveOpeningToWall` → `openings.moveOpeningToWall`, which slides
+when the wall is the same or its twin's copy and otherwise cuts the opening out and in again
+with its size kept, so it gets a new id); the door and window tools drop new openings on the
+nearest wall (`nearestWall`: inside a room, the nearest of that room's walls; outside every
+room, the nearest wall within reach); a window let go on a shared wall is refused and the
+page says so.
+
+**The two halves of an interior door describe one leaf.** Each room's edge runs the other
+way along the shared wall, so the jamb that is `hinge: 'left'` from one room is `'right'`
+from the other, and a leaf that swings `'in'` to one room swings `'out'` of the other.
+`addOpening` and `deriveOpenings` write the twin mirrored (`mirrorHinge`/`mirrorSwing`),
+`updateOpening` mirrors an edited hinge or swing onto the twin, `alignTwins` (run by
+`ensureWalls`, so every plan taken in is put right) repairs plans from before, and the half
+whose swing is `out` draws no leaf in 2D or 3D (`leafOnOtherSide`) — its twin, swinging
+into the room the door opens into, does. Before this both halves hung "left" (the opposite
+corners) and both swung "in", and one door showed two leaves. The `ElementInspector` edits the selected opening — width, height, sill,
+material, hinge side, swing direction, the open angle shown in 3D — and offers a door, a
+window or a plain opening on the selected wall.
 
 ### Adding furniture in the studio
 
-The items tab's "add furniture" opens a catalogue browser (search, archetype, style chips)
+The furniture tray (`FurnitureTray`) is the catalogue browser (search, archetype, style chips)
 scoped to the focused room. `designStore.beginAdd` creates the item with the product's real
 size — `placeAdditional` finds a free spot when there is one (a wall first, then any free
 floor; never a narrowed slot, which is how a 1.9 m cabinet used to land on its neighbours),
@@ -668,20 +843,17 @@ line drawn across both while it snaps. Stationary rooms never move; the tests in
 `tests/unit/calculator/layout.test.ts` pin the rules. The same editor serves the studio's
 step 1.
 
-The calculator starts from the plan, not the home state: upload a 2D plan, enter rooms by
-hand, or draw one — three tabs in a row, the home state below. Every room carries an optional
-`x`/`z` (top-left, metres) on the plan: an uploaded plan sets it from the room outline, a typed
-room takes the first free spot (`findFreeSpot` in `lib/calculator/layout.ts`), a drawn
-rectangle keeps where it was drawn. `RoomLayoutEditor` is the SVG grid the rooms move on
-(drag, 25 cm snap, overlap warning; drag on empty space draws in draw mode) and `RoomList`
-edits name and type in place and reorders with arrows. `planFromCalculatorRooms` uses those
-positions when every room has them and only falls back to the strip layout otherwise, so the
-layout the user arranged is the one the 3D step builds. The selected room grows handles:
-corners scale it proportionally about the opposite corner, sides change one dimension
-(`onResize` → `computeRoomAreas` again). **A re-uploaded plan is a new project**:
-`replaceRooms` drops every product and furniture pick along with the rooms; `setRooms` only
-prunes furniture of rooms that vanished. `/design` offers the same three tabs; typed and drawn
-rooms live in page state there until "continue" turns them into the plan.
+The calculator starts from the plan, not the home state: upload a 2D plan or draw one on the
+same board the studio uses (`PlanWorkspace` with the wall, room, door and window tools),
+the home state below. The plan lives in the design store; `useCalculatorPlan` reads the
+calculator's `rooms` off it after every edit (`calculatorRoomsFromPlan`: width and depth
+from the outline, `x`/`z` from its corner) and rebuilds the plan from the calculator's rooms
+when they belong to a different flat. A room typed by size (`RoomsPanel`) becomes four walls
+at the first free spot a wall's thickness clear of the rest (`findFreeSpot` in
+`lib/calculator/layout.ts`). **A re-uploaded plan is a new project**: `replaceRooms` drops
+every product and furniture pick along with the rooms; `setRooms` only prunes furniture of
+rooms that vanished. The summary's "start over" empties both stores (the plan lives in the
+design store) and returns to step 1, confirming first when no project row exists yet.
 
 ### One project, both halves (`lib/api/projectSave.ts`, `lib/projects/saved.ts`)
 
@@ -1083,6 +1255,15 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 
 ## Known gaps / roadmap
 
+- New walls are drawn in the 2D view only; in 3D a wall can be selected, unlocked and
+  dragged sideways, not drawn. Floor zones are likewise drawn in 2D (half-room and
+  whole-wall scopes work from 3D). Beams are not obstacles for the layout engine.
+- The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
+  room programs, `snapPlacement` and the footprints assume right angles).
+- Estimates for doors, windows, sockets, pipes and fittings (`lib/design/technicalRates.ts`)
+  are market averages, not products; a product chosen from the catalogue replaces them.
+- The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
+
 - Uploads are local disk; S3 planned. No PDF export. No SMS.
 - The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
 - **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
@@ -1149,20 +1330,24 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   `overflow-clip`, which does not create a scroller.
 - **Landing** (`components/landing/*`): every image and figure is live data — the product wall
   and the floating price chips are real catalogue rows, the stats are database counts.
-- **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats.
-  `StudioRail` opens one `FloatingPanel` at a time; `ViewSwitch` (2D / 3D / walk) and
-  `ZoomControls` drive the viewer through the `ViewerApi` it hands back via `onApi`.
-  Shortcuts: 1 / 2 / 3 switch views, R rotates the selection, Esc clears it; walk mode moves
-  on WASD / arrows. **Keys are matched on `event.code`**, never `event.key`: on a Georgian
-  layout W types წ, and matching the character left the viewer standing still. The rail has
-  five tabs: rooms, doors & windows, furniture (with the add-furniture browser), finishes, cost.
+- **Studio** (`app/(main)/design/studio/page.tsx`): full-bleed canvas, everything else floats
+  — see "The studio's build mode" above. `ViewSwitch` (2D / 3D / walk) and `ZoomControls`
+  drive the viewer through the `ViewerApi` it hands back via `onApi`. **Keys are matched on
+  `event.code`**, never `event.key`: on a Georgian layout W types წ, and matching the
+  character left the viewer standing still.
+- **Build-mode surfaces** (the eight-step flow and the studio) use rounded panels
+  (`rounded-[12px]`…`[20px]` arbitrary values, since the theme's radius scale is collapsed),
+  frosted white bars and big icon tiles with labels; room tints, origin colours (existing
+  ink / changed terracotta / generated teal) and technical-system colours live in
+  `components/plan/palette.ts`. The editorial site outside the flow keeps sharp corners.
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
-- **Corners are sharp.** The Tailwind radius scale is collapsed to 0–4 px, so `rounded-2xl`
-  in an older component renders as a crisp edge; do not reach for `rounded-full` on buttons,
-  chips or panels — it is reserved for things that are genuinely circles (avatars, colour
-  dots, the rotating badge). Cards are flat: hairline `border-line`, no shadow. The primary
-  button is `variant="ink"` (near-black, terracotta on hover).
+- **Corners are sharp outside the build mode.** The Tailwind radius scale is collapsed to
+  0–4 px, so `rounded-2xl` in an older component renders as a crisp edge; do not reach for
+  `rounded-full` on buttons, chips or panels — it is reserved for things that are genuinely
+  circles (avatars, colour dots, the rotating badge). Cards are flat: hairline `border-line`,
+  no shadow. The primary button is `variant="ink"` (near-black, terracotta on hover). The
+  design flow and the studio are the deliberate exception (see "Build-mode surfaces").
 - **Step flows** (`components/flow/*`): both journeys — calculator and studio — are built from
   the same parts. `StepStrip` is the numbered index under the header (`StepIndicator` and
   `DesignSteps` are thin wrappers that supply labels and hrefs); `StepHeader` is the
