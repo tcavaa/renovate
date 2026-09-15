@@ -1101,11 +1101,18 @@ Each of these cost real debugging time. Don't undo them.
 12. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group keyed on plan,
     finishes and style. Rebuilding everything on every drag was the studio's biggest stutter.
-13. **Shared walls are extruded to the middle.** Each room extrudes its own walls outwards
-    by the wall thickness, and two rooms either side of one wall sit a thickness apart — so a
-    full-depth extrusion from each put room A's outer face exactly on room B's inner face,
-    and the two colours z-fought, flicking as the camera turned. `isSharedWithAnyRoom`
-    halves the depth for interior walls so the halves meet on a plane nobody sees.
+13. **Shared walls are extruded to the middle, and each half's far face wears the
+    neighbour's finish.** Each room extrudes its own walls outwards by the wall thickness,
+    and two rooms either side of one wall sit a thickness apart — so a full-depth extrusion
+    from each put room A's outer face exactly on room B's inner face, and the two colours
+    z-fought, flicking as the camera turned. `sharedNeighbourOf` halves the depth for
+    interior walls so the halves meet on a plane nobody sees while both stand. The cutaway
+    hides one half at a time, though, and then the other half's face on that middle plane is
+    what the camera sees from the first room — so `buildWall` splits ExtrudeGeometry's lid
+    group (the z = 0 lid comes first, then the z = depth lid, equal counts) and paints the far
+    lid with the neighbour's wall material (`wallMaterialFor`, `facingEdgeOf`). Before this
+    the bathroom's tiles showed up on the living-room side of the wall whenever the living
+    room's half was cut away.
 14. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
     visibility, so a cut-away wall still caught every click aimed at the sofa behind it.
     Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
