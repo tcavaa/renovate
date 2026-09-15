@@ -146,6 +146,9 @@ Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@re
 | `pnpm db:seed:design` | Seed partner stores + the design categories |
 | `pnpm assets:extract` | Pull renders and PBR textures out of the partner 3D asset drop |
 | `pnpm models:convert` | Convert partner OBJ exports into textured, compressed, validated GLBs (`--only=a,b` to redo some) |
+| `pnpm models:fixtures` | The fittings (sockets, switches, lamps) and the doors and windows from Poly Haven and poly.pizza → `public/models/fixtures` |
+| `pnpm models:photos` | Render a product photo of each of those from its model (Playwright's Chromium) |
+| `pnpm deploy:bundle-seed` | Bundle `models:seed` into one plain-node file beside the standalone server (the cPanel workflow runs it) |
 | `pnpm models:stock`   | Fetch and convert CC0 stock furniture (Poly Haven + Kenney) into `public/models/stock` |
 | `pnpm models:seed`    | One product per model in both manifests; deletes every other placeable product |
 | `pnpm textures:stock` | Download floor/wall textures and create or update the surface products |

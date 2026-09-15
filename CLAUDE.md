@@ -389,7 +389,7 @@ upload image (browser)
   → planGeometry.ts      polygons → wall edges, inward normals, doors, windows
   → autoLayout.ts        room program + placement rules → placed furniture, collision-checked
   → matcher.ts           each slot ← a real product, scored on style tag + budget tier (client-side)
-  → buildScene.ts        rooms + placements → THREE.Group (walls procedural; furniture = partner GLBs only)
+  → buildScene.ts        rooms + placements → THREE.Group (walls and floors from the plan; every object a GLB)
   → Viewer3D             orbit or walk; hover shows store + price; drag/rotate/swap furniture
   → manipulate.ts        snapping, collision and walkability for everything the user moves
   → pricing.ts           scene → cost breakdown grouped by partner store
@@ -545,7 +545,7 @@ are persisted locally and in `projects.versions`.
 ### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
 
 `priceScene` now returns `lines` — one `BudgetLine` per product, finish (m²), door or
-window (estimated: `OPENING_ESTIMATE_GEL`, a pair of interior door halves counted once),
+window (its product, else an estimate — `OPENING_ESTIMATE_GEL`; a pair of interior door halves counted once),
 electrical kind (materials + per-point labour from the rate book: `electrical_point`,
 `lighting_point`), technical point (`TECHNICAL_RATES`: `plumbing_point`, `radiator_install`,
 `ac_install`, `extractor_install`), bulk material and labour line — plus `openingsTotal`,
@@ -572,7 +572,7 @@ fitting shows a ghost snapped to the nearest wall (`previewElectricalAt`) and is
 drop. Placed fittings drag along the walls of their room in 3D (hopping to the nearest
 wall) and are re-projected on release. The top bar carries the room chip, undo/redo, the
 view switch, day/night, photo, the structure lock, versions, help and the next step.
-Whatever opens on the right — the item card, the fitting card, the inspector, the versions
+Whatever opens on the right — the item card, the fitting card, the door or window card, the inspector, the versions
 — is an overlay (`z-40`) the full height of the studio, scrolling inside itself under its
 alternatives drawer: nothing is pushed aside for it; the help card and zoom sit above the
 top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row. A tap on a
@@ -1038,7 +1038,8 @@ the finish panel say which. A studio choice always outranks a calculator one.
 
 Only products with a 3D model or a texture are on sale in the calculator's catalogue:
 `pnpm models:seed` deactivates everything else in the furniture, sanitary, lighting and
-surface categories (doors, windows and sockets have no 3D counterpart and are left alone).
+surface categories (the doors, windows and sockets & switches categories are left alone: the
+base seed's plain products there stay on sale beside the modelled ones).
 
 ---
 
