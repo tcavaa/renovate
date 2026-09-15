@@ -13,6 +13,13 @@ import { cn, formatGEL } from '@/lib/utils';
 import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { ELECTRICAL_ICON } from '@/components/plan/icons';
+import { emptyDragImage } from './dragImage';
+import Image from 'next/image';
+import { Check } from 'lucide-react';
+import { useLocale } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
+import { pricePerM2 } from '@/lib/design/surfaces';
+import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ElectricalKind } from '@/lib/design/types';
 import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
@@ -93,6 +100,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
                 e.dataTransfer.setData(ELECTRICAL_DRAG_TYPE, k);
                 e.dataTransfer.setData('text/plain', electricalLabel(t, k));
                 e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setDragImage(emptyDragImage(), 0, 0);
                 onKind(k);
                 onDragKind?.(k);
               }}
@@ -135,37 +143,87 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
 }
 
 export type FinishScope = 'room' | 'wall' | 'zone' | 'half-left' | 'half-right' | 'half-top' | 'half-bottom';
+export type FinishSurface = 'floor' | 'wall';
 
-export function FinishesTray({ scope, onScope, hasWall, roomName, in3d, onGo2d }: { scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; in3d: boolean; onGo2d: () => void }) {
+/**
+ * The finishes as a shelf, like the furniture: floor or walls, where it goes (the whole
+ * room, this wall, half the floor, a drawn zone), then the swatches — every catalogue
+ * product with a texture for that surface, priced per square metre — with the style's
+ * default first. A click applies it where the scope says.
+ */
+export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, in3d, onGo2d, options, currentId, onPick }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; in3d: boolean; onGo2d: () => void; options: CatalogProduct[]; /** The product on the target now; null for the style default, 'mixed' when the rooms differ. */ currentId: number | null | 'mixed'; onPick: (product: CatalogProduct | null) => void }) {
   const t = useT();
-  const chips: Array<{ id: FinishScope; label: string; disabled?: boolean }> = [
-    { id: 'room', label: t.build.applyRoom },
-    { id: 'wall', label: t.build.applyWall, disabled: !hasWall },
-    { id: 'half-left', label: `${t.build.applyHalf} · ${t.build.halfLeft}` },
-    { id: 'half-right', label: `${t.build.applyHalf} · ${t.build.halfRight}` },
-    { id: 'half-top', label: `${t.build.applyHalf} · ${t.build.halfTop}` },
-    { id: 'half-bottom', label: `${t.build.applyHalf} · ${t.build.halfBottom}` },
-    { id: 'zone', label: t.build.applyZone },
-  ];
+  const locale = useLocale();
+  const chips: Array<{ id: FinishScope; label: string; disabled?: boolean }> =
+    surface === 'wall'
+      ? [
+          { id: 'room', label: t.build.applyRoom },
+          { id: 'wall', label: t.build.applyWall, disabled: !hasWall },
+        ]
+      : [
+          { id: 'room', label: t.build.applyRoom },
+          { id: 'half-left', label: `${t.build.applyHalf} · ${t.build.halfLeft}` },
+          { id: 'half-right', label: `${t.build.applyHalf} · ${t.build.halfRight}` },
+          { id: 'half-top', label: `${t.build.applyHalf} · ${t.build.halfTop}` },
+          { id: 'half-bottom', label: `${t.build.applyHalf} · ${t.build.halfBottom}` },
+          { id: 'zone', label: t.build.applyZone },
+        ];
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-        {t.build.applyTo} {roomName && <span className="ml-1 normal-case tracking-normal text-ink">{roomName}</span>}
-      </p>
-      <div className="flex flex-wrap gap-1" role="radiogroup">
-        {chips.map((c) => (
-          <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} onClick={() => onScope(c.id)} className={cn('h-8 rounded-[8px] px-2.5 text-[11px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
-            {c.label}
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-[8px] bg-sand-light p-0.5" role="tablist" aria-label={t.design.finishesTitle}>
+          {(['floor', 'wall'] as const).map((s) => (
+            <button key={s} type="button" role="tab" aria-selected={surface === s} onClick={() => onSurface(s)} className={cn('h-7 rounded-[7px] px-3 text-[11px] font-semibold transition-colors', surface === s ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}>
+              {s === 'floor' ? t.design.finishFloor : t.design.finishWall}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.applyTo}</span>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.build.applyTo}>
+          {chips.map((c) => (
+            <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} onClick={() => onScope(c.id)} className={cn('h-7 rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        {scope === 'zone' && in3d && (
+          <button type="button" onClick={onGo2d} className="h-7 rounded-[7px] bg-brand px-2.5 text-[10px] font-semibold text-white hover:bg-brand-dark">
+            {t.build.goTo2d}
           </button>
-        ))}
+        )}
+        <span className="ml-auto truncate text-[10px] text-ink-muted">
+          {roomName ?? t.design.finishForAllRooms}
+          {areaLabel ? ` · ${areaLabel}` : ''}
+        </span>
       </div>
-      {scope === 'zone' && in3d && (
-        <button type="button" onClick={onGo2d} className="h-8 rounded-[8px] bg-brand px-3 text-[11px] font-semibold text-white hover:bg-brand-dark">
-          {t.build.goTo2d}
-        </button>
-      )}
-      <p className="w-full text-[11px] text-ink-muted">{scope === 'zone' ? t.build.zoneDrawHint : t.design.finishHint}</p>
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <SwatchTile label={t.design.finishDefault} active={currentId === null} onClick={() => onPick(null)} />
+        {options.map((p) => (
+          <SwatchTile key={p.id} label={localizedName(locale, p)} price={`${formatGEL(pricePerM2(p))}/${t.design.finishPerM2}`} textureUrl={p.textureUrl} active={currentId === p.id} onClick={() => onPick(p)} />
+        ))}
+        {options.length === 0 && <p className="py-4 text-xs text-ink-muted">{t.design.noAlternatives}</p>}
+      </div>
+      <p className="text-[10px] leading-snug text-ink-muted">{scope === 'zone' ? t.build.zoneDrawHint : t.design.finishHint}</p>
     </div>
+  );
+}
+
+function SwatchTile({ label, price, textureUrl, active, onClick }: { label: string; price?: string; textureUrl?: string | null; active: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title={label} aria-pressed={active} className={cn('flex w-[84px] shrink-0 flex-col overflow-hidden rounded-[10px] border bg-white text-left transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+      <span className="relative block aspect-square w-full bg-bg-base">
+        {textureUrl ? <Image src={textureUrl} alt={label} fill sizes="84px" className="pointer-events-none object-cover" /> : <span className="absolute inset-0 grid place-items-center text-[10px] text-ink-muted">—</span>}
+        {active && (
+          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand text-white">
+            <Check className="h-3 w-3" />
+          </span>
+        )}
+      </span>
+      <span className="block px-1.5 py-1">
+        <span className="block truncate text-[10px] font-semibold tabular-nums text-ink">{price ?? '\u00a0'}</span>
+        <span className="block truncate text-[9px] leading-tight text-ink-muted">{label}</span>
+      </span>
+    </button>
   );
 }
 

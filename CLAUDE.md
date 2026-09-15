@@ -516,20 +516,26 @@ worker specialties for step 8.
 
 ### The studio's build mode (`app/(main)/design/studio/page.tsx`)
 
-Full-bleed canvas; the categories are a rail of tiles down the left (`CategoryRail`, above
-the rooms list) and the open category's tray runs along the bottom (`Tray`), one at a time
-— build (tools + thickness + the unlock button; a drawing tool switches to the 2D view),
-furniture (the catalogue as a shelf of small tiles — a picture and a price, kinds as icons
-— click to carry or drag into 3D), electric & light (icon tiles that arm a click on the 3D
-floor or drag into it, suggest / clear), finishes (scope: whole room, this wall, half the
-floor, a drawn zone), budget (totals at a glance). Dragging from a tray is shown live: a
-product is put on the pointer in 3D the moment it crosses the canvas (`beginAdd`, then
-`ViewerApi.moveCarriedTo`) and set down on drop; a fitting shows a ghost snapped to the
-nearest wall (`previewElectricalAt`) and is added on drop. Placed fittings drag along the
-walls of their room in 3D (hopping to the nearest wall) and are re-projected on release.
-The top bar carries the room chip, undo/redo, the view switch, day/night, photo, the
-structure lock, versions, help and the next step. A tap on any floor or wall opens the
-finishes for it whatever category is open. `editMode` follows the category (`build` picks walls, columns, beams and,
+Full-bleed canvas; the categories are a block of tiles at the top left, two to a row
+(`CategoryRail`, above the rooms list) and the open category's tray runs along the bottom
+(`Tray`), one at a time — build (tools + thickness + the unlock button; a drawing tool
+switches to the 2D view), furniture (the catalogue as a shelf of small tiles — a picture
+and a price, kinds as icons — click to carry or drag into 3D), electric & light (icon
+tiles that arm a click on the 3D floor or drag into it, suggest / clear), finishes (the
+same kind of shelf: floor or walls, where it goes — whole room, this wall, half the floor,
+a drawn zone — then the swatches, the style default first), budget (totals at a glance).
+Dragging from a tray is shown live and the tile's own picture is never dragged
+(`emptyDragImage`): a product is put on the pointer in 3D the moment the drag starts
+(`beginAdd`, then `ViewerApi.moveCarriedTo` on every `dragover`) and set down on drop; a
+fitting shows a ghost snapped to the nearest wall (`previewElectricalAt`) and is added on
+drop. Placed fittings drag along the walls of their room in 3D (hopping to the nearest
+wall) and are re-projected on release. The top bar carries the room chip, undo/redo, the
+view switch, day/night, photo, the structure lock, versions, help and the next step.
+Whatever opens on the right — the item card, the inspector, the versions — is an overlay
+(`z-40`) over the canvas and the help card: nothing is pushed aside for it; the help card
+and zoom sit above the top bar (`z-30`) so their buttons are never covered. A tap on a
+floor or a wall chooses the surface for the finishes shelf **in the finishes category
+only**; in every other category the floor and the walls are just the room. `editMode` follows the category (`build` picks walls, columns, beams and,
 when unlocked, drags walls along their normal with a ghost slab; `electrical` drags
 fittings; `finishes` clicks surfaces with their `wallIndex`). The right panel is the item
 card (rotate, mirror, duplicate, lock, alternatives), the element inspector, the finish

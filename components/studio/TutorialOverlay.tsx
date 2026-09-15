@@ -106,7 +106,7 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
   const card = placeCard(hole, size, whole);
 
   return (
-    <div className="absolute inset-0 z-40" role="dialog" aria-modal="true" aria-label={t.build.tutorial}>
+    <div className="absolute inset-0 z-50" role="dialog" aria-modal="true" aria-label={t.build.tutorial}>
       {/* Four dimmed, blurred panels around the hole; the target shows through sharp. */}
       {hole && !whole ? (
         <>

@@ -5,8 +5,8 @@
  * price, the name on hover — the way a game's build catalogue reads. A row of kind icons
  * and the style chips narrow it; the current style is preselected so the first shelf is
  * what the studio would choose itself. Click a tile to carry it into a room, or drag it
- * straight into the 3D view, where it appears on the floor under the pointer as it is
- * dragged.
+ * straight into the 3D view: from the moment the drag starts the model itself rides on the
+ * pointer (the browser's picture of the tile is suppressed) and is set down where it is let go.
  */
 
 import Image from 'next/image';
@@ -20,6 +20,7 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import { cn, formatGEL } from '@/lib/utils';
 import { archetypeIcon } from './archetypeIcons';
+import { emptyDragImage } from './dragImage';
 
 export const FURNITURE_DRAG_TYPE = 'application/x-renovate-product';
 
@@ -119,6 +120,8 @@ export function FurnitureTray({ catalog, styleId, roomLabel, onPick, onDragProdu
                 e.dataTransfer.setData(FURNITURE_DRAG_TYPE, String(p.id));
                 e.dataTransfer.setData('text/plain', name);
                 e.dataTransfer.effectAllowed = 'copy';
+                // The model itself follows the pointer in 3D; no picture of the tile does.
+                e.dataTransfer.setDragImage(emptyDragImage(), 0, 0);
                 onDragProduct?.(p);
               }}
               onDragEnd={() => onDragProduct?.(null)}
