@@ -77,12 +77,16 @@ interface FixtureEntry {
   flipY?: boolean;
   /** Thin plates are turned so their thin axis is the depth; set when the file already faces +z. */
   keepAxes?: boolean;
+  /** A Poly Haven file that is a small scene: keep only the nodes whose name matches (one tube of seven). */
+  keepNodes?: RegExp;
+  /** What the studio draws this for when nothing else is chosen: the door or window without a product, the casing around a bare leaf and an archway, the rose under a lamp that hangs from the catalogue. */
+  role?: 'door' | 'window' | 'casing' | 'rose';
   /** Mirror across x after everything else — a door whose leaf hangs from the right jamb in the file. */
   mirror?: boolean;
   /** Doors: which part swings. */
   leaf?: LeafRule;
   /** Sold as this product in the catalogue (`pnpm models:seed` writes it); `styles` narrows which styles pick it first (all four otherwise). */
-  product?: { kind: string; categorySlug: 'sockets-switches' | 'lighting' | 'doors' | 'windows'; priceGel: number; storeSlug: string; nameKa: string; nameEn: string; nameRu: string; styles?: StyleId[] };
+  product?: { kind: string; categorySlug: 'sockets-switches' | 'lighting' | 'doors' | 'windows'; priceGel: number; unit?: 'piece' | 'linear_m'; storeSlug: string; nameKa: string; nameEn: string; nameRu: string; styles?: StyleId[] };
 }
 
 const PP = 'https://static.poly.pizza';
@@ -154,10 +158,10 @@ const FIXTURES: FixtureEntry[] = [
     slug: 'bulb',
     kinds: ['light_ceiling'],
     mount: 'ceiling',
-    source: { type: 'polyhaven', id: 'lightbulb_led' },
-    flipY: true,
+    source: { type: 'polypizza', id: 'kDo0SbQW9Y', url: `${PP}/84c2d1c8-6931-4b5e-9440-fa9328ca23a9.glb`, title: 'Light bulb', author: 'reelpersen', license: 'CC0' },
     keepAxes: true,
-    product: { kind: 'light_ceiling', categorySlug: 'lighting', priceGel: 45, storeSlug: 'lumina', nameKa: 'ჭერის სანათი — LED ნათურა', nameEn: 'Ceiling light — LED bulb', nameRu: 'Потолочный светильник — LED лампа' },
+    sizeCm: { width: 8, height: 40 },
+    product: { kind: 'light_ceiling', categorySlug: 'lighting', priceGel: 35, storeSlug: 'lumina', nameKa: 'ჭერის სანათი — ნათურა კაბელზე', nameEn: 'Ceiling light — bulb on a cord', nameRu: 'Потолочный светильник — лампа на шнуре' },
   },
   {
     slug: 'ceiling-globe',
@@ -184,6 +188,24 @@ const FIXTURES: FixtureEntry[] = [
     product: { kind: 'light_ceiling', categorySlug: 'lighting', priceGel: 95, storeSlug: 'lumina', nameKa: 'ჭერის სანათი „Disc“ — შავი', nameEn: 'Ceiling lamp "Disc" — black', nameRu: 'Потолочный светильник «Disc» — чёрный', styles: ['modern', 'industrial'] },
   },
   {
+    slug: 'ceiling-rose',
+    kinds: [],
+    mount: 'ceiling',
+    role: 'rose',
+    source: { type: 'polypizza', id: '7-ZyHe177WV', url: `${PP}/54c29500-2d8a-4d71-9e14-e0d4e0daca7f.glb`, title: 'Ceiling Light', author: 'Jarlan Perez', license: 'CC-BY 3.0' },
+    keepAxes: true,
+    sizeCm: { width: 12, height: 5 },
+  },
+  {
+    slug: 'spot-flush',
+    kinds: ['light_spot'],
+    mount: 'ceiling',
+    source: { type: 'polypizza', id: '7-ZyHe177WV', url: `${PP}/54c29500-2d8a-4d71-9e14-e0d4e0daca7f.glb`, title: 'Ceiling Light', author: 'Jarlan Perez', license: 'CC-BY 3.0' },
+    keepAxes: true,
+    sizeCm: { width: 10, height: 4 },
+    product: { kind: 'light_spot', categorySlug: 'lighting', priceGel: 35, storeSlug: 'lumina', nameKa: 'სპოტი „Flush“ — ჩაშენებული, თეთრი', nameEn: 'Spot "Flush" — recessed, white', nameRu: 'Спот «Flush» — встраиваемый, белый' },
+  },
+  {
     slug: 'spot-square',
     kinds: ['light_spot'],
     mount: 'ceiling',
@@ -193,7 +215,37 @@ const FIXTURES: FixtureEntry[] = [
     product: { kind: 'light_spot', categorySlug: 'lighting', priceGel: 55, storeSlug: 'lumina', nameKa: 'სპოტი „Square“ — კრემისფერი', nameEn: 'Spot "Square" — cream', nameRu: 'Спот «Square» — кремовый', styles: ['modern', 'scandinavian'] },
   },
 
+  // --- strips: one photoscanned tube, stretched to the length of the point ----------------
+  {
+    slug: 'strip-led',
+    kinds: ['light_strip'],
+    mount: 'wall',
+    source: { type: 'polyhaven', id: 'mounted_fluorescent_lights' },
+    keepNodes: /_a$/,
+    keepAxes: true,
+    product: { kind: 'light_strip', categorySlug: 'lighting', priceGel: 25, unit: 'linear_m', storeSlug: 'lumina', nameKa: 'LED ლენტი — მეტრი', nameEn: 'LED strip — per metre', nameRu: 'LED-лента — метр' },
+  },
+  {
+    slug: 'strip-furniture',
+    kinds: ['light_furniture'],
+    mount: 'wall',
+    source: { type: 'polyhaven', id: 'mounted_fluorescent_lights' },
+    keepNodes: /_a$/,
+    keepAxes: true,
+    product: { kind: 'light_furniture', categorySlug: 'lighting', priceGel: 30, unit: 'linear_m', storeSlug: 'lumina', nameKa: 'ავეჯის LED განათება — მეტრი', nameEn: 'Furniture LED light — per metre', nameRu: 'LED-подсветка мебели — метр' },
+  },
+
   // --- doors: the leaf hangs from x min, the room side is +z ------------------------------
+  {
+    slug: 'door-frame',
+    kinds: [],
+    mount: 'door',
+    role: 'casing',
+    source: { type: 'polypizza', id: '47UrLi5nPC', url: `${PP}/549b70ea-4bd8-4705-b264-6fc03f528a5c.glb`, title: 'Doorway Open', author: 'Kenney', license: 'CC0' },
+    keepAxes: true,
+    leaf: 'none',
+    sizeCm: { width: 96, height: 212 },
+  },
   {
     slug: 'door-oak',
     kinds: [],
@@ -220,6 +272,7 @@ const FIXTURES: FixtureEntry[] = [
     slug: 'door-flat',
     kinds: [],
     mount: 'door',
+    role: 'door',
     source: { type: 'polypizza', id: 'KGt4ztcKrM', url: `${PP}/4b6e7e8c-d973-4a0c-b0ea-edc7ed04eca9.glb`, title: 'Door', author: 'Quaternius', license: 'CC0' },
     keepAxes: true,
     leaf: { box: { x: [0.035, 0.965], y: [0, 0.985] } },
@@ -285,6 +338,7 @@ const FIXTURES: FixtureEntry[] = [
     slug: 'window-nordic',
     kinds: [],
     mount: 'window',
+    role: 'window',
     source: { type: 'polypizza', id: 'n88WAcjzTv', url: `${PP}/0ab1cc08-63fe-4b22-a166-ea8ac20ae307.glb`, title: 'Window Small', author: 'Quaternius', license: 'CC0' },
     keepAxes: true,
     sizeCm: { width: 90, height: 120 },
@@ -336,8 +390,10 @@ export interface FixtureManifestModel {
   parts?: Array<'frame' | 'leaf' | 'body'>;
   /** The product's photo, under /uploads/furniture. */
   imageUrl: string | null;
+  /** What the studio draws this for by default (see `FixtureEntry.role`). */
+  role?: 'door' | 'window' | 'casing' | 'rose';
   /** The catalogue product this model is sold as, when it is one. */
-  product?: { kind: string; categorySlug: string; priceGel: number; storeSlug: string; nameKa: string; nameEn: string; nameRu: string; styles?: StyleId[] };
+  product?: { kind: string; categorySlug: string; priceGel: number; unit?: 'piece' | 'linear_m'; storeSlug: string; nameKa: string; nameEn: string; nameRu: string; styles?: StyleId[] };
 }
 
 async function main() {
@@ -375,8 +431,8 @@ async function main() {
   );
   await writeFile(
     TS_OUT,
-    `/**\n * Generated by scripts/fixture-models.ts — do not edit. The 3D fixtures in public/models/fixtures:\n * the electrical layer's sockets, switches and lamps (one entry per model with the kinds it\n * stands for) and the doors and windows (kinds empty; \`parts\` names the nodes a door has).\n */\n\nimport type { ElectricalKind } from '@/lib/design/types';\n\nexport interface FixtureModel {\n  slug: string;\n  kinds: ElectricalKind[];\n  mount: 'wall' | 'ceiling' | 'door' | 'window';\n  url: string;\n  widthCm: number;\n  heightCm: number;\n  depthCm: number;\n  parts?: Array<'frame' | 'leaf' | 'body'>;\n  license: string;\n  author: string;\n}\n\nexport const FIXTURE_MODELS: FixtureModel[] = ${JSON.stringify(
-      all.map(({ slug, kinds, mount, url, widthCm, heightCm, depthCm, parts, license, author }) => ({ slug, kinds, mount, url, widthCm, heightCm, depthCm, ...(parts ? { parts } : {}), license, author })),
+    `/**\n * Generated by scripts/fixture-models.ts — do not edit. The 3D fixtures in public/models/fixtures:\n * the electrical layer's sockets, switches and lamps (one entry per model with the kinds it\n * stands for) and the doors and windows (kinds empty; \`parts\` names the nodes a door has).\n */\n\nimport type { ElectricalKind } from '@/lib/design/types';\n\nexport interface FixtureModel {\n  slug: string;\n  kinds: ElectricalKind[];\n  mount: 'wall' | 'ceiling' | 'door' | 'window';\n  url: string;\n  widthCm: number;\n  heightCm: number;\n  depthCm: number;\n  parts?: Array<'frame' | 'leaf' | 'body'>;\n  /** What the studio draws this for when nothing is chosen: a door or window without a product, the casing of a bare leaf and of an archway, the rose under a catalogue lamp. */\n  role?: 'door' | 'window' | 'casing' | 'rose';\n  license: string;\n  author: string;\n}\n\nexport const FIXTURE_MODELS: FixtureModel[] = ${JSON.stringify(
+      all.map(({ slug, kinds, mount, url, widthCm, heightCm, depthCm, parts, role, license, author }) => ({ slug, kinds, mount, url, widthCm, heightCm, depthCm, ...(parts ? { parts } : {}), ...(role ? { role } : {}), license, author })),
       null,
       2
     )};\n`
@@ -444,6 +500,12 @@ async function convertOne(entry: FixtureEntry): Promise<FixtureManifestModel> {
   const opening = entry.mount === 'door' || entry.mount === 'window';
 
   await doc.transform(dedup(), flatten());
+  if (entry.keepNodes) {
+    for (const node of doc.getRoot().listNodes()) {
+      if (node.getMesh() && !entry.keepNodes.test(node.getName())) node.dispose();
+    }
+    await doc.transform(prune());
+  }
   if (opening) {
     // A door keeps its parts apart until the leaf is told from the frame below.
     bakeNodeTransforms(doc);
@@ -540,6 +602,7 @@ async function convertOne(entry: FixtureEntry): Promise<FixtureManifestModel> {
     author: src.type === 'polyhaven' ? 'Poly Haven' : src.author,
     license: src.type === 'polyhaven' ? 'CC0' : src.license,
     ...(parts ? { parts } : {}),
+    ...(entry.role ? { role: entry.role } : {}),
     imageUrl,
     ...(entry.product ? { product: entry.product } : {}),
   };

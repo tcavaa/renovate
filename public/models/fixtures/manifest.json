@@ -231,25 +231,25 @@
       ],
       "mount": "ceiling",
       "url": "/models/fixtures/bulb.glb",
-      "widthCm": 6,
-      "heightCm": 10,
-      "depthCm": 6,
-      "triangles": 6420,
-      "bytes": 202964,
-      "source": "polyhaven",
-      "sourceUrl": "https://polyhaven.com/a/lightbulb_led",
-      "title": "lightbulb led",
-      "author": "Poly Haven",
+      "widthCm": 8,
+      "heightCm": 40,
+      "depthCm": 8,
+      "triangles": 170,
+      "bytes": 7416,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/kDo0SbQW9Y",
+      "title": "Light bulb",
+      "author": "reelpersen",
       "license": "CC0",
       "imageUrl": "/uploads/furniture/fixture-bulb.png",
       "product": {
         "kind": "light_ceiling",
         "categorySlug": "lighting",
-        "priceGel": 45,
+        "priceGel": 35,
         "storeSlug": "lumina",
-        "nameKa": "ჭერის სანათი — LED ნათურა",
-        "nameEn": "Ceiling light — LED bulb",
-        "nameRu": "Потолочный светильник — LED лампа"
+        "nameKa": "ჭერის სანათი — ნათურა კაბელზე",
+        "nameEn": "Ceiling light — bulb on a cord",
+        "nameRu": "Потолочный светильник — лампа на шнуре"
       }
     },
     {
@@ -349,6 +349,52 @@
       }
     },
     {
+      "slug": "ceiling-rose",
+      "kinds": [],
+      "mount": "ceiling",
+      "url": "/models/fixtures/ceiling-rose.glb",
+      "widthCm": 12,
+      "heightCm": 5,
+      "depthCm": 12,
+      "triangles": 392,
+      "bytes": 9488,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/7-ZyHe177WV",
+      "title": "Ceiling Light",
+      "author": "Jarlan Perez",
+      "license": "CC-BY 3.0",
+      "role": "rose",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-rose.png"
+    },
+    {
+      "slug": "spot-flush",
+      "kinds": [
+        "light_spot"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/spot-flush.glb",
+      "widthCm": 10,
+      "heightCm": 4,
+      "depthCm": 10,
+      "triangles": 392,
+      "bytes": 9488,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/7-ZyHe177WV",
+      "title": "Ceiling Light",
+      "author": "Jarlan Perez",
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-spot-flush.png",
+      "product": {
+        "kind": "light_spot",
+        "categorySlug": "lighting",
+        "priceGel": 35,
+        "storeSlug": "lumina",
+        "nameKa": "სპოტი „Flush“ — ჩაშენებული, თეთრი",
+        "nameEn": "Spot \"Flush\" — recessed, white",
+        "nameRu": "Спот «Flush» — встраиваемый, белый"
+      }
+    },
+    {
       "slug": "spot-square",
       "kinds": [
         "light_spot"
@@ -379,6 +425,85 @@
           "scandinavian"
         ]
       }
+    },
+    {
+      "slug": "strip-led",
+      "kinds": [
+        "light_strip"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/strip-led.glb",
+      "widthCm": 91,
+      "heightCm": 4,
+      "depthCm": 4,
+      "triangles": 1496,
+      "bytes": 185156,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/mounted_fluorescent_lights",
+      "title": "mounted fluorescent lights",
+      "author": "Poly Haven",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-strip-led.png",
+      "product": {
+        "kind": "light_strip",
+        "categorySlug": "lighting",
+        "priceGel": 25,
+        "unit": "linear_m",
+        "storeSlug": "lumina",
+        "nameKa": "LED ლენტი — მეტრი",
+        "nameEn": "LED strip — per metre",
+        "nameRu": "LED-лента — метр"
+      }
+    },
+    {
+      "slug": "strip-furniture",
+      "kinds": [
+        "light_furniture"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/strip-furniture.glb",
+      "widthCm": 91,
+      "heightCm": 4,
+      "depthCm": 4,
+      "triangles": 1496,
+      "bytes": 185156,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/mounted_fluorescent_lights",
+      "title": "mounted fluorescent lights",
+      "author": "Poly Haven",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-strip-furniture.png",
+      "product": {
+        "kind": "light_furniture",
+        "categorySlug": "lighting",
+        "priceGel": 30,
+        "unit": "linear_m",
+        "storeSlug": "lumina",
+        "nameKa": "ავეჯის LED განათება — მეტრი",
+        "nameEn": "Furniture LED light — per metre",
+        "nameRu": "LED-подсветка мебели — метр"
+      }
+    },
+    {
+      "slug": "door-frame",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-frame.glb",
+      "widthCm": 96,
+      "heightCm": 212,
+      "depthCm": 18,
+      "triangles": 28,
+      "bytes": 2196,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/47UrLi5nPC",
+      "title": "Doorway Open",
+      "author": "Kenney",
+      "license": "CC0",
+      "parts": [
+        "body"
+      ],
+      "role": "casing",
+      "imageUrl": "/uploads/furniture/fixture-door-frame.png"
     },
     {
       "slug": "door-oak",

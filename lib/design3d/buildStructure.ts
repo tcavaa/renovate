@@ -3,12 +3,13 @@
  * electrical fittings, and the floor zones with their own finish. Built once per plan
  * change, like the room shells, and tagged so the viewer can pick them.
  *
- * Every procedural mesh here is owned geometry (disposed with the group); materials come
- * from the style's factory and are shared. The electrical fittings are real models where
- * one exists (`fixtureManifest`: a socket, a switch, a wall lamp, a bulb) and small
- * procedural pieces otherwise; a fitting is one group standing at its point — on the wall,
- * turned to face the room, or hanging from the ceiling — so the viewer moves the group and
- * the store re-projects it onto its wall on release.
+ * The walls, columns, beams and zones are owned geometry (disposed with the group) built
+ * from the plan; materials come from the style's factory and are shared. The electrical
+ * fittings are models and nothing else — the point's product, or the kind's default from
+ * `fixtureManifest` (a socket, a switch, a wall lamp, a bulb on a cord, a flush spot, a
+ * tube for the strips) — so a fitting is an empty group at its point until its file
+ * arrives, on the wall turned to face the room or hanging from the ceiling, and the viewer
+ * moves the group and the store re-projects it onto its wall on release.
  */
 
 import * as THREE from 'three';
@@ -17,7 +18,7 @@ import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleDefinition, SurfaceFinish, Vec2 } from '@/lib/design/types';
 import { StyleMaterials } from './materials';
-import { box, cylinder, tag } from './primitives';
+import { box, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
 import { loadFixture, loadModel } from './modelLoader';
 import type { SceneUserData } from './buildScene';
@@ -134,13 +135,23 @@ export function buildElectrical(plan: FloorPlan, points: ElectricalPoint[], mate
 const PLATE_M = 0.08;
 /** A hanging lamp product this close to a ceiling point is that point's fitting. */
 const LAMP_NEAR_M = 0.5;
+/** Materials of a lamp model that stand for the light itself, lit when the point is on. */
+const LIT_MATERIAL = /light|lamp|glow|bulb|emiss|led|tube|shade/i;
+
+/** The model the studio draws for a role when nothing is chosen (see `FixtureModel.role`). */
+export function fixtureRole(role: NonNullable<FixtureModel['role']>): FixtureModel | null {
+  return FIXTURE_MODELS.find((m) => m.role === role) ?? null;
+}
 
 /**
  * One fitting as a group standing at its point: on a wall it is turned so local +x runs
- * along the wall and local +z into the room (`edge.facing`), with the plate a hair off the
- * plaster; under the ceiling it hangs from the point. Models arrive asynchronously and
- * replace the procedural stand-in under the same holder, so a socket is a socket the
- * moment it is placed and the real one a beat later.
+ * along the wall and local +z into the room (`edge.facing`), a hair off the plaster; under
+ * the ceiling it hangs from the point. The group holds nothing but the model — the point's
+ * product or the kind's default — which arrives asynchronously into a holder per plate, so
+ * a double socket is two of the same plate side by side and a strip is one tube stretched
+ * to its length. A ceiling point under a hanging lamp from the catalogue shows only the
+ * rose. A preview (the ghost that rides on the pointer) is the same model in one
+ * translucent material; a light that is on has its lamp materials glowing.
  */
 export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: StyleMaterials, options: ElectricalBuildOptions = {}): THREE.Group | null {
   const info = ELECTRICAL_KINDS[point.kind];
@@ -148,23 +159,15 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   const edge = point.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === point.wallIndex) : null;
   const piece = new THREE.Group();
   const ghost = options.preview ? new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.55, depthWrite: false }) : null;
-  const m = (role: Parameters<StyleMaterials['get']>[0], extra?: Parameters<StyleMaterials['get']>[1]) => ghost ?? materials.get(role, extra);
-  const plate = m('ceramic', { roughness: 0.4 });
-  const dark = m('frame', { colorHex: '#3A3733' });
-  const shade = m('lampshade');
-  const glow = m('emissive');
-  const fixture = options.preview ? null : modelFor(point);
   const data = () => piece.userData as SceneUserData;
 
-  /** Swaps a stand-in for the real model when it arrives, unless the piece is gone by then. */
+  /** Puts the model into its holder when it arrives, unless the piece is gone by then. */
   const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', afterLoad?: (model: THREE.Object3D) => void) => {
     (spec.framed ? loadFixture(spec.url) : loadModel(spec.url).then((m) => reframe(m, mount, spec.sizeM)))
       .then((model) => {
         if (!piece.parent) return;
-        for (const child of [...holder.children]) {
-          holder.remove(child);
-          if (child instanceof THREE.Mesh && child.userData.ownsGeometry) child.geometry.dispose();
-        }
+        if (ghost) ghostModel(model, ghost);
+        else if (info.light && on) litModel(model, materials.style.lighting.lamp);
         holder.add(model);
         tag(model, { ...data() });
         afterLoad?.(model);
@@ -175,37 +178,28 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   if (info.placement === 'ceiling' || point.kind === 'light_spot') {
     const y = Math.min(room.heightM - 0.005, point.elevationM || room.heightM);
     piece.position.set(point.position.x, y, point.position.z);
-    if (point.kind === 'light_spot') {
-      // A recessed spot: a dark ring flush with the ceiling and a lit disc inside it — or
-      // the product's own model when one was chosen.
-      const holder = new THREE.Group();
-      piece.add(holder);
-      holder.add(own(cylinder(0.055, 0.055, 0.012, dark, [0, -0.006, 0], 24)));
-      holder.add(own(cylinder(0.04, 0.04, 0.008, on ? glow : shade, [0, -0.012, 0], 20)));
-      if (fixture && point.product) attach(holder, fixture, 'ceiling');
-      return piece;
-    }
-    // The main light: a ceiling rose, and a bulb on a short cord unless a hanging lamp from
-    // the catalogue already hangs here — then the lamp is the fitting and only the rose shows.
-    piece.add(own(cylinder(0.05, 0.06, 0.03, plate, [0, -0.015, 0], 20)));
-    const lampNearby = options.items?.some((i) => i.roomId === room.id && i.slot === 'pendant' && Math.hypot(i.position.x - point.position.x, i.position.z - point.position.z) < LAMP_NEAR_M);
-    if (lampNearby) return piece;
-    piece.add(own(cylinder(0.004, 0.004, 0.14, dark, [0, -0.1, 0], 8)));
     const holder = new THREE.Group();
-    holder.position.y = -0.17;
     piece.add(holder);
-    holder.add(own(cylinder(0.028, 0.018, 0.09, on ? glow : shade, [0, -0.05, 0], 14)));
-    if (fixture) attach(holder, fixture, 'ceiling', () => { if (on) holder.add(own(new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), materials.get('emissive')).translateY(-0.06))); });
+    // A hanging lamp from the catalogue already hangs here: the lamp is the fitting and the
+    // point shows only its rose.
+    const lampNearby = point.kind === 'light_ceiling' && options.items?.some((i) => i.roomId === room.id && i.slot === 'pendant' && Math.hypot(i.position.x - point.position.x, i.position.z - point.position.z) < LAMP_NEAR_M);
+    const rose = lampNearby ? fixtureRole('rose') : null;
+    const spec = rose ? { url: rose.url, framed: true } : modelFor(point);
+    if (spec) attach(holder, spec, 'ceiling');
     return piece;
   }
 
   if (point.kind === 'light_strip' || !edge) {
     if (info.placement === 'wall' && !edge) return null;
-    // An LED strip lying where it was put (under a bed, along a shelf), turned to its wall when it has one.
+    // A strip lying where it was put (under a bed, along a shelf), turned to its wall when it
+    // has one, its one tube stretched to the length of the point.
     const length = point.lengthM ?? 1.5;
     piece.position.set(point.position.x, point.elevationM, point.position.z);
     piece.rotation.y = edge ? edge.facing : 0;
-    piece.add(own(box(length, 0.015, 0.012, on ? glow : dark)));
+    const holder = new THREE.Group();
+    piece.add(holder);
+    const spec = modelFor(point);
+    if (spec) attach(holder, spec, 'wall', (model) => stretchTo(model, length));
     return piece;
   }
 
@@ -214,31 +208,64 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   const inset = 0.006;
   piece.position.set(p.x + edge.inward.x * inset, point.elevationM, p.z + edge.inward.z * inset);
   piece.rotation.y = edge.facing;
+  const spec = modelFor(point);
+  if (!spec) return piece;
 
   if (point.kind === 'light_furniture') {
-    const length = point.lengthM ?? 1.5;
-    piece.add(own(box(length, 0.02, 0.03, on ? glow : dark, [0, 0, 0.015])));
-    return piece;
-  }
-  if (point.kind === 'light_wall') {
     const holder = new THREE.Group();
     piece.add(holder);
-    holder.add(own(box(0.14, 0.18, 0.09, on ? glow : shade, [0, 0, 0.045])));
-    if (fixture) attach(holder, fixture, 'wall');
+    attach(holder, spec, 'wall', (model) => stretchTo(model, point.lengthM ?? 1.5));
     return piece;
   }
-  // Sockets, switches, TV and data points: one plate per outlet, side by side.
-  const single = point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet';
+  // Sockets, switches, TV and data points: one plate per outlet, side by side; a wall lamp is one.
+  const single = point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet' || point.kind === 'light_wall';
   const count = single ? 1 : Math.max(1, point.count ?? 1);
   for (let i = 0; i < count; i++) {
     const holder = new THREE.Group();
     holder.position.x = (i - (count - 1) / 2) * PLATE_M;
     piece.add(holder);
-    holder.add(own(box(PLATE_M - 0.004, PLATE_M - 0.004, 0.01, plate, [0, 0, 0.005])));
-    holder.add(own(box(point.kind === 'switch' ? 0.03 : 0.045, point.kind === 'switch' ? 0.045 : 0.03, 0.006, dark, [0, 0, 0.012])));
-    if (fixture) attach(holder, fixture, 'wall');
+    attach(holder, spec, 'wall');
   }
   return piece;
+}
+
+/** Scales a model along its width so it spans `length` metres — a tube becomes a strip of any length. */
+function stretchTo(model: THREE.Object3D, length: number): void {
+  const width = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).x;
+  if (width > 1e-6) model.scale.x = length / width;
+}
+
+/** Every mesh in one translucent material: the ghost of a fitting riding on the pointer. */
+function ghostModel(model: THREE.Object3D, material: THREE.Material): void {
+  model.traverse((child) => {
+    if (child instanceof THREE.Mesh) child.material = material;
+  });
+}
+
+/**
+ * Lights up the parts of a lamp model that stand for the light — the materials named for
+ * it — on this instance alone: the loader hands out clones that share the cached file's
+ * materials, so each lit one is copied before it is tinted (gotcha 7).
+ */
+function litModel(model: THREE.Object3D, colorHex: string): void {
+  const lit = new Map<THREE.Material, THREE.Material>();
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const sources = Array.isArray(child.material) ? child.material : [child.material];
+    const replaced = sources.map((source) => {
+      if (!(source instanceof THREE.MeshStandardMaterial) || !LIT_MATERIAL.test(source.name)) return source;
+      let copy = lit.get(source);
+      if (!copy) {
+        const clone = source.clone();
+        clone.emissive = new THREE.Color(colorHex);
+        clone.emissiveIntensity = 0.9;
+        lit.set(source, clone);
+        copy = clone;
+      }
+      return copy;
+    });
+    child.material = Array.isArray(child.material) ? replaced : replaced[0];
+  });
 }
 
 export interface SceneLight {
