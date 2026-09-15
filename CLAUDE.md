@@ -41,7 +41,8 @@ App is **not yet shipped**. No git repo in this directory.
 - **three / @react-three/fiber 9 / @react-three/drei 10** for the 3D studio
 - i18n: `ka` (primary), `en`, `ru` — every string lives in `lib/i18n/*.ts`
 - Uploads → `public/uploads/*` via `/api/upload`
-- Deploy target: self-hosted VPS, PM2 + Nginx, port 3000
+- Deploy target: Vercel (from September 2026). The VPS (PM2 + Nginx, port 3000) and cPanel
+  scripts under `deploy/` remain and are what `output: 'standalone'` is for.
 
 ## Commands
 
@@ -1261,6 +1262,29 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   cPanel's copy in `~/.cpanel/logs`; Passenger's log is `~/renovate/logs/main.logs`. Two
   things bit there already: the nodevenv `activate` file needs `set +eu` (it reads variables
   a background task lacks), and `exec > >(tee …)` needs `/dev/fd`, which CageFS has not.
+- **Vercel** (September 2026, replacing cPanel): the Git integration builds `main` with the
+  ordinary `pnpm build`; nothing under `deploy/`, `server.cjs` or `.cpanel.yml` is involved.
+  `vercel.json` pins the functions to Frankfurt (`fra1`, next to the Hetzner box that holds
+  MySQL and the uploads) and disables deployments of the `cpanel` branch, which the cPanel
+  workflow keeps publishing.
+  `next.config.mjs` switches `output: 'standalone'` off when Vercel's own `VERCEL=1` is set —
+  Vercel traces and packages the server itself, and on Next 16.3.x standalone is fatal there
+  (its build adapter makes Turbopack skip `.next/next-server.js.nft.json`, which the
+  standalone finaliser then fails to open; vercel/next.js#97287 fixes it for 16.4). The
+  function filesystem is read-only, so uploads cannot live on it: `STORAGE_DRIVER=s3` (R2
+  or S3; `S3_PUBLIC_URL` feeds both the CSP's `connect-src` and `images.remotePatterns`)
+  works today, and the plan for this deployment is a driver that writes to the cPanel box
+  over Web Disk (WebDAV, port 2078) and serves from a subdomain of it — not built yet.
+  `LOG_FILE=false` (`lib/log.ts` also gives up on the file after the first EROFS). MySQL is
+  reached over the internet — the cPanel box's own (Hetzner Falkenstein, a few ms from
+  `fra1`) once its provider opens port 3306, or a hosted one — with `DATABASE_SSL=true`
+  when the server offers TLS and `DATABASE_SSL_CA` for a provider's own CA (`lib/db`,
+  `scripts/migrate.ts` and `drizzle.config.ts` all honour it). Migrations run from a laptop
+  against that database (`pnpm db:migrate` with the production variables), not in the
+  build, so a preview branch never migrates production. Every request to a
+  Vercel function is capped at 4.5 MB, which `/api/upload/model` (40 MB GLBs),
+  `/api/design/upload-plan` (12 MB) and the 8 MB photo and render routes exceed — see the
+  roadmap. The in-memory rate limiter and login lockout are per instance there.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
@@ -1293,7 +1317,12 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   are market averages, not products; a product chosen from the catalogue replaces them.
 - The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
 
-- Uploads are local disk; S3 planned. No PDF export. No SMS.
+- Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
+  No PDF export. No SMS.
+- On Vercel a request body is capped at 4.5 MB, so a GLB, a large plan image or a studio
+  photo above that is refused with 413 before the route runs. The fix is a direct upload
+  into the bucket (a presigned PUT handed out by `/api/upload/*`, the byte sniff and the
+  record afterwards); not built.
 - The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
 - **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
 - PDF plans: only the first page is rasterised; a multi-page set has to be split by hand.
