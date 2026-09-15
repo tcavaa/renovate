@@ -143,7 +143,7 @@ async function main() {
         slug,
         sku: `FX-${model.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
         pricePerUnit: String(model.product.priceGel),
-        unit: 'piece' as const,
+        unit: model.product.unit ?? ('piece' as const),
         brand: model.author,
         imageUrl: model.imageUrl,
         styleTags: model.product.styles ?? ['modern', 'scandinavian', 'industrial', 'vintage'],

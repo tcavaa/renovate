@@ -15,6 +15,8 @@ export interface FixtureModel {
   heightCm: number;
   depthCm: number;
   parts?: Array<'frame' | 'leaf' | 'body'>;
+  /** What the studio draws this for when nothing is chosen: a door or window without a product, the casing of a bare leaf and of an archway, the rose under a catalogue lamp. */
+  role?: 'door' | 'window' | 'casing' | 'rose';
   license: string;
   author: string;
 }
@@ -128,11 +130,11 @@ export const FIXTURE_MODELS: FixtureModel[] = [
     ],
     "mount": "ceiling",
     "url": "/models/fixtures/bulb.glb",
-    "widthCm": 6,
-    "heightCm": 10,
-    "depthCm": 6,
+    "widthCm": 8,
+    "heightCm": 40,
+    "depthCm": 8,
     "license": "CC0",
-    "author": "Poly Haven"
+    "author": "reelpersen"
   },
   {
     "slug": "ceiling-globe",
@@ -174,6 +176,31 @@ export const FIXTURE_MODELS: FixtureModel[] = [
     "author": "Zsky"
   },
   {
+    "slug": "ceiling-rose",
+    "kinds": [],
+    "mount": "ceiling",
+    "url": "/models/fixtures/ceiling-rose.glb",
+    "widthCm": 12,
+    "heightCm": 5,
+    "depthCm": 12,
+    "role": "rose",
+    "license": "CC-BY 3.0",
+    "author": "Jarlan Perez"
+  },
+  {
+    "slug": "spot-flush",
+    "kinds": [
+      "light_spot"
+    ],
+    "mount": "ceiling",
+    "url": "/models/fixtures/spot-flush.glb",
+    "widthCm": 10,
+    "heightCm": 4,
+    "depthCm": 10,
+    "license": "CC-BY 3.0",
+    "author": "Jarlan Perez"
+  },
+  {
     "slug": "spot-square",
     "kinds": [
       "light_spot"
@@ -183,6 +210,47 @@ export const FIXTURE_MODELS: FixtureModel[] = [
     "widthCm": 10,
     "heightCm": 20,
     "depthCm": 10,
+    "license": "CC0",
+    "author": "Kenney"
+  },
+  {
+    "slug": "strip-led",
+    "kinds": [
+      "light_strip"
+    ],
+    "mount": "wall",
+    "url": "/models/fixtures/strip-led.glb",
+    "widthCm": 91,
+    "heightCm": 4,
+    "depthCm": 4,
+    "license": "CC0",
+    "author": "Poly Haven"
+  },
+  {
+    "slug": "strip-furniture",
+    "kinds": [
+      "light_furniture"
+    ],
+    "mount": "wall",
+    "url": "/models/fixtures/strip-furniture.glb",
+    "widthCm": 91,
+    "heightCm": 4,
+    "depthCm": 4,
+    "license": "CC0",
+    "author": "Poly Haven"
+  },
+  {
+    "slug": "door-frame",
+    "kinds": [],
+    "mount": "door",
+    "url": "/models/fixtures/door-frame.glb",
+    "widthCm": 96,
+    "heightCm": 212,
+    "depthCm": 18,
+    "parts": [
+      "body"
+    ],
+    "role": "casing",
     "license": "CC0",
     "author": "Kenney"
   },

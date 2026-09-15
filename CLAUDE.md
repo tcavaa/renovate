@@ -493,16 +493,25 @@ lighting) are part of the design catalogue, and `pnpm models:seed` writes one pr
 entry of `public/models/fixtures/manifest.json` that carries a `product` (photo from the
 source, store Lumina). The furniture shelf leaves fixture kinds out (`isFixtureProductKind`).
 
-In 3D each point is one group standing at its spot (`buildFitting`): the product's own
-model when it has one (a file under `/models/fixtures` is framed as a fixture already —
-back on the wall, top on the ceiling — and anything else, a partner's upload, is scaled to
-`sizeM` and turned to the wall by `reframe`), else the kind's default from
-`public/models/fixtures` (the first entry of `FIXTURE_MODELS` with that kind), else a small
-procedural piece (spots, strips); a ceiling point under a hanging lamp from the catalogue
-shows only its rose. `pnpm models:fixtures` writes those files from Poly Haven (CC0: the
-industrial wall lamp and sconce, the LED bulb, the glass globe pendant) and poly.pizza
-(Quaternius and Kenney CC0, the rest CC-BY 3.0 credited in the manifest: two sockets, two
-switches, a brass sconce, a pendant, a disc lamp, a square spot) — two or three products
+In 3D each point is one group standing at its spot (`buildFitting`) holding a model and
+nothing else: the product's own model when it has one (a file under `/models/fixtures` is
+framed as a fixture already — back on the wall, top on the ceiling — and anything else, a
+partner's upload, is scaled to `sizeM` and turned to the wall by `reframe`), else the
+kind's default from `public/models/fixtures` (the first entry of `FIXTURE_MODELS` with that
+kind: the EU socket, the switch, the industrial wall lamp, the bulb on a cord, the flush
+spot, one photoscanned tube for the strips, stretched to the point's length). **Nothing in
+the studio is drawn by hand any more** — no plates, roses, cords, rings or bars — so the
+group is empty for the beat the file takes to arrive; the same goes for doors and windows
+(below). A double socket is two of the same plate side by side; a ceiling point under a
+hanging lamp from the catalogue shows only the rose (`role: 'rose'`, a flush light); the
+ghost that rides on the pointer while a fitting is dragged in is the same model in one
+translucent material; a light that is on has the materials named for the light (`light`,
+`lamp`, `bulb`, `glow`, `led`, `tube`, `shade`) glowing, copied for that instance so the
+cached file's materials stay untouched. `pnpm models:fixtures` writes the files from Poly
+Haven (CC0: the industrial wall lamp and sconce, the glass globe pendant, the fluorescent
+tube) and poly.pizza (Quaternius, Kenney and reelpersen CC0, the rest CC-BY 3.0 credited in
+the manifest: two sockets, two switches, a brass sconce, a pendant, a disc lamp, the flush
+light that is both the rose and the recessed spot, a square spot) — two or three products
 per kind so the card has something to swap to — and `pnpm models:photos` renders each
 one's product photo from the model itself (a transparent PNG under `uploads/furniture`,
 lit and framed like the studio; the sources' own thumbnails sit on garish gradients). The lights that
@@ -782,25 +791,29 @@ the sill of a window, hinge, swing and open angle of a door, the material only w
 an estimate, and "შეცვალე პროდუქტი" in the drawer along the bottom. The structure lock
 keeps the hole (kind, size, sill, deletion); what fills it stays editable.
 
-In 3D (`buildOpeningTrim` → `attachOpeningModel`) the product's model goes in the hole,
-stretched to the opening's width and height (its depth in proportion, never much more than
-the wall), the procedural jambs, head, glazing and leaf standing in until it arrives and
-going when it has its own casing. `pnpm models:fixtures` frames a door or window centred on
-the opening, standing on y = 0, centred in the wall with the room side along +z, and sorts
-a door into the nodes `leaf` (hung from x min — `hinge: 'left'`) and `frame`, or `body`
-for a window or a door kept as one piece: a source that keeps its parts apart is split by
-node name, a welded one by the triangles whose centre lies in an inner box (`leaf: { box }`),
-a bare leaf (Kenney's doors) is `leaf: 'all'` inside the procedural casing, and a leaf that
-hangs from the right in the file is mirrored (`mirror: true`). The studio re-hangs the leaf
-on a pivot at its jamb (the scale on the leaf itself, under the pivot, so turning it does
-not shear it), turns it by the open angle, and mirrors the whole model for a right-hinged
-door. Of an interior door's two halves only the one that draws the leaf places the model;
-the other only drops its casing — except in a single-room view, where the half that is
-shown draws the whole door (`twinShown`). Doors: Quaternius (oak with frame, white
-panelled, white flush, dark classic entrance, white glazed metal entrance), Kenney (country
-leaf, red glazed entrance), Wesley Thompson's classic white (CC-BY); windows: Quaternius
-two-leaf and grid, Justin Randall's wooden four-pane (CC-BY), Google's square (CC-BY). All
-sold by Domus Interior at made-up prices.
+In 3D (`buildOpeningTrim` → `attachOpeningModel`) an opening holds a model and nothing
+else — the product's, or the manifest's default for its kind (`FixtureModel.role`: the
+white flush door, the two-leaf window, and Kenney's open doorway as the casing of an
+archway and of a bare leaf) — stretched to the opening's width and height (its depth in
+proportion, never much more than the wall); the hole is bare for the beat the file takes
+to arrive. The only thing drawn by hand is the translucent slab the openings mode uses as
+a handle. `pnpm models:fixtures` frames a door or window centred on the opening, standing
+on y = 0, centred in the wall with the room side along +z, and sorts a door into the nodes
+`leaf` (hung from x min — `hinge: 'left'`) and `frame`, or `body` for a window or a door
+kept as one piece: a source that keeps its parts apart is split by node name, a welded one
+by the triangles whose centre lies in an inner box (`leaf: { box }`), a bare leaf (Kenney's
+doors) is `leaf: 'all'` and gets the default casing around it at runtime, sized to the
+inside of the jambs, and a leaf that hangs from the right in the file is mirrored
+(`mirror: true`). The studio re-hangs the leaf on a pivot at its jamb (the scale on the
+leaf itself, under the pivot, so turning it does not shear it), turns it by the open
+angle, and mirrors the whole model for a right-hinged door. Of an interior door's two
+halves only the one that draws the leaf places the model, of an archway's the room that
+sorts first — except in a single-room view, where the half that is shown draws it
+(`twinShown`). Doors: Quaternius (oak with frame, white panelled, white flush, dark
+classic entrance, white glazed metal entrance), Kenney (country leaf, red glazed
+entrance), Wesley Thompson's classic white (CC-BY); windows: Quaternius two-leaf and grid,
+Justin Randall's wooden four-pane (CC-BY), Google's square (CC-BY). All sold by Domus
+Interior at made-up prices.
 
 ### Adding furniture in the studio
 
@@ -1273,6 +1286,15 @@ through it**. `Math.atan2(edge.dir.x, edge.dir.z)` is 90° off and lays everythi
 wall at right angles — that bug shipped once in the window frames, door casings and skirting
 and is very easy to reintroduce. Doors also have to pivot from a group placed at the hinge;
 rotating the leaf itself spins it about its middle like a revolving door.
+
+**Every object in the studio is a GLB; only the architecture is built from the plan.**
+Floors, ceilings, walls with their holes, free walls, columns, beams, skirting and floor
+zones are geometry computed from the plan (they change length with every edit); the
+editing aids — opening slabs, the wall drag ghost, outlines, the ghost box of a model that
+failed to load, the admin turntable's grid and arrow — are helpers. Everything else a
+person looks at, down to a socket plate, a ceiling rose or an LED strip, is a `.glb` under
+`public/models` with a manifest entry: add a file, not a `box()`. `public/` holds no other
+model format; the uploader takes only binary glTF.
 
 ## Drizzle: correlated subqueries don't correlate
 
