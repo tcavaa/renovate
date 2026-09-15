@@ -460,8 +460,8 @@ export default function StudioPage() {
     if (kind) {
       event.preventDefault();
       viewerApi?.clearElectricalPreview();
-      const at = view === '3d' ? viewerApi?.floorPointAt(event.clientX, event.clientY) : null;
-      if (at?.roomId) {
+      const at = view === '3d' ? viewerApi?.fixtureSpotAt(kind, event.clientX, event.clientY) : null;
+      if (at) {
         const id = store.addElectricalPoint(kind, at.position, at.roomId, products);
         if (id) store.selectElement({ kind: 'electrical', id });
       } else setRefused(true);
@@ -492,8 +492,8 @@ export default function StudioPage() {
   /** An armed electrical kind lands where the 3D view is clicked. */
   const onWorkspaceClick = (event: React.MouseEvent) => {
     if (!electricalArmed || view !== '3d' || !viewerApi) return;
-    const at = viewerApi.floorPointAt(event.clientX, event.clientY);
-    if (!at?.roomId) return;
+    const at = viewerApi.fixtureSpotAt(electricalKind, event.clientX, event.clientY);
+    if (!at) return;
     const id = store.addElectricalPoint(electricalKind, at.position, at.roomId, products);
     if (id) store.selectElement({ kind: 'electrical', id });
   };

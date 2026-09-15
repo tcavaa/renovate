@@ -85,8 +85,9 @@ export function SwapPanel({
   const currentId = item.product?.productId;
 
   return (
-    <div className="relative h-full overflow-hidden">
-      <div className="space-y-4 pb-32">
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* The body scrolls on its own; the drawer along the bottom never hides the last button. */}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-36 pr-1">
         <ItemCard item={item} variant="panel" />
 
         <div className="space-y-2">
