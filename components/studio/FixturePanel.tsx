@@ -68,8 +68,9 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
   const select = 'h-9 w-full rounded-[10px] border border-line bg-white px-2.5 text-sm text-ink focus:border-ink focus:outline-none';
 
   return (
-    <div className="relative h-full overflow-hidden">
-      <div className="space-y-3 pb-28">
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* The body scrolls on its own; the drawer along the bottom never hides the last field. */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-32 pr-1">
         {/* The product, or the estimate standing in for one. */}
         <div className="overflow-hidden rounded-[12px] border border-line bg-bg-surface">
           <div className="flex gap-3 p-3">

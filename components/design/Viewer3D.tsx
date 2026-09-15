@@ -66,6 +66,12 @@ export interface ViewerApi {
   /** The floor point under a screen position and the room it is in, or null off the plane. */
   floorPointAt: (clientX: number, clientY: number) => { position: Vec2; roomId: string | null } | null;
   /**
+   * Where a fitting of `kind` would go for a screen position: on the wall the pointer touches
+   * (a wall kind) — pointing at the plaster is the natural gesture, and the floor behind it
+   * is usually outside the room — else the floor point. Null off the plan.
+   */
+  fixtureSpotAt: (kind: ElectricalKind, clientX: number, clientY: number) => { position: Vec2; roomId: string } | null;
+  /**
    * Moves the carried item to a screen position and sets it down there when it fits.
    * Returns false when nothing is carried or the spot does not fit (the item stays on the
    * pointer so the person can move it somewhere it does).
@@ -536,6 +542,39 @@ function SceneContent({
     [camera, gl]
   );
 
+  /** The room surface — floor or wall — under a screen position, with the point hit. */
+  const surfaceAt = useCallback(
+    (clientX: number, clientY: number): { data: SceneUserData; point: THREE.Vector3 } | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      dragRaycaster.setFromCamera(dragNdc, camera);
+      // The cut-away walls live on the hidden layer, which the raycaster does not test.
+      for (const hit of dragRaycaster.intersectObject(shell, true)) {
+        const data = hit.object.userData as SceneUserData | undefined;
+        if (data?.pickKind === 'surface' && data.roomId && (data.surface === 'wall' || data.surface === 'floor')) return { data, point: hit.point };
+      }
+      return null;
+    },
+    [camera, gl, shell]
+  );
+
+  /** Where a fitting of `kind` goes for a screen position: the wall under the pointer, else the floor. */
+  const fixtureSpotAt = useCallback(
+    (kind: ElectricalKind, clientX: number, clientY: number): { position: Vec2; roomId: string } | null => {
+      if (ELECTRICAL_KINDS[kind].placement === 'wall') {
+        const hit = surfaceAt(clientX, clientY);
+        if (hit?.data.surface === 'wall') return { position: { x: hit.point.x, z: hit.point.z }, roomId: hit.data.roomId };
+      }
+      const point = floorPoint(clientX, clientY, 0);
+      const room = point ? roomAtPoint(plan.rooms, point) : null;
+      if (point && room) return { position: point, roomId: room.id };
+      // Pointing at a wall from outside the room's floor: the wall still says which room.
+      const hit = surfaceAt(clientX, clientY);
+      return hit ? { position: { x: hit.point.x, z: hit.point.z }, roomId: hit.data.roomId } : null;
+    },
+    [surfaceAt, floorPoint, plan.rooms]
+  );
+
   /** The ghost fitting shown while an electrical tile is dragged over the view. */
   const previewRef = useRef<THREE.Group | null>(null);
   const clearPreview = useCallback(() => {
@@ -607,14 +646,15 @@ function SceneContent({
         return true;
       },
       moveCarriedTo: (clientX, clientY) => carryUpdateRef.current?.(clientX, clientY),
+      fixtureSpotAt,
       previewElectricalAt: (kind, clientX, clientY) => {
-        const point = floorPoint(clientX, clientY, 0);
-        const room = point ? roomAtPoint(plan.rooms, point) : null;
-        if (!point || !room) {
+        const spot = fixtureSpotAt(kind, clientX, clientY);
+        const room = spot ? plan.rooms.find((r) => r.id === spot.roomId) : null;
+        if (!spot || !room) {
           clearPreview();
           return false;
         }
-        const placed = placeElectrical(room, kind, point, 'preview');
+        const placed = placeElectrical(room, kind, spot.position, 'preview');
         const ghost = buildFitting(room, placed, materials, { preview: true });
         clearPreview();
         if (!ghost) return false;
@@ -640,7 +680,7 @@ function SceneContent({
     };
     onApi(api);
     return () => onApi(null);
-  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, materials, clearPreview]);
+  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, fixtureSpotAt, materials, clearPreview]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway
