@@ -1,16 +1,36 @@
 const isDev = process.env.NODE_ENV !== 'production';
 
+// Vercel sets `VERCEL=1` in every build. Its builder installs a build adapter and traces and
+// packages the server itself, so `output: 'standalone'` has no use there — and on Next 16.3.x
+// it is fatal: once an adapter is configured Turbopack no longer writes
+// `.next/next-server.js.nft.json` (vercel/next.js#93684), while the standalone finaliser
+// still opens that file unconditionally. "ENOENT … next-server.js.nft.json" was the whole of
+// the first Vercel build. Fixed upstream for 16.4 (vercel/next.js#97287); the switch stays,
+// because only deploy/deploy.sh and deploy/cpanel.sh ever consume the standalone output.
+const onVercel = !!process.env.VERCEL;
+
 /**
  * With `STORAGE_DRIVER=s3` the uploaded GLBs are fetched from the bucket's public origin, so
- * it has to be a `connect-src`; images are already covered by `img-src https:`.
+ * it has to be a `connect-src` (images are already covered by `img-src https:`), and the
+ * product, store and furniture photos there have to be allowed for `next/image`, which
+ * refuses any remote host it was not told about.
  */
-const s3Origin = (() => {
+const s3Url = (() => {
   try {
-    return process.env.S3_PUBLIC_URL ? new URL(process.env.S3_PUBLIC_URL).origin : null;
+    return process.env.S3_PUBLIC_URL ? new URL(process.env.S3_PUBLIC_URL) : null;
   } catch {
     return null;
   }
 })();
+const s3Origin = s3Url?.origin ?? null;
+const s3ImagePattern = s3Url
+  ? {
+      protocol: s3Url.protocol.replace(':', ''),
+      hostname: s3Url.hostname,
+      ...(s3Url.port ? { port: s3Url.port } : {}),
+      pathname: `${s3Url.pathname.replace(/\/$/, '')}/**`,
+    }
+  : null;
 
 /**
  * Content Security Policy.
@@ -82,8 +102,9 @@ const nextConfig = {
   // Shipped in the standalone server's node_modules instead of being bundled into the server
   // chunks, so deploy/migrate.cjs can load it on a host that has no other node_modules.
   serverExternalPackages: ['mysql2'],
-  // Self-contained server for PM2: deploy/deploy.sh copies public/ and .next/static beside it.
-  output: 'standalone',
+  // Self-contained server for PM2 / Passenger: deploy/deploy.sh and deploy/cpanel.sh copy
+  // public/ and .next/static beside it. Never on Vercel — see `onVercel`.
+  output: onVercel ? undefined : 'standalone',
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
   // over it — the two sharing `.next` is what 404s every page (see CLAUDE.md).
   distDir: process.env.NEXT_DIST_DIR || '.next',
@@ -92,6 +113,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'cdn.jsdelivr.net' },
       { protocol: 'https', hostname: 'placehold.co' },
+      ...(s3ImagePattern ? [s3ImagePattern] : []),
     ],
   },
   experimental: {

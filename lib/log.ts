@@ -4,8 +4,8 @@ import path from 'node:path';
 /**
  * Structured logging for the server.
  *
- * One JSON object per line, written to stdout (which PM2 captures) and appended to a daily
- * file under `LOG_DIR` (default `logs/`, git-ignored). No external service is involved: this
+ * One JSON object per line, written to stdout (which PM2, or Vercel's runtime logs, capture)
+ * and appended to a daily file under `LOG_DIR` (default `logs/`, git-ignored). No external service is involved: this
  * is the file-based stand-in until an error tracker is wired in, and it is what to `tail`
  * when something goes wrong on the VPS.
  *
@@ -24,10 +24,11 @@ const toFile = process.env.LOG_FILE !== 'false';
 
 let stream: WriteStream | null = null;
 let streamDay = '';
+let fileGivenUp = false;
 
 /** One file per calendar day, opened lazily so a read-only filesystem only breaks logging. */
 function fileFor(now: Date): WriteStream | null {
-  if (!toFile) return null;
+  if (!toFile || fileGivenUp) return null;
   const day = now.toISOString().slice(0, 10);
   if (stream && streamDay === day) return stream;
   try {
@@ -40,6 +41,9 @@ function fileFor(now: Date): WriteStream | null {
     streamDay = day;
     return stream;
   } catch {
+    // A read-only filesystem (Vercel's functions, a locked-down host): stdout only from here
+    // on. Before this every line paid for the same failed mkdir again.
+    fileGivenUp = true;
     return null;
   }
 }

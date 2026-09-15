@@ -25,6 +25,10 @@ const schema = z
     DATABASE_USER: z.string().min(1).default('root'),
     DATABASE_PASSWORD: z.string().default(''),
     DATABASE_NAME: z.string().min(1).default('renovate_ge'),
+    /** TLS to MySQL — hosted databases (PlanetScale, TiDB Cloud, Aiven, DigitalOcean) refuse plain connections. */
+    DATABASE_SSL: z.enum(['true', 'false']).optional(),
+    /** The provider's CA certificate (PEM) when it signs with its own authority; empty for a public CA. */
+    DATABASE_SSL_CA: optionalString,
 
     AUTH_SECRET: isProduction
       ? z.string().min(32, 'AUTH_SECRET must be at least 32 characters in production')

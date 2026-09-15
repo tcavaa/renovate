@@ -14,6 +14,12 @@ export default {
     user: process.env.DATABASE_USER ?? 'root',
     password: process.env.DATABASE_PASSWORD ?? '',
     database: process.env.DATABASE_NAME ?? 'renovate_ge',
+    // The same switch lib/db honours: a hosted MySQL over TLS, verified against the bundled
+    // authorities or the provider's own CA.
+    ssl:
+      process.env.DATABASE_SSL === 'true'
+        ? { rejectUnauthorized: true, ...(process.env.DATABASE_SSL_CA ? { ca: process.env.DATABASE_SSL_CA } : {}) }
+        : undefined,
   },
   verbose: true,
   strict: true,
