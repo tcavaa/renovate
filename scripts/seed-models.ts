@@ -119,8 +119,8 @@ async function main() {
     );
   }
 
-  // The electrical layer's fittings — the socket, the switch, the lamps — are products too,
-  // in the sockets & switches and lighting categories, with the fixture's own model.
+  // The electrical layer's fittings — the sockets, the switches, the lamps — and the doors
+  // and windows are products too, in their own categories, with the fixture's own model.
   try {
     const fixtures = JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'fixtures', 'manifest.json'), 'utf8')) as { models: FixtureManifestModel[] };
     for (const model of fixtures.models) {
@@ -146,7 +146,7 @@ async function main() {
         unit: 'piece' as const,
         brand: model.author,
         imageUrl: model.imageUrl,
-        styleTags: ['modern', 'scandinavian', 'industrial', 'vintage'],
+        styleTags: model.product.styles ?? ['modern', 'scandinavian', 'industrial', 'vintage'],
         model3dKind: model.product.kind,
         model3dUrl: model.url,
         model3dStatus: 'ready' as const,
@@ -164,7 +164,7 @@ async function main() {
       console.log(`  ✓ ${slug.padEnd(38)} ${model.product.kind.padEnd(14)} ${model.widthCm}×${model.depthCm}×${model.heightCm}  ${model.product.priceGel} ₾`);
     }
   } catch {
-    console.log('  (no public/models/fixtures/manifest.json — run `pnpm models:fixtures` for the electrical fittings)');
+    console.log('  (no public/models/fixtures/manifest.json — run `pnpm models:fixtures` for the fittings, doors and windows)');
   }
 
   // Everything else the studio could have placed goes. The studio must never draw a product

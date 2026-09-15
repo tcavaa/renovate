@@ -1944,6 +1944,7 @@ export const en: Dictionary = {
     fixtureEstimateTitle: 'Estimate — no product chosen',
     fixtureEstimate: 'Average market price {price} — pick a product below',
     fixtureNoProducts: 'The catalogue has no product of this kind yet — the budget uses an average price',
+    exteriorOpening: 'on an exterior wall',
     totalArea: 'Total',
     kindArmedHint: '{kind} — click on the plan to place it. The same tile again switches it off.',
     stageBlackDesc: 'Black frame to white — the rough works',

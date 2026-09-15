@@ -11,7 +11,8 @@
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
 import { roomEdges, pointOnEdge, type PlanEdge } from './planGeometry';
-import type { Opening, OpeningKind, PlanRoom, Vec2 } from './types';
+import { toSceneProduct, type CatalogProduct } from './matcher';
+import type { Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
 
 export const OPENING_DEFAULTS: Record<OpeningKind, { widthM: number; heightM: number; sillM: number }> = {
   door: { widthM: 0.9, heightM: 2.05, sillM: 0 },
@@ -138,8 +139,12 @@ export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
         swing: mirrorSwing(opening.swing),
         ...(opening.material ? { material: opening.material } : {}),
         ...(opening.openAngleDeg != null ? { openAngleDeg: opening.openAngleDeg } : {}),
+        ...(opening.product ? { product: opening.product } : {}),
       };
-      const same = Object.entries(wanted).every(([k, v]) => (twin.opening as unknown as Record<string, unknown>)[k] === v);
+      const same = Object.entries(wanted).every(([k, v]) => {
+        const have = (twin.opening as unknown as Record<string, unknown>)[k];
+        return k === 'product' ? (have as Opening['product'])?.productId === (v as Opening['product'])?.productId : have === v;
+      });
       if (same) continue;
       out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, wanted));
     }
@@ -179,18 +184,112 @@ export function updateOpening(rooms: PlanRoom[], roomId: string, openingId: stri
   const edge = edgeOf(room, opening.wallIndex);
   const widthM = patch.widthM != null ? Math.max(0.5, Math.min(patch.widthM, (edge?.length ?? 10) - CORNER_MARGIN_M * 2)) : opening.widthM;
   const clean: Partial<Opening> = { ...patch, widthM };
-  if (patch.kind && patch.kind !== opening.kind) {
-    // A door becomes a window: it needs a sill and a window's height, and vice versa.
+  const kindChanged = !!patch.kind && patch.kind !== opening.kind;
+  if (patch.kind && kindChanged) {
+    // A door becomes a window: it needs a sill and a window's height, and vice versa — and
+    // its product, a door, is no window: the studio picks a new one of the new kind.
     const d = OPENING_DEFAULTS[patch.kind];
     clean.heightM = patch.heightM ?? d.heightM;
     clean.sillM = patch.sillM ?? d.sillM;
     if (patch.widthM == null) clean.widthM = Math.min(d.widthM, (edge?.length ?? 10) - CORNER_MARGIN_M * 2);
+    clean.product = null;
   }
   let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, clean));
   // Re-clamp the position for the new width.
   if (edge) next = moveOpening(next, roomId, openingId, opening.t);
   const twin = twinOf(rooms, opening);
-  if (twin) next = replaceIn(next, twin.room.id, (r) => patchOpening(r, twin.opening.id, { widthM: clean.widthM, heightM: clean.heightM ?? twin.opening.heightM, sillM: clean.sillM ?? twin.opening.sillM, kind: clean.kind ?? twin.opening.kind }));
+  if (twin) next = replaceIn(next, twin.room.id, (r) => patchOpening(r, twin.opening.id, { widthM: clean.widthM, heightM: clean.heightM ?? twin.opening.heightM, sillM: clean.sillM ?? twin.opening.sillM, kind: clean.kind ?? twin.opening.kind, ...(kindChanged ? { product: null } : {}) }));
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// Doors and windows as products
+// ---------------------------------------------------------------------------
+
+/**
+ * Every door and window is bought as a product where the catalogue has one: the kind a
+ * product carries (`products.model3dKind`) is `door` for an interior door, `entrance_door`
+ * for one on an exterior wall, `window` for a window. An archway is a hole and buys nothing.
+ * An opening whose kind has no product yet stays an estimate (`OPENING_ESTIMATE_GEL`) and is
+ * drawn with the procedural frame and leaf.
+ */
+export const OPENING_PRODUCT_KINDS = ['door', 'entrance_door', 'window'] as const;
+export type OpeningProductKind = (typeof OPENING_PRODUCT_KINDS)[number];
+
+/** True for a product kind that is a door or a window, not furniture or a fitting. */
+export function isOpeningProductKind(kind: string | null | undefined): kind is OpeningProductKind {
+  return !!kind && (OPENING_PRODUCT_KINDS as readonly string[]).includes(kind);
+}
+
+/** The product kind an opening buys, or null for an archway. */
+export function openingProductKind(opening: Pick<Opening, 'kind' | 'exterior'>): OpeningProductKind | null {
+  if (opening.kind === 'window') return 'window';
+  if (opening.kind === 'door') return opening.exterior ? 'entrance_door' : 'door';
+  return null;
+}
+
+/**
+ * The catalogue's products for an opening: its own kind first (an entrance door offered
+ * for an interior one comes after the interior doors), the style's before the rest, the
+ * cheapest first within that. Empty for an archway.
+ */
+export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+  const wanted = openingProductKind(opening);
+  if (!wanted) return [];
+  const family = wanted === 'window' ? ['window'] : ['door', 'entrance_door'];
+  const rank = (p: CatalogProduct) => (p.model3dKind === wanted ? 0 : 1);
+  const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 0 : 1);
+  return catalog.filter((p) => !!p.model3dUrl && family.includes(p.model3dKind ?? '')).sort((a, b) => rank(a) - rank(b) || affinity(a) - affinity(b) || a.pricePerUnit - b.pricePerUnit);
+}
+
+/** The opening with `product` as what it is (or none). One of it: an interior door is one leaf however many halves it has. */
+export function withOpeningProduct(opening: Opening, product: CatalogProduct | null): Opening {
+  if (!product) {
+    const { product: _dropped, ...rest } = opening;
+    return rest;
+  }
+  return { ...opening, product: toSceneProduct(product, 1) };
+}
+
+/**
+ * Gives every door and window without a product the best one the catalogue has, keeps a
+ * chosen product that is still of the right family, and replaces one that is not (a door
+ * that became a window). The two halves of an interior door end up with the same product.
+ * Returns the same array when nothing changes.
+ */
+export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[], styleId: StyleId): PlanRoom[] {
+  if (catalog.length === 0) return rooms;
+  let out = rooms;
+  const done = new Set<string>();
+  for (const room of rooms) {
+    for (const opening of room.openings) {
+      if (done.has(opening.id) || opening.kind === 'archway') continue;
+      const candidates = openingCandidates(opening, catalog, styleId);
+      const current = opening.product ? candidates.find((c) => c.id === opening.product?.productId) : undefined;
+      const chosen = current ?? candidates[0] ?? null;
+      const twin = opening.connectsToRoomId ? twinOf(out, opening) : null;
+      done.add(opening.id);
+      if (twin) done.add(twin.opening.id);
+      // Nothing of this family in the catalogue: whatever is chosen stays as it is.
+      if (!chosen) continue;
+      if (current && (!twin || twin.opening.product?.productId === chosen.id)) continue;
+      const product = toSceneProduct(chosen, 1);
+      out = replaceIn(out, room.id, (r) => patchOpening(r, opening.id, { product }));
+      if (twin) out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, { product }));
+    }
+  }
+  return out;
+}
+
+/** Sets one opening's product (or none) on it and on its twin. */
+export function setOpeningProduct(rooms: PlanRoom[], roomId: string, openingId: string, product: CatalogProduct | null): PlanRoom[] {
+  const room = rooms.find((r) => r.id === roomId);
+  const opening = room?.openings.find((o) => o.id === openingId);
+  if (!room || !opening) return rooms;
+  const value = product ? toSceneProduct(product, 1) : null;
+  let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, { product: value }));
+  const twin = twinOf(rooms, opening);
+  if (twin) next = replaceIn(next, twin.room.id, (r) => patchOpening(r, twin.opening.id, { product: value }));
   return next;
 }
 
@@ -217,6 +316,8 @@ export interface AddOpeningOptions {
   swing?: Opening['swing'];
   material?: Opening['material'];
   openAngleDeg?: number;
+  /** The product a moved opening brings along. */
+  product?: Opening['product'];
 }
 
 /**
@@ -277,6 +378,7 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     ...(kind === 'door' ? { hinge: options.hinge ?? 'left', swing: options.swing ?? 'in' } : {}),
     ...(options.material ? { material: options.material } : {}),
     ...(options.openAngleDeg != null ? { openAngleDeg: options.openAngleDeg } : {}),
+    ...(options.product ? { product: options.product } : {}),
   };
   let next = replaceIn(rooms, roomId, (r) => ({ ...r, openings: [...r.openings, opening] }));
   if (neighbour && neighbour.edge) {
@@ -323,6 +425,7 @@ export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: 
     swing: opening.swing,
     material: opening.material,
     openAngleDeg: opening.openAngleDeg,
+    product: opening.product,
   });
   if (!added.openingId) return { rooms, openingId: null };
   return added;

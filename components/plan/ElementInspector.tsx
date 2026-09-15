@@ -430,7 +430,7 @@ export function Field({ label, children }: { label: string; children: React.Reac
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+export function Fact({ label, value }: { label: string; value: string }) {
   return (
     <p className="flex items-baseline justify-between text-xs">
       <span className="text-ink-muted">{label}</span>
@@ -475,7 +475,7 @@ export function NumberField({ label, value, min, max, step, onCommit, disabled }
   );
 }
 
-function RangeField({ label, value, min, max, step, unit, onChange }: { label: string; value: number; min: number; max: number; step: number; unit: string; onChange: (value: number) => void }) {
+export function RangeField({ label, value, min, max, step, unit, onChange }: { label: string; value: number; min: number; max: number; step: number; unit: string; onChange: (value: number) => void }) {
   return (
     <Field label={`${label} · ${value}${unit}`}>
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-ink" />
@@ -483,7 +483,7 @@ function RangeField({ label, value, min, max, step, unit, onChange }: { label: s
   );
 }
 
-function MaterialField({ value, options, onChange, disabled }: { value: BuildMaterial; options: BuildMaterial[]; onChange: (m: BuildMaterial) => void; disabled?: boolean }) {
+export function MaterialField({ value, options, onChange, disabled }: { value: BuildMaterial; options: BuildMaterial[]; onChange: (m: BuildMaterial) => void; disabled?: boolean }) {
   const t = useT();
   return (
     <Field label={t.build.material}>
@@ -498,7 +498,7 @@ function MaterialField({ value, options, onChange, disabled }: { value: BuildMat
   );
 }
 
-function OriginRow({ origin }: { origin: 'existing' | 'user' | 'generated' }) {
+export function OriginRow({ origin }: { origin: 'existing' | 'user' | 'generated' }) {
   const t = useT();
   const label = origin === 'existing' ? t.build.originExisting : origin === 'user' ? t.build.originUser : t.build.originGenerated;
   const color = origin === 'existing' ? '#3A3733' : origin === 'user' ? '#E85D26' : '#2E8B85';
@@ -510,7 +510,7 @@ function OriginRow({ origin }: { origin: 'existing' | 'user' | 'generated' }) {
   );
 }
 
-function LockRow({ locked, onToggle }: { locked: boolean; onToggle: () => void }) {
+export function LockRow({ locked, onToggle }: { locked: boolean; onToggle: () => void }) {
   const t = useT();
   return (
     <button type="button" onClick={onToggle} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-xs text-ink-soft hover:border-ink">

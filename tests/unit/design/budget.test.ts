@@ -43,6 +43,21 @@ describe('budget lines', () => {
     expect(added.lines.some((l) => l.section === 'labour' && l.key === 'electrical_point')).toBe(true);
   });
 
+  it('prices a door that is a real product at its price, once for both halves', () => {
+    const product = { productId: 21, nameKa: 'კარი „Oak“', slug: 'door-oak', brand: null, pricePerUnit: 620, unit: 'piece', qty: 1, totalPrice: 620, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/models/fixtures/door-oak.glb', categorySlug: 'doors', store: null };
+    const p = plan();
+    const rooms = p.rooms.map((r) => ({ ...r, openings: r.openings.map((o) => (o.kind === 'door' ? { ...o, product, origin: 'user' as const } : o)) }));
+    const cost = priceScene({ ...p, rooms }, scene('design_only', []));
+    const line = cost.lines.find((l) => l.key === 'product-21')!;
+    expect(line).toBeDefined();
+    expect(line.qty).toBe(1);
+    expect(line.total).toBe(620);
+    expect(line.estimated).toBe(false);
+    expect(line.name).toBe('კარი „Oak“');
+    expect(cost.lines.filter((l) => l.key === 'door')).toHaveLength(0);
+    expect(cost.openingsTotal).toBe(620);
+  });
+
   it('prices a fitting that is a real product at its price, not as an estimate', () => {
     const product = { productId: 9, nameKa: 'როზეტი', slug: 'socket', brand: null, pricePerUnit: 30, unit: 'piece', qty: 2, totalPrice: 60, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/models/fixtures/socket-eu.glb', categorySlug: 'sockets-switches', store: null };
     const cost = priceScene(plan(), scene('design_only', [{ ...socket('s1', 'user'), product }, { ...socket('s2', 'user'), product }]));

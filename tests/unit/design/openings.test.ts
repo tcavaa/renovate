@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingWorldPoint, projectToEdge, removeOpening, twinOf, updateOpening } from '@/lib/design/openings';
+import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
+import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { PlanRoom } from '@/lib/design/types';
 
@@ -195,5 +196,54 @@ describe('dragging openings between walls', () => {
     const added = addOpening(rooms, 'bed', 'window', wall.index, 0.12, { t: 0.3 });
     const window = added.rooms.find((r) => r.id === 'bed')!.openings.find((o) => o.id === added.openingId)!;
     expect(window.t).toBeCloseTo(0.3, 5);
+  });
+
+  describe('as products', () => {
+    const product = (id: number, kind: string, price: number, styleTags: string[] = []): CatalogProduct => ({ id, nameKa: `p${id}`, slug: `p${id}`, brand: null, categorySlug: kind === 'window' ? 'windows' : 'doors', pricePerUnit: price, unit: 'piece', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: kind, model3dUrl: `/models/fixtures/${kind}-${id}.glb`, widthCm: 90, depthCm: 20, heightCm: 210, styleTags, tags: [], isFeatured: false, specs: null, coveragePerUnit: null, store: null });
+    const catalog = [product(1, 'door', 500, ['modern']), product(2, 'door', 400, ['vintage']), product(3, 'entrance_door', 1200), product(4, 'window', 450, ['modern'])];
+
+    it('offers doors of the opening\'s own kind first, the style\'s first, then the cheapest', () => {
+      const ids = openingCandidates({ kind: 'door', exterior: false }, catalog, 'modern').map((p) => p.id);
+      expect(ids).toEqual([1, 2, 3]);
+      expect(openingCandidates({ kind: 'door', exterior: true }, catalog, 'modern').map((p) => p.id)).toEqual([3, 1, 2]);
+      expect(openingCandidates({ kind: 'window', exterior: true }, catalog, 'vintage').map((p) => p.id)).toEqual([4]);
+      expect(openingCandidates({ kind: 'archway', exterior: false }, catalog, 'modern')).toEqual([]);
+    });
+
+    it('gives both halves of an interior door the same product, and keeps a chosen one', () => {
+      const rooms = withOpeningProducts(flat(), catalog, 'vintage');
+      const door = rooms[1].openings.find((o) => o.connectsToRoomId === 'hall')!;
+      const twin = twinOf(rooms, door)!.opening;
+      expect(door.product?.productId).toBe(2);
+      expect(twin.product?.productId).toBe(2);
+      expect(door.product?.qty).toBe(1);
+      // A window on the bedroom's outside wall is a window product.
+      const window = rooms.flatMap((r) => r.openings).find((o) => o.kind === 'window');
+      expect(window?.product?.productId).toBe(4);
+      // Nothing to do the second time round.
+      expect(withOpeningProducts(rooms, catalog, 'vintage')).toBe(rooms);
+      // A choice sticks on both halves, and a re-run leaves it alone.
+      const chosen = setOpeningProduct(rooms, 'bed', door.id, catalog[0]);
+      const again = withOpeningProducts(chosen, catalog, 'vintage');
+      expect(again.find((r) => r.id === 'bed')!.openings.find((o) => o.id === door.id)!.product?.productId).toBe(1);
+      expect(twinOf(again, door)!.opening.product?.productId).toBe(1);
+    });
+
+    it('drops the product when the kind changes, so a door\'s product never sits in a window', () => {
+      const rooms = withOpeningProducts(flat(), catalog, 'modern');
+      const window = rooms.flatMap((r) => r.openings).find((o) => o.kind === 'window')!;
+      const changed = updateOpening(rooms, window.roomId, window.id, { kind: 'door' });
+      expect(changed.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product).toBeNull();
+      const refilled = withOpeningProducts(changed, catalog, 'modern');
+      expect(refilled.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product?.productId).toBe(3);
+    });
+
+    it('aligns the twin\'s product with the primary\'s', () => {
+      const rooms = withOpeningProducts(flat(), catalog, 'modern');
+      const door = rooms[0].openings.find((o) => o.connectsToRoomId === 'bed')!;
+      const stale = rooms.map((r) => (r.id === 'bed' ? { ...r, openings: r.openings.map((o) => ({ ...o, product: null })) } : r));
+      const aligned = alignTwins(stale);
+      expect(twinOf(aligned, door)!.opening.product?.productId).toBe(door.product?.productId);
+    });
   });
 });

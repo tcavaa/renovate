@@ -23,6 +23,7 @@ import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverl
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
+import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
@@ -110,6 +111,14 @@ export default function StudioPage() {
   useEffect(() => {
     if (pendingPicks && products.length > 0) store.applyPendingPicks(products);
   }, [pendingPicks, products, store]);
+
+  // Every door and window is a product where the catalogue has one — also in a design
+  // saved before doors and windows were products, and one dropped on the 2D board, which
+  // knows nothing of the catalogue.
+  const openingsWithoutProduct = plan?.rooms.reduce((n, r) => n + r.openings.filter((o) => o.kind !== 'archway' && !o.product).length, 0) ?? 0;
+  useEffect(() => {
+    if (products.length > 0 && openingsWithoutProduct > 0) store.ensureOpeningProducts(products);
+  }, [products, openingsWithoutProduct, store]);
 
   // The existing house is kept the first time the studio opens on a plan.
   useEffect(() => {
@@ -534,10 +543,10 @@ export default function StudioPage() {
   const inspectorActions = {
     updateWall: store.updateWall,
     removeWall: store.removeWall,
-    updateOpening: store.updateOpening,
+    updateOpening: (roomId: string, openingId: string, patch: Parameters<typeof store.updateOpening>[2]) => store.updateOpening(roomId, openingId, patch, products),
     removeOpening: store.removeOpening,
     addOpening: (roomId: string, kind: 'door' | 'window' | 'archway', wallIndex: number) => {
-      const id = store.addOpening(roomId, kind, wallIndex);
+      const id = store.addOpening(roomId, kind, wallIndex, products);
       if (id) store.selectElement({ kind: 'opening', id, roomId });
       else setRefused(true);
     },
@@ -744,6 +753,20 @@ export default function StudioPage() {
                   onUpdate={(patch) => store.updateElectricalPoint(selectedElement.id, patch)}
                   onSlide={(tt) => store.slideElectricalPoint(selectedElement.id, tt)}
                   onRemove={() => store.removeElectricalPoint(selectedElement.id)}
+                />
+              </FloatingPanel>
+            ) : selectedElement?.kind === 'opening' && plan.rooms.find((r) => r.id === selectedElement.roomId)?.openings.some((o) => o.id === selectedElement.id) ? (
+              <FloatingPanel title={t.build.inspectorOpening} subtitle={roomNameOf(selectedElement.roomId)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
+                <OpeningPanel
+                  key={selectedElement.id}
+                  opening={plan.rooms.find((r) => r.id === selectedElement.roomId)!.openings.find((o) => o.id === selectedElement.id)!}
+                  room={plan.rooms.find((r) => r.id === selectedElement.roomId)!}
+                  catalog={products}
+                  styleId={styleId}
+                  locked={structureLocked}
+                  onUpdate={(patch) => store.updateOpening(selectedElement.roomId, selectedElement.id, patch, products)}
+                  onSwap={(product) => store.setOpeningProduct(selectedElement.roomId, selectedElement.id, product)}
+                  onRemove={() => store.removeOpening(selectedElement.roomId, selectedElement.id)}
                 />
               </FloatingPanel>
             ) : selectedElement && selectedElement.kind !== 'room' ? (

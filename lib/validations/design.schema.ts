@@ -6,6 +6,41 @@ const vec2 = z.object({ x: z.number(), z: z.number() });
 export const elementOriginSchema = z.enum(['existing', 'user', 'generated']);
 export const buildMaterialSchema = z.enum(['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass']);
 
+const sceneStoreSchema = z.object({
+  id: z.number().int(),
+  nameKa: z.string(),
+  nameEn: z.string().nullable().optional(),
+  nameRu: z.string().nullable().optional(),
+  logoUrl: z.string().nullable(),
+  websiteUrl: z.string().nullable(),
+  phone: z.string().nullable(),
+  address: z.string().nullable(),
+  city: z.string().nullable(),
+  rating: z.number().nullable(),
+  deliveryDays: z.number().nullable(),
+  // Optional: scenes saved before this field existed must still load.
+  deliveryFeeGel: z.number().nullable().optional(),
+});
+
+const sceneProductSchema = z.object({
+  productId: z.number().int(),
+  nameKa: z.string(),
+  nameEn: z.string().nullable().optional(),
+  nameRu: z.string().nullable().optional(),
+  slug: z.string(),
+  brand: z.string().nullable(),
+  pricePerUnit: z.number().min(0),
+  unit: z.string(),
+  qty: z.number().min(0),
+  totalPrice: z.number().min(0),
+  imageUrl: z.string().nullable(),
+  colorHex: z.string().nullable(),
+  textureUrl: z.string().nullable(),
+  model3dUrl: z.string().nullable(),
+  categorySlug: z.string().nullable(),
+  store: sceneStoreSchema.nullable(),
+});
+
 const openingSchema = z.object({
   id: z.string(),
   kind: z.enum(['door', 'window', 'archway']),
@@ -21,6 +56,7 @@ const openingSchema = z.object({
   hinge: z.enum(['left', 'right']).optional(),
   swing: z.enum(['in', 'out']).optional(),
   openAngleDeg: z.number().min(0).max(180).optional(),
+  product: sceneProductSchema.nullable().optional(),
   origin: elementOriginSchema.optional(),
   locked: z.boolean().optional(),
 });
@@ -113,41 +149,6 @@ export const floorPlanSchema = z.object({
   columns: z.array(columnSchema).max(100).optional(),
   beams: z.array(beamSchema).max(100).optional(),
   technical: technicalSetupSchema.optional(),
-});
-
-const sceneStoreSchema = z.object({
-  id: z.number().int(),
-  nameKa: z.string(),
-  nameEn: z.string().nullable().optional(),
-  nameRu: z.string().nullable().optional(),
-  logoUrl: z.string().nullable(),
-  websiteUrl: z.string().nullable(),
-  phone: z.string().nullable(),
-  address: z.string().nullable(),
-  city: z.string().nullable(),
-  rating: z.number().nullable(),
-  deliveryDays: z.number().nullable(),
-  // Optional: scenes saved before this field existed must still load.
-  deliveryFeeGel: z.number().nullable().optional(),
-});
-
-const sceneProductSchema = z.object({
-  productId: z.number().int(),
-  nameKa: z.string(),
-  nameEn: z.string().nullable().optional(),
-  nameRu: z.string().nullable().optional(),
-  slug: z.string(),
-  brand: z.string().nullable(),
-  pricePerUnit: z.number().min(0),
-  unit: z.string(),
-  qty: z.number().min(0),
-  totalPrice: z.number().min(0),
-  imageUrl: z.string().nullable(),
-  colorHex: z.string().nullable(),
-  textureUrl: z.string().nullable(),
-  model3dUrl: z.string().nullable(),
-  categorySlug: z.string().nullable(),
-  store: sceneStoreSchema.nullable(),
 });
 
 export const itemOriginSchema = z.enum(['style', 'calculator', 'studio']);
