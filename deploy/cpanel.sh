@@ -14,7 +14,8 @@
 #   release  — the `cpanel` branch, published by the "cPanel build" GitHub Actions workflow:
 #              the source tree plus the built standalone server under .next/standalone with a
 #              .prebuilt marker. Nothing is installed or built here: the script copies public/,
-#              links the uploads folder, applies migrations with plain node (deploy/migrate.cjs)
+#              links the uploads folder, applies migrations with plain node (deploy/migrate.cjs),
+#              syncs the catalogue with the model manifests (seed-models.cjs, bundled by the workflow)
 #              and restarts Passenger. This is the mode for shared hosting, where the account's
 #              memory cap kills `pnpm install` and `next build`.
 #   build    — any other branch: installs (dev dependencies included), builds the standalone
@@ -172,8 +173,10 @@ else
   echo "note: no document root found (set DOCROOT); a file uploaded after a restart is served only after the next restart" >&2
 fi
 mkdir -p "$SHARED_UPLOADS"
-# The repo's seed images, never overwriting a file that is already there.
-cp -rn public/uploads/. "$SHARED_UPLOADS"/ 2>/dev/null || true
+# The repo's seed images (product photos, renders of the models). Files people upload through
+# the app carry a timestamp prefix and never share a name with these, so the repo's copy
+# always wins — a photo re-rendered in a later release replaces the old one.
+cp -r public/uploads/. "$SHARED_UPLOADS"/ 2>/dev/null || true
 rm -rf "$STANDALONE/public/uploads"
 ln -sfn "$SHARED_UPLOADS" "$STANDALONE/public/uploads"
 # The caching policy next.config.mjs gives /uploads, for the files Apache serves instead.
@@ -190,6 +193,17 @@ if [ -f "$STANDALONE/.prebuilt" ]; then
 else
   # scripts/migrate.ts reads .env.local then .env from the repository root.
   NODE_ENV=production $PNPM db:migrate
+fi
+
+echo "==> catalogue"
+# The database follows the model manifests (public/models/*/manifest.json): one product per
+# model, the rest of the placeable range removed — what `pnpm models:seed` does locally. The
+# workflow bundles that script into the standalone server (deploy:bundle-seed) because the
+# host has no tsx. A failure here leaves the previous catalogue in place; the site still runs.
+if [ -f "$STANDALONE/seed-models.cjs" ]; then
+  NODE_ENV=production node "$STANDALONE/seed-models.cjs" || echo "warning: the catalogue was not synced with the manifests — see above; the site runs with the previous catalogue" >&2
+else
+  NODE_ENV=production $PNPM models:seed || echo "warning: the catalogue was not synced with the manifests — see above; the site runs with the previous catalogue" >&2
 fi
 
 echo "==> restart (Passenger)"

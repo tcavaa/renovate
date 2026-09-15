@@ -4,7 +4,8 @@ name: cPanel build
 # which the cPanel Git Version Control repository checks out. The shared host cannot build the
 # app itself — its per-account memory cap kills `pnpm install` and `next build` — so the branch
 # carries the source tree plus `.next/standalone` (marked with `.next/standalone/.prebuilt`),
-# and deploy/cpanel.sh runs in release mode there: copy public/, link uploads, migrate, restart.
+# and deploy/cpanel.sh runs in release mode there: copy public/, link uploads, migrate, sync the
+# catalogue with the model manifests, restart.
 #
 # Runs after CI has passed on main. Each publish is one commit on top of the previous one, so
 # cPanel's "Update from Remote" always fast-forwards. NEXT_PUBLIC_APP_URL is baked into the
@@ -69,6 +70,10 @@ jobs:
           cp -r .next/static .next/standalone/.next/static
           # public/ is copied and uploads linked on the server by deploy/cpanel.sh.
           rm -rf .next/standalone/public
+          # The catalogue seed as one plain-node file (drizzle, mysql2 and dotenv bundled in),
+          # so deploy/cpanel.sh can make the database match the model manifests on a host
+          # that has no tsx and no node_modules of its own.
+          pnpm deploy:bundle-seed
           printf '%s\n%s\n' "${GITHUB_SHA}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .next/standalone/.prebuilt
           du -sh .next/standalone
 
