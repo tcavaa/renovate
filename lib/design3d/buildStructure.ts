@@ -19,7 +19,7 @@ import type { ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, 
 import { StyleMaterials } from './materials';
 import { box, cylinder, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
-import { loadFixture } from './modelLoader';
+import { loadFixture, loadModel } from './modelLoader';
 import type { SceneUserData } from './buildScene';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
@@ -84,6 +84,35 @@ export function fixtureFor(kind: ElectricalKind): FixtureModel | null {
   return FIXTURE_MODELS.find((m) => m.kinds.includes(kind)) ?? null;
 }
 
+/**
+ * What to draw for a point: its own product's model when it has one, the kind's default
+ * fixture otherwise. A file under `/models/fixtures` is framed as a fixture already (back
+ * on the wall, top on the ceiling); anything else — a product a partner uploaded — is a
+ * furniture-framed model that is scaled to the product's size and turned to the wall here.
+ */
+function modelFor(point: ElectricalPoint): { url: string; framed: boolean; sizeM?: { width: number; depth: number; height: number } } | null {
+  const url = point.product?.model3dUrl;
+  if (url) return { url, framed: url.startsWith('/models/fixtures/'), sizeM: point.sizeM };
+  const fixture = fixtureFor(point.kind);
+  return fixture ? { url: fixture.url, framed: true } : null;
+}
+
+/** A furniture-framed model (standing on y = 0, centred on x/z) refitted as a fixture of `sizeM`. */
+function reframe(model: THREE.Object3D, mount: 'wall' | 'ceiling', sizeM?: { width: number; depth: number; height: number }): THREE.Object3D {
+  const authored = (model.userData.authoredSize as THREE.Vector3 | undefined) ?? new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  const target = sizeM ?? { width: 0.08, depth: 0.02, height: 0.08 };
+  const scale = Math.max(target.width, target.height) / Math.max(authored.x, authored.y, 1e-6);
+  const wrapper = new THREE.Group();
+  model.scale.setScalar(scale);
+  const height = authored.y * scale;
+  const depth = authored.z * scale;
+  // Standing on y = 0 and centred: a wall fixture hangs from its centre with its back on
+  // the wall (+z into the room); a ceiling fixture hangs from its top.
+  model.position.set(0, mount === 'wall' ? -height / 2 : -height, mount === 'wall' ? depth / 2 : 0);
+  wrapper.add(model);
+  return wrapper;
+}
+
 /** Sockets, switches and light fittings as small pieces on the walls and ceilings. */
 export function buildElectrical(plan: FloorPlan, points: ElectricalPoint[], materials: StyleMaterials, options: ElectricalBuildOptions = {}): THREE.Group {
   const group = new THREE.Group();
@@ -124,12 +153,12 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   const dark = m('frame', { colorHex: '#3A3733' });
   const shade = m('lampshade');
   const glow = m('emissive');
-  const fixture = options.preview ? null : fixtureFor(point.kind);
+  const fixture = options.preview ? null : modelFor(point);
   const data = () => piece.userData as SceneUserData;
 
   /** Swaps a stand-in for the real model when it arrives, unless the piece is gone by then. */
-  const attach = (holder: THREE.Group, url: string, afterLoad?: (model: THREE.Object3D) => void) => {
-    loadFixture(url)
+  const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', afterLoad?: (model: THREE.Object3D) => void) => {
+    (spec.framed ? loadFixture(spec.url) : loadModel(spec.url).then((m) => reframe(m, mount, spec.sizeM)))
       .then((model) => {
         if (!piece.parent) return;
         for (const child of [...holder.children]) {
@@ -140,16 +169,20 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
         tag(model, { ...data() });
         afterLoad?.(model);
       })
-      .catch((error: unknown) => console.warn(`[studio] fixture failed to load: ${url}`, error));
+      .catch((error: unknown) => console.warn(`[studio] fixture failed to load: ${spec.url}`, error));
   };
 
   if (info.placement === 'ceiling' || point.kind === 'light_spot') {
     const y = Math.min(room.heightM - 0.005, point.elevationM || room.heightM);
     piece.position.set(point.position.x, y, point.position.z);
     if (point.kind === 'light_spot') {
-      // A recessed spot: a dark ring flush with the ceiling and a lit disc inside it.
-      piece.add(own(cylinder(0.055, 0.055, 0.012, dark, [0, -0.006, 0], 24)));
-      piece.add(own(cylinder(0.04, 0.04, 0.008, on ? glow : shade, [0, -0.012, 0], 20)));
+      // A recessed spot: a dark ring flush with the ceiling and a lit disc inside it — or
+      // the product's own model when one was chosen.
+      const holder = new THREE.Group();
+      piece.add(holder);
+      holder.add(own(cylinder(0.055, 0.055, 0.012, dark, [0, -0.006, 0], 24)));
+      holder.add(own(cylinder(0.04, 0.04, 0.008, on ? glow : shade, [0, -0.012, 0], 20)));
+      if (fixture && point.product) attach(holder, fixture, 'ceiling');
       return piece;
     }
     // The main light: a ceiling rose, and a bulb on a short cord unless a hanging lamp from
@@ -162,7 +195,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
     holder.position.y = -0.17;
     piece.add(holder);
     holder.add(own(cylinder(0.028, 0.018, 0.09, on ? glow : shade, [0, -0.05, 0], 14)));
-    if (fixture) attach(holder, fixture.url, () => { if (on) holder.add(own(new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), materials.get('emissive')).translateY(-0.06))); });
+    if (fixture) attach(holder, fixture, 'ceiling', () => { if (on) holder.add(own(new THREE.Mesh(new THREE.SphereGeometry(0.036, 16, 12), materials.get('emissive')).translateY(-0.06))); });
     return piece;
   }
 
@@ -191,7 +224,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
     const holder = new THREE.Group();
     piece.add(holder);
     holder.add(own(box(0.14, 0.18, 0.09, on ? glow : shade, [0, 0, 0.045])));
-    if (fixture) attach(holder, fixture.url);
+    if (fixture) attach(holder, fixture, 'wall');
     return piece;
   }
   // Sockets, switches, TV and data points: one plate per outlet, side by side.
@@ -203,7 +236,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
     piece.add(holder);
     holder.add(own(box(PLATE_M - 0.004, PLATE_M - 0.004, 0.01, plate, [0, 0, 0.005])));
     holder.add(own(box(point.kind === 'switch' ? 0.03 : 0.045, point.kind === 'switch' ? 0.045 : 0.03, 0.006, dark, [0, 0, 0.012])));
-    if (fixture) attach(holder, fixture.url);
+    if (fixture) attach(holder, fixture, 'wall');
   }
   return piece;
 }

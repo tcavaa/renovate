@@ -184,7 +184,7 @@ export function priceScene(
 
   // --- doors and windows, sockets, lights, pipes ---
   const openingLines = priceOpenings(plan, full, phases, roomName);
-  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName);
+  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale);
   lines.push(...openingLines, ...technicalLines);
   const openingsTotal = round2(openingLines.reduce((s, l) => s + l.total, 0));
   const technicalTotal = round2(technicalLines.reduce((s, l) => s + l.total, 0));
@@ -285,29 +285,43 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
  * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
  * home only what the person added themselves is new work.
  */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>): BudgetLine[] {
+export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka'): BudgetLine[] {
   const lines: BudgetLine[] = [];
   const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
   const electricalOn = full && (phases.includes(3) || phases.includes(14));
   const plumbingOn = full && (phases.includes(2) || phases.includes(15));
 
-  // Electrical points, grouped by kind so the budget reads "12 × socket" not twelve rows.
+  // Electrical points. A point that is a real product is a product line at its price — the
+  // same product across points folds into one row — and the rest are estimates grouped by
+  // kind, so the budget reads "12 × socket" not twelve rows. The labour is per point either way.
   const byKind = new Map<string, { point: ElectricalPoint; units: number; labourUnits: number }>();
+  const byProduct = new Map<number, { product: NonNullable<ElectricalPoint['product']>; qty: number; total: number; light: boolean; rooms: Set<string> }>();
   for (const point of electrical) {
     if (!(electricalOn || point.origin === 'user')) continue;
     const perMetre = point.kind === 'light_strip' || point.kind === 'light_furniture';
     const units = perMetre ? (point.lengthM ?? 1.5) : 1;
     const labour = ELECTRICAL_LABOUR[point.kind];
     const entry = byKind.get(point.kind) ?? { point, units: 0, labourUnits: 0 };
-    entry.units = round2(entry.units + units);
+    if (point.product) {
+      const bought = byProduct.get(point.product.productId) ?? { product: point.product, qty: 0, total: 0, light: point.kind.startsWith('light_'), rooms: new Set<string>() };
+      bought.qty = round2(bought.qty + point.product.qty);
+      bought.total = round2(bought.total + point.product.totalPrice);
+      bought.rooms.add(point.roomId);
+      byProduct.set(point.product.productId, bought);
+    } else {
+      entry.units = round2(entry.units + units);
+    }
     entry.labourUnits = round2(entry.labourUnits + labour.perUnit * units);
     byKind.set(point.kind, entry);
+  }
+  for (const bought of byProduct.values()) {
+    lines.push({ section: bought.light ? 'lighting' : 'electrical', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: bought.product.unit, unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
   }
   for (const [kind, entry] of byKind) {
     const material = ELECTRICAL_MATERIAL_GEL[kind as ElectricalPoint['kind']];
     const perMetre = kind === 'light_strip' || kind === 'light_furniture';
     const isLight = kind.startsWith('light_');
-    lines.push({ section: isLight ? 'lighting' : 'electrical', key: `electrical_${kind}`, qty: entry.units, unit: perMetre ? 'm' : 'piece', unitPrice: material, total: round2(entry.units * material), estimated: true });
+    if (entry.units > 0) lines.push({ section: isLight ? 'lighting' : 'electrical', key: `electrical_${kind}`, qty: entry.units, unit: perMetre ? 'm' : 'piece', unitPrice: material, total: round2(entry.units * material), estimated: true });
     const labour = ELECTRICAL_LABOUR[kind as ElectricalPoint['kind']];
     const price = labourPrice(labour.key);
     lines.push({ section: 'labour', key: labour.key, qty: entry.labourUnits, unit: 'unit', unitPrice: price, total: round2(entry.labourUnits * price), estimated: true });

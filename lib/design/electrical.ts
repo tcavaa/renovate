@@ -18,7 +18,8 @@
 
 import { pointOnEdge, roomEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
-import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, Vec2 } from './types';
+import { toSceneProduct, type CatalogProduct } from './matcher';
+import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 
 export interface ElectricalKindInfo {
   /** On a wall, on the ceiling, or anywhere on the plan (a strip under a bed). */
@@ -300,4 +301,83 @@ export function electricalCounts(points: ElectricalPoint[]): ElectricalCounts {
   }
   counts.stripM = Math.round(counts.stripM * 10) / 10;
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// Fittings as products
+// ---------------------------------------------------------------------------
+
+/**
+ * Every fitting is bought as a product: the kind a socket, switch or lamp carries in the
+ * catalogue (`products.model3dKind`) for each kind of point. The four socket kinds are one
+ * product — a double socket is two of it — while a TV or data outlet is its own plate, and
+ * every light its own fitting. A point whose kind has no product in the catalogue yet stays
+ * an estimate (`ELECTRICAL_MATERIAL_GEL`) and is drawn with the default fixture model.
+ */
+export const FIXTURE_PRODUCT_KIND: Record<ElectricalKind, string> = {
+  socket: 'socket',
+  socket_double: 'socket',
+  socket_high: 'socket',
+  socket_kitchen: 'socket',
+  switch: 'switch',
+  tv: 'socket_tv',
+  internet: 'socket_data',
+  light_ceiling: 'light_ceiling',
+  light_wall: 'light_wall',
+  light_spot: 'light_spot',
+  light_strip: 'light_strip',
+  light_furniture: 'light_furniture',
+};
+
+export const FIXTURE_PRODUCT_KINDS: string[] = [...new Set(Object.values(FIXTURE_PRODUCT_KIND))];
+
+/** True for a product kind that is a fitting, not a piece of furniture. */
+export function isFixtureProductKind(kind: string | null | undefined): boolean {
+  return !!kind && FIXTURE_PRODUCT_KINDS.includes(kind);
+}
+
+/** The catalogue's products for a kind of point, the style's first, the cheapest next. */
+export function fixtureCandidates(kind: ElectricalKind, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+  const wanted = FIXTURE_PRODUCT_KIND[kind];
+  const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 1 : 0);
+  return catalog.filter((p) => !!p.model3dUrl && p.model3dKind === wanted).sort((a, b) => affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
+}
+
+/** How many of the product one point needs: a double socket is two plates; a strip is bought by the metre. */
+export function fixtureQuantity(point: ElectricalPoint): number {
+  if (point.kind === 'light_strip' || point.kind === 'light_furniture') return Math.round((point.lengthM ?? 1.5) * 10) / 10;
+  if (point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet' || ELECTRICAL_KINDS[point.kind].light) return 1;
+  return Math.max(1, point.count ?? 1);
+}
+
+/** The point with `product` as its fitting (or none), priced for its quantity and carrying the product's size. */
+export function withFixtureProduct(point: ElectricalPoint, product: CatalogProduct | null): ElectricalPoint {
+  if (!product) {
+    const { product: _dropped, sizeM: _size, ...rest } = point;
+    return rest;
+  }
+  const sizeM = product.widthCm && product.heightCm && product.depthCm ? { width: product.widthCm / 100, depth: product.depthCm / 100, height: product.heightCm / 100 } : undefined;
+  return { ...point, product: toSceneProduct(product, fixtureQuantity(point)), ...(sizeM ? { sizeM } : {}) };
+}
+
+/** The best product for a point, or null when the catalogue has none of its kind. */
+export function fixtureProductFor(point: ElectricalPoint, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct | null {
+  return fixtureCandidates(point.kind, catalog, styleId)[0] ?? null;
+}
+
+/**
+ * Gives every point without a product the best one the catalogue has, and re-prices the
+ * ones that have one (a socket that became a double needs two). A product that is not of
+ * the point's kind any more (the kind was changed) is replaced.
+ */
+export function withFixtureProducts(points: ElectricalPoint[], catalog: CatalogProduct[], styleId: StyleId): ElectricalPoint[] {
+  if (catalog.length === 0) return points;
+  return points.map((point) => {
+    const candidates = fixtureCandidates(point.kind, catalog, styleId);
+    const current = point.product ? candidates.find((c) => c.id === point.product?.productId) : undefined;
+    const chosen = current ?? candidates[0] ?? null;
+    if (!chosen) return point.product ? withFixtureProduct(point, null) : point;
+    const priced = withFixtureProduct(point, chosen);
+    return priced.product?.qty === point.product?.qty && current ? point : priced;
+  });
 }

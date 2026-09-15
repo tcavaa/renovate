@@ -32,6 +32,7 @@ import type { ElectricalKind } from '../lib/design/types';
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, 'public', 'models', 'fixtures');
+const PHOTO_DIR = path.join(ROOT, 'public', 'uploads', 'furniture');
 const TS_OUT = path.join(ROOT, 'lib', 'design3d', 'fixtureManifest.ts');
 const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', 'renovate-fixtures');
 const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
@@ -56,6 +57,8 @@ interface FixtureEntry {
   flipY?: boolean;
   /** Thin plates are turned so their thin axis is the depth; set when the file already faces +z. */
   keepAxes?: boolean;
+  /** Sold as this product in the catalogue (`pnpm models:seed` writes it). */
+  product?: { kind: string; categorySlug: 'sockets-switches' | 'lighting'; priceGel: number; storeSlug: string; nameKa: string; nameEn: string; nameRu: string };
 }
 
 const FIXTURES: FixtureEntry[] = [
@@ -65,6 +68,7 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'wall',
     source: { type: 'polypizza', id: 'MCMUq7R1w5', url: 'https://static.poly.pizza/b7766164-b6f8-471d-bfaa-bdc45dce1487.glb', title: 'EU Outlet', author: 'J-Toastie', license: 'CC-BY 3.0' },
     sizeCm: { width: 8, height: 8 },
+    product: { kind: 'socket', categorySlug: 'sockets-switches', priceGel: 18, storeSlug: 'lumina', nameKa: 'როზეტი „EU“ — თეთრი', nameEn: 'Socket "EU" — white', nameRu: 'Розетка «EU» — белая' },
   },
   {
     slug: 'switch',
@@ -72,6 +76,7 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'wall',
     source: { type: 'polypizza', id: '8sR1PkyAg-F', url: 'https://static.poly.pizza/f502ad13-cde0-411b-8d8a-18fb4f58c0e6.glb', title: 'Light switch', author: 'Poly by Google', license: 'CC-BY 3.0' },
     sizeCm: { width: 8, height: 8 },
+    product: { kind: 'switch', categorySlug: 'sockets-switches', priceGel: 22, storeSlug: 'lumina', nameKa: 'ჩამრთველი — თეთრი', nameEn: 'Light switch — white', nameRu: 'Выключатель — белый' },
   },
   {
     slug: 'wall-lamp',
@@ -79,6 +84,7 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'wall',
     source: { type: 'polyhaven', id: 'industrial_wall_lamp' },
     keepAxes: true,
+    product: { kind: 'light_wall', categorySlug: 'lighting', priceGel: 140, storeSlug: 'lumina', nameKa: 'კედლის სანათი „Industrial“', nameEn: 'Wall lamp "Industrial"', nameRu: 'Бра «Industrial»' },
   },
   {
     slug: 'bulb',
@@ -87,6 +93,7 @@ const FIXTURES: FixtureEntry[] = [
     source: { type: 'polyhaven', id: 'lightbulb_led' },
     flipY: true,
     keepAxes: true,
+    product: { kind: 'light_ceiling', categorySlug: 'lighting', priceGel: 45, storeSlug: 'lumina', nameKa: 'ჭერის სანათი — LED ნათურა', nameEn: 'Ceiling light — LED bulb', nameRu: 'Потолочный светильник — LED лампа' },
   },
 ];
 
@@ -105,6 +112,10 @@ export interface FixtureManifestModel {
   title: string;
   author: string;
   license: string;
+  /** The product's photo, under /uploads/furniture. */
+  imageUrl: string | null;
+  /** The catalogue product this model is sold as, when it is one. */
+  product?: { kind: string; categorySlug: string; priceGel: number; storeSlug: string; nameKa: string; nameEn: string; nameRu: string };
 }
 
 async function main() {
@@ -113,6 +124,7 @@ async function main() {
   if (entries.length === 0) throw new Error(`nothing matches --only=${only?.join(',')}`);
   await mkdir(OUT_DIR, { recursive: true });
   await mkdir(CACHE_DIR, { recursive: true });
+  await mkdir(PHOTO_DIR, { recursive: true });
 
   const models: FixtureManifestModel[] = [];
   const failed: string[] = [];
@@ -265,6 +277,7 @@ async function convertOne(entry: FixtureEntry): Promise<FixtureManifestModel> {
   }
 
   const src = entry.source;
+  const imageUrl = await placePhoto(entry);
   return {
     slug: entry.slug,
     kinds: entry.kinds,
@@ -280,7 +293,24 @@ async function convertOne(entry: FixtureEntry): Promise<FixtureManifestModel> {
     title: src.type === 'polyhaven' ? src.id.replace(/_/g, ' ') : src.title,
     author: src.type === 'polyhaven' ? 'Poly Haven' : src.author,
     license: src.type === 'polyhaven' ? 'CC0' : src.license,
+    imageUrl,
+    ...(entry.product ? { product: entry.product } : {}),
   };
+}
+
+/** The source's own render of the model, kept as the product photo. */
+async function placePhoto(entry: FixtureEntry): Promise<string | null> {
+  const src = entry.source;
+  const url = src.type === 'polyhaven' ? `https://cdn.polyhaven.com/asset_img/primary/${src.id}.png?width=600` : src.url.replace(/\.glb$/, '.jpg');
+  const ext = src.type === 'polyhaven' ? 'png' : 'jpg';
+  const file = path.join(PHOTO_DIR, `fixture-${entry.slug}.${ext}`);
+  try {
+    if (!existsSync(file)) await writeFile(file, await fetchBytes(url));
+    return `/uploads/furniture/fixture-${entry.slug}.${ext}`;
+  } catch (error) {
+    console.warn(`(no photo: ${(error as Error).message}) `);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

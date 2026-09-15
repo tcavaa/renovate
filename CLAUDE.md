@@ -132,8 +132,8 @@ components/
                RoomsPanel · draw.ts (canvas routines) · palette.ts (room tints, origin and system colours)
                icons.ts (one icon per technical system and electrical kind)
   studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray · archetypeIcons
-               Trays (build / electric / finishes / budget) · StudioTopBar · TutorialOverlay (spotlight tour)
-               NavHelp · VersionsPanel
+               Trays (build / electric / finishes / budget) · FixturePanel (a fitting's card) · dragImage
+               StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief (what / why / need / change / next)
   design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D ItemCard SwapPanel
                FinishPanel StudioControls FloatingPanel HoverCard PhotoDialog DesignAutosave WalkControls
@@ -471,16 +471,39 @@ from the furniture with the usual heights — 45 cm sockets, 60 cm bedside, 115 
 90 cm worktop, 170 cm high sockets, 105 cm switches by the handle side of every door, one
 main light per room — and never touches points marked `origin: 'user'`; `generate` re-runs
 it. `placeElectrical` snaps a hand-placed point to the nearest wall; `reprojectElectrical`
-follows moved walls; `slideAlongWall` moves one along the wall it is on (the inspector's
-slider and its 5 cm nudges). In 3D each point is one group standing at its spot
-(`buildFitting`): real models where there are any — `public/models/fixtures`, written by
-`pnpm models:fixtures` from Poly Haven (CC0: the wall lamp, the bare LED bulb of a ceiling
-point) and poly.pizza (CC-BY 3.0, credited in the manifest: the EU socket, the switch) —
-and small procedural pieces otherwise (spots, strips); a double socket is two plates side
-by side; a ceiling point under a hanging lamp from the catalogue shows only its rose. The
-lights that are on become point lights (`lightsFrom`; at night they replace the per-room
-lamps). With one room in focus, the other rooms' fittings, lights and tight-passage
-outlines are left out along with their furniture.
+follows moved walls; `slideAlongWall` moves one along the wall it is on (the card's
+slider and its 5 cm nudges).
+
+**Every fitting is a product**, like every piece of furniture. `FIXTURE_PRODUCT_KIND` maps
+a point's kind to the `model3dKind` a product carries — the four socket kinds are one
+`socket` product (a double socket is two of it, `fixtureQuantity`), `switch`, `socket_tv`,
+`socket_data`, and one kind per light — and `withFixtureProducts` / `withFixtureProduct`
+give a point the catalogue's best product of that kind (`fixtureCandidates`: the style's
+first, the cheapest next) as a `SceneProduct` with its size (`sizeM`). The store attaches
+them wherever points are made or re-kinded (`addElectricalPoint`, `suggestElectrical`,
+`generate`, `changeElectricalKind`) and `setElectricalProduct` swaps one; a point whose
+kind has no product yet stays an estimate (`ELECTRICAL_MATERIAL_GEL`). The budget prices a
+bought fitting as a real line (`product-<id>`, folded across points) and the rest by kind;
+the electrician's labour is per point either way. The admin product form offers the
+fixture kinds (⚡) next to the archetypes; `FIXTURE_CATEGORY_SLUGS` (sockets & switches,
+lighting) are part of the design catalogue, and `pnpm models:seed` writes one product per
+entry of `public/models/fixtures/manifest.json` that carries a `product` (photo from the
+source, store Lumina). The furniture shelf leaves fixture kinds out (`isFixtureProductKind`).
+
+In 3D each point is one group standing at its spot (`buildFitting`): the product's own
+model when it has one (a file under `/models/fixtures` is framed as a fixture already —
+back on the wall, top on the ceiling — and anything else, a partner's upload, is scaled to
+`sizeM` and turned to the wall by `reframe`), else the kind's default from
+`public/models/fixtures`, written by `pnpm models:fixtures` from Poly Haven (CC0: the wall
+lamp, the bare LED bulb of a ceiling point) and poly.pizza (CC-BY 3.0, credited in the
+manifest: the EU socket, the switch), else a small procedural piece (spots, strips); a
+ceiling point under a hanging lamp from the catalogue shows only its rose. The lights that
+are on become point lights (`lightsFrom`; at night they replace the per-room lamps). With
+one room in focus, the other rooms' fittings, lights and tight-passage outlines are left out
+along with their furniture. The selected fitting's card in the studio (`FixturePanel`) is
+the furniture card's twin: photo, price and shop (or the estimate), the kind as a dropdown,
+height with presets, the slider along the wall, outlets, on/off, and "შეცვალე პროდუქტი" —
+every product of that kind — in the drawer along the bottom.
 
 ### Style test (`lib/design/styleQuiz.ts`), zones (`zones.ts`), versions and undo
 
@@ -516,8 +539,8 @@ worker specialties for step 8.
 
 ### The studio's build mode (`app/(main)/design/studio/page.tsx`)
 
-Full-bleed canvas; the categories are a block of tiles at the top left, two to a row
-(`CategoryRail`, above the rooms list) and the open category's tray runs along the bottom
+Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
+(`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
 (`Tray`), one at a time — build (tools + thickness + the unlock button; a drawing tool
 switches to the 2D view), furniture (the catalogue as a shelf of small tiles — a picture
 and a price, kinds as icons — click to carry or drag into 3D), electric & light (icon

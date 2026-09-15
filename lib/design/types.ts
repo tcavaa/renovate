@@ -390,6 +390,10 @@ export interface ElectricalPoint {
   on?: boolean;
   /** Width along the wall for strips and long fixtures, metres. */
   lengthM?: number;
+  /** The catalogue product this fitting is — a real socket, switch or lamp with a price and a model; null while it is only an estimate. */
+  product?: SceneProduct | null;
+  /** The product's real size, metres, for drawing a model that is not framed as a fixture. */
+  sizeM?: { width: number; depth: number; height: number };
   origin?: ElementOrigin;
   locked?: boolean;
 }

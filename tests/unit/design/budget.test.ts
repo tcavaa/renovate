@@ -43,6 +43,18 @@ describe('budget lines', () => {
     expect(added.lines.some((l) => l.section === 'labour' && l.key === 'electrical_point')).toBe(true);
   });
 
+  it('prices a fitting that is a real product at its price, not as an estimate', () => {
+    const product = { productId: 9, nameKa: 'როზეტი', slug: 'socket', brand: null, pricePerUnit: 30, unit: 'piece', qty: 2, totalPrice: 60, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/models/fixtures/socket-eu.glb', categorySlug: 'sockets-switches', store: null };
+    const cost = priceScene(plan(), scene('design_only', [{ ...socket('s1', 'user'), product }, { ...socket('s2', 'user'), product }]));
+    const line = cost.lines.find((l) => l.key === 'product-9')!;
+    expect(line.estimated).toBe(false);
+    expect(line.qty).toBe(4);
+    expect(line.total).toBe(120);
+    expect(cost.lines.some((l) => l.key === 'electrical_socket_double')).toBe(false);
+    // The electrician's work is per point whether the socket is bought or estimated.
+    expect(cost.lines.find((l) => l.section === 'labour' && l.key === 'electrical_point')!.qty).toBe(2);
+  });
+
   it('counts every point, pipe and opening in a renovation whose works include them', () => {
     const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'doors_windows', 'tiling'] });
     const sections = budgetSections(cost);
