@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-09-15",
-  "note": "Written by scripts/fixture-models.ts. The electrical layer’s fixtures: wall models centred on x/y with the back on z = 0 and the front along +z; ceiling models centred on x/z with the top at y = 0.",
+  "note": "Written by scripts/fixture-models.ts. Wall fixtures are centred on x/y with the back on z = 0 and the front along +z; ceiling fixtures centred on x/z with the top at y = 0; doors and windows centred on x/z, standing on y = 0, the room side along +z, a door’s leaf (node `leaf`) hung from x min.",
   "models": [
     {
       "slug": "socket-eu",
@@ -24,7 +24,7 @@
       "title": "EU Outlet",
       "author": "J-Toastie",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-socket-eu.jpg",
+      "imageUrl": "/uploads/furniture/fixture-socket-eu.png",
       "product": {
         "kind": "socket",
         "categorySlug": "sockets-switches",
@@ -33,6 +33,39 @@
         "nameKa": "როზეტი „EU“ — თეთრი",
         "nameEn": "Socket \"EU\" — white",
         "nameRu": "Розетка «EU» — белая"
+      }
+    },
+    {
+      "slug": "socket-twin",
+      "kinds": [
+        "socket",
+        "socket_double",
+        "socket_high",
+        "socket_kitchen",
+        "internet",
+        "tv"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/socket-twin.glb",
+      "widthCm": 8,
+      "heightCm": 5,
+      "depthCm": 1,
+      "triangles": 78,
+      "bytes": 53196,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/sw4oGFLDfC",
+      "title": "Wall Socket",
+      "author": "J-Toastie",
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-socket-twin.png",
+      "product": {
+        "kind": "socket",
+        "categorySlug": "sockets-switches",
+        "priceGel": 24,
+        "storeSlug": "lumina",
+        "nameKa": "როზეტი „Twin“ — ორბუდიანი, თეთრი",
+        "nameEn": "Socket \"Twin\" — double, white",
+        "nameRu": "Розетка «Twin» — двойная, белая"
       }
     },
     {
@@ -52,7 +85,7 @@
       "title": "Light switch",
       "author": "Poly by Google",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-switch.jpg",
+      "imageUrl": "/uploads/furniture/fixture-switch.png",
       "product": {
         "kind": "switch",
         "categorySlug": "sockets-switches",
@@ -61,6 +94,38 @@
         "nameKa": "ჩამრთველი — თეთრი",
         "nameEn": "Light switch — white",
         "nameRu": "Выключатель — белый"
+      }
+    },
+    {
+      "slug": "switch-classic",
+      "kinds": [
+        "switch"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/switch-classic.glb",
+      "widthCm": 5,
+      "heightCm": 8,
+      "depthCm": 2,
+      "triangles": 300,
+      "bytes": 6844,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/59BtMbyUMe2",
+      "title": "Light switch",
+      "author": "jeremy",
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-switch-classic.png",
+      "product": {
+        "kind": "switch",
+        "categorySlug": "sockets-switches",
+        "priceGel": 26,
+        "storeSlug": "lumina",
+        "nameKa": "ჩამრთველი „Toggle“ — კრემისფერი",
+        "nameEn": "Light switch \"Toggle\" — cream",
+        "nameRu": "Выключатель «Toggle» — кремовый",
+        "styles": [
+          "vintage",
+          "industrial"
+        ]
       }
     },
     {
@@ -88,7 +153,75 @@
         "storeSlug": "lumina",
         "nameKa": "კედლის სანათი „Industrial“",
         "nameEn": "Wall lamp \"Industrial\"",
-        "nameRu": "Бра «Industrial»"
+        "nameRu": "Бра «Industrial»",
+        "styles": [
+          "industrial",
+          "vintage"
+        ]
+      }
+    },
+    {
+      "slug": "wall-sconce",
+      "kinds": [
+        "light_wall"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/wall-sconce.glb",
+      "widthCm": 15,
+      "heightCm": 34,
+      "depthCm": 25,
+      "triangles": 5998,
+      "bytes": 252728,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/industrial_wall_sconce",
+      "title": "industrial wall sconce",
+      "author": "Poly Haven",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-wall-sconce.png",
+      "product": {
+        "kind": "light_wall",
+        "categorySlug": "lighting",
+        "priceGel": 165,
+        "storeSlug": "lumina",
+        "nameKa": "კედლის სანათი „Sconce“ — სპილენძი",
+        "nameEn": "Wall sconce \"Industrial\" — copper",
+        "nameRu": "Бра «Sconce» — медь",
+        "styles": [
+          "vintage",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "wall-lamp-brass",
+      "kinds": [
+        "light_wall"
+      ],
+      "mount": "wall",
+      "url": "/models/fixtures/wall-lamp-brass.glb",
+      "widthCm": 19,
+      "heightCm": 40,
+      "depthCm": 32,
+      "triangles": 528,
+      "bytes": 18232,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/iLXKjr9t4A",
+      "title": "Sconce light",
+      "author": "jrich01",
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-wall-lamp-brass.png",
+      "product": {
+        "kind": "light_wall",
+        "categorySlug": "lighting",
+        "priceGel": 95,
+        "storeSlug": "lumina",
+        "nameKa": "კედლის სანათი „Brass“ — ღია ნათურით",
+        "nameEn": "Wall lamp \"Brass\" — open bulb",
+        "nameRu": "Бра «Brass» — с открытой лампой",
+        "styles": [
+          "vintage",
+          "scandinavian"
+        ]
       }
     },
     {
@@ -117,6 +250,533 @@
         "nameKa": "ჭერის სანათი — LED ნათურა",
         "nameEn": "Ceiling light — LED bulb",
         "nameRu": "Потолочный светильник — LED лампа"
+      }
+    },
+    {
+      "slug": "ceiling-globe",
+      "kinds": [
+        "light_ceiling"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/ceiling-globe.glb",
+      "widthCm": 43,
+      "heightCm": 95,
+      "depthCm": 43,
+      "triangles": 5602,
+      "bytes": 337728,
+      "source": "polyhaven",
+      "sourceUrl": "https://polyhaven.com/a/modern_ceiling_lamp_01",
+      "title": "modern ceiling lamp 01",
+      "author": "Poly Haven",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-globe.png",
+      "product": {
+        "kind": "light_ceiling",
+        "categorySlug": "lighting",
+        "priceGel": 210,
+        "storeSlug": "lumina",
+        "nameKa": "ჭერის სანათი „Globe“ — შუშა",
+        "nameEn": "Ceiling lamp \"Globe\" — glass",
+        "nameRu": "Потолочный светильник «Globe» — стекло",
+        "styles": [
+          "modern",
+          "scandinavian"
+        ]
+      }
+    },
+    {
+      "slug": "ceiling-pendant",
+      "kinds": [
+        "light_ceiling"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/ceiling-pendant.glb",
+      "widthCm": 36,
+      "heightCm": 101,
+      "depthCm": 36,
+      "triangles": 196,
+      "bytes": 6088,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/sRNcgQFbLB",
+      "title": "Ceiling Light",
+      "author": "Quaternius",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-pendant.png",
+      "product": {
+        "kind": "light_ceiling",
+        "categorySlug": "lighting",
+        "priceGel": 120,
+        "storeSlug": "lumina",
+        "nameKa": "ჭერის სანათი „Pendant“ — თეთრი",
+        "nameEn": "Pendant light \"Pendant\" — white",
+        "nameRu": "Подвесной светильник «Pendant» — белый",
+        "styles": [
+          "scandinavian",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "ceiling-disc",
+      "kinds": [
+        "light_ceiling"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/ceiling-disc.glb",
+      "widthCm": 61,
+      "heightCm": 32,
+      "depthCm": 61,
+      "triangles": 92,
+      "bytes": 4776,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/zePBAxDGmw",
+      "title": "Ceiling Lamp",
+      "author": "Zsky",
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-disc.png",
+      "product": {
+        "kind": "light_ceiling",
+        "categorySlug": "lighting",
+        "priceGel": 95,
+        "storeSlug": "lumina",
+        "nameKa": "ჭერის სანათი „Disc“ — შავი",
+        "nameEn": "Ceiling lamp \"Disc\" — black",
+        "nameRu": "Потолочный светильник «Disc» — чёрный",
+        "styles": [
+          "modern",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "spot-square",
+      "kinds": [
+        "light_spot"
+      ],
+      "mount": "ceiling",
+      "url": "/models/fixtures/spot-square.glb",
+      "widthCm": 10,
+      "heightCm": 20,
+      "depthCm": 10,
+      "triangles": 120,
+      "bytes": 3844,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/AAJ1hFnGaH",
+      "title": "Lamp Square Ceiling",
+      "author": "Kenney",
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-spot-square.png",
+      "product": {
+        "kind": "light_spot",
+        "categorySlug": "lighting",
+        "priceGel": 55,
+        "storeSlug": "lumina",
+        "nameKa": "სპოტი „Square“ — კრემისფერი",
+        "nameEn": "Spot \"Square\" — cream",
+        "nameRu": "Спот «Square» — кремовый",
+        "styles": [
+          "modern",
+          "scandinavian"
+        ]
+      }
+    },
+    {
+      "slug": "door-oak",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-oak.glb",
+      "widthCm": 96,
+      "heightCm": 212,
+      "depthCm": 20,
+      "triangles": 848,
+      "bytes": 15268,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/a948jjnuaL",
+      "title": "Door",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "frame",
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-door-oak.png",
+      "product": {
+        "kind": "door",
+        "categorySlug": "doors",
+        "priceGel": 620,
+        "storeSlug": "domus-interior",
+        "nameKa": "შიდა კარი „Oak“ — ხის, კოლოფით",
+        "nameEn": "Interior door \"Oak\" — wood, with frame",
+        "nameRu": "Межкомнатная дверь «Oak» — дерево, с коробкой",
+        "styles": [
+          "vintage",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "door-nordic",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-nordic.glb",
+      "widthCm": 96,
+      "heightCm": 212,
+      "depthCm": 22,
+      "triangles": 456,
+      "bytes": 21644,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/LI93WgnjyS",
+      "title": "Door",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "frame",
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-door-nordic.png",
+      "product": {
+        "kind": "door",
+        "categorySlug": "doors",
+        "priceGel": 540,
+        "storeSlug": "domus-interior",
+        "nameKa": "შიდა კარი „Nordic“ — თეთრი, ფილენკებით",
+        "nameEn": "Interior door \"Nordic\" — white, panelled",
+        "nameRu": "Межкомнатная дверь «Nordic» — белая, филёнчатая",
+        "styles": [
+          "scandinavian",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "door-flat",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-flat.glb",
+      "widthCm": 96,
+      "heightCm": 212,
+      "depthCm": 22,
+      "triangles": 172,
+      "bytes": 12952,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/KGt4ztcKrM",
+      "title": "Door",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "frame",
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-door-flat.png",
+      "product": {
+        "kind": "door",
+        "categorySlug": "doors",
+        "priceGel": 460,
+        "storeSlug": "domus-interior",
+        "nameKa": "შიდა კარი „Flat“ — თეთრი, გლუვი",
+        "nameEn": "Interior door \"Flat\" — white, flush",
+        "nameRu": "Межкомнатная дверь «Flat» — белая, гладкая",
+        "styles": [
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "door-classic",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-classic.glb",
+      "widthCm": 96,
+      "heightCm": 212,
+      "depthCm": 23,
+      "triangles": 756,
+      "bytes": 15476,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/00xFHE4LR_6",
+      "title": "Nice Door",
+      "author": "Wesley Thompson",
+      "license": "CC-BY 3.0",
+      "parts": [
+        "frame",
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-door-classic.png",
+      "product": {
+        "kind": "door",
+        "categorySlug": "doors",
+        "priceGel": 580,
+        "storeSlug": "domus-interior",
+        "nameKa": "შიდა კარი „Classic“ — თეთრი, კოლოფით",
+        "nameEn": "Interior door \"Classic\" — white, with frame",
+        "nameRu": "Межкомнатная дверь «Classic» — белая, с коробкой",
+        "styles": [
+          "vintage",
+          "scandinavian"
+        ]
+      }
+    },
+    {
+      "slug": "door-country",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/door-country.glb",
+      "widthCm": 86,
+      "heightCm": 205,
+      "depthCm": 24,
+      "triangles": 240,
+      "bytes": 24056,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/P09FqyST04",
+      "title": "Wooden Door",
+      "author": "Kenney",
+      "license": "CC0",
+      "parts": [
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-door-country.png",
+      "product": {
+        "kind": "door",
+        "categorySlug": "doors",
+        "priceGel": 390,
+        "storeSlug": "domus-interior",
+        "nameKa": "შიდა კარი „Country“ — ხის ფრთა",
+        "nameEn": "Interior door \"Country\" — wooden leaf",
+        "nameRu": "Межкомнатная дверь «Country» — деревянное полотно",
+        "styles": [
+          "vintage",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "entrance-door-classic",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/entrance-door-classic.glb",
+      "widthCm": 100,
+      "heightCm": 215,
+      "depthCm": 23,
+      "triangles": 1224,
+      "bytes": 52516,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/xuFNaNLzfE",
+      "title": "Door",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "frame",
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-classic.png",
+      "product": {
+        "kind": "entrance_door",
+        "categorySlug": "doors",
+        "priceGel": 1350,
+        "storeSlug": "domus-interior",
+        "nameKa": "შესასვლელი კარი „Classic“ — მუქი ხე",
+        "nameEn": "Entrance door \"Classic\" — dark wood",
+        "nameRu": "Входная дверь «Classic» — тёмное дерево",
+        "styles": [
+          "vintage",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "entrance-door-metal",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/entrance-door-metal.glb",
+      "widthCm": 90,
+      "heightCm": 210,
+      "depthCm": 15,
+      "triangles": 72,
+      "bytes": 8036,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/PCJv96DB6b",
+      "title": "Metal Door",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-metal.png",
+      "product": {
+        "kind": "entrance_door",
+        "categorySlug": "doors",
+        "priceGel": 1600,
+        "storeSlug": "domus-interior",
+        "nameKa": "შესასვლელი კარი „Metal“ — თეთრი, ფანჯრებით",
+        "nameEn": "Entrance door \"Metal\" — white, glazed",
+        "nameRu": "Входная дверь «Metal» — белая, с окошками",
+        "styles": [
+          "modern",
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "entrance-door-red",
+      "kinds": [],
+      "mount": "door",
+      "url": "/models/fixtures/entrance-door-red.glb",
+      "widthCm": 86,
+      "heightCm": 205,
+      "depthCm": 24,
+      "triangles": 188,
+      "bytes": 23560,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/NZxf87zEEm",
+      "title": "Red Door",
+      "author": "Kenney",
+      "license": "CC0",
+      "parts": [
+        "leaf"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-red.png",
+      "product": {
+        "kind": "entrance_door",
+        "categorySlug": "doors",
+        "priceGel": 1100,
+        "storeSlug": "domus-interior",
+        "nameKa": "შესასვლელი კარი „Red“ — ფანჯრით",
+        "nameEn": "Entrance door \"Red\" — glazed",
+        "nameRu": "Входная дверь «Red» — с окошком",
+        "styles": [
+          "scandinavian",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "window-nordic",
+      "kinds": [],
+      "mount": "window",
+      "url": "/models/fixtures/window-nordic.glb",
+      "widthCm": 90,
+      "heightCm": 120,
+      "depthCm": 14,
+      "triangles": 132,
+      "bytes": 4712,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/n88WAcjzTv",
+      "title": "Window Small",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "body"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-window-nordic.png",
+      "product": {
+        "kind": "window",
+        "categorySlug": "windows",
+        "priceGel": 480,
+        "storeSlug": "domus-interior",
+        "nameKa": "ფანჯარა „Nordic“ — თეთრი, ორფრთიანი",
+        "nameEn": "Window \"Nordic\" — white, two-leaf",
+        "nameRu": "Окно «Nordic» — белое, двустворчатое",
+        "styles": [
+          "scandinavian",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "window-grid",
+      "kinds": [],
+      "mount": "window",
+      "url": "/models/fixtures/window-grid.glb",
+      "widthCm": 180,
+      "heightCm": 150,
+      "depthCm": 13,
+      "triangles": 372,
+      "bytes": 7440,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/EipzkrS9nG",
+      "title": "Window Large",
+      "author": "Quaternius",
+      "license": "CC0",
+      "parts": [
+        "body"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-window-grid.png",
+      "product": {
+        "kind": "window",
+        "categorySlug": "windows",
+        "priceGel": 760,
+        "storeSlug": "domus-interior",
+        "nameKa": "ფანჯარა „Grid“ — თეთრი, დიდი",
+        "nameEn": "Window \"Grid\" — white, large",
+        "nameRu": "Окно «Grid» — белое, большое",
+        "styles": [
+          "industrial",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "window-wood",
+      "kinds": [],
+      "mount": "window",
+      "url": "/models/fixtures/window-wood.glb",
+      "widthCm": 100,
+      "heightCm": 120,
+      "depthCm": 9,
+      "triangles": 124,
+      "bytes": 4732,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/dwBpM-aSA_t",
+      "title": "Window",
+      "author": "Justin Randall",
+      "license": "CC-BY 3.0",
+      "parts": [
+        "body"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-window-wood.png",
+      "product": {
+        "kind": "window",
+        "categorySlug": "windows",
+        "priceGel": 520,
+        "storeSlug": "domus-interior",
+        "nameKa": "ფანჯარა „Wood“ — ხის ჩარჩო, 4 მინა",
+        "nameEn": "Window \"Wood\" — wooden frame, four panes",
+        "nameRu": "Окно «Wood» — деревянная рама, 4 стекла",
+        "styles": [
+          "vintage",
+          "scandinavian"
+        ]
+      }
+    },
+    {
+      "slug": "window-square",
+      "kinds": [],
+      "mount": "window",
+      "url": "/models/fixtures/window-square.glb",
+      "widthCm": 120,
+      "heightCm": 120,
+      "depthCm": 9,
+      "triangles": 60,
+      "bytes": 4172,
+      "source": "polypizza",
+      "sourceUrl": "https://poly.pizza/m/0BEn8hO2Nbn",
+      "title": "Square window",
+      "author": "Poly by Google",
+      "license": "CC-BY 3.0",
+      "parts": [
+        "body"
+      ],
+      "imageUrl": "/uploads/furniture/fixture-window-square.png",
+      "product": {
+        "kind": "window",
+        "categorySlug": "windows",
+        "priceGel": 430,
+        "storeSlug": "domus-interior",
+        "nameKa": "ფანჯარა „Square“ — თეთრი",
+        "nameEn": "Window \"Square\" — white",
+        "nameRu": "Окно «Square» — белое",
+        "styles": [
+          "modern"
+        ]
       }
     }
   ]

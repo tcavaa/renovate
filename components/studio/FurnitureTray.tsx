@@ -17,6 +17,7 @@ import { localizedName, styleLabel } from '@/lib/i18n/labels';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { STYLE_IDS } from '@/lib/design/styles';
 import { isFixtureProductKind } from '@/lib/design/electrical';
+import { isOpeningProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import { cn, formatGEL } from '@/lib/utils';
@@ -34,7 +35,7 @@ export function FurnitureTray({ catalog, styleId, roomLabel, onPick, onDragProdu
   const [notice, setNotice] = useState<{ id: number; ok: boolean } | null>(null);
 
   // Sockets, switches and lamps are products too, but they belong to the electric tray.
-  const placeable = useMemo(() => catalog.filter((p) => p.model3dUrl && p.model3dKind && !isFixtureProductKind(p.model3dKind)), [catalog]);
+  const placeable = useMemo(() => catalog.filter((p) => p.model3dUrl && p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind)), [catalog]);
   const kinds = useMemo(() => {
     const seen = new Map<string, number>();
     for (const p of placeable) seen.set(p.model3dKind!, (seen.get(p.model3dKind!) ?? 0) + 1);

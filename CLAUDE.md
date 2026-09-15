@@ -69,7 +69,8 @@ pnpm models:convert # partner OBJ exports → textured, compressed, validated GL
 pnpm models:convert --only=woody-bed,node-sofa   # redo a few; merges into the manifest
 pnpm models:stock   # CC0 stock furniture (Poly Haven + Kenney) → public/models/stock + manifest.json
 pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write nothing
-pnpm models:fixtures # the electrical layer's 3D fittings (sockets, switch, wall lamp, bulb) → public/models/fixtures
+pnpm models:fixtures # the fittings (sockets, switches, lamps) and the doors and windows → public/models/fixtures
+pnpm models:photos  # render a product photo of each of those from its model (Playwright's Chromium)
 pnpm models:seed    # one product per model in both manifests; deletes every other placeable product
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
@@ -133,7 +134,8 @@ components/
                RoomsPanel · draw.ts (canvas routines) · palette.ts (room tints, origin and system colours)
                icons.ts (one icon per technical system and electrical kind)
   studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray · archetypeIcons
-               Trays (build / electric / finishes / budget) · FixturePanel (a fitting's card) · dragImage
+               Trays (build / electric / finishes / budget) · FixturePanel (a fitting's card) · OpeningPanel (a door
+               or window's card) · dragImage
                StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief (what / why / need / change / next)
   design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D ItemCard SwapPanel
@@ -162,7 +164,7 @@ lib/
   utils.ts     cn() formatGEL() formatM2() formatUnit() slugify()
 store/         calculatorStore.ts · designStore.ts
 hooks/         useProducts · useCategories · useCalculator · useWorkers · useDesignCatalog · useAutosave
-scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · fixture-models.ts · seed-models.ts
+scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · fixture-models.ts · model-photos.ts · seed-models.ts
                lib/objGroups.ts · lib/textureClassify.ts · extract-assets.sh · test-plan-*.ts
 public/
   uploads/products/  uploads/furniture/  uploads/stores/  uploads/plans/  uploads/renders/
@@ -495,10 +497,15 @@ In 3D each point is one group standing at its spot (`buildFitting`): the product
 model when it has one (a file under `/models/fixtures` is framed as a fixture already —
 back on the wall, top on the ceiling — and anything else, a partner's upload, is scaled to
 `sizeM` and turned to the wall by `reframe`), else the kind's default from
-`public/models/fixtures`, written by `pnpm models:fixtures` from Poly Haven (CC0: the wall
-lamp, the bare LED bulb of a ceiling point) and poly.pizza (CC-BY 3.0, credited in the
-manifest: the EU socket, the switch), else a small procedural piece (spots, strips); a
-ceiling point under a hanging lamp from the catalogue shows only its rose. The lights that
+`public/models/fixtures` (the first entry of `FIXTURE_MODELS` with that kind), else a small
+procedural piece (spots, strips); a ceiling point under a hanging lamp from the catalogue
+shows only its rose. `pnpm models:fixtures` writes those files from Poly Haven (CC0: the
+industrial wall lamp and sconce, the LED bulb, the glass globe pendant) and poly.pizza
+(Quaternius and Kenney CC0, the rest CC-BY 3.0 credited in the manifest: two sockets, two
+switches, a brass sconce, a pendant, a disc lamp, a square spot) — two or three products
+per kind so the card has something to swap to — and `pnpm models:photos` renders each
+one's product photo from the model itself (a transparent PNG under `uploads/furniture`,
+lit and framed like the studio; the sources' own thumbnails sit on garish gradients). The lights that
 are on become point lights (`lightsFrom`; at night they replace the per-room lamps). With
 one room in focus, the other rooms' fittings, lights and tight-passage outlines are left out
 along with their furniture. The selected fitting's card in the studio (`FixturePanel`) is
@@ -743,6 +750,57 @@ into the room the door opens into, does. Before this both halves hung "left" (th
 corners) and both swung "in", and one door showed two leaves. The `ElementInspector` edits the selected opening — width, height, sill,
 material, hinge side, swing direction, the open angle shown in 3D — and offers a door, a
 window or a plain opening on the selected wall.
+
+**In 3D, `hinge: 'left'` is the jamb at `edge.a` and `swing: 'in'` goes to local +z**, the
+same as the 2D board draws them. `edge.facing` puts local +x along the edge towards
+`edge.b`, so the left jamb is the pivot at −w/2 and the leaf turns by −angle to come into
+the room. The first 3D leaf had both signs the other way — hung from the b-end and
+swinging out of its room — and matched the board only by accident of symmetry;
+`scratchpad`-style checks with three.js (`pivot.updateMatrixWorld`, then the leaf tip's z)
+are the quickest way to be sure of any change here.
+
+**Every door and window is a product**, like every fitting (`lib/design/openings.ts`,
+"Doors and windows as products"). `openingProductKind` maps an opening to the
+`model3dKind` a product carries — `door`, `entrance_door` (a door on an exterior wall),
+`window`; an archway buys nothing — and `withOpeningProducts` gives every door and window
+without one the catalogue's best (`openingCandidates`: its own kind first, the style's
+before the rest, the cheapest within that), the same product on both halves of an interior
+door. The store attaches them in `generate`, `addOpening` / `dropOpening` and
+`updateOpening` (a change of kind drops the product and takes one of the new kind), the
+studio's `ensureOpeningProducts` fills in the rest once the catalogue is in (a saved design
+from before, a door dropped on the 2D board), and `setOpeningProduct` swaps one on both
+halves; `alignTwins` keeps twins agreeing on the product too. An opening keeps its product
+across `moveOpeningToWall`. The budget prices a bought door or window as a real line
+(`product-<id>`, a pair counted once, folded across openings) and the rest as estimates
+(`openingEstimate`). The admin product form offers the three kinds (🚪) next to the
+archetypes; `OPENING_CATEGORY_SLUGS` (doors, windows) are part of the design catalogue;
+the furniture shelf leaves them out (`isOpeningProductKind`).
+
+The studio's card for a selected door or window (`OpeningPanel`) is the fitting card's
+twin: photo, price and shop (or the estimate), the kind as a dropdown, width and height,
+the sill of a window, hinge, swing and open angle of a door, the material only while it is
+an estimate, and "შეცვალე პროდუქტი" in the drawer along the bottom. The structure lock
+keeps the hole (kind, size, sill, deletion); what fills it stays editable.
+
+In 3D (`buildOpeningTrim` → `attachOpeningModel`) the product's model goes in the hole,
+stretched to the opening's width and height (its depth in proportion, never much more than
+the wall), the procedural jambs, head, glazing and leaf standing in until it arrives and
+going when it has its own casing. `pnpm models:fixtures` frames a door or window centred on
+the opening, standing on y = 0, centred in the wall with the room side along +z, and sorts
+a door into the nodes `leaf` (hung from x min — `hinge: 'left'`) and `frame`, or `body`
+for a window or a door kept as one piece: a source that keeps its parts apart is split by
+node name, a welded one by the triangles whose centre lies in an inner box (`leaf: { box }`),
+a bare leaf (Kenney's doors) is `leaf: 'all'` inside the procedural casing, and a leaf that
+hangs from the right in the file is mirrored (`mirror: true`). The studio re-hangs the leaf
+on a pivot at its jamb (the scale on the leaf itself, under the pivot, so turning it does
+not shear it), turns it by the open angle, and mirrors the whole model for a right-hinged
+door. Of an interior door's two halves only the one that draws the leaf places the model;
+the other only drops its casing — except in a single-room view, where the half that is
+shown draws the whole door (`twinShown`). Doors: Quaternius (oak with frame, white
+panelled, white flush, dark classic entrance, white glazed metal entrance), Kenney (country
+leaf, red glazed entrance), Wesley Thompson's classic white (CC-BY); windows: Quaternius
+two-leaf and grid, Justin Randall's wooden four-pane (CC-BY), Google's square (CC-BY). All
+sold by Domus Interior at made-up prices.
 
 ### Adding furniture in the studio
 
@@ -1321,8 +1379,9 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   whole-wall scopes work from 3D). Beams are not obstacles for the layout engine.
 - The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
   room programs, `snapPlacement` and the footprints assume right angles).
-- Estimates for doors, windows, sockets, pipes and fittings (`lib/design/technicalRates.ts`)
-  are market averages, not products; a product chosen from the catalogue replaces them.
+- Estimates for pipes, radiators and air conditioning (`lib/design/technicalRates.ts`) are
+  market averages, not products. Doors, windows, sockets, switches and lamps are products
+  now, and fall back to the same estimates only where the catalogue has none of their kind.
 - The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).

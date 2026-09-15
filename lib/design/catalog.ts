@@ -605,6 +605,8 @@ export function resolveVariant(entry: ProgramEntry, roomAreaM2: number): string 
 /** Every category the studio can buy from — used to prefetch the catalogue in one query. */
 /** The categories the electrical layer's fittings are sold in (sockets, switches, lamps). */
 export const FIXTURE_CATEGORY_SLUGS = ['sockets-switches', 'lighting'];
+/** The categories the doors and windows are sold in. */
+export const OPENING_CATEGORY_SLUGS = ['doors', 'windows'];
 
 export const DESIGN_CATEGORY_SLUGS = Array.from(
   new Set([
@@ -612,6 +614,7 @@ export const DESIGN_CATEGORY_SLUGS = Array.from(
       .map((a) => a.categorySlug)
       .filter((s): s is string => !!s),
     ...FIXTURE_CATEGORY_SLUGS,
+    ...OPENING_CATEGORY_SLUGS,
   ])
 );
 

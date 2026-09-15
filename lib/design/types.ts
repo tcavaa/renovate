@@ -58,6 +58,12 @@ export interface Opening {
   swing?: 'in' | 'out';
   /** Doors: how far the leaf stands open in the 3D view, degrees. 0 = closed. */
   openAngleDeg?: number;
+  /**
+   * The catalogue product this door or window is — a real one with a price, a photo and a
+   * model the 3D view draws in the hole; null (or absent) while it is only an estimate. The
+   * two halves of an interior door carry the same product.
+   */
+  product?: SceneProduct | null;
   origin?: ElementOrigin;
   locked?: boolean;
 }

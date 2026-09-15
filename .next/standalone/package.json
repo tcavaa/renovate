@@ -28,6 +28,7 @@
     "models:seed": "tsx scripts/seed-models.ts",
     "models:stock": "tsx scripts/stock-models.ts",
     "models:fixtures": "tsx scripts/fixture-models.ts",
+    "models:photos": "tsx scripts/model-photos.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",
     "db:seed:workers": "tsx scripts/seed-workers.ts",

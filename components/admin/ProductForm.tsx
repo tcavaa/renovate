@@ -22,6 +22,7 @@ import { apiErrorMessage } from '@/lib/i18n/labels';
 import { unitLabel, pickLocalizedName } from '@/lib/i18n/labels';
 import { ARCHETYPES } from '@/lib/design/catalog';
 import { FIXTURE_PRODUCT_KINDS } from '@/lib/design/electrical';
+import { OPENING_PRODUCT_KINDS } from '@/lib/design/openings';
 import { STYLES, STYLE_IDS } from '@/lib/design/styles';
 import type { StyleId } from '@/lib/design/types';
 import type { Category, Product, Store } from '@/lib/db/schema';
@@ -53,6 +54,9 @@ const FIXTURE_KIND_LABEL: Record<string, string> = {
   light_strip: 'ekLightStrip',
   light_furniture: 'ekLightFurniture',
 };
+
+/** Doors and windows are products of their own kinds too, drawn in the wall's hole. */
+const OPENING_KIND_LABEL: Record<string, string> = { door: 'lineDoor', entrance_door: 'lineEntranceDoor', window: 'lineWindow' };
 
 function asStyleTags(value: unknown): StyleId[] {
   if (!Array.isArray(value)) return [];
@@ -386,7 +390,8 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
                     */}
                     {form.model3dKind &&
                       !MODEL_KINDS.some((m) => m.kind === form.model3dKind) &&
-                      !FIXTURE_PRODUCT_KINDS.includes(form.model3dKind) && (
+                      !FIXTURE_PRODUCT_KINDS.includes(form.model3dKind) &&
+                      !(OPENING_PRODUCT_KINDS as readonly string[]).includes(form.model3dKind) && (
                         <SelectItem value={form.model3dKind}>{form.model3dKind} (?)</SelectItem>
                       )}
                     {MODEL_KINDS.map((m) => (
@@ -397,6 +402,11 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
                     {FIXTURE_PRODUCT_KINDS.map((kind) => (
                       <SelectItem key={kind} value={kind}>
                         ⚡ {(ka.build as Record<string, string>)[FIXTURE_KIND_LABEL[kind]] ?? kind} · {kind}
+                      </SelectItem>
+                    ))}
+                    {OPENING_PRODUCT_KINDS.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        🚪 {(ka.build as Record<string, string>)[OPENING_KIND_LABEL[kind]] ?? kind} · {kind}
                       </SelectItem>
                     ))}
                   </SelectContent>

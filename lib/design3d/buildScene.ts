@@ -20,7 +20,7 @@
  */
 
 import * as THREE from 'three';
-import { loadModel } from './modelLoader';
+import { loadFixture, loadModel } from './modelLoader';
 import { isSharedWithAnyRoom, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
@@ -243,7 +243,10 @@ function buildRoomShell(
       group.add(baseboard);
 
       for (const opening of openings) {
-        const trim = buildOpeningTrim(edge, opening, thickness, materials);
+        // The room on the other side of an interior door is not in a single-room view, so
+        // this half has to draw the door.
+        const twinShown = !opening.connectsToRoomId || !options.onlyRoomId || opening.connectsToRoomId === options.onlyRoomId;
+        const trim = buildOpeningTrim(edge, opening, thickness, materials, twinShown);
         trim.name = `opening-${opening.id}`;
         // Everything in the trim answers to the opening, so a click on a jamb picks the door.
         trim.traverse((child) => {
@@ -426,12 +429,18 @@ export const OPENING_SLAB_NAME = 'opening-slab';
 /** Layer the raycaster ignores. Cut-away walls and idle opening slabs go here. */
 export const HIDDEN_LAYER = 1;
 
-/** Frame around an opening, plus glazing for windows and a swung leaf for doors. */
+/**
+ * Frame around an opening, plus glazing for windows and a swung leaf for doors — or, when
+ * the opening is a product from the catalogue, that product's model in the hole (see
+ * `attachOpeningModel`), the procedural pieces standing in until it arrives.
+ */
 function buildOpeningTrim(
   edge: PlanEdge,
   opening: Opening,
   thickness: number,
-  materials: StyleMaterials
+  materials: StyleMaterials,
+  /** False when the room on the other side of this (interior) door is left out of the view. */
+  twinShown = true
 ): THREE.Group {
   const group = new THREE.Group();
   const point = pointOnEdge(edge, opening.t);
@@ -441,14 +450,14 @@ function buildOpeningTrim(
   // (width along the opening, height, thickness through the wall).
   const yaw = edge.facing;
 
-  const place = (mesh: THREE.Mesh, alongOffset: number, y: number, depthOffset: number) => {
+  const place = (parent: THREE.Object3D, mesh: THREE.Mesh, alongOffset: number, y: number, depthOffset: number) => {
     mesh.position.set(
       point.x + edge.dir.x * alongOffset + edge.inward.x * depthOffset,
       y,
       point.z + edge.dir.z * alongOffset + edge.inward.z * depthOffset
     );
     mesh.rotation.y = yaw;
-    group.add(own(mesh));
+    parent.add(own(mesh));
   };
 
   const w = opening.widthM;
@@ -460,12 +469,14 @@ function buildOpeningTrim(
   // What the door or window is made of colours its frame and leaf.
   const leafMaterial = opening.material === 'metal' || opening.material === 'aluminium' ? materials.get('metal', { roughness: 0.45 }) : opening.material === 'glass' ? materials.get('glass') : opening.material === 'pvc' ? materials.get('ceramic', { roughness: 0.5 }) : materials.get('wood');
 
-  // Jambs
+  // The casing — jambs and head — goes when a product model brings its own.
+  const casing = new THREE.Group();
+  casing.name = 'opening-casing';
   for (const sign of [1, -1]) {
-    place(box(frame, h, thickness + 0.02, frameMaterial), (sign * (w + frame)) / 2, sill + h / 2, midWall);
+    place(casing, box(frame, h, thickness + 0.02, frameMaterial), (sign * (w + frame)) / 2, sill + h / 2, midWall);
   }
-  // Head
-  place(box(w + frame * 2, frame, thickness + 0.02, frameMaterial), 0, sill + h + frame / 2, midWall);
+  place(casing, box(w + frame * 2, frame, thickness + 0.02, frameMaterial), 0, sill + h + frame / 2, midWall);
+  group.add(casing);
 
   // A translucent slab the size of the opening: the thing you grab to slide a door along
   // its wall. Parked on the hidden layer until the studio enters its openings mode.
@@ -473,19 +484,28 @@ function buildOpeningTrim(
   slab.name = OPENING_SLAB_NAME;
   slab.renderOrder = 5;
   slab.layers.set(HIDDEN_LAYER);
-  place(slab, 0, sill + h / 2, midWall);
+  place(group, slab, 0, sill + h / 2, midWall);
+
+  // What fills the hole — glazing, or the leaf — until a product model replaces it.
+  const standIn = new THREE.Group();
+  standIn.name = 'opening-standin';
+  group.add(standIn);
+  // The two halves of an interior door describe one leaf; the half that swings into its
+  // own room draws it — unless that room is the one left out, and then this half does.
+  const drawsLeaf = opening.kind === 'door' && (!leafOnOtherSide(opening) || !twinShown);
 
   if (opening.kind === 'window') {
     // Sill, glazing, and one bar so it reads as a window rather than a hole.
-    place(box(w + frame * 2, 0.04, thickness + 0.09, frameMaterial), 0, sill - 0.02, midWall + 0.02);
-    place(box(w, h, 0.012, materials.get('glass')), 0, sill + h / 2, midWall);
-    place(box(0.03, h, 0.022, frameMaterial), 0, sill + h / 2, midWall);
-    place(box(w, 0.03, 0.022, frameMaterial), 0, sill + h / 2, midWall);
-  } else if (opening.kind === 'door' && !leafOnOtherSide(opening)) {
+    place(standIn, box(w + frame * 2, 0.04, thickness + 0.09, frameMaterial), 0, sill - 0.02, midWall + 0.02);
+    place(standIn, box(w, h, 0.012, materials.get('glass')), 0, sill + h / 2, midWall);
+    place(standIn, box(0.03, h, 0.022, frameMaterial), 0, sill + h / 2, midWall);
+    place(standIn, box(w, 0.03, 0.022, frameMaterial), 0, sill + h / 2, midWall);
+  } else if (drawsLeaf) {
     // The leaf hangs from one jamb — the left one seen from inside the room unless the plan
     // says otherwise — and swings into the room (or out of it) by the angle the plan gives.
     // An interior door is two openings, one per room, describing one leaf: the half whose
-    // swing is "out" leaves the leaf to its twin, which swings "in" to the room it opens into.
+    // swing is "out" leaves the leaf to its twin, which swings "in" to the room it opens into
+    // (both halves name the same leaf in the world, so whichever draws it, it is the same).
     //
     // It has to rotate about the hinge, not about its own middle, so the leaf is a child of a
     // pivot placed at the jamb and offset half its width along the wall. Rotating the leaf
@@ -495,10 +515,11 @@ function buildOpeningTrim(
     const openAngle = ((opening.openAngleDeg ?? 75) * Math.PI) / 180;
     const hingeRight = opening.hinge === 'right';
     const swingOut = opening.swing === 'out';
-    // Seen from inside, "left" is the jamb at the start of the edge when the edge runs
-    // left-to-right for someone facing the wall — which, with the room on the left of every
-    // edge, is the jamb towards `edge.b`.
-    const hingeSign = hingeRight ? -1 : 1;
+    // "Left" is the jamb at the start of the edge (`edge.a`), as on the 2D board, which is
+    // local −x here: `edge.facing` puts local +x along the edge towards `edge.b`.
+    const hingeSign = hingeRight ? 1 : -1;
+    // The leaf runs from the hinge towards the other jamb; turning it by −angle brings its
+    // free end round to local +z, into the room, and +angle out of it.
     const turn = (hingeRight ? 1 : -1) * (swingOut ? -1 : 1) * openAngle;
 
     const pivot = new THREE.Group();
@@ -520,10 +541,103 @@ function buildOpeningTrim(
     handle.rotation.x = Math.PI / 2;
     pivot.add(handle);
 
-    group.add(pivot);
+    standIn.add(pivot);
+  }
+
+  const modelUrl = opening.product?.model3dUrl;
+  if (modelUrl && opening.kind !== 'archway') {
+    attachOpeningModel(group, casing, standIn, modelUrl, {
+      edge,
+      opening,
+      thickness,
+      draws: opening.kind === 'window' || drawsLeaf,
+    });
   }
 
   return group;
+}
+
+/**
+ * A door or window product's model in the hole. The fixtures script frames these centred on
+ * the opening's width, standing on its sill, centred in the wall, room side along +z, with a
+ * door's leaf as the node `leaf` hung from x min (the plan's `hinge: 'left'`) and its casing
+ * as `frame` — or the whole thing as `body` when it is one piece. The parts are stretched to
+ * the opening; a leaf is re-hung on a pivot at its jamb so the open angle still applies; a
+ * right-hinged door is the same model mirrored. Of an interior door's two halves only the
+ * one that draws the leaf places the model (`draws`); the other only drops its casing when
+ * the model brings one, so the two rooms never show two frames — except in a single-room
+ * view, where the half that is shown draws the whole door (see `buildRoomShell`).
+ */
+function attachOpeningModel(
+  group: THREE.Group,
+  casing: THREE.Group,
+  standIn: THREE.Group,
+  url: string,
+  ctx: { edge: PlanEdge; opening: Opening; thickness: number; draws: boolean }
+): void {
+  const { edge, opening, thickness, draws } = ctx;
+  loadFixture(url)
+    .then((model) => {
+      // Rebuilt while the model was in flight.
+      if (!group.parent) return;
+      const ownsFrame = !!(model.getObjectByName('frame') || model.getObjectByName('body'));
+      if (ownsFrame) removeOwned(group, casing);
+      if (!draws) return;
+      removeOwned(group, standIn);
+
+      const point = pointOnEdge(edge, opening.t);
+      const midWall = -thickness / 2;
+      const root = new THREE.Group();
+      root.name = 'opening-model';
+      root.position.set(point.x + edge.inward.x * midWall, opening.sillM, point.z + edge.inward.z * midWall);
+      root.rotation.y = edge.facing;
+      // A right-hinged door is the left-hinged model mirrored; three.js flips the face
+      // culling for the negative determinant, so it renders right way out.
+      root.scale.x = opening.kind === 'door' && opening.hinge === 'right' ? -1 : 1;
+
+      const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+      // A model with its own casing fills the hole; a bare leaf sits inside the procedural one.
+      const targetW = ownsFrame ? opening.widthM : opening.widthM - 0.03;
+      const targetH = ownsFrame ? opening.heightM : opening.heightM - 0.03;
+      const sx = targetW / Math.max(size.x, 1e-6);
+      const sy = targetH / Math.max(size.y, 1e-6);
+      // Depth in proportion, but never much more than the wall it sits in.
+      const sz = Math.min(Math.sqrt(sx * sy), (thickness + 0.06) / Math.max(size.z, 1e-6));
+      const turn = (opening.swing === 'out' ? 1 : -1) * (((opening.openAngleDeg ?? 75) * Math.PI) / 180);
+
+      for (const part of [...model.children]) {
+        part.scale.set(sx, sy, sz);
+        if (opening.kind === 'door' && part.name === 'leaf') {
+          // Re-hung on a pivot at the hinge edge (x min of the leaf, mid-depth), so the leaf
+          // turns about its jamb; the scale sits on the leaf itself, under the pivot, so
+          // turning it does not shear it.
+          const bounds = new THREE.Box3().setFromObject(part);
+          const hingeX = bounds.min.x;
+          const hingeZ = (bounds.min.z + bounds.max.z) / 2;
+          const pivot = new THREE.Group();
+          pivot.name = 'opening-leaf';
+          pivot.position.set(hingeX, 0, hingeZ);
+          pivot.rotation.y = turn;
+          part.position.set(-hingeX, 0, -hingeZ);
+          pivot.add(part);
+          root.add(pivot);
+        } else {
+          root.add(part);
+        }
+      }
+      finishModel(root);
+      tag(root, { pickKind: 'opening', roomId: opening.roomId, openingId: opening.id } satisfies SceneUserData);
+      group.add(root);
+    })
+    .catch((error: unknown) => console.warn(`[studio] opening model failed to load: ${url}`, error));
+}
+
+/** Takes a procedural sub-group out of the trim and frees the geometry it made. */
+function removeOwned(group: THREE.Group, part: THREE.Group): void {
+  group.remove(part);
+  part.traverse((child) => {
+    if (child instanceof THREE.Mesh && child.userData.ownsGeometry) child.geometry.dispose();
+  });
 }
 
 /** The longest wall with no opening on it — or just the longest, if every wall has one. */

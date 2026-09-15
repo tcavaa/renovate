@@ -38,7 +38,7 @@ import {
 import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
-import { addOpening as addOpeningTo, mirrorHinge, mirrorSwing, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningWall as setOpeningWallIn, twinOf, updateOpening as updateOpeningIn, type WallTarget } from '@/lib/design/openings';
+import { addOpening as addOpeningTo, mirrorHinge, mirrorSwing, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningProduct as setOpeningProductIn, setOpeningWall as setOpeningWallIn, twinOf, updateOpening as updateOpeningIn, withOpeningProducts, type WallTarget } from '@/lib/design/openings';
 import {
   addWalls,
   columnFootprints,
@@ -252,13 +252,19 @@ interface DesignActions {
   beginAdd: (product: CatalogProduct, roomId: string | null) => string | null;
   finishCarry: () => void;
   cancelCarry: () => void;
-  addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null) => string | null;
+  /** With the catalogue, the new door or window is the best product of its kind at once. */
+  addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null, catalog?: CatalogProduct[]) => string | null;
   /** A door or window dragged in from the palette onto a wall. Returns the new id, or null when refused. */
-  dropOpening: (kind: OpeningKind, target: WallTarget) => string | null;
+  dropOpening: (kind: OpeningKind, target: WallTarget, catalog?: CatalogProduct[]) => string | null;
   moveOpening: (roomId: string, openingId: string, t: number) => void;
   /** Puts an opening down on any wall of any room. Returns its id afterwards (new when it changed wall), or null when refused. */
   moveOpeningToWall: (roomId: string, openingId: string, target: WallTarget) => string | null;
-  updateOpening: (roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>) => void;
+  /** A change of kind takes a product of the new kind from the catalogue, when given. */
+  updateOpening: (roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>, catalog?: CatalogProduct[]) => void;
+  /** The real product this door or window is (null: back to the estimate); the twin half follows. */
+  setOpeningProduct: (roomId: string, openingId: string, product: CatalogProduct | null) => void;
+  /** Gives every door and window without a product the catalogue's best one — no history entry; the studio calls it once the catalogue is in. */
+  ensureOpeningProducts: (catalog: CatalogProduct[]) => void;
   setOpeningWall: (roomId: string, openingId: string, wallIndex: number) => void;
   removeOpening: (roomId: string, openingId: string) => void;
   /** Commits a drag. The room may change if the item was dragged into a neighbour. */
@@ -687,9 +693,11 @@ export const useDesignStore = create<DesignState & DesignActions>()(
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
             }
             // The wiring follows the furniture; what the person wired by hand is kept. Every
-            // fitting is bought as a product where the catalogue has one.
+            // fitting is bought as a product where the catalogue has one — and so is every
+            // door and window.
             const electrical = withFixtureProducts(suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user')), catalog, styleId);
-            return { items, finishes, electrical, selectedItemId: null };
+            const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
+            return { items, finishes, electrical, selectedItemId: null, ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}) };
           });
         },
 
@@ -874,20 +882,20 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           });
         },
 
-        addOpening: (roomId, kind, wallIndex = null) => {
-          const { plan } = get();
+        addOpening: (roomId, kind, wallIndex = null, catalog = []) => {
+          const { plan, styleId } = get();
           if (!plan) return null;
           const result = addOpeningTo(plan.rooms, roomId, kind, wallIndex, plan.wallThicknessM);
           if (!result.openingId) return null;
-          commit(() => ({ plan: { ...plan, rooms: markOpeningUser(result.rooms, result.openingId!) } }));
+          commit(() => ({ plan: { ...plan, rooms: withOpeningProducts(markOpeningUser(result.rooms, result.openingId!), catalog, styleId) } }));
           return result.openingId;
         },
-        dropOpening: (kind, target) => {
-          const { plan } = get();
+        dropOpening: (kind, target, catalog = []) => {
+          const { plan, styleId } = get();
           if (!plan) return null;
           const result = addOpeningTo(plan.rooms, target.roomId, kind, target.wallIndex, plan.wallThicknessM, { t: target.t });
           if (!result.openingId) return null;
-          commit(() => ({ plan: { ...plan, rooms: markOpeningUser(result.rooms, result.openingId!) } }));
+          commit(() => ({ plan: { ...plan, rooms: withOpeningProducts(markOpeningUser(result.rooms, result.openingId!), catalog, styleId) } }));
           return result.openingId;
         },
         moveOpening: (roomId, openingId, t) =>
@@ -900,13 +908,15 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           commit(() => ({ plan: { ...plan, rooms: result.rooms } }));
           return result.openingId;
         },
-        updateOpening: (roomId, openingId, patch) =>
+        updateOpening: (roomId, openingId, patch, catalog = []) =>
           commit((s) => {
             if (!s.plan) return null;
             const { widthM, heightM, sillM, kind, ...rest } = patch;
             let rooms = s.plan.rooms;
             if (widthM != null || heightM != null || sillM != null || kind != null) {
               rooms = updateOpeningIn(rooms, roomId, openingId, { ...(widthM != null ? { widthM } : {}), ...(heightM != null ? { heightM } : {}), ...(sillM != null ? { sillM } : {}), ...(kind != null ? { kind } : {}) });
+              // A door that became a window (or the reverse) buys a product of its new kind.
+              if (kind != null) rooms = withOpeningProducts(rooms, catalog, s.styleId);
             }
             if (Object.keys(rest).length > 0) {
               // Material, angle and lock apply to both halves of an interior door; the hinge
@@ -925,6 +935,14 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             }
             return { plan: { ...s.plan, rooms } };
           }),
+        setOpeningProduct: (roomId, openingId, product) =>
+          commit((s) => (s.plan ? { plan: { ...s.plan, rooms: markOpeningUser(setOpeningProductIn(s.plan.rooms, roomId, openingId, product), openingId) } } : null)),
+        ensureOpeningProducts: (catalog) => {
+          const { plan, styleId } = get();
+          if (!plan || catalog.length === 0) return;
+          const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
+          if (rooms !== plan.rooms) set({ plan: { ...plan, rooms } });
+        },
         setOpeningWall: (roomId, openingId, wallIndex) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, rooms: setOpeningWallIn(s.plan.rooms, roomId, openingId, wallIndex, s.plan.wallThicknessM) } } : null)),
         removeOpening: (roomId, openingId) =>

@@ -1942,6 +1942,7 @@ export const ru: Dictionary = {
     fixtureEstimateTitle: 'Оценка — товар не выбран',
     fixtureEstimate: 'Средняя рыночная цена {price} — выберите товар ниже',
     fixtureNoProducts: 'В каталоге пока нет товара этого типа — в бюджет идёт средняя цена',
+    exteriorOpening: 'на наружной стене',
     totalArea: 'Итого',
     kindArmedHint: '{kind} — нажмите на план, чтобы поставить. Та же плитка ещё раз — выключить.',
     stageBlackDesc: 'От чёрного каркаса к белому — черновые работы',

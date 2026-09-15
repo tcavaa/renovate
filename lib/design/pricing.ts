@@ -31,6 +31,7 @@ import type {
   ElectricalPoint,
   FloorPlan,
   Opening,
+  SceneProduct,
   SceneStore,
   StoreBasket,
   TechnicalPoint,
@@ -183,7 +184,7 @@ export function priceScene(
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const openingLines = priceOpenings(plan, full, phases, roomName);
+  const openingLines = priceOpenings(plan, full, phases, roomName, locale);
   const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale);
   lines.push(...openingLines, ...technicalLines);
   const openingsTotal = round2(openingLines.reduce((s, l) => s + l.total, 0));
@@ -236,15 +237,16 @@ function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: s
 }
 
 /**
- * Doors and windows as estimates. An interior door exists twice in the plan (once per room),
- * so a pair counts once. In a renovation with the doors-and-windows phase ticked every
- * opening is new; otherwise only the ones the person added themselves are priced — the rest
- * are already in the wall.
+ * Doors and windows: the product each one is, or an estimate where none is chosen. An
+ * interior door exists twice in the plan (once per room), so a pair counts once. In a
+ * renovation with the doors-and-windows phase ticked every opening is new; otherwise only
+ * the ones the person added themselves are priced — the rest are already in the wall.
  */
-export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>): BudgetLine[] {
+export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka'): BudgetLine[] {
   const all = full && phases.includes(10);
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
+  const byProduct = new Map<number, { product: SceneProduct; qty: number; total: number; rooms: Set<string> }>();
   for (const room of plan.rooms) {
     // The two halves of an interior door are listed in the same order on both sides of the
     // wall, so the n-th door between rooms A and B is one door however its halves sit.
@@ -259,24 +261,43 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
         seen.add(key);
       }
       if (!all && opening.origin !== 'user') continue;
+      if (opening.product && opening.kind !== 'archway') {
+        const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, qty: 0, total: 0, rooms: new Set<string>() };
+        bought.qty += 1;
+        bought.total = round2(bought.total + opening.product.pricePerUnit);
+        bought.rooms.add(room.id);
+        byProduct.set(opening.product.productId, bought);
+        continue;
+      }
       const line = openingLine(opening, roomName.get(room.id));
       if (line) lines.push(line);
     }
   }
+  for (const bought of byProduct.values()) {
+    lines.push({ section: 'openings', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
+  }
   return lines;
 }
 
-function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
+/** What a door or window without a product is estimated at: a window by its area, a door apiece, the material weighing in. */
+export function openingEstimate(opening: Pick<Opening, 'kind' | 'exterior' | 'material' | 'widthM' | 'heightM'>): { qty: number; unit: 'piece' | 'm2'; unitPrice: number; total: number } | null {
   const factor = OPENING_MATERIAL_FACTOR[opening.material ?? 'pvc'] ?? 1;
   if (opening.kind === 'window') {
     const area = Math.max(0.5, round2(opening.widthM * opening.heightM));
     const unitPrice = round2(OPENING_ESTIMATE_GEL.window * factor);
-    return { section: 'openings', key: 'window', roomName, qty: area, unit: 'm2', unitPrice, total: round2(area * unitPrice), estimated: true };
+    return { qty: area, unit: 'm2', unitPrice, total: round2(area * unitPrice) };
   }
   if (opening.kind === 'archway') return null;
   const base = opening.exterior ? ENTRANCE_DOOR_GEL : OPENING_ESTIMATE_GEL.door;
   const unitPrice = round2(base * (opening.material ? OPENING_MATERIAL_FACTOR[opening.material] ?? 1 : 1));
-  return { section: 'openings', key: opening.exterior ? 'entrance_door' : 'door', roomName, qty: 1, unit: 'piece', unitPrice, total: unitPrice, estimated: true };
+  return { qty: 1, unit: 'piece', unitPrice, total: unitPrice };
+}
+
+function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
+  const estimate = openingEstimate(opening);
+  if (!estimate) return null;
+  const key = opening.kind === 'window' ? 'window' : opening.exterior ? 'entrance_door' : 'door';
+  return { section: 'openings', key, roomName, ...estimate, estimated: true };
 }
 
 /**
