@@ -513,27 +513,37 @@ function attachOpeningModel(group: THREE.Group, url: string, ctx: { edge: PlanEd
 
   const turn = (opening.swing === 'out' ? 1 : -1) * (((opening.openAngleDeg ?? 75) * Math.PI) / 180);
 
-  /** Puts the model's parts under `root`, the leaf on a pivot at its jamb. */
+  /**
+   * Puts the model's parts under `root`, the leaf on a pivot at its jamb. Every part keeps
+   * the transform its file gave it — the compressed GLBs carry each node's quantisation
+   * offset and scale there — and is stretched by a group of its own around it; setting the
+   * scale on the node itself threw that transform away, which stood every leaf half in the
+   * floor and made every window a third taller than its hole.
+   */
   const mount = (model: THREE.Object3D, root: THREE.Group, width: number, height: number) => {
     const { sx, sy, sz } = scaleFor(model, width, height);
     for (const part of [...model.children]) {
-      part.scale.set(sx, sy, sz);
+      // A node the source left behind with no geometry in it.
+      if (!Number.isFinite(new THREE.Box3().setFromObject(part).min.x)) continue;
+      const scaled = new THREE.Group();
+      scaled.scale.set(sx, sy, sz);
+      scaled.add(part);
       if (opening.kind === 'door' && part.name === 'leaf') {
         // Re-hung on a pivot at the hinge edge (x min of the leaf, mid-depth), so the leaf
-        // turns about its jamb; the scale sits on the leaf itself, under the pivot, so
-        // turning it does not shear it.
-        const bounds = new THREE.Box3().setFromObject(part);
+        // turns about its jamb; the scale sits under the pivot, so turning it does not
+        // shear it.
+        const bounds = new THREE.Box3().setFromObject(scaled);
         const hingeX = bounds.min.x;
         const hingeZ = (bounds.min.z + bounds.max.z) / 2;
         const pivot = new THREE.Group();
         pivot.name = 'opening-leaf';
         pivot.position.set(hingeX, 0, hingeZ);
         pivot.rotation.y = turn;
-        part.position.set(-hingeX, 0, -hingeZ);
-        pivot.add(part);
+        scaled.position.set(-hingeX, 0, -hingeZ);
+        pivot.add(scaled);
         root.add(pivot);
       } else {
-        root.add(part);
+        root.add(scaled);
       }
     }
     finishModel(root);

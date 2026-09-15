@@ -1199,6 +1199,13 @@ Each of these cost real debugging time. Don't undo them.
 17. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
     between frames, so `ViewerApi.screenshot` calls `gl.render(scene, camera)` and reads the
     canvas in the same tick.
+18. **Never set `scale` or `position` on a node that came out of a GLB — wrap it.** The
+    fixtures pipeline compresses with meshopt, whose quantisation leaves each node carrying
+    an offset and a scale that put its integer vertices back in metres. `attachOpeningModel`
+    once stretched a door by writing `part.scale.set(...)` and `part.position.set(...)` on
+    the loaded nodes: every leaf stood half in the floor and every window was a third taller
+    than its hole. Each part now sits inside a `Group` of its own that carries the stretch and
+    the hinge offset. `stretchTo` and `reframe` are fine because they scale the model's root.
 "
 ## Partner models (`scripts/convert-models.ts`)
 
