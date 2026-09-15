@@ -17,7 +17,7 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, type FinishScope } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
@@ -34,7 +34,9 @@ import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
-import { halfZone, wallEdgeAreaM2 } from '@/lib/design/zones';
+import { halfZone, isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
+import { surfaceOptions } from '@/lib/design/surfaces';
+import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import type { ElectricalKind, PlacedItem, Vec2 } from '@/lib/design/types';
@@ -68,9 +70,13 @@ const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
  * finishes · budget) above the rooms, a tray along the bottom with the open category's tools
  * or its shelf of products; the selected thing's card sits on the right; the top bar holds
  * the view, undo/redo, the structure lock, the kept versions and the way on. A product or a
- * fitting dragged from a tray appears in the 3D view under the pointer as it is dragged.
- * Walls, doors and windows start locked; unlocking them lets the person drag walls in 3D (or
- * draw new ones in 2D). Every change is undoable and the existing house is kept as version 01.
+ * fitting dragged from a tray rides on the pointer in the 3D view from the moment the drag
+ * starts. Whatever opens on the right (the item card, the inspector, the versions) is an
+ * overlay on the canvas: nothing else moves for it. Finishes are picked from the tray of
+ * the finishes category, and only there does a click on a floor or a wall choose the
+ * surface. Walls, doors and windows start locked; unlocking them lets the person drag walls
+ * in 3D (or draw new ones in 2D). Every change is undoable and the existing house is kept
+ * as version 01.
  */
 export default function StudioPage() {
   const t = useT();
@@ -119,6 +125,7 @@ export default function StudioPage() {
   const [electricalKind, setElectricalKind] = useState<ElectricalKind>('socket');
   const [electricalArmed, setElectricalArmed] = useState(false);
   const [finishScope, setFinishScope] = useState<FinishScope>('room');
+  const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
   const [showWalls, setShowWalls] = useState(true);
   const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [rotateBlocked, setRotateBlocked] = useState(false);
@@ -135,8 +142,12 @@ export default function StudioPage() {
   const [workspaceEl, setWorkspaceEl] = useState<HTMLDivElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   /** What is being dragged from a tray right now, so the view can show it under the pointer. */
-  const [draggingProduct, setDraggingProduct] = useState<CatalogProduct | null>(null);
   const [draggingKind, setDraggingKind] = useState<ElectricalKind | null>(null);
+  /** The category, readable from the viewer's long-lived callbacks. */
+  const categoryRef = useRef(category);
+  useEffect(() => {
+    categoryRef.current = category;
+  }, [category]);
   /** The dragged product has been put on the pointer in 3D (a carry the drop or the drag's end resolves). */
   const dragCarry = useRef(false);
   /** A product dropped before the viewer carried it: where it landed, applied once it does. */
@@ -210,16 +221,17 @@ export default function StudioPage() {
     },
     [store]
   );
-  // A tap on a floor or a wall opens the finishes for it, whatever category was open: the
-  // materials are never more than a click away.
+  // A tap on a floor or a wall chooses the surface the finishes tray applies to — in the
+  // finishes category only. Elsewhere the floor and the walls are just the room.
   const onSelectSurface = useCallback(
     (sel: SurfaceSelection) => {
+      if (categoryRef.current !== 'finishes') return;
       setSelectedSurface(sel);
       if (sel) {
         store.selectItem(null);
         store.selectElement(null);
+        setFinishSurface(sel.surface);
         setFinishScope(sel.surface === 'wall' && sel.wallIndex != null ? 'wall' : 'room');
-        setCategory('finishes');
         setTrayOpen(true);
       }
     },
@@ -405,22 +417,29 @@ export default function StudioPage() {
   };
 
   /**
-   * Dragging from a tray over the view. A product is put on the pointer in 3D the moment it
-   * crosses the canvas (`beginAdd`) and follows the drag like a carried item; a fitting
-   * shows a ghost snapped to the nearest wall. Leaving the view takes them away again.
+   * A tile picked up on the shelf: in 3D the product is put on the pointer at once
+   * (`beginAdd`) — the tile's own picture is not dragged — and the model follows the drag
+   * until it is dropped or the drag ends off the canvas.
+   */
+  const onDragProduct = (product: CatalogProduct | null) => {
+    if (!product) {
+      endDragCarry();
+      return;
+    }
+    if (view !== '3d' || !viewerApi) return;
+    if (store.beginAdd(product, focusRoomId) !== null) dragCarry.current = true;
+  };
+
+  /**
+   * Dragging from a tray over the view: a carried product follows the pointer; a fitting
+   * shows a ghost snapped to the nearest wall. Leaving the view takes the ghost away.
    */
   const onDragOver = (event: React.DragEvent) => {
     const types = event.dataTransfer.types;
     if (types.includes(FURNITURE_DRAG_TYPE)) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
-      if (view !== '3d' || !viewerApi || !draggingProduct) return;
-      if (!dragCarry.current) {
-        const at = viewerApi.floorPointAt(event.clientX, event.clientY);
-        if (store.beginAdd(draggingProduct, at?.roomId ?? focusRoomId ?? null) !== null) dragCarry.current = true;
-        return;
-      }
-      viewerApi.moveCarriedTo(event.clientX, event.clientY);
+      if (view === '3d' && viewerApi && dragCarry.current) viewerApi.moveCarriedTo(event.clientX, event.clientY);
       return;
     }
     if (types.includes(ELECTRICAL_DRAG_TYPE)) {
@@ -431,7 +450,6 @@ export default function StudioPage() {
   };
   const onDragLeave = (event: React.DragEvent) => {
     if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-    endDragCarry();
     viewerApi?.clearElectricalPreview();
   };
 
@@ -551,9 +569,31 @@ export default function StudioPage() {
               ? t.build.trayHintFurniture
               : t.design.dragHint;
 
-  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || (category === 'finishes' && view !== 'walk') || versionsOpen;
+  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen;
   const showRightPanel = !!rightPanelOpen && view !== 'walk';
   const trayShown = trayOpen && view !== 'walk';
+
+  // The finishes shelf: the room it applies to, what that surface has now, and the options.
+  const finishRoom = plan.rooms.find((r) => r.id === (selectedSurface?.roomId ?? focusRoomId)) ?? null;
+  const finishOptions = surfaceOptions(products, finishSurface, finishRoom, styleId);
+  const baseFinishId = (roomId: string) => finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f))?.product?.productId ?? null;
+  const currentFinishId: number | null | 'mixed' = (() => {
+    if (!finishRoom) {
+      const ids = plan.rooms.map((r) => baseFinishId(r.id));
+      return ids.every((id) => id === ids[0]) ? (ids[0] ?? null) : 'mixed';
+    }
+    if (finishSurface === 'wall' && finishScope === 'wall' && selectedSurface?.wallIndex != null) {
+      return finishes.find((f) => f.roomId === finishRoom.id && f.surface === 'wall' && f.wallIndex === selectedSurface.wallIndex)?.product?.productId ?? baseFinishId(finishRoom.id);
+    }
+    return baseFinishId(finishRoom.id);
+  })();
+  const finishArea = finishRoom
+    ? finishSurface === 'wall' && finishScope === 'wall' && selectedSurface?.wallIndex != null
+      ? `${fill(t.build.wallN, { n: selectedSurface.wallIndex + 1 })} · ${formatM2(wallEdgeAreaM2(finishRoom, selectedSurface.wallIndex))}`
+      : finishSurface === 'floor'
+        ? formatM2(finishRoom.areaM2)
+        : null
+    : null;
 
   return (
     <>
@@ -571,7 +611,7 @@ export default function StudioPage() {
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
-            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[14.5rem]', trayShown ? 'pb-56' : 'pb-16', showRightPanel && 'lg:pr-[24rem]')}>
+            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[14.5rem]', trayShown ? 'pb-56' : 'pb-16')}>
               <PlanWorkspace
                 tools={CATEGORY_TOOLS[category]}
                 tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && finishScope === 'zone' ? 'zone' : 'select'}
@@ -650,7 +690,7 @@ export default function StudioPage() {
         />
 
         {/* ---- left: the categories, then the rooms ---- */}
-        <div className="pointer-events-auto absolute left-4 top-20 hidden w-[200px] flex-col items-start gap-2 md:flex">
+        <div className="pointer-events-auto absolute left-4 top-20 z-20 hidden w-[200px] flex-col items-start gap-2 md:flex">
           <CategoryRail category={category} trayOpen={trayShown} onCategory={pickCategory} badge={cost ? { budget: formatGEL(cost.grandTotal) } : undefined} />
           <div className="flex w-full flex-col gap-1 rounded-[14px] bg-white/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
             <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.roomsInPlan}</p>
@@ -667,9 +707,9 @@ export default function StudioPage() {
           </p>
         )}
 
-        {/* ---- right panel ---- */}
+        {/* ---- right panel: an overlay, nothing under it moves ---- */}
         {showRightPanel && (
-          <div className={cn('pointer-events-auto absolute right-4 top-20 flex w-[360px] flex-col', trayShown ? 'bottom-56' : 'bottom-20')}>
+          <div className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', trayShown ? 'bottom-56' : 'bottom-20')}>
             {versionsOpen ? (
               <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
@@ -699,29 +739,12 @@ export default function StudioPage() {
                   </div>
                 )}
               </FloatingPanel>
-            ) : category === 'finishes' ? (
-              <FloatingPanel title={t.design.finishesTitle} subtitle={selectedSurface ? `${roomNameOf(selectedSurface.roomId)}${selectedSurface.surface === 'wall' && selectedSurface.wallIndex != null ? ` · ${fill(t.build.wallN, { n: selectedSurface.wallIndex + 1 })} · ${wallEdgeAreaM2(plan.rooms.find((r) => r.id === selectedSurface.roomId)!, selectedSurface.wallIndex).toFixed(1)} ${t.units.m2}` : ''}` : focusRoom?.name ?? t.design.finishForAllRooms} onClose={() => setCategory('furniture')} className="h-full rounded-[16px]">
-                <FinishPanel
-                  roomId={selectedSurface?.roomId ?? focusRoomId}
-                  surface={selectedSurface?.surface ?? null}
-                  rooms={plan.rooms}
-                  catalog={products}
-                  styleId={styleId}
-                  finishes={finishes}
-                  onRoom={(id) => {
-                    setSelectedSurface(null);
-                    setFinishScope('room');
-                    store.setFocusRoom(id);
-                  }}
-                  onPick={pickFinish}
-                />
-              </FloatingPanel>
             ) : null}
           </div>
         )}
 
         {/* ---- bottom: the hint, a warning, and the open category's tray ---- */}
-        <div className={cn('pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2 transition-[left,right] duration-300 md:left-[14.5rem]', showRightPanel && 'lg:right-[calc(360px+2rem)]')}>
+        <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2 md:left-[14.5rem]">
           {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
             <p className="hidden items-center gap-1.5 rounded-[10px] bg-warning/90 px-3 py-1 text-[11px] font-medium text-ink md:flex">
               <AlertTriangle className="h-3 w-3" />
@@ -739,10 +762,7 @@ export default function StudioPage() {
                     styleId={styleId}
                     roomLabel={focusRoom?.name ?? t.design.wholeFlat}
                     onPick={(product) => store.beginAdd(product, focusRoomId) !== null}
-                    onDragProduct={(product) => {
-                      setDraggingProduct(product);
-                      if (!product) endDragCarry();
-                    }}
+                    onDragProduct={onDragProduct}
                   />
                 )}
                 {category === 'electric' && (
@@ -760,7 +780,28 @@ export default function StudioPage() {
                     }}
                   />
                 )}
-                {category === 'finishes' && <FinishesTray scope={finishScope} onScope={(scope) => { setFinishScope(scope); if (scope === 'zone' && view === '3d') setView('2d'); }} hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null} roomName={selectedSurface ? roomNameOf(selectedSurface.roomId) : focusRoom?.name ?? null} in3d={view === '3d'} onGo2d={() => setView('2d')} />}
+                {category === 'finishes' && (
+                  <FinishesTray
+                    surface={finishSurface}
+                    onSurface={(surface) => {
+                      setFinishSurface(surface);
+                      setFinishScope('room');
+                    }}
+                    scope={finishScope}
+                    onScope={(scope) => {
+                      setFinishScope(scope);
+                      if (scope === 'zone' && view === '3d') setView('2d');
+                    }}
+                    hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null}
+                    roomName={finishRoom?.name ?? null}
+                    areaLabel={finishArea}
+                    in3d={view === '3d'}
+                    onGo2d={() => setView('2d')}
+                    options={finishOptions}
+                    currentId={currentFinishId}
+                    onPick={(product) => pickFinish(finishSurface, product)}
+                  />
+                )}
                 {category === 'budget' && cost && <BudgetTray cost={cost} />}
               </Tray>
             </div>
@@ -768,7 +809,7 @@ export default function StudioPage() {
         </div>
 
         {/* ---- help and zoom ---- */}
-        <div className={cn('pointer-events-auto absolute flex flex-col items-end gap-2 transition-[right,bottom] duration-300', trayShown ? 'bottom-56' : 'bottom-20', showRightPanel ? 'right-[calc(360px+2rem)]' : 'right-4')}>
+        <div className={cn('pointer-events-auto absolute right-4 z-30 flex flex-col items-end gap-2', trayShown ? 'bottom-56' : 'bottom-20')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
           <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} onFullscreen={toggleFullscreen} fullscreen={fullscreen} disabled={view !== '3d' || !viewerApi} />
         </div>

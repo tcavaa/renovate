@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * The studio's categories, the way a game's build mode does it: a rail of big tiles down
- * the left — build, furniture, electric & light, finishes, budget — and, along the bottom of
- * the canvas, the tray of the open category: its tools, or the shelf of products. One
- * category open at a time; clicking it again folds the tray so the canvas gets the room back.
+ * The studio's categories, the way a game's build mode does it: a block of tiles at the
+ * top left, two to a row — build, furniture, electric & light, finishes, budget — and, along
+ * the bottom of the canvas, the tray of the open category: its tools, or the shelf of
+ * products or finishes. One category open at a time; clicking it again folds the tray so
+ * the canvas gets the room back.
  */
 
 import { BrickWall, Cable, PaintBucket, Sofa, Wallet, type LucideIcon } from 'lucide-react';
@@ -26,8 +27,8 @@ const CATEGORIES: Array<{ id: StudioCategory; icon: LucideIcon; key: keyof Dicti
 export function CategoryRail({ category, trayOpen, onCategory, badge, className }: { category: StudioCategory; trayOpen: boolean; onCategory: (category: StudioCategory) => void; /** A small figure under a category (the budget total). */ badge?: Partial<Record<StudioCategory, string>>; className?: string }) {
   const t = useT();
   return (
-    <nav className={cn('flex flex-col gap-1 rounded-[18px] border border-white/70 bg-white/92 p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
-      {CATEGORIES.map(({ id, icon: Icon, key }) => {
+    <nav className={cn('grid w-full grid-cols-2 gap-1 rounded-[16px] border border-white/70 bg-white/92 p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
+      {CATEGORIES.map(({ id, icon: Icon, key }, index) => {
         const active = category === id && trayOpen;
         return (
           <button
@@ -37,12 +38,13 @@ export function CategoryRail({ category, trayOpen, onCategory, badge, className 
             aria-pressed={active}
             data-tour={`rail-${id}`}
             className={cn(
-              'flex h-[62px] w-[72px] flex-col items-center justify-center gap-1 rounded-[14px] px-1 text-[10px] font-semibold leading-none transition-all',
+              'flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-[12px] px-1.5 py-1.5 text-center text-[10px] font-semibold leading-[1.15] transition-all',
+              index === CATEGORIES.length - 1 && CATEGORIES.length % 2 === 1 && 'col-span-2',
               active ? 'bg-ink text-white shadow-card' : category === id ? 'bg-sand-light text-ink' : 'text-ink-soft hover:bg-sand-light hover:text-ink'
             )}
           >
-            <Icon className="h-5 w-5" />
-            <span className="max-w-full truncate">{t.build[key]}</span>
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="line-clamp-2 max-w-full break-words">{t.build[key]}</span>
             {badge?.[id] && <span className={cn('max-w-full truncate text-[9px] font-medium tabular-nums', active ? 'text-white/70' : 'text-ink-muted')}>{badge[id]}</span>}
           </button>
         );
