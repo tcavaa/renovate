@@ -71,7 +71,8 @@ pnpm models:stock   # CC0 stock furniture (Poly Haven + Kenney) → public/model
 pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write nothing
 pnpm models:fixtures # the fittings (sockets, switches, lamps) and the doors and windows → public/models/fixtures
 pnpm models:photos  # render a product photo of each of those from its model (Playwright's Chromium)
-pnpm models:seed    # one product per model in both manifests; deletes every other placeable product
+pnpm models:seed    # one product per model in the three manifests; deletes every other placeable product (the cPanel deploy runs the same, bundled)
+pnpm deploy:bundle-seed  # that seed as one plain-node file beside the standalone server (the cPanel workflow does this)
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
 pnpm db:seed:rates  # create the `rates` table and fill in the calculator's default rate book
 pnpm db:seed:workers # city, experience, portfolio and reviews for the seeded workers; recomputes their ratings
@@ -1333,10 +1334,16 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   `cPanel build` GitHub Actions workflow builds on Linux after CI passes on `main` and
   publishes `main`'s tree plus `.next/standalone` (marker `.next/standalone/.prebuilt`) as
   one new commit on `cpanel`, every time — pulls always fast-forward. The script sees the
-  marker and runs in **release mode**: copy `public/`, link uploads, `node deploy/migrate.cjs`
-  (drizzle's migrator re-done in plain node with the standalone's own `mysql2`, which
-  `serverExternalPackages` keeps out of the server chunks for exactly this), touch
-  `tmp/restart.txt`. Without the marker it installs and builds itself with
+  marker and runs in **release mode**: copy `public/`, link uploads (the repo's seed images
+  copied over the shared folder, so a re-rendered product photo replaces the old one; uploads
+  made through the app carry a timestamp prefix and are never touched), `node
+  deploy/migrate.cjs` (drizzle's migrator re-done in plain node with the standalone's own
+  `mysql2`, which `serverExternalPackages` keeps out of the server chunks for exactly this),
+  `node .next/standalone/seed-models.cjs` — `scripts/seed-models.ts` bundled by the workflow
+  with esbuild (`pnpm deploy:bundle-seed`, drizzle, mysql2 and dotenv inside), so **the
+  catalogue follows the model manifests on every deploy**: new models become products, models
+  taken out of the manifests are removed, prices in the manifests win over admin edits of
+  those rows — touch `tmp/restart.txt`. Without the marker it installs and builds itself with
   `RENOVATE_LOW_MEMORY=1` (one worker, no in-build type check) — for a host with memory.
   `~/renovate/.env` holds the server variables (`AUTH_URL`, `AUTH_TRUST_HOST=true`, `LOG_DIR`
   included; the Node.js app's own settings are invisible to deployment tasks). Uploads live
