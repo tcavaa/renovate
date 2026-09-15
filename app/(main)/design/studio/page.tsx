@@ -759,8 +759,8 @@ export default function StudioPage() {
           </div>
         )}
 
-        {/* ---- bottom: the hint, a warning, and the open category's tray ---- */}
-        <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2 md:left-[19.5rem]">
+        {/* ---- bottom: the hint, a warning, and the open category's tray, centred on the canvas ---- */}
+        <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2">
           {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
             <p className="hidden items-center gap-1.5 rounded-[10px] bg-warning/90 px-3 py-1 text-[11px] font-medium text-ink md:flex">
               <AlertTriangle className="h-3 w-3" />
