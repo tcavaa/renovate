@@ -21,7 +21,7 @@
 
 import * as THREE from 'three';
 import { loadModel } from './modelLoader';
-import { isSharedWithAnyRoom, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { isSharedWithAnyRoom, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { wallFinishFor } from '@/lib/design/zones';
@@ -209,37 +209,30 @@ function buildRoomShell(
 
     for (const edge of edges) {
       const openings = room.openings.filter((o) => o.wallIndex === edge.index);
-      const isFeature = edge.index === featureIndex && !isWet;
-      // This wall's own finish, if the person gave it one; the room's otherwise.
-      const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? wallFinish;
-      const ownFinish = edgeFinish !== wallFinish;
-
-      const spec = isWet
-        ? style.surfaces.wetWall
-        : isFeature
-          ? style.surfaces.featureWall
-          : style.surfaces.wall;
-
-      const wallMaterial = materials.surface(
-        spec,
-        { u: edge.length, v: room.heightM },
-        isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish)
-      );
+      const wallMaterial = wallMaterialFor(room, edge, featureIndex, finishes, style, materials);
 
       // Each room extrudes its own wall outwards from its polygon, as thick as the plan's
       // wall behind that edge. Two rooms either side of one wall are a wall thickness apart,
       // so a full-thickness extrusion from each puts room A's outer face exactly on room B's
       // inner face — and the two colours z-fight, flicking as the camera moves. A shared wall
       // is therefore extruded only to the middle, where the two halves meet on a plane
-      // nobody can see. Exterior walls keep their depth.
+      // nobody can see while both stand. Exterior walls keep their depth.
+      //
+      // The doll's-house cutaway hides one half at a time, though, and then the other half's
+      // face on that middle plane is what the camera sees from the first room — so that face
+      // is painted with the *neighbour's* finish. Either half alone then looks like the whole
+      // wall: this room's paper on this side, the neighbour's tiles on the other.
       const planWall = wallForEdge(plan, room, edge);
       const thickness = planWall?.thicknessM ?? plan.wallThicknessM;
-      const shared = isSharedWithAnyRoom(room, edge, plan.rooms, thickness * 1.5);
+      const neighbour = sharedNeighbourOf(room, edge, plan.rooms, thickness * 1.5);
+      const shared = !!neighbour;
       const depth = shared ? thickness / 2 : thickness;
       const height = planWall?.heightM ?? room.heightM;
+      const neighbourEdge = neighbour ? facingEdgeOf(neighbour, edge, thickness * 1.5) : null;
+      const farMaterial = neighbour && neighbourEdge ? wallMaterialFor(neighbour, neighbourEdge, pickFeatureWall(neighbour, roomEdges(neighbour.polygon)), finishes, style, materials) : undefined;
       // Nudge each room's wall height by a hair so shared walls between two rooms do not
       // z-fight along their top edge when seen from above.
-      const wall = buildWall(edge, height + index * 0.0006, depth, openings, wallMaterial);
+      const wall = buildWall(edge, height + index * 0.0006, depth, openings, wallMaterial, farMaterial);
       const outward = { x: -edge.inward.x, z: -edge.inward.z };
       tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index } satisfies SceneUserData);
       group.add(wall);
@@ -271,12 +264,54 @@ function buildRoomShell(
  * thickness and rotated into place — which is far more robust than trying to assemble a wall
  * out of boxes around each opening.
  */
+/**
+ * The finish a room's wall wears: a wet room's tiles, the feature wall's accent, the room's
+ * paper — or the finish the person gave this one wall. Also the face a neighbour's half of
+ * a shared wall shows into this room.
+ */
+function wallMaterialFor(room: PlanRoom, edge: PlanEdge, featureIndex: number, finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Material {
+  const isWet = WET_ROOM_TYPES.includes(room.type);
+  const wallFinish = findFinish(finishes, room.id, 'wall');
+  const isFeature = edge.index === featureIndex && !isWet;
+  // This wall's own finish, if the person gave it one; the room's otherwise.
+  const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? wallFinish;
+  const ownFinish = edgeFinish !== wallFinish;
+  const spec = isWet ? style.surfaces.wetWall : isFeature ? style.surfaces.featureWall : style.surfaces.wall;
+  return materials.surface(spec, { u: edge.length, v: room.heightM }, isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish));
+}
+
+/** The room on the other side of an edge, found by probing just beyond the wall, or null for an exterior wall. */
+function sharedNeighbourOf(room: PlanRoom, edge: PlanEdge, rooms: PlanRoom[], tolerance: number): PlanRoom | null {
+  const mid = pointOnEdge(edge, 0.5);
+  const probe = { x: mid.x - edge.inward.x * tolerance, z: mid.z - edge.inward.z * tolerance };
+  return rooms.find((other) => other.id !== room.id && pointInPolygon(probe, other.polygon)) ?? null;
+}
+
+/** The neighbour's edge that runs along the same wall the other way, if it has one. */
+function facingEdgeOf(neighbour: PlanRoom, edge: PlanEdge, tolerance: number): PlanEdge | null {
+  const mid = pointOnEdge(edge, 0.5);
+  let best: { candidate: PlanEdge; distance: number } | null = null;
+  for (const candidate of roomEdges(neighbour.polygon)) {
+    // Opposite direction (each room walks its outline the same way round), within a wall
+    // of the line, and spanning the point probed.
+    if (candidate.dir.x * edge.dir.x + candidate.dir.z * edge.dir.z > -0.9) continue;
+    const along = ((mid.x - candidate.a.x) * candidate.dir.x + (mid.z - candidate.a.z) * candidate.dir.z) / candidate.length;
+    if (along < -0.02 || along > 1.02) continue;
+    const foot = pointOnEdge(candidate, Math.max(0, Math.min(1, along)));
+    const distance = Math.hypot(foot.x - mid.x, foot.z - mid.z);
+    if (distance <= tolerance && (!best || distance < best.distance)) best = { candidate, distance };
+  }
+  return best?.candidate ?? null;
+}
+
 function buildWall(
   edge: PlanEdge,
   height: number,
   thickness: number,
   openings: Opening[],
-  material: THREE.Material
+  material: THREE.Material,
+  /** What the far face — the one on the middle of a shared wall — is painted with. */
+  farMaterial?: THREE.Material
 ): THREE.Mesh {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
@@ -305,6 +340,24 @@ function buildWall(
 
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
 
+  // ExtrudeGeometry puts both lids in one material group — first the lid at z = 0 (here
+  // the far face), then the lid at z = depth (the room's face), the same number of
+  // triangles each — and the sides in another. Splitting the lid group lets the far face
+  // wear the neighbour's finish while the room's face and the reveals keep this room's.
+  if (farMaterial) {
+    const groups = geometry.groups.map((g) => ({ ...g }));
+    geometry.clearGroups();
+    for (const g of groups) {
+      if (g.materialIndex !== 0) {
+        geometry.addGroup(g.start, g.count, g.materialIndex);
+        continue;
+      }
+      const half = Math.floor(g.count / 2);
+      geometry.addGroup(g.start, half, 2);
+      geometry.addGroup(g.start + half, g.count - half, 0);
+    }
+  }
+
   // Shape space (x along the wall, y up, z through the wall) → world.
   // Using the inward normal as the extrusion axis keeps the basis right-handed; the wall is
   // then pushed back out so its inner face lands exactly on the room polygon.
@@ -316,7 +369,7 @@ function buildWall(
   basis.setPosition(edge.a.x - edge.inward.x * thickness, 0, edge.a.z - edge.inward.z * thickness);
   geometry.applyMatrix4(basis);
 
-  const mesh = own(new THREE.Mesh(geometry, material));
+  const mesh = own(new THREE.Mesh(geometry, farMaterial ? [material, material, farMaterial] : material));
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
