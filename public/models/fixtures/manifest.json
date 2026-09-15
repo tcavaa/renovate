@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14",
+  "generatedAt": "2026-09-15",
   "note": "Written by scripts/fixture-models.ts. The electrical layer’s fixtures: wall models centred on x/y with the back on z = 0 and the front along +z; ceiling models centred on x/z with the top at y = 0.",
   "models": [
     {
@@ -23,7 +23,17 @@
       "sourceUrl": "https://poly.pizza/m/MCMUq7R1w5",
       "title": "EU Outlet",
       "author": "J-Toastie",
-      "license": "CC-BY 3.0"
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-socket-eu.jpg",
+      "product": {
+        "kind": "socket",
+        "categorySlug": "sockets-switches",
+        "priceGel": 18,
+        "storeSlug": "lumina",
+        "nameKa": "როზეტი „EU“ — თეთრი",
+        "nameEn": "Socket \"EU\" — white",
+        "nameRu": "Розетка «EU» — белая"
+      }
     },
     {
       "slug": "switch",
@@ -41,7 +51,17 @@
       "sourceUrl": "https://poly.pizza/m/8sR1PkyAg-F",
       "title": "Light switch",
       "author": "Poly by Google",
-      "license": "CC-BY 3.0"
+      "license": "CC-BY 3.0",
+      "imageUrl": "/uploads/furniture/fixture-switch.jpg",
+      "product": {
+        "kind": "switch",
+        "categorySlug": "sockets-switches",
+        "priceGel": 22,
+        "storeSlug": "lumina",
+        "nameKa": "ჩამრთველი — თეთრი",
+        "nameEn": "Light switch — white",
+        "nameRu": "Выключатель — белый"
+      }
     },
     {
       "slug": "wall-lamp",
@@ -59,7 +79,17 @@
       "sourceUrl": "https://polyhaven.com/a/industrial_wall_lamp",
       "title": "industrial wall lamp",
       "author": "Poly Haven",
-      "license": "CC0"
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-wall-lamp.png",
+      "product": {
+        "kind": "light_wall",
+        "categorySlug": "lighting",
+        "priceGel": 140,
+        "storeSlug": "lumina",
+        "nameKa": "კედლის სანათი „Industrial“",
+        "nameEn": "Wall lamp \"Industrial\"",
+        "nameRu": "Бра «Industrial»"
+      }
     },
     {
       "slug": "bulb",
@@ -77,7 +107,17 @@
       "sourceUrl": "https://polyhaven.com/a/lightbulb_led",
       "title": "lightbulb led",
       "author": "Poly Haven",
-      "license": "CC0"
+      "license": "CC0",
+      "imageUrl": "/uploads/furniture/fixture-bulb.png",
+      "product": {
+        "kind": "light_ceiling",
+        "categorySlug": "lighting",
+        "priceGel": 45,
+        "storeSlug": "lumina",
+        "nameKa": "ჭერის სანათი — LED ნათურა",
+        "nameEn": "Ceiling light — LED bulb",
+        "nameRu": "Потолочный светильник — LED лампа"
+      }
     }
   ]
 }

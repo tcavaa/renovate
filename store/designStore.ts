@@ -51,7 +51,8 @@ import {
   wallsForRectangle,
   withBounds,
 } from '@/lib/design/walls';
-import { placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical } from '@/lib/design/electrical';
+import { fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
+import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
 import { technicalAnchors, TECHNICAL_KINDS } from '@/lib/design/technical';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
@@ -197,9 +198,14 @@ interface DesignActions {
   removeTechnicalPoint: (id: string) => void;
   setWorks: (works: string[]) => void;
   // --- electrical ---
-  suggestElectrical: () => void;
-  addElectricalPoint: (kind: ElectricalKind, position: Vec2, roomId: string) => string | null;
+  /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
+  suggestElectrical: (catalog?: CatalogProduct[]) => void;
+  addElectricalPoint: (kind: ElectricalKind, position: Vec2, roomId: string, catalog?: CatalogProduct[]) => string | null;
   updateElectricalPoint: (id: string, patch: Partial<Omit<ElectricalPoint, 'id'>>) => void;
+  /** Another kind of fitting: the usual height for it, and a product of that kind when the catalogue has one. */
+  changeElectricalKind: (id: string, kind: ElectricalKind, catalog?: CatalogProduct[]) => void;
+  /** The real product this fitting is (null: back to the estimate). */
+  setElectricalProduct: (id: string, product: CatalogProduct | null) => void;
   moveElectricalPoint: (id: string, position: Vec2) => void;
   /** Slides a wall-mounted point along its wall to `t` (0..1 of the edge); the height stays. */
   slideElectricalPoint: (id: string, t: number) => void;
@@ -613,19 +619,40 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works } } } : s)),
 
         // --- electrical ---
-        suggestElectrical: () => commit((s) => (s.plan ? { electrical: suggestElectrical(s.plan, s.items, s.electrical) } : null)),
-        addElectricalPoint: (kind, position, roomId) => {
+        suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId) } : null)),
+        addElectricalPoint: (kind, position, roomId, catalog = []) => {
           const id = uid('e');
           let ok = false;
           commit((s) => {
             const room = s.plan?.rooms.find((r) => r.id === roomId);
             if (!room) return null;
             ok = true;
-            return { electrical: [...s.electrical, placeElectrical(room, kind, position, id)] };
+            const point = placeElectrical(room, kind, position, id);
+            return { electrical: [...s.electrical, withFixtureProduct(point, fixtureCandidates(kind, catalog, s.styleId)[0] ?? null)] };
           });
           return ok ? id : null;
         },
-        updateElectricalPoint: (id, patch) => commit((s) => ({ electrical: s.electrical.map((p) => (p.id === id ? { ...p, ...patch, origin: 'user' } : p)) })),
+        updateElectricalPoint: (id, patch) =>
+          commit((s) => ({
+            electrical: s.electrical.map((p) => {
+              if (p.id !== id) return p;
+              const next: ElectricalPoint = { ...p, ...patch, origin: 'user' };
+              // A double socket is two of the product; a longer strip more metres.
+              return next.product && (patch.count != null || patch.lengthM != null) ? { ...next, product: { ...next.product, qty: fixtureQuantityOf(next), totalPrice: round2(next.product.pricePerUnit * fixtureQuantityOf(next)) } } : next;
+            }),
+          })),
+        changeElectricalKind: (id, kind, catalog = []) =>
+          commit((s) => {
+            const point = s.electrical.find((p) => p.id === id);
+            const room = point ? s.plan?.rooms.find((r) => r.id === point.roomId) : null;
+            if (!point || !room || point.kind === kind) return null;
+            const info = ELECTRICAL_KINDS[kind];
+            const changed: ElectricalPoint = { ...point, kind, elevationM: info.placement === 'ceiling' ? room.heightM : info.defaultElevationM, ...(info.count ? { count: info.count } : {}), ...(info.light ? { on: point.on ?? true, category: info.category } : {}), origin: 'user' };
+            const candidates = fixtureCandidates(kind, catalog, s.styleId);
+            const keep = point.product ? candidates.find((c) => c.id === point.product?.productId) : undefined;
+            return { electrical: s.electrical.map((p) => (p.id === id ? withFixtureProduct(changed, keep ?? candidates[0] ?? null) : p)) };
+          }),
+        setElectricalProduct: (id, product) => commit((s) => ({ electrical: s.electrical.map((p) => (p.id === id ? { ...withFixtureProduct(p, product), origin: 'user' } : p)) })),
         moveElectricalPoint: (id, position) =>
           commit((s) => {
             const point = s.electrical.find((p) => p.id === id);
@@ -659,8 +686,9 @@ export const useDesignStore = create<DesignState & DesignActions>()(
               items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
             }
-            // The wiring follows the furniture; what the person wired by hand is kept.
-            const electrical = suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user'));
+            // The wiring follows the furniture; what the person wired by hand is kept. Every
+            // fitting is bought as a product where the catalogue has one.
+            const electrical = withFixtureProducts(suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user')), catalog, styleId);
             return { items, finishes, electrical, selectedItemId: null };
           });
         },

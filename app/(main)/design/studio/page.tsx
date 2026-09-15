@@ -22,6 +22,7 @@ import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
+import { FixturePanel } from '@/components/studio/FixturePanel';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
@@ -461,7 +462,7 @@ export default function StudioPage() {
       viewerApi?.clearElectricalPreview();
       const at = view === '3d' ? viewerApi?.floorPointAt(event.clientX, event.clientY) : null;
       if (at?.roomId) {
-        const id = store.addElectricalPoint(kind, at.position, at.roomId);
+        const id = store.addElectricalPoint(kind, at.position, at.roomId, products);
         if (id) store.selectElement({ kind: 'electrical', id });
       } else setRefused(true);
       return;
@@ -493,7 +494,7 @@ export default function StudioPage() {
     if (!electricalArmed || view !== '3d' || !viewerApi) return;
     const at = viewerApi.floorPointAt(event.clientX, event.clientY);
     if (!at?.roomId) return;
-    const id = store.addElectricalPoint(electricalKind, at.position, at.roomId);
+    const id = store.addElectricalPoint(electricalKind, at.position, at.roomId, products);
     if (id) store.selectElement({ kind: 'electrical', id });
   };
 
@@ -611,7 +612,7 @@ export default function StudioPage() {
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
-            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[14.5rem]', trayShown ? 'pb-56' : 'pb-16')}>
+            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-56' : 'pb-16')}>
               <PlanWorkspace
                 tools={CATEGORY_TOOLS[category]}
                 tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && finishScope === 'zone' ? 'zone' : 'select'}
@@ -689,10 +690,10 @@ export default function StudioPage() {
           nextLabel={category === 'finishes' ? t.build.budgetTitle : t.design.step6}
         />
 
-        {/* ---- left: the categories, then the rooms ---- */}
-        <div className="pointer-events-auto absolute left-4 top-20 z-20 hidden w-[200px] flex-col items-start gap-2 md:flex">
+        {/* ---- left: the categories, the rooms beside them ---- */}
+        <div className="pointer-events-auto absolute left-4 top-20 z-20 hidden items-start gap-2 md:flex">
           <CategoryRail category={category} trayOpen={trayShown} onCategory={pickCategory} badge={cost ? { budget: formatGEL(cost.grandTotal) } : undefined} />
-          <div className="flex w-full flex-col gap-1 rounded-[14px] bg-white/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
+          <div className="flex w-[188px] flex-col gap-1 rounded-[14px] bg-white/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
             <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.roomsInPlan}</p>
             <RoomRow label={t.design.wholeFlat} count={items.length} active={focusRoomId === null} onClick={() => store.setFocusRoom(null)} />
             {plan.rooms.map((room) => (
@@ -702,7 +703,7 @@ export default function StudioPage() {
         </div>
 
         {refused && (
-          <p role="alert" className="absolute left-4 top-[calc(5rem+2px)] z-30 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger md:left-[15.5rem]">
+          <p role="alert" className="absolute left-4 top-[calc(5rem+2px)] z-30 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger md:left-[20.5rem]">
             {t.design.openingRefused}
           </p>
         )}
@@ -730,6 +731,21 @@ export default function StudioPage() {
                   onLock={(locked) => store.lockItem(selected.id, locked)}
                 />
               </FloatingPanel>
+            ) : selectedElement?.kind === 'electrical' && electrical.some((p) => p.id === selectedElement.id) ? (
+              <FloatingPanel title={t.build.inspectorElectrical} subtitle={roomNameOf(electrical.find((p) => p.id === selectedElement.id)!.roomId)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
+                <FixturePanel
+                  key={selectedElement.id}
+                  point={electrical.find((p) => p.id === selectedElement.id)!}
+                  room={plan.rooms.find((r) => r.id === electrical.find((p) => p.id === selectedElement.id)!.roomId) ?? null}
+                  catalog={products}
+                  styleId={styleId}
+                  onKind={(kind) => store.changeElectricalKind(selectedElement.id, kind, products)}
+                  onSwap={(product) => store.setElectricalProduct(selectedElement.id, product)}
+                  onUpdate={(patch) => store.updateElectricalPoint(selectedElement.id, patch)}
+                  onSlide={(tt) => store.slideElectricalPoint(selectedElement.id, tt)}
+                  onRemove={() => store.removeElectricalPoint(selectedElement.id)}
+                />
+              </FloatingPanel>
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} className="border-0 p-0" />
@@ -744,7 +760,7 @@ export default function StudioPage() {
         )}
 
         {/* ---- bottom: the hint, a warning, and the open category's tray ---- */}
-        <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2 md:left-[14.5rem]">
+        <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2 md:left-[19.5rem]">
           {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
             <p className="hidden items-center gap-1.5 rounded-[10px] bg-warning/90 px-3 py-1 text-[11px] font-medium text-ink md:flex">
               <AlertTriangle className="h-3 w-3" />
@@ -771,7 +787,7 @@ export default function StudioPage() {
                     onKind={setElectricalKind}
                     armed={electricalArmed}
                     onArm={setElectricalArmed}
-                    onSuggest={store.suggestElectrical}
+                    onSuggest={() => store.suggestElectrical(products)}
                     onClear={store.clearElectrical}
                     lightsOn={lightsOn}
                     onDragKind={(kind) => {

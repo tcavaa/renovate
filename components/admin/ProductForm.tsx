@@ -21,6 +21,7 @@ import { useT, useLocale } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { unitLabel, pickLocalizedName } from '@/lib/i18n/labels';
 import { ARCHETYPES } from '@/lib/design/catalog';
+import { FIXTURE_PRODUCT_KINDS } from '@/lib/design/electrical';
 import { STYLES, STYLE_IDS } from '@/lib/design/styles';
 import type { StyleId } from '@/lib/design/types';
 import type { Category, Product, Store } from '@/lib/db/schema';
@@ -36,6 +37,22 @@ const UNIT_KEYS = ['m2', 'linear_m', 'piece', 'liter', 'kg', 'pack', 'set'] as c
 const MODEL_KINDS = Object.values(ARCHETYPES)
   .map((a) => ({ kind: a.kind, label: a.labelKa, size: a.size }))
   .sort((a, b) => a.label.localeCompare(b.label, 'ka'));
+
+/**
+ * The electrical layer's fittings are products of their own kinds — a socket, a switch, a
+ * lamp per point kind — sized like a plate unless the form says otherwise.
+ */
+const FIXTURE_KIND_LABEL: Record<string, string> = {
+  socket: 'ekSocket',
+  socket_tv: 'ekTv',
+  socket_data: 'ekInternet',
+  switch: 'ekSwitch',
+  light_ceiling: 'ekLightCeiling',
+  light_wall: 'ekLightWall',
+  light_spot: 'ekLightSpot',
+  light_strip: 'ekLightStrip',
+  light_furniture: 'ekLightFurniture',
+};
 
 function asStyleTags(value: unknown): StyleId[] {
   if (!Array.isArray(value)) return [];
@@ -368,12 +385,18 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
                       visible and deliberate to change.
                     */}
                     {form.model3dKind &&
-                      !MODEL_KINDS.some((m) => m.kind === form.model3dKind) && (
+                      !MODEL_KINDS.some((m) => m.kind === form.model3dKind) &&
+                      !FIXTURE_PRODUCT_KINDS.includes(form.model3dKind) && (
                         <SelectItem value={form.model3dKind}>{form.model3dKind} (?)</SelectItem>
                       )}
                     {MODEL_KINDS.map((m) => (
                       <SelectItem key={m.kind} value={m.kind}>
                         {m.label} · {m.kind}
+                      </SelectItem>
+                    ))}
+                    {FIXTURE_PRODUCT_KINDS.map((kind) => (
+                      <SelectItem key={kind} value={kind}>
+                        ⚡ {(ka.build as Record<string, string>)[FIXTURE_KIND_LABEL[kind]] ?? kind} · {kind}
                       </SelectItem>
                     ))}
                   </SelectContent>

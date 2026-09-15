@@ -209,6 +209,8 @@ export const electricalPointSchema = z.object({
   count: z.number().int().min(1).max(6).optional(),
   on: z.boolean().optional(),
   lengthM: z.number().min(0.1).max(30).optional(),
+  product: sceneProductSchema.nullable().optional(),
+  sizeM: z.object({ width: z.number().min(0.01).max(10), depth: z.number().min(0.01).max(10), height: z.number().min(0.01).max(10) }).optional(),
   origin: elementOriginSchema.optional(),
   locked: z.boolean().optional(),
 });
