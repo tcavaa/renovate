@@ -708,9 +708,9 @@ export default function StudioPage() {
           </p>
         )}
 
-        {/* ---- right panel: an overlay, nothing under it moves ---- */}
+        {/* ---- right panel: an overlay the full height of the studio; nothing under it moves ---- */}
         {showRightPanel && (
-          <div className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', trayShown ? 'bottom-56' : 'bottom-20')}>
+          <div className="pointer-events-auto absolute bottom-4 right-4 top-20 z-40 flex w-[360px] flex-col">
             {versionsOpen ? (
               <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />

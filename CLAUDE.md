@@ -555,9 +555,10 @@ fitting shows a ghost snapped to the nearest wall (`previewElectricalAt`) and is
 drop. Placed fittings drag along the walls of their room in 3D (hopping to the nearest
 wall) and are re-projected on release. The top bar carries the room chip, undo/redo, the
 view switch, day/night, photo, the structure lock, versions, help and the next step.
-Whatever opens on the right — the item card, the inspector, the versions — is an overlay
-(`z-40`) over the canvas and the help card: nothing is pushed aside for it; the help card
-and zoom sit above the top bar (`z-30`) so their buttons are never covered. A tap on a
+Whatever opens on the right — the item card, the fitting card, the inspector, the versions
+— is an overlay (`z-40`) the full height of the studio, scrolling inside itself under its
+alternatives drawer: nothing is pushed aside for it; the help card and zoom sit above the
+top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row. A tap on a
 floor or a wall chooses the surface for the finishes shelf **in the finishes category
 only**; in every other category the floor and the walls are just the room. `editMode` follows the category (`build` picks walls, columns, beams and,
 when unlocked, drags walls along their normal with a ghost slab; `electrical` drags

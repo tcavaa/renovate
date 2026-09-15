@@ -1951,7 +1951,7 @@ export const en: Dictionary = {
     stageGreenDesc: 'Green frame to moving in — furniture and cleaning',
     stageAll: 'All',
     stageNone: 'None',
-    wiringDragHint: 'Drag a tile into the 3D view — a socket sticks to the nearest wall at its usual height. Or click a tile, then click in a room. Drag a placed one along its wall; change its height in the panel on the right.',
+    wiringDragHint: 'Drag a tile into 3D, or click a tile and then a wall — it lands at its usual height; change the height on the card.',
     alongWall: 'Along the wall',
     nudgeLeft: '5 cm left',
     nudgeRight: '5 cm right',
