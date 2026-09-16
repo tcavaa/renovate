@@ -951,7 +951,13 @@ same board the studio uses (`PlanWorkspace` with the wall, room, door and window
 the home state below. The plan lives in the design store; `useCalculatorPlan` reads the
 calculator's `rooms` off it after every edit (`calculatorRoomsFromPlan`: width and depth
 from the outline, `x`/`z` from its corner) and rebuilds the plan from the calculator's rooms
-when they belong to a different flat. A room typed by size (`RoomsPanel`) becomes four walls
+when they belong to a different flat — **in one step from one snapshot of both stores**
+(`reconcileCalculatorPlan` in `lib/calculator/planSync.ts`, tested for settling in one
+round). It used to be two effects, each reading the other store from its own render: with
+two different flats one put the rooms' flat into the plan while the other put the *old*
+plan's rooms into the calculator, the next render saw two flats again, and every round grew
+a sliver room until React stopped it ("Maximum update depth exceeded" at `setPlan`, a
+166-room tower on the board). A room typed by size (`RoomsPanel`) becomes four walls
 at the first free spot a wall's thickness clear of the rest (`findFreeSpot` in
 `lib/calculator/layout.ts`). **A re-uploaded plan is a new project**: `replaceRooms` drops
 every product and furniture pick along with the rooms; `setRooms` only prunes furniture of

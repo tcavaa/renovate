@@ -9,40 +9,29 @@
  * every change (positions, sizes and the derived areas included). A calculation started
  * before the plan existed — typed rooms in an old session — becomes a plan on first sight;
  * a plan that belongs to a different flat than the calculator's rooms gives way to them.
+ *
+ * One effect, one snapshot: `reconcileCalculatorPlan` decides both stores' next state from
+ * the same reading of both, taken fresh from the stores rather than from this render's
+ * closure. Two effects that each trusted their own render's copy of the other store used to
+ * chase each other for ever when the flats differed (see `lib/calculator/planSync.ts`).
  */
 
 import { useEffect } from 'react';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
-import { calculatorRoomsFromPlan, planFromCalculatorRooms } from '@/lib/design/planGeometry';
+import { reconcileCalculatorPlan } from '@/lib/calculator/planSync';
 
 export function useCalculatorPlan() {
   const plan = useDesignStore((s) => s.plan);
-  const setPlan = useDesignStore((s) => s.setPlan);
   const rooms = useCalculatorStore((s) => s.rooms);
-  const setRooms = useCalculatorStore((s) => s.setRooms);
 
-  // The plan follows the calculator when they disagree about which flat this is.
   useEffect(() => {
-    if (rooms.length === 0) return;
-    const ids = new Set(rooms.map((r) => r.id));
-    const overlap = plan ? plan.rooms.filter((r) => ids.has(r.id)).length : 0;
-    if (!plan || (plan.rooms.length > 0 && overlap === 0)) setPlan(planFromCalculatorRooms(rooms));
-  }, [plan, rooms, setPlan]);
-
-  // The calculator follows the plan for everything else.
-  useEffect(() => {
-    if (!plan) return;
-    const next = calculatorRoomsFromPlan(plan);
-    const current = useCalculatorStore.getState().rooms;
-    const same =
-      next.length === current.length &&
-      next.every((r, i) => {
-        const c = current[i];
-        return c && c.id === r.id && c.width === r.width && c.length === r.length && c.height === r.height && c.type === r.type && c.nameKa === r.nameKa && c.x === r.x && c.z === r.z;
-      });
-    if (!same) setRooms(next);
-  }, [plan, setRooms]);
+    const design = useDesignStore.getState();
+    const calculator = useCalculatorStore.getState();
+    const next = reconcileCalculatorPlan(design.plan, calculator.rooms);
+    if (next.plan !== design.plan && next.plan) design.setPlan(next.plan);
+    if (next.rooms !== calculator.rooms) calculator.setRooms(next.rooms);
+  }, [plan, rooms]);
 
   return plan;
 }
