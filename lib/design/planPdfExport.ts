@@ -132,8 +132,8 @@ async function canvasJpeg(canvas: HTMLCanvasElement): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-/** One page, one image, filling it. */
-function pdfOfImage(jpeg: Uint8Array, pxW: number, pxH: number, pageW: number, pageH: number): Blob {
+/** One page, one image, filling it. Exported so the writer can be parsed back in a test. */
+export function pdfOfImage(jpeg: Uint8Array, pxW: number, pxH: number, pageW: number, pageH: number): Blob {
   const content = `q ${pageW.toFixed(2)} 0 0 ${pageH.toFixed(2)} 0 0 cm /Im0 Do Q\n`;
   const objects: Array<string | Uint8Array> = [
     '<< /Type /Catalog /Pages 2 0 R >>',

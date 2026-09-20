@@ -58,7 +58,7 @@ export default function StylePage() {
       <DesignSteps current={4} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={4}
+          step={designStepPosition(4, homeState, mode)}
           total={8}
           title={t.build.quizTitle}
           subtitle={t.build.quizSubtitle}

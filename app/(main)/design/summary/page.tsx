@@ -233,7 +233,10 @@ export default function BudgetPage() {
           <div className="space-y-5">
             {SECTION_ORDER.map((section) => {
               const lines = cost.lines.filter((l) => l.section === section);
-              if (lines.length === 0) return null;
+              // A section whose every line was ticked off still shows, struck through, or
+              // there would be no way to put any of it back.
+              const dropped = (fullCost?.lines ?? []).filter((l) => l.section === section && isExcluded(l));
+              if (lines.length === 0 && dropped.length === 0) return null;
               return (
                 <section key={section} className="overflow-hidden rounded-[16px] border border-line bg-bg-surface">
                   <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -283,7 +286,7 @@ export default function BudgetPage() {
                         );
                       })}
                       {/* What was ticked off in this section, so it can be put back. */}
-                      {(fullCost?.lines ?? []).filter((l) => l.section === section && isExcluded(l)).map((line, i) => {
+                      {dropped.map((line, i) => {
                         const productId = productIdOf(line)!;
                         return (
                           <tr key={`out-${line.key}-${i}`} className="border-t border-line/70 text-ink-faint">
