@@ -30078,6 +30078,8 @@ var schema = external_exports.object({
   NEXT_PUBLIC_APP_URL: external_exports.string().url().default("http://localhost:3000"),
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
+  FACEBOOK_CLIENT_ID: optionalString,
+  FACEBOOK_CLIENT_SECRET: optionalString,
   ANTHROPIC_API_KEY: optionalString,
   ADMIN_EMAIL: optionalString,
   ADMIN_PASSWORD: optionalString,
@@ -30114,8 +30116,12 @@ var schema = external_exports.object({
       if (!value[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when MAIL_DRIVER=smtp" });
     }
   }
-  if ((value.GOOGLE_CLIENT_ID ? 1 : 0) + (value.GOOGLE_CLIENT_SECRET ? 1 : 0) === 1) {
-    ctx.addIssue({ code: "custom", path: ["GOOGLE_CLIENT_SECRET"], message: "set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET or neither" });
+  for (const provider of ["GOOGLE", "FACEBOOK"]) {
+    const id = `${provider}_CLIENT_ID`;
+    const secret = `${provider}_CLIENT_SECRET`;
+    if ((value[id] ? 1 : 0) + (value[secret] ? 1 : 0) === 1) {
+      ctx.addIssue({ code: "custom", path: [secret], message: `set both ${id} and ${secret} or neither` });
+    }
   }
 });
 function load() {

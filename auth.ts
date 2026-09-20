@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Facebook from 'next-auth/providers/facebook';
 import Google from 'next-auth/providers/google';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
@@ -9,6 +10,7 @@ import { users } from '@/lib/db/schema';
 import { authConfig } from '@/auth.config';
 import { env } from '@/lib/env';
 import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
+import { SOCIAL_NO_EMAIL } from '@/lib/auth/social';
 import { log } from '@/lib/log';
 import type { UserRole } from '@/lib/auth/roles';
 
@@ -61,6 +63,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
+    // Each social login appears only when its keys are set, so a deployment without them
+    // simply has no such button (`NEXT_PUBLIC_*_ENABLED` is what the login page reads).
     ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
       ? [
           Google({
@@ -69,22 +73,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }),
         ]
       : []),
+    ...(env.FACEBOOK_CLIENT_ID && env.FACEBOOK_CLIENT_SECRET
+      ? [
+          Facebook({
+            clientId: env.FACEBOOK_CLIENT_ID,
+            clientSecret: env.FACEBOOK_CLIENT_SECRET,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     ...authConfig.callbacks,
     async signIn({ user, account }) {
-      if (account?.provider === 'google' && user.email) {
+      // Every social login lands here: the first sign-in creates the account, later ones
+      // find it by e-mail. Facebook is allowed to withhold the address (the person can
+      // deny the permission, and an account signed up by telephone has none), and without
+      // one there is nothing to key the user on — so refuse rather than make a nameless row.
+      if (account && account.provider !== 'credentials') {
+        if (!user.email) {
+          log.warn('social login refused: no e-mail from the provider', { provider: account.provider });
+          return `/login?error=${SOCIAL_NO_EMAIL}`;
+        }
+        const email = user.email.toLowerCase();
         const existing = await db
           .select()
           .from(users)
-          .where(eq(users.email, user.email))
+          .where(eq(users.email, email))
           .limit(1);
         if (existing.length === 0) {
           await db.insert(users).values({
-            email: user.email,
-            name: user.name ?? user.email.split('@')[0],
+            email,
+            name: user.name ?? email.split('@')[0],
             role: 'user',
-            // Google has already verified the address.
+            // Google and Facebook have both verified the address before handing it over.
             emailVerifiedAt: new Date(),
           });
         }

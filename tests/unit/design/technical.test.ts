@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalSuggestions, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
+import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
+import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
@@ -91,5 +92,32 @@ describe('anchors and suggestions', () => {
     const quiet: FloorPlan = { ...plan, rooms: withWindow, technical: { points: [...plan.technical!.points, point('x', 'extractor', 1.2, 1.95, 'bath')] } };
     const suggestions = technicalSuggestions(quiet, [item('t', 'bath', 'toilet', 0.6, 0.5)]);
     expect(suggestions.map((s) => s.code)).toEqual([]);
+  });
+});
+
+describe('how high a technical point sits', () => {
+  it('leaves every kind but the air conditioner at its one usual height', () => {
+    const low = { heightM: 2.4 };
+    const tall = { heightM: 3.4 };
+    for (const kind of ['water_supply', 'sewer', 'electrical_panel', 'radiator', 'extractor', 'boiler'] as const) {
+      expect(technicalElevation(kind, low)).toBe(TECHNICAL_KINDS[kind].defaultElevationM);
+      expect(technicalElevation(kind, tall)).toBe(TECHNICAL_KINDS[kind].defaultElevationM);
+    }
+  });
+
+  it('hangs an air conditioner the same hand’s width under the ceiling whatever the room’s height', () => {
+    for (const heightM of [2.5, 2.8, 3.2, 3.6]) {
+      const bottom = technicalElevation('ac_unit', { heightM });
+      // The gap the fitter leaves is above the unit, so it is measured from its top.
+      expect(heightM - (bottom + AC_UNIT_HEIGHT_M)).toBeCloseTo(AC_CEILING_GAP_M, 5);
+    }
+  });
+
+  it('does not bring the unit down to head height in a room with a low ceiling', () => {
+    expect(technicalElevation('ac_unit', { heightM: 2.0 })).toBe(AC_MIN_ELEVATION_M);
+  });
+
+  it('falls back to the standard wall height when the point belongs to no room', () => {
+    expect(technicalElevation('ac_unit', null)).toBe(technicalElevation('ac_unit', { heightM: DEFAULT_WALL_HEIGHT_M }));
   });
 });
