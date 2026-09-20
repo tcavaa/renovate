@@ -333,7 +333,10 @@ interface DesignActions {
   // --- history and versions ---
   undo: () => void;
   redo: () => void;
-  /** Keeps version 01 — the existing house — the first time it is asked for. */
+  /**
+   * The studio's baseline, kept once per project: version 01 is the flat as the studio
+   * first found it, furniture and all, and the undo history starts from there.
+   */
   ensureExistingVersion: (name: string) => void;
   saveVersion: (name: string, kind?: DesignVersion['kind']) => string;
   /** Goes back to a kept version; the present is kept as a version first so nothing is lost. */
@@ -1193,7 +1196,14 @@ function createDesignStore(storageName: string) {
         ensureExistingVersion: (name) =>
           set((s) => {
             if (!s.plan || s.versions.some((v) => v.kind === 'existing')) return s;
-            return { versions: [versionOf(s, name, 'existing'), ...s.versions].slice(0, MAX_VERSIONS) };
+            // The baseline is the flat as the studio first found it — furniture, fittings,
+            // finishes and all. It used to be taken when step 2 was left, which is before
+            // anything has been laid out, so restoring it emptied the rooms.
+            //
+            // The undo history starts here too. Drawing a flat on step 2 is a long run of
+            // undoable edits, and carrying it into the studio meant one Ctrl+Z too many
+            // walked the walls back to the blank sheet.
+            return { versions: [versionOf(s, name, 'existing'), ...s.versions].slice(0, MAX_VERSIONS), history: emptyHistory() };
           }),
         saveVersion: (name, kind = 'manual') => {
           const version = versionOf(get(), name, kind);

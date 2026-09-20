@@ -77,7 +77,8 @@ export default function ExistingHousePage() {
   // technical setup next, a renovation designs first and plans the pipes afterwards.
   const after = nextStep(2, homeState, mode) ?? 3;
   const continueNext = () => {
-    actions.ensureExistingVersion(t.build.versionExisting);
+    // The baseline version is the studio's to take, once it has something to keep: taken
+    // here it would be an empty flat, and restoring it would throw the furniture away.
     actions.setStep(after);
     router.push(nextStepHref(2, homeState, mode));
   };

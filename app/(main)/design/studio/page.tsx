@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eraser, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { SwapPanel } from '@/components/design/SwapPanel';
@@ -23,7 +24,7 @@ import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverl
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
-import { RoomItemsPanel } from '@/components/studio/RoomItemsPanel';
+import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
@@ -141,7 +142,7 @@ export default function StudioPage() {
 
   // The existing house is kept the first time the studio opens on a plan.
   useEffect(() => {
-    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionExisting);
+    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
     // Once per plan identity is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.rooms.length]);
@@ -174,6 +175,8 @@ export default function StudioPage() {
   const [photoOpen, setPhotoOpen] = useState(false);
   /** The one refusal banner: what was refused, or null while nothing was. */
   const [refused, setRefused] = useState<string | null>(null);
+  /** "Start from scratch" asks first — in a dialogue of ours, not the browser's. */
+  const [clearOpen, setClearOpen] = useState(false);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -806,9 +809,7 @@ export default function StudioPage() {
           showWalls={showWalls}
           onToggleWalls={() => setShowWalls((v) => !v)}
           onRegenerate={() => store.generate(products)}
-          onClear={() => {
-            if (window.confirm(t.build.fromScratchConfirm)) store.clearDesign();
-          }}
+          onClear={() => setClearOpen(true)}
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
@@ -845,7 +846,7 @@ export default function StudioPage() {
 
         {/* ---- right panel: an overlay the full height of the studio; nothing under it moves ---- */}
         {showRightPanel && (
-          <div className="pointer-events-auto absolute bottom-4 right-4 top-20 z-40 flex w-[360px] flex-col">
+          <div className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
             {versionsOpen ? (
               <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
@@ -896,20 +897,19 @@ export default function StudioPage() {
                 />
               </FloatingPanel>
             ) : itemsPanelOpen ? (
-              <FloatingPanel title={t.build.placedHere} subtitle={focusRoom ? focusRoom.name : t.design.wholeFlat} className="h-full rounded-[16px]">
-                <RoomItemsPanel
-                  items={items}
-                  rooms={plan.rooms}
-                  focusRoomId={focusRoomId}
-                  selectedItemId={selectedItemId}
-                  onSelect={(id) => {
-                    store.selectItem(id);
-                    const room = items.find((i) => i.id === id)?.roomId;
-                    if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
-                  }}
-                  onRemove={(id) => store.removeItem(id)}
-                />
-              </FloatingPanel>
+              <FurnitureDrawer
+                items={items}
+                rooms={plan.rooms}
+                focusRoomId={focusRoomId}
+                selectedItemId={selectedItemId}
+                roomLabel={focusRoom ? focusRoom.name : t.design.wholeFlat}
+                onSelect={(id) => {
+                  store.selectItem(id);
+                  const room = items.find((i) => i.id === id)?.roomId;
+                  if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
+                }}
+                onRemove={(id) => store.removeItem(id)}
+              />
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} className="border-0" />
@@ -1019,6 +1019,38 @@ export default function StudioPage() {
         <HoverCard ref={hoverCard} />
         <TutorialOverlay open={tourOpen} onClose={() => setTourOpen(false)} container={workspaceEl} onStep={onTourStep} />
       </div>
+
+      {/*
+        Emptying the flat is one click away from everything else on the bar, and it cannot be
+        undone by looking for the furniture again — so it asks, and version 01 (the flat as
+        the studio found it) is there to go back to either way.
+      */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger">
+              <Eraser className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">{t.build.fromScratch}</DialogTitle>
+            <DialogDescription className="text-center">{t.build.fromScratchConfirm}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" onClick={() => setClearOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              variant="ink"
+              onClick={() => {
+                store.clearDesign();
+                setClearOpen(false);
+              }}
+            >
+              <Eraser className="h-4 w-4" />
+              {t.build.fromScratch}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PhotoDialog shot={shot} open={photoOpen} onOpenChange={setPhotoOpen} ensureSaved={ensureSaved} />
     </>

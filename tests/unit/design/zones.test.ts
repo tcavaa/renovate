@@ -52,3 +52,33 @@ describe('zones', () => {
     expect(coverage[1].areaM2).toBe(5);
   });
 });
+
+describe('a wall that has been painted on', () => {
+  const room: PlanRoom = refreshRoom({
+    id: 'r',
+    type: 'bedroom',
+    name: 'r',
+    polygon: [
+      { x: 0, z: 0 },
+      { x: 4, z: 0 },
+      { x: 4, z: 3 },
+      { x: 0, z: 3 },
+    ],
+    heightM: 2.8,
+    areaM2: 0,
+    perimeterM: 0,
+    openings: [],
+  });
+  const base = (over: Partial<SurfaceFinish> = {}): SurfaceFinish => ({ roomId: room.id, surface: 'wall', colorHex: '#fff', textureUrl: null, textureScaleM: 1, product: null, ...over });
+
+  it('keeps its own finish: a painted square metre lies on top, it is not the wall', () => {
+    const whole = base();
+    // A square metre painted on wall 1, and a metre-wide strip of it — neither is the wall.
+    const patch = base({ wallIndex: 1, cells: [[0, 1]] });
+    const strip = base({ wallIndex: 1, span: { from: 0, to: 1 } });
+    expect(wallFinishFor([whole, patch, strip], room.id, 1)).toBe(whole);
+    // A finish chosen for that one wall is.
+    const ownFinish = base({ wallIndex: 1 });
+    expect(wallFinishFor([whole, patch, strip, ownFinish], room.id, 1)).toBe(ownFinish);
+  });
+});

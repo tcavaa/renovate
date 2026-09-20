@@ -617,7 +617,41 @@ export function wallsFromRooms(rooms: PlanRoom[], defaultThicknessM: number, ori
       });
     }
   }
-  return walls;
+  // One wall per line of the flat would be one wall under four rooms; each junction ends it.
+  return splitAtJunctions(walls);
+}
+
+/**
+ * Cuts every wall where another wall meets it. A plan that arrived as polygons is built one
+ * wall per line of the flat, so the partition between two rooms came out as one wall running
+ * the length of the flat: selecting it selected all of it, dragging it moved four rooms, and
+ * there was no such thing as *this room's* wall. Each junction now ends one wall and starts
+ * the next, which is what the wall graph already does behind the scenes.
+ */
+export function splitAtJunctions(walls: Wall[]): Wall[] {
+  const ends = walls.flatMap((w) => [w.a, w.b]);
+  const out: Wall[] = [];
+  for (const wall of walls) {
+    const dir = unit(sub(wall.b, wall.a));
+    const length = wallLength(wall);
+    const cuts = [0, length];
+    for (const point of ends) {
+      const at = dot(sub(point, wall.a), dir);
+      if (at < NODE_TOL_M || at > length - NODE_TOL_M) continue;
+      // Only a junction: a point off the line is another wall passing by, not meeting.
+      if (Math.abs(dot(sub(point, wall.a), leftNormal(dir))) > NODE_TOL_M) continue;
+      if (!cuts.some((c) => Math.abs(c - at) < NODE_TOL_M)) cuts.push(at);
+    }
+    if (cuts.length === 2) {
+      out.push(wall);
+      continue;
+    }
+    cuts.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      out.push({ ...wall, id: i === 0 ? wall.id : `${wall.id}j${i}`, a: roundVec(add(wall.a, scale(dir, cuts[i]))), b: roundVec(add(wall.a, scale(dir, cuts[i + 1]))) });
+    }
+  }
+  return out;
 }
 
 /** Drops vertices that sit on the straight line between their neighbours, and repeats. */
@@ -670,8 +704,12 @@ export function withBounds(plan: FloorPlan): FloorPlan {
  * survived), bounds refreshed. Every wall edit in the store ends here.
  */
 export function rebuildRooms(plan: FloorPlan, walls: Wall[]): FloorPlan {
-  const rooms = roomsFromWalls(walls, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
-  return withBounds({ ...plan, walls, rooms });
+  // A wall runs from junction to junction and no further, whatever it was drawn as. Without
+  // this a partition dropped into a long wall left that wall whole underneath it: selecting
+  // it selected the length of the flat and dragging it moved every room along it.
+  const cut = splitAtJunctions(walls);
+  const rooms = roomsFromWalls(cut, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
+  return withBounds({ ...plan, walls: cut, rooms });
 }
 
 // ---------------------------------------------------------------------------

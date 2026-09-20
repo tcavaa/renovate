@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, roomUnderRect, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -135,11 +135,23 @@ const HIT_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
 /** Rooms are dragged to the centimetre, like every other size on the board. */
 const MOVE_STEP_M = 0.01;
+/** How far one press of W/A/S/D (or an arrow) slides the sheet. */
+const PAN_STEP_PX = 60;
+const PAN_KEYS: Record<string, [number, number]> = {
+  KeyW: [0, 1],
+  ArrowUp: [0, 1],
+  KeyS: [0, -1],
+  ArrowDown: [0, -1],
+  KeyA: [1, 0],
+  ArrowLeft: [1, 0],
+  KeyD: [-1, 0],
+  ArrowRight: [-1, 0],
+};
 const EMPTY_IDS: string[] = [];
 
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; offsetX: number; offsetY: number }
-  | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number } }
+  | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number }; /** It would be drawn over a room that is already there. */ overlaps?: boolean }
   | { kind: 'wall-drag'; wall: Wall; startWorld: Vec2; distance: number; moved: boolean }
   | { kind: 'node-drag'; from: Vec2; to: Vec2; moved: boolean }
   | { kind: 'opening-drag'; room: PlanRoom; opening: Opening; edge: PlanEdge; target: { room: PlanRoom; edge: PlanEdge; t: number }; moved: boolean }
@@ -329,6 +341,17 @@ export function PlanEditor(props: PlanEditorProps) {
       if (e.code === 'Enter' && draftWall) {
         setDraftWall(null);
         setGuides([]);
+      }
+      // WASD and the arrows slide the sheet, the same keys the 3D view uses — matched on
+      // `code`, because on a Georgian layout W types წ and D types დ.
+      const step = PAN_STEP_PX * (e.shiftKey ? 2.5 : 1);
+      const pan = PAN_KEYS[e.code];
+      if (pan) {
+        e.preventDefault();
+        const tr = transformRef.current;
+        transformRef.current = { ...tr, offsetX: tr.offsetX + pan[0] * step, offsetY: tr.offsetY + pan[1] * step };
+        userAdjusted.current = true;
+        redraw();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -534,7 +557,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (draftBeam) drawDraftWall(ctx, tr, draftBeam.anchor, draftBeam.current, 0.25, t.units.m);
     if (gesture?.kind === 'rect') {
       const rect = gesture.snapped ?? normaliseRect(gesture.start, gesture.current);
-      drawDraftRect(ctx, tr, rect, t.units.m, t.units.m2, tool === 'zone' ? EDITOR.zone : EDITOR.selected);
+      drawDraftRect(ctx, tr, rect, t.units.m, t.units.m2, gesture.overlaps ? EDITOR.invalid : tool === 'zone' ? EDITOR.zone : EDITOR.selected);
     }
     if (pointerWorld && (tool === 'column' || tool === 'technical' || tool === 'electrical')) {
       const color = tool === 'column' ? EDITOR.column : tool === 'technical' ? TECHNICAL_COLOR[technicalKind] : ELECTRICAL_COLOR.socket;
@@ -914,10 +937,12 @@ export function PlanEditor(props: PlanEditorProps) {
           gesture.current = tool === 'room' ? snapFor(world).point : world;
           if (tool === 'room') {
             // The rectangle is shown where it will land — pulled onto the walls it is drawn
-            // against — so what is let go of is what appears.
+            // against — so what is let go of is what appears. A rectangle over a room that
+            // is already there is shown in the refusal colour and not taken.
             const snapped = snapRectangle(normaliseRect(gesture.start, gesture.current), walls, wallThicknessM, SNAP_PX * perPx() * 1.5);
             gesture.snapped = snapped.rect;
-            setGuides(snapped.guides);
+            gesture.overlaps = roomUnderRect(snapped.rect, plan.rooms) !== null;
+            setGuides(gesture.overlaps ? [] : snapped.guides);
           }
           setGestureVersion((v) => v + 1);
           return;
@@ -1045,7 +1070,10 @@ export function PlanEditor(props: PlanEditorProps) {
         if (rect.width >= 0.3 && rect.depth >= 0.3) {
           if (tool === 'room') {
             const snapped = gesture.snapped ?? snapRectangle(rect, walls, wallThicknessM, SNAP_PX * perPx() * 1.5).rect;
-            callbacks.current.onAddRectangle?.(snapped);
+            // Rooms do not lie on top of each other: the wall graph would trace the
+            // crossings as slivers and nothing could be pulled apart again.
+            if (roomUnderRect(snapped, plan.rooms)) callbacks.current.onRefused?.();
+            else callbacks.current.onAddRectangle?.(snapped);
           } else if (tool === 'zone' && gesture.roomId) {
             callbacks.current.onAddZone?.(gesture.roomId, rect);
           }

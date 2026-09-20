@@ -5,6 +5,7 @@ import {
   ensureWalls,
   moveNode,
   moveRooms,
+  splitAtJunctions,
   offsetWall,
   orphanWallSegments,
   rebuildRooms,
@@ -164,6 +165,26 @@ describe('editing walls', () => {
     const moved = moveNode(box('a', 0, 0, 4, 3), P(4, 3), P(5, 3.5));
     expect(moved.filter((w) => (w.a.x === 5 && w.a.z === 3.5) || (w.b.x === 5 && w.b.z === 3.5))).toHaveLength(2);
     expect(roomsFromWalls(moved)).toHaveLength(1);
+  });
+
+  it('cuts a wall where another one meets it, so each room owns its own stretch', () => {
+    // Two rooms side by side: the top of the flat is one line, but the partition ends it.
+    const walls = [...box('a', 0, 0, 8, 3), wall('mid', P(4, 0), P(4, 3))];
+    const cut = splitAtJunctions(walls);
+    const top = cut.filter((w) => w.a.z === 0 && w.b.z === 0);
+    expect(top).toHaveLength(2);
+    expect(top.map((w) => [Math.min(w.a.x, w.b.x), Math.max(w.a.x, w.b.x)]).sort((p, q) => p[0] - q[0])).toEqual([
+      [0, 4],
+      [4, 8],
+    ]);
+    // The rooms are unchanged by the cutting: two rooms, the same floor.
+    expect(roomsFromWalls(cut)).toHaveLength(2);
+    expect(roomsFromWalls(cut).reduce((s, r) => s + r.areaM2, 0)).toBeCloseTo(roomsFromWalls(walls).reduce((s, r) => s + r.areaM2, 0), 2);
+  });
+
+  it('leaves a wall alone when another only passes by without meeting it', () => {
+    const walls = [wall('long', P(0, 0), P(8, 0)), wall('away', P(4, 1), P(4, 3))];
+    expect(splitAtJunctions(walls).filter((w) => w.id.startsWith('long'))).toHaveLength(1);
   });
 
   it('leaves a wall drawn on from the end as its own wall, so the two come apart again', () => {

@@ -13,6 +13,8 @@
 
 import type { Beam, Column, ElectricalPoint, TechnicalPoint, Vec2, Wall } from './types';
 import { closestOnSegment, nearestWallTo, wallNodes, NODE_TOL_M } from './walls';
+import { clipPolygon } from './zones';
+import { polygonAreaM2 } from './planGeometry';
 
 export type SnapKind = 'node' | 'wall' | 'axis' | 'align' | 'grid';
 
@@ -223,6 +225,35 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
   const z = snapAxis(horizontal, 'z', rect.z, rect.depth, x.start, x.start + x.size);
   // To the millimetre, like the walls themselves: a 15 cm wall puts the face 7.5 cm off its line.
   return { rect: { x: round3(x.start), z: round3(z.start), width: round3(x.size), depth: round3(z.size) }, guides };
+}
+
+/**
+ * How much of an existing room a new rectangle may cover before it is refused. A rectangle
+ * snapped onto its neighbour's wall shares that wall's line, and rounding can leave a sliver
+ * of overlap; a real overlap is a room drawn on top of another.
+ */
+const MAX_OVERLAP_M2 = 0.1;
+
+/**
+ * The room a rectangle would be drawn on top of, if any.
+ *
+ * Overlapping rooms are not a flat: the wall graph traces the crossings as faces, so a room
+ * dropped over its neighbour comes back as three or four slivers with walls running through
+ * the middle of them, and there is no way to pull the mistake apart again. The board refuses
+ * the rectangle instead, which is a message the person can act on.
+ */
+export function roomUnderRect(rect: Rect, rooms: Array<{ id: string; polygon: Vec2[] }>): string | null {
+  const corners: Vec2[] = [
+    { x: rect.x, z: rect.z },
+    { x: rect.x + rect.width, z: rect.z },
+    { x: rect.x + rect.width, z: rect.z + rect.depth },
+    { x: rect.x, z: rect.z + rect.depth },
+  ];
+  for (const room of rooms) {
+    const shared = clipPolygon(room.polygon, corners);
+    if (shared.length >= 3 && polygonAreaM2(shared) > MAX_OVERLAP_M2) return room.id;
+  }
+  return null;
 }
 
 /** A wall has to run at least this far alongside a rectangle's side to count as its neighbour. */

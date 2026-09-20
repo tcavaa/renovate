@@ -140,9 +140,11 @@ export function isBaseFinish(finish: SurfaceFinish): boolean {
  * room's base finish for its walls.
  */
 export function wallFinishFor(finishes: SurfaceFinish[], roomId: string, wallIndex: number): SurfaceFinish | undefined {
-  // A painted strip of the wall (`span`) is not the wall's finish; it lies on top of it.
+  // Neither a painted strip of the wall (`span`) nor a painted square metre of it (`cells`)
+  // is the wall's finish; both lie on top of it. Forgetting the second painted the whole
+  // wall the first time the 1 m² brush touched it.
   return (
-    finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && f.wallIndex === wallIndex && !f.span) ??
+    finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && f.wallIndex === wallIndex && !f.span && !f.cells) ??
     finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && isBaseFinish(f))
   );
 }

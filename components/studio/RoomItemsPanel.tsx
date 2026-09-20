@@ -21,7 +21,6 @@ export function RoomItemsPanel({ items, rooms, focusRoomId, selectedItemId, onSe
   const t = useT();
   const locale = useLocale();
   const shown = focusRoomId ? items.filter((i) => i.roomId === focusRoomId) : items;
-  const total = shown.reduce((sum, i) => sum + (i.product?.totalPrice ?? 0), 0);
   // One group per room, in the plan's order, so the flat reads top to bottom as it is drawn.
   const groups = (focusRoomId ? rooms.filter((r) => r.id === focusRoomId) : rooms)
     .map((room) => ({ room, items: shown.filter((i) => i.roomId === room.id) }))
@@ -33,10 +32,6 @@ export function RoomItemsPanel({ items, rooms, focusRoomId, selectedItemId, onSe
 
   return (
     <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2 border-b border-line pb-2">
-        <span className="text-xs text-ink-muted">{shown.length} {t.design.itemsInRoom}</span>
-        <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatGEL(total)}</span>
-      </div>
       {groups.map(({ room, items: roomItems }) => (
         <div key={room.id} className="space-y-1">
           {!focusRoomId && <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{room.name}</p>}
