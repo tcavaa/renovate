@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, Eye, Maximize2, Minimize2, Minus, Moon, Plus, RefreshCw, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
+import { Camera, Eraser, Eye, Maximize2, Minimize2, Minus, Moon, Plus, RefreshCw, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
@@ -19,6 +19,7 @@ export function ViewSwitch({
   showWalls,
   onToggleWalls,
   onRegenerate,
+  onClear,
   daylight,
   onDaylight,
   onPhoto,
@@ -28,6 +29,8 @@ export function ViewSwitch({
   showWalls: boolean;
   onToggleWalls: () => void;
   onRegenerate: () => void;
+  /** Empties the flat so the person can furnish it themselves, from nothing. */
+  onClear: () => void;
   daylight: DaylightPreset;
   onDaylight: (preset: DaylightPreset) => void;
   /** Absent while the 3D view is not up (2D plan, viewer still loading). */
@@ -70,6 +73,9 @@ export function ViewSwitch({
       </IconButton>
       <IconButton label={t.design.regenerate} onClick={onRegenerate}>
         <RefreshCw className="h-4 w-4" />
+      </IconButton>
+      <IconButton label={t.build.fromScratch} onClick={onClear}>
+        <Eraser className="h-4 w-4" />
       </IconButton>
       <div className="glass flex p-1" role="radiogroup" aria-label={t.design.daylight}>
         {DAYLIGHT_PRESETS.map((preset) => {

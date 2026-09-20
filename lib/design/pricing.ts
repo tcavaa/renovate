@@ -23,6 +23,7 @@ import {
 import type { HomeState, Room } from '@/lib/calculator/types';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
+import { alreadyHave, defaultExistingForHomeState, HAVE_NOTHING, type AlreadyHave } from './existing';
 import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL } from './technicalRates';
 import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
@@ -52,6 +53,12 @@ export interface PriceOptions {
   locale?: 'ka' | 'en' | 'ru';
   /** The works ticked on the technical step; the plan's own list when omitted. */
   works?: string[] | null;
+  /**
+   * What the flat already has and must not be charged for (`lib/design/existing`). The
+   * plan's own list when omitted, which in turn falls back to the home state's default —
+   * so a green frame is not billed for the floor it is standing on.
+   */
+  existing?: readonly string[] | null;
 }
 
 export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling' | 'skirting' | 'cornice', string>;
@@ -156,8 +163,11 @@ export function priceScene(
   // --- surface finishes ---
   // A default finish carries no product and costs nothing; one the user picked is a real
   // tile or paint with a price, in either mode — choosing it is asking for it.
+  // What the flat already has is left out of the budget altogether, line, basket and total.
+  const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(scene.mode === 'full' ? options.homeState : null));
+  const chargeable = scene.finishes.filter((f) => !have.surface(f.surface));
   let finishesTotal = 0;
-  for (const finish of scene.finishes) {
+  for (const finish of chargeable) {
     if (!finish.product) continue;
     finishesTotal += finish.product.totalPrice;
     perRoom.set(finish.roomId, (perRoom.get(finish.roomId) ?? 0) + finish.product.totalPrice);
@@ -175,7 +185,7 @@ export function priceScene(
     });
     basket.subtotal = round2(basket.subtotal + finish.product.totalPrice);
   }
-  const coverage = finishCoverage(scene.finishes);
+  const coverage = finishCoverage(chargeable);
   for (const entry of coverage) {
     lines.push({
       section: 'finishes',
@@ -191,7 +201,7 @@ export function priceScene(
   }
   // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
   // choosing it is asking for it.
-  const trimMetres = round2(scene.finishes.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
+  const trimMetres = round2(chargeable.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
   let trimLabourTotal = 0;
   if (trimMetres > 0) {
     const price = options.book?.labour.trim_install?.price ?? TRIM_INSTALL_DEFAULT_GEL;
@@ -220,8 +230,8 @@ export function priceScene(
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const openingLines = priceOpenings(plan, full, phases, roomName, locale);
-  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale);
+  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale);
+  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have);
   lines.push(...openingLines, ...technicalLines);
   const openingsTotal = round2(openingLines.reduce((s, l) => s + l.total, 0));
   const technicalTotal = round2(technicalLines.reduce((s, l) => s + l.total, 0));
@@ -343,7 +353,7 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
  * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
  * home only what the person added themselves is new work.
  */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka'): BudgetLine[] {
+export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING): BudgetLine[] {
   const lines: BudgetLine[] = [];
   const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
   const electricalOn = full && (phases.includes(3) || phases.includes(14));
@@ -356,6 +366,8 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   const byProduct = new Map<number, { product: NonNullable<ElectricalPoint['product']>; qty: number; total: number; light: boolean; rooms: Set<string> }>();
   for (const point of electrical) {
     if (!(electricalOn || point.origin === 'user')) continue;
+    // Already wired, or already lit: the flat came with it.
+    if (have.has(point.kind.startsWith('light_') ? 'lighting' : 'electrical')) continue;
     const perMetre = point.kind === 'light_strip' || point.kind === 'light_furniture';
     const units = perMetre ? (point.lengthM ?? 1.5) : 1;
     const labour = ELECTRICAL_LABOUR[point.kind];
@@ -394,6 +406,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     const rate = TECHNICAL_RATES[point.kind];
     const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : plumbingOn;
     if (!(on || point.origin === 'user')) continue;
+    if (have.has(rate.section === 'heating' ? 'heating' : rate.section === 'climate' ? 'climate' : rate.section === 'electrical' ? 'electrical' : 'plumbing')) continue;
     const entry = techByKind.get(point.kind) ?? { units: 0, labourUnits: 0, rooms: new Set<string>() };
     entry.labourUnits += 1;
     if (point.kind === 'radiator' && point.product) {

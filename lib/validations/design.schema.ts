@@ -116,6 +116,7 @@ export const technicalPointSchema = z.object({
 export const technicalSetupSchema = z.object({
   points: z.array(technicalPointSchema).max(200),
   works: z.array(z.string().max(40)).max(40).optional(),
+  existing: z.array(z.string().max(24)).max(24).optional(),
 });
 
 export const planRoomSchema = z.object({

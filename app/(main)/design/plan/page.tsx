@@ -15,6 +15,7 @@ import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { deriveOpenings, totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { formatM2 } from '@/lib/utils';
 
 /**
@@ -30,6 +31,8 @@ export default function ExistingHousePage() {
   const selection = useDesignStore((s) => s.selectedElement);
   const focusRoomId = useDesignStore((s) => s.focusRoomId);
   const electrical = useDesignStore((s) => s.electrical);
+  const homeState = useDesignStore((s) => s.homeState);
+  const mode = useDesignStore((s) => s.mode);
   const actions = useDesignStore();
   const [refused, setRefused] = useState(false);
 
@@ -70,10 +73,13 @@ export default function ExistingHousePage() {
     actions.updatePlan({ ...plan, rooms: merged });
   };
 
+  // Where step 2 leads depends on the home's condition: a finished flat records its
+  // technical setup next, a renovation designs first and plans the pipes afterwards.
+  const after = nextStep(2, homeState, mode) ?? 3;
   const continueNext = () => {
     actions.ensureExistingVersion(t.build.versionExisting);
-    actions.setStep(3);
-    router.push('/design/technical');
+    actions.setStep(after);
+    router.push(nextStepHref(2, homeState, mode));
   };
 
   const roomCount = fill(t.build.roomCount, { n: plan.rooms.length });
@@ -83,7 +89,7 @@ export default function ExistingHousePage() {
       <DesignSteps current={2} />
       <div className="container py-8 md:py-12">
         <StepHeader
-          step={2}
+          step={designStepPosition(2, homeState, mode)}
           total={8}
           title={t.build.s2Title}
           subtitle={t.build.s2Subtitle}
@@ -162,7 +168,7 @@ export default function ExistingHousePage() {
         </div>
       </div>
 
-      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: t.build.continueToTechnical, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
+      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: after === 3 ? t.build.continueToTechnical : t.build.continueToStyle, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
     </>
   );
 }

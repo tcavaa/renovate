@@ -224,6 +224,8 @@ interface DesignActions {
   /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
   setWorks: (works: string[]) => void;
+  /** What the flat already has, so the budget leaves it out (`lib/design/existing`). */
+  setExisting: (keys: string[]) => void;
   // --- electrical ---
   /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
   suggestElectrical: (catalog?: CatalogProduct[]) => void;
@@ -241,6 +243,12 @@ interface DesignActions {
   // --- furniture ---
   /** Runs the layout engine and fills every slot from the catalogue. */
   generate: (catalog: CatalogProduct[]) => void;
+  /**
+   * Empties the flat and leaves the flat: every piece of furniture, every fitting and every
+   * chosen finish goes, the walls, doors, windows and technical points stay. The starting
+   * point for designing a home from nothing rather than editing what the engine proposed.
+   */
+  clearDesign: () => void;
   /**
    * Continues a finished calculator into 3D: its rooms (the uploaded plan when there is one),
    * its home state, and its product and furniture picks. Lands on the style step.
@@ -745,7 +753,8 @@ function createDesignStore(storageName: string) {
           const next = withRadiatorProducts(plan, catalog, styleId);
           if (next !== plan) set({ plan: next });
         },
-        setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works } } } : s)),
+        setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works, existing: s.plan.technical?.existing } } } : s)),
+        setExisting: (existing) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works: s.plan.technical?.works, existing } } } : s)),
 
         // --- electrical ---
         suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId) } : null)),
@@ -831,6 +840,16 @@ function createDesignStore(storageName: string) {
             return { items, finishes, electrical, selectedItemId: null, ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}) };
           });
         },
+
+        clearDesign: () =>
+          commit((s) => ({
+            items: [],
+            electrical: [],
+            finishes: defaultFinishes(s.plan, s.styleId),
+            selectedItemId: null,
+            selectedElement: null,
+            carryingItemId: null,
+          })),
 
         startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null }) => {
           let landing: 'studio' | 'style' = 'style';

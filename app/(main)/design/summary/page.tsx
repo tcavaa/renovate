@@ -27,6 +27,7 @@ import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { getStyle } from '@/lib/design/styles';
 import { saveDesign } from '@/lib/design/saveDesign';
+import { designStepPosition, previousStep, previousStepHref } from '@/lib/design/steps';
 import { electricalLabel, technicalLabel } from '@/components/plan/PlanToolbar';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
@@ -135,7 +136,7 @@ export default function BudgetPage() {
       <DesignSteps current={7} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={7}
+          step={designStepPosition(7, homeState, mode)}
           total={8}
           title={t.build.budgetTitle}
           subtitle={t.build.budgetSubtitle}
@@ -359,7 +360,7 @@ export default function BudgetPage() {
       </div>
 
       <StepNav
-        back={{ href: '/design/studio', label: t.design.backToStudio }}
+        back={{ href: previousStepHref(7, homeState, mode), label: previousStep(7, homeState, mode) === 3 ? t.design.step3 : t.design.backToStudio }}
         next={{ label: t.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <p className="text-sm text-ink-muted sm:text-right">

@@ -17,12 +17,13 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
+import { RoomItemsPanel } from '@/components/studio/RoomItemsPanel';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
@@ -33,6 +34,7 @@ import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
+import { DESIGN_STEP_HREFS, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
@@ -43,7 +45,7 @@ import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool } from '@/components/plan/PlanEditor';
-import type { ElectricalKind, PlacedItem, Vec2 } from '@/lib/design/types';
+import type { ElectricalKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
 
@@ -58,7 +60,7 @@ const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) =
 
 type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall'; wallIndex?: number } | null;
 
-const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furniture: 'furniture', electric: 'electrical', finishes: 'finishes', budget: 'furniture' };
+const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furniture: 'furniture', electric: 'electrical', technical: 'build', finishes: 'finishes', budget: 'furniture' };
 /**
  * How far the pointer may travel between going down and coming up and still count as a
  * click. Past it the gesture was a drag — of the camera, or of a fitting already on the
@@ -70,6 +72,7 @@ const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
   build: ['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam'],
   furniture: ['select', 'pan'],
   electric: ['select', 'pan', 'electrical'],
+  technical: ['select', 'pan', 'technical'],
   finishes: ['select', 'pan', 'paint'],
   budget: ['select', 'pan'],
 };
@@ -150,6 +153,8 @@ export default function StudioPage() {
   const [thicknessM, setThicknessM] = useState(plan?.wallThicknessM ?? 0.12);
   const [electricalKind, setElectricalKind] = useState<ElectricalKind>('socket');
   const [electricalArmed, setElectricalArmed] = useState(false);
+  const [technicalKind, setTechnicalKind] = useState<TechnicalKind>('water_supply');
+  const [technicalArmed, setTechnicalArmed] = useState(false);
   const [finishScope, setFinishScope] = useState<FinishScope>('room');
   const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
   /**
@@ -404,6 +409,13 @@ export default function StudioPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view]);
 
+  /** How many technical points of each kind stand on the plan, for the tray's tiles. */
+  const technicalCounts = useMemo(() => {
+    const counts: Partial<Record<TechnicalKind, number>> = {};
+    for (const point of plan?.technical?.points ?? []) counts[point.kind] = (counts[point.kind] ?? 0) + 1;
+    return counts;
+  }, [plan]);
+
   const itemsPerRoom = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of items) counts.set(item.roomId, (counts.get(item.roomId) ?? 0) + 1);
@@ -456,8 +468,12 @@ export default function StudioPage() {
       setTrayOpen(true);
     }
     setElectricalArmed(false);
+    setTechnicalArmed(false);
     if (next !== 'build') setBuildTool('select');
-    if (next === 'build' || next === 'electric') store.selectItem(null);
+    if (next === 'build' || next === 'electric' || next === 'technical') store.selectItem(null);
+    // The technical points are placed on the board, where the plan is: the 3D view has no
+    // way to show a pipe run or a panel, so the studio switches for them.
+    if (next === 'technical' && view !== '2d') setView('2d');
   };
 
   /** A build tool that draws needs the 2D board; the studio switches for it. */
@@ -653,7 +669,10 @@ export default function StudioPage() {
         ? t.build.hintElectrical
         : null;
 
-  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen;
+  // The furniture shelf keeps a list of what is already standing beside it: the room's own
+  // when one is in focus, the whole flat grouped by room otherwise.
+  const itemsPanelOpen = category === 'furniture' && !selected && !selectedElement && !versionsOpen;
+  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen || itemsPanelOpen;
   const showRightPanel = !!rightPanelOpen && view !== 'walk';
   const trayShown = trayOpen && view !== 'walk';
 
@@ -720,10 +739,11 @@ export default function StudioPage() {
             <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-[9.5rem]' : 'pb-16')}>
               <PlanWorkspace
                 tools={CATEGORY_TOOLS[category]}
-                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
+                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'technical' ? (technicalArmed ? 'technical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
                 onTool={(tool) => {
                   if (category === 'build') setBuildTool(tool);
                   if (category === 'electric') setElectricalArmed(tool === 'electrical');
+                  if (category === 'technical') setTechnicalArmed(tool === 'technical');
                   if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
                 }}
                 paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
@@ -735,6 +755,7 @@ export default function StudioPage() {
                 furniture
                 locked={structureLocked}
                 electricalKind={electricalKind}
+                technicalKind={technicalKind}
                 layers={{ furniture: true, dimensions: category === 'build' }}
                 height="100%"
                 className="h-full"
@@ -785,6 +806,9 @@ export default function StudioPage() {
           showWalls={showWalls}
           onToggleWalls={() => setShowWalls((v) => !v)}
           onRegenerate={() => store.generate(products)}
+          onClear={() => {
+            if (window.confirm(t.build.fromScratchConfirm)) store.clearDesign();
+          }}
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
@@ -797,8 +821,8 @@ export default function StudioPage() {
           versionsOpen={versionsOpen}
           onVersions={() => setVersionsOpen((v) => !v)}
           onHelp={() => setTourOpen(true)}
-          nextHref={category === 'finishes' ? '/design/summary' : '/design/studio?tool=finishes'}
-          nextLabel={category === 'finishes' ? t.build.budgetTitle : t.design.step6}
+          nextHref={category === 'finishes' ? nextStepHref(6, homeState, mode) : '/design/studio?tool=finishes'}
+          nextLabel={category === 'finishes' ? (nextStep(6, homeState, mode) === 3 ? t.design.step3 : t.build.budgetTitle) : t.design.step6}
         />
 
         {/* ---- left: the categories, the rooms beside them ---- */}
@@ -871,6 +895,21 @@ export default function StudioPage() {
                   onRemove={() => store.removeOpening(selectedElement.roomId, selectedElement.id)}
                 />
               </FloatingPanel>
+            ) : itemsPanelOpen ? (
+              <FloatingPanel title={t.build.placedHere} subtitle={focusRoom ? focusRoom.name : t.design.wholeFlat} className="h-full rounded-[16px]">
+                <RoomItemsPanel
+                  items={items}
+                  rooms={plan.rooms}
+                  focusRoomId={focusRoomId}
+                  selectedItemId={selectedItemId}
+                  onSelect={(id) => {
+                    store.selectItem(id);
+                    const room = items.find((i) => i.id === id)?.roomId;
+                    if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
+                  }}
+                  onRemove={(id) => store.removeItem(id)}
+                />
+              </FloatingPanel>
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} className="border-0" />
@@ -928,6 +967,20 @@ export default function StudioPage() {
                       setDraggingKind(kind);
                       if (!kind) viewerApi?.clearElectricalPreview();
                     }}
+                  />
+                )}
+                {category === 'technical' && (
+                  <TechnicalTray
+                    kind={technicalKind}
+                    onKind={setTechnicalKind}
+                    armed={technicalArmed}
+                    onArm={(armed: boolean) => {
+                      setTechnicalArmed(armed);
+                      if (armed && view !== '2d') setView('2d');
+                    }}
+                    counts={technicalCounts}
+                    onRadiators={() => store.suggestRadiators(products)}
+                    stepHref={DESIGN_STEP_HREFS[3]}
                   />
                 )}
                 {category === 'finishes' && (

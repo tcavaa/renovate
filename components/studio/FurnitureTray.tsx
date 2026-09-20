@@ -10,7 +10,7 @@
  */
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, styleLabel } from '@/lib/i18n/labels';
@@ -33,6 +33,14 @@ export function FurnitureTray({ catalog, styleId, roomLabel, onPick, onDragProdu
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState('');
   const [styles, setStyles] = useState<Set<StyleId>>(() => new Set([styleId]));
+  // The style the project was given follows a change of mind on the style step; the person's
+  // own ticks in this tray are theirs and are left alone.
+  const lastStyle = useRef(styleId);
+  useEffect(() => {
+    if (lastStyle.current === styleId) return;
+    lastStyle.current = styleId;
+    setStyles(new Set([styleId]));
+  }, [styleId]);
   const [notice, setNotice] = useState<{ id: number; ok: boolean } | null>(null);
 
   // Sockets, switches and lamps are products too, but they belong to the electric tray.
@@ -71,11 +79,15 @@ export function FurnitureTray({ catalog, styleId, roomLabel, onPick, onDragProdu
       <div className="flex shrink-0 flex-col gap-0.5 border-r border-line pr-2" role="group" aria-label={t.design.styleTitle}>
         {STYLE_IDS.map((id) => {
           const active = styles.has(id);
+          // The project's own style is marked whether it is ticked or not: with four chips
+          // that all look alike, nothing on the shelf said which one the flat was designed in.
+          const own = id === styleId;
           return (
             <button
               key={id}
               type="button"
               aria-pressed={active}
+              title={own ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
               onClick={() =>
                 setStyles((prev) => {
                   const next = new Set(prev);
@@ -84,8 +96,12 @@ export function FurnitureTray({ catalog, styleId, roomLabel, onPick, onDragProdu
                   return next;
                 })
               }
-              className={cn('flex h-7 w-[104px] items-center rounded-[7px] px-2 text-[10px] font-semibold transition-colors', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
+              className={cn(
+                'flex h-7 w-[104px] items-center gap-1 rounded-[7px] px-2 text-[10px] font-semibold transition-colors',
+                active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft hover:bg-sand-light hover:text-ink'
+              )}
             >
+              {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-white' : 'bg-brand')} aria-hidden />}
               <span className="truncate">{styleLabel(t, id)}</span>
             </button>
           );

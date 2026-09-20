@@ -161,6 +161,11 @@ export interface TechnicalSetup {
   points: TechnicalPoint[];
   /** The works ticked on the technical step; when set they replace the home state's phases. */
   works?: WorkKey[];
+  /**
+   * What the flat already has and must not be charged for again (`lib/design/existing`).
+   * Absent until the person ticks something: the home state then decides.
+   */
+  existing?: string[];
 }
 
 export interface PlanRoom {

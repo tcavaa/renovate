@@ -19,6 +19,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
+import { designStepPosition, previousStepHref } from '@/lib/design/steps';
 
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
@@ -28,7 +29,7 @@ import { scoreQuiz } from '@/lib/design/styleQuiz';
 export default function StylePage() {
   const t = useT();
   const router = useRouter();
-  const { plan, styleId, styleProfile, budgetGel, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
+  const { plan, styleId, styleProfile, budgetGel, homeState, mode, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
@@ -117,7 +118,7 @@ export default function StylePage() {
       </div>
 
       <StepNav
-        back={{ href: '/design/technical', label: t.calculator.backButton }}
+        back={{ href: previousStepHref(4, homeState, mode), label: t.calculator.backButton }}
         next={{
           label: generating ? t.design.generating : t.design.generate,
           onClick: handleGenerate,

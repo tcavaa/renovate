@@ -14,16 +14,18 @@ import { fill } from '@/lib/admin/list';
 import { cn, formatGEL } from '@/lib/utils';
 import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
-import { ELECTRICAL_ICON } from '@/components/plan/icons';
+import { ELECTRICAL_ICON, TECHNICAL_ICON } from '@/components/plan/icons';
+import { TECHNICAL_COLOR } from '@/components/plan/palette';
+import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
 import { emptyDragImage } from './dragImage';
 import { localizedName } from '@/lib/i18n/labels';
 import { pricePerM2 } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { ElectricalKind } from '@/lib/design/types';
+import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
 import type { EditorTool } from '@/components/plan/PlanEditor';
-import { electricalLabel, toolLabel } from '@/components/plan/PlanToolbar';
+import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
 /** A room is a shape of the wall tool — one line, one square — not a tile of its own. */
@@ -180,6 +182,69 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
           </div>
         </div>
         <p className="truncate text-[10px] leading-snug text-ink-muted">{t.build.wiringDragHint}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The technical points as tiles: water, sewer, a drain, the panel, gas, a radiator, air
+ * conditioning, an extractor, a boiler, a heating pipe. A tile arms the 2D board with that
+ * kind and stays armed until it is clicked again — the bargain the electric tray makes — so
+ * the whole technical layer can be laid out without leaving the studio. The works checklist,
+ * which is a page of its own, is one link away.
+ */
+export function TechnicalTray({ kind, onKind, armed, onArm, counts, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; onRadiators: () => void; stepHref: string }) {
+  const t = useT();
+  const placed = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+  return (
+    <div className="flex gap-2">
+      <div className="flex shrink-0 flex-col justify-center gap-0.5 border-r border-line pr-2">
+        <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.catTechnical}</span>
+        <span className="px-1.5 text-[9px] tabular-nums text-ink-muted">{fill(t.build.pointsPlaced, { n: placed })}</span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-start gap-1.5">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="radiogroup" aria-label={t.build.toolTechnical}>
+            {TECHNICAL_KIND_LIST.map((k) => {
+              const Icon = TECHNICAL_ICON[k];
+              const active = armed && kind === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => {
+                    onKind(k);
+                    onArm(!active);
+                  }}
+                  title={technicalLabel(t, k)}
+                  className={cn('flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                >
+                  <span className="grid h-4 w-4 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
+                    <Icon className="h-2.5 w-2.5" />
+                  </span>
+                  <span className="max-w-full truncate px-1">
+                    {technicalLabel(t, k)}
+                    {counts[k] ? ` ${counts[k]}` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={onRadiators} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+              <Flame className="h-3.5 w-3.5" />
+              {t.build.hangRadiators}
+            </button>
+            <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
+              {t.build.worksTitle}
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+        <p className="truncate text-[10px] leading-snug text-ink-muted">{t.build.hintTechnical}</p>
       </div>
     </div>
   );
