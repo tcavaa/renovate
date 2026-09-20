@@ -510,10 +510,12 @@ reports the guides the board draws. The select tool drags a wall sideways, its e
 handles, a door along or onto another wall, columns and points freely, and furniture
 footprints with `snapPlacement`; Delete removes the selection.
 
-**A room may not be drawn over a room** (`roomUnderRect`). The wall graph traces the
-crossings as faces, so a rectangle dropped on a neighbour came back as slivers with walls
-through the middle of them and nothing could be pulled apart again; the preview turns red and
-the drop is refused with its own message.
+**Rooms may not lie on top of each other**, drawn (`roomUnderRect`) or dragged
+(`polygonsOverlap`, which is an edge-crossing test because a room is not always convex, and
+which pulls both outlines in by a hair so two sharing a wall do not count). The wall graph
+traces a crossing as a face, so a room dropped on its neighbour came back as slivers with
+walls through the middle of them and nothing could be pulled apart again; the preview turns
+red and the drop is refused with its own message.
 
 **Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
 or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
@@ -657,12 +659,17 @@ returns the *base* finish.
 The store records a snapshot (plan, items, finishes, electrical) before every change
 (`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`.
 
+**Generating is the journey's hinge, not an undoable edit.** `generate` does not go through
+`commit`: it clears `versions` and the history itself and sets `generated`. One Ctrl+Z in the
+studio used to undo the whole layout and leave every room bare — and, coming from the
+calculator, carry on into the walls drawn there, because `startFromCalculator` kept the
+versions of whatever was in the studio before and the baseline only ran when none existed.
+Only the newest layout is kept as a version, with its furniture.
+
 **The studio's baseline is where undo stops.** `ensureExistingVersion` runs once per project,
-when the studio first opens: it keeps version 01 — the flat as the studio found it, *with* the
-furniture — and starts the undo history there. Taken when step 2 was left, as it used to be,
-version 01 was an empty flat, so restoring it emptied the rooms; and the long run of edits
-from drawing the flat carried into the studio, where one Ctrl+Z too many walked the walls back
-to the blank sheet, in the 2D view and the 3D one alike. The working state is the implicit
+when the studio first opens: version 01 is the flat as the studio found it, *with* the
+furniture, and the undo history starts there. Taken when step 2 was left, as it used to be, it
+was an empty flat, so restoring it emptied the rooms. The working state is the implicit
 "modified house", `saveVersion` keeps a named one, `restoreVersion` keeps the present first,
 and "start from scratch" (`clearDesign`, behind a dialogue of ours) empties the flat while
 version 01 stays. Versions are persisted locally and in `projects.versions`.
@@ -1186,6 +1193,24 @@ started. Drafts (and saved projects) are deletable from the profile: `DELETE
 `PROJECT_HAS_ORDERS`), removes the renders' files, and `DeleteProjectButton` /
 `DeleteDraftsButton` also forget the id in the browser so the next autosave does not write
 into a row that is gone.
+
+### The flow: resume, lock, start again (`components/flow/FlowGuard.tsx`, `lib/flow/reset.ts`)
+
+**Resume.** The first step of a journey already under way hands back to where it was left
+rather than showing a blank sheet over the top of it — never past the studio, though, when the
+flat has not been laid out yet, whatever page happened to be open last. A page only claims a
+step when it has something to show: a studio with no plan is the "upload one first" card, and
+claiming step 5 there sent people back to it for ever.
+
+**Lock.** Once `generated` is set, every step *before* the studio is shut — a padlock in the
+strip (`StepStrip.lockedBefore`) and a redirect if the URL is typed. In the renovation order
+the technical step comes after the studio and stays open. The studio's "lay it out again"
+button is gone for the same reason.
+
+**Start again** is therefore in the strip on every step of both journeys. It asks first and
+says what is at stake — nothing yet, work that was never saved, or a design that took a
+generation to make — and `resetFlow` empties all three stores, because leaving the studio
+furnished while the calculator starts a new flat is how the two used to disagree.
 
 ### Two modes
 
