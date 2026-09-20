@@ -1310,6 +1310,15 @@ export const en: Dictionary = {
     commissionLabel: 'Platform commission (%)',
     seeAll: 'All teams',
   },
+  flow: {
+    startOver: 'Start again',
+    startOverConfirm: 'Yes, start again',
+    resetNothing: 'There is nothing to lose yet — this starts from step one.',
+    resetSaved: 'The project is saved and stays in your profile. Everything here starts again.',
+    resetUnsaved: 'This project is not saved — the plan you drew and the products you picked go for good.',
+    resetGenerated: 'This project is not saved. The 3D design, the furniture and every change go for good, and it would have to be generated again.',
+    lockedStep: 'This step is closed — the 3D design has been made',
+  },
   common: {
     step: 'Step',
     loading: 'Loading...',

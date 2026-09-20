@@ -17,6 +17,7 @@ export function DesignSteps({ current }: { current: StudioStep }) {
   const t = useT();
   const homeState = useDesignStore((s) => s.homeState);
   const mode = useDesignStore((s) => s.mode);
+  const generated = useDesignStore((s) => s.generated);
   const labels: Record<StudioStep, string> = {
     1: t.design.step1,
     2: t.design.step2,
@@ -28,5 +29,9 @@ export function DesignSteps({ current }: { current: StudioStep }) {
     8: t.design.step8,
   };
   const order = designStepOrder(homeState, mode);
-  return <StepStrip current={order.indexOf(current) + 1} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: DESIGN_STEP_HREFS[step] }))} />;
+  // Once the flat has been laid out, everything that fed the layout is shut: the plan, the
+  // technical setup and the style all went into it, and changing one of them under a flat
+  // somebody has since furnished by hand would mean generating over their work.
+  const lockedBefore = generated ? order.indexOf(5) + 1 : 0;
+  return <StepStrip current={order.indexOf(current) + 1} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: DESIGN_STEP_HREFS[step] }))} lockedBefore={lockedBefore} kind="design" />;
 }

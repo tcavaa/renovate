@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoorOpen, Wand2 } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { RoomsPanel } from '@/components/plan/RoomsPanel';
@@ -87,6 +88,7 @@ export default function ExistingHousePage() {
 
   return (
     <>
+      <DesignFlowGuard step={2} />
       <DesignSteps current={2} />
       <div className="container py-8 md:py-12">
         <StepHeader

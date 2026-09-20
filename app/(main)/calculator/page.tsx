@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, PenLine, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { CalculatorFlowGuard } from '@/components/flow/FlowGuard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { PlanSketch } from '@/components/projects/PlanSketch';
@@ -83,6 +84,7 @@ export default function CalculatorStep1Page() {
 
   return (
     <>
+      <CalculatorFlowGuard step={1} />
       <StepIndicator current={1} />
       <div className="container py-10 md:py-14">
         <StepHeader step={1} total={5} title={t.calculator.title} subtitle={t.calculator.startSubtitle} />

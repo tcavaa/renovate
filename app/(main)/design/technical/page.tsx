@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, ChevronDown, Flame, Lightbulb, Sparkles } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -150,6 +151,7 @@ export default function TechnicalPage() {
 
   return (
     <>
+      <DesignFlowGuard step={3} />
       <DesignSteps current={3} />
       <div className="container py-8 md:py-12">
         <StepHeader step={designStepPosition(3, homeState, mode)} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />

@@ -160,6 +160,15 @@ interface DesignState {
   clipboard: PlacedItem | null;
   /** Calculator picks arrived for a design that already exists; the studio applies them on entry. */
   pendingPicks: boolean;
+  /**
+   * The flat has been laid out: the journey is past the point of no return.
+   *
+   * Everything from the studio on stays editable, but the steps *before* it are closed —
+   * the plan, the technical setup and the style all fed the layout, and going back to change
+   * one of them would mean generating again over a flat somebody has since furnished by
+   * hand. Starting over is a deliberate act (`resetFlow`), not a click on the step strip.
+   */
+  generated: boolean;
   step: StudioStep;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
@@ -378,6 +387,7 @@ const initial: DesignState = {
   selectedElement: null,
   carryingItemId: null,
   selectedRoomIds: [],
+  generated: false,
   structureLocked: true,
   clipboard: null,
   pendingPicks: false,
@@ -496,6 +506,8 @@ function createDesignStore(storageName: string) {
               selectedItemId: null,
               selectedElement: null,
               selectedRoomIds: [],
+              // A new flat has not been laid out, whatever the last one had.
+              generated: false,
               // …and a new project on the server: the next save gets its own row.
               projectId: null,
               history: emptyHistory(),
@@ -531,6 +543,7 @@ function createDesignStore(storageName: string) {
             selectedItemId: null,
             selectedElement: null,
             selectedRoomIds: [],
+            generated: true,
             step: 5,
             history: emptyHistory(),
           })),
@@ -855,7 +868,13 @@ function createDesignStore(storageName: string) {
           if (!plan) return;
           const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])) });
           // A slot no partner product can fill is dropped rather than shown as a stand-in.
-          commit((s) => {
+          //
+          // Laying the flat out is the journey's hinge, so it is not an undoable edit: the
+          // versions kept for an earlier layout describe a flat that no longer exists and go
+          // with it, and the history starts empty. One Ctrl+Z in the studio used to undo the
+          // whole generation and leave every room bare — and, coming from the calculator,
+          // carry on into the walls that were drawn there.
+          set((s) => {
             let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms }));
             // Re-laying out the furniture is not a reason to lose the tiles someone picked.
             let finishes = keepChosen(defaultFinishes(plan, styleId), s.finishes);
@@ -868,7 +887,18 @@ function createDesignStore(storageName: string) {
             // door and window.
             const electrical = withFixtureProducts(suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user')), catalog, styleId);
             const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
-            return { items, finishes, electrical, selectedItemId: null, ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}) };
+            return {
+              items,
+              finishes,
+              electrical,
+              selectedItemId: null,
+              selectedElement: null,
+              carryingItemId: null,
+              ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}),
+              generated: true,
+              versions: [],
+              history: emptyHistory(),
+            };
           });
         },
 
@@ -913,7 +943,7 @@ function createDesignStore(storageName: string) {
             const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;
             if (keepDesign) {
               landing = 'studio';
-              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
+              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, generated: true, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
             }
             return {
               plan,
@@ -930,6 +960,10 @@ function createDesignStore(storageName: string) {
               finishes: defaultFinishes(plan, s.styleId),
               focusRoomId: null,
               selectedItemId: null,
+              // A calculation carried into 3D has not been laid out yet, and the versions
+              // kept for whatever was in the studio before belong to another flat.
+              generated: false,
+              versions: [],
               step: 4,
               history: emptyHistory(),
             };
@@ -1292,6 +1326,7 @@ function createDesignStore(storageName: string) {
         electrical: s.electrical,
         versions: s.versions,
         step: s.step,
+        generated: s.generated,
       }),
     }
   )

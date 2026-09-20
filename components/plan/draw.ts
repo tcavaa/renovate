@@ -527,7 +527,7 @@ export function drawMarquee(ctx: CanvasRenderingContext2D, t: Transform, rect: {
 }
 
 /** Where a room being dragged would land: its outline, offset, over the sheet. */
-export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], delta: Vec2): void {
+export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], delta: Vec2, color: string = EDITOR.selected): void {
   if (polygon.length < 3) return;
   ctx.save();
   ctx.beginPath();
@@ -537,11 +537,11 @@ export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polyg
     else ctx.lineTo(s.x, s.y);
   });
   ctx.closePath();
-  ctx.fillStyle = EDITOR.selected;
+  ctx.fillStyle = color;
   ctx.globalAlpha = 0.14;
   ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = EDITOR.selected;
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 4]);
   ctx.stroke();

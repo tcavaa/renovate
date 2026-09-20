@@ -20,6 +20,7 @@ export function StepIndicator({ current }: { current: CalculatorStep }) {
     <StepStrip
       current={current}
       steps={labels.map((label, i) => ({ num: i + 1, label, href: CALCULATOR_STEP_HREFS[(i + 1) as CalculatorStep] }))}
+      kind="calculator"
     />
   );
 }

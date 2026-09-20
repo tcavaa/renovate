@@ -170,7 +170,9 @@ export default function StudioPage() {
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-  const [navOpen, setNavOpen] = useState(true);
+  // The controls card starts folded: it is a reminder, not a panel, and open by default it
+  // sat across the furniture list in the same corner.
+  const [navOpen, setNavOpen] = useState(false);
   const [shot, setShot] = useState<StudioShot | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
   /** The one refusal banner: what was refused, or null while nothing was. */
@@ -199,10 +201,13 @@ export default function StudioPage() {
   const pressAt = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
+    // A studio with no plan is the "upload one first" card; claiming step 5 there would
+    // make the journey's resume send people back to it for ever.
+    const ready = (store.plan?.rooms.length ?? 0) > 0;
     if (searchParams.get('tool') === 'finishes') {
       setCategory('finishes');
-      store.setStep(6);
-    } else store.setStep(5);
+      if (ready) store.setStep(6);
+    } else if (ready) store.setStep(5);
     // Only the query parameter matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -808,7 +813,6 @@ export default function StudioPage() {
           onView={setView}
           showWalls={showWalls}
           onToggleWalls={() => setShowWalls((v) => !v)}
-          onRegenerate={() => store.generate(products)}
           onClear={() => setClearOpen(true)}
           daylight={daylight}
           onDaylight={setDaylight}
@@ -1012,7 +1016,8 @@ export default function StudioPage() {
         </div>
 
         {/* ---- help and zoom ---- */}
-        <div className={cn('pointer-events-auto absolute right-4 z-30 flex flex-col items-end gap-2', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
+        {/* Open, the card is what the person is reading, so it goes above the right panel. */}
+        <div className={cn('pointer-events-auto absolute right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
           <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} onFullscreen={toggleFullscreen} fullscreen={fullscreen} disabled={view !== '3d' || !viewerApi} />
         </div>

@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, roomUnderRect, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -162,7 +162,7 @@ type Gesture =
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
   | { kind: 'paint'; last: string }
   | { kind: 'marquee'; start: Vec2; current: Vec2; additive: boolean }
-  | { kind: 'room-drag'; roomIds: string[]; startWorld: Vec2; delta: Vec2; moved: boolean };
+  | { kind: 'room-drag'; roomIds: string[]; startWorld: Vec2; delta: Vec2; moved: boolean; /** Where it would land, it would sit on a room that is staying put. */ overlaps: boolean };
 
 interface Hover {
   kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | null;
@@ -570,14 +570,14 @@ export function PlanEditor(props: PlanEditorProps) {
     // its new place, with how far it has travelled on a plate beside it.
     if (gesture?.kind === 'marquee') drawMarquee(ctx, tr, normaliseRect(gesture.start, gesture.current));
     if (gesture?.kind === 'room-drag') {
+      const tint = gesture.overlaps ? EDITOR.invalid : EDITOR.selected;
       for (const id of gesture.roomIds) {
         const room = plan.rooms.find((r) => r.id === id);
-        if (room) drawRoomGhost(ctx, tr, room.polygon, gesture.delta);
+        if (room) drawRoomGhost(ctx, tr, room.polygon, gesture.delta, tint);
       }
       if (pointerWorld) {
-        const to = { x: pointerWorld.x, z: pointerWorld.z };
-        const at = toScreenPoint(tr, to);
-        drawMeasure(ctx, at.x, at.y - 22, `${gesture.delta.x >= 0 ? '+' : ''}${gesture.delta.x.toFixed(2)} · ${gesture.delta.z >= 0 ? '+' : ''}${gesture.delta.z.toFixed(2)} ${t.units.m}`, EDITOR.selected);
+        const at = toScreenPoint(tr, pointerWorld);
+        drawMeasure(ctx, at.x, at.y - 22, `${gesture.delta.x >= 0 ? '+' : ''}${gesture.delta.x.toFixed(2)} · ${gesture.delta.z >= 0 ? '+' : ''}${gesture.delta.z.toFixed(2)} ${t.units.m}`, tint);
       }
     }
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
@@ -904,7 +904,7 @@ export function PlanEditor(props: PlanEditorProps) {
           callbacks.current.onSelect({ kind: 'room', id });
           callbacks.current.onSelectRoom?.(id);
           if (!locked && !roomsOnly && callbacks.current.onMoveRooms && group.includes(id)) {
-            gestureRef.current = { kind: 'room-drag', roomIds: group, startWorld: world, delta: { x: 0, z: 0 }, moved: false };
+            gestureRef.current = { kind: 'room-drag', roomIds: group, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
           }
         } else {
           // Empty sheet: a rubber band across the rooms, not a pan. Panning is still space,
@@ -1015,6 +1015,9 @@ export function PlanEditor(props: PlanEditorProps) {
             z: Math.round((world.z - gesture.startWorld.z) / step) * step,
           };
           gesture.moved = gesture.moved || Math.hypot(world.x - gesture.startWorld.x, world.z - gesture.startWorld.z) * transformRef.current.scale > DRAG_THRESHOLD_PX;
+          // Dropped on a room that is staying put, the two outlines would cross and the wall
+          // graph would trace the crossing as a sliver room with walls through it.
+          gesture.overlaps = roomsWouldOverlap(plan.rooms, gesture.roomIds, gesture.delta);
           setGestureVersion((v) => v + 1);
           return;
         }
@@ -1125,7 +1128,9 @@ export function PlanEditor(props: PlanEditorProps) {
       }
       case 'room-drag':
         if (gesture.moved && (Math.abs(gesture.delta.x) >= MOVE_STEP_M || Math.abs(gesture.delta.z) >= MOVE_STEP_M)) {
-          callbacks.current.onMoveRooms?.(gesture.roomIds, gesture.delta);
+          // Rooms do not lie on top of each other, however they got there.
+          if (gesture.overlaps) callbacks.current.onRefused?.('overlap');
+          else callbacks.current.onMoveRooms?.(gesture.roomIds, gesture.delta);
         }
         break;
       case 'pan':
@@ -1171,6 +1176,19 @@ export function PlanEditor(props: PlanEditorProps) {
       }}
     />
   );
+}
+
+/** Would the rooms being dragged land on a room that is staying where it is? */
+function roomsWouldOverlap(rooms: PlanRoom[], movingIds: string[], delta: Vec2): boolean {
+  const moving = new Set(movingIds);
+  const staying = rooms.filter((r) => !moving.has(r.id));
+  if (staying.length === 0) return false;
+  return rooms
+    .filter((r) => moving.has(r.id))
+    .some((room) => {
+      const moved = room.polygon.map((p) => ({ x: p.x + delta.x, z: p.z + delta.z }));
+      return staying.some((other) => polygonsOverlap(moved, other.polygon));
+    });
 }
 
 /** Metres → CSS pixels, for the plates drawn beside a gesture. */

@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { StylePicker } from '@/components/design/StylePicker';
 import { StyleQuiz } from '@/components/design/StyleQuiz';
 import { GenerationOverlay } from '@/components/design/GenerationOverlay';
@@ -55,6 +56,7 @@ export default function StylePage() {
 
   return (
     <>
+      <DesignFlowGuard step={4} />
       <DesignSteps current={4} />
       <div className="container py-10 md:py-14">
         <StepHeader
