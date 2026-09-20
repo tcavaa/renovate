@@ -1,0 +1,115 @@
+{
+  "generatedAt": "2026-09-20",
+  "note": "Written by scripts/radiator-models.ts. Each model is ONE section: centred on x with an x-extent of exactly sectionWidthCm (copies at that pitch touch and their collectors join), standing on y = 0, its back on z = 0 and its front along +z, in metres. Prices and watts are per section; the photos show eight.",
+  "models": [
+    {
+      "slug": "radiator-panel",
+      "title": "Steel panel radiator, 10 cm module",
+      "url": "/models/radiators/radiator-panel.glb",
+      "sectionWidthCm": 10,
+      "heightCm": 60,
+      "depthCm": 10,
+      "wattsPerSection": 170,
+      "triangles": 616,
+      "bytes": 16616,
+      "imageUrl": "/uploads/furniture/radiator-panel.png",
+      "author": "RenovationRoom",
+      "license": "CC0",
+      "product": {
+        "kind": "radiator",
+        "categorySlug": "radiators",
+        "priceGel": 38,
+        "unit": "piece",
+        "storeSlug": "san-plus",
+        "nameKa": "რადიატორი „Panel“ — ფოლადის პანელი, თეთრი (1 სექცია)",
+        "nameEn": "Radiator \"Panel\" — steel panel, white (per section)",
+        "nameRu": "Радиатор «Panel» — стальная панель, белый (за секцию)",
+        "styles": [
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "radiator-aluminium",
+      "title": "Die-cast aluminium sectional radiator, one section",
+      "url": "/models/radiators/radiator-aluminium.glb",
+      "sectionWidthCm": 8,
+      "heightCm": 58,
+      "depthCm": 9.5,
+      "wattsPerSection": 180,
+      "triangles": 588,
+      "bytes": 20312,
+      "imageUrl": "/uploads/furniture/radiator-aluminium.png",
+      "author": "RenovationRoom",
+      "license": "CC0",
+      "product": {
+        "kind": "radiator",
+        "categorySlug": "radiators",
+        "priceGel": 32,
+        "unit": "piece",
+        "storeSlug": "san-plus",
+        "nameKa": "რადიატორი „Alu“ — ალუმინის სექციური, თეთრი (1 სექცია)",
+        "nameEn": "Radiator \"Alu\" — aluminium sectional, white (per section)",
+        "nameRu": "Радиатор «Alu» — алюминиевый секционный, белый (за секцию)",
+        "styles": [
+          "scandinavian",
+          "modern"
+        ]
+      }
+    },
+    {
+      "slug": "radiator-column",
+      "title": "Cast-iron three-column radiator, one section",
+      "url": "/models/radiators/radiator-column.glb",
+      "sectionWidthCm": 6,
+      "heightCm": 76,
+      "depthCm": 14,
+      "wattsPerSection": 120,
+      "triangles": 1152,
+      "bytes": 23788,
+      "imageUrl": "/uploads/furniture/radiator-column.png",
+      "author": "RenovationRoom",
+      "license": "CC0",
+      "product": {
+        "kind": "radiator",
+        "categorySlug": "radiators",
+        "priceGel": 85,
+        "unit": "piece",
+        "storeSlug": "san-plus",
+        "nameKa": "რადიატორი „Column“ — თუჯის, გრაფიტისფერი (1 სექცია)",
+        "nameEn": "Radiator \"Column\" — cast iron, graphite (per section)",
+        "nameRu": "Радиатор «Column» — чугунный, графит (за секцию)",
+        "styles": [
+          "industrial"
+        ]
+      }
+    },
+    {
+      "slug": "radiator-classic",
+      "title": "Ornate cast-iron four-column radiator, one section",
+      "url": "/models/radiators/radiator-classic.glb",
+      "sectionWidthCm": 7.6,
+      "heightCm": 66,
+      "depthCm": 16,
+      "wattsPerSection": 110,
+      "triangles": 1160,
+      "bytes": 27812,
+      "imageUrl": "/uploads/furniture/radiator-classic.png",
+      "author": "RenovationRoom",
+      "license": "CC0",
+      "product": {
+        "kind": "radiator",
+        "categorySlug": "radiators",
+        "priceGel": 120,
+        "unit": "piece",
+        "storeSlug": "san-plus",
+        "nameKa": "რადიატორი „Classic“ — თუჯის, კრემისფერი (1 სექცია)",
+        "nameEn": "Radiator \"Classic\" — cast iron, cream (per section)",
+        "nameRu": "Радиатор «Classic» — чугунный, кремовый (за секцию)",
+        "styles": [
+          "vintage"
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { HOME_STATE_VALUES } from '@/lib/calculator/types';
 
 export const roomTypeEnum = z.enum([
   'living_room',
@@ -23,7 +24,7 @@ export const roomInputSchema = z.object({
 
 export type RoomInput = z.infer<typeof roomInputSchema>;
 
-export const homeStateEnum = z.enum(['black_frame', 'white_frame', 'green_frame']);
+export const homeStateEnum = z.enum(HOME_STATE_VALUES);
 
 export const calculatorRequestSchema = z.object({
   homeState: homeStateEnum,

@@ -35,7 +35,44 @@ describe('rateBookFromRows', () => {
 
   it('ignores inactive rows entirely', () => {
     const book = rateBookFromRows([row({ key: 'on' }), row({ id: 2, key: 'off', isActive: false })]);
-    expect(Object.keys(book.materials)).toEqual(['on']);
+    expect(book.materials.on).toBeDefined();
+    expect(book.materials.off).toBeUndefined();
+  });
+
+  it('prices a default the table has never heard of at its shipped rate', () => {
+    // A database seeded before the strip-out lines existed: every older key, none of phase 0.
+    const seededBefore = defaultRateRows()
+      .filter((r) => r.phase !== 0)
+      .map((r, i) => ({ ...r, id: i + 1 }));
+    const book = rateBookFromRows(seededBefore);
+    expect(book.labour.strip_floor).toEqual(DEFAULT_RATE_BOOK.labour.strip_floor);
+    expect(book.labour.remove_sanitary).toEqual({ labelKa: WORKER_RATES.remove_sanitary.labelKa, unit: 'unit', price: 60 });
+    expect(book.materials.debris_bags.qtyPerM2).toBe(MATERIAL_RATES_PER_M2.debris_bags.qtyPerM2);
+    expect(book.materials.debris_bags.phase).toBe(0);
+    expect(book.materials.waste_container.estimatedPriceGEL).toBe(250);
+  });
+
+  it('lets a row override its default, and keeps a switched-off default switched off', () => {
+    const book = rateBookFromRows([
+      row({ kind: 'labour', key: 'strip_floor', phase: 0, unit: 'm2', pricePerUnit: '9.50' }),
+      row({ id: 2, kind: 'labour', key: 'debris_removal', phase: 0, unit: 'm2', isActive: false }),
+      row({ id: 3, key: 'debris_bags', phase: 0, unit: 'piece', isActive: false }),
+    ]);
+    expect(book.labour.strip_floor.price).toBe(9.5);
+    expect(book.labour.debris_removal).toBeUndefined();
+    expect(book.materials.debris_bags).toBeUndefined();
+    // Absent from the table altogether, so still the default.
+    expect(book.labour.strip_walls).toEqual(DEFAULT_RATE_BOOK.labour.strip_walls);
+    expect(book.materials.waste_container.qtyPerM2).toBe(MATERIAL_RATES_PER_M2.waste_container.qtyPerM2);
+  });
+
+  it('keeps the merged book in phase order, so the strip-out leads the ledger', () => {
+    const seededBefore = defaultRateRows()
+      .filter((r) => r.phase !== 0)
+      .map((r, i) => ({ ...r, id: i + 1 }));
+    const keys = Object.keys(rateBookFromRows(seededBefore).materials);
+    expect(keys.slice(0, 2)).toEqual(['debris_bags', 'waste_container']);
+    expect(keys).toHaveLength(Object.keys(MATERIAL_RATES_PER_M2).length);
   });
 
   it('maps labour rows with their unit', () => {

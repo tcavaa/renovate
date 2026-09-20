@@ -1,4 +1,11 @@
-export type HomeState = 'black_frame' | 'white_frame' | 'green_frame';
+/**
+ * Where the home stands today, in the order the selector offers them: the most work first.
+ * `old_renovation` is a lived-in flat whose old finishes are stripped out (phase 0) before
+ * everything a black frame needs. The list is the source for the Zod enums and the filters.
+ */
+export const HOME_STATE_VALUES = ['old_renovation', 'black_frame', 'white_frame', 'green_frame'] as const;
+
+export type HomeState = (typeof HOME_STATE_VALUES)[number];
 
 export type RoomType =
   | 'living_room'

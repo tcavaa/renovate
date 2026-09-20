@@ -50,6 +50,7 @@ export interface WorkItem {
 }
 
 export const WORK_ITEMS: WorkItem[] = [
+  { key: 'strip_out', phase: 0 },
   { key: 'demolition', phase: 1 },
   { key: 'plumbing', phase: 2 },
   { key: 'electrical', phase: 3 },
@@ -70,10 +71,11 @@ export const WORK_ITEMS: WorkItem[] = [
 ];
 
 /**
- * The works grouped by the stage of the house they take it through: from a black frame to a
- * white one (the rough works), from white to green (the finishing), and from green to
- * moving in. The checklist offers each stage as its own group so the person ticks what
- * their renovation needs by where their home stands today.
+ * The works grouped by the stage of the house they take it through: from an old renovation
+ * back to a black frame (the strip-out), from a black frame to a white one (the rough
+ * works), from white to green (the finishing), and from green to moving in. The checklist
+ * offers each stage as its own group so the person ticks what their renovation needs by
+ * where their home stands today.
  */
 export interface WorkStage {
   /** The home state the stage starts from — its name is the group's title. */
@@ -82,6 +84,7 @@ export interface WorkStage {
 }
 
 export const WORK_STAGES: WorkStage[] = [
+  { homeState: 'old_renovation', phases: [0, 0] },
   { homeState: 'black_frame', phases: [1, 8] },
   { homeState: 'white_frame', phases: [9, 16] },
   { homeState: 'green_frame', phases: [17, 18] },

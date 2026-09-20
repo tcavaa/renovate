@@ -608,6 +608,11 @@ export const FIXTURE_CATEGORY_SLUGS = ['sockets-switches', 'lighting'];
 /** The categories the doors and windows are sold in. */
 export const OPENING_CATEGORY_SLUGS = ['doors', 'windows'];
 
+/** The categories the central-heating radiators are sold in, by the section. */
+export const RADIATOR_CATEGORY_SLUGS = ['radiators'];
+/** The categories the skirting boards and cornices are sold in, by the running metre. */
+export const TRIM_CATEGORY_SLUGS = ['skirting', 'cornice'];
+
 export const DESIGN_CATEGORY_SLUGS = Array.from(
   new Set([
     ...Object.values(ARCHETYPES)
@@ -615,6 +620,8 @@ export const DESIGN_CATEGORY_SLUGS = Array.from(
       .filter((s): s is string => !!s),
     ...FIXTURE_CATEGORY_SLUGS,
     ...OPENING_CATEGORY_SLUGS,
+    ...RADIATOR_CATEGORY_SLUGS,
+    ...TRIM_CATEGORY_SLUGS,
   ])
 );
 

@@ -25,6 +25,8 @@ import { categories, products, stores } from '../lib/db/schema';
 import { archetypeLabel, getArchetype } from '../lib/design/catalog';
 import type { ManifestModel } from './convert-models';
 import type { FixtureManifestModel } from './fixture-models';
+import type { RadiatorManifestModel } from './radiator-models';
+import { TRIM_PRODUCTS } from './lib/trimProducts';
 
 interface Manifest {
   models: ManifestModel[];
@@ -56,6 +58,32 @@ async function main() {
   const storeRows = await db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores);
   const categoryRows = await db.select({ id: categories.id, slug: categories.slug }).from(categories);
   const categoryBySlug = new Map(categoryRows.map((c) => [c.slug, c.id]));
+
+  /**
+   * The category, made when it is missing. The cPanel deploy runs this script alone
+   * (bundled), so it cannot count on `db:seed:design` having been run for the categories the
+   * newer products live in.
+   */
+  const ensureCategory = async (spec: { slug: string; nameKa: string; nameEn: string; nameRu: string; phase: number; calculationType: 'per_m2_floor' | 'per_m2_wall' | 'per_m2_ceiling' | 'per_linear_m' | 'per_unit' | 'per_room' | 'fixed'; icon?: string; sortOrder?: number; isFurniture?: boolean }): Promise<number> => {
+    const known = categoryBySlug.get(spec.slug);
+    if (known) return known;
+    const inserted = await db.insert(categories).values({
+      nameKa: spec.nameKa,
+      nameEn: spec.nameEn,
+      nameRu: spec.nameRu,
+      slug: spec.slug,
+      icon: spec.icon ?? null,
+      phase: spec.phase,
+      calculationType: spec.calculationType,
+      isVisible: true,
+      isFurniture: spec.isFurniture ?? false,
+      sortOrder: spec.sortOrder ?? spec.phase * 10,
+    });
+    const id = Number(inserted[0].insertId);
+    categoryBySlug.set(spec.slug, id);
+    console.log(`  + category ${spec.slug}`);
+    return id;
+  };
 
   // Stores are matched by the slug used in seed-design.ts, which is derived from the name.
   const storeBySlug = new Map<string, number>();
@@ -166,6 +194,92 @@ async function main() {
   } catch {
     console.log('  (no public/models/fixtures/manifest.json — run `pnpm models:fixtures` for the fittings, doors and windows)');
   }
+
+  // Central-heating radiators. Each model is one *section* and is sold by the section, so
+  // the price is per section and the stored size is the section's — the studio repeats it
+  // as many times as the room's heat calls for (see `lib/design/radiators.ts`).
+  try {
+    const radiators = JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'radiators', 'manifest.json'), 'utf8')) as { models: RadiatorManifestModel[] };
+    const categoryId = await ensureCategory({ slug: 'radiators', nameKa: 'რადიატორები', nameEn: 'Radiators', nameRu: 'Радиаторы', phase: 15, calculationType: 'per_unit', icon: 'flame', sortOrder: 155 });
+    for (const model of radiators.models) {
+      if (!model.product) continue;
+      const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
+      const slug = `${SLUG_PREFIX}radiator-${model.slug}`;
+      keepSlugs.push(slug);
+      const row = {
+        categoryId,
+        storeId,
+        nameKa: model.product.nameKa,
+        nameEn: model.product.nameEn,
+        nameRu: model.product.nameRu,
+        descriptionKa: `${model.title} · ${model.wattsPerSection} ვტ / სექცია`,
+        slug,
+        sku: `RD-${model.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
+        pricePerUnit: String(model.product.priceGel),
+        unit: 'piece' as const,
+        brand: model.author,
+        imageUrl: model.imageUrl,
+        styleTags: model.product.styles,
+        specs: { wattsPerSection: model.wattsPerSection, sectionWidthCm: model.sectionWidthCm },
+        model3dKind: model.product.kind,
+        model3dUrl: model.url,
+        model3dStatus: 'ready' as const,
+        colorHex: null,
+        widthCm: model.sectionWidthCm,
+        depthCm: model.depthCm,
+        heightCm: model.heightCm,
+        isActive: true,
+        isFeatured: false,
+      };
+      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+      console.log(`  ✓ ${slug.padEnd(38)} radiator       ${model.sectionWidthCm}×${model.depthCm}×${model.heightCm}  ${model.product.priceGel} ₾/სექცია`);
+    }
+  } catch {
+    console.log('  (no public/models/radiators/manifest.json — run `pnpm models:radiators` for the radiators)');
+  }
+
+  // Skirting boards and cornices. These carry no model file at all: the studio sweeps the
+  // profile their `specs` name along every wall of the room (`lib/design/trims.ts`), so what
+  // is drawn is what is bought, by the running metre.
+  for (const kind of ['skirting', 'cornice'] as const) {
+    const meta = kind === 'skirting'
+      ? { nameKa: 'იატაკის პლინტუსი', nameEn: 'Skirting boards', nameRu: 'Напольные плинтусы', icon: 'minus', sortOrder: 111 }
+      : { nameKa: 'ჭერის პლინტუსი', nameEn: 'Cornices', nameRu: 'Потолочные плинтусы', icon: 'minus', sortOrder: 121 };
+    const categoryId = await ensureCategory({ slug: kind, phase: kind === 'skirting' ? 11 : 12, calculationType: 'per_linear_m', ...meta });
+    for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind)) {
+      const slug = `trim-${trim.slug}`;
+      const row = {
+        categoryId,
+        storeId: storeBySlug.get(trim.storeSlug) ?? null,
+        nameKa: trim.nameKa,
+        nameEn: trim.nameEn,
+        nameRu: trim.nameRu,
+        descriptionKa: trim.descriptionKa,
+        slug,
+        sku: `TR-${trim.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
+        pricePerUnit: String(trim.priceGelPerM),
+        unit: 'linear_m' as const,
+        brand: trim.brand,
+        imageUrl: null,
+        styleTags: trim.styles,
+        specs: { profile: trim.profile, heightCm: trim.heightCm, depthCm: trim.depthCm },
+        colorHex: trim.colorHex,
+        widthCm: null,
+        depthCm: trim.depthCm,
+        heightCm: trim.heightCm,
+        isActive: true,
+        isFeatured: false,
+      };
+      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+    }
+  }
+  console.log(`  ✓ ${TRIM_PRODUCTS.length} skirting boards and cornices`);
 
   // Everything else the studio could have placed goes. The studio must never draw a product
   // that has no partner model behind it.

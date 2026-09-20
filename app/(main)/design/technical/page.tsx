@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ChevronDown, Lightbulb } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Flame, Lightbulb } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
@@ -20,8 +20,20 @@ import { archetypeLabel } from '@/lib/design/catalog';
 import { technicalLabel } from '@/components/plan/PlanToolbar';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
 import { TECHNICAL_ICON } from '@/components/plan/icons';
+import { isHeatedRoom, radiatorPoints, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';
+import { useDesignCatalog } from '@/hooks/useDesignCatalog';
+import { formatM2 } from '@/lib/utils';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import type { TechnicalKind } from '@/lib/design/types';
+import type { HomeState } from '@/lib/calculator/types';
+
+/** The line under each stage's title in the works checklist: where it takes the house from and to. */
+const STAGE_DESC = {
+  old_renovation: 'stageOldDesc',
+  black_frame: 'stageBlackDesc',
+  white_frame: 'stageWhiteDesc',
+  green_frame: 'stageGreenDesc',
+} as const satisfies Record<HomeState, string>;
 
 /**
  * Step 3: the technical setup. Points on the plan for what the building provides — water,
@@ -44,8 +56,20 @@ export default function TechnicalPage() {
   const mode = useDesignStore((s) => s.mode);
   const homeState = useDesignStore((s) => s.homeState);
   const actions = useDesignStore();
+  const styleId = useDesignStore((s) => s.styleId);
+  const { products } = useDesignCatalog();
   const [tool, setTool] = useState<EditorTool>('select');
   const [kind, setKind] = useState<TechnicalKind>('water_supply');
+  /** What the last "hang the radiators" did: how many were added, or 0 when every room had one. */
+  const [radiatorsHung, setRadiatorsHung] = useState<number | null>(null);
+
+  // Every radiator is a product where the catalogue has one, its sections counted from its room.
+  const radiatorSignature = useMemo(() => (plan ? radiatorPoints(plan).map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.sections ?? ''}`).join('|') + `#${plan.rooms.map((r) => r.areaM2).join(',')}` : ''), [plan]);
+  useEffect(() => {
+    if (products.length > 0 && radiatorSignature) actions.ensureRadiatorProducts(products);
+    // The signature says when the radiators or their rooms changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, radiatorSignature]);
 
   const works = useMemo(() => plan?.technical?.works ?? defaultWorksForHomeState(homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame')), [plan?.technical?.works, homeState, mode]);
   const suggestions = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
@@ -139,6 +163,40 @@ export default function TechnicalPage() {
               </div>
             </section>
 
+            {/* Heating: how many sections each room wants, and a radiator under every window at a click. */}
+            <section className="rounded-[16px] border border-line bg-white p-3" aria-label={t.build.radiatorTable}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <Flame className="h-4 w-4 text-brand" />
+                    {t.build.radiatorTable}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.suggestRadiatorsHint}</p>
+                </div>
+                <button type="button" onClick={() => setRadiatorsHung(actions.suggestRadiators(products))} className="h-9 shrink-0 rounded-[10px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  {t.build.suggestRadiators}
+                </button>
+              </div>
+              {radiatorsHung != null && <p className="mt-2 text-[11px] font-medium text-success">{radiatorsHung > 0 ? fill(t.build.radiatorsAdded, { n: radiatorsHung }) : t.build.radiatorsNone}</p>}
+              <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                {plan.rooms.filter(isHeatedRoom).map((room) => {
+                  const here = radiatorPoints(plan).filter((p) => radiatorRoom(plan, p)?.id === room.id);
+                  const hung = here.reduce((sum, p) => sum + radiatorSections(plan, p), 0);
+                  const wanted = sectionsForRoom(plan, room, here[0]?.radiator?.wattsPerSection);
+                  return (
+                    <li key={room.id} className="flex items-baseline justify-between gap-2 rounded-[10px] bg-bg-base px-2.5 py-1.5 text-[11px]">
+                      <span className="min-w-0 truncate">
+                        <span className="font-semibold text-ink">{room.name}</span> <span className="text-ink-muted">· {formatM2(room.areaM2)} · {roomHeatDemandW(plan, room)} {t.build.unitWatt}</span>
+                      </span>
+                      <span className={cn('shrink-0 tabular-nums', here.length === 0 ? 'text-ink-muted' : hung < wanted ? 'text-warning' : 'text-success')}>
+                        {here.length > 0 ? `${here.length} × · ${hung}/${wanted}` : `0 · ${wanted}`} {t.build.radiatorSection}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+
             <PlanWorkspace
               tools={['select', 'pan', 'technical']}
               tool={tool}
@@ -175,7 +233,10 @@ export default function TechnicalPage() {
                   removeElectrical: actions.removeElectricalPoint,
                   updateRoom: actions.updateRoom,
                   removeRoom: actions.removeRoom,
+                  setRadiatorProduct: actions.setRadiatorProduct,
                 }}
+                catalog={products}
+                styleId={styleId}
               />
             )}
 
@@ -186,7 +247,7 @@ export default function TechnicalPage() {
                 {WORK_STAGES.map((stage) => {
                   const list = worksForStage(stage);
                   const on = list.filter((w) => works.includes(w.key)).length;
-                  const desc = stage.homeState === 'black_frame' ? t.build.stageBlackDesc : stage.homeState === 'white_frame' ? t.build.stageWhiteDesc : t.build.stageGreenDesc;
+                  const desc = t.build[STAGE_DESC[stage.homeState]];
                   return (
                     <details key={stage.homeState} open={on > 0} className="group rounded-[12px] border border-line">
                       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">

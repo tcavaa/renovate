@@ -49,6 +49,11 @@ describe('aggregateRoomTotals', () => {
     expect(totals.windowCount).toBe(1); // bathroom and hallway are excluded
   });
 
+  it('counts the wet rooms', () => {
+    expect(totals.wetRoomCount).toBe(1);
+    expect(aggregateRoomTotals([bedroom, hallway]).wetRoomCount).toBe(0);
+  });
+
   it('is empty for no rooms', () => {
     expect(aggregateRoomTotals([]).totalFloorM2).toBe(0);
   });
@@ -104,6 +109,26 @@ describe('calculateMaterials', () => {
     expect(calculateMaterials([bedroom], 'white_frame', book)).toEqual([]);
     expect(calculateMaterials([bathroom], 'white_frame', book)[0].qty).toBeCloseTo(5 * 1.5, 2);
   });
+
+  it('adds the strip-out materials for an old renovation, on top of everything a black frame needs', () => {
+    const old = calculateMaterials(rooms, 'old_renovation');
+    const black = calculateMaterials(rooms, 'black_frame');
+    const byKey = Object.fromEntries(old.map((m) => [m.key, m]));
+
+    expect(byKey.debris_bags.qty).toBeCloseTo(31 * 0.6, 2);
+    expect(byKey.debris_bags.unit).toBe('piece');
+    expect(byKey.waste_container.qty).toBeCloseTo(31 * 0.02, 2);
+    expect(byKey.waste_container.estimatedPriceGEL).toBe(250);
+
+    expect(black.map((m) => m.key)).not.toContain('debris_bags');
+    expect(black.map((m) => m.key)).not.toContain('waste_container');
+    expect(old.filter((m) => !['debris_bags', 'waste_container'].includes(m.key))).toEqual(black);
+  });
+
+  it('runs phase 0 alone when the works override asks for nothing else', () => {
+    const items = calculateMaterials(rooms, 'green_frame', undefined, [0]);
+    expect(items.map((m) => m.key)).toEqual(['debris_bags', 'waste_container']);
+  });
 });
 
 describe('calculateWorkerCosts', () => {
@@ -127,6 +152,75 @@ describe('calculateWorkerCosts', () => {
   it('has no labour at all for a finished flat', () => {
     expect(calculateWorkerCosts(rooms, 'green_frame')).toEqual([]);
   });
+
+  it('strips an old renovation out first: floors, walls, ceilings, tiles, doors, windows, sanitary ware, debris', () => {
+    const costs = calculateWorkerCosts(rooms, 'old_renovation');
+    const byKey = Object.fromEntries(costs.map((c) => [c.key, c]));
+    const totals = aggregateRoomTotals(rooms);
+
+    expect(byKey.strip_floor).toMatchObject({ qty: 31, qtyUnit: 'm2', pricePerQty: 6, totalGEL: 186 });
+    expect(byKey.strip_walls.qty).toBeCloseTo(totals.totalWallM2, 2);
+    expect(byKey.strip_walls.pricePerQty).toBe(5);
+    expect(byKey.strip_ceiling).toMatchObject({ qty: 31, pricePerQty: 5, totalGEL: 155 });
+    // Old tiles cover the wet rooms' floor and part of their walls — the tiler's own ×1.5.
+    expect(byKey.strip_tiles).toMatchObject({ qty: 7.5, qtyUnit: 'm2', pricePerQty: 12, totalGEL: 90 });
+    // Three doors and the bedroom's window.
+    expect(byKey.remove_doors_windows).toMatchObject({ qty: 4, qtyUnit: 'unit', pricePerQty: 35, totalGEL: 140 });
+    // One wet room: the bathroom.
+    expect(byKey.remove_sanitary).toMatchObject({ qty: 1, qtyUnit: 'unit', pricePerQty: 60, totalGEL: 60 });
+    expect(byKey.debris_removal).toMatchObject({ qty: 31, pricePerQty: 7, totalGEL: 217 });
+
+    // The strip-out comes before the black frame's own works, which are all still there.
+    expect(costs.slice(0, 7).map((c) => c.key)).toEqual([
+      'strip_floor',
+      'strip_walls',
+      'strip_ceiling',
+      'strip_tiles',
+      'remove_doors_windows',
+      'remove_sanitary',
+      'debris_removal',
+    ]);
+    expect(costs.slice(7)).toEqual(calculateWorkerCosts(rooms, 'black_frame'));
+    expect(byKey.demolition).toBeDefined();
+  });
+
+  it('leaves the strip-out lines out of every other home state', () => {
+    const STRIP_OUT = ['strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'remove_doors_windows', 'remove_sanitary', 'debris_removal'];
+    for (const state of ['black_frame', 'white_frame', 'green_frame'] as const) {
+      const keys = calculateWorkerCosts(rooms, state).map((c) => c.key);
+      for (const key of STRIP_OUT) expect(keys).not.toContain(key);
+    }
+  });
+
+  it('skips the tiles and the sanitary ware in a flat with no wet room', () => {
+    const keys = calculateWorkerCosts([bedroom, hallway], 'old_renovation').map((c) => c.key);
+    expect(keys).toContain('strip_floor');
+    expect(keys).not.toContain('strip_tiles');
+    expect(keys).not.toContain('remove_sanitary');
+  });
+
+  it('honours a works override that includes phase 0, whatever the home state says', () => {
+    const onlyStripOut = calculateWorkerCosts(rooms, 'green_frame', undefined, [0]);
+    expect(onlyStripOut.map((c) => c.key)).toEqual([
+      'strip_floor',
+      'strip_walls',
+      'strip_ceiling',
+      'strip_tiles',
+      'remove_doors_windows',
+      'remove_sanitary',
+      'debris_removal',
+    ]);
+    // …and one that leaves it out: an old renovation whose owner unticked the strip-out.
+    const withoutStripOut = calculateWorkerCosts(rooms, 'old_renovation', undefined, [1, 13]);
+    expect(withoutStripOut.map((c) => c.key)).toEqual(['demolition', 'painting']);
+  });
+
+  it('drops a strip-out line the admin switched off', () => {
+    const book: RateBook = { materials: {}, labour: { debris_removal: { labelKa: 'ნარჩენები', unit: 'm2', price: 10 } } };
+    const costs = calculateWorkerCosts(rooms, 'old_renovation', book);
+    expect(costs.map((c) => c.key)).toEqual(['debris_removal']);
+    expect(costs[0].totalGEL).toBe(310);
+  });
 });
 
 describe('buildProjectSummary', () => {
@@ -142,6 +236,19 @@ describe('buildProjectSummary', () => {
       2
     );
     expect(summary.grandTotalWithMargin).toBeCloseTo(summary.grandTotal * (1 + CONTINGENCY_PCT / 100), 1);
+  });
+
+  it('costs an old renovation more than a black frame by exactly the strip-out', () => {
+    const old = buildProjectSummary(rooms, 'old_renovation', [], []);
+    const black = buildProjectSummary(rooms, 'black_frame', [], []);
+    const stripLabour = old.workerCosts.filter((w) => !black.workerCosts.some((b) => b.key === w.key));
+    const stripMaterials = old.materials.filter((m) => !black.materials.some((b) => b.key === m.key));
+
+    expect(stripLabour).toHaveLength(7);
+    expect(stripMaterials.map((m) => m.key)).toEqual(['debris_bags', 'waste_container']);
+    expect(old.subtotalWorkers - black.subtotalWorkers).toBeCloseTo(stripLabour.reduce((s, w) => s + w.totalGEL, 0), 2);
+    expect(old.subtotalMaterials - black.subtotalMaterials).toBeCloseTo(estimateMaterialsCost(stripMaterials), 2);
+    expect(old.grandTotal).toBeGreaterThan(black.grandTotal);
   });
 
   it('uses the rate book it is given, not the defaults', () => {

@@ -112,4 +112,25 @@ describe('budget lines', () => {
     for (let i = 1; i < trades.length; i++) expect(trades[i - 1].total).toBeGreaterThanOrEqual(trades[i].total);
     expect(tradesNeeded({ lines: [] })).toEqual([]);
   });
+
+  it('strips an old renovation out: the lines are in the budget and find their trades', () => {
+    const STRIP_OUT = ['strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'remove_doors_windows', 'remove_sanitary', 'debris_removal'];
+    // Only the strip-out ticked, so every labour line in the budget is one of its own.
+    const cost = priceScene(plan(), scene('full', []), { homeState: 'old_renovation', works: ['strip_out'] });
+    const labour = cost.lines.filter((l) => l.section === 'labour').map((l) => l.key);
+    expect(labour).toEqual(STRIP_OUT);
+    expect(cost.lines.filter((l) => l.section === 'materials').map((l) => l.key)).toEqual(['debris_bags', 'waste_container']);
+
+    const trades = tradesNeeded(cost);
+    const keysOf = (slug: string) => trades.find((t) => t.slug === slug)?.lines.map((l) => l.key) ?? [];
+    expect(keysOf('carpentry')).toEqual(['remove_doors_windows']);
+    expect(keysOf('plumbing')).toEqual(['remove_sanitary']);
+    expect(keysOf('plastering')).toEqual(['strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'debris_removal']);
+
+    // The home state alone pre-ticks it; a black frame never has it.
+    const byState = (homeState: 'old_renovation' | 'black_frame') =>
+      priceScene(plan(), scene('full', []), { homeState }).lines.filter((l) => l.section === 'labour').map((l) => l.key);
+    expect(byState('old_renovation')).toEqual(expect.arrayContaining(STRIP_OUT));
+    for (const key of STRIP_OUT) expect(byState('black_frame')).not.toContain(key);
+  });
 });

@@ -123,6 +123,8 @@ export default function BudgetPage() {
     if (line.key === 'window') return t.build.lineWindow;
     if (line.key === 'door') return t.build.lineDoor;
     if (line.key === 'entrance_door') return t.build.lineEntranceDoor;
+    if (line.key === 'kitchen_run_custom') return t.build.lineKitchenRun;
+    if (line.key === 'kitchen_island_custom') return t.build.lineKitchenIsland;
     if (line.section === 'labour') return workTypeLabel(t, line.key);
     if (line.section === 'materials') return materialLabel(t, line.key);
     return line.name ?? line.key;

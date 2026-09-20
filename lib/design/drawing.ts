@@ -151,11 +151,19 @@ export interface Rect {
  * neighbours the longer overlap wins; a wall that only continues the rectangle's side end
  * to end still snaps when nothing runs alongside, so a room drawn next to the flat lines
  * up with it.
+ *
+ * The two sides of an axis snap on their own. A room drawn *between* two others has a
+ * neighbour on either hand, and sliding the rectangle onto one of them left the other side
+ * exactly a wall's thickness off its neighbour — the pointer had snapped both corners onto
+ * the neighbours' centrelines, the rectangle is the room's inner face — which doubled that
+ * wall. When both sides find a wall the rectangle is resized to meet both; when one does,
+ * it slides and keeps the size that was drawn. A wall whose body the new wall would overlap
+ * is always within reach, however far the view is zoomed in: two walls can share a line,
+ * never half of one.
  */
 export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tolM: number): { rect: Rect; guides: SnapGuide[] } {
   const h = thicknessM / 2;
   const guides: SnapGuide[] = [];
-  let out = { ...rect };
   const vertical = walls.filter((w) => Math.abs(w.a.x - w.b.x) < 1e-6);
   const horizontal = walls.filter((w) => Math.abs(w.a.z - w.b.z) < 1e-6);
 
@@ -173,43 +181,54 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
     if (p.beside && Math.abs(p.overlap - q.overlap) > 1e-6) return p.overlap > q.overlap;
     return Math.abs(p.delta) < Math.abs(q.delta);
   };
-  const consider = (wall: Wall, lo: number, hi: number, from: number, to: number, lines: number[], at: number): Candidate | null => {
-    const overlap = Math.min(hi, to) - Math.max(lo, from);
-    if (overlap < -tolM) return null;
-    const beside = overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5);
+  /** The best wall for one side of the rectangle: `line` is that side's wall centreline, `from`–`to` its extent. */
+  const bestFor = (candidates: Wall[], axis: 'x' | 'z', line: number, from: number, to: number): Candidate | null => {
     let best: Candidate | null = null;
-    for (const line of lines) {
+    for (const wall of candidates) {
+      const at = axis === 'x' ? wall.a.x : wall.a.z;
+      const lo = axis === 'x' ? Math.min(wall.a.z, wall.b.z) : Math.min(wall.a.x, wall.b.x);
+      const hi = axis === 'x' ? Math.max(wall.a.z, wall.b.z) : Math.max(wall.a.x, wall.b.x);
+      const overlap = Math.min(hi, to) - Math.max(lo, from);
+      if (overlap < -tolM) continue;
       const delta = at - line;
-      if (Math.abs(delta) > tolM) continue;
+      const beside = overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5);
+      // Within the pointer's reach — or, for a wall alongside, close enough that the two
+      // walls' bodies would overlap.
+      const reach = beside ? Math.max(tolM, (thicknessM + wall.thicknessM) / 2) : tolM;
+      if (Math.abs(delta) > reach) continue;
       const candidate = { delta, wall, overlap, beside };
       if (better(candidate, best)) best = candidate;
     }
     return best;
   };
+  /** Start and size along one axis after snapping its two sides. */
+  const snapAxis = (candidates: Wall[], axis: 'x' | 'z', start: number, size: number, from: number, to: number): { start: number; size: number } => {
+    const low = bestFor(candidates, axis, start - h, from, to);
+    const high = bestFor(candidates, axis, start + size + h, from, to);
+    if (low && high && low.wall.id !== high.wall.id) {
+      const snappedStart = start + low.delta;
+      const snappedSize = start + size + high.delta - snappedStart;
+      if (snappedSize >= MIN_SNAPPED_SIZE_M) {
+        guides.push({ kind: 'wall', a: low.wall.a, b: low.wall.b }, { kind: 'wall', a: high.wall.a, b: high.wall.b });
+        return { start: snappedStart, size: snappedSize };
+      }
+    }
+    const one = low && high ? (better(low, high) ? low : high) : (low ?? high);
+    if (!one) return { start, size };
+    guides.push({ kind: 'wall', a: one.wall.a, b: one.wall.b });
+    return { start: start + one.delta, size };
+  };
 
-  let bestX: Candidate | null = null;
-  for (const wall of vertical) {
-    const candidate = consider(wall, Math.min(wall.a.z, wall.b.z), Math.max(wall.a.z, wall.b.z), rect.z, rect.z + rect.depth, [rect.x - h, rect.x + rect.width + h], wall.a.x);
-    if (candidate && better(candidate, bestX)) bestX = candidate;
-  }
-  if (bestX) {
-    out = { ...out, x: out.x + bestX.delta };
-    guides.push({ kind: 'wall', a: bestX.wall.a, b: bestX.wall.b });
-  }
-  let bestZ: Candidate | null = null;
-  for (const wall of horizontal) {
-    const candidate = consider(wall, Math.min(wall.a.x, wall.b.x), Math.max(wall.a.x, wall.b.x), out.x, out.x + out.width, [rect.z - h, rect.z + rect.depth + h], wall.a.z);
-    if (candidate && better(candidate, bestZ)) bestZ = candidate;
-  }
-  if (bestZ) {
-    out = { ...out, z: out.z + bestZ.delta };
-    guides.push({ kind: 'wall', a: bestZ.wall.a, b: bestZ.wall.b });
-  }
-  return { rect: { x: round2(out.x), z: round2(out.z), width: round2(out.width), depth: round2(out.depth) }, guides };
+  const x = snapAxis(vertical, 'x', rect.x, rect.width, rect.z, rect.z + rect.depth);
+  const z = snapAxis(horizontal, 'z', rect.z, rect.depth, x.start, x.start + x.size);
+  // To the millimetre, like the walls themselves: a 15 cm wall puts the face 7.5 cm off its line.
+  return { rect: { x: round3(x.start), z: round3(z.start), width: round3(x.size), depth: round3(z.size) }, guides };
 }
 
 /** A wall has to run at least this far alongside a rectangle's side to count as its neighbour. */
 const MIN_BESIDE_M = 0.3;
+/** Snapping both sides never squeezes a rectangle below this. */
+const MIN_SNAPPED_SIZE_M = 0.3;
 
 // ---------------------------------------------------------------------------
 // Hit tests
@@ -262,6 +281,6 @@ export function pointElementAt<T extends TechnicalPoint | ElectricalPoint>(eleme
   return best?.element ?? null;
 }
 
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }

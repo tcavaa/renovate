@@ -16,12 +16,15 @@ import * as THREE from 'three';
 import { pointOnEdge, roomEdges } from '@/lib/design/planGeometry';
 import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
+import { cellPolygon } from '@/lib/design/paint';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleDefinition, SurfaceFinish, Vec2 } from '@/lib/design/types';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
 import { loadFixture, loadModel } from './modelLoader';
 import type { SceneUserData } from './buildScene';
+import { RADIATOR_MODELS } from './radiatorManifest';
+import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -40,7 +43,7 @@ function slab(a: Vec2, b: Vec2, width: number, height: number, baseY: number, ma
 export function buildStructure(plan: FloorPlan, style: StyleDefinition, materials: StyleMaterials): THREE.Group {
   const group = new THREE.Group();
   group.name = 'structure';
-  const wallMaterial = materials.surface(style.surfaces.wall, { u: 2, v: 2 });
+  const wallMaterial = materials.metreSurface(style.surfaces.wall);
   const concrete = materials.get('stone', { roughness: 0.75 });
 
   for (const { wall, a, b } of orphanWallSegments(plan)) {
@@ -161,16 +164,23 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   const ghost = options.preview ? new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.55, depthWrite: false }) : null;
   const data = () => piece.userData as SceneUserData;
 
-  /** Puts the model into its holder when it arrives, unless the piece is gone by then. */
-  const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', afterLoad?: (model: THREE.Object3D) => void) => {
+  /**
+   * Puts the model into its holder when it arrives, unless the piece is gone by then.
+   * `prepare` runs while the model still stands alone, in its own frame: anything that
+   * measures it (`stretchTo`) has to happen before it hangs under the piece, because a
+   * bounding box is taken in world space and the piece is turned to its wall — on a wall
+   * that runs north–south a tube's thickness was read as its length, and the strip came out
+   * fifty times too long, a white bar across the whole flat.
+   */
+  const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', prepare?: (model: THREE.Object3D) => void) => {
     (spec.framed ? loadFixture(spec.url) : loadModel(spec.url).then((m) => reframe(m, mount, spec.sizeM)))
       .then((model) => {
         if (!piece.parent) return;
         if (ghost) ghostModel(model, ghost);
         else if (info.light && on) litModel(model, materials.style.lighting.lamp);
+        prepare?.(model);
         holder.add(model);
         tag(model, { ...data() });
-        afterLoad?.(model);
       })
       .catch((error: unknown) => console.warn(`[studio] fixture failed to load: ${spec.url}`, error));
   };
@@ -229,11 +239,23 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   return piece;
 }
 
-/** Scales a model along its width so it spans `length` metres — a tube becomes a strip of any length. */
+/**
+ * Scales a model along its width so it spans `length` metres — a tube becomes a strip of any
+ * length. Measured in the model's own frame, so it must not have a parent yet (see `attach`).
+ */
 function stretchTo(model: THREE.Object3D, length: number): void {
+  // Out of whatever it hangs under for the measurement, so the box is in its own frame.
+  const parent = model.parent;
+  parent?.remove(model);
+  model.scale.x = 1;
+  model.updateMatrixWorld(true);
   const width = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).x;
-  if (width > 1e-6) model.scale.x = length / width;
+  if (width > 1e-6 && Number.isFinite(length) && length > 0) model.scale.x = Math.min(length, MAX_STRIP_M) / width;
+  parent?.add(model);
 }
+
+/** No strip is longer than the longest wall anyone draws; a bad length must not cross the flat. */
+const MAX_STRIP_M = 12;
 
 /** Every mesh in one translucent material: the ghost of a fitting riding on the pointer. */
 function ghostModel(model: THREE.Object3D, material: THREE.Material): void {
@@ -268,6 +290,83 @@ function litModel(model: THREE.Object3D, colorHex: string): void {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Radiators
+// ---------------------------------------------------------------------------
+
+/** How far a radiator hangs off the plaster, and how far a wall's end it keeps from a corner. */
+const RADIATOR_WALL_GAP_M = 0.03;
+const RADIATOR_END_MARGIN_M = 0.1;
+
+/**
+ * The central-heating radiators, each one its section model repeated side by side along
+ * the wall it hangs on — as many sections as its room's heat calls for (`radiatorSections`),
+ * which is also what the budget buys. The model is the point's product, or the style's own
+ * radiator from the manifest while it has none. A file under `/models/radiators` is framed
+ * as one section (its back on z = 0, exactly one pitch wide); anything else — a whole
+ * radiator a partner uploaded — is drawn once and stretched to the run.
+ */
+export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: Set<string> | null): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'radiators';
+  for (const point of radiatorPoints(plan)) {
+    const spot = radiatorWallSpot(plan, point);
+    if (!spot || (rooms && !rooms.has(spot.room.id))) continue;
+    const fallback = RADIATOR_MODELS.find((m) => m.styles[0] === style.id) ?? RADIATOR_MODELS.find((m) => m.styles.includes(style.id)) ?? RADIATOR_MODELS[0];
+    const url = point.product?.model3dUrl ?? fallback?.url;
+    if (!url) continue;
+    const sectional = url.startsWith('/models/radiators/');
+    const known = RADIATOR_MODELS.find((m) => m.url === url);
+    const pitch = point.radiator?.sectionWidthM ?? (known ? known.sectionWidthCm / 100 : DEFAULT_SECTION_WIDTH_M);
+    const sections = radiatorSections(plan, point);
+    const run = sections * pitch;
+
+    // Centred on its point, but never past the end of its wall.
+    const half = Math.min(run / 2 + RADIATOR_END_MARGIN_M, spot.edge.length / 2);
+    const along = Math.max(half, Math.min(spot.edge.length - half, spot.s));
+    const at = pointOnEdge(spot.edge, along / spot.edge.length);
+    const piece = new THREE.Group();
+    piece.name = `radiator-${point.id}`;
+    piece.position.set(at.x + spot.edge.inward.x * RADIATOR_WALL_GAP_M, point.elevationM ?? 0.12, at.z + spot.edge.inward.z * RADIATOR_WALL_GAP_M);
+    piece.rotation.y = spot.edge.facing;
+    const data = { pickKind: 'technical', roomId: spot.room.id, technicalId: point.id } satisfies SceneUserData;
+    tag(piece, data);
+
+    if (sectional) {
+      for (let i = 0; i < sections; i++) {
+        const holder = new THREE.Group();
+        holder.position.x = (i - (sections - 1) / 2) * pitch;
+        piece.add(holder);
+        loadFixture(url)
+          .then((model) => {
+            if (!piece.parent) return;
+            holder.add(model);
+            tag(model, data);
+          })
+          .catch((error: unknown) => console.warn(`[studio] radiator failed to load: ${url}`, error));
+      }
+    } else {
+      loadModel(url)
+        .then((model) => {
+          if (!piece.parent) return;
+          // Stands on y = 0, centred on x/z: stretched to the run, its back put on the wall.
+          const size = (model.userData.authoredSize as THREE.Vector3 | undefined) ?? new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+          const heightM = point.radiator?.heightM ?? 0.6;
+          const k = heightM / Math.max(size.y, 1e-6);
+          const wrapper = new THREE.Group();
+          wrapper.scale.set(run / Math.max(size.x, 1e-6), k, k);
+          wrapper.position.z = (size.z * k) / 2;
+          wrapper.add(model);
+          piece.add(wrapper);
+          tag(wrapper, data);
+        })
+        .catch((error: unknown) => console.warn(`[studio] radiator failed to load: ${url}`, error));
+    }
+    group.add(piece);
+  }
+  return group;
+}
+
 export interface SceneLight {
   id: string;
   position: [number, number, number];
@@ -300,36 +399,70 @@ export function lightsFrom(plan: FloorPlan, points: ElectricalPoint[], rooms?: S
   return out;
 }
 
+/** A flat patch of floor from a plan polygon, facing up; its UVs are the plan's metres. */
+function floorPatch(polygon: Vec2[]): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  polygon.forEach((p, i) => {
+    if (i === 0) shape.moveTo(p.x, -p.z);
+    else shape.lineTo(p.x, -p.z);
+  });
+  shape.closePath();
+  const geometry = new THREE.ShapeGeometry(shape);
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+}
+
+function floorFinishMaterial(finish: SurfaceFinish, materials: StyleMaterials, style: StyleDefinition): THREE.Material {
+  return materials.metreSurface(style.surfaces.floor, {
+    colorHex: finish.colorHex,
+    textureUrl: finish.textureUrl,
+    textureScaleM: finish.textureScaleM,
+    normalUrl: finish.normalUrl ?? null,
+    roughnessUrl: finish.roughnessUrl ?? null,
+  });
+}
+
 /** Floor patches with their own finish, laid a hair above the room's floor. */
-export function buildZones(plan: FloorPlan, finishes: SurfaceFinish[], materials: StyleMaterials, style: StyleDefinition): THREE.Group {
+export function buildZones(plan: FloorPlan, finishes: SurfaceFinish[], materials: StyleMaterials, style: StyleDefinition, rooms?: Set<string> | null): THREE.Group {
   const group = new THREE.Group();
   group.name = 'zones';
   for (const finish of finishes) {
     if (!finish.zone || finish.surface !== 'floor') continue;
+    if (rooms && !rooms.has(finish.roomId)) continue;
     const room = plan.rooms.find((r) => r.id === finish.roomId);
     if (!room) continue;
-    const shape = new THREE.Shape();
-    finish.zone.polygon.forEach((p, i) => {
-      if (i === 0) shape.moveTo(p.x, -p.z);
-      else shape.lineTo(p.x, -p.z);
-    });
-    shape.closePath();
-    const geometry = new THREE.ShapeGeometry(shape);
-    geometry.rotateX(-Math.PI / 2);
-    const xs = finish.zone.polygon.map((p) => p.x);
-    const zs = finish.zone.polygon.map((p) => p.z);
-    const material = materials.surface(style.surfaces.floor, { u: Math.max(...xs) - Math.min(...xs), v: Math.max(...zs) - Math.min(...zs) }, {
-      colorHex: finish.colorHex,
-      textureUrl: finish.textureUrl,
-      textureScaleM: finish.textureScaleM,
-      normalUrl: finish.normalUrl ?? null,
-      roughnessUrl: finish.roughnessUrl ?? null,
-    });
-    const mesh = own(new THREE.Mesh(geometry, material));
+    const mesh = own(new THREE.Mesh(floorPatch(finish.zone.polygon), floorFinishMaterial(finish, materials, style)));
     mesh.position.y = 0.004;
     mesh.receiveShadow = true;
     tag(mesh, { pickKind: 'zone', roomId: room.id, zoneId: finish.zone.id } satisfies SceneUserData);
     group.add(mesh);
+  }
+  return group;
+}
+
+/**
+ * The floor tiles painted one at a time (`lib/design/paint`): each tile its own patch,
+ * clipped to the room, a hair above the zones. They answer to the pointer as the room's
+ * floor — a click on a painted tile paints it again — not as a thing of their own.
+ */
+export function buildPaintedCells(plan: FloorPlan, finishes: SurfaceFinish[], materials: StyleMaterials, style: StyleDefinition, rooms?: Set<string> | null): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'painted-cells';
+  for (const finish of finishes) {
+    if (!finish.cells || finish.surface !== 'floor') continue;
+    if (rooms && !rooms.has(finish.roomId)) continue;
+    const room = plan.rooms.find((r) => r.id === finish.roomId);
+    if (!room) continue;
+    const material = floorFinishMaterial(finish, materials, style);
+    for (const cell of finish.cells) {
+      const polygon = cellPolygon(room, cell);
+      if (polygon.length < 3) continue;
+      const mesh = own(new THREE.Mesh(floorPatch(polygon), material));
+      mesh.position.y = 0.006;
+      mesh.receiveShadow = true;
+      tag(mesh, { pickKind: 'surface', roomId: room.id, surface: 'floor' } satisfies SceneUserData);
+      group.add(mesh);
+    }
   }
   return group;
 }

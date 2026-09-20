@@ -29,6 +29,7 @@
     "deploy:bundle-seed": "esbuild scripts/seed-models.ts --bundle --platform=node --target=node22 --format=cjs --log-level=warning --outfile=${NEXT_DIST_DIR:-.next}/standalone/seed-models.cjs",
     "models:stock": "tsx scripts/stock-models.ts",
     "models:fixtures": "tsx scripts/fixture-models.ts",
+    "models:radiators": "tsx scripts/radiator-models.ts",
     "models:photos": "tsx scripts/model-photos.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",

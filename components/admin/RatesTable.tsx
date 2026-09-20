@@ -78,6 +78,11 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
 
   const phaseOptions = useMemo(() => [...new Set(rows.map((r) => r.phase))].sort((a, b) => a - b), [rows]);
 
+  // Phase 0 (stripping out an old renovation) is a phase like any other here. The name comes
+  // from the dictionary so the table reads in the admin's language; the Georgian constants
+  // cover a phase the dictionary does not know.
+  const phaseName = (phase: number) => (t.phases as Record<string, string>)[String(phase)] ?? PHASE_NAMES[phase] ?? '';
+
   const setField = (id: number, field: keyof Draft, value: string | boolean) =>
     setDrafts((d) => ({ ...d, [id]: { ...d[id], [field]: value } }));
 
@@ -176,7 +181,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
               <>
                 <tr key={`p-${kind}-${phase}`} className="bg-bg-base/60">
                   <td colSpan={10} className="px-3 py-1.5 text-xs font-semibold text-ink-muted">
-                    {phase}. {PHASE_NAMES[phase] ?? ''}
+                    {phase}. {phaseName(phase)}
                   </td>
                 </tr>
                 {list.map((row) => {
@@ -255,7 +260,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
         <select value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)} aria-label={t.admin.filters.phase} className="h-9 rounded-md border border-line bg-bg-surface px-2.5 text-sm">
           <option value="">{t.admin.filters.phase}: {t.admin.filters.all}</option>
           {phaseOptions.map((ph) => (
-            <option key={ph} value={String(ph)}>{ph} — {PHASE_NAMES[ph] ?? ''}</option>
+            <option key={ph} value={String(ph)}>{ph} — {phaseName(ph)}</option>
           ))}
         </select>
         {(filterQ || filterPhase) && (

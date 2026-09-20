@@ -93,9 +93,13 @@ scripts/seed.ts            seeds categories, products, workers, admin user
    estimatedPriceGEL, optional linkedCategorySlug → links generic material to catalog category)
 - `calculateWorkerCosts(rooms, homeState)` → labor per phase from WORKER_RATES
 - `buildProjectSummary(rooms, homeState, products, furniture)` → all subtotals + grandTotal + 15% contingency
-- Home states gate phases: black_frame = phases 1–18, white_frame = 9–17, green_frame = 17 only
+- Home states gate phases: old_renovation = phases 0–18, black_frame = 1–18, white_frame = 9–17,
+  green_frame = 17 only (offered in that order; `HOME_STATE_VALUES` in `lib/calculator/types.ts`)
+- Phase 0 = strip-out of an old renovation: labour `strip_floor`, `strip_walls`, `strip_ceiling`,
+  `strip_tiles` (wet floor × 1.5), `remove_doors_windows` (doors + windows), `remove_sanitary`
+  (one per wet room), `debris_removal`; materials `debris_bags`, `waste_container`
 - Wet rooms: bathroom, toilet, kitchen (waterproofing + tiles; tile area = wet floor × 1.5)
-- Phase names in PHASE_NAMES (1 structure/demolition … 17 furniture, 18 cleanup)
+- Phase names in PHASE_NAMES (0 strip-out, 1 structure/demolition … 17 furniture, 18 cleanup)
 
 ## Calculator flow (5 steps, state in Zustand)
 

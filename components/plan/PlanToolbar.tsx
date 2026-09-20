@@ -6,7 +6,7 @@
  * game's build mode on purpose: the person should never feel they are in CAD.
  */
 
-import { BrickWall, Cable, DoorOpen, Hand, Layers, Maximize2, Minus, MousePointer2, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, DoorOpen, Hand, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
@@ -67,6 +67,7 @@ const TOOL_ICON: Record<EditorTool, LucideIcon> = {
   technical: Wrench,
   electrical: Cable,
   zone: Layers,
+  paint: Paintbrush,
 };
 
 export function toolLabel(t: Dictionary, tool: EditorTool): string {
@@ -82,6 +83,7 @@ export function toolLabel(t: Dictionary, tool: EditorTool): string {
     technical: 'toolTechnical',
     electrical: 'toolElectrical',
     zone: 'toolZone',
+    paint: 'toolPaint',
   };
   return t.build[key[tool]];
 }
@@ -100,6 +102,7 @@ export function toolHint(t: Dictionary, tool: EditorTool, locked: boolean): stri
     technical: 'hintTechnical',
     electrical: 'hintElectrical',
     zone: 'hintZone',
+    paint: 'hintPaint',
   };
   return t.build[key[tool]];
 }

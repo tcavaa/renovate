@@ -87,6 +87,13 @@ export function defaultRateRows(): Array<Omit<RateRow, 'id'>> {
 
 /** Which renovation phase each labour line belongs to — mirrors `calculateWorkerCosts`. */
 export const LABOUR_PHASE: Record<string, number> = {
+  strip_floor: 0,
+  strip_walls: 0,
+  strip_ceiling: 0,
+  strip_tiles: 0,
+  remove_doors_windows: 0,
+  remove_sanitary: 0,
+  debris_removal: 0,
   demolition: 1,
   plumbing_rough: 2,
   electrical_rough: 3,
@@ -111,14 +118,22 @@ export const LABOUR_PHASE: Record<string, number> = {
 };
 
 /**
- * Rows from the table become the book the engine reads. Only active rows count; a table
- * with no rows at all means "nobody has seeded it yet" and yields the defaults.
+ * Rows from the table become the book the engine reads. A table with no rows at all means
+ * "nobody has seeded it yet" and yields the defaults. Otherwise a row overrides its key, and
+ * a row that is switched off stays off — but a default the table has never heard of still
+ * counts, at the rate it shipped with. Such a key is a line the app gained after this
+ * database was seeded (the strip-out works of phase 0 were the first); without the fallback
+ * it would silently price at nothing until someone ran `pnpm db:seed:rates`.
  */
 export function rateBookFromRows(rows: RateRow[]): RateBook {
   if (rows.length === 0) return DEFAULT_RATE_BOOK;
   const materials: Record<string, MaterialRate> = {};
   const labour: Record<string, LabourRate> = {};
-  const ordered = [...rows].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder);
+  const known = new Set(rows.map((r) => `${r.kind}:${r.key}`));
+  const unseeded = defaultRateRows()
+    .filter((r) => !known.has(`${r.kind}:${r.key}`))
+    .map((r) => ({ ...r, id: 0 }));
+  const ordered = [...rows, ...unseeded].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder);
   for (const row of ordered) {
     if (!row.isActive) continue;
     if (row.kind === 'material') {

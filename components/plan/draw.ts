@@ -396,6 +396,47 @@ export function drawZone(ctx: CanvasRenderingContext2D, t: Transform, zone: Fini
   ctx.setLineDash([]);
 }
 
+/** A painted floor tile (or the one the brush is over): a filled outline with a hairline round it. */
+export function drawPaintedCell(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], color: string | null, state: { preview?: boolean } = {}): void {
+  if (polygon.length < 3) return;
+  ctx.beginPath();
+  polygon.forEach((p, i) => {
+    const s = toScreen(t, p);
+    if (i === 0) ctx.moveTo(s.x, s.y);
+    else ctx.lineTo(s.x, s.y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = state.preview ? EDITOR.selected : (color ?? 'rgba(46,139,133,0.3)');
+  ctx.globalAlpha = state.preview ? 0.35 : 0.7;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = state.preview ? EDITOR.selected : 'rgba(30,30,30,0.18)';
+  ctx.lineWidth = state.preview ? 2 : 1;
+  ctx.stroke();
+}
+
+/**
+ * A wall's own finish on the plan: a band along the inside of the room's edge from `from`
+ * to `to` metres, in the finish's colour — how the 2D view shows which walls (and which
+ * metre-wide strips of them) wear something other than the room's paper.
+ */
+export function drawWallBand(ctx: CanvasRenderingContext2D, t: Transform, edge: PlanEdge, from: number, to: number, color: string | null, state: { preview?: boolean } = {}): void {
+  const band = Math.max(5, Math.min(12, 0.09 * t.scale));
+  const at = (along: number, inM: number) => toScreen(t, { x: edge.a.x + edge.dir.x * along + edge.inward.x * inM, z: edge.a.z + edge.dir.z * along + edge.inward.z * inM });
+  const inM = band / t.scale;
+  const corners = [at(from, 0), at(to, 0), at(to, inM), at(from, inM)];
+  ctx.beginPath();
+  corners.forEach((c, i) => (i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y)));
+  ctx.closePath();
+  ctx.fillStyle = state.preview ? EDITOR.selected : (color ?? '#BDB6A8');
+  ctx.globalAlpha = state.preview ? 0.55 : 0.95;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = state.preview ? EDITOR.selected : 'rgba(30,30,30,0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 export function drawFurniture(ctx: CanvasRenderingContext2D, t: Transform, item: PlacedItem, label: string, state: { selected?: boolean; hovered?: boolean; invalid?: boolean } = {}): void {
   const s = toScreen(t, item.position);
   const w = item.size.width * t.scale;

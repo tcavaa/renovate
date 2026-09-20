@@ -17,7 +17,7 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
@@ -36,8 +36,10 @@ import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
-import { halfZone, isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
+import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
 import { surfaceOptions } from '@/lib/design/surfaces';
+import { isTrimSurface, trimFor, trimLengthM, trimOptions } from '@/lib/design/trims';
+import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool } from '@/components/plan/PlanEditor';
@@ -61,7 +63,7 @@ const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
   build: ['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam'],
   furniture: ['select', 'pan'],
   electric: ['select', 'pan', 'electrical'],
-  finishes: ['select', 'pan', 'zone'],
+  finishes: ['select', 'pan', 'paint'],
   budget: ['select', 'pan'],
 };
 
@@ -120,6 +122,13 @@ export default function StudioPage() {
     if (products.length > 0 && openingsWithoutProduct > 0) store.ensureOpeningProducts(products);
   }, [products, openingsWithoutProduct, store]);
 
+  // Every radiator is a product too, its sections counted from its room — also in a design
+  // saved before radiators were products, and after a room was resized under one.
+  const radiatorSignature = plan ? (plan.technical?.points ?? []).filter((p) => p.kind === 'radiator').map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.sections ?? ''}`).join('|') + `#${plan.rooms.map((r) => r.areaM2).join(',')}` : '';
+  useEffect(() => {
+    if (products.length > 0 && radiatorSignature.includes(':')) store.ensureRadiatorProducts(products);
+  }, [products, radiatorSignature, store]);
+
   // The existing house is kept the first time the studio opens on a plan.
   useEffect(() => {
     if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionExisting);
@@ -136,6 +145,12 @@ export default function StudioPage() {
   const [electricalArmed, setElectricalArmed] = useState(false);
   const [finishScope, setFinishScope] = useState<FinishScope>('room');
   const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
+  /**
+   * The brush of the two painting scopes: the product a click on a floor tile or a wall
+   * strip lays down. `null` is the style's default — the eraser — and `undefined` an empty
+   * brush, which paints nothing until a swatch is picked.
+   */
+  const [brush, setBrush] = useState<CatalogProduct | null | undefined>(undefined);
   const [showWalls, setShowWalls] = useState(true);
   const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [rotateBlocked, setRotateBlocked] = useState(false);
@@ -244,6 +259,21 @@ export default function StudioPage() {
         setFinishScope(sel.surface === 'wall' && sel.wallIndex != null ? 'wall' : 'room');
         setTrayOpen(true);
       }
+    },
+    [store]
+  );
+  // A click with the brush: the tile or the strip takes what is in it. An empty brush paints
+  // nothing; the tray says to pick a material first.
+  const brushRef = useRef(brush);
+  useEffect(() => {
+    brushRef.current = brush;
+  }, [brush]);
+  const onPaint = useCallback(
+    (target: PaintTarget) => {
+      if (categoryRef.current !== 'finishes') return;
+      setTrayOpen(true);
+      if (brushRef.current === undefined) return;
+      store.paintSurface(target, brushRef.current);
     },
     [store]
   );
@@ -515,8 +545,15 @@ export default function StudioPage() {
     setPhotoOpen(true);
   };
 
-  /** Finish picks go where the scope says: the room, one wall, half the floor, a drawn zone. */
-  const pickFinish = (surface: 'floor' | 'wall', product: CatalogProduct | null) => {
+  /**
+   * Finish picks go where the scope says: the room, one wall, half the floor, a drawn zone —
+   * or, in the two painting scopes, into the brush, to be laid down a click at a time.
+   */
+  const pickFinish = (surface: FinishSurface, product: CatalogProduct | null) => {
+    if (isPaintScope(finishScope)) {
+      setBrush(product);
+      return;
+    }
     const roomId = selectedSurface?.roomId ?? focusRoomId;
     const room = roomId ? plan.rooms.find((r) => r.id === roomId) : null;
     if (!room) {
@@ -525,16 +562,6 @@ export default function StudioPage() {
     }
     if (surface === 'wall' && finishScope === 'wall' && selectedSurface?.wallIndex != null) {
       store.setWallFinish(room.id, selectedSurface.wallIndex, product);
-      return;
-    }
-    if (surface === 'floor' && finishScope.startsWith('half-')) {
-      const half = finishScope.slice(5) as 'left' | 'right' | 'top' | 'bottom';
-      const zone = halfZone(room, half, `z${Date.now().toString(36)}`);
-      if (zone && product) store.addFinishZone(room.id, zone, product);
-      return;
-    }
-    if (surface === 'floor' && finishScope === 'zone' && selectedElement?.kind === 'zone') {
-      store.updateFinishZone(selectedElement.roomId, selectedElement.id, { product });
       return;
     }
     store.setFinish([room.id], surface, product);
@@ -563,21 +590,21 @@ export default function StudioPage() {
     resizeRoom: store.resizeRoom,
     removeRoom: store.removeRoom,
     removeZone: store.removeFinishZone,
+    setRadiatorProduct: store.setRadiatorProduct,
   };
 
-  const hint = carryingItemId
+  /**
+   * What the tray in hand cannot say for itself: a piece riding on the pointer, the
+   * walk-through, a fitting armed for the next click, the structure still locked. Everything
+   * else — how a tool works, what a shelf is for — each tray says in its own hint line.
+   */
+  const transientHint = carryingItemId
     ? t.design.carryHint
     : view === 'walk'
       ? t.build.walkNoEdit
       : electricalArmed
         ? t.build.hintElectrical
-        : category === 'build' && structureLocked
-          ? t.build.structureLockedHint
-          : category === 'build'
-            ? t.build.trayHintBuild
-            : category === 'furniture'
-              ? t.build.trayHintFurniture
-              : t.design.dragHint;
+        : null;
 
   const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen;
   const showRightPanel = !!rightPanelOpen && view !== 'walk';
@@ -585,9 +612,13 @@ export default function StudioPage() {
 
   // The finishes shelf: the room it applies to, what that surface has now, and the options.
   const finishRoom = plan.rooms.find((r) => r.id === (selectedSurface?.roomId ?? focusRoomId)) ?? null;
-  const finishOptions = surfaceOptions(products, finishSurface, finishRoom, styleId);
-  const baseFinishId = (roomId: string) => finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f))?.product?.productId ?? null;
-  const currentFinishId: number | null | 'mixed' = (() => {
+  const trimSurface = isTrimSurface(finishSurface) ? finishSurface : null;
+  const finishOptions = trimSurface ? trimOptions(products, trimSurface, styleId) : surfaceOptions(products, finishSurface === 'wall' ? 'wall' : 'floor', finishRoom, styleId);
+  const baseFinishId = (roomId: string) => (trimSurface ? trimFor(finishes, roomId, trimSurface) : finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f)))?.product?.productId ?? null;
+  const painting = isPaintScope(finishScope);
+  const currentFinishId: number | null | 'mixed' | undefined = (() => {
+    // While painting, the shelf shows what is in the brush.
+    if (painting) return brush === undefined ? undefined : (brush?.id ?? null);
     if (!finishRoom) {
       const ids = plan.rooms.map((r) => baseFinishId(r.id));
       return ids.every((id) => id === ids[0]) ? (ids[0] ?? null) : 'mixed';
@@ -597,7 +628,12 @@ export default function StudioPage() {
     }
     return baseFinishId(finishRoom.id);
   })();
-  const finishArea = finishRoom
+  const canClearPartial = !!finishRoom && !trimSurface && finishes.some((f) => f.roomId === finishRoom.id && f.surface === finishSurface && !isBaseFinish(f));
+  const finishArea = painting
+    ? null
+    : finishRoom && trimSurface
+      ? `${trimLengthM(finishRoom, trimSurface)} ${t.design.finishPerM}`
+      : finishRoom
     ? finishSurface === 'wall' && finishScope === 'wall' && selectedSurface?.wallIndex != null
       ? `${fill(t.build.wallN, { n: selectedSurface.wallIndex + 1 })} · ${formatM2(wallEdgeAreaM2(finishRoom, selectedSurface.wallIndex))}`
       : finishSurface === 'floor'
@@ -621,15 +657,18 @@ export default function StudioPage() {
         {/* ---- canvas ---- */}
         <div className="absolute inset-0">
           {view === '2d' ? (
-            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-56' : 'pb-16')}>
+            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-[9.5rem]' : 'pb-16')}>
               <PlanWorkspace
                 tools={CATEGORY_TOOLS[category]}
-                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && finishScope === 'zone' ? 'zone' : 'select'}
+                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
                 onTool={(tool) => {
                   if (category === 'build') setBuildTool(tool);
                   if (category === 'electric') setElectricalArmed(tool === 'electrical');
-                  if (category === 'finishes') setFinishScope(tool === 'zone' ? 'zone' : 'room');
+                  if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
                 }}
+                paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+                onPaint={onPaint}
+                roomsOnly={category === 'finishes'}
                 hideToolbar
                 keyboardUndo={false}
                 showTotals={false}
@@ -655,6 +694,7 @@ export default function StudioPage() {
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
               editMode={editMode}
               daylightHour={DAYLIGHT_HOURS[daylight]}
+              frameKey={store.planSerial}
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
               onSelectOpening={onSelectOpening}
@@ -665,6 +705,8 @@ export default function StudioPage() {
               onHoverItem={onHoverItem}
               onSelectItem={onSelectItem}
               onSelectSurface={onSelectSurface}
+              paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+              onPaint={onPaint}
               onPlaceItem={onPlaceItem}
               carryingItemId={carryingItemId}
               onCarryPlaced={onCarryPlaced}
@@ -771,7 +813,7 @@ export default function StudioPage() {
               </FloatingPanel>
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
-                <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} className="border-0 p-0" />
+                <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} className="border-0" />
                 {selectedElement.kind === 'zone' && (
                   <div className="mt-3">
                     <FinishPanel roomId={selectedElement.roomId} surface="floor" rooms={plan.rooms} catalog={products} styleId={styleId} finishes={finishes} onRoom={(id) => store.setFocusRoom(id)} onPick={(surface, product) => (surface === 'floor' ? store.updateFinishZone(selectedElement.roomId, selectedElement.id, { product }) : pickFinish(surface, product))} />
@@ -782,19 +824,28 @@ export default function StudioPage() {
           </div>
         )}
 
-        {/* ---- bottom: the hint, a warning, and the open category's tray, centred on the canvas ---- */}
+        {/* ---- bottom: the open category's tray, centred on the canvas ---- */}
         <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2">
-          {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
-            <p className="hidden items-center gap-1.5 rounded-[10px] bg-warning/90 px-3 py-1 text-[11px] font-medium text-ink md:flex">
-              <AlertTriangle className="h-3 w-3" />
-              {t.design.tightPassageHint}
-            </p>
-          )}
-          <p className="hidden rounded-[10px] bg-ink/70 px-3 py-1 text-xs text-white backdrop-blur md:block">{hint}</p>
           {trayShown && (
-            <div className="pointer-events-auto w-full max-w-[880px]">
+            <div className="pointer-events-auto relative w-full max-w-[880px]">
+              {/*
+                The hint and the tight-passage warning *float above* the tray rather than
+                stacking with it: in the column they pushed the tray down and ate a strip of
+                the canvas even when they said nothing new. Each tray carries its own hint
+                for the tool in hand, so this one only speaks for the states no tray can —
+                carrying a piece, walking, a fitting armed.
+              */}
+              <div className="pointer-events-none absolute bottom-full left-0 right-0 mb-1.5 hidden flex-col items-center gap-1 md:flex">
+                {transientHint && <p className="max-w-full truncate rounded-[9px] bg-ink/80 px-2.5 py-1 text-[11px] text-white backdrop-blur">{transientHint}</p>}
+                {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
+                  <p className="flex max-w-full items-center gap-1.5 rounded-[9px] bg-warning/90 px-2.5 py-0.5 text-[10px] font-medium text-ink">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{t.design.tightPassageHint}</span>
+                  </p>
+                )}
+              </div>
               <Tray>
-                {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} in3d={view === '3d'} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} />}
+                {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} />}
                 {category === 'furniture' && (
                   <FurnitureTray
                     catalog={products}
@@ -824,21 +875,20 @@ export default function StudioPage() {
                     surface={finishSurface}
                     onSurface={(surface) => {
                       setFinishSurface(surface);
-                      setFinishScope('room');
+                      // The brush goes with the surface: a floor laminate does not paint a wall.
+                      setFinishScope(painting && surface === 'wall' ? 'strip' : painting && surface === 'floor' ? 'cell' : 'room');
+                      setBrush(undefined);
                     }}
                     scope={finishScope}
-                    onScope={(scope) => {
-                      setFinishScope(scope);
-                      if (scope === 'zone' && view === '3d') setView('2d');
-                    }}
+                    onScope={setFinishScope}
                     hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null}
                     roomName={finishRoom?.name ?? null}
                     areaLabel={finishArea}
-                    in3d={view === '3d'}
-                    onGo2d={() => setView('2d')}
                     options={finishOptions}
                     currentId={currentFinishId}
                     onPick={(product) => pickFinish(finishSurface, product)}
+                    canClear={canClearPartial}
+                    onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
                   />
                 )}
                 {category === 'budget' && cost && <BudgetTray cost={cost} />}
@@ -848,7 +898,7 @@ export default function StudioPage() {
         </div>
 
         {/* ---- help and zoom ---- */}
-        <div className={cn('pointer-events-auto absolute right-4 z-30 flex flex-col items-end gap-2', trayShown ? 'bottom-56' : 'bottom-20')}>
+        <div className={cn('pointer-events-auto absolute right-4 z-30 flex flex-col items-end gap-2', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
           <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} onFullscreen={toggleFullscreen} fullscreen={fullscreen} disabled={view !== '3d' || !viewerApi} />
         </div>

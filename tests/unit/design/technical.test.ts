@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalSuggestions, WORK_ITEMS } from '@/lib/design/technical';
+import { anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalSuggestions, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
@@ -31,6 +31,28 @@ describe('works and phases', () => {
     expect(effectivePhases('green_frame')).toEqual([17]);
     expect(effectivePhases('green_frame', ['screed', 'painting'])).toEqual([6, 13]);
     expect(new Set(WORK_ITEMS.map((w) => w.key)).size).toBe(WORK_ITEMS.length);
+  });
+
+  it('starts an old renovation with the strip-out, and no other home state with it', () => {
+    const old = defaultWorksForHomeState('old_renovation');
+    expect(old[0]).toBe('strip_out');
+    // Everything a black frame needs comes after it.
+    expect(old.slice(1)).toEqual(defaultWorksForHomeState('black_frame'));
+    for (const state of ['black_frame', 'white_frame', 'green_frame'] as const) {
+      expect(defaultWorksForHomeState(state)).not.toContain('strip_out');
+    }
+    expect(phasesForWorks(['strip_out'])).toEqual([0]);
+    expect(effectivePhases('old_renovation')[0]).toBe(0);
+    // Unticking the strip-out on the checklist takes phase 0 out of the estimate.
+    expect(effectivePhases('old_renovation', ['demolition', 'painting'])).toEqual([1, 13]);
+    expect(effectivePhases('white_frame', ['strip_out', 'painting'])).toEqual([0, 13]);
+  });
+
+  it('offers the strip-out as the first stage of the checklist, and every work in exactly one stage', () => {
+    expect(WORK_STAGES.map((s) => s.homeState)).toEqual(['old_renovation', 'black_frame', 'white_frame', 'green_frame']);
+    expect(worksForStage(WORK_STAGES[0]).map((w) => w.key)).toEqual(['strip_out']);
+    const staged = WORK_STAGES.flatMap((s) => worksForStage(s).map((w) => w.key));
+    expect(staged).toEqual(WORK_ITEMS.map((w) => w.key));
   });
 });
 

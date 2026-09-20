@@ -25896,7 +25896,7 @@ var projects = mysqlTable("projects", {
   userId: int("user_id").references(() => users.id),
   sessionId: varchar("session_id", { length: 255 }),
   nameKa: varchar("name_ka", { length: 255 }).default("\u10E9\u10D4\u10DB\u10D8 \u10DE\u10E0\u10DD\u10D4\u10E5\u10E2\u10D8"),
-  homeState: mysqlEnum("home_state", ["black_frame", "white_frame", "green_frame"]).notNull(),
+  homeState: mysqlEnum("home_state", ["old_renovation", "black_frame", "white_frame", "green_frame"]).notNull(),
   totalM2: decimal("total_m2", { precision: 8, scale: 2 }).notNull(),
   rooms: json2("rooms").notNull(),
   selectedProducts: json2("selected_products"),
@@ -30557,11 +30557,15 @@ function getArchetype(kind) {
 }
 var FIXTURE_CATEGORY_SLUGS = ["sockets-switches", "lighting"];
 var OPENING_CATEGORY_SLUGS = ["doors", "windows"];
+var RADIATOR_CATEGORY_SLUGS = ["radiators"];
+var TRIM_CATEGORY_SLUGS = ["skirting", "cornice"];
 var DESIGN_CATEGORY_SLUGS = Array.from(
   /* @__PURE__ */ new Set([
     ...Object.values(ARCHETYPES).map((a) => a.categorySlug).filter((s) => !!s),
     ...FIXTURE_CATEGORY_SLUGS,
-    ...OPENING_CATEGORY_SLUGS
+    ...OPENING_CATEGORY_SLUGS,
+    ...RADIATOR_CATEGORY_SLUGS,
+    ...TRIM_CATEGORY_SLUGS
   ])
 );
 function archetypeLabel(kind, locale) {
@@ -30571,6 +30575,140 @@ function archetypeLabel(kind, locale) {
   if (locale === "ru") return archetype.labelRu || archetype.labelEn || archetype.labelKa;
   return archetype.labelKa;
 }
+
+// scripts/lib/trimProducts.ts
+var TRIM_PRODUCTS = [
+  // --- skirting boards ---------------------------------------------------------------
+  {
+    slug: "skirting-mdf-white-80",
+    kind: "skirting",
+    profile: "flat",
+    heightCm: 8,
+    depthCm: 1.6,
+    colorHex: "#F4F4F2",
+    priceGelPerM: 9,
+    brand: "Domus",
+    storeSlug: "domus-interior",
+    styles: ["modern", "scandinavian"],
+    nameKa: "\u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 MDF \u2014 \u10D7\u10D4\u10D7\u10E0\u10D8, 80 \u10DB\u10DB",
+    nameEn: "Skirting board MDF \u2014 white, 80 mm",
+    nameRu: "\u041F\u043B\u0438\u043D\u0442\u0443\u0441 \u041C\u0414\u0424 \u2014 \u0431\u0435\u043B\u044B\u0439, 80 \u043C\u043C",
+    descriptionKa: "\u10E1\u10EC\u10DD\u10E0\u10D8 \u10D7\u10D4\u10D7\u10E0\u10D8 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8, 80 \u10DB\u10DB \u2014 \u10E7\u10D5\u10D4\u10DA\u10D0\u10D6\u10D4 \u10D2\u10D0\u10D5\u10E0\u10EA\u10D4\u10DA\u10D4\u10D1\u10E3\u10DA\u10D8 \u10D6\u10DD\u10DB\u10D0 \u10D1\u10D8\u10DC\u10D4\u10D1\u10E8\u10D8."
+  },
+  {
+    slug: "skirting-mdf-white-120",
+    kind: "skirting",
+    profile: "stepped",
+    heightCm: 12,
+    depthCm: 1.8,
+    colorHex: "#F7F5F0",
+    priceGelPerM: 14,
+    brand: "Domus",
+    storeSlug: "domus-interior",
+    styles: ["modern", "scandinavian", "vintage"],
+    nameKa: "\u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 MDF \u2014 \u10D7\u10D4\u10D7\u10E0\u10D8, 120 \u10DB\u10DB, \u10E1\u10D0\u10E4\u10D4\u10EE\u10E3\u10E0\u10D8\u10D0\u10DC\u10D8",
+    nameEn: "Skirting board MDF \u2014 white, 120 mm, stepped",
+    nameRu: "\u041F\u043B\u0438\u043D\u0442\u0443\u0441 \u041C\u0414\u0424 \u2014 \u0431\u0435\u043B\u044B\u0439, 120 \u043C\u043C, \u0441\u0442\u0443\u043F\u0435\u043D\u0447\u0430\u0442\u044B\u0439",
+    descriptionKa: "\u10DB\u10D0\u10E6\u10D0\u10DA\u10D8 \u10E1\u10D0\u10E4\u10D4\u10EE\u10E3\u10E0\u10D8\u10D0\u10DC\u10D8 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u2014 \u10DB\u10D0\u10E6\u10D0\u10DA\u10ED\u10D4\u10E0\u10D8\u10D0\u10DC\u10D8 \u10DD\u10D7\u10D0\u10EE\u10D4\u10D1\u10D8\u10E1\u10D7\u10D5\u10D8\u10E1."
+  },
+  {
+    slug: "skirting-oak-70",
+    kind: "skirting",
+    profile: "rounded",
+    heightCm: 7,
+    depthCm: 1.5,
+    colorHex: "#C9A87C",
+    priceGelPerM: 19,
+    brand: "Nordic Home",
+    storeSlug: "nordic-home",
+    styles: ["scandinavian"],
+    nameKa: "\u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u10DB\u10E3\u10EE\u10D0 \u2014 \u10DC\u10D0\u10E2\u10E3\u10E0\u10D0\u10DA\u10E3\u10E0\u10D8, 70 \u10DB\u10DB",
+    nameEn: "Skirting board oak \u2014 natural, 70 mm",
+    nameRu: "\u041F\u043B\u0438\u043D\u0442\u0443\u0441 \u0434\u0443\u0431 \u2014 \u043D\u0430\u0442\u0443\u0440\u0430\u043B\u044C\u043D\u044B\u0439, 70 \u043C\u043C",
+    descriptionKa: "\u10DC\u10D0\u10E2\u10E3\u10E0\u10D0\u10DA\u10E3\u10E0\u10D8 \u10DB\u10E3\u10EE\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u10DB\u10DD\u10DB\u10E0\u10D2\u10D5\u10D0\u10DA\u10D4\u10D1\u10E3\u10DA\u10D8 \u10D9\u10D8\u10D3\u10D8\u10D7 \u2014 \u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10E4\u10D4\u10E0\u10E8\u10D8."
+  },
+  {
+    slug: "skirting-black-100",
+    kind: "skirting",
+    profile: "flat",
+    heightCm: 10,
+    depthCm: 1.2,
+    colorHex: "#3A3A3C",
+    priceGelPerM: 16,
+    brand: "LOFT 42",
+    storeSlug: "loft-42",
+    styles: ["industrial", "modern"],
+    nameKa: "\u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u2014 \u10E8\u10D0\u10D5\u10D8 \u10DB\u10D0\u10E2\u10D8, 100 \u10DB\u10DB",
+    nameEn: "Skirting board \u2014 matte black, 100 mm",
+    nameRu: "\u041F\u043B\u0438\u043D\u0442\u0443\u0441 \u2014 \u0447\u0451\u0440\u043D\u044B\u0439 \u043C\u0430\u0442\u043E\u0432\u044B\u0439, 100 \u043C\u043C",
+    descriptionKa: "\u10D7\u10EE\u10D4\u10DA\u10D8 \u10E8\u10D0\u10D5\u10D8 \u10DB\u10D0\u10E2\u10D8 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u2014 \u10D8\u10DC\u10D3\u10E3\u10E1\u10E2\u10E0\u10D8\u10E3\u10DA\u10D8 \u10D8\u10DC\u10E2\u10D4\u10E0\u10D8\u10D4\u10E0\u10D8\u10E1\u10D7\u10D5\u10D8\u10E1."
+  },
+  {
+    slug: "skirting-classic-140",
+    kind: "skirting",
+    profile: "ogee",
+    heightCm: 14,
+    depthCm: 2.2,
+    colorHex: "#EFE6D4",
+    priceGelPerM: 28,
+    brand: "\u10D0\u10DC\u10E2\u10D8\u10D9\u10D5\u10D0\u10E0\u10D8",
+    storeSlug: "antikvari",
+    styles: ["vintage"],
+    nameKa: "\u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u201E\u10D9\u10DA\u10D0\u10E1\u10D8\u10D9\u10D0\u201C \u2014 \u10DE\u10E0\u10DD\u10E4\u10D8\u10DA\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8, 140 \u10DB\u10DB",
+    nameEn: 'Skirting board "Classic" \u2014 profiled, 140 mm',
+    nameRu: "\u041F\u043B\u0438\u043D\u0442\u0443\u0441 \xAB\u041A\u043B\u0430\u0441\u0441\u0438\u043A\u0430\xBB \u2014 \u043F\u0440\u043E\u0444\u0438\u043B\u0438\u0440\u043E\u0432\u0430\u043D\u043D\u044B\u0439, 140 \u043C\u043C",
+    descriptionKa: "\u10DB\u10D0\u10E6\u10D0\u10DA\u10D8 \u10DE\u10E0\u10DD\u10E4\u10D8\u10DA\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u10D9\u10DA\u10D0\u10E1\u10D8\u10D9\u10E3\u10E0\u10D8 \u10DC\u10D0\u10D9\u10D5\u10D7\u10D8\u10D7."
+  },
+  // --- cornices ----------------------------------------------------------------------
+  {
+    slug: "cornice-cove-60",
+    kind: "cornice",
+    profile: "cove",
+    heightCm: 6,
+    depthCm: 6,
+    colorHex: "#FAF8F4",
+    priceGelPerM: 11,
+    brand: "Domus",
+    storeSlug: "domus-interior",
+    styles: ["scandinavian", "modern"],
+    nameKa: "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u2014 \u10DB\u10D0\u10E0\u10E2\u10D8\u10D5\u10D8 \u10E9\u10D0\u10D6\u10DC\u10D4\u10E5\u10D8\u10DA\u10D8, 60 \u10DB\u10DB",
+    nameEn: "Cornice \u2014 plain cove, 60 mm",
+    nameRu: "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0439 \u043F\u043B\u0438\u043D\u0442\u0443\u0441 \u2014 \u043F\u0440\u043E\u0441\u0442\u0430\u044F \u0433\u0430\u043B\u0442\u0435\u043B\u044C, 60 \u043C\u043C",
+    descriptionKa: "\u10DB\u10D0\u10E0\u10E2\u10D8\u10D5\u10D8 \u10E9\u10D0\u10D6\u10DC\u10D4\u10E5\u10D8\u10DA\u10D8 \u10D2\u10D0\u10DA\u10E2\u10D4\u10DA\u10D8 \u10D9\u10D4\u10D3\u10D4\u10DA\u10E1\u10D0 \u10D3\u10D0 \u10ED\u10D4\u10E0\u10E1 \u10E8\u10DD\u10E0\u10D8\u10E1."
+  },
+  {
+    slug: "cornice-step-90",
+    kind: "cornice",
+    profile: "stepped",
+    heightCm: 9,
+    depthCm: 9,
+    colorHex: "#FFFFFF",
+    priceGelPerM: 18,
+    brand: "Domus",
+    storeSlug: "domus-interior",
+    styles: ["modern"],
+    nameKa: "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u2014 \u10E1\u10D0\u10E4\u10D4\u10EE\u10E3\u10E0\u10D8\u10D0\u10DC\u10D8, 90 \u10DB\u10DB",
+    nameEn: "Cornice \u2014 stepped, 90 mm",
+    nameRu: "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0439 \u043F\u043B\u0438\u043D\u0442\u0443\u0441 \u2014 \u0441\u0442\u0443\u043F\u0435\u043D\u0447\u0430\u0442\u044B\u0439, 90 \u043C\u043C",
+    descriptionKa: "\u10E1\u10D0\u10E4\u10D4\u10EE\u10E3\u10E0\u10D8\u10D0\u10DC\u10D8 \u10D9\u10D0\u10E0\u10DC\u10D8\u10D6\u10D8 \u2014 \u10E4\u10D0\u10E0\u10E3\u10DA\u10D8 \u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D8\u10E1\u10D7\u10D5\u10D8\u10E1\u10D0\u10EA \u10D2\u10D0\u10DB\u10DD\u10D3\u10D2\u10D4\u10D1\u10D0."
+  },
+  {
+    slug: "cornice-classic-110",
+    kind: "cornice",
+    profile: "ogee",
+    heightCm: 11,
+    depthCm: 11,
+    colorHex: "#F3ECDD",
+    priceGelPerM: 32,
+    brand: "\u10D0\u10DC\u10E2\u10D8\u10D9\u10D5\u10D0\u10E0\u10D8",
+    storeSlug: "antikvari",
+    styles: ["vintage"],
+    nameKa: "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8 \u201E\u10D9\u10DA\u10D0\u10E1\u10D8\u10D9\u10D0\u201C \u2014 110 \u10DB\u10DB",
+    nameEn: 'Cornice "Classic" \u2014 110 mm',
+    nameRu: "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0439 \u043F\u043B\u0438\u043D\u0442\u0443\u0441 \xAB\u041A\u043B\u0430\u0441\u0441\u0438\u043A\u0430\xBB \u2014 110 \u043C\u043C",
+    descriptionKa: "\u10D9\u10DA\u10D0\u10E1\u10D8\u10D9\u10E3\u10E0\u10D8 S-\u10DC\u10D0\u10D9\u10D5\u10D7\u10D8\u10E1 \u10D9\u10D0\u10E0\u10DC\u10D8\u10D6\u10D8 \u2014 \u10DB\u10D0\u10E6\u10D0\u10DA \u10ED\u10D4\u10E0\u10D7\u10D0\u10DC \u10D4\u10E0\u10D7\u10D0\u10D3."
+  }
+];
 
 // scripts/seed-models.ts
 var SLUG_PREFIX = "model-";
@@ -30596,6 +30734,26 @@ async function main() {
   const storeRows = await db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores);
   const categoryRows = await db.select({ id: categories.id, slug: categories.slug }).from(categories);
   const categoryBySlug = new Map(categoryRows.map((c) => [c.slug, c.id]));
+  const ensureCategory = async (spec) => {
+    const known = categoryBySlug.get(spec.slug);
+    if (known) return known;
+    const inserted = await db.insert(categories).values({
+      nameKa: spec.nameKa,
+      nameEn: spec.nameEn,
+      nameRu: spec.nameRu,
+      slug: spec.slug,
+      icon: spec.icon ?? null,
+      phase: spec.phase,
+      calculationType: spec.calculationType,
+      isVisible: true,
+      isFurniture: spec.isFurniture ?? false,
+      sortOrder: spec.sortOrder ?? spec.phase * 10
+    });
+    const id = Number(inserted[0].insertId);
+    categoryBySlug.set(spec.slug, id);
+    console.log(`  + category ${spec.slug}`);
+    return id;
+  };
   const storeBySlug = /* @__PURE__ */ new Map();
   for (const row of storeRows) storeBySlug.set(storeSlugFor(row.nameKa), row.id);
   const keepSlugs = [];
@@ -30695,6 +30853,82 @@ async function main() {
   } catch {
     console.log("  (no public/models/fixtures/manifest.json \u2014 run `pnpm models:fixtures` for the fittings, doors and windows)");
   }
+  try {
+    const radiators = JSON.parse(await (0, import_promises.readFile)(import_node_path.default.join(process.cwd(), "public", "models", "radiators", "manifest.json"), "utf8"));
+    const categoryId = await ensureCategory({ slug: "radiators", nameKa: "\u10E0\u10D0\u10D3\u10D8\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", nameEn: "Radiators", nameRu: "\u0420\u0430\u0434\u0438\u0430\u0442\u043E\u0440\u044B", phase: 15, calculationType: "per_unit", icon: "flame", sortOrder: 155 });
+    for (const model of radiators.models) {
+      if (!model.product) continue;
+      const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
+      const slug = `${SLUG_PREFIX}radiator-${model.slug}`;
+      keepSlugs.push(slug);
+      const row = {
+        categoryId,
+        storeId,
+        nameKa: model.product.nameKa,
+        nameEn: model.product.nameEn,
+        nameRu: model.product.nameRu,
+        descriptionKa: `${model.title} \xB7 ${model.wattsPerSection} \u10D5\u10E2 / \u10E1\u10D4\u10E5\u10EA\u10D8\u10D0`,
+        slug,
+        sku: `RD-${model.slug.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+        pricePerUnit: String(model.product.priceGel),
+        unit: "piece",
+        brand: model.author,
+        imageUrl: model.imageUrl,
+        styleTags: model.product.styles,
+        specs: { wattsPerSection: model.wattsPerSection, sectionWidthCm: model.sectionWidthCm },
+        model3dKind: model.product.kind,
+        model3dUrl: model.url,
+        model3dStatus: "ready",
+        colorHex: null,
+        widthCm: model.sectionWidthCm,
+        depthCm: model.depthCm,
+        heightCm: model.heightCm,
+        isActive: true,
+        isFeatured: false
+      };
+      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+      console.log(`  \u2713 ${slug.padEnd(38)} radiator       ${model.sectionWidthCm}\xD7${model.depthCm}\xD7${model.heightCm}  ${model.product.priceGel} \u20BE/\u10E1\u10D4\u10E5\u10EA\u10D8\u10D0`);
+    }
+  } catch {
+    console.log("  (no public/models/radiators/manifest.json \u2014 run `pnpm models:radiators` for the radiators)");
+  }
+  for (const kind of ["skirting", "cornice"]) {
+    const meta = kind === "skirting" ? { nameKa: "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", nameEn: "Skirting boards", nameRu: "\u041D\u0430\u043F\u043E\u043B\u044C\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", icon: "minus", sortOrder: 111 } : { nameKa: "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", nameEn: "Cornices", nameRu: "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", icon: "minus", sortOrder: 121 };
+    const categoryId = await ensureCategory({ slug: kind, phase: kind === "skirting" ? 11 : 12, calculationType: "per_linear_m", ...meta });
+    for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind)) {
+      const slug = `trim-${trim.slug}`;
+      const row = {
+        categoryId,
+        storeId: storeBySlug.get(trim.storeSlug) ?? null,
+        nameKa: trim.nameKa,
+        nameEn: trim.nameEn,
+        nameRu: trim.nameRu,
+        descriptionKa: trim.descriptionKa,
+        slug,
+        sku: `TR-${trim.slug.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+        pricePerUnit: String(trim.priceGelPerM),
+        unit: "linear_m",
+        brand: trim.brand,
+        imageUrl: null,
+        styleTags: trim.styles,
+        specs: { profile: trim.profile, heightCm: trim.heightCm, depthCm: trim.depthCm },
+        colorHex: trim.colorHex,
+        widthCm: null,
+        depthCm: trim.depthCm,
+        heightCm: trim.heightCm,
+        isActive: true,
+        isFeatured: false
+      };
+      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+    }
+  }
+  console.log(`  \u2713 ${TRIM_PRODUCTS.length} skirting boards and cornices`);
   const manifestManaged = or(isNull(products.model3dUrl), like(products.model3dUrl, "/models/%"));
   const stale = await db.select({ id: products.id, slug: products.slug }).from(products).where(
     keepSlugs.length ? and(isNotNull(products.model3dKind), notInArray(products.slug, keepSlugs), manifestManaged) : and(isNotNull(products.model3dKind), manifestManaged)

@@ -23,7 +23,10 @@ import {
 import type { HomeState, Room } from '@/lib/calculator/types';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
-import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES } from './technicalRates';
+import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL } from './technicalRates';
+import { isTrimSurface } from './trims';
+import { radiatorSections } from './radiators';
+import { measureKitchens } from './kitchen';
 import { finishCoverage, type FinishCoverage } from './zones';
 import type {
   DesignCost,
@@ -43,20 +46,22 @@ export interface PriceOptions {
   homeState?: HomeState;
   /** Rate book for the `full`-mode materials and labour; the shipped defaults when omitted. */
   book?: RateBook;
-  /** Basket line labels for finishes, in the user's language. Georgian when omitted. */
-  surfaceLabels?: SurfaceLabels;
+  /** Basket line labels for finishes, in the user's language. Georgian for any that are omitted. */
+  surfaceLabels?: Partial<SurfaceLabels>;
   /** Language for the furniture line labels (archetype names). Georgian when omitted. */
   locale?: 'ka' | 'en' | 'ru';
   /** The works ticked on the technical step; the plan's own list when omitted. */
   works?: string[] | null;
 }
 
-export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling', string>;
+export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling' | 'skirting' | 'cornice', string>;
 
 const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
   floor: 'იატაკის საფარი',
   wall: 'კედლის საფარი',
   ceiling: 'ჭერის საფარი',
+  skirting: 'იატაკის პლინტუსი',
+  cornice: 'ჭერის პლინტუსი',
 };
 
 export type BudgetSection = 'furniture' | 'lighting' | 'finishes' | 'openings' | 'electrical' | 'plumbing' | 'heating' | 'climate' | 'materials' | 'labour' | 'delivery';
@@ -92,9 +97,14 @@ export function priceScene(
   const perRoom = new Map<string, number>();
   const basketsByStore = new Map<number | 'none', StoreBasket>();
 
+  // A made-to-measure kitchen is quoted by its façade, not by the model's price — the model
+  // is only what is drawn. Its lines come below, with the measurement on them.
+  const kitchens = measureKitchens(scene.items, plan.rooms);
+  const measured = new Set(kitchens.map((k) => k.itemId));
+
   for (const item of scene.items) {
     const product = item.product;
-    if (!product) continue;
+    if (!product || measured.has(item.id)) continue;
 
     furnitureTotal += product.totalPrice;
     const isLight = item.slot === 'pendant' || item.slot === 'floor_lamp';
@@ -126,6 +136,23 @@ export function priceScene(
     });
   }
 
+  // The kitchens, one line each: what a joiner measures (the façade in m², the worktop by
+  // the metre) at the market rates, marked as the estimate it is until a joiner quotes.
+  for (const kitchen of kitchens) {
+    furnitureTotal += kitchen.totalGel;
+    perRoom.set(kitchen.roomId, (perRoom.get(kitchen.roomId) ?? 0) + kitchen.totalGel);
+    lines.push({
+      section: 'furniture',
+      key: kitchen.slot === 'kitchen_island' ? 'kitchen_island_custom' : 'kitchen_run_custom',
+      roomName: kitchen.roomName,
+      qty: kitchen.totalM2,
+      unit: 'm2',
+      unitPrice: kitchen.totalM2 > 0 ? round2(kitchen.totalGel / kitchen.totalM2) : 0,
+      total: kitchen.totalGel,
+      estimated: true,
+    });
+  }
+
   // --- surface finishes ---
   // A default finish carries no product and costs nothing; one the user picked is a real
   // tile or paint with a price, in either mode — choosing it is asking for it.
@@ -142,7 +169,7 @@ export function priceScene(
       basketsByStore.set(key, basket);
     }
     basket.lines.push({
-      item: (options.surfaceLabels ?? DEFAULT_SURFACE_LABELS)[finish.surface],
+      item: options.surfaceLabels?.[finish.surface] ?? DEFAULT_SURFACE_LABELS[finish.surface],
       roomName: roomName.get(finish.roomId) ?? finish.roomId,
       product: finish.product,
     });
@@ -156,11 +183,20 @@ export function priceScene(
       name: localizedName(entry.product, locale),
       roomName: entry.rooms.map((id) => roomName.get(id) ?? id).join(', '),
       qty: entry.areaM2,
-      unit: 'm2',
+      unit: entry.unit === 'linear_m' ? 'm' : 'm2',
       unitPrice: entry.product.pricePerUnit,
       total: entry.total,
       estimated: false,
     });
+  }
+  // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
+  // choosing it is asking for it.
+  const trimMetres = round2(scene.finishes.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
+  let trimLabourTotal = 0;
+  if (trimMetres > 0) {
+    const price = options.book?.labour.trim_install?.price ?? TRIM_INSTALL_DEFAULT_GEL;
+    trimLabourTotal = round2(trimMetres * price);
+    lines.push({ section: 'labour', key: 'trim_install', qty: trimMetres, unit: 'm', unitPrice: price, total: trimLabourTotal, estimated: true });
   }
 
   // --- renovation work, when this is not a design-only project ---
@@ -206,7 +242,7 @@ export function priceScene(
   }
 
   const grandTotal = round2(
-    furnitureTotal + finishesTotal + materialsTotal + labourTotal + deliveryTotal + openingsTotal + technicalTotal
+    furnitureTotal + finishesTotal + materialsTotal + labourTotal + trimLabourTotal + deliveryTotal + openingsTotal + technicalTotal
   );
 
   return {
@@ -214,7 +250,7 @@ export function priceScene(
     lightingTotal: round2(lightingTotal),
     finishesTotal: round2(finishesTotal),
     materialsTotal: round2(materialsTotal),
-    labourTotal: round2(labourTotal),
+    labourTotal: round2(labourTotal + trimLabourTotal),
     deliveryTotal: round2(deliveryTotal),
     openingsTotal,
     technicalTotal,
@@ -227,6 +263,7 @@ export function priceScene(
     baskets,
     lines,
     coverage,
+    kitchens,
   };
 }
 
@@ -348,22 +385,36 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     lines.push({ section: 'labour', key: labour.key, qty: entry.labourUnits, unit: 'unit', unitPrice: price, total: round2(entry.labourUnits * price), estimated: true });
   }
 
-  // Technical points, one row per kind.
-  const techByKind = new Map<string, { units: number; rooms: Set<string> }>();
+  // Technical points, one row per kind. A radiator that is a real product is bought by the
+  // section — as many as its room's heat calls for (`radiatorSections`) — and the same
+  // product across radiators folds into one row; hanging it is a unit of labour either way.
+  const techByKind = new Map<string, { units: number; labourUnits: number; rooms: Set<string> }>();
+  const radiatorsBought = new Map<number, { product: SceneProduct; sections: number; rooms: Set<string> }>();
   for (const point of plan.technical?.points ?? []) {
     const rate = TECHNICAL_RATES[point.kind];
     const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : plumbingOn;
     if (!(on || point.origin === 'user')) continue;
-    const entry = techByKind.get(point.kind) ?? { units: 0, rooms: new Set<string>() };
-    entry.units += 1;
-    if (point.roomId) entry.rooms.add(point.roomId);
+    const entry = techByKind.get(point.kind) ?? { units: 0, labourUnits: 0, rooms: new Set<string>() };
+    entry.labourUnits += 1;
+    if (point.kind === 'radiator' && point.product) {
+      const bought = radiatorsBought.get(point.product.productId) ?? { product: point.product, sections: 0, rooms: new Set<string>() };
+      bought.sections += radiatorSections(plan, point);
+      if (point.roomId) bought.rooms.add(point.roomId);
+      radiatorsBought.set(point.product.productId, bought);
+    } else {
+      entry.units += 1;
+      if (point.roomId) entry.rooms.add(point.roomId);
+    }
     techByKind.set(point.kind, entry);
+  }
+  for (const bought of radiatorsBought.values()) {
+    lines.push({ section: 'heating', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total: round2(bought.sections * bought.product.pricePerUnit), estimated: false });
   }
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];
-    lines.push({ section: rate.section, key: `technical_${kind}`, roomName: [...entry.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: entry.units, unit: 'piece', unitPrice: rate.materialGel, total: round2(entry.units * rate.materialGel), estimated: true });
+    if (entry.units > 0) lines.push({ section: rate.section, key: `technical_${kind}`, roomName: [...entry.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: entry.units, unit: 'piece', unitPrice: rate.materialGel, total: round2(entry.units * rate.materialGel), estimated: true });
     const price = labourPrice(rate.labour);
-    const labourUnits = entry.units * rate.labourUnits;
+    const labourUnits = entry.labourUnits * rate.labourUnits;
     lines.push({ section: 'labour', key: rate.labour, qty: labourUnits, unit: 'unit', unitPrice: price, total: round2(labourUnits * price), estimated: true });
   }
 

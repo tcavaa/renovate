@@ -5,11 +5,11 @@
  * alternative in the catalogue that could take its place.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ItemCard } from '@/components/design/ItemCard';
+import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { formatGEL, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -47,31 +47,7 @@ export function SwapPanel({
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const listRef = useRef<HTMLUListElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
 
-  // A wheel over the closed drawer opens it; a wheel upwards while the open list is already at
-  // its top closes it. Mid-list scrolling is left to the list itself. React registers wheel
-  // listeners as passive, so this is a native one — the tick that opens or closes the drawer
-  // must not also scroll the page behind the studio.
-  useEffect(() => {
-    const el = drawerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!open && e.deltaY > 0) {
-        e.preventDefault();
-        if (listRef.current) listRef.current.scrollTop = 0;
-        setOpen(true);
-      } else if (open && e.deltaY < 0 && (listRef.current?.scrollTop ?? 0) <= 0) {
-        e.preventDefault();
-        setOpen(false);
-      } else if (!open) {
-        e.preventDefault();
-      }
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [open]);
 
   if (!item) {
     return (
@@ -85,67 +61,60 @@ export function SwapPanel({
   const currentId = item.product?.productId;
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* The body scrolls on its own; the drawer along the bottom never hides the last button. */}
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-36 pr-1">
+      {/*
+        Opening the drawer collapses the card rather than hiding it outright: the max
+        height animates to nothing, the drawer's `flex-1` follows it up, and the list
+        arrives at the top of the panel instead of appearing there.
+      */}
+      <div
+        aria-hidden={open}
+        className={cn(
+          'min-h-0 shrink space-y-2 pr-1 transition-[max-height,opacity,padding] duration-300 ease-out',
+          open ? 'max-h-0 overflow-hidden pb-0 opacity-0' : 'max-h-[70vh] overflow-y-auto pb-2 opacity-100'
+        )}
+      >
         <ItemCard item={item} variant="panel" />
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-ink-muted">{t.design.rotate}</span>
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label={t.design.rotateLeft} onClick={() => onRotate(-1)}>
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="outline" size="icon" className="h-8 w-8" aria-label={t.design.rotateRight} onClick={() => onRotate(1)}>
-              <RotateCw className="h-4 w-4" />
-            </Button>
-            <span className="ml-auto text-[11px] tabular-nums text-ink-muted">{Math.round(((item.rotation * 180) / Math.PI + 360) % 360)}°</span>
-          </div>
-
-          {(onMirror || onDuplicate || onLock) && (
-            <div className="flex flex-wrap gap-1.5">
-              {onMirror && (
-                <Button type="button" variant="outline" size="sm" onClick={onMirror} aria-pressed={!!item.mirrored} title={`${t.build.mirror} · M`}>
-                  <FlipHorizontal2 className="h-4 w-4" />
-                  {t.build.mirror}
-                </Button>
-              )}
-              {onDuplicate && (
-                <Button type="button" variant="outline" size="sm" onClick={onDuplicate} title={`${t.build.duplicate} · Ctrl+D`}>
-                  <Copy className="h-4 w-4" />
-                  {t.build.duplicate}
-                </Button>
-              )}
-              {onLock && (
-                <Button type="button" variant={item.locked ? 'ink' : 'outline'} size="sm" onClick={() => onLock(!item.locked)} aria-pressed={!!item.locked}>
-                  {item.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
-                  {item.locked ? t.build.unlockItem : t.build.lockItem}
-                </Button>
-              )}
-            </div>
+        {/*
+          One row of icons for everything that can be done to the piece: turn it, mirror it,
+          copy it, lock it, delete it. The words beside them were what made this panel scroll.
+        */}
+        <div className="flex items-center gap-1.5">
+          <IconAction label={t.design.rotateLeft} onClick={() => onRotate(-1)}>
+            <RotateCcw className="h-4 w-4" />
+          </IconAction>
+          <IconAction label={t.design.rotateRight} onClick={() => onRotate(1)}>
+            <RotateCw className="h-4 w-4" />
+          </IconAction>
+          <span className="w-8 shrink-0 text-center text-[10px] tabular-nums text-ink-muted">{Math.round(((item.rotation * 180) / Math.PI + 360) % 360)}°</span>
+          {onMirror && (
+            <IconAction label={`${t.build.mirror} · M`} active={!!item.mirrored} onClick={onMirror}>
+              <FlipHorizontal2 className="h-4 w-4" />
+            </IconAction>
           )}
-          {item.locked && <p className="text-xs text-ink-muted">{t.build.itemLockedHint}</p>}
-
-          {rotateBlocked && (
-            <p role="alert" className="text-xs text-danger">
-              {t.design.rotateBlocked}
-            </p>
+          {onDuplicate && (
+            <IconAction label={`${t.build.duplicate} · Ctrl+D`} onClick={onDuplicate}>
+              <Copy className="h-4 w-4" />
+            </IconAction>
           )}
-
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={onRemove}>
-              <Trash2 className="h-4 w-4" />
-              {t.design.removeItem}
-            </Button>
-            {item.product?.store?.websiteUrl && (
-              <Button type="button" variant="ghost" size="sm" asChild className="flex-1">
-                <a href={item.product.store.websiteUrl} target="_blank" rel="noopener noreferrer">
-                  {t.design.viewInStore}
-                </a>
-              </Button>
-            )}
-          </div>
+          {onLock && (
+            <IconAction label={item.locked ? t.build.unlockItem : t.build.lockItem} active={!!item.locked} onClick={() => onLock(!item.locked)}>
+              {item.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+            </IconAction>
+          )}
+          <span className="ml-auto" />
+          <IconAction label={t.design.removeItem} danger onClick={onRemove}>
+            <Trash2 className="h-4 w-4" />
+          </IconAction>
         </div>
+        {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
+        {rotateBlocked && (
+          <p role="alert" className="text-[11px] text-danger">
+            {t.design.rotateBlocked}
+          </p>
+        )}
       </div>
 
       {/*
@@ -155,14 +124,10 @@ export function SwapPanel({
         Scrolling back up from the top of the list closes it again.
       */}
       <section
-        ref={drawerRef}
         aria-expanded={open}
-        className={cn(
-          'absolute inset-x-0 bottom-0 flex flex-col border-t border-line bg-white/95 shadow-[0_-12px_30px_-16px_rgba(22,21,19,0.25)] backdrop-blur transition-[top] duration-300 ease-out',
-          open ? 'top-0' : 'top-[calc(100%-7.25rem)]'
-        )}
+        className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}
       >
-        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 py-2.5 text-left">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
           <span className="text-sm font-semibold text-ink">{t.design.swapTitle}</span>
           <span className="flex items-center gap-1 text-[11px] text-ink-muted">
             {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
@@ -174,7 +139,7 @@ export function SwapPanel({
         {alternatives.length === 0 ? (
           <p className="text-sm text-ink-muted">{t.design.noAlternatives}</p>
         ) : (
-          <ul ref={listRef} className={cn('min-h-0 flex-1 space-y-2 overscroll-contain pb-1 pr-1', open ? 'overflow-y-auto' : 'overflow-hidden')}>
+          <ul className={cn('min-h-0 flex-1 space-y-1.5 overscroll-contain px-3 pb-3', 'overflow-y-auto')}>
             {alternatives.map((product) => {
               const active = product.id === currentId;
               return (

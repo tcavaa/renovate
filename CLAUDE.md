@@ -70,6 +70,7 @@ pnpm models:convert --only=woody-bed,node-sofa   # redo a few; merges into the m
 pnpm models:stock   # CC0 stock furniture (Poly Haven + Kenney) → public/models/stock + manifest.json
 pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write nothing
 pnpm models:fixtures # the fittings (sockets, switches, lamps) and the doors and windows → public/models/fixtures
+pnpm models:radiators # the four central-heating radiators, one SECTION each → public/models/radiators
 pnpm models:photos  # render a product photo of each of those from its model (Playwright's Chromium)
 pnpm models:seed    # one product per model in the three manifests; deletes every other placeable product (the cPanel deploy runs the same, bundled)
 pnpm deploy:bundle-seed  # that seed as one plain-node file beside the standalone server (the cPanel workflow does this)
@@ -371,8 +372,20 @@ cryptically named `.rar` contains.
 page load and hands back the defaults until the server answers, so an unseeded table is not
 an error. Material lines can be added in admin (new key, phase, basis, quantity per m²);
 labour lines are fixed keys the engine knows and can only be repriced or switched off.
+**A default key the table has never heard of still counts, at its shipped rate** — a line the
+app gained after a database was seeded (the phase 0 strip-out was the first) would otherwise
+price at nothing until someone ran the seed; a row that exists but is switched off stays off,
+and an empty table is still simply the defaults (`rateBookFromRows`).
 
-Home states gate phases: `black_frame` = 1–18, `white_frame` = 9–17, `green_frame` = 17 only.
+Home states gate phases: `old_renovation` = 0–18, `black_frame` = 1–18, `white_frame` = 9–17,
+`green_frame` = 17 only — offered in that order, the most work first (`HOME_STATE_VALUES` in
+`lib/calculator/types.ts` feeds the Zod enums and the admin filter; the MySQL enum is migration
+0007). **Phase 0 is the strip-out of an old renovation** (`ძველი რემონტი`): labour lines
+`strip_floor`, `strip_walls`, `strip_ceiling` (per m² of each), `strip_tiles` (wet floor × 1.5,
+the tiler's convention), `remove_doors_windows` (doors + windows), `remove_sanitary` (one per
+wet room) and `debris_removal`, plus the materials `debris_bags` and `waste_container`; phase 1's
+`demolition` stays what it was. In the studio it is the work `strip_out` and the first stage of
+the works checklist (`WORK_STAGES`), so unticking it takes phase 0 out of the estimate.
 Wet rooms = bathroom, toilet, kitchen. **The Design Studio reuses this engine unchanged** —
 it only feeds it rooms that came from a parsed floor plan instead of a manual form.
 
@@ -465,9 +478,9 @@ extractor in a bathroom). The step offers the kinds as a grid of icon tiles that
 on screen (`components/plan/icons.ts` is the one icon per system, shared with the toolbar
 and the inspector): a tile arms the point tool with that kind and stays armed until it is
 clicked again, and a click on a point already placed picks it up instead of stacking
-another. The works checklist is three collapsible groups by the stage the works take the
-house through (`WORK_STAGES`: black → white frame, white → green, green → moving in), each
-with an all / none toggle.
+another. The works checklist is four collapsible groups by the stage the works take the
+house through (`WORK_STAGES`: old renovation → black frame, black → white frame, white →
+green, green → moving in), each with an all / none toggle.
 
 Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wall +
 position, height, outlets, on/off, a lighting `category`). `suggestElectrical` places them
@@ -590,6 +603,30 @@ opens what a step points at (`onStep`). `NavHelp` keeps the controls on screen: 
 slides, 1 / 2 / 3 switch views, R turns, M mirrors, Ctrl+C / V / D copy, paste and
 duplicate, Delete deletes, Esc clears.
 
+**The floating chrome must not eat the canvas.** The trays are nearly opaque (`bg-white/[0.97]`),
+not frosted: small print over a furnished room could not be read. Tiles are 52 px — a price
+and a picture, the name in the tooltip. The hint and the tight-passage warning *float above*
+the tray (`absolute bottom-full`) instead of stacking with it, and the page-level hint only
+speaks for what no tray can say for itself (a piece on the pointer, the walk-through, a
+fitting armed, the structure locked) — each tray carries its own hint for the tool in hand.
+**Every tray puts its categories down its left edge** and gives the rest of the width to
+what the person is actually choosing: the finishes tray its surfaces (floor · walls ·
+skirting · cornice), the furniture tray its styles, the electric tray its two families
+(power · lighting). The build tray has no sentence at all — the unlock button stands where
+it used to, because that is the one thing to do there.
+
+**The side panels fit without scrolling.** The product card is one compact row (photo, name,
+price) with the shop on a line under it — no address, no telephone, no "visit the shop"
+button; the hover card keeps those, since that is the moment that proves the sofa is a real
+sofa. Everything that can be done to a piece is one row of square icon buttons
+(`IconAction`): turn, mirror, duplicate, lock, delete. Inputs are 32 px, and the swap drawer
+carries its own padding.
+
+**The camera frames on the plan's identity, never on the plan object** (`Viewer3D.frameKey`
+← `designStore.planSerial`). A door slid along its wall, a wall dragged, a radiator moved:
+each makes a new plan object, and framing on that threw the person's view away mid-edit —
+they lined the camera up on a door, nudged it, and were back at the doll's-house view.
+
 **Step 1 asks before it assumes** (`app/(main)/design/page.tsx`). Nothing leaves the page
 until the one continue button at the bottom: an uploaded plan waits in page state
 (`PlanUploadCard` with `showContinue={false}` hands the plan over as soon as the area is
@@ -693,6 +730,67 @@ path reads real door positions and does not go through this.
 
 `pnpm test:parser` and `pnpm test:solver` still pass; the layout has no test of its own —
 the sample plan in `public/samples/plan-2br.png` run through `layoutPlan` is the check.
+
+### Painting a piece at a time (`lib/design/paint.ts`)
+
+The finishes tray has two scopes that behave like a game's brush rather than a form: **1 m²**
+paints one square of a room's floor, **1 m** one metre-wide strip of a wall, floor to
+ceiling. A swatch picked in those scopes goes into the *brush* (page state, `brush`) and
+paints nothing until a floor or a wall is clicked; dragging paints everything the pointer
+crosses; the style default is the eraser. Both live in `scene.finishes` on top of the room's
+base finish — all the tiles of one product in one room are **one** finish with a list of
+grid `cells`, neighbouring strips of one product on one wall **one** finish with one `span`
+— so undo, versions, autosave and the budget get them for free, and a painted flat is a
+handful of rows rather than hundreds. The grid is the room's own (counted from its bounding
+box, each tile clipped to the outline, so the last column is a part tile), and a strip
+shorter than 25 cm at the end of a wall joins the strip before it. `fitToPlan` in the store
+drops a strip past the end of a wall that got shorter and a tile a room no longer reaches.
+
+**While the finishes category is open the pointer sees the room and nothing else**: the
+viewer picks through `shellHitAt` (floors, walls, zones), so the sofa in front of the wall,
+the socket on it and the door in it can be neither clicked nor dragged, and the 2D board
+does the same through `roomsOnly`. Which side of a shared wall was clicked is answered by
+`wallSideOf`: the room face is the room's own, the far face belongs to the room behind that
+stretch of it (`wallFrame.behind`), so the wall that gets painted is always the one that was
+looked at — the old code measured the cutaway from the mesh's origin and hid the wrong half,
+which is why a click near a shared wall painted the neighbour's side in the neighbour's
+colour.
+
+### Skirting boards and cornices (`lib/design/trims.ts`)
+
+A moulding is the one thing in the studio with no model file: it has no fixed length, so it
+is *swept* — its cross-section (`trimOutline`: flat, rounded, stepped, ogee, cove) is run
+along every wall by `buildMouldingGeometry`, mitred at the corners (each run gives way by
+`tan(turn/2)` per metre it stands out) and broken at the doorways for a skirting board.
+It travels in `scene.finishes` as `surface: 'skirting' | 'cornice'` with a `trim` spec, is
+sold by the running metre (`trimLengthM`: the perimeter, less the doorways for a skirting
+board), and `trim_install` is its labour. A room with no product wears the style's own
+moulding for nothing (`STYLE_TRIMS`; modern and industrial have no cornice at all).
+`scripts/lib/trimProducts.ts` is the seeded range — profile, height and depth in `specs`.
+
+### Radiators are bought by the section (`lib/design/radiators.ts`)
+
+A radiator is a `technical` point of kind `radiator` that carries a product, and the product
+is **one section**: `pnpm models:radiators` writes four designs (a steel panel module, an
+aluminium sectional, a cast-iron column, a classic), each a single section framed exactly one
+pitch wide with its back on z = 0, and the 3D view repeats it along the wall (`buildRadiators`).
+How many sections is arithmetic, not a guess: ~100 W per m² at a 2.7 m ceiling, a fifth more
+in a room with two outside walls (`outsideEdges`, from the wall pieces), divided by the
+product's `wattsPerSection`, then shared between the radiators in the room and kept between
+4 and 14 — above 14 the far end runs cold and the card says to add a second. The technical
+step shows the demand per room and hangs one under every window at a click
+(`suggestRadiators`, marked `origin: 'user'` because the person asked for it, so a finished
+home still costs them). The budget buys the sections and charges `radiator_install` per
+radiator.
+
+### Kitchens are measured, not bought (`lib/design/kitchen.ts`)
+
+Every other product is a SKU with a price; a kitchen is built for the flat it stands in, so
+`kitchen_run` and `kitchen_island` are **measured** and their model's price is ignored. The
+quote is the one a joiner gives: the façade of the lower units and of the upper ones by the
+square metre, the worktop and the fitting by the running metre (`KITCHEN_RATES`). The
+measurement is in `DesignCost.kitchens` and the budget's line carries the m², marked as an
+estimate. A person who would rather buy a stock kitchen sets `custom: false` on the item.
 
 ### Finishes (`lib/design/surfaces.ts`, `components/design/FinishPanel.tsx`)
 
@@ -1001,7 +1099,8 @@ on the same computer used to find the previous user's plan waiting. A guest's wo
 signing in; that is the "log in to save" path.
 
 The design page's mode block defaults to design only; choosing renovation + design reveals
-the calculator's three home states, and the studio prices against the chosen one.
+the calculator's four home states (old renovation first), and the studio prices against the
+chosen one.
 
 ### The project page folds (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
 
@@ -1171,49 +1270,66 @@ Each of these cost real debugging time. Don't undo them.
    outruns the object it is dragging, R3F stops delivering moves for it.
 9. **`@types/three` is pinned via a pnpm override.** drei pulls a floating newer copy, and two
    copies of the types make `camera.quaternion.setFromEuler(...)` a type error.
-"10. **Never dispose a GLB clone's geometry.** Furniture wrappers are `clone(true)` of a cached
+10. **Never dispose a GLB clone's geometry.** Furniture wrappers are `clone(true)` of a cached
     model and share its buffers; disposing them makes every model re-upload on the next rebuild.
     Only geometry `buildScene` created itself is tagged `ownsGeometry` and disposed.
-11. **The CSP needs `connect-src blob:`.** GLTFLoader hands the textures packed inside a GLB to
+11. **Surface UVs are in metres, so `materials.metreSurface` is what tiles them.** Every
+    surface the studio builds carries its real size as its UVs (a `ShapeGeometry` floor its
+    plan coordinates, a wall its metres along and up), so one tile of a texture covers
+    `textureScaleM` metres whatever the surface's size. Passing the surface's own size to
+    `surface()` on top of metre UVs tiled it by the *square* of the size: a four-metre wall
+    got four times the bricks per metre that a two-metre one did. A map is also only put on
+    the material once its image has arrived (`whenLoaded`) — a texture with no image samples
+    as black, which is what left a freshly painted strip pitch black for a beat.
+12. **The CSP needs `connect-src blob:`.** GLTFLoader hands the textures packed inside a GLB to
     the browser as blob URLs and fetches them back. Without it every model loads untextured and
     the only symptom is a console warning.
-12. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
+13. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group keyed on plan,
     finishes and style. Rebuilding everything on every drag was the studio's biggest stutter.
-13. **Shared walls are extruded to the middle, and each half's far face wears the
-    neighbour's finish.** Each room extrudes its own walls outwards by the wall thickness,
+14. **A wall is written out face by face, mitred, and cut where what is behind it changes**
+    (`lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts`). `ExtrudeGeometry` could
+    not do any of the three: a slab as long as the room's inner edge stopped short of the
+    corner, so every outside corner and every T-junction had a notch a wall thick cut out of
+    it — walls that met on the plan stood apart in 3D. Each piece is now mitred (its far
+    face runs on to where the two walls' outer lines cross, or stops short at an inside
+    corner), an edge is cut into pieces wherever the room behind it begins or ends (a wall
+    shared for four of its six metres used to be half-depth for all six), and the top and
+    the cut ends get their own neutral material instead of the room's paper. Where the
+    geometry is ambiguous the piece is built full depth and allowed to overlap: a gap is
+    what the eye catches, an overlap inside a wall is invisible. The old note still holds
+    for *why* a shared wall is half as deep —
+    **each half's far face wears the neighbour's finish.** Each room extrudes its own walls outwards by the wall thickness,
     and two rooms either side of one wall sit a thickness apart — so a full-depth extrusion
     from each put room A's outer face exactly on room B's inner face, and the two colours
     z-fought, flicking as the camera turned. `sharedNeighbourOf` halves the depth for
     interior walls so the halves meet on a plane nobody sees while both stand. The cutaway
     hides one half at a time, though, and then the other half's face on that middle plane is
-    what the camera sees from the first room — so `buildWall` splits ExtrudeGeometry's lid
-    group (the z = 0 lid comes first, then the z = depth lid, equal counts) and paints the far
-    lid with the neighbour's wall material (`wallMaterialFor`, `facingEdgeOf`). Before this
-    the bathroom's tiles showed up on the living-room side of the wall whenever the living
-    room's half was cut away.
-14. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
+    what the camera sees from the first room — so each piece's far face is painted with the
+    material of whoever stands behind *that stretch* (`farSlots`, from `piece.neighbour`).
+    Before this the bathroom's tiles showed up on the living-room side of the wall whenever
+    the living room's half was cut away.
+15. **`visible = false` does not stop a raycast.** Three's raycaster ignores `layers`, not
     visibility, so a cut-away wall still caught every click aimed at the sofa behind it.
     Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
     opening slabs); the default raycaster only tests layer 0.
-15. **`fetch(dataUrl)` is refused by the CSP.** `connect-src` is `'self' blob:`, so the usual
+16. **`fetch(dataUrl)` is refused by the CSP.** `connect-src` is `'self' blob:`, so the usual
     trick for turning a canvas data URL into a Blob dies silently in the console. The photo
     dialog decodes the base64 by hand (`dataUrlToBlob`). Images may *display* data URLs
     (`img-src` allows them); nothing may fetch them.
-16. **The shared glass material is the night-time windows.** Every window pane uses one
+17. **The shared glass material is the night-time windows.** Every window pane uses one
     cached `glass` material, so setting its `emissive` at night lights every window at once
     — the one place tinting a shared material is the point, not the bug of gotcha 7.
-17. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
+18. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
     between frames, so `ViewerApi.screenshot` calls `gl.render(scene, camera)` and reads the
     canvas in the same tick.
-18. **Never set `scale` or `position` on a node that came out of a GLB — wrap it.** The
+19. **Never set `scale` or `position` on a node that came out of a GLB — wrap it.** The
     fixtures pipeline compresses with meshopt, whose quantisation leaves each node carrying
     an offset and a scale that put its integer vertices back in metres. `attachOpeningModel`
     once stretched a door by writing `part.scale.set(...)` and `part.position.set(...)` on
     the loaded nodes: every leaf stood half in the floor and every window was a third taller
     than its hole. Each part now sits inside a `Group` of its own that carries the stretch and
     the hinge offset. `stretchTo` and `reframe` are fine because they scale the model's root.
-"
 ## Partner models (`scripts/convert-models.ts`)
 
 Every piece of furniture the studio can place is one of these. The asset drop's OBJ exports
@@ -1418,13 +1534,24 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 ## Known gaps / roadmap
 
 - New walls are drawn in the 2D view only; in 3D a wall can be selected, unlocked and
-  dragged sideways, not drawn. Floor zones are likewise drawn in 2D (half-room and
-  whole-wall scopes work from 3D). Beams are not obstacles for the layout engine.
+  dragged sideways, not drawn. Floor zones are likewise drawn in 2D (the whole room, one
+  wall, half the floor, a painted tile and a painted strip all work from 3D). Beams are not
+  obstacles for the layout engine.
 - The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
   room programs, `snapPlacement` and the footprints assume right angles).
-- Estimates for pipes, radiators and air conditioning (`lib/design/technicalRates.ts`) are
-  market averages, not products. Doors, windows, sockets, switches and lamps are products
-  now, and fall back to the same estimates only where the catalogue has none of their kind.
+- Estimates for pipes and air conditioning (`lib/design/technicalRates.ts`) are market
+  averages, not products. Doors, windows, sockets, switches, lamps and radiators are
+  products now, and fall back to the same estimates only where the catalogue has none of
+  their kind. A radiator's *sections* are counted from the room's heat demand, which is a
+  rule of thumb (~100 W/m²) and not a heat-loss calculation: no window area, no glazing, no
+  storey, no outside design temperature. A heating engineer's numbers would want all of them.
+- The four radiator designs are ours, written in code (`scripts/radiator-models.ts`), not a
+  manufacturer's range: the watts per section are plausible, the prices made up. Kitchens are
+  measured at `KITCHEN_RATES`, which are Tbilisi averages rather than a joiner's quote, and
+  only the run and the island are measured — a fitted wardrobe is still an off-the-shelf
+  product.
+- The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
+  reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
 - The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).

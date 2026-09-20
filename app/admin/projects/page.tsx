@@ -10,6 +10,7 @@ import { formatM2L, homeStateShortLabel, statusLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
+import { HOME_STATE_VALUES, type HomeState } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
     where.push(or(like(projects.nameKa, needle), like(users.name, needle), like(users.email, needle))!);
   }
   if (p.get('status')) where.push(eq(projects.status, p.get('status') as 'draft' | 'saved' | 'submitted'));
-  if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as 'black_frame' | 'white_frame' | 'green_frame'));
+  if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as HomeState));
   if (p.get('kind') === 'design') where.push(isNotNull(projects.plan));
   if (p.get('kind') === 'calculator') where.push(or(isNotNull(projects.selectedProducts), eq(projects.mode, 'full'))!);
   if (p.get('dateFrom')) where.push(gte(projects.createdAt, new Date(p.get('dateFrom'))));
@@ -81,7 +82,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
           { name: 'q', type: 'search', className: 'w-72' },
           { name: 'kind', type: 'select', label: f.kind, options: [{ value: 'calculator', label: f.calculatorKind }, { value: 'design', label: f.designKind }] },
           { name: 'status', type: 'select', label: f.status, options: (['draft', 'saved', 'submitted'] as const).map((s) => ({ value: s, label: statusLabel(ka, s) })) },
-          { name: 'homeState', type: 'select', label: f.homeState, options: (['black_frame', 'white_frame', 'green_frame'] as const).map((s) => ({ value: s, label: homeStateShortLabel(ka, s) })) },
+          { name: 'homeState', type: 'select', label: f.homeState, options: HOME_STATE_VALUES.map((s) => ({ value: s, label: homeStateShortLabel(ka, s) })) },
           { name: 'dateFrom', type: 'date', label: f.dateFrom },
           { name: 'dateTo', type: 'date', label: f.dateTo },
           { name: 'costMin', type: 'number', placeholder: f.costFrom, min: 0 },
