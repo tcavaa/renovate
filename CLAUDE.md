@@ -116,7 +116,7 @@ app/
       studio/                      5 the 3D studio (build mode); 6 = the same page with ?tool=finishes
       summary/                     7 the budget: materials + products + labour, quantities per line
       workers/                     8 the trades the budget needs, with workers to book
-    catalog/[slug]  workers/  about/  contact/  profile/  privacy/  terms/
+    catalog/[slug]  workers/  teams/  teams/[slug]  about/  contact/  profile/  privacy/  terms/
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
     products/ categories/ stores/ projects/ projects/[id] (GET, DELETE) workers/ upload/ calculator/materials
@@ -187,6 +187,8 @@ public/
 | `categories` | nameKa/nameEn, slug, icon, `phase` (1–18 renovation phase, 20 = furniture), `calculationType` enum, isVisible, `isFurniture`, sortOrder |
 | `stores` | nameKa (**unique**), `descriptionKa`, logoUrl, websiteUrl, phone, address, `city`, `rating`, `reviewCount`, `deliveryDays`, `deliveryFeeGel`, commissionRate, **`approvalStatus`** (`pending` / `approved` / `rejected` — self-registered stores start pending and inactive), isActive |
 | `products` | categoryId, storeId, nameKa, slug, sku, pricePerUnit (decimal-as-string), unit enum, coveragePerUnit, brand, imageUrl, `images` json, `specs` json, `tags` json, **`styleTags` json**, **`model3dKind`**, **`model3dUrl`**, **`textureUrl`**, **`colorHex`**, **`widthCm`/`depthCm`/`heightCm`**, isActive, isFeatured |
+| `teams` | a brigade: nameKa, slug (**unique**), `leadName`, phone, email, city, rating, `markupPct` (its own fee over the trades' rates), `commissionRate`, `capacityJobs`, isVerified, `approvalStatus`, isActive — the trades it covers come from `team_members` |
+| `team_members` | teamId (cascade), workerId (cascade), `isLead` (the foreman), sortOrder |
 | `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified, **`approvalStatus`** (as for stores) |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
@@ -194,10 +196,10 @@ public/
 | `project_renders` | projectId (cascade), userId, `sourceUrl` (the studio's own screenshot, stored at once), `renderUrl` (filled when the realistic render exists), status `queued` → `processing` → `ready` / `failed`, `roomName`, `camera` json |
 | `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
 | `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
-| `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker, storeId / workerId, status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
+| `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker / team, storeId / workerId / teamId, `staffNote` (the agent's own, never shown to the customer or the partner), status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
 | `order_items` | orderId (cascade), productId (nullable), name snapshots, categorySlug (`labour:<key>` for labour lines), roomName, unit, qty, unitPrice, total, `removed`, note |
 
-`users.role` is `user` / `admin` / `store` / `worker`; a partner role carries `storeId` or `workerId`. `stores` and `workers` have `email` (order notifications) and `commissionRate` (null = platform default).
+`users.role` is `user` / `admin` / `agent_orders` / `agent_catalog` / `store` / `worker` / `team`; a partner role carries `storeId`, `workerId` or `teamId` (see "Who works the platform"). `stores`, `workers` and `teams` have `email` (order notifications) and `commissionRate` (null = platform default).
 
 A design project is distinguished from a calculator project by `plan IS NOT NULL`.
 
@@ -464,6 +466,12 @@ position). `wallsFromRooms` goes the other way for plans that arrive as polygons
 parser, Claude, the calculator, old saves): facing edges of neighbours merge into one wall
 as thick as the gap between them, exterior edges get the default thickness outside, and
 vertices are moved onto the crossings of the centrelines so the graph is watertight.
+**A wall runs from junction to junction and no further** (`splitAtJunctions`). A plan built
+from polygons is one wall per line of the flat, so the partition between four rooms came back
+as a single wall: selecting it selected all of it and dragging it moved every room along it.
+Every wall is cut where another meets it — in `wallsFromRooms`, in `rebuildRooms` after every
+edit, and in `ensureWalls`, so a plan drawn before the rule existed is put right on load.
+
 **Walls never fuse into each other.** Every collinear wall that touched used to be unioned,
 so a room drawn against its neighbours dissolved into them — four walls became one
 eleven-metre wall running under three rooms, and from then on there was no such thing as
@@ -502,9 +510,14 @@ reports the guides the board draws. The select tool drags a wall sideways, its e
 handles, a door along or onto another wall, columns and points freely, and furniture
 footprints with `snapPlacement`; Delete removes the selection.
 
+**A room may not be drawn over a room** (`roomUnderRect`). The wall graph traces the
+crossings as faces, so a rectangle dropped on a neighbour came back as slivers with walls
+through the middle of them and nothing could be pulled apart again; the preview turns red and
+the drop is refused with its own message.
+
 **Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
-or drag a rubber band across empty sheet (panning is still space, the middle button and the
-hand tool). The group then drags bodily through `moveRooms`, with a live plate saying how
+or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
+tool, and W/A/S/D or the arrows — matched on `event.code`, like the 3D view). The group then drags bodily through `moveRooms`, with a live plate saying how
 far it has travelled, and comes apart from whatever stays behind. Delete takes the whole
 selection. **Every gesture that changes a size carries its ruler**: the wall being drawn,
 the rectangle being pulled out, a wall dragged sideways (with its offset), a wall stretched
@@ -630,6 +643,10 @@ every product of that kind — in the drawer along the bottom.
 Five questions × four answers, each weighted towards a style; ties go to the palette
 answer. The result is `scene.styleProfile`; picking a plate directly marks `direct`.
 
+A painted strip (`span`) and a painted square metre (`cells`) lie *on top of* a wall's
+finish and are not it — `wallFinishFor` skips both, and forgetting the second put the patch's
+material on the whole wall the first time the 1 m² brush touched it.
+
 A finish is still `SurfaceFinish`, with `wallIndex` (one wall) or `zone` (a floor
 patch, a polygon clipped to the room by Sutherland–Hodgman — half a room, a strip along a
 wall, or a rectangle drawn in 2D with the zone tool). `wallFinishFor` resolves a wall to
@@ -638,11 +655,17 @@ budget prices each wall and zone by its own area. `findFinish` in the builder on
 returns the *base* finish.
 
 The store records a snapshot (plan, items, finishes, electrical) before every change
-(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`. `versions` keeps whole
-snapshots: `ensureExistingVersion` writes version 01 (the existing house) when step 2 is
-left and again when the studio first opens; the working state is the implicit "modified
-house"; `saveVersion` keeps a named one; `restoreVersion` keeps the present first. Versions
-are persisted locally and in `projects.versions`.
+(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`.
+
+**The studio's baseline is where undo stops.** `ensureExistingVersion` runs once per project,
+when the studio first opens: it keeps version 01 — the flat as the studio found it, *with* the
+furniture — and starts the undo history there. Taken when step 2 was left, as it used to be,
+version 01 was an empty flat, so restoring it emptied the rooms; and the long run of edits
+from drawing the flat carried into the studio, where one Ctrl+Z too many walked the walls back
+to the blank sheet, in the 2D view and the 3D one alike. The working state is the implicit
+"modified house", `saveVersion` keeps a named one, `restoreVersion` keeps the present first,
+and "start from scratch" (`clearDesign`, behind a dialogue of ours) empties the flat while
+version 01 stays. Versions are persisted locally and in `projects.versions`.
 
 ### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
 
@@ -1714,6 +1737,8 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   photo above that is refused with 413 before the route runs. The fix is a direct upload
   into the bucket (a presigned PUT handed out by `/api/upload/*`, the byte sniff and the
   record afterwards); not built.
+- A brigade's rating, reviews and completed jobs are fields, not a history: nothing computes
+  them from finished orders yet, and a team has no portfolio of its own (its workers do).
 - The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
 - **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
 - PDF plans: only the first page is rasterised; a multi-page set has to be split by hand.
