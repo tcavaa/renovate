@@ -1202,6 +1202,13 @@ export const en: Dictionary = {
     invoiceRooms: 'rooms',
     eyebrow: 'Interior design you can actually buy',
     heroWords: ['Plan.', 'Price.', 'Build.'],
+    slogan: 'Interior design you can buy on the spot.',
+    sloganSecond: 'You no longer need a designer.',
+    heroPoints: [
+      'Your plan turns into a 3D model by itself',
+      'Furniture from real partner shops',
+      'A price and a shop for every object, one tap away',
+    ],
     heroBody:
       'Upload your floor plan, pick a style — and get a furnished 3D flat where every piece is real: a price, a store, a link. No interior designer needed.',
     heroCta: 'See your flat in 3D',
