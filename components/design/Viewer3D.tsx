@@ -74,6 +74,8 @@ export interface ViewerApi {
    * is usually outside the room — else the floor point. Null off the plan.
    */
   fixtureSpotAt: (kind: ElectricalKind, clientX: number, clientY: number) => { position: Vec2; roomId: string } | null;
+  /** The id of the fitting already under a screen position, so a click on one is not a new one. */
+  electricalAt: (clientX: number, clientY: number) => string | null;
   /**
    * Moves the carried item to a screen position and sets it down there when it fits.
    * Returns false when nothing is carried or the spot does not fit (the item stays on the
@@ -603,6 +605,31 @@ function SceneContent({
   );
 
   /**
+   * The fitting already standing under a screen position, if any. The page asks before it
+   * puts an armed one down: a click on a socket that is already on the wall means "this
+   * one", not "another one on top of it".
+   */
+  const electricalAt = useCallback(
+    (clientX: number, clientY: number): string | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      dragRaycaster.setFromCamera(dragNdc, camera);
+      for (const hit of dragRaycaster.intersectObject(electricalGroup, true)) {
+        // `tag` stamps the subtree as it stands, and a fitting's model is added to it a
+        // beat later when its file arrives — so the meshes actually hit are usually
+        // untagged. The id is on one of their forebears; walk up until it turns up.
+        for (let node: THREE.Object3D | null = hit.object; node; node = node.parent) {
+          const id = (node.userData as SceneUserData | undefined)?.electricalId;
+          if (id) return id;
+          if (node === electricalGroup) break;
+        }
+      }
+      return null;
+    },
+    [camera, gl, electricalGroup]
+  );
+
+  /**
    * Whose wall a hit on a wall is. Its room face is the room's own. Its far face — which
    * the camera only meets from the other side — belongs to the room standing behind that
    * stretch of it (`wallFrame.behind`), so the wall that gets painted is always the one
@@ -789,6 +816,7 @@ function SceneContent({
       },
       moveCarriedTo: (clientX, clientY) => carryUpdateRef.current?.(clientX, clientY),
       fixtureSpotAt,
+      electricalAt,
       previewElectricalAt: (kind, clientX, clientY) => {
         const spot = fixtureSpotAt(kind, clientX, clientY);
         const room = spot ? plan.rooms.find((r) => r.id === spot.roomId) : null;
@@ -822,7 +850,7 @@ function SceneContent({
     };
     onApi(api);
     return () => onApi(null);
-  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, fixtureSpotAt, materials, clearPreview]);
+  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, fixtureSpotAt, electricalAt, materials, clearPreview]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway

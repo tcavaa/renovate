@@ -59,6 +59,13 @@ const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) =
 type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall'; wallIndex?: number } | null;
 
 const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furniture: 'furniture', electric: 'electrical', finishes: 'finishes', budget: 'furniture' };
+/**
+ * How far the pointer may travel between going down and coming up and still count as a
+ * click. Past it the gesture was a drag — of the camera, or of a fitting already on the
+ * wall — and a drag must not leave a new fitting where it started.
+ */
+const CLICK_SLOP_PX = 5;
+
 const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
   build: ['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam'],
   furniture: ['select', 'pan'],
@@ -177,6 +184,10 @@ export default function StudioPage() {
   const dragCarry = useRef(false);
   /** A product dropped before the viewer carried it: where it landed, applied once it does. */
   const pendingDrop = useRef<{ x: number; y: number } | null>(null);
+  /** The canvas layer alone — the floating chrome above it must not place anything. */
+  const canvasLayer = useRef<HTMLDivElement | null>(null);
+  /** Where the pointer went down, to tell a click from the end of a drag. */
+  const pressAt = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (searchParams.get('tool') === 'finishes') {
@@ -323,6 +334,11 @@ export default function StudioPage() {
   );
 
   useEffect(() => setRotateBlocked(false), [selectedItemId]);
+
+  // The fitting riding on the pointer is put away when the tool is, and when the 3D view is left.
+  useEffect(() => {
+    if (!electricalArmed || view !== '3d') viewerApi?.clearElectricalPreview();
+  }, [electricalArmed, view, viewerApi]);
 
   // Keys: R turns, M mirrors, Ctrl+Z/Y undo and redo, Ctrl+C/V copy and paste, Ctrl+D
   // duplicates, Delete removes, Escape clears, 1/2/3 switch the view. The 2D board handles
@@ -528,9 +544,35 @@ export default function StudioPage() {
     if (store.beginAdd(product, at?.roomId ?? focusRoomId ?? null) === null) pendingDrop.current = null;
   };
 
-  /** An armed electrical kind lands where the 3D view is clicked. */
+  /**
+   * An armed electrical kind lands where the 3D view is clicked — and only there.
+   *
+   * This listens on the whole workspace in the capture phase, and the workspace holds the
+   * floating chrome as well as the canvas, so three things that are not "put a socket here"
+   * used to look exactly like it:
+   *
+   *  - a click on a tray tile or the rail, which sits *over* the canvas: the ray went
+   *    straight through the tray and found the wall behind it, so choosing a kind appeared
+   *    to place one by itself;
+   *  - a drag, whether of the camera or of a fitting already on the wall: the click that
+   *    ends it arrives here, so repositioning a socket left a second one where the drag began;
+   *  - a click on a fitting already there, which stacked another on top of it instead of
+   *    selecting it.
+   */
   const onWorkspaceClick = (event: React.MouseEvent) => {
     if (!electricalArmed || view !== '3d' || !viewerApi) return;
+    // Only the canvas places; the chrome floating above it is not the room.
+    if (!canvasLayer.current?.contains(event.target as Node)) return;
+    // A drag is not a click, however the browser reports it.
+    const from = pressAt.current;
+    pressAt.current = null;
+    if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > CLICK_SLOP_PX) return;
+    // One already here: select it rather than stacking another on top.
+    const hit = viewerApi.electricalAt(event.clientX, event.clientY);
+    if (hit) {
+      store.selectElement({ kind: 'electrical', id: hit });
+      return;
+    }
     const at = viewerApi.fixtureSpotAt(electricalKind, event.clientX, event.clientY);
     if (!at) return;
     const id = store.addElectricalPoint(electricalKind, at.position, at.roomId, products);
@@ -651,11 +693,24 @@ export default function StudioPage() {
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
+        onPointerDownCapture={(e) => {
+          pressAt.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerMove={(e) => {
+          // What is on the pointer is the fitting itself, ghosted and snapped to the wall
+          // it would go on — the same thing a drag from the tray shows, and the same thing
+          // carrying a piece of furniture shows. The armed tile is a tray away from where
+          // the person is looking, so without this nothing on screen said what was coming.
+          if (electricalArmed && view === '3d' && viewerApi && canvasLayer.current?.contains(e.target as Node)) {
+            viewerApi.previewElectricalAt(electricalKind, e.clientX, e.clientY);
+          }
+        }}
+        onPointerLeave={() => viewerApi?.clearElectricalPreview()}
         onClickCapture={onWorkspaceClick}
         data-tour="canvas"
       >
         {/* ---- canvas ---- */}
-        <div className="absolute inset-0">
+        <div ref={canvasLayer} className="absolute inset-0">
           {view === '2d' ? (
             <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-[9.5rem]' : 'pb-16')}>
               <PlanWorkspace
@@ -911,6 +966,7 @@ export default function StudioPage() {
     </>
   );
 }
+
 
 function elementTitle(kind: NonNullable<ReturnType<typeof useDesignStore.getState>['selectedElement']>['kind'], t: ReturnType<typeof useT>): string {
   switch (kind) {
