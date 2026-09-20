@@ -491,6 +491,28 @@ it. `placeElectrical` snaps a hand-placed point to the nearest wall; `reprojectE
 follows moved walls; `slideAlongWall` moves one along the wall it is on (the card's
 slider and its 5 cm nudges).
 
+**Two fittings may not hold the same piece of wall** (`fittingClashes`). The rule is about
+plates, not points: two argue only when their footprints overlap *both* along the wall and
+in height, so a switch at 105 cm still sits directly above a socket at 45 cm while two
+sockets a centimetre apart do not. A bought fitting is measured by its real `sizeM`, an
+estimate by the plate it would have (`fittingFootprintM`: a double socket twice a single's
+width, a strip as long as it was drawn); two on different walls are measured across the
+room, which catches the pair that meet inside a corner. Placing, dropping and dragging all
+go through it, and a refusal raises the studio's banner rather than looking like a click
+that did nothing. Before this a socket dropped on a socket went in regardless — the second
+plate sunk inside the first, invisible, unselectable, and paid for twice in the budget.
+
+**A technical point's height can depend on its room** (`technicalElevation`). Every kind
+has one usual height — a socket is a socket whatever the ceiling — except the air
+conditioner, which is hung from the ceiling down: `TECHNICAL_KINDS.ac_unit` is the ceiling
+less the fitter's `AC_CEILING_GAP_M` (18 cm, the middle of the 15–20 cm rule) and the
+unit's own `AC_UNIT_HEIGHT_M`, floored at `AC_MIN_ELEVATION_M` so a low ceiling does not
+bring it to head height. Placing a point takes that height, and so does re-kinding one —
+a socket turned into an air conditioner used to stay at 45 cm off the floor. It stays
+editable, and the inspector says where the number came from. The unit is not drawn in 3D
+yet: there is no model for it, and the radiators are the precedent for writing one
+(`scripts/radiator-models.ts`, in code, no download).
+
 **Every fitting is a product**, like every piece of furniture. `FIXTURE_PRODUCT_KIND` maps
 a point's kind to the `model3dKind` a product carries — the four socket kinds are one
 `socket` product (a double socket is two of it, `fixtureQuantity`), `switch`, `socket_tv`,
@@ -588,7 +610,26 @@ view switch, day/night, photo, the structure lock, versions, help and the next s
 Whatever opens on the right — the item card, the fitting card, the door or window card, the inspector, the versions
 — is an overlay (`z-40`) the full height of the studio, scrolling inside itself under its
 alternatives drawer: nothing is pushed aside for it; the help card and zoom sit above the
-top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row. A tap on a
+top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row.
+
+**Choosing a fitting arms it; only the room places it.** The placing click is caught on the
+workspace in the capture phase, and the workspace holds the floating chrome as well as the
+canvas — so three gestures that are not "put a socket here" used to look exactly like it,
+and all three are now refused: a click whose target is not inside the canvas layer (the
+tray sits *over* the canvas, and the ray went straight through it to the wall behind,
+which is why choosing a kind appeared to place one by itself); a gesture whose pointer
+travelled more than `CLICK_SLOP_PX` between down and up, which is a drag of the camera or
+of a fitting and not a click (repositioning a socket used to leave a second one where the
+drag began); and a click that lands on a fitting already there, which selects it instead of
+stacking another on it. `ViewerApi.electricalAt` answers the last one and **walks up from
+the mesh the ray hit**, because `tag` stamps a subtree as it stands and a fitting's model
+joins it a beat later, when its file arrives — the meshes actually hit are usually
+untagged. While a kind is armed the fitting itself rides on the pointer, ghosted and
+snapped to the wall it would go on (`previewElectricalAt` on `pointermove`, the same ghost
+the tray's drag-and-drop shows), because the armed tile is a tray away from where the
+person is looking.
+
+A tap on a
 floor or a wall chooses the surface for the finishes shelf **in the finishes category
 only**; in every other category the floor and the walls are just the room. `editMode` follows the category (`build` picks walls, columns, beams and,
 when unlocked, drags walls along their normal with a ghost slab; `electrical` drags
@@ -1101,6 +1142,17 @@ signing in; that is the "log in to save" path.
 The design page's mode block defaults to design only; choosing renovation + design reveals
 the calculator's four home states (old renovation first), and the studio prices against the
 chosen one.
+
+**Each mode says what it covers, and each home state says what that means.** "Design only"
+sounded like it might still include the wiring and "renovation + design" like it might not
+include the sofa, so both cards carry a list (`modeDesignOnlyCovers` / `modeFullCovers`)
+and the chosen one a qualification underneath. Once a home state is picked, `homeStateCover`
+gives it three columns: what is already standing, what the estimate will charge for, and
+**what happens to the technical points** — the column that was missing. A green frame has
+its sockets and pipes already, so the technical step records where they are rather than
+pricing them; a black frame draws them from scratch and pays for them. Keep that third
+column truthful if the phase gating changes: it is the one thing customers were getting
+wrong about the whole flow.
 
 ### The project page folds (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
 
