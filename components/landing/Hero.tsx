@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowDown, ArrowUpRight } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, Check } from 'lucide-react';
 import { RotatingBadge } from '@/components/motion/RotatingBadge';
 import type { Dictionary } from '@/lib/i18n';
 
@@ -62,9 +62,23 @@ export function Hero({ t }: { t: Dictionary }) {
           />
 
           <div className="mx-auto mt-14 grid max-w-5xl gap-8 md:mt-20 md:grid-cols-[1fr_auto] md:items-end">
-            <p className="max-w-xl text-pretty text-base leading-relaxed text-ink-soft md:text-lg animate-rise-in" style={{ animationDelay: '700ms' }}>
-              {t.landing.heroBody}
-            </p>
+            {/*
+              The promise in two lines, then the three things that make it true. Nini asked
+              for the slogan to be *said* on the first page rather than implied by an eyebrow
+              over the animated words.
+            */}
+            <div className="max-w-xl animate-rise-in" style={{ animationDelay: '700ms' }}>
+              <p className="text-pretty font-serif text-xl font-semibold leading-snug text-ink md:text-2xl">{t.landing.slogan}</p>
+              <p className="mt-1 text-pretty font-serif text-xl font-semibold leading-snug text-brand md:text-2xl">{t.landing.sloganSecond}</p>
+              <ul className="mt-5 space-y-2">
+                {t.landing.heroPoints.map((point) => (
+                  <li key={point} className="flex items-start gap-2.5 text-base leading-relaxed text-ink-soft">
+                    <Check className="mt-1 h-4 w-4 shrink-0 text-brand" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center animate-rise-in" style={{ animationDelay: '850ms' }}>
               <Link
                 href="/design"
