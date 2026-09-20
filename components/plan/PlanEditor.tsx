@@ -30,10 +30,11 @@ import { wallNormal } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
-import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawNodeHandles, drawOpening, drawRoom, drawTechnical, drawWall, drawZone, toWorld, type Transform } from './draw';
+import { cellAt, cellPolygon, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
+import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawTechnical, drawWall, drawWallBand, drawZone, toWorld, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
-export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone';
+export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
 
 export interface EditorLayers {
   rooms: boolean;
@@ -86,6 +87,18 @@ export interface PlanEditorProps {
   onAddElectrical?: (kind: ElectricalKind, position: Vec2, roomId: string) => void;
   onMoveElectrical?: (id: string, position: Vec2) => void;
   onAddZone?: (roomId: string, rect: { x: number; z: number; width: number; depth: number }) => void;
+  /**
+   * The paint tool: what a click paints — `cell`, the square metre of floor under the
+   * pointer, or `strip`, the metre of wall nearest to it (from inside the room) — and the
+   * click itself. Dragging paints everything the pointer passes over.
+   */
+  paintScope?: 'cell' | 'strip' | null;
+  onPaint?: (target: PaintTarget) => void;
+  /**
+   * The select tool sees rooms and floor zones and nothing else: while the finishes are
+   * being chosen, furniture, fittings, doors and walls can be neither picked nor moved.
+   */
+  roomsOnly?: boolean;
   onMoveItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
   /** Delete or Backspace with something selected. */
   onDelete?: () => void;
@@ -122,6 +135,7 @@ type Gesture =
   | { kind: 'opening-drag'; room: PlanRoom; opening: Opening; edge: PlanEdge; target: { room: PlanRoom; edge: PlanEdge; t: number }; moved: boolean }
   | { kind: 'point-drag'; what: 'column' | 'technical' | 'electrical'; id: string; position: Vec2; moved: boolean }
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
+  | { kind: 'paint'; last: string }
   | { kind: 'press'; startX: number; startY: number };
 
 interface Hover {
@@ -144,6 +158,8 @@ export function PlanEditor(props: PlanEditorProps) {
     selection,
     selectedRoomId = null,
     selectedItemId = null,
+    paintScope = null,
+    roomsOnly = false,
     className,
     fitKey,
   } = props;
@@ -162,6 +178,8 @@ export function PlanEditor(props: PlanEditorProps) {
   /** The wall run being drawn: its first point, and the point the pointer is snapped to. */
   const [draftWall, setDraftWall] = useState<{ anchor: Vec2; current: Vec2 } | null>(null);
   const [draftBeam, setDraftBeam] = useState<{ anchor: Vec2; current: Vec2 } | null>(null);
+  /** The tile or strip the paint brush is over. */
+  const [paintHover, setPaintHover] = useState<PaintTarget | null>(null);
   const [ghostOpening, setGhostOpening] = useState<{ room: PlanRoom; edge: PlanEdge; t: number; widthM: number; kind: 'door' | 'window'; openingId: string | null; faded: boolean } | null>(null);
   const spaceHeld = useRef(false);
   const shiftHeld = useRef(false);
@@ -317,9 +335,10 @@ export function PlanEditor(props: PlanEditorProps) {
     setDraftWall(null);
     setDraftBeam(null);
     setGhostOpening(null);
+    setPaintHover(null);
     setGuides([]);
     gestureRef.current = null;
-  }, [tool]);
+  }, [tool, paintScope]);
 
   // -------------------------------------------------------------------------
   // Drawing
@@ -370,6 +389,20 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
 
+    // Floor tiles painted one at a time, and the one under the brush.
+    if (layers.zones) {
+      for (const finish of finishes) {
+        if (!finish.cells || finish.surface !== 'floor') continue;
+        const room = plan.rooms.find((r) => r.id === finish.roomId);
+        if (!room) continue;
+        for (const cell of finish.cells) drawPaintedCell(ctx, tr, cellPolygon(room, cell), finish.product?.colorHex ?? finish.colorHex ?? null);
+      }
+    }
+    if (paintHover?.surface === 'floor') {
+      const room = plan.rooms.find((r) => r.id === paintHover.roomId);
+      if (room) drawPaintedCell(ctx, tr, cellPolygon(room, paintHover.cell), null, { preview: true });
+    }
+
     // Furniture footprints.
     if (layers.furniture) {
       for (const item of items) {
@@ -406,6 +439,23 @@ export function PlanEditor(props: PlanEditorProps) {
         const wall = walls.find((w) => w.id === selection.id);
         if (wall) drawNodeHandles(ctx, tr, wall);
       }
+    }
+
+    // Walls with a finish of their own — the whole wall, or metre-wide strips of it — as a
+    // band of that finish along the inside of the room.
+    if (layers.zones) {
+      for (const finish of finishes) {
+        if (finish.surface !== 'wall' || finish.wallIndex == null) continue;
+        const room = plan.rooms.find((r) => r.id === finish.roomId);
+        const edge = room ? roomEdges(room.polygon).find((e) => e.index === finish.wallIndex) : null;
+        if (!edge) continue;
+        drawWallBand(ctx, tr, edge, finish.span?.from ?? 0, Math.min(edge.length, finish.span?.to ?? edge.length), finish.product?.colorHex ?? finish.colorHex ?? null);
+      }
+    }
+    if (paintHover?.surface === 'wall') {
+      const room = plan.rooms.find((r) => r.id === paintHover.roomId);
+      const edge = room ? roomEdges(room.polygon).find((e) => e.index === paintHover.wallIndex) : null;
+      if (edge) drawWallBand(ctx, tr, edge, paintHover.span.from, paintHover.span.to, null, { preview: true });
     }
 
     // Doors and windows.
@@ -460,7 +510,7 @@ export function PlanEditor(props: PlanEditorProps) {
       drawGhostPoint(ctx, tr, pointerWorld, color);
     }
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion]);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion]);
 
   useEffect(() => {
     draw();
@@ -545,6 +595,12 @@ export function PlanEditor(props: PlanEditorProps) {
 
   const hitTest = (world: Vec2): Hover => {
     const slack = HIT_PX * perPx();
+    if (roomsOnly) {
+      const zone = layers.zones ? zoneAt(world) : null;
+      if (zone?.zone) return { kind: 'zone', id: zone.zone.id, roomId: zone.roomId };
+      const inside = roomAt(world);
+      return inside ? { kind: 'room', id: inside.id } : { kind: null };
+    }
     if (layers.electrical) {
       const p = pointElementAt(electrical, world, 12 * perPx());
       if (p) return { kind: 'electrical', id: p.id };
@@ -589,6 +645,23 @@ export function PlanEditor(props: PlanEditorProps) {
     if (inside) return nearestWall([inside], world, Infinity, preferRoomId);
     return nearestWall(plan.rooms, world, 28 * perPx(), preferRoomId);
   };
+
+  /**
+   * What the paint brush would paint at a point. The floor: the tile of the room the point
+   * is in. A wall: the strip nearest to the point on the walls of the room the point is in —
+   * so a shared wall is always painted on the side the pointer is on.
+   */
+  const paintTargetFor = (world: Vec2): PaintTarget | null => {
+    const room = roomAt(world);
+    if (!room || !paintScope) return null;
+    if (paintScope === 'cell') {
+      const cell = cellAt(room, world);
+      return cell ? { roomId: room.id, surface: 'floor', cell } : null;
+    }
+    const spot = wallSpotAt(room, world, Math.max(0.6, 40 * perPx()));
+    return spot ? { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span: stripAt(spot.edge, spot.s) } : null;
+  };
+  const paintKey = (target: PaintTarget | null): string => (!target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.span.from}`);
 
   // -------------------------------------------------------------------------
   // Pointer
@@ -652,6 +725,15 @@ export function PlanEditor(props: PlanEditorProps) {
         const start = tool === 'room' ? snapFor(world).point : world;
         gestureRef.current = { kind: 'rect', start, current: start, roomId: room?.id ?? null };
         setGestureVersion((v) => v + 1);
+        return;
+      }
+      case 'paint': {
+        const target = paintTargetFor(world);
+        gestureRef.current = { kind: 'paint', last: paintKey(target) };
+        if (target) {
+          edited.current = true;
+          callbacks.current.onPaint?.(target);
+        }
         return;
       }
       case 'door':
@@ -814,12 +896,26 @@ export function PlanEditor(props: PlanEditorProps) {
           setGestureVersion((v) => v + 1);
           return;
         }
+        case 'paint': {
+          // The brush paints whatever it passes over, each tile or strip once.
+          const target = paintTargetFor(world);
+          const key = paintKey(target);
+          if (target && key !== gesture.last) callbacks.current.onPaint?.(target);
+          gesture.last = key;
+          if (paintKey(paintHover) !== key) setPaintHover(target);
+          return;
+        }
         case 'press':
           return;
       }
     }
 
     // No gesture: previews and hover.
+    if (tool === 'paint') {
+      const target = paintTargetFor(world);
+      if (paintKey(target) !== paintKey(paintHover)) setPaintHover(target);
+      return;
+    }
     if (tool === 'wall' && draftWall) {
       const snapped = snapFor(world, draftWall.anchor);
       setDraftWall({ anchor: draftWall.anchor, current: snapped.point });
@@ -908,6 +1004,7 @@ export function PlanEditor(props: PlanEditorProps) {
         break;
       case 'pan':
       case 'press':
+      case 'paint':
         break;
     }
     void world;
@@ -943,6 +1040,7 @@ export function PlanEditor(props: PlanEditorProps) {
       }}
       onPointerLeave={() => {
         setPointerWorld(null);
+        setPaintHover(null);
         if (!gestureRef.current) setHover({ kind: null });
         if ((tool === 'door' || tool === 'window') && !gestureRef.current) setGhostOpening(null);
       }}

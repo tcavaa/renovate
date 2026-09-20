@@ -77,7 +77,7 @@ flat, in milliseconds, at zero cost per view.
 
 ### Renovation calculator
 
-- **5-step calculator** — home state (black/white/green frame) → rooms → materials → catalog → furniture → summary
+- **5-step calculator** — home state (old renovation / black / white / green frame) → rooms → materials → catalog → furniture → summary
 - **Auto material engine** — computes cement, paint, tile, cable, screed quantities with industry-standard waste factors
 - **Worker labor estimation** — applies per-m² labor rates to the relevant phases automatically
 - **Real product catalog** — browse and select products from partner stores; running cart in calculator step 3-4
@@ -219,6 +219,8 @@ All business logic lives in `lib/calculator/`. The engine is **pure, determinist
 
 ### Home states
 
+- `old_renovation` — a lived-in flat with an old renovation: phase 0 strips it out (old floors, wall
+  coverings, ceilings, tiles, doors, windows, sanitary ware, debris removal), then phases 1–18
 - `black_frame` — empty concrete shell, all phases 1–18 included
 - `white_frame` — walls plastered, electrical/plumbing roughed in, finishing only (phases 9–17)
 - `green_frame` — move-in ready; only furniture (phase 17)

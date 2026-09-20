@@ -69,6 +69,9 @@ export const TECHNICAL_LABOUR_DEFAULT_GEL: Record<TechnicalLabourKey | 'lighting
   extractor_install: 60,
 };
 
+/** Fitting a skirting board or a cornice, per running metre, when the rate book has no `trim_install` row. */
+export const TRIM_INSTALL_DEFAULT_GEL = 4;
+
 /** Doors per leaf, windows per square metre, archways nothing (a hole in the wall). */
 export const OPENING_ESTIMATE_GEL: Record<OpeningKind, number> = {
   door: 380,

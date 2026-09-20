@@ -21,11 +21,15 @@
 
 import * as THREE from 'three';
 import { loadFixture, loadModel } from './modelLoader';
-import { isSharedWithAnyRoom, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { wallFinishFor } from '@/lib/design/zones';
-import { buildElectrical, buildStructure, buildZones, fixtureRole } from './buildStructure';
+import { wallSpans } from '@/lib/design/paint';
+import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
+import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
+import { buildElectrical, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
+import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallHole } from './wallGeometry';
 import type {
   DesignScene,
   FloorPlan,
@@ -34,13 +38,14 @@ import type {
   PlanRoom,
   StyleDefinition,
   SurfaceFinish,
+  TrimKind,
 } from '@/lib/design/types';
 import { WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone';
+  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical';
   itemId?: string;
   openingId?: string;
   roomId: string;
@@ -51,9 +56,19 @@ export interface SceneUserData {
   wallId?: string;
   /** The room edge a wall face is, for per-wall finishes. */
   wallIndex?: number;
+  /**
+   * Where a wall stands, for the viewer: the middle of its room face (the cutaway asks which
+   * side of the wall the camera is on — the mesh itself sits at the origin, its geometry is
+   * in world coordinates), its first corner and direction (a hit point becomes metres along
+   * the wall, which is what a painted strip is), and who is behind each stretch of it (a
+   * click on the far face belongs to that room's wall, not to this one).
+   */
+  wallFrame?: { mid: { x: number; z: number }; a: { x: number; z: number }; dir: { x: number; z: number }; length: number; behind: Array<{ from: number; to: number; roomId: string; wallIndex: number }> };
   columnId?: string;
   beamId?: string;
   electricalId?: string;
+  /** A technical point drawn in 3D — a radiator. */
+  technicalId?: string;
   zoneId?: string;
 }
 
@@ -71,8 +86,8 @@ export interface BuildSceneOptions {
   onlyRoomId?: string | null;
 }
 
-const BASEBOARD_HEIGHT = 0.09;
-const BASEBOARD_DEPTH = 0.018;
+/** The top and the cut ends of every wall: one neutral tone, so the section through the flat reads as one. */
+const WALL_CUT_COLOR = '#D9D4CA';
 
 // ---------------------------------------------------------------------------
 // Top level
@@ -89,17 +104,24 @@ export function buildRoomShells(
   const root = new THREE.Group();
   root.name = 'rooms';
 
+  // How every room edge's wall is cut up — mitred corners, half depth where it is shared —
+  // worked out once for the whole flat, also when only one room of it is shown.
+  const edgeWalls = options.showWalls !== false ? planEdgeWalls(plan) : new Map<string, EdgeWall>();
   for (const [index, room] of visibleRooms(plan, options).entries()) {
-    root.add(buildRoomShell(room, index, plan, finishes, style, materials, options));
+    root.add(buildRoomShell(room, index, plan, finishes, style, materials, options, edgeWalls));
   }
   // Free-standing walls, columns and beams, and the floor patches with their own finish.
   if (options.showWalls !== false && !options.onlyRoomId) root.add(buildStructure(plan, style, materials));
-  root.add(buildZones(plan, finishes, materials, style));
+  const shown = visibleRoomIds(plan, options);
+  root.add(buildZones(plan, finishes, materials, style, shown));
+  root.add(buildPaintedCells(plan, finishes, materials, style, shown));
   return root;
 }
 
 /** Sockets, switches and light fittings; rebuilt when the electrical layer changes. */
 export { buildElectrical };
+/** The radiators; rebuilt when the plan's technical points change. */
+export { buildRadiators };
 
 /**
  * Whole scene in one group — shells plus furniture. The viewer keeps the two halves apart
@@ -163,26 +185,21 @@ function buildRoomShell(
   finishes: SurfaceFinish[],
   style: StyleDefinition,
   materials: StyleMaterials,
-  options: BuildSceneOptions
+  options: BuildSceneOptions,
+  edgeWalls: Map<string, EdgeWall>
 ): THREE.Group {
   const group = new THREE.Group();
   group.name = `room-${room.id}`;
 
   const isWet = WET_ROOM_TYPES.includes(room.type);
-  const bounds = polygonBounds(room.polygon);
   const edges = roomEdges(room.polygon);
 
   const floorFinish = findFinish(finishes, room.id, 'floor');
-  const wallFinish = findFinish(finishes, room.id, 'wall');
   const ceilingFinish = findFinish(finishes, room.id, 'ceiling');
 
   // --- floor ---
   const floorSpec = isWet ? style.surfaces.wetFloor : style.surfaces.floor;
-  const floorMaterial = materials.surface(
-    floorSpec,
-    { u: bounds.width, v: bounds.depth },
-    finishOverrides(floorFinish)
-  );
+  const floorMaterial = materials.metreSurface(floorSpec, finishOverrides(floorFinish));
   const floor = own(new THREE.Mesh(polygonGeometry(room.polygon, 'up'), floorMaterial));
   floor.receiveShadow = true;
   tag(floor, { pickKind: 'surface', roomId: room.id, surface: 'floor' } satisfies SceneUserData);
@@ -190,11 +207,7 @@ function buildRoomShell(
 
   // --- ceiling ---
   if (options.showCeiling) {
-    const ceilingMaterial = materials.surface(
-      style.surfaces.ceiling,
-      { u: bounds.width, v: bounds.depth },
-      finishOverrides(ceilingFinish)
-    );
+    const ceilingMaterial = materials.metreSurface(style.surfaces.ceiling, finishOverrides(ceilingFinish));
     const ceiling = own(new THREE.Mesh(polygonGeometry(room.polygon, 'down'), ceilingMaterial));
     ceiling.position.y = room.heightM;
     tag(ceiling, { pickKind: 'surface', roomId: room.id, surface: 'ceiling' } satisfies SceneUserData);
@@ -206,41 +219,75 @@ function buildRoomShell(
     // A feature wall on the longest run gives each room one moment of contrast, which is
     // what the four styles are actually about.
     const featureIndex = pickFeatureWall(room, edges);
+    const cut = materials.metreSurface({ colorHex: WALL_CUT_COLOR, roughness: 0.9 });
+    const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
 
-    for (const edge of edges) {
+    edges.forEach((edge, order) => {
       const openings = room.openings.filter((o) => o.wallIndex === edge.index);
-      const wallMaterial = wallMaterialFor(room, edge, featureIndex, finishes, style, materials);
-
-      // Each room extrudes its own wall outwards from its polygon, as thick as the plan's
-      // wall behind that edge. Two rooms either side of one wall are a wall thickness apart,
-      // so a full-thickness extrusion from each puts room A's outer face exactly on room B's
-      // inner face — and the two colours z-fight, flicking as the camera moves. A shared wall
-      // is therefore extruded only to the middle, where the two halves meet on a plane
-      // nobody can see while both stand. Exterior walls keep their depth.
-      //
-      // The doll's-house cutaway hides one half at a time, though, and then the other half's
-      // face on that middle plane is what the camera sees from the first room — so that face
-      // is painted with the *neighbour's* finish. Either half alone then looks like the whole
-      // wall: this room's paper on this side, the neighbour's tiles on the other.
       const planWall = wallForEdge(plan, room, edge);
-      const thickness = planWall?.thicknessM ?? plan.wallThicknessM;
-      const neighbour = sharedNeighbourOf(room, edge, plan.rooms, thickness * 1.5);
-      const shared = !!neighbour;
-      const depth = shared ? thickness / 2 : thickness;
-      const height = planWall?.heightM ?? room.heightM;
-      const neighbourEdge = neighbour ? facingEdgeOf(neighbour, edge, thickness * 1.5) : null;
-      const farMaterial = neighbour && neighbourEdge ? wallMaterialFor(neighbour, neighbourEdge, pickFeatureWall(neighbour, roomEdges(neighbour.polygon)), finishes, style, materials) : undefined;
-      // Nudge each room's wall height by a hair so shared walls between two rooms do not
+      const edgeWall = edgeWalls.get(edgeWallKey(room.id, edge.index));
+      const thickness = edgeWall?.thickness ?? planWall?.thicknessM ?? plan.wallThicknessM;
+      // Nudge each room's wall height by a hair so the two halves of a shared wall do not
       // z-fight along their top edge when seen from above.
-      const wall = buildWall(edge, height + index * 0.0006, depth, openings, wallMaterial, farMaterial);
+      const height = (planWall?.heightM ?? room.heightM) + index * 0.0006;
+      const pieces: WallPiece[] = edgeWall?.pieces ?? [{ from: 0, to: edge.length, farFrom: 0, farTo: edge.length, depth: thickness, neighbour: null }];
+
+      // One material slot per look: the wall's own finish, the cut, then whatever the far
+      // faces and the painted strips need. See `lib/design3d/wallGeometry`.
+      const slots: THREE.Material[] = [];
+      slots[WALL_SLOT_BASE] = wallMaterialFor(room, edge, featureIndex, finishes, style, materials);
+      slots[WALL_SLOT_CAP] = cut;
+      const slotOf = (material: THREE.Material): number => {
+        const found = slots.indexOf(material);
+        return found >= 0 ? found : slots.push(material) - 1;
+      };
+
+      // Each room builds its own wall back from its polygon. Where another room stands
+      // behind it the piece is half as deep, the two halves meeting in the middle of the
+      // wall on a plane nobody sees while both stand; the far face there wears that room's
+      // finish, so either half alone still looks like the whole wall (gotcha 13).
+      const behind: NonNullable<SceneUserData['wallFrame']>['behind'] = [];
+      const farSlots = pieces.map((piece) => {
+        const neighbour = piece.neighbour ? roomsById.get(piece.neighbour.roomId) : undefined;
+        const neighbourEdge = neighbour ? roomEdges(neighbour.polygon).find((e) => e.index === piece.neighbour!.wallIndex) : undefined;
+        if (!neighbour || !neighbourEdge) return WALL_SLOT_CAP;
+        behind.push({ from: piece.from, to: piece.to, roomId: neighbour.id, wallIndex: neighbourEdge.index });
+        return slotOf(wallMaterialFor(neighbour, neighbourEdge, pickFeatureWall(neighbour, roomEdges(neighbour.polygon)), finishes, style, materials));
+      });
+
+      // The strips of this wall somebody painted on their own.
+      const spans = wallSpans(finishes, room.id, edge.index).map((finish) => ({
+        from: finish.span!.from,
+        to: finish.span!.to,
+        slot: slotOf(materials.metreSurface(isWet ? style.surfaces.wetWall : style.surfaces.wall, finishOverrides(finish))),
+      }));
+
+      const holes: WallHole[] = [];
+      for (const opening of openings) {
+        const centre = opening.t * edge.length;
+        const half = opening.widthM / 2;
+        const hole = { left: Math.max(0.02, centre - half), right: Math.min(edge.length - 0.02, centre + half), bottom: Math.max(0, opening.sillM), top: Math.min(height - 0.02, opening.sillM + opening.heightM) };
+        if (hole.right - hole.left >= 0.05 && hole.top - hole.bottom >= 0.05) holes.push(hole);
+      }
+
+      const wall = own(new THREE.Mesh(buildWallGeometry({ edge, height, pieces, holes, spans, farSlots }), slots));
+      wall.castShadow = true;
+      wall.receiveShadow = true;
       const outward = { x: -edge.inward.x, z: -edge.inward.z };
-      tag(wall, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index } satisfies SceneUserData);
+      const wallFrame = { mid: pointOnEdge(edge, 0.5), a: { x: edge.a.x, z: edge.a.z }, dir: { x: edge.dir.x, z: edge.dir.z }, length: edge.length, behind };
+      const wallData = { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index, wallFrame } satisfies SceneUserData;
+      tag(wall, wallData);
       group.add(wall);
 
-      const baseboard = buildBaseboard(edge, openings, materials.get('ceramic'));
-      // Skirting belongs to its wall, so it hides and shows with it.
-      tag(baseboard, { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index } satisfies SceneUserData);
-      group.add(baseboard);
+      // The mouldings belong to their wall, so they hide and show with it.
+      const previous = edges[(order - 1 + edges.length) % edges.length];
+      const next = edges[(order + 1) % edges.length];
+      for (const kind of ['skirting', 'cornice'] as const) {
+        const trim = buildTrim(kind, room, edge, previous, next, openings, finishes, style, materials);
+        if (!trim) continue;
+        tag(trim, wallData);
+        group.add(trim);
+      }
 
       for (const opening of openings) {
         // The room on the other side of an interior door is not in a single-room view, so
@@ -254,23 +301,16 @@ function buildRoomShell(
         });
         group.add(trim);
       }
-    }
+    });
   }
 
   return group;
 }
 
 /**
- * A wall panel with door and window holes cut through it.
- *
- * Built as a 2D shape in (along-wall, height) space, holed, then extruded through the wall
- * thickness and rotated into place — which is far more robust than trying to assemble a wall
- * out of boxes around each opening.
- */
-/**
  * The finish a room's wall wears: a wet room's tiles, the feature wall's accent, the room's
  * paper — or the finish the person gave this one wall. Also the face a neighbour's half of
- * a shared wall shows into this room.
+ * a shared wall shows into this room. Tiled by the metre, like every surface.
  */
 function wallMaterialFor(room: PlanRoom, edge: PlanEdge, featureIndex: number, finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Material {
   const isWet = WET_ROOM_TYPES.includes(room.type);
@@ -280,148 +320,59 @@ function wallMaterialFor(room: PlanRoom, edge: PlanEdge, featureIndex: number, f
   const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? wallFinish;
   const ownFinish = edgeFinish !== wallFinish;
   const spec = isWet ? style.surfaces.wetWall : isFeature ? style.surfaces.featureWall : style.surfaces.wall;
-  return materials.surface(spec, { u: edge.length, v: room.heightM }, isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish));
-}
-
-/** The room on the other side of an edge, found by probing just beyond the wall, or null for an exterior wall. */
-function sharedNeighbourOf(room: PlanRoom, edge: PlanEdge, rooms: PlanRoom[], tolerance: number): PlanRoom | null {
-  const mid = pointOnEdge(edge, 0.5);
-  const probe = { x: mid.x - edge.inward.x * tolerance, z: mid.z - edge.inward.z * tolerance };
-  return rooms.find((other) => other.id !== room.id && pointInPolygon(probe, other.polygon)) ?? null;
-}
-
-/** The neighbour's edge that runs along the same wall the other way, if it has one. */
-function facingEdgeOf(neighbour: PlanRoom, edge: PlanEdge, tolerance: number): PlanEdge | null {
-  const mid = pointOnEdge(edge, 0.5);
-  let best: { candidate: PlanEdge; distance: number } | null = null;
-  for (const candidate of roomEdges(neighbour.polygon)) {
-    // Opposite direction (each room walks its outline the same way round), within a wall
-    // of the line, and spanning the point probed.
-    if (candidate.dir.x * edge.dir.x + candidate.dir.z * edge.dir.z > -0.9) continue;
-    const along = ((mid.x - candidate.a.x) * candidate.dir.x + (mid.z - candidate.a.z) * candidate.dir.z) / candidate.length;
-    if (along < -0.02 || along > 1.02) continue;
-    const foot = pointOnEdge(candidate, Math.max(0, Math.min(1, along)));
-    const distance = Math.hypot(foot.x - mid.x, foot.z - mid.z);
-    if (distance <= tolerance && (!best || distance < best.distance)) best = { candidate, distance };
-  }
-  return best?.candidate ?? null;
-}
-
-function buildWall(
-  edge: PlanEdge,
-  height: number,
-  thickness: number,
-  openings: Opening[],
-  material: THREE.Material,
-  /** What the far face — the one on the middle of a shared wall — is painted with. */
-  farMaterial?: THREE.Material
-): THREE.Mesh {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(edge.length, 0);
-  shape.lineTo(edge.length, height);
-  shape.lineTo(0, height);
-  shape.closePath();
-
-  for (const opening of openings) {
-    const centre = opening.t * edge.length;
-    const half = opening.widthM / 2;
-    const left = Math.max(0.02, centre - half);
-    const right = Math.min(edge.length - 0.02, centre + half);
-    const bottom = Math.max(0, opening.sillM);
-    const top = Math.min(height - 0.02, opening.sillM + opening.heightM);
-    if (right - left < 0.05 || top - bottom < 0.05) continue;
-
-    const hole = new THREE.Path();
-    hole.moveTo(left, bottom);
-    hole.lineTo(left, top);
-    hole.lineTo(right, top);
-    hole.lineTo(right, bottom);
-    hole.closePath();
-    shape.holes.push(hole);
-  }
-
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
-
-  // ExtrudeGeometry puts both lids in one material group — first the lid at z = 0 (here
-  // the far face), then the lid at z = depth (the room's face), the same number of
-  // triangles each — and the sides in another. Splitting the lid group lets the far face
-  // wear the neighbour's finish while the room's face and the reveals keep this room's.
-  if (farMaterial) {
-    const groups = geometry.groups.map((g) => ({ ...g }));
-    geometry.clearGroups();
-    for (const g of groups) {
-      if (g.materialIndex !== 0) {
-        geometry.addGroup(g.start, g.count, g.materialIndex);
-        continue;
-      }
-      const half = Math.floor(g.count / 2);
-      geometry.addGroup(g.start, half, 2);
-      geometry.addGroup(g.start + half, g.count - half, 0);
-    }
-  }
-
-  // Shape space (x along the wall, y up, z through the wall) → world.
-  // Using the inward normal as the extrusion axis keeps the basis right-handed; the wall is
-  // then pushed back out so its inner face lands exactly on the room polygon.
-  const basis = new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(edge.dir.x, 0, edge.dir.z),
-    new THREE.Vector3(0, 1, 0),
-    new THREE.Vector3(edge.inward.x, 0, edge.inward.z)
-  );
-  basis.setPosition(edge.a.x - edge.inward.x * thickness, 0, edge.a.z - edge.inward.z * thickness);
-  geometry.applyMatrix4(basis);
-
-  const mesh = own(new THREE.Mesh(geometry, farMaterial ? [material, material, farMaterial] : material));
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
+  return materials.metreSurface(spec, isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish));
 }
 
 /**
- * Skirting along the foot of a wall, broken where a door passes through.
- *
- * `edge.facing` is the rotation that puts a box's **width** along the wall and its **depth**
- * through it — which is what every wall-mounted element wants. Rotating by the edge direction
- * instead lays them across the wall at right angles.
+ * A skirting board or a cornice along one wall: the moulding's profile swept along the
+ * edge, on the mitre at both corners, and — for a skirting board — broken where a door
+ * passes through. The shape and colour come from the product the room was given, or from
+ * the style when it was given none (`STYLE_TRIMS`; some styles have no cornice at all).
  */
-function buildBaseboard(edge: PlanEdge, openings: Opening[], material: THREE.Material): THREE.Group {
-  const group = new THREE.Group();
+function buildTrim(kind: TrimKind, room: PlanRoom, edge: PlanEdge, previous: PlanEdge, next: PlanEdge, openings: Opening[], finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Group | null {
+  const chosen = trimFor(finishes, room.id, kind);
+  const fallback = STYLE_TRIMS[style.id][kind];
+  const spec = chosen ? chosen.trim : fallback;
+  if (!spec) return null;
+  const colorHex = chosen ? chosen.colorHex : fallback?.colorHex;
+  const material = materials.get('frame', { colorHex, roughness: 0.55, metalness: 0 });
+  const outline = trimOutline(kind, spec);
 
-  // Build the list of gaps (doors only — windows start above the skirting).
-  const gaps = openings
-    .filter((o) => o.kind !== 'window')
-    .map((o) => {
-      const centre = o.t * edge.length;
-      return [centre - o.widthM / 2 - 0.03, centre + o.widthM / 2 + 0.03] as const;
-    })
-    .sort((a, b) => a[0] - b[0]);
-
+  // Where the moulding runs: the whole edge, less the doorways for a skirting board
+  // (windows start above it).
+  const gaps =
+    kind === 'skirting'
+      ? openings
+          .filter((o) => o.kind !== 'window')
+          .map((o) => [o.t * edge.length - o.widthM / 2 - 0.03, o.t * edge.length + o.widthM / 2 + 0.03] as const)
+          .sort((a, b) => a[0] - b[0])
+      : [];
+  const runs: Array<[number, number]> = [];
   let cursor = 0;
-  const segments: Array<[number, number]> = [];
   for (const [start, end] of gaps) {
-    if (start > cursor) segments.push([cursor, Math.min(start, edge.length)]);
+    if (start > cursor) runs.push([cursor, Math.min(start, edge.length)]);
     cursor = Math.max(cursor, end);
   }
-  if (cursor < edge.length) segments.push([cursor, edge.length]);
+  if (cursor < edge.length) runs.push([cursor, edge.length]);
 
-  for (const [start, end] of segments) {
-    const length = end - start;
-    if (length < 0.05) continue;
-    const midT = (start + length / 2) / edge.length;
-    const point = pointOnEdge(edge, midT);
-    const board = own(
-      box(length, BASEBOARD_HEIGHT, BASEBOARD_DEPTH, material, [
-        point.x + edge.inward.x * (BASEBOARD_DEPTH / 2),
-        BASEBOARD_HEIGHT / 2,
-        point.z + edge.inward.z * (BASEBOARD_DEPTH / 2),
-      ])
-    );
-    board.rotation.y = edge.facing;
-    group.add(board);
+  // How much a run gives way, per metre it stands out from the wall, to meet the next
+  // wall's moulding on the diagonal: 1 in a square inside corner, −1 round an outside one.
+  const mitre = (from: PlanEdge, to: PlanEdge) => {
+    const turn = Math.atan2(from.dir.x * to.dir.z - from.dir.z * to.dir.x, from.dir.x * to.dir.x + from.dir.z * to.dir.z);
+    return Math.max(-3, Math.min(3, Math.tan(turn / 2)));
+  };
+  const group = new THREE.Group();
+  group.name = kind;
+  for (const [from, to] of runs) {
+    if (to - from < 0.05) continue;
+    const startCut = from < 1e-6 ? mitre(previous, edge) : 0;
+    const endCut = to > edge.length - 1e-6 ? mitre(edge, next) : 0;
+    const mesh = own(new THREE.Mesh(buildMouldingGeometry(edge, from, to, kind === 'skirting' ? 0 : room.heightM, outline, startCut, endCut), material));
+    mesh.castShadow = kind === 'skirting';
+    mesh.receiveShadow = true;
+    group.add(mesh);
   }
-
-  return group;
+  return group.children.length > 0 ? group : null;
 }
 
 /** Hidden by default; the viewer shows the slabs while doors and windows are being edited. */

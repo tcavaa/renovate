@@ -24,6 +24,7 @@ import {
   HIDDEN_LAYER,
   OPENING_SLAB_NAME,
   buildElectrical,
+  buildRadiators,
   buildRoomShells,
   disposeOwnedGeometry,
   frameFor,
@@ -34,6 +35,8 @@ import {
 import { buildFitting, lightsFrom } from '@/lib/design3d/buildStructure';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
 import { wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
+import { cellAt, cellPolygon, stripAt, type PaintTarget } from '@/lib/design/paint';
+import { roomEdges } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
 import { edgeOf, projectToEdge } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
@@ -125,8 +128,23 @@ export interface Viewer3DProps {
   onSelectItem?: (itemId: string | null) => void;
   /** A click on a room's floor or wall — the studio opens the finish picker for it. */
   onSelectSurface?: (selection: { roomId: string; surface: 'floor' | 'wall'; wallIndex?: number } | null) => void;
+  /**
+   * Painting a piece at a time (finishes mode): `cell` lights up the square metre of floor
+   * under the pointer, `strip` the metre of wall, and a click hands it to `onPaint` instead
+   * of selecting the surface.
+   */
+  paintScope?: 'cell' | 'strip' | null;
+  onPaint?: (target: PaintTarget) => void;
   /** Commits a drag. `roomId` is set when the item was dragged into a different room. */
   onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
+  /**
+   * When this changes the camera frames the flat again. It is the *plan's identity*
+   * (`designStore.planSerial`), not the plan object: a door slid along its wall, a wall
+   * dragged or a technical point moved makes a new plan object every time, and framing on
+   * that threw the person's view away mid-edit — they lined the camera up on a door, moved
+   * it a centimetre, and were back at the doll's-house view.
+   */
+  frameKey?: unknown;
   /** Receives the camera API once the scene is up; `null` on unmount. */
   onApi?: (api: ViewerApi | null) => void;
   className?: string;
@@ -225,7 +243,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
 
 function SceneContent({
   plan,
@@ -248,9 +266,12 @@ function SceneContent({
   onHoverItem,
   onSelectItem,
   onSelectSurface,
+  paintScope = null,
+  onPaint,
   onPlaceItem,
   onMoveOpening,
   onSelectOpening,
+  frameKey,
   onApi,
   daylight,
 }: Viewer3DProps & { daylight: Daylight }) {
@@ -354,7 +375,7 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
   const editingOpenings = editMode === 'openings' || (editMode === 'build' && !structureLocked);
   const building = editMode === 'build';
@@ -411,6 +432,8 @@ function SceneContent({
   const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, items: hangingLamps }), [plan, electrical, materials, roomFilter, hangingLamps]);
   useEffect(() => () => disposeOwnedGeometry(electricalGroup), [electricalGroup]);
   const sceneLights = useMemo(() => lightsFrom(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
+  // The radiators hang on the plan's technical points; they change with the plan alone.
+  const radiatorGroup = useMemo(() => buildRadiators(plan, style, roomFilter), [plan, style, roomFilter]);
 
   // The room shells change only with the plan, the finishes or the style — not with furniture.
   const shell = useMemo(
@@ -558,6 +581,120 @@ function SceneContent({
     [camera, gl, shell]
   );
 
+  /**
+   * What of the room itself lies under a screen position — a floor, a wall, a zone — seen
+   * straight through the furniture, the fittings and the doors. The finishes mode picks with
+   * this and nothing else, so while walls and floors are being painted nothing else in the
+   * flat can be clicked or selected.
+   */
+  const shellHitAt = useCallback(
+    (clientX: number, clientY: number): { data: SceneUserData; point: THREE.Vector3; normal: THREE.Vector3 | null } | null => {
+      const rect = gl.domElement.getBoundingClientRect();
+      dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      dragRaycaster.setFromCamera(dragNdc, camera);
+      for (const hit of dragRaycaster.intersectObject(shell, true)) {
+        const data = hit.object.userData as SceneUserData | undefined;
+        if (!data?.roomId) continue;
+        if (data.pickKind === 'zone' || (data.pickKind === 'surface' && (data.surface === 'wall' || data.surface === 'floor'))) return { data, point: hit.point, normal: hit.face?.normal ?? null };
+      }
+      return null;
+    },
+    [camera, gl, shell]
+  );
+
+  /**
+   * Whose wall a hit on a wall is. Its room face is the room's own. Its far face — which
+   * the camera only meets from the other side — belongs to the room standing behind that
+   * stretch of it (`wallFrame.behind`), so the wall that gets painted is always the one
+   * that was looked at.
+   */
+  const wallSideOf = useCallback((data: SceneUserData, point: THREE.Vector3, normal: THREE.Vector3 | null): { roomId: string; wallIndex: number | undefined } => {
+    const own = { roomId: data.roomId, wallIndex: data.wallIndex };
+    const frame = data.wallFrame;
+    if (!frame || !data.outward || !normal) return own;
+    if (normal.x * data.outward.x + normal.z * data.outward.z < 0.5) return own;
+    const s = (point.x - frame.a.x) * frame.dir.x + (point.z - frame.a.z) * frame.dir.z;
+    const behind = frame.behind.find((b) => s >= b.from - 1e-3 && s <= b.to + 1e-3);
+    return behind ? { roomId: behind.roomId, wallIndex: behind.wallIndex } : own;
+  }, []);
+
+  /** The floor tile or wall strip a screen position would paint, for the scope in hand. */
+  const paintTargetAt = useCallback(
+    (clientX: number, clientY: number): PaintTarget | null => {
+      if (!paintScope) return null;
+      const hit = shellHitAt(clientX, clientY);
+      if (!hit) return null;
+      // A drawn zone lies on the floor: a tile is painted over it like anywhere else.
+      if (hit.data.pickKind === 'zone' && paintScope !== 'cell') return null;
+      const spot = { x: hit.point.x, z: hit.point.z };
+      if (paintScope === 'cell') {
+        if (hit.data.surface === 'wall') return null;
+        const room = plan.rooms.find((r) => r.id === hit.data.roomId);
+        const cell = room ? cellAt(room, spot) : null;
+        return room && cell ? { roomId: room.id, surface: 'floor', cell } : null;
+      }
+      if (hit.data.surface !== 'wall') return null;
+      const side = wallSideOf(hit.data, hit.point, hit.normal);
+      const room = plan.rooms.find((r) => r.id === side.roomId);
+      const edge = room && side.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === side.wallIndex) : null;
+      if (!room || !edge) return null;
+      const s = (spot.x - edge.a.x) * edge.dir.x + (spot.z - edge.a.z) * edge.dir.z;
+      return { roomId: room.id, surface: 'wall', wallIndex: edge.index, span: stripAt(edge, Math.max(0, Math.min(edge.length, s))) };
+    },
+    [paintScope, shellHitAt, wallSideOf, plan.rooms]
+  );
+
+  /** The tile or strip under the pointer, lit up while painting. */
+  const paintGlow = useMemo(() => {
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide }));
+    mesh.visible = false;
+    mesh.renderOrder = 7;
+    mesh.userData.key = '';
+    return mesh;
+  }, []);
+  useEffect(
+    () => () => {
+      paintGlow.geometry.dispose();
+      (paintGlow.material as THREE.Material).dispose();
+    },
+    [paintGlow]
+  );
+  const showPaintGlow = useCallback(
+    (target: PaintTarget | null) => {
+      const key = !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.span.from}`;
+      if (paintGlow.userData.key === key) return;
+      paintGlow.userData.key = key;
+      const room = target ? plan.rooms.find((r) => r.id === target.roomId) : null;
+      if (!target || !room) {
+        paintGlow.visible = false;
+        return;
+      }
+      const positions: number[] = [];
+      if (target.surface === 'floor') {
+        // A fan over the tile's outline (a square clipped to the room is convex, or near enough).
+        const outline = cellPolygon(room, target.cell);
+        for (let i = 1; i + 1 < outline.length; i++) for (const p of [outline[0], outline[i], outline[i + 1]]) positions.push(p.x, 0.02, p.z);
+      } else {
+        const edge = roomEdges(room.polygon).find((e) => e.index === target.wallIndex);
+        if (edge) {
+          const at = (along: number, y: number) => [edge.a.x + edge.dir.x * along + edge.inward.x * 0.012, y, edge.a.z + edge.dir.z * along + edge.inward.z * 0.012];
+          const { from, to } = target.span;
+          positions.push(...at(from, 0), ...at(to, 0), ...at(to, room.heightM), ...at(from, 0), ...at(to, room.heightM), ...at(from, room.heightM));
+        }
+      }
+      paintGlow.geometry.dispose();
+      paintGlow.geometry = new THREE.BufferGeometry();
+      paintGlow.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      paintGlow.visible = positions.length > 0;
+
+    },
+    [paintGlow, plan.rooms]
+  );
+  // Leaving the paint scope, or a plan that changed under the glow, puts it out.
+  useEffect(() => {
+    if (!paintScope || editMode !== 'finishes') showPaintGlow(null);
+  }, [paintScope, editMode, showPaintGlow, plan]);
+
   /** Where a fitting of `kind` goes for a screen position: the wall under the pointer, else the floor. */
   const fixtureSpotAt = useCallback(
     (kind: ElectricalKind, clientX: number, clientY: number): { position: Vec2; roomId: string } | null => {
@@ -590,9 +727,13 @@ function SceneContent({
   // Camera framing
   // -------------------------------------------------------------------------
 
+  // The plan, readable by the framing effect without being a dependency of it: editing the
+  // flat must not move the camera (see `frameKey`).
+  const planRef = useRef(plan);
+  planRef.current = plan;
   useEffect(() => {
     if (walking) return;
-    const { position, target } = frameFor(plan, focusRoomId);
+    const { position, target } = frameFor(planRef.current, focusRoomId);
     camera.position.set(...position);
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = 48;
@@ -605,7 +746,8 @@ function SceneContent({
     } else {
       camera.lookAt(...target);
     }
-  }, [plan, focusRoomId, camera, walking]);
+    // A new flat, a different room in focus, or stepping out of the walk-through.
+  }, [frameKey, focusRoomId, camera, walking]);
 
   // The overlay's zoom and frame buttons drive the camera through this.
   useEffect(() => {
@@ -619,7 +761,7 @@ function SceneContent({
         orbit.update();
       },
       reset: () => {
-        const { position, target } = frameFor(plan, focusRoomId);
+        const { position, target } = frameFor(planRef.current, focusRoomId);
         camera.position.set(...position);
         const orbit = orbitRef.current;
         if (orbit) {
@@ -695,24 +837,31 @@ function SceneContent({
    * you are standing in is on the inward side of its own wall and on the outward side of its
    * neighbour's, so the same rule keeps exactly one of them.
    */
-  useFrame(() => {
+  // Everything that stands with a wall — the wall, its skirting board and cornice — found
+  // once per shell rather than by walking the whole graph every frame.
+  const wallParts = useMemo(() => {
+    const parts: Array<{ object: THREE.Object3D; outward: { x: number; z: number }; mid: { x: number; z: number } }> = [];
     shell.traverse((child) => {
       const data = child.userData as SceneUserData;
-      if (data?.surface !== 'wall' || !data.outward) return;
+      if (data?.surface === 'wall' && data.outward && data.wallFrame && child instanceof THREE.Mesh) parts.push({ object: child, outward: data.outward, mid: data.wallFrame.mid });
+    });
+    return parts;
+  }, [shell]);
 
-      const world = child.getWorldPosition(tempVector3);
-      const toCamera = tempVector
-        .set(camera.position.x, 0, camera.position.z)
-        .sub(tempVector2.set(world.x, 0, world.z));
-
-      // > 0 means the camera sits on the outward side, so this wall is in the way.
-      const facing = data.outward.x * toCamera.x + data.outward.z * toCamera.z;
+  useFrame(() => {
+    for (const part of wallParts) {
+      // How far the camera stands beyond the wall's own face, on its outward side; > 0 means
+      // this wall is between the camera and its room. Measured from the wall — its mesh sits
+      // at the origin with the geometry in world coordinates, and measuring from *there*
+      // hid whichever half of a shared wall faced away from the plan's corner, so up close
+      // the camera saw the back of the other room's half, and a click painted that room.
+      const facing = part.outward.x * (camera.position.x - part.mid.x) + part.outward.z * (camera.position.z - part.mid.z);
       const visible = facing <= 0.35;
-      child.visible = visible;
+      part.object.visible = visible;
       // A cut-away wall must not catch the pointer either: the raycaster ignores this layer,
       // so the furniture behind it stays clickable.
-      child.layers.set(visible ? 0 : HIDDEN_LAYER);
-    });
+      part.object.layers.set(visible ? 0 : HIDDEN_LAYER);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -739,7 +888,7 @@ function SceneContent({
   const carryUpdateRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
   const openingDragRef = useRef<OpeningDragState | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
-  const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; wallIndex?: number; x: number; y: number } | null>(null);
+  const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; wallIndex?: number; x: number; y: number; paint?: PaintTarget | null } | null>(null);
   const wallDragRef = useRef<WallDragState | null>(null);
   const pointDragRef = useRef<PointDragState | null>(null);
 
@@ -774,7 +923,13 @@ function SceneContent({
       return;
     }
     if (finishing) {
-      gl.domElement.style.cursor = data?.pickKind === 'surface' || data?.pickKind === 'zone' ? 'pointer' : 'default';
+      // Only the room itself answers while it is being painted; the furniture is looked through.
+      gl.domElement.style.cursor = shellHitAt(event.clientX, event.clientY) ? (paintScope ? 'crosshair' : 'pointer') : 'default';
+      if (hoveredId) {
+        setHoveredId(null);
+        onHoverItem?.(null, null);
+      }
+      return;
     }
     const itemId = data?.pickKind === 'item' ? (data.itemId ?? null) : null;
 
@@ -813,6 +968,32 @@ function SceneContent({
       return;
     }
     const data = pick(event);
+
+    // Finishes: the pointer sees floors, walls and zones and nothing else — not the sofa in
+    // front of the wall, not a socket on it, not a door. A tap paints (in a paint scope) or
+    // chooses the surface; which of the two is decided on release.
+    if (finishing) {
+      dragRef.current = null;
+      openingDragRef.current = null;
+      surfacePressRef.current = null;
+      const hit = shellHitAt(event.clientX, event.clientY);
+      if (!hit) return;
+      const paint = paintScope ? paintTargetAt(event.clientX, event.clientY) : null;
+      if (paintScope) {
+        // With the brush in hand a tap paints or does nothing: a tap that lands on a wall
+        // while the floor is being painted must not drop the brush and select the wall.
+        if (paint) surfacePressRef.current = { roomId: paint.roomId, surface: paint.surface, x: event.clientX, y: event.clientY, paint };
+        return;
+      }
+      if (hit.data.pickKind === 'zone' && !paint) {
+        if (hit.data.zoneId) callbacks.current.onSelectElement?.({ kind: 'zone', id: hit.data.zoneId, roomId: hit.data.roomId });
+        return;
+      }
+      if (hit.data.surface !== 'floor' && hit.data.surface !== 'wall') return;
+      const side = hit.data.surface === 'wall' ? wallSideOf(hit.data, hit.point, hit.normal) : { roomId: hit.data.roomId, wallIndex: undefined };
+      surfacePressRef.current = { roomId: side.roomId, surface: hit.data.surface, wallIndex: side.wallIndex, x: event.clientX, y: event.clientY, paint };
+      return;
+    }
 
     // Build mode: walls, columns and beams are picked, and dragged when unlocked.
     if (building && data && (data.pickKind === 'wall' || data.pickKind === 'column' || data.pickKind === 'beam' || (data.pickKind === 'surface' && data.surface === 'wall' && data.wallId))) {
@@ -860,11 +1041,20 @@ function SceneContent({
       openingDragRef.current = null;
       callbacks.current.onSelectElement?.({ kind: 'electrical', id: data.electricalId });
       const point = electrical.find((p) => p.id === data.electricalId);
-      if ((wiring || (!building && !finishing)) && point && !point.locked) {
+      if ((wiring || !building) && point && !point.locked) {
         const object = electricalGroup.getObjectByName(`electrical-${point.id}`);
         const start = floorPoint(event.clientX, event.clientY, 0);
         if (object && start) pointDragRef.current = { what: 'electrical', id: point.id, object, origin: object.position.clone(), originYaw: object.rotation.y, start, position: point.position, moved: false, absolute: false };
       }
+      return;
+    }
+
+    // A radiator: picked like a fitting; it is moved on the plan, its card counts its sections.
+    if (data?.pickKind === 'technical' && data.technicalId) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      openingDragRef.current = null;
+      callbacks.current.onSelectElement?.({ kind: 'technical', id: data.technicalId });
       return;
     }
 
@@ -963,6 +1153,8 @@ function SceneContent({
         carryUpdateRef.current?.(event.clientX, event.clientY);
         return;
       }
+      // Painting: the tile or strip under the pointer lights up (not while the view is being turned).
+      if (paintScope && finishing && !walking) showPaintGlow(event.buttons === 0 ? paintTargetAt(event.clientX, event.clientY) : null);
       const wd = wallDragRef.current;
       if (wd) {
         if (walking) return;
@@ -1139,7 +1331,8 @@ function SceneContent({
       const press = surfacePressRef.current;
       surfacePressRef.current = null;
       if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 6) {
-        onSelectSurface?.({ roomId: press.roomId, surface: press.surface, wallIndex: press.wallIndex });
+        if (press.paint) callbacks.current.onPaint?.(press.paint);
+        else onSelectSurface?.({ roomId: press.roomId, surface: press.surface, wallIndex: press.wallIndex });
       }
 
       const drag = dragRef.current;
@@ -1167,15 +1360,18 @@ function SceneContent({
       }
     };
 
+    const onPointerLeave = () => showPaintGlow(null);
     canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
     return () => {
       canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, outlines, itemsGroup, threeScene]);
+  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {
@@ -1228,6 +1424,7 @@ function SceneContent({
         <primitive object={shell} />
         <primitive object={itemsGroup} />
         <primitive object={electricalGroup} />
+        <primitive object={radiatorGroup} />
       </group>
       {/* The lights that are switched on. By day they are a glow, at night the light. */}
       {sceneLights.map((light) => (
@@ -1235,6 +1432,7 @@ function SceneContent({
       ))}
 
       <primitive object={warnings} />
+      <primitive object={paintGlow} />
       <primitive object={outlines.active} />
       <primitive object={outlines.hover} />
 

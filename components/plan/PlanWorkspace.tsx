@@ -17,6 +17,7 @@ import { cn, formatM2 } from '@/lib/utils';
 import { useDesignStore } from '@/store/designStore';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
+import type { PaintTarget } from '@/lib/design/paint';
 import { ALL_LAYERS, PlanEditor, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
 import { PlanToolbar, toolHint } from './PlanToolbar';
 
@@ -51,9 +52,14 @@ export interface PlanWorkspaceProps {
   onToolDone?: () => void;
   /** A refused drop (a window on a shared wall). */
   onRefused?: () => void;
+  /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
+  paintScope?: 'cell' | 'strip' | null;
+  onPaint?: (target: PaintTarget) => void;
+  /** Only rooms and floor zones answer to the select tool (the studio's finishes). */
+  roomsOnly?: boolean;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false }: PlanWorkspaceProps) {
   const t = useT();
   const plan = useDesignStore((s) => s.plan);
   const planSerial = useDesignStore((s) => s.planSerial);
@@ -202,6 +208,9 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onUndo={keyboardUndo ? undo : undefined}
           onRedo={keyboardUndo ? redo : undefined}
           onRefused={onRefused}
+          paintScope={paintScope}
+          onPaint={onPaint}
+          roomsOnly={roomsOnly}
           onToolDone={() => {
             onToolDone?.();
             if (!controlledTool) setTool('select');

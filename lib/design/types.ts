@@ -143,6 +143,14 @@ export interface TechnicalPoint {
   /** Height of the point above the floor, where it matters (a radiator, a panel). */
   elevationM?: number;
   note?: string;
+  /**
+   * A radiator: the catalogue product it is — sold by the section, so `product.qty` is its
+   * sections — what one section of it gives and measures, and the sections the person set
+   * by hand (absent: counted from the room, see `lib/design/radiators.ts`).
+   */
+  product?: SceneProduct | null;
+  radiator?: { wattsPerSection: number; sectionWidthM: number; heightM: number; depthM: number };
+  sections?: number | null;
   origin: ElementOrigin;
 }
 
@@ -284,6 +292,12 @@ export interface PlacedItem {
   mirrored?: boolean;
   /** Locked pieces do not move on drag; the inspector unlocks them. */
   locked?: boolean;
+  /**
+   * Kitchen units are made to measure, so they are priced by the façade they come to
+   * (`lib/design/kitchen.ts`) rather than at the model's own price. `false` keeps the
+   * catalogue price for a person who would rather buy a stock kitchen.
+   */
+  custom?: boolean;
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */
@@ -329,18 +343,43 @@ export interface FinishZone {
   name?: string;
 }
 
+/** The mouldings a room wears: a skirting board along the floor, a cornice under the ceiling. */
+export type TrimKind = 'skirting' | 'cornice';
+/** The cross-section of a moulding — see `trimOutline` in lib/design/trims.ts. */
+export type TrimProfile = 'flat' | 'rounded' | 'stepped' | 'ogee' | 'cove';
+
+export interface TrimSpec {
+  profile: TrimProfile;
+  /** How tall the moulding stands on the wall, and how far it stands out from it. */
+  heightM: number;
+  depthM: number;
+}
+
 /**
- * A finish applied to a room surface (floor / walls / ceiling). Without `wallIndex` or
- * `zone` it is the room's base finish for that surface; with `wallIndex` it covers one wall
- * only, with `zone` one patch of the floor — both sit on top of the base finish.
+ * A finish applied to a room surface (floor / walls / ceiling), or one of its mouldings.
+ * Without `wallIndex`, `zone` or `cells` it is the room's base finish for that surface. The
+ * rest sit on top of the base: `wallIndex` covers one wall, `wallIndex` + `span` one
+ * stretch of that wall (a painted one-metre strip), `zone` a drawn patch of the floor,
+ * `cells` the floor tiles painted one square metre at a time. For `skirting` and `cornice`
+ * the finish is the moulding itself (`trim`), priced by the running metre.
  */
 export interface SurfaceFinish {
   roomId: string;
-  surface: 'floor' | 'wall' | 'ceiling';
+  surface: 'floor' | 'wall' | 'ceiling' | TrimKind;
   /** One wall of the room (its polygon edge index) instead of all of them. */
   wallIndex?: number | null;
+  /** A stretch of that wall — metres along the edge from its first corner — instead of all of it. */
+  span?: { from: number; to: number } | null;
   /** One patch of the floor instead of all of it. */
   zone?: FinishZone | null;
+  /**
+   * Floor tiles painted one at a time: grid squares `PAINT_CELL_M` on a side, counted from
+   * the top-left corner of the room's bounding box, each clipped to the room. One finish
+   * holds every tile of one product in one room.
+   */
+  cells?: Array<[number, number]> | null;
+  /** Skirting and cornice: the moulding's shape; null where a style has none. */
+  trim?: TrimSpec | null;
   /** Fallback colour when no product/texture is chosen. */
   colorHex: string;
   textureUrl: string | null;
@@ -543,6 +582,8 @@ export interface DesignCost {
     total: number;
     estimated: boolean;
   }>;
-  /** Square metres per finish product across the flat. */
-  coverage: Array<{ product: SceneProduct; areaM2: number; total: number; rooms: string[] }>;
+  /** The made-to-measure kitchens, measured — see `lib/design/kitchen.ts`. */
+  kitchens: Array<{ itemId: string; roomId: string; roomName?: string; slot: string; lengthM: number; lowerM2: number; upperM2: number; worktopM: number; totalM2: number; totalGel: number }>;
+  /** Square metres (running metres for a moulding) per finish product across the flat. */
+  coverage: Array<{ product: SceneProduct; areaM2: number; unit?: 'm2' | 'linear_m'; total: number; rooms: string[] }>;
 }

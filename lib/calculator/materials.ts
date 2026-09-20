@@ -58,7 +58,8 @@ export function aggregateRoomTotals(rooms: Room[]) {
   const totalWallM2 = sum(rooms.map((r) => r.wallM2));
   const totalCeilingM2 = sum(rooms.map((r) => r.ceilingM2));
   const totalPerimeterM = sum(rooms.map((r) => r.perimeterM));
-  const totalWetRoomM2 = sum(rooms.filter((r) => r.isWetRoom).map((r) => r.floorM2));
+  const wetRooms = rooms.filter((r) => r.isWetRoom);
+  const totalWetRoomM2 = sum(wetRooms.map((r) => r.floorM2));
   const doorCount = rooms.length;
   const windowCount = rooms.filter(
     (r) => !['bathroom', 'toilet', 'hallway', 'storage', 'closet'].includes(r.type)
@@ -69,6 +70,7 @@ export function aggregateRoomTotals(rooms: Room[]) {
     totalCeilingM2: round2(totalCeilingM2),
     totalPerimeterM: round2(totalPerimeterM),
     totalWetRoomM2: round2(totalWetRoomM2),
+    wetRoomCount: wetRooms.length,
     doorCount,
     windowCount,
   };
@@ -156,6 +158,18 @@ export function calculateWorkerCosts(
     });
   };
 
+  // Phase 0: an old renovation is stripped out before anything is built. Old tiles cover the
+  // wet rooms' floor and part of their walls — the same ×1.5 the tiler's line uses — and every
+  // wet room has sanitary ware to take out.
+  if (phases.includes(0)) {
+    addCost('strip_floor', t.totalFloorM2, 'm2');
+    addCost('strip_walls', t.totalWallM2, 'm2');
+    addCost('strip_ceiling', t.totalCeilingM2, 'm2');
+    addCost('strip_tiles', t.totalWetRoomM2 * 1.5, 'm2');
+    addCost('remove_doors_windows', t.doorCount + t.windowCount, 'unit');
+    addCost('remove_sanitary', t.wetRoomCount, 'unit');
+    addCost('debris_removal', t.totalFloorM2, 'm2');
+  }
   if (phases.includes(1)) addCost('demolition', t.totalFloorM2, 'm2');
   if (phases.includes(2)) addCost('plumbing_rough', t.totalFloorM2, 'm2');
   if (phases.includes(3)) addCost('electrical_rough', t.totalFloorM2, 'm2');

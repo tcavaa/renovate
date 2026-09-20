@@ -8,10 +8,9 @@
  * off — and, in a drawer along the bottom, every product of that kind the catalogue offers.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-import { Check, ChevronLeft, ChevronRight, ChevronUp, MapPin, Sparkles, Star, Trash2, Truck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Check, ChevronLeft, ChevronRight, ChevronUp, Sparkles, Trash2 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -24,36 +23,32 @@ import type { ElectricalKind, ElectricalPoint, LightCategory, PlanRoom, StyleId 
 import type { Dictionary } from '@/lib/i18n';
 import { electricalLabel } from '@/components/plan/PlanToolbar';
 import { ELECTRICAL_ICON } from '@/components/plan/icons';
-import { NumberField } from '@/components/plan/ElementInspector';
+import { IconAction, NumberField } from '@/components/plan/ElementInspector';
 
 const LIGHT_CATEGORY_KEY: Record<LightCategory, keyof Dictionary['build']> = { primary: 'lcPrimary', secondary: 'lcSecondary', furniture: 'lcFurniture', bedside: 'lcBedside', indirect: 'lcIndirect', decorative: 'lcDecorative' };
-const HEIGHT_PRESETS = [0.3, 0.45, 0.6, 0.9, 1.05, 1.1, 1.15, 1.7];
+/** The heights fitters actually work to, from a floor socket to a high wall light. */
+const HEIGHT_PRESETS = [0.3, 0.45, 0.6, 0.9, 1.05, 1.1, 1.15, 1.45, 1.7, 1.8, 1.95, 2.1];
+/** How many fit on one line of the card — more than this wrapped and pushed the rest down. */
+const PRESETS_SHOWN = 5;
+
+/**
+ * The heights worth offering for this kind: its own default always, and the nearest of the
+ * standard heights around it. A socket is not offered a wall-lamp height, and the row stays
+ * one line.
+ */
+function heightPresets(defaultElevationM: number): number[] {
+  const near = [...HEIGHT_PRESETS]
+    .filter((h) => Math.abs(h - defaultElevationM) > 0.001)
+    .sort((a, b) => Math.abs(a - defaultElevationM) - Math.abs(b - defaultElevationM))
+    .slice(0, PRESETS_SHOWN - 1);
+  return [...new Set([defaultElevationM, ...near])].sort((a, b) => a - b);
+}
 
 export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, onUpdate, onSlide, onRemove }: { point: ElectricalPoint; room: PlanRoom | null; catalog: CatalogProduct[]; styleId: StyleId; onKind: (kind: ElectricalKind) => void; onSwap: (product: CatalogProduct | null) => void; onUpdate: (patch: Partial<Omit<ElectricalPoint, 'id'>>) => void; onSlide: (t: number) => void; onRemove: () => void }) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const listRef = useRef<HTMLUListElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
 
-  // The drawer opens on a wheel down over it and closes on a wheel up from the top of its
-  // list, like the furniture card's; native, because React's wheel listeners are passive.
-  useEffect(() => {
-    const el = drawerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!open && e.deltaY > 0) {
-        e.preventDefault();
-        if (listRef.current) listRef.current.scrollTop = 0;
-        setOpen(true);
-      } else if (open && e.deltaY < 0 && (listRef.current?.scrollTop ?? 0) <= 0) {
-        e.preventDefault();
-        setOpen(false);
-      } else if (!open) e.preventDefault();
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [open]);
 
   const info = ELECTRICAL_KINDS[point.kind];
   const light = isLight(point.kind);
@@ -63,59 +58,50 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
   const edge = room && point.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === point.wallIndex) : null;
   const alongM = edge ? (point.t ?? 0.5) * edge.length : null;
   const estimate = ELECTRICAL_MATERIAL_GEL[point.kind];
-  const presets = [...new Set([...HEIGHT_PRESETS, info.defaultElevationM])].sort((a, b) => a - b);
+  const presets = heightPresets(info.defaultElevationM);
   const slide = (tt: number) => onSlide(Math.max(0.02, Math.min(0.98, tt)));
-  const select = 'h-9 w-full rounded-[10px] border border-line bg-white px-2.5 text-sm text-ink focus:border-ink focus:outline-none';
+  const select = 'h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] text-ink focus:border-ink focus:outline-none';
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* The body scrolls on its own; the drawer along the bottom never hides the last field. */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-32 pr-1">
-        {/* The product, or the estimate standing in for one. */}
-        <div className="overflow-hidden rounded-[12px] border border-line bg-bg-surface">
-          <div className="flex gap-3 p-3">
-            <div className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-bg-base text-ink-soft">
-              {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="64px" className="object-cover" /> : <Icon className="h-7 w-7" />}
+      {/*
+        Opening the drawer collapses the card rather than hiding it outright: the max
+        height animates to nothing, the drawer's `flex-1` follows it up, and the list
+        arrives at the top of the panel instead of appearing there.
+      */}
+      <div
+        aria-hidden={open}
+        className={cn(
+          'min-h-0 shrink space-y-2 pr-1 transition-[max-height,opacity,padding] duration-300 ease-out',
+          open ? 'max-h-0 overflow-hidden pb-0 opacity-0' : 'max-h-[70vh] overflow-y-auto pb-2 opacity-100'
+        )}
+      >
+        {/* What it is: the photo, the name, the price, and the shop on one line under them. */}
+        <div className="overflow-hidden rounded-[10px] border border-line bg-bg-surface">
+          <div className="flex items-center gap-2 p-2">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-bg-base text-ink-soft">
+              {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" /> : <Icon className="h-5 w-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">{electricalLabel(t, point.kind)}</p>
-              <p className="truncate text-sm font-semibold leading-snug text-ink">{product ? localizedName(locale, product) : t.build.fixtureEstimateTitle}</p>
-              {product ? (
-                <p className="mt-0.5 font-serif text-base font-bold text-brand-dark">
-                  {formatGEL(product.totalPrice)}
-                  {product.qty !== 1 && <span className="ml-1 text-xs font-normal text-ink-muted">({product.qty} × {formatGEL(product.pricePerUnit)})</span>}
-                </p>
-              ) : (
-                <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-muted">
-                  <Sparkles className="h-3 w-3" />
-                  {fill(t.build.fixtureEstimate, { price: formatGEL(estimate) })}
-                </p>
-              )}
+              <p className="truncate text-[13px] font-semibold leading-tight text-ink">{product ? localizedName(locale, product) : t.build.fixtureEstimateTitle}</p>
+              <p className="truncate text-[10px] text-ink-muted">
+                {electricalLabel(t, point.kind)}
+                {product?.store ? ` · ${localizedName(locale, product.store)}` : ''}
+              </p>
             </div>
+            {product ? (
+              <p className="shrink-0 text-right">
+                <span className="block font-serif text-sm font-bold tabular-nums text-brand-dark">{formatGEL(product.totalPrice)}</span>
+                {product.qty !== 1 && <span className="block text-[10px] tabular-nums text-ink-muted">{product.qty} × {formatGEL(product.pricePerUnit)}</span>}
+              </p>
+            ) : (
+              <p className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-ink-muted">
+                <Sparkles className="h-3 w-3" />
+                {formatGEL(estimate)}
+              </p>
+            )}
           </div>
-          {product?.store && (
-            <div className="flex items-center gap-2 border-t border-line bg-bg-base/70 px-3 py-2 text-[11px] text-ink-muted">
-              <span className="min-w-0 flex-1 truncate font-semibold text-ink">{localizedName(locale, product.store)}</span>
-              {product.store.rating != null && (
-                <span className="flex items-center gap-0.5">
-                  <Star className="h-3 w-3 fill-accent text-accent" />
-                  {product.store.rating.toFixed(1)}
-                </span>
-              )}
-              {product.store.deliveryDays != null && (
-                <span className="flex items-center gap-1">
-                  <Truck className="h-3 w-3" />
-                  {product.store.deliveryDays} {t.design.deliveryDaysSuffix}
-                </span>
-              )}
-              {product.store.address && (
-                <span className="hidden items-center gap-1 sm:flex">
-                  <MapPin className="h-3 w-3" />
-                  <span className="max-w-[120px] truncate">{product.store.address}</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* The kind, as a dropdown. */}
@@ -192,7 +178,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
             </label>
           )}
           {light && (
-            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => onUpdate({ on: point.on === false })} className="flex h-9 items-center gap-2 rounded-[10px] border border-line px-3 text-xs font-semibold text-ink transition-colors hover:border-ink">
+            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => onUpdate({ on: point.on === false })} className="flex h-8 items-center gap-2 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink transition-colors hover:border-ink">
               <span className={cn('relative h-5 w-9 rounded-full transition-colors', point.on !== false ? 'bg-[#F5B400]' : 'bg-line')}>
                 <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
               </span>
@@ -202,25 +188,17 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
         </div>
         {(point.kind === 'light_strip' || point.kind === 'light_furniture') && <NumberField label={`${t.build.stripLength} (${t.units.m})`} value={point.lengthM ?? 1.5} min={0.2} max={20} step={0.1} onCommit={(v) => onUpdate({ lengthM: v })} />}
 
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={onRemove}>
+        <div className="flex items-center gap-1.5">
+          <IconAction label={t.build.deleteElement} danger onClick={onRemove}>
             <Trash2 className="h-4 w-4" />
-            {t.build.deleteElement}
-          </Button>
-          {product?.store?.websiteUrl && (
-            <Button type="button" variant="ghost" size="sm" asChild className="flex-1">
-              <a href={product.store.websiteUrl} target="_blank" rel="noopener noreferrer">
-                {t.design.viewInStore}
-              </a>
-            </Button>
-          )}
+          </IconAction>
         </div>
       </div>
 
       {/* The products of this kind, in a drawer along the bottom — like the furniture card. */}
-      <section ref={drawerRef} data-open={open} className={cn('absolute inset-x-0 bottom-0 flex flex-col border-t border-line bg-white/95 shadow-[0_-12px_30px_-16px_rgba(22,21,19,0.25)] backdrop-blur transition-[top] duration-300 ease-out', open ? 'top-0' : 'top-[calc(100%-6.5rem)]')}>
-        <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 py-2.5 text-left">
-          <span className="text-sm font-semibold text-ink">{t.design.swapTitle}</span>
+      <section data-open={open} className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}>
+        <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
+          <span className="text-[13px] font-semibold text-ink">{t.design.swapTitle}</span>
           <span className="flex items-center gap-1 text-[11px] text-ink-muted">
             {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
             {open ? t.design.swapClose : t.design.swapOpen}
@@ -228,9 +206,9 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
           </span>
         </button>
         {alternatives.length === 0 ? (
-          <p className="pb-2 text-xs text-ink-muted">{t.build.fixtureNoProducts}</p>
+          <p className="px-3 pb-2 text-xs text-ink-muted">{t.build.fixtureNoProducts}</p>
         ) : (
-          <ul ref={listRef} className={cn('min-h-0 flex-1 space-y-2 overscroll-contain pb-1 pr-1', open ? 'overflow-y-auto' : 'overflow-hidden')}>
+          <ul className={cn('min-h-0 flex-1 space-y-1.5 overscroll-contain px-3 pb-3', 'overflow-y-auto')}>
             {alternatives.map((candidate) => {
               const active = candidate.id === product?.productId;
               return (

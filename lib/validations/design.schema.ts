@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { calculatorPicksPayloadSchema } from './project.schema';
+import { homeStateEnum } from './room.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
 
@@ -104,6 +105,11 @@ export const technicalPointSchema = z.object({
   position: vec2,
   elevationM: z.number().min(0).max(8).optional(),
   note: z.string().max(300).optional(),
+  // A radiator: the product it is (sold by the section), what a section gives and measures,
+  // and the sections set by hand.
+  product: sceneProductSchema.nullable().optional(),
+  radiator: z.object({ wattsPerSection: z.number().min(20).max(1000), sectionWidthM: z.number().min(0.02).max(0.5), heightM: z.number().min(0.1).max(2.5), depthM: z.number().min(0.02).max(0.5) }).optional(),
+  sections: z.number().int().min(1).max(60).nullable().optional(),
   origin: elementOriginSchema,
 });
 
@@ -168,6 +174,8 @@ export const placedItemSchema = z.object({
   }),
   product: sceneProductSchema.nullable(),
   pinned: z.boolean().optional(),
+  // A kitchen made to measure rather than bought at the model's price.
+  custom: z.boolean().optional(),
   origin: itemOriginSchema.optional(),
   mirrored: z.boolean().optional(),
   locked: z.boolean().optional(),
@@ -181,9 +189,18 @@ export const finishZoneSchema = z.object({
 
 export const surfaceFinishSchema = z.object({
   roomId: z.string().max(64),
-  surface: z.enum(['floor', 'wall', 'ceiling']),
+  surface: z.enum(['floor', 'wall', 'ceiling', 'skirting', 'cornice']),
   wallIndex: z.number().int().min(0).max(64).nullable().optional(),
+  // A painted stretch of one wall, metres along its edge.
+  span: z.object({ from: z.number().min(0).max(200), to: z.number().min(0).max(200) }).nullable().optional(),
   zone: finishZoneSchema.nullable().optional(),
+  // Floor tiles painted one square metre at a time: grid indices within the room.
+  cells: z.array(z.tuple([z.number().int().min(0).max(400), z.number().int().min(0).max(400)])).max(2000).nullable().optional(),
+  // A skirting board or cornice: its cross-section.
+  trim: z
+    .object({ profile: z.enum(['flat', 'rounded', 'stepped', 'ogee', 'cove']), heightM: z.number().min(0.01).max(0.6), depthM: z.number().min(0.002).max(0.6) })
+    .nullable()
+    .optional(),
   colorHex: z.string().max(9),
   textureUrl: z.string().max(500).nullable(),
   textureScaleM: z.number().positive().max(20),
@@ -229,7 +246,7 @@ export const designSceneSchema = z.object({
   mode: z.enum(['full', 'design_only']),
   budgetGel: z.number().min(0).max(10_000_000).nullable(),
   items: z.array(placedItemSchema).max(600),
-  finishes: z.array(surfaceFinishSchema).max(400),
+  finishes: z.array(surfaceFinishSchema).max(800),
   electrical: z.array(electricalPointSchema).max(600).optional(),
   styleProfile: styleProfileSchema.nullable().optional(),
 });
@@ -248,9 +265,7 @@ export const MAX_VERSIONS = 12;
 
 export const saveDesignSchema = z.object({
   nameKa: z.string().min(1).max(255).default('ჩემი დიზაინი'),
-  homeState: z
-    .enum(['black_frame', 'white_frame', 'green_frame'])
-    .default('green_frame'),
+  homeState: homeStateEnum.default('green_frame'),
   plan: floorPlanSchema,
   scene: designSceneSchema,
   floorPlanUrl: z.string().max(500).nullable().optional(),

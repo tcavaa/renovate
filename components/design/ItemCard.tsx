@@ -36,14 +36,14 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
         className
       )}
     >
-      <div className="flex gap-3 p-3">
-        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-bg-base">
+      <div className={cn('flex gap-2', compact ? 'p-3' : 'p-2')}>
+        <div className={cn('relative shrink-0 overflow-hidden rounded-md bg-bg-base', compact ? 'h-16 w-16' : 'h-11 w-11')}>
           {product?.imageUrl ? (
             <Image
               src={product.imageUrl}
               alt={localizedName(locale, product)}
               fill
-              sizes="64px"
+              sizes={compact ? '64px' : '44px'}
               className="object-cover"
             />
           ) : (
@@ -55,12 +55,13 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] uppercase tracking-wide text-ink-muted">
+          <p className={cn('uppercase tracking-wide text-ink-muted', compact ? 'text-[11px]' : 'text-[10px]')}>
             {archetypeLabel(item.kind, locale)}
           </p>
           <p
             className={cn(
-              'mb-0.5 flex items-center gap-1 text-[11px]',
+              'mb-0.5 flex items-center gap-1',
+              compact ? 'text-[11px]' : 'text-[10px]',
               item.origin === 'calculator' || item.origin === 'studio' ? 'text-success' : 'text-ink-muted'
             )}
           >
@@ -75,11 +76,11 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
                 ? t.design.originStudio
                 : t.design.originStyle}
           </p>
-          <p className="truncate text-sm font-semibold leading-snug text-ink">
+          <p className={cn('truncate font-semibold leading-snug text-ink', compact ? 'text-sm' : 'text-[13px]')}>
             {product ? localizedName(locale, product) : '—'}
           </p>
           {product && (
-            <p className="mt-0.5 font-serif text-base font-bold text-brand-dark">
+            <p className={cn('mt-0.5 font-serif font-bold text-brand-dark', compact ? 'text-base' : 'text-sm')}>
               {formatGEL(product.totalPrice)}
               {product.qty !== 1 && (
                 <span className="ml-1 text-xs font-normal text-ink-muted">
@@ -91,7 +92,30 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
         </div>
       </div>
 
-      {product?.store && (
+      {/*
+        In the side panel the shop is one line: the card sits above every control the piece
+        has, and an address and a telephone number there pushed them all below the fold. The
+        hover card — the moment that proves the sofa is a real sofa you can buy — keeps them.
+      */}
+      {product?.store && !compact && (
+        <div className="flex items-center gap-1.5 border-t border-line bg-bg-base/70 px-2 py-1 text-[10px] text-ink-muted">
+          <span className="min-w-0 flex-1 truncate font-semibold text-ink">{localizedName(locale, product.store)}</span>
+          {product.store.rating != null && (
+            <span className="flex shrink-0 items-center gap-0.5">
+              <Star className="h-3 w-3 fill-accent text-accent" />
+              {product.store.rating.toFixed(1)}
+            </span>
+          )}
+          {product.store.deliveryDays != null && (
+            <span className="flex shrink-0 items-center gap-1">
+              <Truck className="h-3 w-3" />
+              {product.store.deliveryDays} {t.design.deliveryDaysSuffix}
+            </span>
+          )}
+        </div>
+      )}
+
+      {product?.store && compact && (
         <div className="border-t border-line bg-bg-base/70 px-3 py-2.5">
           <div className="flex items-center gap-2">
             {product.store.logoUrl && (

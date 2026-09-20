@@ -117,6 +117,26 @@ describe('POST /api/projects', () => {
     expect(res.status).toBe(400);
   });
 
+  it('saves an old renovation with the strip-out in its labour', async () => {
+    const POST = await load();
+    const save = (homeState: string) =>
+      POST(post('http://localhost/api/projects', { homeState, rooms: [room], selectedProducts: {}, selectedFurniture: {} }), { params: Promise.resolve({}) });
+
+    const res = await save('old_renovation');
+    expect(res.status).toBe(200);
+    const old = insertValues.mock.calls[0][0] as Record<string, unknown>;
+    expect(old.homeState).toBe('old_renovation');
+    const keys = ((await res.json()).data.summary.workerCosts as Array<{ key: string }>).map((w) => w.key);
+    expect(keys.slice(0, 3)).toEqual(['strip_floor', 'strip_walls', 'strip_ceiling']);
+
+    // The same flat as a black frame costs less labour: no floors, walls, ceilings, door,
+    // window or debris to take out first (a dry room has no tiles or sanitary ware).
+    await save('black_frame');
+    const black = insertValues.mock.calls[1][0] as Record<string, unknown>;
+    const stripOut = 20 * 6 + 48.6 * 5 + 20 * 5 + 2 * 35 + 20 * 7;
+    expect(Number(old.totalWorkersCost) - Number(black.totalWorkersCost)).toBeCloseTo(stripOut, 2);
+  });
+
   it('marks a signed-in user’s project as saved and attaches the user id', async () => {
     authMock.mockResolvedValue({ user: { id: '5', role: 'user' } });
     const POST = await load();

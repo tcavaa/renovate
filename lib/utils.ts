@@ -45,6 +45,8 @@ export function formatUnit(unit: string): string {
   const map: Record<string, string> = {
     m2: 'მ²',
     linear_m: 'გრძ.მ',
+    m: 'მ',
+    section: 'სექცია',
     piece: 'ცალი',
     liter: 'ლ',
     kg: 'კგ',

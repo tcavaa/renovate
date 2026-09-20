@@ -12,7 +12,7 @@ import { ChevronLeft, ChevronRight, Lock, LockOpen, Trash2 } from 'lucide-react'
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { cn, formatM2 } from '@/lib/utils';
+import { cn, formatGEL, formatM2 } from '@/lib/utils';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { roomEdges } from '@/lib/design/planGeometry';
@@ -24,6 +24,11 @@ import { isAutoRoomName, nextRoomName } from '@/lib/design/planGeometry';
 import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, Opening, PlanRoom, SurfaceFinish, TechnicalKind, TechnicalPoint, Wall } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
 import type { ElementSelection } from '@/store/designStore';
+import { MAX_SECTIONS, radiatorCandidates, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';
+import { useLocale } from '@/lib/i18n/client';
+import { localizedName } from '@/lib/i18n/labels';
+import type { CatalogProduct } from '@/lib/design/matcher';
+import type { StyleId } from '@/lib/design/types';
 import { electricalLabel, technicalLabel } from './PlanToolbar';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 import { TECHNICAL_COLOR } from './palette';
@@ -65,10 +70,13 @@ export interface InspectorActions {
   resizeRoom?: (id: string, widthM: number, depthM: number) => void;
   removeRoom: (id: string) => void;
   removeZone?: (roomId: string, zoneId: string) => void;
+  /** The catalogue product a radiator is (null: back to the estimate). */
+  setRadiatorProduct?: (id: string, product: CatalogProduct | null) => void;
 }
 
-export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode }) {
+export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian' }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId }) {
   const t = useT();
+  const locale = useLocale();
   if (!selection) {
     return <p className={cn('rounded-[12px] border border-dashed border-line p-4 text-center text-xs text-ink-muted', className)}>{t.build.nothingSelected}</p>;
   }
@@ -223,6 +231,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
           </div>
         </Field>
         <NumberField label={`${t.build.elevation} (${t.units.m})`} value={point.elevationM ?? 0} min={0} max={4} step={0.05} onCommit={(v) => actions.updateTechnical(point.id, { elevationM: v })} />
+        {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         <Field label={t.build.note}>
           <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm" />
         </Field>
@@ -239,7 +248,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     const light = isLight(point.kind);
     const edge = room && point.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === point.wallIndex) : null;
     const alongM = edge ? (point.t ?? 0.5) * edge.length : null;
-    const presets = [...new Set([0.3, 0.45, 0.6, 0.9, 1.05, 1.1, 1.15, 1.7, info.defaultElevationM])].sort((a, b) => a - b);
+    // The nearest few standard heights to this kind's own, so the row stays one line.
+    const presets = [...new Set([info.defaultElevationM, ...[0.3, 0.45, 0.6, 0.9, 1.05, 1.1, 1.15, 1.45, 1.7, 1.8, 1.95, 2.1].filter((h) => Math.abs(h - info.defaultElevationM) > 0.001).sort((a, b) => Math.abs(a - info.defaultElevationM) - Math.abs(b - info.defaultElevationM)).slice(0, 4)])].sort((a, b) => a - b);
     const setKind = (kind: ElectricalKind) => actions.updateElectrical(point.id, { kind, elevationM: ELECTRICAL_KINDS[kind].placement === 'ceiling' ? (room?.heightM ?? point.elevationM) : ELECTRICAL_KINDS[kind].defaultElevationM });
     const slide = (tt: number) => actions.slideElectrical?.(point.id, Math.max(0.02, Math.min(0.98, tt)));
     const Icon = ELECTRICAL_ICON[point.kind];
@@ -398,10 +408,75 @@ export function RoomFields({ room, plan, actions, locked, compact }: { room: Pla
 // Small building blocks
 // ---------------------------------------------------------------------------
 
+
+/**
+ * A radiator's card: what its room needs (watts, and the sections that makes of the chosen
+ * radiator), the sections this one has — counted from the room unless set by hand — and
+ * what it is bought as, priced by the section.
+ */
+function RadiatorFields({ plan, point, catalog, styleId, locale, actions }: { plan: FloorPlan; point: TechnicalPoint; catalog: CatalogProduct[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru'; actions: InspectorActions }) {
+  const t = useT();
+  const room = radiatorRoom(plan, point);
+  const watts = point.radiator?.wattsPerSection;
+  const sections = radiatorSections(plan, point);
+  const roomSections = room ? sectionsForRoom(plan, room, watts) : 0;
+  const candidates = radiatorCandidates(catalog, styleId);
+  const price = point.product ? point.product.pricePerUnit * sections : null;
+  return (
+    <div className="space-y-2 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      {room && (
+        <p className="text-[11px] leading-snug text-ink-muted">
+          {fill(t.build.radiatorDemand, { room: room.name, m2: formatM2(room.areaM2), w: roomHeatDemandW(plan, room), n: roomSections })}
+        </p>
+      )}
+      <div className="flex items-end gap-2">
+        <NumberField label={t.build.radiatorSections} value={sections} min={1} max={40} step={1} onCommit={(v) => actions.updateTechnical(point.id, { sections: Math.round(v) })} />
+        <Chip active={!point.sections} onClick={() => actions.updateTechnical(point.id, { sections: null })}>
+          {t.build.radiatorAuto}
+        </Chip>
+      </div>
+      {sections >= MAX_SECTIONS && !point.sections && <p className="text-[11px] leading-snug text-warning">{t.build.radiatorSplitHint}</p>}
+      {actions.setRadiatorProduct && candidates.length > 0 && (
+        <Field label={t.build.radiatorProduct}>
+          <div className="flex flex-col gap-1">
+            {candidates.map((product) => {
+              const active = point.product?.productId === product.id;
+              return (
+                <button key={product.id} type="button" onClick={() => actions.setRadiatorProduct?.(point.id, active ? null : product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                  {product.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base object-contain" />
+                  ) : (
+                    <span className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-ink">{localizedName(locale, product)}</span>
+                    <span className="block tabular-nums text-ink-muted">
+                      {formatGEL(product.pricePerUnit)} / {t.build.radiatorSection}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
+      {price != null && (
+        <p className="flex items-baseline justify-between text-xs">
+          <span className="text-ink-muted">
+            {sections} × {formatGEL(point.product!.pricePerUnit)}
+          </span>
+          <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatGEL(price)}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Section({ title, subtitle, icon, onDelete, className, children }: { title: string; subtitle?: string | null; icon?: React.ReactNode; onDelete?: () => void; className?: string; children: React.ReactNode }) {
   const t = useT();
   return (
-    <div className={cn('space-y-3 rounded-[14px] border border-line bg-white p-3', className)}>
+    <div className={cn('space-y-2 rounded-[14px] border border-line bg-white p-3', className)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-sand-light text-ink">{icon}</span>}
@@ -424,7 +499,7 @@ export function Section({ title, subtitle, icon, onDelete, className, children }
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{label}</span>
+      <span className="mb-0.5 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{label}</span>
       {children}
     </label>
   );
@@ -441,7 +516,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
 
 export function Chip({ active, onClick, disabled, title, small, children }: { active?: boolean; onClick: () => void; disabled?: boolean; title?: string; small?: boolean; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} title={title} className={cn('inline-flex items-center gap-1.5 rounded-[8px] font-medium transition-colors disabled:opacity-50', small ? 'h-7 px-2 text-[11px]' : 'h-8 px-2.5 text-xs', active ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} title={title} className={cn('inline-flex items-center gap-1.5 rounded-[8px] font-medium transition-colors disabled:opacity-50', small ? 'h-7 px-2 text-[11px]' : 'h-7 px-2.5 text-xs', active ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
       {children}
     </button>
   );
@@ -469,7 +544,7 @@ export function NumberField({ label, value, min, max, step, onCommit, disabled }
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
-        className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm tabular-nums disabled:opacity-50"
+        className="h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] tabular-nums disabled:opacity-50"
       />
     </Field>
   );
@@ -507,6 +582,29 @@ export function OriginRow({ origin }: { origin: 'existing' | 'user' | 'generated
       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </p>
+  );
+}
+
+/**
+ * One square icon button — mirror, duplicate, lock, delete. The word beside the icon is
+ * what made the side panels scroll; the tooltip and the aria-label carry it instead.
+ */
+export function IconAction({ label, onClick, active, danger, disabled, children }: { label: string; onClick: () => void; active?: boolean; danger?: boolean; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      className={cn(
+        'grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border transition-colors disabled:opacity-40',
+        active ? 'border-ink bg-ink text-white' : danger ? 'border-line bg-white text-ink-soft hover:border-danger hover:text-danger' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink'
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

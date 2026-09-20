@@ -130,9 +130,9 @@ export function wallEdgeAreaM2(room: PlanRoom, wallIndex: number): number {
   return Math.max(0.1, Math.round((gross - openings) * 10) / 10);
 }
 
-/** True for a room's base finish (all of a surface), false for a single wall or a zone. */
+/** True for a room's base finish (all of a surface), false for a single wall, a strip of one, a zone or painted tiles. */
 export function isBaseFinish(finish: SurfaceFinish): boolean {
-  return finish.wallIndex == null && !finish.zone;
+  return finish.wallIndex == null && !finish.zone && !finish.cells;
 }
 
 /**
@@ -140,8 +140,9 @@ export function isBaseFinish(finish: SurfaceFinish): boolean {
  * room's base finish for its walls.
  */
 export function wallFinishFor(finishes: SurfaceFinish[], roomId: string, wallIndex: number): SurfaceFinish | undefined {
+  // A painted strip of the wall (`span`) is not the wall's finish; it lies on top of it.
   return (
-    finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && f.wallIndex === wallIndex) ??
+    finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && f.wallIndex === wallIndex && !f.span) ??
     finishes.find((f) => f.roomId === roomId && f.surface === 'wall' && isBaseFinish(f))
   );
 }
@@ -152,18 +153,23 @@ export function floorZones(finishes: SurfaceFinish[], roomId: string): SurfaceFi
 
 export interface FinishCoverage {
   product: SceneProduct;
-  /** Square metres over every room, wall and zone it is on. */
+  /**
+   * How much of it, over every room, wall, strip, zone and tile it is on: square metres —
+   * or running metres, for a skirting board or a cornice (`unit`).
+   */
   areaM2: number;
+  unit: 'm2' | 'linear_m';
   total: number;
   rooms: string[];
 }
 
-/** Every finish product in the scene with the square metres it covers — the "Bathroom tiles — 12.4 m²" list. */
+/** Every finish product in the scene with what it covers — the "Bathroom tiles — 12.4 m²" list. */
 export function finishCoverage(finishes: SurfaceFinish[]): FinishCoverage[] {
   const byProduct = new Map<number, FinishCoverage>();
   for (const finish of finishes) {
     if (!finish.product) continue;
-    const entry = byProduct.get(finish.product.productId) ?? { product: finish.product, areaM2: 0, total: 0, rooms: [] };
+    const unit = finish.surface === 'skirting' || finish.surface === 'cornice' ? 'linear_m' : 'm2';
+    const entry = byProduct.get(finish.product.productId) ?? { product: finish.product, areaM2: 0, unit, total: 0, rooms: [] };
     entry.areaM2 = Math.round((entry.areaM2 + finish.product.qty) * 100) / 100;
     entry.total = Math.round((entry.total + finish.product.totalPrice) * 100) / 100;
     if (!entry.rooms.includes(finish.roomId)) entry.rooms.push(finish.roomId);

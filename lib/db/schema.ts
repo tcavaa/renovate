@@ -252,7 +252,7 @@ export const projects = mysqlTable('projects', {
   userId: int('user_id').references(() => users.id),
   sessionId: varchar('session_id', { length: 255 }),
   nameKa: varchar('name_ka', { length: 255 }).default('ჩემი პროექტი'),
-  homeState: mysqlEnum('home_state', ['black_frame', 'white_frame', 'green_frame']).notNull(),
+  homeState: mysqlEnum('home_state', ['old_renovation', 'black_frame', 'white_frame', 'green_frame']).notNull(),
   totalM2: decimal('total_m2', { precision: 8, scale: 2 }).notNull(),
   rooms: json('rooms').notNull(),
   selectedProducts: json('selected_products'),

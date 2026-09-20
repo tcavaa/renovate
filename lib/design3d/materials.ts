@@ -45,6 +45,8 @@ export interface MaterialOptions {
 export class StyleMaterials {
   private materials = new Map<string, THREE.MeshStandardMaterial>();
   private textures = new Map<string, THREE.Texture>();
+  /** Who is waiting for a texture whose image has not arrived yet. */
+  private pending = new Map<string, Array<(texture: THREE.Texture) => void>>();
   private loader = new THREE.TextureLoader();
 
   constructor(public style: StyleDefinition) {}
@@ -166,37 +168,80 @@ export class StyleMaterials {
       side: THREE.FrontSide,
     });
 
+    // Every map is put on the material when its image has arrived, not before: a texture
+    // with no image yet samples as black (and a normal map as a normal pointing nowhere),
+    // so a wall strip painted a moment ago stood pitch black until its file came in. Until
+    // then the surface shows its flat colour.
     if (textureUrl) {
-      material.map = this.texture(textureUrl, repeatU, repeatV, true);
-      // A textured surface carries its own colour; tinting it again muddies the image.
-      material.color.set('#FFFFFF');
+      this.whenLoaded(textureUrl, repeatU, repeatV, true, (texture) => {
+        material.map = texture;
+        // A textured surface carries its own colour; tinting it again muddies the image.
+        material.color.set('#FFFFFF');
+        material.needsUpdate = true;
+      });
     }
     if (normalUrl) {
-      material.normalMap = this.texture(normalUrl, repeatU, repeatV, false);
-      material.normalScale = new THREE.Vector2(0.6, 0.6);
+      this.whenLoaded(normalUrl, repeatU, repeatV, false, (texture) => {
+        material.normalMap = texture;
+        material.normalScale = new THREE.Vector2(0.6, 0.6);
+        material.needsUpdate = true;
+      });
     }
     if (roughnessUrl) {
-      material.roughnessMap = this.texture(roughnessUrl, repeatU, repeatV, false);
+      this.whenLoaded(roughnessUrl, repeatU, repeatV, false, (texture) => {
+        material.roughnessMap = texture;
+        material.needsUpdate = true;
+      });
     }
 
     this.materials.set(key, material);
     return material;
   }
 
-  private texture(url: string, repeatU: number, repeatV: number, srgb: boolean): THREE.Texture {
+  /**
+   * A surface material for geometry whose UVs are in **metres** — which is every surface
+   * the studio builds (a `ShapeGeometry` floor carries its plan coordinates as UVs, the
+   * walls write theirs out in metres along and up). One tile of the texture then covers
+   * `textureScaleM` metres on every surface, whatever its size: a plank is as long in the
+   * hall as in the living room, and a pattern runs on unbroken from one painted strip of a
+   * wall to the next. Passing a surface's own size to `surface()` with metre UVs tiled the
+   * texture by the *square* of the size — a four-metre wall got four times the bricks per
+   * metre that a two-metre wall did.
+   */
+  metreSurface(spec: StyleSurface, overrides: Parameters<StyleMaterials['surface']>[2] = {}): THREE.MeshStandardMaterial {
+    return this.surface(spec, { u: 1, v: 1 }, overrides);
+  }
+
+  /** Hands `apply` the texture once its image is in — at once when it already is. */
+  private whenLoaded(url: string, repeatU: number, repeatV: number, srgb: boolean, apply: (texture: THREE.Texture) => void): void {
     const key = `${url}|${repeatU.toFixed(2)}|${repeatV.toFixed(2)}|${srgb}`;
     const cached = this.textures.get(key);
-    if (cached) return cached;
+    if (cached) {
+      const waiting = this.pending.get(key);
+      if (waiting) waiting.push(apply);
+      else apply(cached);
+      return;
+    }
 
-    const texture = this.loader.load(url);
+    this.pending.set(key, [apply]);
+    const texture = this.loader.load(
+      url,
+      (loaded) => {
+        const waiting = this.pending.get(key) ?? [];
+        this.pending.delete(key);
+        // Disposed while the file was on its way (the style changed): nobody wants it now.
+        if (this.textures.get(key) !== loaded) return;
+        for (const callback of waiting) callback(loaded);
+      },
+      undefined,
+      () => this.pending.delete(key)
+    );
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(repeatU, repeatV);
     texture.anisotropy = 8;
     if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
-
     this.textures.set(key, texture);
-    return texture;
   }
 
   /** A product photo shown on a billboard when there is no better geometry for it. */
@@ -230,5 +275,6 @@ export class StyleMaterials {
     for (const texture of this.textures.values()) texture.dispose();
     this.materials.clear();
     this.textures.clear();
+    this.pending.clear();
   }
 }

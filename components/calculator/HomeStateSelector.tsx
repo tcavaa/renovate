@@ -6,19 +6,21 @@ import { useT } from '@/lib/i18n/client';
 import type { HomeState } from '@/lib/calculator/types';
 
 const OPTIONS: Array<{ value: HomeState; phases: string }> = [
+  { value: 'old_renovation', phases: '00 – 18' },
   { value: 'black_frame', phases: '01 – 18' },
   { value: 'white_frame', phases: '09 – 17' },
   { value: 'green_frame', phases: '17' },
 ];
 
 /**
- * Three sharp option cards in a row. The chosen one fills with ink; the others stay paper
- * with a hairline. Each shows which renovation phases the estimate will include.
+ * Four sharp option cards — two by two, in one row on a wide screen — from the most work to
+ * the least. The chosen one fills with ink; the others stay paper with a hairline. Each
+ * shows which renovation phases the estimate will include.
  */
 export function HomeStateSelector({ value, onChange }: { value: HomeState | null; onChange: (v: HomeState) => void }) {
   const t = useT();
   return (
-    <div className="grid border-t border-l border-line sm:grid-cols-3" role="radiogroup" aria-label={t.homeState.title}>
+    <div className="grid border-t border-l border-line sm:grid-cols-2 xl:grid-cols-4" role="radiogroup" aria-label={t.homeState.title}>
       {OPTIONS.map((opt, i) => {
         const copy = t.homeState[opt.value];
         const selected = value === opt.value;

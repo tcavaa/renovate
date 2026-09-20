@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { beamAt, columnAt, nodeAt, pointElementAt, snapPoint, snapRectangle, wallAt } from '@/lib/design/drawing';
+import { addWalls, roomsFromWalls, wallsForRectangle } from '@/lib/design/walls';
 import type { Beam, Column, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
 const wall = (id: string, a: Vec2, b: Vec2, thicknessM = 0.12): Wall => ({ id, a, b, thicknessM, origin: 'user' });
@@ -70,6 +71,49 @@ describe('snapRectangle', () => {
     const { rect, guides } = snapRectangle({ x: 4.12, z: 0.06, width: 3, depth: 2.5 }, stacked, 0.12, 0.2);
     expect(rect.x).toBeCloseTo(4.06, 6);
     expect(guides[0].a).toEqual(P(4, 0));
+  });
+
+  it('meets the neighbour on both sides when a room is drawn between two others', () => {
+    // Rooms 1 and 3 stand either side of a gap under room 2; the pointer snapped both corners
+    // of room 4 onto their walls' centrelines (x = 5.2 and x = 7.86), so the drawn face is
+    // half a wall too wide on each side. Sliding it onto one neighbour left the other wall
+    // doubled, a thickness apart; both sides have to land.
+    const flat = addWalls(
+      [],
+      [
+        ...wallsForRectangle({ x: 0.06, z: 1.95, width: 5.08, depth: 4 }, 0.12, 'user', 'r1'),
+        ...wallsForRectangle({ x: 0.06, z: 0.06, width: 10.01, depth: 1.77 }, 0.12, 'user', 'r2'),
+        ...wallsForRectangle({ x: 7.92, z: 1.95, width: 2.15, depth: 4.12 }, 0.12, 'user', 'r3'),
+      ]
+    );
+    const { rect, guides } = snapRectangle({ x: 5.2, z: 1.89, width: 2.66, depth: 5.75 }, flat, 0.12, 0.2);
+    expect(rect.x).toBeCloseTo(5.26, 6);
+    expect(rect.width).toBeCloseTo(2.54, 6);
+    expect(rect.z).toBeCloseTo(1.95, 6);
+    expect(rect.depth).toBeCloseTo(5.75, 6);
+    expect(guides).toHaveLength(3);
+
+    // One wall between rooms 1 and 4, one between 4 and 3: four plain rooms, no jogs.
+    const walls = addWalls(flat, wallsForRectangle(rect, 0.12, 'user', 'r4'));
+    const rooms = roomsFromWalls(walls);
+    expect(rooms).toHaveLength(4);
+    const fourth = rooms.find((r) => Math.abs(r.areaM2 - 2.54 * 5.75) < 0.05);
+    expect(fourth?.polygon).toHaveLength(4);
+    for (const p of walls) {
+      for (const q of walls) {
+        if (p === q || Math.abs(p.a.x - p.b.x) > 1e-6 || Math.abs(q.a.x - q.b.x) > 1e-6) continue;
+        const apart = Math.abs(p.a.x - q.a.x);
+        const overlap = Math.min(Math.max(p.a.z, p.b.z), Math.max(q.a.z, q.b.z)) - Math.max(Math.min(p.a.z, p.b.z), Math.min(q.a.z, q.b.z));
+        if (overlap > 0.3) expect(apart === 0 || apart > 0.5).toBe(true);
+      }
+    }
+  });
+
+  it('reaches a wall its own wall would overlap, however small the pointer’s reach', () => {
+    // Zoomed far in the pointer's reach is a couple of centimetres; a rectangle whose wall
+    // would stand half inside the neighbour's is still the neighbour's wall.
+    const { rect } = snapRectangle({ x: 4.15, z: 0.06, width: 3, depth: 2.5 }, square, 0.12, 0.02);
+    expect(rect.x).toBeCloseTo(4.06, 6);
   });
 
   it('leaves a rectangle far from everything where it is', () => {

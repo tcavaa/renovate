@@ -6,8 +6,9 @@ import { saveDesignSchema } from '@/lib/validations/design.schema';
 import { planToCalculatorRooms, totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { priceScene } from '@/lib/design/pricing';
 import { quantityFor } from '@/lib/design/matcher';
-import { wallAreaM2 } from '@/lib/design/surfaces';
-import type { DesignScene, FloorPlan, PlanRoom } from '@/lib/design/types';
+import { finishQuantity } from '@/lib/design/finishQuantity';
+import { isTrimSurface } from '@/lib/design/trims';
+import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { loadProductPrices, repriceFinishSnapshot, repriceSnapshot } from '@/lib/api/productPrices';
 import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
@@ -70,7 +71,10 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     }
     const room = roomsById.get(finish.roomId);
     if (!room) return fail(`Unknown room ${finish.roomId}`, 400);
-    const product = repriceFinishSnapshot(finish.product, known, surfaceAreaM2(room, finish.surface));
+    // What the finish covers decides the quantity (one wall, a strip, a zone, painted tiles,
+    // the whole room); a moulding is sold by the metre at its own price, the rest per m².
+    const quantity = finishQuantity(room, finish);
+    const product = isTrimSurface(finish.surface) ? repriceSnapshot(finish.product, known, quantity) : repriceFinishSnapshot(finish.product, known, quantity);
     if (!product) return fail(`Unknown product ${finish.product.productId}`, 400);
     scene.finishes.push({ ...finish, product });
   }
@@ -142,8 +146,3 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   return ok({ id: inserted[0].insertId, cost });
 });
 
-/** Square metres a finish covers — the same rule `finishFromProduct` uses on the client. */
-function surfaceAreaM2(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling'): number {
-  if (surface === 'wall') return wallAreaM2(room);
-  return Math.round(room.areaM2 * 10) / 10;
-}

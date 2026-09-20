@@ -15,16 +15,16 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
-import { planFromCalculatorRooms } from '@/lib/design/planGeometry';
-import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
+import { DEFAULT_WALL_THICKNESS_M, planFromCalculatorRooms } from '@/lib/design/planGeometry';
+import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 import type { FloorPlan } from '@/lib/design/types';
 
 type PlanMode = 'upload' | 'scratch';
 
 /**
  * Step 1 of the journey: where the plan comes from — an uploaded drawing (PDF or image),
- * the rooms from the calculator, or a blank sheet to draw on in the next step — the
- * default wall height and thickness the drawing will use, and what kind of project this is.
+ * the rooms from the calculator, or a blank sheet to draw on in the next step — and what
+ * kind of project this is.
  * Nothing leaves this page until the one continue button at the bottom.
  */
 export default function DesignStartPage() {
@@ -36,8 +36,10 @@ export default function DesignStartPage() {
   /** A plan read from an upload (or borrowed from the calculator), waiting for "continue". */
   const [uploaded, setUploaded] = useState<{ plan: FloorPlan; imageUrl: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [wallHeight, setWallHeight] = useState(String(plan?.wallHeightM ?? 2.8));
-  const [thickness, setThickness] = useState(plan?.wallThicknessM ?? 0.12);
+  // The drawing's defaults — 2.8 m walls, 12 cm thick — are not asked for here any more:
+  // every wall and room carries its own on the board, where the thickness is in the toolbar.
+  const heightM = plan?.wallHeightM ?? DEFAULT_WALL_HEIGHT_M;
+  const thickness = plan?.wallThicknessM ?? DEFAULT_WALL_THICKNESS_M;
 
   const planReady = planMode === 'upload' ? !!uploaded : true;
   useEffect(() => {
@@ -71,7 +73,6 @@ export default function DesignStartPage() {
       scrollTo('mode-section');
       return;
     }
-    const heightM = Math.min(6, Math.max(1.8, Number(wallHeight) || 2.8));
     if (planMode === 'upload' && uploaded) {
       setPlan({ ...uploaded.plan, wallThicknessM: thickness, wallHeightM: heightM }, uploaded.imageUrl);
     } else if (planMode === 'scratch') {
@@ -145,27 +146,6 @@ export default function DesignStartPage() {
               <p className="mt-1">{t.build.optionScratchDesc}</p>
             </div>
           )}
-
-          <div className="rounded-[16px] border border-line bg-bg-surface p-5">
-            <p className="text-sm font-semibold text-ink">{t.build.defaultsTitle}</p>
-            <p className="mt-1 text-xs text-ink-muted">{t.build.defaultsHint}</p>
-            <div className="mt-4 flex flex-wrap items-end gap-6">
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.defaultWallHeight}</span>
-                <input type="number" inputMode="decimal" min={1.8} max={6} step={0.05} value={wallHeight} onChange={(e) => setWallHeight(e.target.value)} className="h-10 w-32 rounded-[10px] border border-line bg-white px-3 text-sm tabular-nums" />
-              </label>
-              <div>
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.defaultWallThickness}</span>
-                <div className="flex gap-1" role="radiogroup">
-                  {WALL_THICKNESS_OPTIONS_M.map((m) => (
-                    <button key={m} type="button" role="radio" aria-checked={Math.abs(thickness - m) < 1e-6} onClick={() => setThickness(m)} className={cn('h-10 rounded-[10px] px-3 text-sm font-semibold tabular-nums transition-colors', Math.abs(thickness - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
-                      {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
         </section>
 
         <section id="mode-section" className="mt-14 space-y-5">

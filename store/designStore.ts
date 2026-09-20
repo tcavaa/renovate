@@ -54,9 +54,13 @@ import {
 import { fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
 import { technicalAnchors, TECHNICAL_KINDS } from '@/lib/design/technical';
+import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
+import { cellPolygon, paintCell, paintSpan, type PaintTarget } from '@/lib/design/paint';
+import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
+import { roomEdges } from '@/lib/design/planGeometry';
 import type {
   Beam,
   Column,
@@ -196,6 +200,12 @@ interface DesignActions {
   addTechnicalPoint: (kind: TechnicalKind, position: Vec2, roomId?: string | null) => string;
   updateTechnicalPoint: (id: string, patch: Partial<Omit<TechnicalPoint, 'id'>>) => void;
   removeTechnicalPoint: (id: string) => void;
+  /** The real product a radiator is (null: back to the estimate). */
+  setRadiatorProduct: (id: string, product: CatalogProduct | null) => void;
+  /** A radiator under every window of the heated rooms that have none; with the catalogue each is a product at once. Returns how many were hung. */
+  suggestRadiators: (catalog?: CatalogProduct[]) => number;
+  /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
+  ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
   setWorks: (works: string[]) => void;
   // --- electrical ---
   /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
@@ -230,8 +240,12 @@ interface DesignActions {
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
   openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null; versions?: DesignVersion[] }) => void;
-  /** Gives rooms a floor or wall finish; null returns them to the style's default. */
-  setFinish: (roomIds: string[], surface: 'floor' | 'wall', product: CatalogProduct | null) => void;
+  /** Gives rooms a floor or wall finish, a skirting board or a cornice; null returns them to the style's default. */
+  setFinish: (roomIds: string[], surface: 'floor' | 'wall' | 'skirting' | 'cornice', product: CatalogProduct | null) => void;
+  /** Paints one floor tile or one strip of one wall (`lib/design/paint`); null is the eraser. */
+  paintSurface: (target: PaintTarget, product: CatalogProduct | null) => void;
+  /** Takes everything painted on part of a surface off again — single walls, strips, zones, tiles — so the room's base shows. */
+  clearPartialFinishes: (roomId: string, surface: 'floor' | 'wall') => void;
   /** One wall of a room; null removes the wall's own finish so the room's base shows again. */
   setWallFinish: (roomId: string, wallIndex: number, product: CatalogProduct | null) => void;
   /** A patch of a room's floor with its own finish (or none yet, to be picked). Returns the zone id. */
@@ -350,7 +364,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           const home = plan.rooms.find((r) => pointInPolygon(item.position, r.polygon));
           return home ? [{ ...item, roomId: home.id }] : [];
         });
-        const finishes = keepChosen(defaultFinishes(plan, s.styleId), s.finishes.filter((f) => rooms.has(f.roomId)));
+        const finishes = fitToPlan(keepChosen(defaultFinishes(plan, s.styleId), s.finishes.filter((f) => rooms.has(f.roomId))), plan);
         const electrical = reprojectElectrical(
           s.electrical.filter((p) => rooms.has(p.roomId)),
           plan
@@ -622,6 +636,31 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           commit((s) => (s.plan?.technical ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical.points.map((p) => (p.id === id ? { ...p, ...patch } : p)) } } } : null)),
         removeTechnicalPoint: (id) =>
           commit((s) => (s.plan?.technical ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical.points.filter((p) => p.id !== id) } } } : null)),
+        setRadiatorProduct: (id, product) =>
+          commit((s) => {
+            if (!s.plan?.technical) return null;
+            const plan = s.plan;
+            return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id ? { ...withRadiatorProduct(plan, p, product), origin: p.origin } : p)) } } };
+          }),
+        suggestRadiators: (catalog = []) => {
+          let hung = 0;
+          commit((s) => {
+            if (!s.plan) return null;
+            let n = 0;
+            const added = suggestRadiators(s.plan, () => `${uid('t')}${n++}`);
+            if (added.length === 0) return null;
+            hung = added.length;
+            const plan: FloorPlan = { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), ...added], works: s.plan.technical?.works } };
+            return { plan: withRadiatorProducts(plan, catalog, s.styleId) };
+          });
+          return hung;
+        },
+        ensureRadiatorProducts: (catalog) => {
+          const { plan, styleId } = get();
+          if (!plan || catalog.length === 0) return;
+          const next = withRadiatorProducts(plan, catalog, styleId);
+          if (next !== plan) set({ plan: next });
+        },
         setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works } } } : s)),
 
         // --- electrical ---
@@ -774,9 +813,24 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             // The room's base finish for the surface; single walls and zones on it stay.
             const next = s.finishes.filter((f) => !(f.surface === surface && roomIds.includes(f.roomId) && isBaseFinish(f)));
             for (const room of rooms) {
-              next.push(product ? finishFromProduct(room, surface, product) : defaultFinish(room, surface, s.styleId));
+              if (isTrimSurface(surface)) next.push(product ? trimFromProduct(room, surface, product) : defaultTrim(room, surface, s.styleId));
+              else next.push(product ? finishFromProduct(room, surface, product) : defaultFinish(room, surface, s.styleId));
             }
             return { finishes: next };
+          }),
+
+        paintSurface: (target, product) =>
+          commit((s) => {
+            const room = s.plan?.rooms.find((r) => r.id === target.roomId);
+            if (!room) return null;
+            const finishes = target.surface === 'floor' ? paintCell(s.finishes, room, target.cell, product) : paintSpan(s.finishes, room, target.wallIndex, target.span, product);
+            return finishes === s.finishes ? null : { finishes };
+          }),
+
+        clearPartialFinishes: (roomId, surface) =>
+          commit((s) => {
+            const finishes = s.finishes.filter((f) => !(f.roomId === roomId && f.surface === surface && !isBaseFinish(f)));
+            return finishes.length === s.finishes.length ? null : { finishes, selectedElement: s.selectedElement?.kind === 'zone' ? null : s.selectedElement };
           }),
 
         setWallFinish: (roomId, wallIndex, product) =>
@@ -1105,11 +1159,39 @@ function placeableOnly(items: PlacedItem[]): PlacedItem[] {
   return items.filter((item) => !!item.product?.model3dUrl);
 }
 
-/** Default floor/wall/ceiling finishes from the style — tiles in the wet rooms. */
+/** Default floor/wall/ceiling finishes from the style — tiles in the wet rooms — and its skirting board and cornice. */
 function defaultFinishes(plan: FloorPlan | null, styleId: StyleId): SurfaceFinish[] {
   if (!plan) return [];
-  const surfaces: Array<SurfaceFinish['surface']> = ['floor', 'wall', 'ceiling'];
-  return plan.rooms.flatMap((room) => surfaces.map((surface) => defaultFinish(room, surface, styleId)));
+  const surfaces = ['floor', 'wall', 'ceiling'] as const;
+  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => defaultFinish(room, surface, styleId)), defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)]);
+}
+
+/**
+ * What was painted on part of a room has to still be on the room after its walls moved: a
+ * strip past the end of a wall that got shorter, a wall the outline no longer has, a floor
+ * tile the room no longer reaches are dropped rather than priced and drawn in thin air.
+ */
+function fitToPlan(finishes: SurfaceFinish[], plan: FloorPlan): SurfaceFinish[] {
+  const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
+  return finishes.flatMap((finish) => {
+    const room = rooms.get(finish.roomId);
+    if (!room) return [];
+    if (finish.wallIndex != null) {
+      const edge = roomEdges(room.polygon).find((e) => e.index === finish.wallIndex);
+      if (!edge) return [];
+      if (finish.span) {
+        const to = Math.min(finish.span.to, edge.length);
+        if (to - finish.span.from < 0.05) return [];
+        if (to !== finish.span.to) return [{ ...finish, span: { from: finish.span.from, to } }];
+      }
+    }
+    if (finish.cells) {
+      const cells = finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
+      if (cells.length === 0) return [];
+      if (cells.length !== finish.cells.length) return [{ ...finish, cells }];
+    }
+    return [finish];
+  });
 }
 
 /** Defaults, except where a room already has a finish somebody chose; single walls and zones ride along. */
@@ -1192,7 +1274,7 @@ function round2(n: number): number {
 const persistedSchema = z.object({
   mode: z.enum(['full', 'design_only']),
   modeChosen: z.boolean().optional(),
-  homeState: z.enum(['black_frame', 'white_frame', 'green_frame']).nullable(),
+  homeState: z.enum(['old_renovation', 'black_frame', 'white_frame', 'green_frame']).nullable(),
   projectId: z.number().int().positive().nullable().optional(),
   calculatorPicks: z
     .object({

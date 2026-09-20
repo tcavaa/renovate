@@ -4,6 +4,13 @@ export const HOME_STATES: Record<
   HomeState,
   { labelKa: string; descriptionKa: string; includedPhases: number[] }
 > = {
+  // A lived-in flat: phase 0 strips the old renovation out, then it is a black frame.
+  old_renovation: {
+    labelKa: 'ძველი რემონტი',
+    descriptionKa:
+      'ბინაში ძველი რემონტია. საჭიროა ძველი იატაკის, კედლის საფარის, კაფელის, კარ-ფანჯრების და სანტექნიკის დემონტაჟი, შემდეგ — ყველა სამუშაო თავიდან.',
+    includedPhases: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
+  },
   black_frame: {
     labelKa: 'შავი კარკასი',
     descriptionKa:
@@ -39,6 +46,14 @@ export const ROOM_TYPES: Record<RoomType, { labelKa: string; defaultHeight: numb
 export const WET_ROOM_TYPES: RoomType[] = ['bathroom', 'toilet', 'kitchen'];
 
 export const WORKER_RATES = {
+  // Phase 0 — stripping out an old renovation (home state `old_renovation` only).
+  strip_floor: { labelKa: 'ძველი იატაკის დემონტაჟი', pricePerM2: 6, unit: 'm2' as const },
+  strip_walls: { labelKa: 'კედლების ძველი საფარის მოხსნა (შპალერი, საღებავი, ბათქაში)', pricePerM2: 5, unit: 'm2' as const },
+  strip_ceiling: { labelKa: 'ძველი ჭერის დემონტაჟი', pricePerM2: 5, unit: 'm2' as const },
+  strip_tiles: { labelKa: 'ძველი კაფელის დემონტაჟი', pricePerM2: 12, unit: 'm2' as const },
+  remove_doors_windows: { labelKa: 'ძველი კარ-ფანჯრის დემონტაჟი', pricePerUnit: 35, unit: 'unit' as const },
+  remove_sanitary: { labelKa: 'ძველი სანტექნიკის დემონტაჟი', pricePerUnit: 60, unit: 'unit' as const },
+  debris_removal: { labelKa: 'სამშენებლო ნარჩენების გატანა', pricePerM2: 7, unit: 'm2' as const },
   demolition: { labelKa: 'დემონტაჟი', pricePerM2: 8, unit: 'm2' as const },
   plumbing_rough: { labelKa: 'სანტექნიკა (შიდა)', pricePerM2: 25, unit: 'm2' as const },
   electrical_rough: { labelKa: 'ელექტრო (შიდა)', pricePerM2: 20, unit: 'm2' as const },
@@ -78,6 +93,25 @@ export interface MaterialRate {
 }
 
 export const MATERIAL_RATES_PER_M2: Record<string, MaterialRate> = {
+  // Phase 0 — what stripping out an old renovation consumes: sacks and the skip they go in.
+  debris_bags: {
+    labelKa: 'ნარჩენების ტომრები',
+    qtyPerM2: 0.6,
+    unit: 'piece',
+    wasteFactorPct: 0,
+    phase: 0,
+    basis: 'floor',
+    estimatedPriceGEL: 1.2,
+  },
+  waste_container: {
+    labelKa: 'ნარჩენების კონტეინერი (გატანა)',
+    qtyPerM2: 0.02,
+    unit: 'piece',
+    wasteFactorPct: 0,
+    phase: 0,
+    basis: 'floor',
+    estimatedPriceGEL: 250,
+  },
   gas_block: {
     labelKa: 'გაზობეტონი (პარტიციები)',
     qtyPerM2: 0.12,
@@ -388,6 +422,7 @@ export const MATERIAL_RATES_PER_M2: Record<string, MaterialRate> = {
 };
 
 export const PHASE_NAMES: Record<number, string> = {
+  0: 'ძველი რემონტის დემონტაჟი',
   1: 'სტრუქტურა და დემონტაჟი',
   2: 'სანტექნიკა (შიდა)',
   3: 'ელექტრო (შიდა)',

@@ -8,10 +8,9 @@
  * drawer along the bottom, every door or window the catalogue offers in its place.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
-import { AppWindow, Check, ChevronUp, DoorOpen, MapPin, Sparkles, Star, Trash2, Truck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { AppWindow, Check, ChevronUp, DoorOpen, Lock, LockOpen, Sparkles, Trash2 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -21,7 +20,7 @@ import { openingCandidates } from '@/lib/design/openings';
 import { openingEstimate } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { Opening, OpeningKind, PlanRoom, StyleId } from '@/lib/design/types';
-import { Chip, Field, LockRow, MaterialField, NumberField, OriginRow, RangeField } from '@/components/plan/ElementInspector';
+import { Chip, Field, IconAction, MaterialField, NumberField, OriginRow, RangeField } from '@/components/plan/ElementInspector';
 
 export type OpeningPatch = Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>;
 
@@ -34,27 +33,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const listRef = useRef<HTMLUListElement>(null);
-  const drawerRef = useRef<HTMLElement>(null);
 
-  // The drawer opens on a wheel down over it and closes on a wheel up from the top of its
-  // list, like the furniture card's; native, because React's wheel listeners are passive.
-  useEffect(() => {
-    const el = drawerRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!open && e.deltaY > 0) {
-        e.preventDefault();
-        if (listRef.current) listRef.current.scrollTop = 0;
-        setOpen(true);
-      } else if (open && e.deltaY < 0 && (listRef.current?.scrollTop ?? 0) <= 0) {
-        e.preventDefault();
-        setOpen(false);
-      } else if (!open) e.preventDefault();
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [open]);
 
   const product = opening.product ?? null;
   const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
@@ -63,59 +42,47 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
   const estimate = openingEstimate(opening);
   const kindLabel = opening.kind === 'window' ? t.design.window : opening.kind === 'archway' ? t.build.archway : opening.exterior ? t.build.lineEntranceDoor : t.design.door;
   const Icon = opening.kind === 'window' ? AppWindow : DoorOpen;
-  const select = 'h-9 w-full rounded-[10px] border border-line bg-white px-2.5 text-sm text-ink focus:border-ink focus:outline-none disabled:opacity-50';
+  const select = 'h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* The body scrolls on its own; the drawer along the bottom never hides the last field. */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-32 pr-1">
-        {/* The product, or the estimate standing in for one. */}
-        <div className="overflow-hidden rounded-[12px] border border-line bg-bg-surface">
-          <div className="flex gap-3 p-3">
-            <div className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-bg-base text-ink-soft">
-              {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="64px" className="object-cover" /> : <Icon className="h-7 w-7" />}
+      {/*
+        Opening the drawer collapses the card rather than hiding it outright: the max
+        height animates to nothing, the drawer's `flex-1` follows it up, and the list
+        arrives at the top of the panel instead of appearing there.
+      */}
+      <div
+        aria-hidden={open}
+        className={cn(
+          'min-h-0 shrink space-y-2 pr-1 transition-[max-height,opacity,padding] duration-300 ease-out',
+          open ? 'max-h-0 overflow-hidden pb-0 opacity-0' : 'max-h-[70vh] overflow-y-auto pb-2 opacity-100'
+        )}
+      >
+        {/* What it is: the photo, the name, the price, and the shop on one line under them. */}
+        <div className="overflow-hidden rounded-[10px] border border-line bg-bg-surface">
+          <div className="flex items-center gap-2 p-2">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-bg-base text-ink-soft">
+              {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" /> : <Icon className="h-5 w-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">{kindLabel}</p>
-              <p className="truncate text-sm font-semibold leading-snug text-ink">{product ? localizedName(locale, product) : opening.kind === 'archway' ? t.build.archway : t.build.fixtureEstimateTitle}</p>
-              {product ? (
-                <p className="mt-0.5 font-serif text-base font-bold text-brand-dark">{formatGEL(product.pricePerUnit)}</p>
-              ) : estimate ? (
-                <p className="mt-0.5 flex items-center gap-1 text-xs text-ink-muted">
-                  <Sparkles className="h-3 w-3" />
-                  {fill(t.build.fixtureEstimate, { price: formatGEL(estimate.total) })}
-                </p>
-              ) : null}
+              <p className="truncate text-[13px] font-semibold leading-tight text-ink">{product ? localizedName(locale, product) : opening.kind === 'archway' ? t.build.archway : t.build.fixtureEstimateTitle}</p>
+              <p className="truncate text-[10px] text-ink-muted">{kindLabel}{product?.store ? ` · ${localizedName(locale, product.store)}` : ''}</p>
             </div>
+            {product ? (
+              <p className="shrink-0 font-serif text-sm font-bold tabular-nums text-brand-dark">{formatGEL(product.pricePerUnit)}</p>
+            ) : estimate ? (
+              <p className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-ink-muted">
+                <Sparkles className="h-3 w-3" />
+                {formatGEL(estimate.total)}
+              </p>
+            ) : null}
           </div>
-          {product?.store && (
-            <div className="flex items-center gap-2 border-t border-line bg-bg-base/70 px-3 py-2 text-[11px] text-ink-muted">
-              <span className="min-w-0 flex-1 truncate font-semibold text-ink">{localizedName(locale, product.store)}</span>
-              {product.store.rating != null && (
-                <span className="flex items-center gap-0.5">
-                  <Star className="h-3 w-3 fill-accent text-accent" />
-                  {product.store.rating.toFixed(1)}
-                </span>
-              )}
-              {product.store.deliveryDays != null && (
-                <span className="flex items-center gap-1">
-                  <Truck className="h-3 w-3" />
-                  {product.store.deliveryDays} {t.design.deliveryDaysSuffix}
-                </span>
-              )}
-              {product.store.address && (
-                <span className="hidden items-center gap-1 sm:flex">
-                  <MapPin className="h-3 w-3" />
-                  <span className="max-w-[120px] truncate">{product.store.address}</span>
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* The kind, as a dropdown. */}
         <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
+          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
           <select value={opening.kind} disabled={locked} onChange={(e) => e.target.value !== opening.kind && onUpdate({ kind: e.target.value as OpeningKind })} className={select} aria-label={t.build.kind}>
             <option value="door">{t.design.door}</option>
             <option value="window">{t.design.window}</option>
@@ -168,37 +135,32 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
           {edge && <span className="text-[11px] text-ink-muted">· {fill(t.build.wallN, { n: edge.index + 1 })}</span>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <LockRow locked={!!opening.locked} onToggle={() => onUpdate({ locked: !opening.locked })} />
-          <Button type="button" variant="outline" size="sm" onClick={onRemove} disabled={locked}>
+        {/* Lock and delete as icons: the words said what the icons already do. */}
+        <div className="flex items-center gap-1.5">
+          <IconAction label={opening.locked ? t.build.unlockItem : t.build.lockItem} active={!!opening.locked} onClick={() => onUpdate({ locked: !opening.locked })}>
+            {opening.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+          </IconAction>
+          <IconAction label={t.build.deleteElement} danger disabled={locked} onClick={onRemove}>
             <Trash2 className="h-4 w-4" />
-            {t.build.deleteElement}
-          </Button>
-          {product?.store?.websiteUrl && (
-            <Button type="button" variant="ghost" size="sm" asChild>
-              <a href={product.store.websiteUrl} target="_blank" rel="noopener noreferrer">
-                {t.design.viewInStore}
-              </a>
-            </Button>
-          )}
+          </IconAction>
         </div>
       </div>
 
       {/* The doors or windows the catalogue offers, in a drawer along the bottom — like the furniture card. */}
       {opening.kind !== 'archway' && (
-        <section ref={drawerRef} data-open={open} className={cn('absolute inset-x-0 bottom-0 flex flex-col border-t border-line bg-white/95 shadow-[0_-12px_30px_-16px_rgba(22,21,19,0.25)] backdrop-blur transition-[top] duration-300 ease-out', open ? 'top-0' : 'top-[calc(100%-6.5rem)]')}>
-          <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 py-2.5 text-left">
-            <span className="text-sm font-semibold text-ink">{t.design.swapTitle}</span>
-            <span className="flex items-center gap-1 text-[11px] text-ink-muted">
+        <section data-open={open} className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}>
+          <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
+            <span className="text-[13px] font-semibold text-ink">{t.design.swapTitle}</span>
+            <span className="flex items-center gap-1 text-[10px] text-ink-muted">
               {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
               {open ? t.design.swapClose : t.design.swapOpen}
               <ChevronUp className={cn('h-3.5 w-3.5 transition-transform duration-300', open && 'rotate-180')} />
             </span>
           </button>
           {alternatives.length === 0 ? (
-            <p className="pb-2 text-xs text-ink-muted">{t.build.fixtureNoProducts}</p>
+            <p className="px-3 pb-2 text-xs text-ink-muted">{t.build.fixtureNoProducts}</p>
           ) : (
-            <ul ref={listRef} className={cn('min-h-0 flex-1 space-y-2 overscroll-contain pb-1 pr-1', open ? 'overflow-y-auto' : 'overflow-hidden')}>
+            <ul className={cn('min-h-0 flex-1 space-y-1.5 overscroll-contain px-3 pb-3', 'overflow-y-auto')}>
               {alternatives.map((candidate) => {
                 const active = candidate.id === product?.productId;
                 return (

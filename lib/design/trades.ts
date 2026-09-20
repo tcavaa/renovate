@@ -14,6 +14,15 @@ export type TradeSlug = 'tiling' | 'painting' | 'plumbing' | 'electrical' | 'car
 export const TRADE_SLUGS: TradeSlug[] = ['plastering', 'tiling', 'plumbing', 'electrical', 'carpentry', 'painting'];
 
 const LABOUR_TRADE: Record<string, TradeSlug> = {
+  // Stripping out an old renovation (phase 0): the rough crew, a carpenter for the old
+  // doors and windows, a plumber for the old sanitary ware.
+  strip_floor: 'plastering',
+  strip_walls: 'plastering',
+  strip_ceiling: 'plastering',
+  strip_tiles: 'plastering',
+  remove_doors_windows: 'carpentry',
+  remove_sanitary: 'plumbing',
+  debris_removal: 'plastering',
   demolition: 'plastering',
   plumbing_rough: 'plumbing',
   electrical_rough: 'electrical',
