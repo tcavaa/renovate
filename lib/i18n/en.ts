@@ -1509,7 +1509,7 @@ export const en: Dictionary = {
     styleTitle: 'Choose a style',
     styleSubtitle: 'Furniture, colours and finishes are selected to match your choice.',
     budgetTitle: 'Furniture budget',
-    budgetSubtitle: 'Optional — if you set one, we pick products that fit it.',
+    budgetSubtitle: 'The budget first — the style then picks furniture within it. Leave it empty for no limit.',
     budgetAny: 'No budget limit',
     budgetPlaceholder: 'e.g. 15000',
     generate: 'Generate the design',
