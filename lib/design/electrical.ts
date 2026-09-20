@@ -256,6 +256,58 @@ export function placeElectrical(room: PlanRoom, kind: ElectricalKind, at: Vec2, 
 }
 
 /**
+ * The footprint a fitting takes on the wall it is on, in metres.
+ *
+ * A bought fitting knows its real size; one that is still an estimate is given the plate it
+ * would have — a single socket, a double one twice as wide, a strip as long as it was drawn.
+ * Only used to keep two fittings off the same piece of wall, so it errs on the generous side.
+ */
+export function fittingFootprintM(point: Pick<ElectricalPoint, 'kind' | 'sizeM' | 'count' | 'lengthM'>): { width: number; height: number } {
+  if (point.sizeM) return { width: point.sizeM.width, height: point.sizeM.height };
+  if (point.lengthM) return { width: point.lengthM, height: DEFAULT_PLATE_M };
+  const plate = DEFAULT_PLATE_M;
+  return { width: plate * Math.max(1, point.count ?? 1), height: plate };
+}
+
+/** What a fitting with no product of its own measures: the usual 8 cm plate. */
+const DEFAULT_PLATE_M = 0.08;
+/** Fittings may touch, but not bury each other — a hair of daylight between the plates. */
+const FITTING_GAP_M = 0.01;
+
+/**
+ * Whether a fitting would land on top of one already there.
+ *
+ * Two on the same wall clash when their plates overlap both along the wall and in height —
+ * a socket at 45 cm and a switch at 105 cm on the same spot are fine, one above the other,
+ * but two sockets a centimetre apart are one plate sunk into another. Two that are not on a
+ * wall (a ceiling light, a floor strip) clash when their footprints overlap in plan.
+ *
+ * `ignoreId` is the fitting being moved, which must not be measured against itself.
+ */
+export function fittingClashes(room: PlanRoom, candidate: ElectricalPoint, others: ElectricalPoint[], ignoreId?: string): ElectricalPoint | null {
+  const mine = fittingFootprintM(candidate);
+  for (const other of others) {
+    if (other.id === ignoreId || other.id === candidate.id) continue;
+    if (other.roomId !== candidate.roomId) continue;
+    const theirs = fittingFootprintM(other);
+    const apartInHeight = Math.abs((other.elevationM ?? 0) - (candidate.elevationM ?? 0)) + FITTING_GAP_M >= (mine.height + theirs.height) / 2;
+    if (apartInHeight) continue;
+    const onSameWall = candidate.wallIndex != null && other.wallIndex === candidate.wallIndex;
+    const along = onSameWall ? alongWallDistance(room, candidate, other) : Math.hypot(other.position.x - candidate.position.x, other.position.z - candidate.position.z);
+    if (along === null) continue;
+    if (along + FITTING_GAP_M < (mine.width + theirs.width) / 2) return other;
+  }
+  return null;
+}
+
+/** How far apart two points on the same wall are, measured along it. */
+function alongWallDistance(room: PlanRoom, a: ElectricalPoint, b: ElectricalPoint): number | null {
+  const edge = roomEdges(room.polygon).find((e) => e.index === a.wallIndex);
+  if (!edge) return null;
+  return Math.abs((a.t ?? 0) - (b.t ?? 0)) * edge.length;
+}
+
+/**
  * Slides a wall-mounted point along the wall it is on to `t` (0..1 of the edge), keeping its
  * height and kind; a point that is not on a wall comes back unchanged.
  */

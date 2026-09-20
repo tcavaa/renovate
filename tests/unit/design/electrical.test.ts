@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BEDSIDE_SOCKET_M, electricalCounts, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
+import { BEDSIDE_SOCKET_M, electricalCounts, fittingClashes, fittingFootprintM, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -97,5 +97,62 @@ describe('placing and counting', () => {
     expect(counts.stripM).toBe(4.2);
     expect(counts.dataPoints).toBe(2);
     expect(counts.outlets).toBeGreaterThan(10);
+  });
+});
+
+
+describe('two fittings may not share the same piece of wall', () => {
+  const room = rect('r', 0, 0, 4, 3, 'living_room');
+  const on = (id: string, t: number, elevationM: number, extra: Partial<ElectricalPoint> = {}): ElectricalPoint => ({
+    id,
+    roomId: room.id,
+    kind: 'socket',
+    position: P(t * 4, 0),
+    elevationM,
+    wallIndex: 0,
+    t,
+    origin: 'user',
+    ...extra,
+  });
+
+  it('refuses one dropped on top of another', () => {
+    const there = on('a', 0.5, 0.45);
+    expect(fittingClashes(room, on('b', 0.5, 0.45), [there])).toBe(there);
+  });
+
+  it('allows one a plate’s width along the wall', () => {
+    // The wall is 4 m, so 0.03 of it is 12 cm — wider than two half-plates of 8 cm.
+    expect(fittingClashes(room, on('b', 0.53, 0.45), [on('a', 0.5, 0.45)])).toBeNull();
+  });
+
+  it('allows a switch above a socket on the very same spot', () => {
+    expect(fittingClashes(room, on('b', 0.5, 1.05, { kind: 'switch' }), [on('a', 0.5, 0.45)])).toBeNull();
+  });
+
+  it('never measures a fitting against itself while it is being moved', () => {
+    const there = on('a', 0.5, 0.45);
+    expect(fittingClashes(room, { ...there, t: 0.505 }, [there], 'a')).toBeNull();
+  });
+
+  it('ignores a fitting round the corner on another wall, and one in another room', () => {
+    // Another wall and somewhere else in the room: no argument between them.
+    expect(fittingClashes(room, on('b', 0.5, 0.45), [on('a', 0.5, 0.45, { wallIndex: 1, position: P(4, 1.5) })])).toBeNull();
+    expect(fittingClashes(room, on('b', 0.5, 0.45), [on('a', 0.5, 0.45, { roomId: 'other' })])).toBeNull();
+  });
+
+  it('still refuses two that meet at a corner, each on its own wall', () => {
+    // Different walls, but the same spot in the room: physically one inside the other.
+    expect(fittingClashes(room, on('b', 0.5, 0.45), [on('a', 0.5, 0.45, { wallIndex: 1 })])).not.toBeNull();
+  });
+
+  it('gives a double socket a wider plate than a single one', () => {
+    expect(fittingFootprintM({ kind: 'socket_double', count: 2 }).width).toBeGreaterThan(fittingFootprintM({ kind: 'socket', count: 1 }).width);
+  });
+
+  it('measures a bought fitting by its real size', () => {
+    const big = { kind: 'light_wall' as const, sizeM: { width: 0.4, depth: 0.2, height: 0.4 } };
+    expect(fittingFootprintM(big)).toEqual({ width: 0.4, height: 0.4 });
+    // Two 40 cm lamps 12 cm apart along the wall still bury each other.
+    expect(fittingClashes(room, on('b', 0.53, 1.8, big), [on('a', 0.5, 1.8, big)])).not.toBeNull();
   });
 });

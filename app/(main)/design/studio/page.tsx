@@ -167,7 +167,8 @@ export default function StudioPage() {
   const [navOpen, setNavOpen] = useState(true);
   const [shot, setShot] = useState<StudioShot | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
-  const [refused, setRefused] = useState(false);
+  /** The one refusal banner: what was refused, or null while nothing was. */
+  const [refused, setRefused] = useState<string | null>(null);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -207,7 +208,7 @@ export default function StudioPage() {
 
   useEffect(() => {
     if (!refused) return;
-    const handle = window.setTimeout(() => setRefused(false), 2200);
+    const handle = window.setTimeout(() => setRefused(null), 2200);
     return () => window.clearTimeout(handle);
   }, [refused]);
 
@@ -519,7 +520,7 @@ export default function StudioPage() {
       if (at) {
         const id = store.addElectricalPoint(kind, at.position, at.roomId, products);
         if (id) store.selectElement({ kind: 'electrical', id });
-      } else setRefused(true);
+      } else setRefused(t.build.fittingRefused);
       return;
     }
     const raw = event.dataTransfer.getData(FURNITURE_DRAG_TYPE);
@@ -576,7 +577,10 @@ export default function StudioPage() {
     const at = viewerApi.fixtureSpotAt(electricalKind, event.clientX, event.clientY);
     if (!at) return;
     const id = store.addElectricalPoint(electricalKind, at.position, at.roomId, products);
+    // Refused when another fitting already holds that piece of wall; say so rather than
+    // letting the click look like it did nothing.
     if (id) store.selectElement({ kind: 'electrical', id });
+    else setRefused(t.build.fittingRefused);
   };
 
   const takePhoto = () => {
@@ -617,7 +621,7 @@ export default function StudioPage() {
     addOpening: (roomId: string, kind: 'door' | 'window' | 'archway', wallIndex: number) => {
       const id = store.addOpening(roomId, kind, wallIndex, products);
       if (id) store.selectElement({ kind: 'opening', id, roomId });
-      else setRefused(true);
+      else setRefused(t.design.openingRefused);
     },
     updateColumn: store.updateColumn,
     removeColumn: store.removeColumn,
@@ -733,7 +737,7 @@ export default function StudioPage() {
                 layers={{ furniture: true, dimensions: category === 'build' }}
                 height="100%"
                 className="h-full"
-                onRefused={() => setRefused(true)}
+                onRefused={() => setRefused(t.design.openingRefused)}
               />
             </div>
           ) : (
@@ -810,7 +814,7 @@ export default function StudioPage() {
 
         {refused && (
           <p role="alert" className="absolute left-4 top-[calc(5rem+2px)] z-30 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger md:left-[20.5rem]">
-            {t.design.openingRefused}
+            {refused}
           </p>
         )}
 
