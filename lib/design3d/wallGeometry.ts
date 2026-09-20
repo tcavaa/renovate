@@ -8,8 +8,8 @@
  * out on its own, from the pieces `lib/design/wallPieces` cuts the edge into:
  *
  *   - the **room face**, holed for doors and windows, split into stretches wherever the
- *     person painted part of the wall (a one-metre strip, Sims-style) — each stretch its
- *     own material slot;
+ *     person painted part of the wall — a one-metre strip floor to ceiling, or a single
+ *     square metre of it — each stretch its own material slot;
  *   - the **reveals** inside the holes, in the wall's own finish;
  *   - the **far face**, in the finish of whoever is on the other side;
  *   - the **top and the ends**, in one neutral "cut" material, so the tops of all the walls
@@ -38,6 +38,9 @@ export interface WallHole {
 export interface WallFaceSpan {
   from: number;
   to: number;
+  /** How far up the wall the stretch reaches; the whole height when absent (a strip). */
+  bottom?: number;
+  top?: number;
   slot: number;
 }
 
@@ -101,14 +104,16 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
   const outward: [number, number, number] = [-edge.inward.x, 0, -edge.inward.z];
   const forward: [number, number, number] = [edge.dir.x, 0, edge.dir.z];
   const backward: [number, number, number] = [-edge.dir.x, 0, -edge.dir.z];
-  const slotAt = (s: number): number => spans.find((span) => s >= span.from && s <= span.to)?.slot ?? WALL_SLOT_BASE;
+  const slotAt = (s: number, y = 0): number =>
+    spans.find((span) => s >= span.from && s <= span.to && y >= (span.bottom ?? 0) && y <= (span.top ?? Infinity))?.slot ?? WALL_SLOT_BASE;
 
   pieces.forEach((piece, index) => {
     const holes = spec.holes
       .map((h) => ({ ...h, left: Math.max(h.left, piece.from), right: Math.min(h.right, piece.to) }))
       .filter((h) => h.right - h.left > 1e-4 && h.top - h.bottom > 1e-4);
     const inHole = (s: number, y: number) => holes.some((h) => s > h.left && s < h.right && y > h.bottom && y < h.top);
-    const ys = breakpoints([0, height, ...holes.flatMap((h) => [h.bottom, h.top])], 0, height);
+    // The face is cut where a hole starts or ends, and where a painted patch does.
+    const ys = breakpoints([0, height, ...holes.flatMap((h) => [h.bottom, h.top]), ...spans.flatMap((s) => [s.bottom ?? 0, s.top ?? height])], 0, height);
 
     // --- the room face, cell by cell ---
     const nearXs = breakpoints([piece.from, piece.to, ...holes.flatMap((h) => [h.left, h.right]), ...spans.flatMap((s) => [s.from, s.to])], piece.from, piece.to);
@@ -116,7 +121,7 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
       for (let j = 0; j + 1 < ys.length; j++) {
         const [s0, s1, y0, y1] = [nearXs[i], nearXs[i + 1], ys[j], ys[j + 1]];
         if (inHole((s0 + s1) / 2, (y0 + y1) / 2)) continue;
-        quad(slotAt((s0 + s1) / 2), [at(s0, y0, 0), at(s1, y0, 0), at(s1, y1, 0), at(s0, y1, 0)], inward, [[s0, y0], [s1, y0], [s1, y1], [s0, y1]]);
+        quad(slotAt((s0 + s1) / 2, (y0 + y1) / 2), [at(s0, y0, 0), at(s1, y0, 0), at(s1, y1, 0), at(s0, y1, 0)], inward, [[s0, y0], [s1, y0], [s1, y1], [s0, y1]]);
       }
     }
 
@@ -134,7 +139,7 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
 
     // --- the reveals: the inside of every hole, as deep as this piece ---
     for (const h of holes) {
-      const slot = slotAt((h.left + h.right) / 2);
+      const slot = slotAt((h.left + h.right) / 2, (h.bottom + h.top) / 2);
       const original = spec.holes.find((o) => o.bottom === h.bottom && o.top === h.top && o.left <= h.left + 1e-6 && o.right >= h.right - 1e-6);
       // A jamb only where the hole really ends — not where a piece boundary cut it in two.
       if (!original || Math.abs(original.left - h.left) < 1e-6) quad(slot, [at(h.left, h.bottom, 0), at(h.left, h.bottom, piece.depth), at(h.left, h.top, piece.depth), at(h.left, h.top, 0)], forward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);

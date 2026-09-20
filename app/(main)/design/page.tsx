@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Check, Home, Info, PenLine, Plug, Receipt, Sofa, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
@@ -91,6 +92,7 @@ export default function DesignStartPage() {
 
   return (
     <>
+      <DesignFlowGuard step={1} />
       <DesignSteps current={1} />
       <div className="container py-10 md:py-14">
         <StepHeader step={1} total={8} title={t.build.s1Title} subtitle={t.design.subtitle} />

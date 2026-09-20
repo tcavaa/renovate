@@ -35,7 +35,9 @@ App is **not yet shipped**. No git repo in this directory.
 - Next.js 16 App Router (Turbopack), TypeScript **strict**, React 19
 - MySQL 8 + Drizzle ORM (`drizzle-kit`), pnpm 9
 - Tailwind 3 + shadcn/ui-style components (Radix primitives), lucide-react
-- Zustand + `persist` (localStorage) for calculator/design state
+- Zustand + `persist` (localStorage) for calculator/design state — **three stores**: the
+  calculator (`renovate-calculator`), its own drawing board (`renovate-calculator-plan`) and
+  the studio (`renovate-design`); see "Two products, two boards"
 - React Hook Form + Zod
 - NextAuth v5 beta (Credentials + optional Google), JWT sessions, role `'user' | 'admin'`
 - **three / @react-three/fiber 9 / @react-three/drei 10** for the 3D studio
@@ -106,15 +108,15 @@ app/
     page.tsx                       landing
     calculator/                    step 1 (home state + rooms)
       materials/ catalog/ furniture/ summary/     steps 2–5
-    design/                        ⟵ Design Studio, eight steps (DesignSteps / DESIGN_STEP_HREFS)
+    design/                        ⟵ Design Studio, eight steps (DesignSteps / lib/design/steps)
       page.tsx                     1 plan: upload / blank sheet / calculator rooms, wall defaults, mode
       plan/                        2 the existing house on the 2D board (walls, doors, windows, columns, beams)
       technical/                   3 technical points + works checklist + suggestions
       style/                       4 style test (StyleQuiz) or a direct pick, budget, generate
       studio/                      5 the 3D studio (build mode); 6 = the same page with ?tool=finishes
       summary/                     7 the budget: materials + products + labour, quantities per line
-      workers/                     8 the trades the budget needs, with workers to book
-    catalog/[slug]  workers/  about/  contact/  profile/  privacy/  terms/
+      workers/                     8 the trades the budget needs, and the brigades that cover them
+    catalog/[slug]  workers/  teams/  teams/[slug]  about/  contact/  profile/  privacy/  terms/
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
     products/ categories/ stores/ projects/ projects/[id] (GET, DELETE) workers/ upload/ calculator/materials
@@ -151,7 +153,9 @@ components/
 lib/
   calculator/  constants.ts (rates) · materials.ts (pure engine) · quantities.ts (selection keys) · layout.ts
                (layout editor snapping) · saveProject.ts (client) · types.ts
-  design/      types.ts · styles.ts · catalog.ts (archetypes + room programs) · planParser.ts
+  design/      types.ts · styles.ts · steps.ts (the order the eight steps are walked in) ·
+               existing.ts (what the flat already has) · planPdfExport.ts (the plan as a PDF)
+               catalog.ts (archetypes + room programs) · planParser.ts
                planGeometry.ts · planImage.ts (browser) · planPdf.ts (browser) · autoLayout.ts · matcher.ts
                pricing.ts (budget lines) · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
                walls.ts (walls ⇄ rooms) · drawing.ts (snapping, hit tests) · technical.ts · electrical.ts
@@ -183,6 +187,8 @@ public/
 | `categories` | nameKa/nameEn, slug, icon, `phase` (1–18 renovation phase, 20 = furniture), `calculationType` enum, isVisible, `isFurniture`, sortOrder |
 | `stores` | nameKa (**unique**), `descriptionKa`, logoUrl, websiteUrl, phone, address, `city`, `rating`, `reviewCount`, `deliveryDays`, `deliveryFeeGel`, commissionRate, **`approvalStatus`** (`pending` / `approved` / `rejected` — self-registered stores start pending and inactive), isActive |
 | `products` | categoryId, storeId, nameKa, slug, sku, pricePerUnit (decimal-as-string), unit enum, coveragePerUnit, brand, imageUrl, `images` json, `specs` json, `tags` json, **`styleTags` json**, **`model3dKind`**, **`model3dUrl`**, **`textureUrl`**, **`colorHex`**, **`widthCm`/`depthCm`/`heightCm`**, isActive, isFeatured |
+| `teams` | a brigade: nameKa, slug (**unique**), `leadName`, phone, email, city, rating, `markupPct` (its own fee over the trades' rates), `commissionRate`, `capacityJobs`, isVerified, `approvalStatus`, isActive — the trades it covers come from `team_members` |
+| `team_members` | teamId (cascade), workerId (cascade), `isLead` (the foreman), sortOrder |
 | `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified, **`approvalStatus`** (as for stores) |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
@@ -190,10 +196,10 @@ public/
 | `project_renders` | projectId (cascade), userId, `sourceUrl` (the studio's own screenshot, stored at once), `renderUrl` (filled when the realistic render exists), status `queued` → `processing` → `ready` / `failed`, `roomName`, `camera` json |
 | `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
 | `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
-| `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker, storeId / workerId, status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
+| `orders` | what one partner fulfils: checkoutId, projectId, `partnerType` store / worker / team, storeId / workerId / teamId, `staffNote` (the agent's own, never shown to the customer or the partner), status `new` → `confirmed` → `in_progress` → `done` (or `cancelled`), subtotal, deliveryFee, `commissionPct` (frozen at creation), `commissionAmount`, customer contact, `customerNote`, `partnerMessage`, `viewedAt` |
 | `order_items` | orderId (cascade), productId (nullable), name snapshots, categorySlug (`labour:<key>` for labour lines), roomName, unit, qty, unitPrice, total, `removed`, note |
 
-`users.role` is `user` / `admin` / `store` / `worker`; a partner role carries `storeId` or `workerId`. `stores` and `workers` have `email` (order notifications) and `commissionRate` (null = platform default).
+`users.role` is `user` / `admin` / `agent_orders` / `agent_catalog` / `store` / `worker` / `team`; a partner role carries `storeId`, `workerId` or `teamId` (see "Who works the platform"). `stores`, `workers` and `teams` have `email` (order notifications) and `commissionRate` (null = platform default).
 
 A design project is distinguished from a calculator project by `plan IS NOT NULL`.
 
@@ -408,6 +414,42 @@ upload image (browser)
   → pricing.ts           scene → cost breakdown grouped by partner store
 ```
 
+### Two products, two boards (`store/designStore.ts`, `hooks/useCalculatorPlan.ts`)
+
+The design store is a **factory over its localStorage key**, and there are two instances of
+it: `useDesignStore` for the studio and `useCalculatorPlanStore` for the calculator's first
+step. They shared one plan and one key before, so starting a flat in either product found
+the other one waiting — the single most confusing thing about the two sharing an engine.
+`PlanWorkspace` takes a `store` prop (the studio's by default) and the calculator hands in
+its own; `useCalculatorPlan` reconciles the *calculator's* board with the calculator's
+rooms. A drawing crosses between the two only when the person asks: the calculator
+summary's "see it in 3D" passes its board to `startFromCalculator`, and
+`CalculateCostsButton` opens a saved plan on both boards. `StoreOwnerGuard` wipes all three
+stores when the owner changes, and `DeleteProjectButton` forgets the id on both boards.
+
+### The order of the eight steps depends on the home (`lib/design/steps.ts`)
+
+A green frame — or a design-only project — is a home that is finished: its technical step
+*records* what is already there, so it stays third, right after the flat is drawn. Every
+other condition is a renovation, where the pipes, radiators and wiring follow the furniture:
+there the technical step comes **after** the design, sixth, next to the budget it feeds.
+The step *numbers* never change (3 is always the technical step); what changes is the
+position it is walked in. `designStepOrder` / `designStepPosition` / `nextStep` /
+`previousStep` own it, `DesignSteps` renders the strip from it, and every page's `StepNav`
+and `StepHeader` read their position and their neighbours from it rather than hard-coding a
+number. `StageBrief` keys on the step, not the position.
+
+### What the flat already has (`lib/design/existing.ts`)
+
+A green frame is floored, painted, tiled and wired, and pricing it from the scene charged
+for all of it — the scene describes the whole flat and cannot know what was already
+standing. So the technical step asks, with ten ticks (`EXISTING_KEYS`: floor, wall, ceiling,
+trim, openings, electrical, lighting, plumbing, heating, climate) stored on the plan as
+`plan.technical.existing`. A green frame starts with everything ticked (that is what a green
+frame means), everything else with nothing. `priceScene` leaves each ticked one out of the
+lines, the baskets and the totals; the checklist shows for any `mode: 'full'` project,
+because the person always knows better than the phase defaults.
+
 ### Walls are lines; rooms are what they enclose (`lib/design/walls.ts`)
 
 The plan's source of truth is `plan.walls`: centreline segments with a thickness (10 / 12 /
@@ -424,9 +466,32 @@ position). `wallsFromRooms` goes the other way for plans that arrive as polygons
 parser, Claude, the calculator, old saves): facing edges of neighbours merge into one wall
 as thick as the gap between them, exterior edges get the default thickness outside, and
 vertices are moved onto the crossings of the centrelines so the graph is watertight.
+**A wall runs from junction to junction and no further** (`splitAtJunctions`). A plan built
+from polygons is one wall per line of the flat, so the partition between four rooms came back
+as a single wall: selecting it selected all of it and dragging it moved every room along it.
+Every wall is cut where another meets it — in `wallsFromRooms`, in `rebuildRooms` after every
+edit, and in `ensureWalls`, so a plan drawn before the rule existed is put right on load.
+
+**Walls never fuse into each other.** Every collinear wall that touched used to be unioned,
+so a room drawn against its neighbours dissolved into them — four walls became one
+eleven-metre wall running under three rooms, and from then on there was no such thing as
+*this room's* wall. `addWalls` now only drops the stretches a wall of the same thickness
+already covers (drawing over one twice); everything else is added as drawn. `innerPolygon`
+therefore merges a *run* of equally thick walls into one room edge — one side of a room is
+routinely two walls end to end, its neighbour's and then its own, and treating that as two
+edges gave the room a phantom vertex, an extra wall index and a finish that stopped halfway
+along a flat wall.
+
+**Rooms come apart again.** `moveRooms(plan, roomIds, delta)` moves whole rooms with their
+walls: a wall only the movers use travels, a wall shared with a room staying behind is
+*split* (the original stays, a copy goes). Identity survives because the previous rooms are
+handed to `rebuildRooms` already shifted. The store's `moveRooms` takes the furniture,
+fittings, technical points and painted zones of those rooms along with them.
+
 `ensureWalls` is what `setPlan` and `openSaved` call. Every wall edit in the store —
-`addWall` (merges collinear pieces), `offsetWall` (sideways along `wallNormal`, connected
-walls follow), `moveWallNode`, `removeWall`, `updateWall` — ends in `rebuildRooms`, which
+`addWall`, `offsetWall` (sideways along `wallNormal`, connected walls follow),
+`moveWallNode`, `resizeWall` (a typed length; the far end and whatever meets it follow),
+`removeWall`, `updateWall` — ends in `rebuildRooms`, which
 also re-homes furniture whose room merged away and re-projects the electrical points.
 `orphanWallSegments` are the pieces of wall that bound no room; the 3D view draws them as
 free-standing walls. Tested in `tests/unit/design/walls.test.ts`; touching rooms from an
@@ -434,15 +499,32 @@ old calculator layout lose half a thickness on the shared wall, by design.
 
 ### The 2D board (`components/plan/PlanEditor.tsx`)
 
-One canvas, one tool in hand: `select`, `pan`, `wall` (click, click, click; Esc, Enter or a
-right click ends the run; Shift frees the angle), `room` (a rectangle whose inside is
-exactly what was drawn; four walls around it), `door` / `window` (dropped on the nearest
-room edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`.
+One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with two shapes, a line
+and a square** (`room` is the square: a rectangle whose inside is exactly what was drawn,
+four walls around it), `door` / `window` (dropped on the nearest room edge, the usual twin
+logic), `column`, `beam`, `technical`, `electrical`, `zone`. The toolbar and the studio's
+build tray both leave `room` out of the tile row and offer it as the wall tool's shape.
 `lib/design/drawing.ts` does the snapping — junction, then a point on a wall, then the axis
 lock, then alignment with any junction's x or z, then the 5 cm grid (1 cm with Shift) — and
 reports the guides the board draws. The select tool drags a wall sideways, its ends as
 handles, a door along or onto another wall, columns and points freely, and furniture
-footprints with `snapPlacement`; Delete removes the selection. `locked` keeps the structure
+footprints with `snapPlacement`; Delete removes the selection.
+
+**Rooms may not lie on top of each other**, drawn (`roomUnderRect`) or dragged
+(`polygonsOverlap`, which is an edge-crossing test because a room is not always convex, and
+which pulls both outlines in by a hair so two sharing a wall do not count). The wall graph
+traces a crossing as a face, so a room dropped on its neighbour came back as slivers with
+walls through the middle of them and nothing could be pulled apart again; the preview turns
+red and the drop is refused with its own message.
+
+**Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
+or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
+tool, and W/A/S/D or the arrows — matched on `event.code`, like the 3D view). The group then drags bodily through `moveRooms`, with a live plate saying how
+far it has travelled, and comes apart from whatever stays behind. Delete takes the whole
+selection. **Every gesture that changes a size carries its ruler**: the wall being drawn,
+the rectangle being pulled out, a wall dragged sideways (with its offset), a wall stretched
+by an end, and the selected or hovered wall — and a wall's length is an input in the
+inspector (`resizeWall`), not just a figure. `locked` keeps the structure
 pickable but immovable. The editor owns only pan/zoom (wheel zooms about the pointer, Space
 or the middle button pans; the view refits on resize until the person moves it) and the
 gesture in progress — everything else is the store's, through callbacks. `PlanWorkspace`
@@ -563,7 +645,11 @@ every product of that kind — in the drawer along the bottom.
 Five questions × four answers, each weighted towards a style; ties go to the palette
 answer. The result is `scene.styleProfile`; picking a plate directly marks `direct`.
 
-A finish is still `SurfaceFinish`, now with `wallIndex` (one wall) or `zone` (a floor
+A painted strip (`span`) and a painted square metre (`cells`) lie *on top of* a wall's
+finish and are not it — `wallFinishFor` skips both, and forgetting the second put the patch's
+material on the whole wall the first time the 1 m² brush touched it.
+
+A finish is still `SurfaceFinish`, with `wallIndex` (one wall) or `zone` (a floor
 patch, a polygon clipped to the room by Sutherland–Hodgman — half a room, a strip along a
 wall, or a rectangle drawn in 2D with the zone tool). `wallFinishFor` resolves a wall to
 its own finish or the room's base; `finishCoverage` is the "m² per material" list; the
@@ -571,15 +657,43 @@ budget prices each wall and zone by its own area. `findFinish` in the builder on
 returns the *base* finish.
 
 The store records a snapshot (plan, items, finishes, electrical) before every change
-(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`. `versions` keeps whole
-snapshots: `ensureExistingVersion` writes version 01 (the existing house) when step 2 is
-left and again when the studio first opens; the working state is the implicit "modified
-house"; `saveVersion` keeps a named one; `restoreVersion` keeps the present first. Versions
-are persisted locally and in `projects.versions`.
+(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`.
+
+**Generating is the journey's hinge, not an undoable edit.** `generate` does not go through
+`commit`: it clears `versions` and the history itself and sets `generated`. One Ctrl+Z in the
+studio used to undo the whole layout and leave every room bare — and, coming from the
+calculator, carry on into the walls drawn there, because `startFromCalculator` kept the
+versions of whatever was in the studio before and the baseline only ran when none existed.
+Only the newest layout is kept as a version, with its furniture.
+
+**The studio's baseline is where undo stops.** `ensureExistingVersion` runs once per project,
+when the studio first opens: version 01 is the flat as the studio found it, *with* the
+furniture, and the undo history starts there. Taken when step 2 was left, as it used to be, it
+was an empty flat, so restoring it emptied the rooms. The working state is the implicit
+"modified house", `saveVersion` keeps a named one, `restoreVersion` keeps the present first,
+and "start from scratch" (`clearDesign`, behind a dialogue of ours) empties the flat while
+version 01 stays. Versions are persisted locally and in `projects.versions`.
 
 ### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
 
-`priceScene` now returns `lines` — one `BudgetLine` per product, finish (m²), door or
+**A budget line that is a product can be ticked off.** Unticking one leaves it in the design
+— still in the room, still in 3D — and takes it out of the order: `scene.excluded` holds the
+product ids, is saved with the project, and is read by `priceScene` (out of the lines, the
+baskets and the totals), `designCheckoutPart` and `sceneLinesByStore`, so the checkout does
+not order it either. The budget page prices the flat twice — as it stands and with nothing
+ticked off — to say what the difference came to, and keeps the excluded lines on the sheet,
+struck through, so they can be put back. Only `product-<id>` lines can be ticked: a labour
+row, a bulk material and a catalogue-free estimate are what the work costs whoever does it.
+
+**The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
+draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
+drawing at 200 dpi on an A4 sheet with a title block, and the PDF around it is written by
+hand: a vector page would have meant embedding and subsetting a font for the Georgian room
+names, while a JPEG goes into a PDF as it is (`/DCTDecode`). The cross-reference table is
+the only fiddly part and `tests/unit/design/planPdfExport.test.ts` parses the result back
+with pdf.js.
+
+`priceScene` returns `lines` — one `BudgetLine` per product, finish (m²), door or
 window (its product, else an estimate — `OPENING_ESTIMATE_GEL`; a pair of interior door halves counted once),
 electrical kind (materials + per-point labour from the rate book: `electrical_point`,
 `lighting_point`), technical point (`TECHNICAL_RATES`: `plumbing_point`, `radiator_install`,
@@ -594,12 +708,19 @@ worker specialties for step 8.
 
 Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
 (`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
-(`Tray`), one at a time — build (tools + thickness + the unlock button; a drawing tool
-switches to the 2D view), furniture (the catalogue as a shelf of small tiles — a picture
-and a price, kinds as icons — click to carry or drag into 3D), electric & light (icon
-tiles that arm a click on the 3D floor or drag into it, suggest / clear), finishes (the
-same kind of shelf: floor or walls, where it goes — whole room, this wall, half the floor,
-a drawn zone — then the swatches, the style default first), budget (totals at a glance).
+(`Tray`), one at a time — build (tools + the wall's shape + thickness + the unlock button; a
+drawing tool switches to the 2D view), furniture (the catalogue as a shelf of small tiles —
+a picture and a price, kinds as icons — click to carry or drag into 3D; the project's own
+style is marked on the style chips, and a list of what is already standing in the room sits
+in the right-hand panel beside it), electric & light (four tiles — socket, switch, aerial,
+data — and the lights; the double, high and kitchen sockets are still placed by the
+automatic wiring and still re-kindable from a fitting's card, but four extra tiles only made
+the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D board, the
+radiators at a click, the works checklist one link away), finishes (the same kind of shelf:
+floor or walls, where it goes — whole room, this wall, a 1 m strip, a 1 m² patch, half the
+floor, a drawn zone — then the swatches, the style default first), budget (totals at a
+glance). The top bar's **"start from scratch"** (`clearDesign`) empties the flat — furniture,
+fittings and chosen finishes — and leaves the flat.
 Dragging from a tray is shown live and the tile's own picture is never dragged
 (`emptyDragImage`): a product is put on the pointer in 3D the moment the drag starts
 (`beginAdd`, then `ViewerApi.moveCarriedTo` on every `dragover`) and set down on drop; a
@@ -774,15 +895,22 @@ the sample plan in `public/samples/plan-2br.png` run through `layoutPlan` is the
 
 ### Painting a piece at a time (`lib/design/paint.ts`)
 
-The finishes tray has two scopes that behave like a game's brush rather than a form: **1 m²**
-paints one square of a room's floor, **1 m** one metre-wide strip of a wall, floor to
-ceiling. A swatch picked in those scopes goes into the *brush* (page state, `brush`) and
-paints nothing until a floor or a wall is clicked; dragging paints everything the pointer
-crosses; the style default is the eraser. Both live in `scene.finishes` on top of the room's
-base finish — all the tiles of one product in one room are **one** finish with a list of
-grid `cells`, neighbouring strips of one product on one wall **one** finish with one `span`
-— so undo, versions, autosave and the budget get them for free, and a painted flat is a
-handful of rows rather than hundreds. The grid is the room's own (counted from its bounding
+The finishes tray has three scopes that behave like a game's brush rather than a form:
+**1 m²** paints one square of a room's floor, **1 m** one metre-wide strip of a wall floor
+to ceiling, and **1 m²** on a wall one square metre of it — its column along the wall and
+its row up it (`patchAt`, `patchSpans`), the last column and the top row running on to the
+corner and the ceiling. A swatch picked in those scopes goes into the *brush* (page state,
+`brush`) and paints nothing until a floor or a wall is clicked; dragging paints everything
+the pointer crosses; the style default is the eraser. All of them live in `scene.finishes`
+on top of the room's base finish — all the tiles of one product in one room are **one**
+finish with a list of grid `cells`, all the patches of one product on one wall **one**
+finish with a list of cells read as [column, row], neighbouring strips of one product on
+one wall **one** finish with one `span` — so undo, versions, autosave and the budget get
+them for free, and a painted flat is a handful of rows rather than hundreds. A wall patch
+needs the height of the click, so it is painted in 3D; the 2D board, which has no height,
+paints the metre at the foot of the wall and draws a patch as a band. `WallFaceSpan` carries
+an optional `bottom`/`top` for it, and `buildWallGeometry` cuts the wall's face horizontally
+as well as vertically. The grid is the room's own (counted from its bounding
 box, each tile clipped to the outline, so the last column is a part tile), and a strip
 shorter than 25 cm at the end of a wall joins the strip before it. `fitToPlan` in the store
 drops a strip past the end of a wall that got shorter and a tile a room no longer reaches.
@@ -1065,6 +1193,24 @@ started. Drafts (and saved projects) are deletable from the profile: `DELETE
 `PROJECT_HAS_ORDERS`), removes the renders' files, and `DeleteProjectButton` /
 `DeleteDraftsButton` also forget the id in the browser so the next autosave does not write
 into a row that is gone.
+
+### The flow: resume, lock, start again (`components/flow/FlowGuard.tsx`, `lib/flow/reset.ts`)
+
+**Resume.** The first step of a journey already under way hands back to where it was left
+rather than showing a blank sheet over the top of it — never past the studio, though, when the
+flat has not been laid out yet, whatever page happened to be open last. A page only claims a
+step when it has something to show: a studio with no plan is the "upload one first" card, and
+claiming step 5 there sent people back to it for ever.
+
+**Lock.** Once `generated` is set, every step *before* the studio is shut — a padlock in the
+strip (`StepStrip.lockedBefore`) and a redirect if the URL is typed. In the renovation order
+the technical step comes after the studio and stays open. The studio's "lay it out again"
+button is gone for the same reason.
+
+**Start again** is therefore in the strip on every step of both journeys. It asks first and
+says what is at stake — nothing yet, work that was never saved, or a design that took a
+generation to make — and `resetFlow` empties all three stores, because leaving the studio
+furnished while the calculator starts a new flat is how the two used to disagree.
 
 ### Two modes
 
@@ -1586,9 +1732,10 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 ## Known gaps / roadmap
 
 - New walls are drawn in the 2D view only; in 3D a wall can be selected, unlocked and
-  dragged sideways, not drawn. Floor zones are likewise drawn in 2D (the whole room, one
-  wall, half the floor, a painted tile and a painted strip all work from 3D). Beams are not
-  obstacles for the layout engine.
+  dragged sideways, not drawn. Rooms are likewise selected and dragged in 2D only. Floor
+  zones are drawn in 2D (the whole room, one wall, half the floor, a painted tile, a painted
+  strip and a painted wall patch all work from 3D). Beams are not obstacles for the layout
+  engine.
 - The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
   room programs, `snapPlacement` and the footprints assume right angles).
 - Estimates for pipes and air conditioning (`lib/design/technicalRates.ts`) are market
@@ -1604,6 +1751,9 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   product.
 - The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
   reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
+- What a flat "already has" is ten ticks, not a survey: ticking "sockets" excludes every
+  socket in the flat, not the three that are actually there. The same goes for a product
+  ticked off the budget — it is out of the order entirely, never partly.
 - The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
@@ -1612,9 +1762,13 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   photo above that is refused with 413 before the route runs. The fix is a direct upload
   into the bucket (a presigned PUT handed out by `/api/upload/*`, the byte sniff and the
   record afterwards); not built.
+- A brigade's rating, reviews and completed jobs are fields, not a history: nothing computes
+  them from finished orders yet, and a team has no portfolio of its own (its workers do).
 - The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
 - **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
 - PDF plans: only the first page is rasterised; a multi-page set has to be split by hand.
+  The plan *export* is one A4 page with the drawing on it as an image — no vector geometry,
+  no selectable text, no furniture schedule, no second sheet.
 - Autosave keeps one draft per flat someone started (a new plan is a new row); the profile's "delete drafts" is the broom.
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**
   (its folder holds a `.max` kitchen and nothing else) — and no partner sells a wardrobe,

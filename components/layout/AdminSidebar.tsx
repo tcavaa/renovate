@@ -3,28 +3,32 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Calculator, ClipboardList, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Receipt, Settings, Store, TrendingUp, Users as UsersIcon } from 'lucide-react';
+import { Calculator, ClipboardList, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Receipt, Settings, Store, TrendingUp, Users as UsersIcon, UsersRound } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
+import { canAdmin, type AdminSection } from '@/lib/auth/roles';
 
 export function AdminSidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const ka = useT();
-  const items = [
-    { href: '/admin', label: ka.admin.dashboard, icon: LayoutDashboard, exact: true },
-    { href: '/admin/products', label: ka.admin.products, icon: Package },
-    { href: '/admin/categories', label: ka.admin.categories, icon: FolderTree },
-    { href: '/admin/stores', label: ka.admin.stores, icon: Store },
-    { href: '/admin/rates', label: ka.admin.rates, icon: Calculator },
-    { href: '/admin/workers', label: ka.admin.workers, icon: Hammer },
-    { href: '/admin/projects', label: ka.admin.projects, icon: ClipboardList },
-    { href: '/admin/orders', label: ka.admin.orders, icon: Receipt },
-    { href: '/admin/revenue', label: ka.admin.revenue.title, icon: TrendingUp },
-    { href: '/admin/users', label: ka.admin.users, icon: UsersIcon },
-    { href: '/admin/settings', label: ka.admin.settings.title, icon: Settings },
+  // One entry per section; an agent is shown the sections their job covers and no others.
+  const all: Array<{ section: AdminSection; href: string; label: string; icon: typeof Home; exact?: boolean }> = [
+    { section: 'dashboard', href: '/admin', label: ka.admin.dashboard, icon: LayoutDashboard, exact: true },
+    { section: 'products', href: '/admin/products', label: ka.admin.products, icon: Package },
+    { section: 'categories', href: '/admin/categories', label: ka.admin.categories, icon: FolderTree },
+    { section: 'stores', href: '/admin/stores', label: ka.admin.stores, icon: Store },
+    { section: 'rates', href: '/admin/rates', label: ka.admin.rates, icon: Calculator },
+    { section: 'workers', href: '/admin/workers', label: ka.admin.workers, icon: Hammer },
+    { section: 'teams', href: '/admin/teams', label: ka.admin.teams, icon: UsersRound },
+    { section: 'projects', href: '/admin/projects', label: ka.admin.projects, icon: ClipboardList },
+    { section: 'orders', href: '/admin/orders', label: ka.admin.orders, icon: Receipt },
+    { section: 'revenue', href: '/admin/revenue', label: ka.admin.revenue.title, icon: TrendingUp },
+    { section: 'users', href: '/admin/users', label: ka.admin.users, icon: UsersIcon },
+    { section: 'settings', href: '/admin/settings', label: ka.admin.settings.title, icon: Settings },
   ];
+  const items = all.filter((item) => canAdmin(session?.user?.role, item.section));
   const user = session?.user;
   const initials = (user?.name ?? user?.email ?? 'A')
     .split(/\s+/)

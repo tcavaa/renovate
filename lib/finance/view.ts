@@ -25,7 +25,7 @@ export interface OrderItemData {
 export interface OrderData {
   id: number;
   status: OrderStatus;
-  partnerType: 'store' | 'worker';
+  partnerType: 'store' | 'worker' | 'team';
   subtotal: number;
   deliveryFee: number;
   commissionPct: number;
@@ -35,6 +35,8 @@ export interface OrderData {
   customerEmail: string | null;
   customerNote: string | null;
   partnerMessage: string | null;
+  /** The agent's own note; null for everyone but the platform's people. */
+  staffNote: string | null;
   createdAt: string;
   updatedAt: string;
   viewedAt: string | null;
@@ -60,6 +62,7 @@ export function orderData(view: OrderView): OrderData {
     customerEmail: order.customerEmail,
     customerNote: order.customerNote,
     partnerMessage: order.partnerMessage,
+    staffNote: order.staffNote,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     viewedAt: order.viewedAt ? order.viewedAt.toISOString() : null,

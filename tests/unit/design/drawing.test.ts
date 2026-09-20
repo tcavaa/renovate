@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beamAt, columnAt, nodeAt, pointElementAt, snapPoint, snapRectangle, wallAt } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, wallAt } from '@/lib/design/drawing';
 import { addWalls, roomsFromWalls, wallsForRectangle } from '@/lib/design/walls';
 import type { Beam, Column, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
@@ -136,5 +136,39 @@ describe('hit tests', () => {
     const point: TechnicalPoint = { id: 'p', kind: 'sewer', roomId: null, position: P(3, 2), origin: 'existing' };
     expect(pointElementAt([point], P(3.1, 2.1), 0.2)?.id).toBe('p');
     expect(pointElementAt([point], P(3.5, 2.5), 0.2)).toBeNull();
+  });
+});
+
+describe('rooms may not sit on top of each other', () => {
+  const box = (x: number, z: number, w: number, d: number): Vec2[] => [
+    { x, z },
+    { x: x + w, z },
+    { x: x + w, z: z + d },
+    { x, z: z + d },
+  ];
+  // An L, to make the point that a room is not always convex.
+  const ell: Vec2[] = [
+    { x: 0, z: 0 },
+    { x: 6, z: 0 },
+    { x: 6, z: 3 },
+    { x: 3, z: 3 },
+    { x: 3, z: 6 },
+    { x: 0, z: 6 },
+  ];
+
+  it('two rooms sharing a wall do not overlap; one pushed into the other does', () => {
+    expect(polygonsOverlap(box(0, 0, 4, 3), box(4.12, 0, 3, 3))).toBe(false);
+    // Edges exactly on top of each other — the usual result of snapping — still do not.
+    expect(polygonsOverlap(box(0, 0, 4, 3), box(4, 0, 3, 3))).toBe(false);
+    expect(polygonsOverlap(box(0, 0, 4, 3), box(3, 0, 3, 3))).toBe(true);
+  });
+
+  it('sees a room dropped into the notch of an L-shaped one', () => {
+    // The notch is free floor of the *other* room, not of the L.
+    expect(polygonsOverlap(ell, box(3.2, 3.2, 2, 2))).toBe(false);
+    // Over the L's own arm, it is an overlap.
+    expect(polygonsOverlap(ell, box(1, 1, 2, 2))).toBe(true);
+    // Wholly inside, with no edge crossing at all.
+    expect(polygonsOverlap(box(0, 0, 8, 8), box(2, 2, 2, 2))).toBe(true);
   });
 });

@@ -510,6 +510,74 @@ export function drawGuides(ctx: CanvasRenderingContext2D, t: Transform, guides: 
   ctx.restore();
 }
 
+/** The rubber band the select tool drags across the sheet, desktop-style. */
+export function drawMarquee(ctx: CanvasRenderingContext2D, t: Transform, rect: { x: number; z: number; width: number; depth: number }): void {
+  const a = toScreen(t, { x: rect.x, z: rect.z });
+  ctx.save();
+  ctx.fillStyle = EDITOR.selected;
+  ctx.globalAlpha = 0.1;
+  ctx.fillRect(a.x, a.y, rect.width * t.scale, rect.depth * t.scale);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = EDITOR.selected;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(a.x, a.y, rect.width * t.scale, rect.depth * t.scale);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/** Where a room being dragged would land: its outline, offset, over the sheet. */
+export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], delta: Vec2, color: string = EDITOR.selected): void {
+  if (polygon.length < 3) return;
+  ctx.save();
+  ctx.beginPath();
+  polygon.forEach((p, i) => {
+    const s = toScreen(t, { x: p.x + delta.x, z: p.z + delta.z });
+    if (i === 0) ctx.moveTo(s.x, s.y);
+    else ctx.lineTo(s.x, s.y);
+  });
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.14;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+/**
+ * A measurement on the sheet: a dark plate with the figure in it, at a screen point. The
+ * ruler every gesture that changes a size shows — a wall being drawn, dragged sideways or
+ * stretched by its end, a room being pulled out — so the number is under the pointer while
+ * it is still changing, not only once it has been let go.
+ */
+export function drawMeasure(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, color: string = EDITOR.label): void {
+  ctx.save();
+  ctx.font = '600 11px system-ui, sans-serif';
+  const w = ctx.measureText(text).width + 10;
+  ctx.fillStyle = color;
+  ctx.fillRect(x - w / 2, y - 9, w, 18);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+/** One wall's length, on a plate at its middle — the live ruler while it is being edited. */
+export function drawWallLength(ctx: CanvasRenderingContext2D, t: Transform, wall: Pick<Wall, 'a' | 'b'>, unitM: string, extra?: string): void {
+  const a = toScreen(t, wall.a);
+  const b = toScreen(t, wall.b);
+  const length = Math.hypot(wall.b.x - wall.a.x, wall.b.z - wall.a.z);
+  if (length < 0.05) return;
+  const text = extra ? `${length.toFixed(2)} ${unitM} · ${extra}` : `${length.toFixed(2)} ${unitM}`;
+  drawMeasure(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, text, EDITOR.selected);
+}
+
 /** A wall being drawn: its stroke, its length, and a dot at the start. */
 export function drawDraftWall(ctx: CanvasRenderingContext2D, t: Transform, a: Vec2, b: Vec2, thicknessM: number, unitM: string): void {
   const sa = toScreen(t, a);

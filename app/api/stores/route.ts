@@ -2,7 +2,7 @@ import { asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { stores } from '@/lib/db/schema';
 import { storeSchema, toStoreRow } from '@/lib/validations/store.schema';
-import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { fail, handle, ok, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
@@ -19,7 +19,7 @@ export const GET = handle('GET /api/stores', 'Failed to load stores', async (req
 });
 
 export const POST = handle('POST /api/stores', 'Failed to create store', async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('stores');
   if (admin.response) return admin.response;
 
   const parsed = storeSchema.safeParse(await req.json());

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellAt, cellPolygon, cellsAreaM2, paintCell, paintSpan, paintedProductAt, spanAreaM2, stripAt, wallSpans } from '@/lib/design/paint';
+import { cellAt, cellPolygon, cellsAreaM2, paintCell, paintPatch, paintSpan, paintedProductAt, patchAreaM2, patchAt, patchInRange, patchSpans, spanAreaM2, stripAt, wallPatches, wallSpans } from '@/lib/design/paint';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { polygonAreaM2, polygonPerimeterM } from '@/lib/design/planGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
@@ -89,5 +89,56 @@ describe('wall strips', () => {
     expect(finishQuantity(room, { ...base, surface: 'floor', cells: [[0, 0], [3, 2]] })).toBeCloseTo(1.16, 6);
     expect(finishQuantity(room, { ...base, surface: 'cornice' })).toBeCloseTo(11.6, 6);
     expect(finishQuantity(room, { ...base, surface: 'skirting' })).toBeCloseTo(10.7, 6);
+  });
+});
+
+describe('wall patches', () => {
+  // Wall 0 runs 3.32 m along the room and the ceiling is 2.8 m up: four columns (the last
+  // 32 cm wide) and three rows (the top one 80 cm tall).
+  it('counts a patch from the wall’s first corner and from the floor', () => {
+    const edge = { length: 3.32 };
+    expect(patchAt(edge, room.heightM, 0.4, 0.4)).toEqual([0, 0]);
+    expect(patchAt(edge, room.heightM, 3.2, 2.5)).toEqual([3, 2]);
+    // Past the end of the wall or through the ceiling: clamped onto the grid, never beyond it.
+    expect(patchAt(edge, room.heightM, 99, 99)).toEqual([3, 2]);
+    expect(patchSpans(edge, room.heightM, [3, 2])).toEqual({ along: { from: 3, to: 3.32 }, up: { from: 2, to: 2.8 } });
+    expect(patchInRange(room, 0, [3, 2])).toBe(true);
+    expect(patchInRange(room, 0, [4, 0])).toBe(false);
+    expect(patchInRange(room, 0, [0, 3])).toBe(false);
+  });
+
+  it('takes the door out of the patches it falls in', () => {
+    // The door is 90 cm wide in the middle of a 3.32 m wall and 2.1 m tall.
+    expect(patchAreaM2(room, 0, [0, 0])).toBeCloseTo(1, 2);
+    expect(patchAreaM2(room, 0, [1, 0])).toBeLessThan(1);
+    // The top row runs 2.0–2.8 m and the door's head is at 2.1, so it eats the first 10 cm
+    // of it across the 79 cm the leaf covers: 0.8 − 0.079.
+    expect(patchAreaM2(room, 0, [1, 2])).toBeCloseTo(0.72, 2);
+  });
+
+  it('keeps every patch of one product in one finish, moves one between products, and erases', () => {
+    let finishes: SurfaceFinish[] = [];
+    finishes = paintPatch(finishes, room, 2, [0, 0], product(1, 30));
+    finishes = paintPatch(finishes, room, 2, [1, 0], product(1, 30));
+    expect(wallPatches(finishes, room.id, 2)).toHaveLength(1);
+    expect(wallPatches(finishes, room.id, 2)[0].cells).toHaveLength(2);
+    expect(wallPatches(finishes, room.id, 2)[0].product?.qty).toBeCloseTo(2, 2);
+
+    // The same patch in another product leaves the first finish and joins the second.
+    finishes = paintPatch(finishes, room, 2, [1, 0], product(2, 50));
+    expect(wallPatches(finishes, room.id, 2)).toHaveLength(2);
+    expect(paintedProductAt(finishes, { roomId: room.id, surface: 'wall', wallIndex: 2, span: { from: 1, to: 2 }, patch: [1, 0] })?.productId).toBe(2);
+
+    // No product is the eraser; the finish it emptied goes with it.
+    finishes = paintPatch(finishes, room, 2, [1, 0], null);
+    expect(wallPatches(finishes, room.id, 2)).toHaveLength(1);
+    expect(paintedProductAt(finishes, { roomId: room.id, surface: 'wall', wallIndex: 2, span: { from: 1, to: 2 }, patch: [1, 0] })).toBeNull();
+  });
+
+  it('is a different layer from the strips: one wall can carry both', () => {
+    let finishes: SurfaceFinish[] = paintSpan([], room, 1, { from: 0, to: 1 }, product(1, 30));
+    finishes = paintPatch(finishes, room, 1, [1, 1], product(2, 50));
+    expect(wallSpans(finishes, room.id, 1)).toHaveLength(1);
+    expect(wallPatches(finishes, room.id, 1)).toHaveLength(1);
   });
 });

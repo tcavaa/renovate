@@ -1,6 +1,6 @@
 'use client';
 
-import { Camera, Eye, Maximize2, Minimize2, Minus, Moon, Plus, RefreshCw, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
+import { Camera, Eraser, Eye, Maximize2, Minimize2, Minus, Moon, Plus, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
@@ -10,15 +10,15 @@ export type StudioView = '2d' | '3d' | 'walk';
 const PRESET_ICONS: Record<DaylightPreset, LucideIcon> = { morning: Sunrise, noon: Sun, evening: Sunset, night: Moon };
 
 /**
- * Segmented 2D / 3D / walk switch with the wall and regenerate toggles beside it, the time
- * of day, and the camera that asks for a realistic photo of the current view.
+ * Segmented 2D / 3D / walk switch with the walls toggle and "start from scratch" beside it,
+ * the time of day, and the camera that asks for a realistic photo of the current view.
  */
 export function ViewSwitch({
   view,
   onView,
   showWalls,
   onToggleWalls,
-  onRegenerate,
+  onClear,
   daylight,
   onDaylight,
   onPhoto,
@@ -27,7 +27,8 @@ export function ViewSwitch({
   onView: (view: StudioView) => void;
   showWalls: boolean;
   onToggleWalls: () => void;
-  onRegenerate: () => void;
+  /** Empties the flat so the person can furnish it themselves, from nothing. */
+  onClear: () => void;
   daylight: DaylightPreset;
   onDaylight: (preset: DaylightPreset) => void;
   /** Absent while the 3D view is not up (2D plan, viewer still loading). */
@@ -68,8 +69,14 @@ export function ViewSwitch({
       <IconButton label={t.design.showWalls} pressed={showWalls} disabled={view !== '3d'} onClick={onToggleWalls}>
         <SquareDashed className="h-4 w-4" />
       </IconButton>
-      <IconButton label={t.design.regenerate} onClick={onRegenerate}>
-        <RefreshCw className="h-4 w-4" />
+      {/*
+        There is no "lay it out again" here any more. The layout is the journey's hinge: by
+        the time the studio is open somebody may have spent an hour moving furniture, and a
+        second generation would sweep all of it away. Emptying the flat deliberately is what
+        is left, and version 01 is always there to go back to.
+      */}
+      <IconButton label={t.build.fromScratch} onClick={onClear}>
+        <Eraser className="h-4 w-4" />
       </IconButton>
       <div className="glass flex p-1" role="radiogroup" aria-label={t.design.daylight}>
         {DAYLIGHT_PRESETS.map((preset) => {

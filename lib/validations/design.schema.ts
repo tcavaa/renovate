@@ -116,6 +116,7 @@ export const technicalPointSchema = z.object({
 export const technicalSetupSchema = z.object({
   points: z.array(technicalPointSchema).max(200),
   works: z.array(z.string().max(40)).max(40).optional(),
+  existing: z.array(z.string().max(24)).max(24).optional(),
 });
 
 export const planRoomSchema = z.object({
@@ -249,6 +250,7 @@ export const designSceneSchema = z.object({
   finishes: z.array(surfaceFinishSchema).max(800),
   electrical: z.array(electricalPointSchema).max(600).optional(),
   styleProfile: styleProfileSchema.nullable().optional(),
+  excluded: z.array(z.number().int().positive()).max(800).optional(),
 });
 
 /** A kept version of the flat: the plan and scene as they were, with a name. */

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, PenLine, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { CalculatorFlowGuard } from '@/components/flow/FlowGuard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { PlanSketch } from '@/components/projects/PlanSketch';
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import { useDesignStore } from '@/store/designStore';
+import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorRoomsFromPlan } from '@/lib/design/planGeometry';
@@ -26,20 +27,21 @@ type PlanMode = 'upload' | 'draw';
 /**
  * Step 1 of the calculator: the plan — uploaded, or drawn on the same board the studio uses
  * (walls as lines, rooms as rectangles, doors and windows) — and the home's condition. The
- * plan lives in the design store; the calculator's rooms are read off it after every edit,
- * so the same drawing carries into 3D untouched.
+ * plan lives in the calculator's *own* board (`useCalculatorPlanStore`), separate from the
+ * studio's; the calculator's rooms are read off it after every edit. The drawing crosses
+ * into 3D only when the summary's "see it in 3D" is pressed.
  */
 export default function CalculatorStep1Page() {
   const router = useRouter();
   const t = useT();
   const { homeState, rooms, setHomeState, replaceRooms } = useCalculatorStore();
   const plan = useCalculatorPlan();
-  const setPlan = useDesignStore((s) => s.setPlan);
-  const floorPlanUrl = useDesignStore((s) => s.floorPlanUrl);
-  const selection = useDesignStore((s) => s.selectedElement);
-  const focusRoomId = useDesignStore((s) => s.focusRoomId);
-  const electrical = useDesignStore((s) => s.electrical);
-  const actions = useDesignStore();
+  const setPlan = useCalculatorPlanStore((s) => s.setPlan);
+  const floorPlanUrl = useCalculatorPlanStore((s) => s.floorPlanUrl);
+  const selection = useCalculatorPlanStore((s) => s.selectedElement);
+  const focusRoomId = useCalculatorPlanStore((s) => s.focusRoomId);
+  const electrical = useCalculatorPlanStore((s) => s.electrical);
+  const actions = useCalculatorPlanStore();
   const [replacingPlan, setReplacingPlan] = useState(false);
   const planOnFile = !!plan && rooms.length > 0 && plan.rooms.length === rooms.length && plan.rooms.every((r) => rooms.some((room) => room.id === r.id));
   const [mode, setMode] = useState<PlanMode>(() => (plan && plan.rooms.length > 0 ? 'draw' : 'upload'));
@@ -82,6 +84,7 @@ export default function CalculatorStep1Page() {
 
   return (
     <>
+      <CalculatorFlowGuard step={1} />
       <StepIndicator current={1} />
       <div className="container py-10 md:py-14">
         <StepHeader step={1} total={5} title={t.calculator.title} subtitle={t.calculator.startSubtitle} />
@@ -162,7 +165,7 @@ export default function CalculatorStep1Page() {
           {mode === 'draw' && plan && (
             <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
               <div className="min-w-0">
-                <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window']} layerKeys={['walls', 'openings', 'dimensions']} height={560} />
+                <PlanWorkspace store={useCalculatorPlanStore} tools={['select', 'pan', 'wall', 'room', 'door', 'window']} layerKeys={['walls', 'openings', 'dimensions']} height={560} />
               </div>
               <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
                 <ElementInspector
@@ -171,6 +174,7 @@ export default function CalculatorStep1Page() {
                   selection={selection && selection.kind !== 'room' ? selection : null}
                   actions={{
                     updateWall: actions.updateWall,
+                    resizeWall: actions.resizeWall,
                     removeWall: actions.removeWall,
                     updateOpening: actions.updateOpening,
                     removeOpening: actions.removeOpening,

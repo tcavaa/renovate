@@ -13,6 +13,8 @@
 
 import type { Beam, Column, ElectricalPoint, TechnicalPoint, Vec2, Wall } from './types';
 import { closestOnSegment, nearestWallTo, wallNodes, NODE_TOL_M } from './walls';
+import { clipPolygon } from './zones';
+import { polygonAreaM2, pointInPolygon } from './planGeometry';
 
 export type SnapKind = 'node' | 'wall' | 'axis' | 'align' | 'grid';
 
@@ -223,6 +225,83 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
   const z = snapAxis(horizontal, 'z', rect.z, rect.depth, x.start, x.start + x.size);
   // To the millimetre, like the walls themselves: a 15 cm wall puts the face 7.5 cm off its line.
   return { rect: { x: round3(x.start), z: round3(z.start), width: round3(x.size), depth: round3(z.size) }, guides };
+}
+
+/**
+ * How much of an existing room a new rectangle may cover before it is refused. A rectangle
+ * snapped onto its neighbour's wall shares that wall's line, and rounding can leave a sliver
+ * of overlap; a real overlap is a room drawn on top of another.
+ */
+const MAX_OVERLAP_M2 = 0.1;
+
+/**
+ * Do these two outlines share any floor?
+ *
+ * Rooms are not always convex — an L-shaped living room is ordinary — so this is the plain
+ * test rather than a clip: they overlap when an edge of one crosses an edge of the other, or
+ * when one lies wholly inside the other. Touching along a shared wall is not overlapping,
+ * which is why the outlines are pulled in by a hair first: two rooms either side of one wall
+ * have their inner faces a thickness apart, but rounding can put a vertex a millimetre over.
+ */
+export function polygonsOverlap(a: Vec2[], b: Vec2[]): boolean {
+  if (a.length < 3 || b.length < 3) return false;
+  const shrunk = shrinkToCentroid(a, TOUCH_TOL_M);
+  const other = shrinkToCentroid(b, TOUCH_TOL_M);
+  for (let i = 0; i < shrunk.length; i++) {
+    const p1 = shrunk[i];
+    const p2 = shrunk[(i + 1) % shrunk.length];
+    for (let j = 0; j < other.length; j++) {
+      if (segmentsCross(p1, p2, other[j], other[(j + 1) % other.length])) return true;
+    }
+  }
+  return pointInPolygon(shrunk[0], other) || pointInPolygon(other[0], shrunk);
+}
+
+/** A hair's breadth: two rooms that merely share a wall must not read as overlapping. */
+const TOUCH_TOL_M = 0.02;
+
+/** The outline pulled `by` metres towards its own centre, so touching edges come apart. */
+function shrinkToCentroid(polygon: Vec2[], by: number): Vec2[] {
+  const cx = polygon.reduce((s, p) => s + p.x, 0) / polygon.length;
+  const cz = polygon.reduce((s, p) => s + p.z, 0) / polygon.length;
+  return polygon.map((p) => {
+    const dx = p.x - cx;
+    const dz = p.z - cz;
+    const d = Math.hypot(dx, dz) || 1;
+    return { x: p.x - (dx / d) * by, z: p.z - (dz / d) * by };
+  });
+}
+
+/** True when the two segments properly cross (a shared endpoint does not count). */
+function segmentsCross(a: Vec2, b: Vec2, c: Vec2, d: Vec2): boolean {
+  const side = (p: Vec2, q: Vec2, r: Vec2) => Math.sign((q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x));
+  const d1 = side(a, b, c);
+  const d2 = side(a, b, d);
+  const d3 = side(c, d, a);
+  const d4 = side(c, d, b);
+  return d1 !== d2 && d3 !== d4 && d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0;
+}
+
+/**
+ * The room a rectangle would be drawn on top of, if any.
+ *
+ * Overlapping rooms are not a flat: the wall graph traces the crossings as faces, so a room
+ * dropped over its neighbour comes back as three or four slivers with walls running through
+ * the middle of them, and there is no way to pull the mistake apart again. The board refuses
+ * the rectangle instead, which is a message the person can act on.
+ */
+export function roomUnderRect(rect: Rect, rooms: Array<{ id: string; polygon: Vec2[] }>): string | null {
+  const corners: Vec2[] = [
+    { x: rect.x, z: rect.z },
+    { x: rect.x + rect.width, z: rect.z },
+    { x: rect.x + rect.width, z: rect.z + rect.depth },
+    { x: rect.x, z: rect.z + rect.depth },
+  ];
+  for (const room of rooms) {
+    const shared = clipPolygon(room.polygon, corners);
+    if (shared.length >= 3 && polygonAreaM2(shared) > MAX_OVERLAP_M2) return room.id;
+  }
+  return null;
 }
 
 /** A wall has to run at least this far alongside a rectangle's side to count as its neighbour. */

@@ -161,6 +161,11 @@ export interface TechnicalSetup {
   points: TechnicalPoint[];
   /** The works ticked on the technical step; when set they replace the home state's phases. */
   works?: WorkKey[];
+  /**
+   * What the flat already has and must not be charged for again (`lib/design/existing`).
+   * Absent until the person ticks something: the home state then decides.
+   */
+  existing?: string[];
 }
 
 export interface PlanRoom {
@@ -453,6 +458,12 @@ export interface DesignScene {
   electrical?: ElectricalPoint[];
   /** How the style was chosen: the five answers of the style test, when it was taken. */
   styleProfile?: StyleProfile | null;
+  /**
+   * Products the person ticked off on the budget: still in the design, still in the room,
+   * but not being bought. The budget leaves them out of its lines and totals and the
+   * checkout does not order them.
+   */
+  excluded?: number[];
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */

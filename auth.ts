@@ -60,6 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: user.role,
           storeId: user.storeId ?? null,
           workerId: user.workerId ?? null,
+          teamId: user.teamId ?? null,
         };
       },
     }),
@@ -127,11 +128,13 @@ declare module 'next-auth' {
       storeId: number | null;
       /** Set on `worker` accounts. */
       workerId: number | null;
+      teamId: number | null;
     };
   }
   interface User {
     role?: UserRole;
     storeId?: number | null;
     workerId?: number | null;
+    teamId?: number | null;
   }
 }

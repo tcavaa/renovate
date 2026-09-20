@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { ClipboardList, Hammer, Home, LayoutDashboard, LogOut, Package, Store, UserCircle } from 'lucide-react';
+import { ClipboardList, Hammer, Home, LayoutDashboard, LogOut, Package, Store, UserCircle, UsersRound } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * The partner portal's navigation: the same shape as the admin sidebar, with the partner's
  * own name at the top so a store owner with two accounts always knows which one is open.
  */
-export function PartnerSidebar({ partnerName, partnerType, unread }: { partnerName: string | null; partnerType: 'store' | 'worker' | null; unread: number }) {
+export function PartnerSidebar({ partnerName, partnerType, unread }: { partnerName: string | null; partnerType: 'store' | 'worker' | 'team' | null; unread: number }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const t = useT();
@@ -20,10 +20,11 @@ export function PartnerSidebar({ partnerName, partnerType, unread }: { partnerNa
     { href: '/partner', label: t.partner.dashboard, icon: LayoutDashboard, exact: true },
     { href: '/partner/orders', label: t.partner.orders, icon: ClipboardList, badge: unread },
     ...(partnerType === 'store' ? [{ href: '/partner/products', label: t.partner.products, icon: Package }] : []),
-    ...(partnerType === 'worker' ? [{ href: '/partner/profile', label: t.partner.profile, icon: UserCircle }] : []),
+    ...(partnerType === 'worker' || partnerType === 'team' ? [{ href: '/partner/profile', label: t.partner.profile, icon: UserCircle }] : []),
   ];
   const user = session?.user;
-  const Mark = partnerType === 'worker' ? Hammer : Store;
+  const Mark = partnerType === 'worker' ? Hammer : partnerType === 'team' ? UsersRound : Store;
+  const accountLabel = partnerType === 'worker' ? t.partner.workerAccount : partnerType === 'team' ? t.partner.teamAccount : t.partner.storeAccount;
 
   return (
     <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col self-start border-r border-line bg-bg-surface">
@@ -37,7 +38,7 @@ export function PartnerSidebar({ partnerName, partnerType, unread }: { partnerNa
             <Mark className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <p className="eyebrow">{partnerType === 'worker' ? t.partner.workerAccount : t.partner.storeAccount}</p>
+            <p className="eyebrow">{accountLabel}</p>
             <p className="mt-0.5 truncate font-serif text-base font-semibold text-ink">{partnerName ?? t.partner.adminPreview}</p>
           </div>
         </div>

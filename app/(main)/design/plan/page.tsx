@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DoorOpen, Wand2 } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { RoomsPanel } from '@/components/plan/RoomsPanel';
@@ -15,6 +16,7 @@ import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { deriveOpenings, totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { formatM2 } from '@/lib/utils';
 
 /**
@@ -30,12 +32,14 @@ export default function ExistingHousePage() {
   const selection = useDesignStore((s) => s.selectedElement);
   const focusRoomId = useDesignStore((s) => s.focusRoomId);
   const electrical = useDesignStore((s) => s.electrical);
+  const homeState = useDesignStore((s) => s.homeState);
+  const mode = useDesignStore((s) => s.mode);
   const actions = useDesignStore();
-  const [refused, setRefused] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
 
   useEffect(() => {
     if (!refused) return;
-    const handle = window.setTimeout(() => setRefused(false), 2200);
+    const handle = window.setTimeout(() => setRefused(null), 2200);
     return () => window.clearTimeout(handle);
   }, [refused]);
 
@@ -70,20 +74,25 @@ export default function ExistingHousePage() {
     actions.updatePlan({ ...plan, rooms: merged });
   };
 
+  // Where step 2 leads depends on the home's condition: a finished flat records its
+  // technical setup next, a renovation designs first and plans the pipes afterwards.
+  const after = nextStep(2, homeState, mode) ?? 3;
   const continueNext = () => {
-    actions.ensureExistingVersion(t.build.versionExisting);
-    actions.setStep(3);
-    router.push('/design/technical');
+    // The baseline version is the studio's to take, once it has something to keep: taken
+    // here it would be an empty flat, and restoring it would throw the furniture away.
+    actions.setStep(after);
+    router.push(nextStepHref(2, homeState, mode));
   };
 
   const roomCount = fill(t.build.roomCount, { n: plan.rooms.length });
 
   return (
     <>
+      <DesignFlowGuard step={2} />
       <DesignSteps current={2} />
       <div className="container py-8 md:py-12">
         <StepHeader
-          step={2}
+          step={designStepPosition(2, homeState, mode)}
           total={8}
           title={t.build.s2Title}
           subtitle={t.build.s2Subtitle}
@@ -105,10 +114,10 @@ export default function ExistingHousePage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="relative min-w-0">
-            <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']} layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']} height="calc(100vh - 260px)" onRefused={() => setRefused(true)} />
+            <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']} layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']} height="calc(100vh - 260px)" onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)} />
             {refused && (
               <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
-                {t.design.openingRefused}
+                {refused}
               </p>
             )}
           </div>
@@ -119,13 +128,14 @@ export default function ExistingHousePage() {
               selection={selection && selection.kind !== 'room' ? selection : null}
               actions={{
                 updateWall: actions.updateWall,
+                resizeWall: actions.resizeWall,
                 removeWall: actions.removeWall,
                 updateOpening: actions.updateOpening,
                 removeOpening: actions.removeOpening,
                 addOpening: (roomId, kind, wallIndex) => {
                   const id = actions.addOpening(roomId, kind, wallIndex);
                   if (id) actions.selectElement({ kind: 'opening', id, roomId });
-                  else setRefused(true);
+                  else setRefused(t.design.openingRefused);
                 },
                 updateColumn: actions.updateColumn,
                 removeColumn: actions.removeColumn,
@@ -161,7 +171,7 @@ export default function ExistingHousePage() {
         </div>
       </div>
 
-      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: t.build.continueToTechnical, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
+      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: after === 3 ? t.build.continueToTechnical : t.build.continueToStyle, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
     </>
   );
 }

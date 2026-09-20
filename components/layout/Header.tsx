@@ -39,6 +39,7 @@ export function Header() {
     { href: '/design', label: t.design.nav, badge: t.design.badge },
     { href: '/calculator', label: t.nav.calculator },
     { href: '/catalog', label: t.nav.catalog },
+    { href: '/teams', label: t.nav.teams },
     { href: '/workers', label: t.nav.workers },
   ];
 

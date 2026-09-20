@@ -1,0 +1,3 @@
+module.exports=[46274,a=>{"use strict";var b=a.i(33360);a.i(38087);var c=a.i(84426),d=a.i(83479);async function e({children:a}){let f=await (0,d.auth)();return f?.user||(0,c.redirect)("/login?callbackUrl=/profile"),(0,b.jsx)("div",{className:"container max-w-6xl py-8",children:a})}a.s(["default",0,e])},54496,function(a){a.n(a.i(46274))}];
+
+//# sourceMappingURL=app_%28main%29_profile_layout_tsx_180cd64._.js.map

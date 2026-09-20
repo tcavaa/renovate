@@ -23,7 +23,7 @@ export function OpenIn3dButton({ project, size = 'md', className }: { project: S
       router.push('/design/studio');
       return;
     }
-    startFromCalculator({ rooms: project.rooms, homeState: project.homeState, selectedProducts: project.selectedProducts, selectedFurniture: project.selectedFurniture, projectId: project.id });
+    startFromCalculator({ rooms: project.rooms, homeState: project.homeState, selectedProducts: project.selectedProducts, selectedFurniture: project.selectedFurniture, projectId: project.id, plan: project.plan, floorPlanUrl: project.floorPlanUrl });
     router.push('/design/style');
   };
 

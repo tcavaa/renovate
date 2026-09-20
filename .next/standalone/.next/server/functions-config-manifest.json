@@ -48,6 +48,8 @@
     "/api/stores": {},
     "/api/stores/[id]": {},
     "/api/stores/[id]/approval": {},
+    "/api/teams": {},
+    "/api/teams/[id]": {},
     "/api/upload": {},
     "/api/upload/model": {},
     "/api/users/[id]": {},

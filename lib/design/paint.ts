@@ -25,6 +25,8 @@ import type { PlanRoom, SceneProduct, SurfaceFinish, Vec2 } from './types';
 /** The side of a painted floor tile and the width of a painted wall strip, metres. */
 export const PAINT_CELL_M = 1;
 export const PAINT_STRIP_M = 1;
+/** The side of a painted wall patch — a square metre of wall rather than a whole strip. */
+export const PAINT_PATCH_M = 1;
 /** A sliver narrower than this at the end of a wall joins the strip before it. */
 const MIN_STRIP_M = 0.25;
 
@@ -34,8 +36,12 @@ export interface Span {
   to: number;
 }
 
-/** What a click on a surface paints: one floor tile, or one strip of one wall. */
-export type PaintTarget = { roomId: string; surface: 'floor'; cell: Cell } | { roomId: string; surface: 'wall'; wallIndex: number; span: Span };
+/**
+ * What a click on a surface paints: one floor tile, one strip of one wall (floor to
+ * ceiling), or — when `patch` is given — the one square metre of that wall the pointer is
+ * on, `patch` being its [column along, row up] in the wall's own grid.
+ */
+export type PaintTarget = { roomId: string; surface: 'floor'; cell: Cell } | { roomId: string; surface: 'wall'; wallIndex: number; span: Span; patch?: Cell };
 
 // ---------------------------------------------------------------------------
 // Floor tiles
@@ -106,12 +112,104 @@ export function paintCell(finishes: SurfaceFinish[], room: PlanRoom, cell: Cell,
 // Wall strips
 // ---------------------------------------------------------------------------
 
+/** How many whole steps a run of `lengthM` divides into; the last one takes the remainder. */
+function stepCount(lengthM: number): number {
+  return Math.max(1, Math.floor(lengthM / PAINT_STRIP_M) + (lengthM % PAINT_STRIP_M >= MIN_STRIP_M ? 1 : 0));
+}
+
+/** The step of the grid that holds `at` metres along a run of `lengthM`. */
+function stepAt(lengthM: number, at: number): number {
+  return Math.max(0, Math.min(stepCount(lengthM) - 1, Math.floor(at / PAINT_STRIP_M)));
+}
+
+/** The extent of one step, the last running on to the end. */
+function stepSpan(lengthM: number, index: number): Span {
+  const count = stepCount(lengthM);
+  const i = Math.max(0, Math.min(count - 1, index));
+  const from = i * PAINT_STRIP_M;
+  return { from: round3(from), to: round3(i === count - 1 ? lengthM : from + PAINT_STRIP_M) };
+}
+
 /** The metre-wide strip of a wall that holds the spot `s` metres along it. */
 export function stripAt(edge: Pick<PlanEdge, 'length'>, s: number): Span {
-  const count = Math.max(1, Math.floor(edge.length / PAINT_STRIP_M) + (edge.length % PAINT_STRIP_M >= MIN_STRIP_M ? 1 : 0));
-  const index = Math.max(0, Math.min(count - 1, Math.floor(s / PAINT_STRIP_M)));
-  const from = index * PAINT_STRIP_M;
-  return { from: round3(from), to: round3(index === count - 1 ? edge.length : from + PAINT_STRIP_M) };
+  return stepSpan(edge.length, stepAt(edge.length, s));
+}
+
+/**
+ * The square-metre patch of a wall under a point: its column along the wall and its row up
+ * it, counted from the wall's first corner and from the floor. The last column and the top
+ * row run on to the corner and to the ceiling, so a 3.4 m wall is three columns, not three
+ * and a sliver.
+ */
+export function patchAt(edge: Pick<PlanEdge, 'length'>, heightM: number, s: number, y: number): Cell {
+  return [stepAt(edge.length, s), stepAt(heightM, y)];
+}
+
+/** The horizontal and vertical extent of one patch. */
+export function patchSpans(edge: Pick<PlanEdge, 'length'>, heightM: number, patch: Cell): { along: Span; up: Span } {
+  return { along: stepSpan(edge.length, patch[0]), up: stepSpan(heightM, patch[1]) };
+}
+
+/** Square metres of one wall patch — the part of it a door or window takes is not painted. */
+export function patchAreaM2(room: PlanRoom, wallIndex: number, patch: Cell): number {
+  const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
+  if (!edge) return 0;
+  const { along, up } = patchSpans(edge, room.heightM, patch);
+  let area = (along.to - along.from) * (up.to - up.from);
+  for (const opening of room.openings) {
+    if (opening.wallIndex !== wallIndex) continue;
+    const centre = opening.t * edge.length;
+    const across = Math.min(along.to, centre + opening.widthM / 2) - Math.max(along.from, centre - opening.widthM / 2);
+    const tall = Math.min(up.to, opening.sillM + opening.heightM) - Math.max(up.from, opening.sillM);
+    if (across > 0 && tall > 0) area -= across * tall;
+  }
+  return Math.max(0.05, round2(area));
+}
+
+/** True while a patch is still on the wall — it got shorter, or the ceiling came down. */
+export function patchInRange(room: PlanRoom, wallIndex: number, patch: Cell): boolean {
+  const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
+  if (!edge) return false;
+  return patch[0] >= 0 && patch[0] < stepCount(edge.length) && patch[1] >= 0 && patch[1] < stepCount(room.heightM);
+}
+
+export function patchesAreaM2(room: PlanRoom, wallIndex: number, patches: Cell[]): number {
+  return round2(patches.reduce((sum, patch) => sum + patchAreaM2(room, wallIndex, patch), 0));
+}
+
+/** The patches painted on one wall, whichever product they wear. */
+export function wallPatches(finishes: SurfaceFinish[], roomId: string, wallIndex: number): SurfaceFinish[] {
+  return finishes.filter((f) => f.roomId === roomId && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.cells);
+}
+
+/**
+ * Paints one square metre of one wall. Like a floor tile: the patch leaves whatever painted
+ * finish held it and joins the product's, and with no product it just leaves — the eraser.
+ * All the patches of one product on one wall are one finish, priced by their real area.
+ */
+export function paintPatch(finishes: SurfaceFinish[], room: PlanRoom, wallIndex: number, patch: Cell, product: CatalogProduct | null): SurfaceFinish[] {
+  const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
+  if (!edge) return finishes;
+  const isPatches = (f: SurfaceFinish) => f.roomId === room.id && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.cells;
+  const already = product ? finishes.find((f) => isPatches(f) && f.product?.productId === product.id && f.cells!.some((c) => sameCell(c, patch))) : undefined;
+  if (already) return finishes;
+
+  let joined = false;
+  const next: SurfaceFinish[] = [];
+  for (const finish of finishes) {
+    if (!isPatches(finish)) {
+      next.push(finish);
+      continue;
+    }
+    let cells = finish.cells!.filter((c) => !sameCell(c, patch));
+    if (product && finish.product?.productId === product.id) {
+      cells = [...cells, patch];
+      joined = true;
+    }
+    if (cells.length > 0) next.push(pricedByArea({ ...finish, cells }, patchesAreaM2(room, wallIndex, cells)));
+  }
+  if (product && !joined) next.push(pricedByArea({ ...finishFromProduct(room, 'wall', product), wallIndex, cells: [patch] }, patchesAreaM2(room, wallIndex, [patch])));
+  return next;
 }
 
 /** A room's wall and the spot along it nearest to a point, within `reachM` of the wall's face. */
@@ -190,6 +288,10 @@ export function paintSpan(finishes: SurfaceFinish[], room: PlanRoom, wallIndex: 
 /** What a paint target wears now: the product on that tile or strip, or null for the base finish. */
 export function paintedProductAt(finishes: SurfaceFinish[], target: PaintTarget): SceneProduct | null {
   if (target.surface === 'floor') return cellFinishAt(finishes, target.roomId, target.cell)?.product ?? null;
+  if (target.patch) {
+    const patch = target.patch;
+    return wallPatches(finishes, target.roomId, target.wallIndex).find((f) => f.cells!.some((c) => sameCell(c, patch)))?.product ?? null;
+  }
   const middle = (target.span.from + target.span.to) / 2;
   return wallSpans(finishes, target.roomId, target.wallIndex).find((f) => middle >= f.span!.from && middle <= f.span!.to)?.product ?? null;
 }

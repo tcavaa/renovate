@@ -14,23 +14,25 @@ import { fill } from '@/lib/admin/list';
 import { cn, formatGEL } from '@/lib/utils';
 import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
-import { ELECTRICAL_ICON } from '@/components/plan/icons';
+import { ELECTRICAL_ICON, TECHNICAL_ICON } from '@/components/plan/icons';
+import { TECHNICAL_COLOR } from '@/components/plan/palette';
+import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
 import { emptyDragImage } from './dragImage';
 import { localizedName } from '@/lib/i18n/labels';
 import { pricePerM2 } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { ElectricalKind } from '@/lib/design/types';
+import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
 import type { EditorTool } from '@/components/plan/PlanEditor';
-import { electricalLabel, toolLabel } from '@/components/plan/PlanToolbar';
+import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
+/** A room is a shape of the wall tool — one line, one square — not a tile of its own. */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
   { id: 'pan', icon: Hand },
   { id: 'wall', icon: BrickWall },
-  { id: 'room', icon: Square },
   { id: 'door', icon: DoorOpen },
   { id: 'window', icon: RectangleHorizontal },
   { id: 'column', icon: SquareDashed },
@@ -39,17 +41,34 @@ const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
 
 export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void }) {
   const t = useT();
+  const drawing = tool === 'wall' || tool === 'room';
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1" role="toolbar">
-        {BUILD_TOOLS.map(({ id, icon: Icon }) => (
-          <button key={id} type="button" onClick={() => onTool(id)} aria-pressed={tool === id} title={toolLabel(t, id)} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
-            <Icon className="h-5 w-5" />
-            <span className="truncate px-1">{toolLabel(t, id)}</span>
-          </button>
-        ))}
+        {BUILD_TOOLS.map(({ id, icon: Icon }) => {
+          const active = id === 'wall' ? drawing : tool === id;
+          return (
+            <button key={id} type="button" onClick={() => onTool(id)} aria-pressed={active} title={toolLabel(t, id)} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+              <Icon className="h-5 w-5" />
+              <span className="truncate px-1">{toolLabel(t, id)}</span>
+            </button>
+          );
+        })}
       </div>
-      {(tool === 'wall' || tool === 'room') && (
+      {drawing && (
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
+          {(['wall', 'room'] as const).map((id) => {
+            const Icon = id === 'wall' ? Minus : Square;
+            return (
+              <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                <Icon className="h-3.5 w-3.5" />
+                {toolLabel(t, id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {drawing && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.thickness}>
           {WALL_THICKNESS_OPTIONS_M.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} onClick={() => onThickness(m)} className={cn('h-8 rounded-[8px] px-2.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
@@ -79,7 +98,13 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
 }
 
 const LIGHT_KINDS: ElectricalKind[] = ['light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture'];
-const POWER_KINDS: ElectricalKind[] = ['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'tv', 'internet'];
+/**
+ * The power shelf: a socket, a switch, an aerial and a data point. The double, the high and
+ * the kitchen socket are the same plate at another height or another width — the automatic
+ * wiring still places them, and a placed one can still be re-kinded from its card — but as
+ * four extra tiles they only made the shelf harder to read.
+ */
+const POWER_KINDS: ElectricalKind[] = ['socket', 'switch', 'tv', 'internet'];
 
 export const ELECTRICAL_DRAG_TYPE = 'application/x-renovate-electrical';
 
@@ -162,12 +187,83 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
   );
 }
 
-export type FinishScope = 'room' | 'wall' | 'strip' | 'cell';
+/**
+ * The technical points as tiles: water, sewer, a drain, the panel, gas, a radiator, air
+ * conditioning, an extractor, a boiler, a heating pipe. A tile arms the 2D board with that
+ * kind and stays armed until it is clicked again — the bargain the electric tray makes — so
+ * the whole technical layer can be laid out without leaving the studio. The works checklist,
+ * which is a page of its own, is one link away.
+ */
+export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC. */ onAuto: () => void; onRadiators: () => void; stepHref: string }) {
+  const t = useT();
+  const placed = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
+  return (
+    <div className="flex gap-2">
+      <div className="flex shrink-0 flex-col justify-center gap-0.5 border-r border-line pr-2">
+        <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.catTechnical}</span>
+        <span className="px-1.5 text-[9px] tabular-nums text-ink-muted">{fill(t.build.pointsPlaced, { n: placed })}</span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-start gap-1.5">
+          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="radiogroup" aria-label={t.build.toolTechnical}>
+            {TECHNICAL_KIND_LIST.map((k) => {
+              const Icon = TECHNICAL_ICON[k];
+              const active = armed && kind === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => {
+                    onKind(k);
+                    onArm(!active);
+                  }}
+                  title={technicalLabel(t, k)}
+                  className={cn('flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                >
+                  <span className="grid h-4 w-4 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
+                    <Icon className="h-2.5 w-2.5" />
+                  </span>
+                  <span className="max-w-full truncate px-1">
+                    {technicalLabel(t, k)}
+                    {counts[k] ? ` ${counts[k]}` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t.build.autoTechnical}
+            </button>
+            <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink hover:text-ink">
+              <Flame className="h-3.5 w-3.5" />
+            </button>
+            <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
+              {t.build.worksTitle}
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+        <p className="truncate text-[10px] leading-snug text-ink-muted">{t.build.hintTechnical}</p>
+      </div>
+    </div>
+  );
+}
+
+export type FinishScope = 'room' | 'wall' | 'strip' | 'cell' | 'patch';
 export type FinishSurface = 'floor' | 'wall' | 'skirting' | 'cornice';
 
 /** The scopes that paint a piece at a click instead of applying to what is selected. */
-export function isPaintScope(scope: FinishScope): scope is 'strip' | 'cell' {
-  return scope === 'strip' || scope === 'cell';
+export function isPaintScope(scope: FinishScope): scope is 'strip' | 'cell' | 'patch' {
+  return scope === 'strip' || scope === 'cell' || scope === 'patch';
+}
+
+/** What the brush lays down in a painting scope, for the board and the 3D view. */
+export function paintScopeOf(scope: FinishScope): 'cell' | 'strip' | 'patch' | null {
+  return isPaintScope(scope) ? scope : null;
 }
 
 /** What is being finished, down the left edge of the tray. */
@@ -199,6 +295,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
           { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
           { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
+          { id: 'patch', label: t.build.applyPatch, icon: Grid2x2 },
         ]
       : [
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },

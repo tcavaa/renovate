@@ -1,0 +1,64 @@
+'use client';
+
+/**
+ * Where a step sends you when you should not be on it.
+ *
+ * Two rules, both about not losing work:
+ *
+ *  - **Resume.** Coming back to the first step of a journey that is half done — from the
+ *    nav, from a bookmark, from yesterday — picks it up where it was left rather than
+ *    showing a blank sheet over the top of it. "Start again" is one click away in the strip
+ *    for the times that really is what was wanted.
+ *  - **Lock.** Once the flat has been laid out in 3D, the steps that fed the layout are
+ *    closed: the plan, the technical setup and the style all went into it, and going back to
+ *    change one would mean generating again over a flat somebody has furnished by hand.
+ *
+ * Renders nothing; it only redirects.
+ */
+
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useCalculatorStore } from '@/store/calculatorStore';
+import { useDesignStore, type StudioStep } from '@/store/designStore';
+import { DESIGN_STEP_HREFS, designStepPosition, designStepOrder } from '@/lib/design/steps';
+import { CALCULATOR_STEP_HREFS, type CalculatorStep } from '@/components/calculator/StepIndicator';
+
+/** On a design step: resume from step 1, and keep the pre-generation steps shut. */
+export function DesignFlowGuard({ step }: { step: StudioStep }) {
+  const router = useRouter();
+  const plan = useDesignStore((s) => s.plan);
+  const stored = useDesignStore((s) => s.step);
+  const generated = useDesignStore((s) => s.generated);
+  const homeState = useDesignStore((s) => s.homeState);
+  const mode = useDesignStore((s) => s.mode);
+
+  useEffect(() => {
+    const drawn = (plan?.rooms.length ?? 0) > 0;
+    // Everything before the studio is closed once the flat has been laid out.
+    if (generated && designStepPosition(step, homeState, mode) < designStepOrder(homeState, mode).indexOf(5) + 1) {
+      router.replace(DESIGN_STEP_HREFS[5]);
+      return;
+    }
+    // The first step of a journey already under way hands back to where it was left — but
+    // never past the studio when the flat has not been laid out yet, whatever page happened
+    // to be open last.
+    const resume: StudioStep = !generated && stored >= 5 ? 4 : stored;
+    if (step === 1 && drawn && resume > 1) router.replace(DESIGN_STEP_HREFS[resume]);
+  }, [step, plan, stored, generated, homeState, mode, router]);
+
+  return null;
+}
+
+/** On the calculator's first step: resume where it was left. */
+export function CalculatorFlowGuard({ step }: { step: CalculatorStep }) {
+  const router = useRouter();
+  const rooms = useCalculatorStore((s) => s.rooms.length);
+  const stored = useCalculatorStore((s) => s.step);
+  const homeState = useCalculatorStore((s) => s.homeState);
+
+  useEffect(() => {
+    if (step === 1 && rooms > 0 && homeState && stored > 1) router.replace(CALCULATOR_STEP_HREFS[stored]);
+  }, [step, rooms, stored, homeState, router]);
+
+  return null;
+}

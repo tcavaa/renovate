@@ -35,7 +35,7 @@ import {
 import { buildFitting, lightsFrom } from '@/lib/design3d/buildStructure';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
 import { wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
-import { cellAt, cellPolygon, stripAt, type PaintTarget } from '@/lib/design/paint';
+import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, type PaintTarget } from '@/lib/design/paint';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
 import { edgeOf, projectToEdge } from '@/lib/design/openings';
@@ -135,7 +135,7 @@ export interface Viewer3DProps {
    * under the pointer, `strip` the metre of wall, and a click hands it to `onPaint` instead
    * of selecting the surface.
    */
-  paintScope?: 'cell' | 'strip' | null;
+  paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
   /** Commits a drag. `roomId` is set when the item was dragged into a different room. */
   onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
@@ -665,8 +665,15 @@ function SceneContent({
       const room = plan.rooms.find((r) => r.id === side.roomId);
       const edge = room && side.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === side.wallIndex) : null;
       if (!room || !edge) return null;
-      const s = (spot.x - edge.a.x) * edge.dir.x + (spot.z - edge.a.z) * edge.dir.z;
-      return { roomId: room.id, surface: 'wall', wallIndex: edge.index, span: stripAt(edge, Math.max(0, Math.min(edge.length, s))) };
+      const s = Math.max(0, Math.min(edge.length, (spot.x - edge.a.x) * edge.dir.x + (spot.z - edge.a.z) * edge.dir.z));
+      const span = stripAt(edge, s);
+      // The one scope that reads the height of the click: a square metre of wall, not a
+      // strip of it floor to ceiling.
+      if (paintScope === 'patch') {
+        const y = Math.max(0, Math.min(room.heightM, hit.point.y));
+        return { roomId: room.id, surface: 'wall', wallIndex: edge.index, span, patch: patchAt(edge, room.heightM, s, y) };
+      }
+      return { roomId: room.id, surface: 'wall', wallIndex: edge.index, span };
     },
     [paintScope, shellHitAt, wallSideOf, plan.rooms]
   );
@@ -688,7 +695,7 @@ function SceneContent({
   );
   const showPaintGlow = useCallback(
     (target: PaintTarget | null) => {
-      const key = !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.span.from}`;
+      const key = !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.patch ? target.patch.join(',') : target.span.from}`;
       if (paintGlow.userData.key === key) return;
       paintGlow.userData.key = key;
       const room = target ? plan.rooms.find((r) => r.id === target.roomId) : null;
@@ -705,8 +712,11 @@ function SceneContent({
         const edge = roomEdges(room.polygon).find((e) => e.index === target.wallIndex);
         if (edge) {
           const at = (along: number, y: number) => [edge.a.x + edge.dir.x * along + edge.inward.x * 0.012, y, edge.a.z + edge.dir.z * along + edge.inward.z * 0.012];
-          const { from, to } = target.span;
-          positions.push(...at(from, 0), ...at(to, 0), ...at(to, room.heightM), ...at(from, 0), ...at(to, room.heightM), ...at(from, room.heightM));
+          // A strip is the whole height of the wall; a patch is one square metre of it.
+          const box = target.patch ? patchSpans(edge, room.heightM, target.patch) : { along: target.span, up: { from: 0, to: room.heightM } };
+          const { from, to } = box.along;
+          const [low, high] = [box.up.from, box.up.to];
+          positions.push(...at(from, low), ...at(to, low), ...at(to, high), ...at(from, low), ...at(to, high), ...at(from, high));
         }
       }
       paintGlow.geometry.dispose();

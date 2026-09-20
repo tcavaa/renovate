@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { StylePicker } from '@/components/design/StylePicker';
 import { StyleQuiz } from '@/components/design/StyleQuiz';
 import { GenerationOverlay } from '@/components/design/GenerationOverlay';
@@ -19,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
+import { designStepPosition, previousStepHref } from '@/lib/design/steps';
 
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
@@ -28,7 +30,7 @@ import { scoreQuiz } from '@/lib/design/styleQuiz';
 export default function StylePage() {
   const t = useT();
   const router = useRouter();
-  const { plan, styleId, styleProfile, budgetGel, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
+  const { plan, styleId, styleProfile, budgetGel, homeState, mode, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
@@ -54,10 +56,11 @@ export default function StylePage() {
 
   return (
     <>
+      <DesignFlowGuard step={4} />
       <DesignSteps current={4} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={4}
+          step={designStepPosition(4, homeState, mode)}
           total={8}
           title={t.build.quizTitle}
           subtitle={t.build.quizSubtitle}
@@ -117,7 +120,7 @@ export default function StylePage() {
       </div>
 
       <StepNav
-        back={{ href: '/design/technical', label: t.calculator.backButton }}
+        back={{ href: previousStepHref(4, homeState, mode), label: t.calculator.backButton }}
         next={{
           label: generating ? t.design.generating : t.design.generate,
           onClick: handleGenerate,

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ChevronDown, Flame, Lightbulb } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Flame, Lightbulb, Sparkles } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -16,6 +17,8 @@ import { homeStateLabel, phaseLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
 import { defaultWorksForHomeState, technicalSuggestions, TECHNICAL_KIND_LIST, WORK_STAGES, worksForStage, type WorkStage } from '@/lib/design/technical';
+import { designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
+import { EXISTING_KEYS, effectiveExisting, type ExistingKey } from '@/lib/design/existing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { technicalLabel } from '@/components/plan/PlanToolbar';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
@@ -26,6 +29,20 @@ import { formatM2 } from '@/lib/utils';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import type { TechnicalKind } from '@/lib/design/types';
 import type { HomeState } from '@/lib/calculator/types';
+
+/** One label per thing a flat can already have; the budget leaves each ticked one out. */
+const EXISTING_LABEL = {
+  floor: 'haveFloor',
+  wall: 'haveWall',
+  ceiling: 'haveCeiling',
+  trim: 'haveTrim',
+  openings: 'haveOpenings',
+  electrical: 'haveElectrical',
+  lighting: 'haveLighting',
+  plumbing: 'havePlumbing',
+  heating: 'haveHeating',
+  climate: 'haveClimate',
+} as const satisfies Record<ExistingKey, string>;
 
 /** The line under each stage's title in the works checklist: where it takes the house from and to. */
 const STAGE_DESC = {
@@ -62,6 +79,8 @@ export default function TechnicalPage() {
   const [kind, setKind] = useState<TechnicalKind>('water_supply');
   /** What the last "hang the radiators" did: how many were added, or 0 when every room had one. */
   const [radiatorsHung, setRadiatorsHung] = useState<number | null>(null);
+  /** What the last automatic placement did, for the line under the button. */
+  const [autoPlaced, setAutoPlaced] = useState<number | null>(null);
 
   // Every radiator is a product where the catalogue has one, its sections counted from its room.
   const radiatorSignature = useMemo(() => (plan ? radiatorPoints(plan).map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.sections ?? ''}`).join('|') + `#${plan.rooms.map((r) => r.areaM2).join(',')}` : ''), [plan]);
@@ -72,6 +91,9 @@ export default function TechnicalPage() {
   }, [products, radiatorSignature]);
 
   const works = useMemo(() => plan?.technical?.works ?? defaultWorksForHomeState(homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame')), [plan?.technical?.works, homeState, mode]);
+  // What the flat already has, so the budget does not charge for it again. A green frame
+  // starts with everything ticked, because that is what a green frame is.
+  const existing = useMemo(() => effectiveExisting(plan, homeState), [plan, homeState]);
   const suggestions = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
 
   if (!plan || plan.rooms.length === 0) {
@@ -82,6 +104,10 @@ export default function TechnicalPage() {
       </>
     );
   }
+
+  const toggleExisting = (key: ExistingKey) => {
+    actions.setExisting(existing.includes(key) ? existing.filter((k) => k !== key) : [...existing, key]);
+  };
 
   const toggleWork = (key: string) => {
     const next = works.includes(key) ? works.filter((k) => k !== key) : [...works, key];
@@ -125,9 +151,10 @@ export default function TechnicalPage() {
 
   return (
     <>
+      <DesignFlowGuard step={3} />
       <DesignSteps current={3} />
       <div className="container py-8 md:py-12">
-        <StepHeader step={3} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
+        <StepHeader step={designStepPosition(3, homeState, mode)} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
         <StageBrief step={3} className="mt-6" />
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -161,6 +188,32 @@ export default function TechnicalPage() {
                   );
                 })}
               </div>
+            </section>
+
+            {/*
+              The step people skip. Marking water, waste, drains, gas, the panel, the
+              extractors and the air conditioning by hand is the least rewarding part of the
+              journey, and a flat with none of them is priced as though it needed no
+              plumbing — so the rules place what they can and leave the rest.
+            */}
+            <section className="rounded-[16px] border border-line bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <Sparkles className="h-4 w-4 text-brand" />
+                    {t.build.autoTechnical}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.autoTechnicalHint}</p>
+                </div>
+                <button type="button" onClick={() => setAutoPlaced(actions.suggestTechnical())} className="h-9 shrink-0 rounded-[10px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  {t.build.autoTechnical}
+                </button>
+              </div>
+              {autoPlaced != null && (
+                <p className="mt-2 text-xs font-medium text-success" role="status">
+                  {autoPlaced > 0 ? fill(t.build.autoTechnicalDone, { n: autoPlaced }) : t.build.autoTechnicalNone}
+                </p>
+              )}
             </section>
 
             {/* Heating: how many sections each room wants, and a radiator under every window at a click. */}
@@ -220,6 +273,7 @@ export default function TechnicalPage() {
                 locked
                 actions={{
                   updateWall: actions.updateWall,
+                  resizeWall: actions.resizeWall,
                   removeWall: actions.removeWall,
                   updateOpening: actions.updateOpening,
                   removeOpening: actions.removeOpening,
@@ -291,6 +345,35 @@ export default function TechnicalPage() {
               </div>
             </section>
 
+            {mode === 'full' && (
+              <section className="rounded-[14px] border border-line bg-white p-3">
+                <p className="text-sm font-semibold text-ink">{t.build.alreadyHaveTitle}</p>
+                <p className="mt-1 text-[11px] leading-snug text-ink-muted">{t.build.alreadyHaveHint}</p>
+                <div className="mt-2 flex justify-end gap-2 text-[10px]">
+                  <button type="button" onClick={() => actions.setExisting([...EXISTING_KEYS])} className="font-medium text-ink-soft hover:text-ink">
+                    {t.build.stageAll}
+                  </button>
+                  <span className="text-ink-faint">·</span>
+                  <button type="button" onClick={() => actions.setExisting([])} className="font-medium text-ink-soft hover:text-ink">
+                    {t.build.stageNone}
+                  </button>
+                </div>
+                <ul className="mt-1 space-y-0.5">
+                  {EXISTING_KEYS.map((key) => {
+                    const checked = existing.includes(key);
+                    return (
+                      <li key={key}>
+                        <label className={cn('flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-xs transition-colors', checked ? 'bg-sand-light text-ink' : 'text-ink-soft hover:bg-sand-light/60')}>
+                          <input type="checkbox" checked={checked} onChange={() => toggleExisting(key)} className="accent-ink" />
+                          {t.build[EXISTING_LABEL[key]]}
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
+
             <section className="rounded-[14px] border border-line bg-white p-3">
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <Lightbulb className="h-4 w-4 text-warning" />
@@ -316,13 +399,13 @@ export default function TechnicalPage() {
       </div>
 
       <StepNav
-        back={{ href: '/design/plan', label: t.calculator.backButton }}
+        back={{ href: previousStepHref(3, homeState, mode), label: t.calculator.backButton }}
         next={{
-          label: t.build.continueToStyle,
+          label: nextStep(3, homeState, mode) === 4 ? t.build.continueToStyle : t.build.budgetTitle,
           onClick: () => {
             if (!plan.technical?.works) actions.setWorks(works);
-            actions.setStep(4);
-            router.push('/design/style');
+            actions.setStep(nextStep(3, homeState, mode) ?? 4);
+            router.push(nextStepHref(3, homeState, mode));
           },
         }}
       />

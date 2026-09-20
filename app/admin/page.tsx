@@ -15,12 +15,19 @@ import { fill } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { formatGEL } from '@/lib/utils';
+import { auth } from '@/auth';
+import { canAdmin } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
   const ka = await getT();
   const locale = await getLocale();
+  // An agent sees the dashboard, but only the rows their job covers: what the platform earns
+  // is not an orders agent's business, and neither is the catalogue a catalogue agent's
+  // count of users.
+  const session = await auth();
+  const may = (section: Parameters<typeof canAdmin>[1]) => canAdmin(session?.user?.role, section);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
 
   const [
@@ -161,25 +168,27 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <LinkedStat href="/admin/revenue?period=month" label={d.revenueMonth} value={formatGEL(monthRevenue.revenue)} hint={fill(d.revenueMonthHint, { fees: formatGEL(monthRevenue.fees.total), commissions: formatGEL(monthRevenue.commissions.total) })} icon={TrendingUp} />
-        <LinkedStat href="/admin/orders?status=new" label={d.newOrders} value={`${orderStats.pending ?? 0}`} hint={fill(ka.admin.ordersPage.unread, {})} icon={Receipt} />
-        <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.gmv} value={formatGEL(monthRevenue.gmv.total)} hint={fill(ka.admin.revenue.ordersCount, { n: monthRevenue.commissions.orders })} icon={Store} />
-        <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.fees} value={formatGEL(monthRevenue.fees.total)} hint={fill(ka.admin.revenue.checkoutsCount, { n: monthRevenue.fees.count })} icon={Calculator} />
+        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={d.revenueMonth} value={formatGEL(monthRevenue.revenue)} hint={fill(d.revenueMonthHint, { fees: formatGEL(monthRevenue.fees.total), commissions: formatGEL(monthRevenue.commissions.total) })} icon={TrendingUp} />}
+        {may('orders') && <LinkedStat href="/admin/orders?status=new" label={d.newOrders} value={`${orderStats.pending ?? 0}`} hint={fill(ka.admin.ordersPage.unread, {})} icon={Receipt} />}
+        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.gmv} value={formatGEL(monthRevenue.gmv.total)} hint={fill(ka.admin.revenue.ordersCount, { n: monthRevenue.commissions.orders })} icon={Store} />}
+        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.fees} value={formatGEL(monthRevenue.fees.total)} hint={fill(ka.admin.revenue.checkoutsCount, { n: monthRevenue.fees.count })} icon={Calculator} />}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <LinkedStat href="/admin/products?status=active" label={d.activeProducts} value={`${productStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(productStats.total) })} icon={Package} />
-        <LinkedStat href="/admin/stores?status=active" label={d.activeStores} value={`${storeStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(storeStats.total) })} icon={Store} />
-        <LinkedStat href="/admin/workers?verified=yes" label={d.verifiedWorkers} value={`${workerStats.verified ?? 0}`} hint={fill(d.ofTotal, { n: Number(workerStats.total) })} icon={Hammer} />
-        <LinkedStat href="/admin/users" label={d.users} value={`${userCount.c}`} hint={`${categoryCount.c} ${ka.admin.categories.toLowerCase()}`} icon={Users} />
+        {may('products') && <LinkedStat href="/admin/products?status=active" label={d.activeProducts} value={`${productStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(productStats.total) })} icon={Package} />}
+        {may('stores') && <LinkedStat href="/admin/stores?status=active" label={d.activeStores} value={`${storeStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(storeStats.total) })} icon={Store} />}
+        {may('workers') && <LinkedStat href="/admin/workers?verified=yes" label={d.verifiedWorkers} value={`${workerStats.verified ?? 0}`} hint={fill(d.ofTotal, { n: Number(workerStats.total) })} icon={Hammer} />}
+        {may('users') && <LinkedStat href="/admin/users" label={d.users} value={`${userCount.c}`} hint={`${categoryCount.c} ${ka.admin.categories.toLowerCase()}`} icon={Users} />}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={d.savedProjects} value={`${projectStats.saved ?? 0}`} />
-        <StatCard label={d.draftProjects} value={`${projectStats.draft ?? 0}`} />
-        <StatCard label={d.designProjects} value={`${projectStats.design ?? 0} / ${Number(projectStats.total)}`} />
-        <StatCard label={d.plannedTotal} value={formatGEL(Number(projectStats.totalCost))} highlight />
-      </div>
+      {may('projects') && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label={d.savedProjects} value={`${projectStats.saved ?? 0}`} />
+          <StatCard label={d.draftProjects} value={`${projectStats.draft ?? 0}`} />
+          <StatCard label={d.designProjects} value={`${projectStats.design ?? 0} / ${Number(projectStats.total)}`} />
+          <StatCard label={d.plannedTotal} value={formatGEL(Number(projectStats.totalCost))} highlight />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Card>

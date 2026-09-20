@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -30,8 +30,8 @@ import { wallNormal } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
-import { cellAt, cellPolygon, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawTechnical, drawWall, drawWallBand, drawZone, toWorld, type Transform } from './draw';
+import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
+import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallLength, drawZone, toWorld, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
@@ -68,9 +68,14 @@ export interface PlanEditorProps {
   locked?: boolean;
   selection: ElementSelection;
   selectedRoomId?: string | null;
+  /** Rooms picked out with a click or a rubber band; they drag together. */
+  selectedRoomIds?: string[];
   selectedItemId?: string | null;
   onSelect: (selection: ElementSelection) => void;
   onSelectRoom?: (roomId: string | null) => void;
+  onSelectRooms?: (roomIds: string[]) => void;
+  /** Rooms dragged bodily across the sheet; without it rooms are picked but never moved. */
+  onMoveRooms?: (roomIds: string[], delta: Vec2) => void;
   onSelectItem?: (itemId: string | null) => void;
   onAddWall?: (a: Vec2, b: Vec2) => void;
   onAddRectangle?: (rect: { x: number; z: number; width: number; depth: number }) => void;
@@ -89,10 +94,12 @@ export interface PlanEditorProps {
   onAddZone?: (roomId: string, rect: { x: number; z: number; width: number; depth: number }) => void;
   /**
    * The paint tool: what a click paints — `cell`, the square metre of floor under the
-   * pointer, or `strip`, the metre of wall nearest to it (from inside the room) — and the
-   * click itself. Dragging paints everything the pointer passes over.
+   * pointer; `strip`, the metre of wall nearest to it (from inside the room), floor to
+   * ceiling; or `patch`, one square metre of that wall. Dragging paints everything the
+   * pointer passes over. A plan has no height, so a patch painted here is the bottom metre
+   * of the wall; the rest of the wall is painted in the 3D view.
    */
-  paintScope?: 'cell' | 'strip' | null;
+  paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
   /**
    * The select tool sees rooms and floor zones and nothing else: while the finishes are
@@ -102,8 +109,11 @@ export interface PlanEditorProps {
   onMoveItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
   /** Delete or Backspace with something selected. */
   onDelete?: () => void;
-  /** A drop the plan would not accept (a window on a shared wall). */
-  onRefused?: () => void;
+  /**
+   * A drop the plan would not accept, and why: `opening` — a window on a shared wall, a
+   * door with no wall to go on; `overlap` — a room drawn on top of a room.
+   */
+  onRefused?: (reason: 'opening' | 'overlap') => void;
   /** A one-shot tool finished (a column placed): the page may go back to select. */
   onToolDone?: () => void;
   /** Ctrl+Z / Ctrl+Y (Cmd on a Mac) while the board has the keyboard; undone by the page. */
@@ -126,17 +136,33 @@ export interface PlanEditorApi {
 const SNAP_PX = 12;
 const HIT_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
+/** Rooms are dragged to the centimetre, like every other size on the board. */
+const MOVE_STEP_M = 0.01;
+/** How far one press of W/A/S/D (or an arrow) slides the sheet. */
+const PAN_STEP_PX = 60;
+const PAN_KEYS: Record<string, [number, number]> = {
+  KeyW: [0, 1],
+  ArrowUp: [0, 1],
+  KeyS: [0, -1],
+  ArrowDown: [0, -1],
+  KeyA: [1, 0],
+  ArrowLeft: [1, 0],
+  KeyD: [-1, 0],
+  ArrowRight: [-1, 0],
+};
+const EMPTY_IDS: string[] = [];
 
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; offsetX: number; offsetY: number }
-  | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number } }
+  | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number }; /** It would be drawn over a room that is already there. */ overlaps?: boolean }
   | { kind: 'wall-drag'; wall: Wall; startWorld: Vec2; distance: number; moved: boolean }
   | { kind: 'node-drag'; from: Vec2; to: Vec2; moved: boolean }
   | { kind: 'opening-drag'; room: PlanRoom; opening: Opening; edge: PlanEdge; target: { room: PlanRoom; edge: PlanEdge; t: number }; moved: boolean }
   | { kind: 'point-drag'; what: 'column' | 'technical' | 'electrical'; id: string; position: Vec2; moved: boolean }
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
   | { kind: 'paint'; last: string }
-  | { kind: 'press'; startX: number; startY: number };
+  | { kind: 'marquee'; start: Vec2; current: Vec2; additive: boolean }
+  | { kind: 'room-drag'; roomIds: string[]; startWorld: Vec2; delta: Vec2; moved: boolean; /** Where it would land, it would sit on a room that is staying put. */ overlaps: boolean };
 
 interface Hover {
   kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | null;
@@ -157,6 +183,7 @@ export function PlanEditor(props: PlanEditorProps) {
     locked = false,
     selection,
     selectedRoomId = null,
+    selectedRoomIds = EMPTY_IDS,
     selectedItemId = null,
     paintScope = null,
     roomsOnly = false,
@@ -308,6 +335,7 @@ export function PlanEditor(props: PlanEditorProps) {
         } else {
           callbacks.current.onSelect(null);
           callbacks.current.onSelectItem?.(null);
+          callbacks.current.onSelectRooms?.([]);
         }
       }
       if ((e.code === 'Delete' || e.code === 'Backspace') && !e.metaKey && !e.ctrlKey) {
@@ -316,6 +344,17 @@ export function PlanEditor(props: PlanEditorProps) {
       if (e.code === 'Enter' && draftWall) {
         setDraftWall(null);
         setGuides([]);
+      }
+      // WASD and the arrows slide the sheet, the same keys the 3D view uses — matched on
+      // `code`, because on a Georgian layout W types წ and D types დ.
+      const step = PAN_STEP_PX * (e.shiftKey ? 2.5 : 1);
+      const pan = PAN_KEYS[e.code];
+      if (pan) {
+        e.preventDefault();
+        const tr = transformRef.current;
+        transformRef.current = { ...tr, offsetX: tr.offsetX + pan[0] * step, offsetY: tr.offsetY + pan[1] * step };
+        userAdjusted.current = true;
+        redraw();
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -369,7 +408,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (layers.rooms) {
       for (const room of plan.rooms) {
         drawRoom(ctx, tr, room, {
-          selected: room.id === selectedRoomId || (selection?.kind === 'room' && selection.id === room.id),
+          selected: room.id === selectedRoomId || selectedRoomIds.includes(room.id) || (selection?.kind === 'room' && selection.id === room.id),
           hovered: hover.kind === 'room' && hover.id === room.id,
           labels: layers.labels,
           dimensions: layers.dimensions,
@@ -416,8 +455,11 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
 
-    // Walls, with the one being dragged shown where it would land.
+    // Walls, with the one being dragged shown where it would land. The one in hand —
+    // selected, hovered, dragged sideways or stretched by an end — carries its length on a
+    // plate, live, so the number changes under the pointer instead of after the fact.
     if (layers.walls) {
+      const measured: Array<{ wall: Pick<Wall, 'a' | 'b'>; extra?: string }> = [];
       for (const wall of walls) {
         let live = wall;
         if (gesture?.kind === 'wall-drag' && gesture.wall.id === wall.id) {
@@ -428,17 +470,22 @@ export function PlanEditor(props: PlanEditorProps) {
           const near = (p: Vec2) => Math.hypot(p.x - gesture.from.x, p.z - gesture.from.z) < 0.02;
           live = { ...live, a: near(wall.a) ? gesture.to : live.a, b: near(wall.b) ? gesture.to : live.b };
         }
+        const isSelected = selection?.kind === 'wall' && selection.id === wall.id;
         drawWall(ctx, tr, live, {
-          selected: selection?.kind === 'wall' && selection.id === wall.id,
+          selected: isSelected,
           hovered: hover.kind === 'wall' && hover.id === wall.id,
           locked: locked || wall.locked,
           byOrigin: layers.origins,
         });
+        if (gesture?.kind === 'wall-drag' && gesture.wall.id === wall.id) measured.push({ wall: live, extra: `${gesture.distance >= 0 ? '+' : ''}${gesture.distance.toFixed(2)} ${t.units.m}` });
+        else if (gesture?.kind === 'node-drag' && live !== wall) measured.push({ wall: live });
+        else if (!gesture && layers.dimensions && (isSelected || (hover.kind === 'wall' && hover.id === wall.id))) measured.push({ wall: live });
       }
       if (selection?.kind === 'wall' && !locked) {
         const wall = walls.find((w) => w.id === selection.id);
         if (wall) drawNodeHandles(ctx, tr, wall);
       }
+      for (const m of measured) drawWallLength(ctx, tr, m.wall, t.units.m, m.extra);
     }
 
     // Walls with a finish of their own — the whole wall, or metre-wide strips of it — as a
@@ -448,8 +495,18 @@ export function PlanEditor(props: PlanEditorProps) {
         if (finish.surface !== 'wall' || finish.wallIndex == null) continue;
         const room = plan.rooms.find((r) => r.id === finish.roomId);
         const edge = room ? roomEdges(room.polygon).find((e) => e.index === finish.wallIndex) : null;
-        if (!edge) continue;
-        drawWallBand(ctx, tr, edge, finish.span?.from ?? 0, Math.min(edge.length, finish.span?.to ?? edge.length), finish.product?.colorHex ?? finish.colorHex ?? null);
+        if (!edge || !room) continue;
+        const color = finish.product?.colorHex ?? finish.colorHex ?? null;
+        // A patch is a square metre at some height; a plan has no height, so the band shows
+        // which stretch of the wall has been painted and the 3D view shows how much of it.
+        if (finish.cells) {
+          for (const patch of finish.cells) {
+            const { along } = patchSpans(edge, room.heightM, patch);
+            drawWallBand(ctx, tr, edge, along.from, Math.min(edge.length, along.to), color);
+          }
+          continue;
+        }
+        drawWallBand(ctx, tr, edge, finish.span?.from ?? 0, Math.min(edge.length, finish.span?.to ?? edge.length), color);
       }
     }
     if (paintHover?.surface === 'wall') {
@@ -503,14 +560,28 @@ export function PlanEditor(props: PlanEditorProps) {
     if (draftBeam) drawDraftWall(ctx, tr, draftBeam.anchor, draftBeam.current, 0.25, t.units.m);
     if (gesture?.kind === 'rect') {
       const rect = gesture.snapped ?? normaliseRect(gesture.start, gesture.current);
-      drawDraftRect(ctx, tr, rect, t.units.m, t.units.m2, tool === 'zone' ? EDITOR.zone : EDITOR.selected);
+      drawDraftRect(ctx, tr, rect, t.units.m, t.units.m2, gesture.overlaps ? EDITOR.invalid : tool === 'zone' ? EDITOR.zone : EDITOR.selected);
     }
     if (pointerWorld && (tool === 'column' || tool === 'technical' || tool === 'electrical')) {
       const color = tool === 'column' ? EDITOR.column : tool === 'technical' ? TECHNICAL_COLOR[technicalKind] : ELECTRICAL_COLOR.socket;
       drawGhostPoint(ctx, tr, pointerWorld, color);
     }
+    // The rubber band, and the rooms it would take; a room being dragged as an outline at
+    // its new place, with how far it has travelled on a plate beside it.
+    if (gesture?.kind === 'marquee') drawMarquee(ctx, tr, normaliseRect(gesture.start, gesture.current));
+    if (gesture?.kind === 'room-drag') {
+      const tint = gesture.overlaps ? EDITOR.invalid : EDITOR.selected;
+      for (const id of gesture.roomIds) {
+        const room = plan.rooms.find((r) => r.id === id);
+        if (room) drawRoomGhost(ctx, tr, room.polygon, gesture.delta, tint);
+      }
+      if (pointerWorld) {
+        const at = toScreenPoint(tr, pointerWorld);
+        drawMeasure(ctx, at.x, at.y - 22, `${gesture.delta.x >= 0 ? '+' : ''}${gesture.delta.x.toFixed(2)} · ${gesture.delta.z >= 0 ? '+' : ''}${gesture.delta.z.toFixed(2)} ${t.units.m}`, tint);
+      }
+    }
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion]);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion]);
 
   useEffect(() => {
     draw();
@@ -659,9 +730,15 @@ export function PlanEditor(props: PlanEditorProps) {
       return cell ? { roomId: room.id, surface: 'floor', cell } : null;
     }
     const spot = wallSpotAt(room, world, Math.max(0.6, 40 * perPx()));
-    return spot ? { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span: stripAt(spot.edge, spot.s) } : null;
+    if (!spot) return null;
+    const span = stripAt(spot.edge, spot.s);
+    // A plan is flat: the square metre it can point at is the one at the foot of the wall.
+    return paintScope === 'patch'
+      ? { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span, patch: patchAt(spot.edge, room.heightM, spot.s, 0) }
+      : { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span };
   };
-  const paintKey = (target: PaintTarget | null): string => (!target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.span.from}`);
+  const paintKey = (target: PaintTarget | null): string =>
+    !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.patch ? target.patch.join(',') : target.span.from}`;
 
   // -------------------------------------------------------------------------
   // Pointer
@@ -743,7 +820,7 @@ export function PlanEditor(props: PlanEditorProps) {
         const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
         const tt = projectToEdge(target.edge, world, widthM);
         const id = callbacks.current.onAddOpening?.(tool, { roomId: target.room.id, wallIndex: target.edge.index, t: tt }) ?? null;
-        if (id === null) callbacks.current.onRefused?.();
+        if (id === null) callbacks.current.onRefused?.('opening');
         else {
           edited.current = true;
           callbacks.current.onSelect({ kind: 'opening', id, roomId: target.room.id });
@@ -773,7 +850,7 @@ export function PlanEditor(props: PlanEditorProps) {
       case 'electrical': {
         const room = roomAt(world);
         if (!room) {
-          callbacks.current.onRefused?.();
+          callbacks.current.onRefused?.('opening');
           return;
         }
         edited.current = true;
@@ -813,14 +890,33 @@ export function PlanEditor(props: PlanEditorProps) {
         } else if (hit.kind === 'zone') {
           callbacks.current.onSelect({ kind: 'zone', id: hit.id!, roomId: hit.roomId! });
         } else if (hit.kind === 'room') {
-          callbacks.current.onSelect({ kind: 'room', id: hit.id! });
-          callbacks.current.onSelectRoom?.(hit.id!);
-          gestureRef.current = { kind: 'press', startX: e.clientX, startY: e.clientY };
+          const id = hit.id!;
+          // Shift adds to or takes out of the selection, like a desktop; a plain click on a
+          // room already in it keeps the whole group, so several rooms drag together.
+          const group = e.shiftKey
+            ? selectedRoomIds.includes(id)
+              ? selectedRoomIds.filter((r) => r !== id)
+              : [...selectedRoomIds, id]
+            : selectedRoomIds.includes(id)
+              ? selectedRoomIds
+              : [id];
+          callbacks.current.onSelectRooms?.(group);
+          callbacks.current.onSelect({ kind: 'room', id });
+          callbacks.current.onSelectRoom?.(id);
+          if (!locked && !roomsOnly && callbacks.current.onMoveRooms && group.includes(id)) {
+            gestureRef.current = { kind: 'room-drag', roomIds: group, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
+          }
         } else {
-          callbacks.current.onSelect(null);
-          callbacks.current.onSelectRoom?.(null);
-          callbacks.current.onSelectItem?.(null);
-          gestureRef.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY };
+          // Empty sheet: a rubber band across the rooms, not a pan. Panning is still space,
+          // the middle button and the hand tool.
+          if (!e.shiftKey) {
+            callbacks.current.onSelect(null);
+            callbacks.current.onSelectRoom?.(null);
+            callbacks.current.onSelectItem?.(null);
+          }
+          gestureRef.current = callbacks.current.onSelectRooms
+            ? { kind: 'marquee', start: world, current: world, additive: e.shiftKey }
+            : { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY };
         }
         setGestureVersion((v) => v + 1);
       }
@@ -844,10 +940,12 @@ export function PlanEditor(props: PlanEditorProps) {
           gesture.current = tool === 'room' ? snapFor(world).point : world;
           if (tool === 'room') {
             // The rectangle is shown where it will land — pulled onto the walls it is drawn
-            // against — so what is let go of is what appears.
+            // against — so what is let go of is what appears. A rectangle over a room that
+            // is already there is shown in the refusal colour and not taken.
             const snapped = snapRectangle(normaliseRect(gesture.start, gesture.current), walls, wallThicknessM, SNAP_PX * perPx() * 1.5);
             gesture.snapped = snapped.rect;
-            setGuides(snapped.guides);
+            gesture.overlaps = roomUnderRect(snapped.rect, plan.rooms) !== null;
+            setGuides(gesture.overlaps ? [] : snapped.guides);
           }
           setGestureVersion((v) => v + 1);
           return;
@@ -905,8 +1003,24 @@ export function PlanEditor(props: PlanEditorProps) {
           if (paintKey(paintHover) !== key) setPaintHover(target);
           return;
         }
-        case 'press':
+        case 'marquee': {
+          gesture.current = world;
+          setGestureVersion((v) => v + 1);
           return;
+        }
+        case 'room-drag': {
+          const step = shiftHeld.current ? MOVE_STEP_M : 0.05;
+          gesture.delta = {
+            x: Math.round((world.x - gesture.startWorld.x) / step) * step,
+            z: Math.round((world.z - gesture.startWorld.z) / step) * step,
+          };
+          gesture.moved = gesture.moved || Math.hypot(world.x - gesture.startWorld.x, world.z - gesture.startWorld.z) * transformRef.current.scale > DRAG_THRESHOLD_PX;
+          // Dropped on a room that is staying put, the two outlines would cross and the wall
+          // graph would trace the crossing as a sliver room with walls through it.
+          gesture.overlaps = roomsWouldOverlap(plan.rooms, gesture.roomIds, gesture.delta);
+          setGestureVersion((v) => v + 1);
+          return;
+        }
       }
     }
 
@@ -955,14 +1069,17 @@ export function PlanEditor(props: PlanEditorProps) {
     setGuides([]);
     if (!gesture) return;
     const world = worldOf(e);
-    if (gesture.kind !== 'pan' && gesture.kind !== 'press') edited.current = true;
+    if (gesture.kind !== 'pan' && gesture.kind !== 'marquee') edited.current = true;
     switch (gesture.kind) {
       case 'rect': {
         const rect = normaliseRect(gesture.start, gesture.current);
         if (rect.width >= 0.3 && rect.depth >= 0.3) {
           if (tool === 'room') {
             const snapped = gesture.snapped ?? snapRectangle(rect, walls, wallThicknessM, SNAP_PX * perPx() * 1.5).rect;
-            callbacks.current.onAddRectangle?.(snapped);
+            // Rooms do not lie on top of each other: the wall graph would trace the
+            // crossings as slivers and nothing could be pulled apart again.
+            if (roomUnderRect(snapped, plan.rooms)) callbacks.current.onRefused?.('overlap');
+            else callbacks.current.onAddRectangle?.(snapped);
           } else if (tool === 'zone' && gesture.roomId) {
             callbacks.current.onAddZone?.(gesture.roomId, rect);
           }
@@ -987,7 +1104,7 @@ export function PlanEditor(props: PlanEditorProps) {
           }
         } else {
           const id = callbacks.current.onMoveOpeningToWall?.(gesture.room.id, gesture.opening.id, { roomId: room.id, wallIndex: edge.index, t: tt }) ?? null;
-          if (id === null) callbacks.current.onRefused?.();
+          if (id === null) callbacks.current.onRefused?.('opening');
           else callbacks.current.onSelect({ kind: 'opening', id, roomId: room.id });
         }
         break;
@@ -1002,8 +1119,21 @@ export function PlanEditor(props: PlanEditorProps) {
       case 'item-drag':
         if (gesture.moved && gesture.valid) callbacks.current.onMoveItem?.(gesture.item.id, gesture.position, gesture.item.rotation, gesture.roomId);
         break;
+      case 'marquee': {
+        const rect = normaliseRect(gesture.start, gesture.current);
+        // A click that never moved clears the selection; a band takes every room it touches.
+        const inside = rect.width < 0.05 && rect.depth < 0.05 ? [] : plan.rooms.filter((r) => r.polygon.some((p) => p.x >= rect.x && p.x <= rect.x + rect.width && p.z >= rect.z && p.z <= rect.z + rect.depth)).map((r) => r.id);
+        callbacks.current.onSelectRooms?.(gesture.additive ? [...new Set([...selectedRoomIds, ...inside])] : inside);
+        break;
+      }
+      case 'room-drag':
+        if (gesture.moved && (Math.abs(gesture.delta.x) >= MOVE_STEP_M || Math.abs(gesture.delta.z) >= MOVE_STEP_M)) {
+          // Rooms do not lie on top of each other, however they got there.
+          if (gesture.overlaps) callbacks.current.onRefused?.('overlap');
+          else callbacks.current.onMoveRooms?.(gesture.roomIds, gesture.delta);
+        }
+        break;
       case 'pan':
-      case 'press':
       case 'paint':
         break;
     }
@@ -1046,6 +1176,24 @@ export function PlanEditor(props: PlanEditorProps) {
       }}
     />
   );
+}
+
+/** Would the rooms being dragged land on a room that is staying where it is? */
+function roomsWouldOverlap(rooms: PlanRoom[], movingIds: string[], delta: Vec2): boolean {
+  const moving = new Set(movingIds);
+  const staying = rooms.filter((r) => !moving.has(r.id));
+  if (staying.length === 0) return false;
+  return rooms
+    .filter((r) => moving.has(r.id))
+    .some((room) => {
+      const moved = room.polygon.map((p) => ({ x: p.x + delta.x, z: p.z + delta.z }));
+      return staying.some((other) => polygonsOverlap(moved, other.polygon));
+    });
+}
+
+/** Metres → CSS pixels, for the plates drawn beside a gesture. */
+function toScreenPoint(t: Transform, p: Vec2): { x: number; y: number } {
+  return { x: p.x * t.scale + t.offsetX, y: p.z * t.scale + t.offsetY };
 }
 
 function normaliseRect(a: Vec2, b: Vec2): { x: number; z: number; width: number; depth: number } {

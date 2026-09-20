@@ -46,7 +46,9 @@ import {
   moveNode as moveWallNodeIn,
   offsetWall as offsetWallIn,
   rebuildRooms,
+  moveRooms as moveRoomsIn,
   removeWall as removeWallIn,
+  resizeWall as resizeWallIn,
   updateWall as updateWallIn,
   wallsForRectangle,
   withBounds,
@@ -54,11 +56,12 @@ import {
 import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
 import { technicalAnchors, technicalElevation, TECHNICAL_KINDS } from '@/lib/design/technical';
+import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
-import { cellPolygon, paintCell, paintSpan, type PaintTarget } from '@/lib/design/paint';
+import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
 import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type {
@@ -128,6 +131,8 @@ interface DesignState {
   styleId: StyleId;
   /** The five answers of the style test, when it was taken. */
   styleProfile: StyleProfile | null;
+  /** Products the person is not ordering — ticked off on the budget page. */
+  excluded: number[];
   budgetGel: number | null;
   plan: FloorPlan | null;
   floorPlanUrl: string | null;
@@ -139,6 +144,12 @@ interface DesignState {
   versions: DesignVersion[];
   /** Room the camera is focused on, or null for the whole flat. */
   focusRoomId: string | null;
+  /**
+   * Rooms picked out on the 2D board — one click, or a rubber band across several, the way
+   * a desktop selects folders. They move together and detach from what stays behind. A
+   * fact about this session, so not persisted.
+   */
+  selectedRoomIds: string[];
   selectedItemId: string | null;
   selectedElement: ElementSelection;
   /** An item just added from the catalogue, riding on the pointer until it is clicked down. */
@@ -149,6 +160,15 @@ interface DesignState {
   clipboard: PlacedItem | null;
   /** Calculator picks arrived for a design that already exists; the studio applies them on entry. */
   pendingPicks: boolean;
+  /**
+   * The flat has been laid out: the journey is past the point of no return.
+   *
+   * Everything from the studio on stays editable, but the steps *before* it are closed —
+   * the plan, the technical setup and the style all fed the layout, and going back to change
+   * one of them would mean generating again over a flat somebody has since furnished by
+   * hand. Starting over is a deliberate act (`resetFlow`), not a click on the step strip.
+   */
+  generated: boolean;
   step: StudioStep;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
@@ -169,6 +189,10 @@ interface DesignActions {
   setProjectId: (id: number | null) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setStyleProfile: (profile: StyleProfile | null) => void;
+  /** Puts a product in or out of the order; the budget and the checkout follow. */
+  toggleExcluded: (productId: number) => void;
+  /** Everything in, or a whole section out, in one go. */
+  setExcluded: (productIds: number[]) => void;
   setBudget: (budgetGel: number | null, catalog: CatalogProduct[]) => void;
   /** A new plan — a new flat, a new project. Walls are derived when the plan has none. */
   setPlan: (plan: FloorPlan, floorPlanUrl?: string | null) => void;
@@ -183,12 +207,21 @@ interface DesignActions {
   /** Four walls around a drawn rectangle; the room inside is exactly the rectangle. Returns its id. */
   addRectangleRoom: (rect: { x: number; z: number; width: number; depth: number }, type?: RoomType, name?: string) => string | null;
   removeRoom: (roomId: string) => void;
+  /** The rooms picked out on the board (a click, or a rubber band across several). */
+  selectRooms: (roomIds: string[]) => void;
+  /**
+   * Moves those rooms bodily, with their walls, furniture, fittings, technical points and
+   * painted zones. A wall shared with a room staying behind is split, so the two come apart.
+   */
+  moveRooms: (roomIds: string[], delta: Vec2) => void;
   // --- walls, columns, beams ---
   setWalls: (walls: Wall[]) => void;
   addWall: (wall: Omit<Wall, 'id' | 'origin'> & { origin?: Wall['origin'] }) => string;
   offsetWall: (wallId: string, distance: number) => void;
   moveWallNode: (from: Vec2, to: Vec2) => void;
   updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
+  /** Stretches a wall to a typed length, its far end (and whatever meets it) following. */
+  resizeWall: (wallId: string, lengthM: number) => void;
   removeWall: (wallId: string) => void;
   addColumn: (position: Vec2, size?: Partial<Pick<Column, 'widthM' | 'depthM' | 'heightM' | 'material'>>) => string;
   updateColumn: (id: string, patch: Partial<Omit<Column, 'id'>>) => void;
@@ -206,7 +239,14 @@ interface DesignActions {
   suggestRadiators: (catalog?: CatalogProduct[]) => number;
   /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
+  /**
+   * Places the technical points the plan implies — water, waste, drains, gas, the panel,
+   * the extractors, the air conditioners, one boiler — and returns how many went in.
+   */
+  suggestTechnical: () => number;
   setWorks: (works: string[]) => void;
+  /** What the flat already has, so the budget leaves it out (`lib/design/existing`). */
+  setExisting: (keys: string[]) => void;
   // --- electrical ---
   /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
   suggestElectrical: (catalog?: CatalogProduct[]) => void;
@@ -225,6 +265,12 @@ interface DesignActions {
   /** Runs the layout engine and fills every slot from the catalogue. */
   generate: (catalog: CatalogProduct[]) => void;
   /**
+   * Empties the flat and leaves the flat: every piece of furniture, every fitting and every
+   * chosen finish goes, the walls, doors, windows and technical points stay. The starting
+   * point for designing a home from nothing rather than editing what the engine proposed.
+   */
+  clearDesign: () => void;
+  /**
    * Continues a finished calculator into 3D: its rooms (the uploaded plan when there is one),
    * its home state, and its product and furniture picks. Lands on the style step.
    */
@@ -235,6 +281,9 @@ interface DesignActions {
     selectedFurniture: Record<string, SelectedProduct[]>;
     /** The saved calculator project, so the design is written into the same row. */
     projectId?: number | null;
+    /** The calculator's own drawing, which is the one the person has just been editing. */
+    plan?: FloorPlan | null;
+    floorPlanUrl?: string | null;
   }) => 'studio' | 'style';
   /** Puts pending calculator picks into the existing design without re-laying it out. */
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
@@ -299,7 +348,10 @@ interface DesignActions {
   // --- history and versions ---
   undo: () => void;
   redo: () => void;
-  /** Keeps version 01 — the existing house — the first time it is asked for. */
+  /**
+   * The studio's baseline, kept once per project: version 01 is the flat as the studio
+   * first found it, furniture and all, and the undo history starts from there.
+   */
   ensureExistingVersion: (name: string) => void;
   saveVersion: (name: string, kind?: DesignVersion['kind']) => string;
   /** Goes back to a kept version; the present is kept as a version first so nothing is lost. */
@@ -322,6 +374,7 @@ const initial: DesignState = {
   calculatorPicks: null,
   styleId: 'scandinavian',
   styleProfile: null,
+  excluded: [],
   budgetGel: null,
   plan: null,
   floorPlanUrl: null,
@@ -333,6 +386,8 @@ const initial: DesignState = {
   selectedItemId: null,
   selectedElement: null,
   carryingItemId: null,
+  selectedRoomIds: [],
+  generated: false,
   structureLocked: true,
   clipboard: null,
   pendingPicks: false,
@@ -344,7 +399,21 @@ const initial: DesignState = {
 
 const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 
-export const useDesignStore = create<DesignState & DesignActions>()(
+export type DesignStore = DesignState & DesignActions;
+
+/**
+ * One drawing board, made twice.
+ *
+ * The Design Studio and the calculator each edit a plan, and they are not the same plan: a
+ * flat someone is furnishing in 3D has nothing to do with the flat they are pricing a
+ * renovation for, and finding the other one waiting was the single most confusing thing
+ * about the two products sharing an engine. So the store is a factory over its localStorage
+ * key, and there are two of them — `useDesignStore` for the studio, `useCalculatorPlanStore`
+ * for the calculator's first step. Work crosses between them only when the person asks for
+ * it: "see it in 3D" from the calculator's summary, "calculate the costs" from a design.
+ */
+function createDesignStore(storageName: string) {
+  return create<DesignStore>()(
   persist(
     (set, get) => {
       /** Applies a change after recording the present, so it can be undone. */
@@ -410,6 +479,8 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           });
         },
         setStyleProfile: (styleProfile) => set({ styleProfile }),
+        toggleExcluded: (productId) => set((s) => ({ excluded: s.excluded.includes(productId) ? s.excluded.filter((id) => id !== productId) : [...s.excluded, productId] })),
+        setExcluded: (excluded) => set({ excluded: [...new Set(excluded)] }),
 
         setBudget: (budgetGel, catalog) => {
           const { items, styleId, plan } = get();
@@ -434,6 +505,9 @@ export const useDesignStore = create<DesignState & DesignActions>()(
               focusRoomId: null,
               selectedItemId: null,
               selectedElement: null,
+              selectedRoomIds: [],
+              // A new flat has not been laid out, whatever the last one had.
+              generated: false,
               // …and a new project on the server: the next save gets its own row.
               projectId: null,
               history: emptyHistory(),
@@ -458,6 +532,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             modeChosen: true,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
+            excluded: scene.excluded ?? [],
             budgetGel: scene.budgetGel,
             items: scene.items,
             finishes: scene.finishes,
@@ -467,6 +542,8 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             focusRoomId: null,
             selectedItemId: null,
             selectedElement: null,
+            selectedRoomIds: [],
+            generated: true,
             step: 5,
             history: emptyHistory(),
           })),
@@ -571,6 +648,29 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           return created;
         },
 
+        selectRooms: (roomIds) => set({ selectedRoomIds: roomIds }),
+
+        moveRooms: (roomIds, delta) =>
+          commit((s) => {
+            if (!s.plan) return null;
+            const plan = moveRoomsIn(s.plan, roomIds, delta);
+            if (plan === s.plan) return null;
+            const moving = new Set(roomIds);
+            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 100) / 100, z: Math.round((p.z + delta.z) * 100) / 100 });
+            // Everything standing in a room travels with it: the furniture, the fittings on
+            // its walls, the technical points, and whatever was painted on its floor.
+            const withTechnical: FloorPlan = plan.technical
+              ? { ...plan, technical: { ...plan.technical, points: plan.technical.points.map((p) => (p.roomId && moving.has(p.roomId) ? { ...p, position: shift(p.position) } : p)) } }
+              : plan;
+            const travelled: DesignState = {
+              ...s,
+              items: s.items.map((i) => (moving.has(i.roomId) ? { ...i, position: shift(i.position) } : i)),
+              electrical: s.electrical.map((p) => (moving.has(p.roomId) ? { ...p, position: shift(p.position) } : p)),
+              finishes: s.finishes.map((f) => (f.zone && moving.has(f.roomId) ? { ...f, zone: { ...f.zone, polygon: f.zone.polygon.map(shift) } } : f)),
+            };
+            return reconcile(travelled, withTechnical);
+          }),
+
         removeRoom: (roomId) =>
           commit((s) => {
             if (!s.plan) return null;
@@ -604,6 +704,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         offsetWall: (wallId, distance) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(offsetWallIn(s.plan.walls, wallId, distance), wallId)) : null)),
         moveWallNode: (from, to) => commit((s) => (s.plan?.walls ? withWalls(s, moveWallNodeIn(s.plan.walls, from, to)) : null)),
         updateWall: (wallId, patch) => commit((s) => (s.plan?.walls ? withWalls(s, updateWallIn(s.plan.walls, wallId, patch)) : null)),
+        resizeWall: (wallId, lengthM) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(resizeWallIn(s.plan.walls, wallId, lengthM), wallId)) : null)),
         removeWall: (wallId) => commit((s) => (s.plan?.walls ? withWalls(s, removeWallIn(s.plan.walls, wallId)) : null)),
 
         addColumn: (position, size = {}) => {
@@ -684,7 +785,20 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           const next = withRadiatorProducts(plan, catalog, styleId);
           if (next !== plan) set({ plan: next });
         },
-        setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works } } } : s)),
+        suggestTechnical: () => {
+          let placed = 0;
+          commit((s) => {
+            if (!s.plan) return null;
+            let n = 0;
+            const { points } = suggestTechnicalIn(s.plan, s.items, () => `${uid('t')}${n++}`);
+            if (points.length === 0) return null;
+            placed = points.length;
+            return { plan: { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), ...points], works: s.plan.technical?.works, existing: s.plan.technical?.existing } } };
+          });
+          return placed;
+        },
+        setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works, existing: s.plan.technical?.existing } } } : s)),
+        setExisting: (existing) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works: s.plan.technical?.works, existing } } } : s)),
 
         // --- electrical ---
         suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId) } : null)),
@@ -754,7 +868,13 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           if (!plan) return;
           const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])) });
           // A slot no partner product can fill is dropped rather than shown as a stand-in.
-          commit((s) => {
+          //
+          // Laying the flat out is the journey's hinge, so it is not an undoable edit: the
+          // versions kept for an earlier layout describe a flat that no longer exists and go
+          // with it, and the history starts empty. One Ctrl+Z in the studio used to undo the
+          // whole generation and leave every room bare — and, coming from the calculator,
+          // carry on into the walls that were drawn there.
+          set((s) => {
             let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms }));
             // Re-laying out the furniture is not a reason to lose the tiles someone picked.
             let finishes = keepChosen(defaultFinishes(plan, styleId), s.finishes);
@@ -767,22 +887,45 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             // door and window.
             const electrical = withFixtureProducts(suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user')), catalog, styleId);
             const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
-            return { items, finishes, electrical, selectedItemId: null, ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}) };
+            return {
+              items,
+              finishes,
+              electrical,
+              selectedItemId: null,
+              selectedElement: null,
+              carryingItemId: null,
+              ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}),
+              generated: true,
+              versions: [],
+              history: emptyHistory(),
+            };
           });
         },
 
-        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null }) => {
+        clearDesign: () =>
+          commit((s) => ({
+            items: [],
+            electrical: [],
+            finishes: defaultFinishes(s.plan, s.styleId),
+            selectedItemId: null,
+            selectedElement: null,
+            carryingItemId: null,
+          })),
+
+        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null }) => {
           let landing: 'studio' | 'style' = 'style';
           set((s) => {
-            // A plan uploaded in the calculator keeps its real walls; rooms typed by hand become
-            // a row of rectangles. Either way the calculator's types, names and heights win.
+            // A plan uploaded or drawn in the calculator keeps its real walls; rooms typed by
+            // hand become a row of rectangles. Either way the calculator's types, names and
+            // heights win.
             const ids = new Set(rooms.map((r) => r.id));
-            const current = s.plan;
-            const reusable =
-              !!current &&
-              current.source !== 'calculator' &&
-              current.rooms.length === rooms.length &&
-              current.rooms.every((r) => ids.has(r.id));
+            /** A drawing of this same flat — same rooms, drawn rather than derived. */
+            const describesFlat = (p: FloorPlan | null | undefined): p is FloorPlan =>
+              !!p && p.source !== 'calculator' && p.rooms.length === rooms.length && p.rooms.every((r) => ids.has(r.id));
+            // The calculator's own board is the drawing just left behind; the studio's is
+            // what an earlier design of the same flat kept. The first wins.
+            const current = describesFlat(fromCalculator) ? fromCalculator : describesFlat(s.plan) ? s.plan : null;
+            const reusable = current !== null;
             let plan: FloorPlan;
             if (reusable && current) {
               const synced = current.rooms.map((pr) => {
@@ -797,14 +940,15 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture);
             // The same project already has a design: keep it, and let the studio put the
             // calculator's picks into it rather than laying the flat out again.
-            const keepDesign = projectId != null && s.projectId === projectId && reusable && s.items.length > 0;
+            const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;
             if (keepDesign) {
               landing = 'studio';
-              return { plan, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 5 };
+              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, generated: true, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
             }
             return {
               plan,
-              planSerial: reusable ? s.planSerial : s.planSerial + 1,
+              floorPlanUrl: floorPlanUrl ?? s.floorPlanUrl,
+              planSerial: reusable && current === s.plan ? s.planSerial : s.planSerial + 1,
               projectId,
               mode: 'full',
               modeChosen: true,
@@ -816,6 +960,10 @@ export const useDesignStore = create<DesignState & DesignActions>()(
               finishes: defaultFinishes(plan, s.styleId),
               focusRoomId: null,
               selectedItemId: null,
+              // A calculation carried into 3D has not been laid out yet, and the versions
+              // kept for whatever was in the studio before belong to another flat.
+              generated: false,
+              versions: [],
               step: 4,
               history: emptyHistory(),
             };
@@ -854,7 +1002,12 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           commit((s) => {
             const room = s.plan?.rooms.find((r) => r.id === target.roomId);
             if (!room) return null;
-            const finishes = target.surface === 'floor' ? paintCell(s.finishes, room, target.cell, product) : paintSpan(s.finishes, room, target.wallIndex, target.span, product);
+            const finishes =
+              target.surface === 'floor'
+                ? paintCell(s.finishes, room, target.cell, product)
+                : target.patch
+                  ? paintPatch(s.finishes, room, target.wallIndex, target.patch, product)
+                  : paintSpan(s.finishes, room, target.wallIndex, target.span, product);
             return finishes === s.finishes ? null : { finishes };
           }),
 
@@ -1095,7 +1248,14 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         ensureExistingVersion: (name) =>
           set((s) => {
             if (!s.plan || s.versions.some((v) => v.kind === 'existing')) return s;
-            return { versions: [versionOf(s, name, 'existing'), ...s.versions].slice(0, MAX_VERSIONS) };
+            // The baseline is the flat as the studio first found it — furniture, fittings,
+            // finishes and all. It used to be taken when step 2 was left, which is before
+            // anything has been laid out, so restoring it emptied the rooms.
+            //
+            // The undo history starts here too. Drawing a flat on step 2 is a long run of
+            // undoable edits, and carrying it into the studio meant one Ctrl+Z too many
+            // walked the walls back to the blank sheet.
+            return { versions: [versionOf(s, name, 'existing'), ...s.versions].slice(0, MAX_VERSIONS), history: emptyHistory() };
           }),
         saveVersion: (name, kind = 'manual') => {
           const version = versionOf(get(), name, kind);
@@ -1130,13 +1290,13 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile } = get();
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile };
+          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded } = get();
+          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded };
         },
       };
     },
     {
-      name: 'renovate-design',
+      name: storageName,
       storage: createJSONStorage(() => localStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
@@ -1157,6 +1317,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         calculatorPicks: s.calculatorPicks,
         styleId: s.styleId,
         styleProfile: s.styleProfile,
+        excluded: s.excluded,
         budgetGel: s.budgetGel,
         plan: s.plan,
         floorPlanUrl: s.floorPlanUrl,
@@ -1165,10 +1326,25 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         electrical: s.electrical,
         versions: s.versions,
         step: s.step,
+        generated: s.generated,
       }),
     }
   )
-);
+  );
+}
+
+/** The Design Studio's board — the eight-step journey's plan, scene, versions and history. */
+export const useDesignStore = createDesignStore('renovate-design');
+
+/**
+ * The calculator's own board, in its own localStorage. Same machine, different flat: the
+ * calculator's first step draws here and reads its rooms off it (`hooks/useCalculatorPlan`),
+ * and nothing it does shows up in the studio.
+ */
+export const useCalculatorPlanStore = createDesignStore('renovate-calculator-plan');
+
+/** Either board, for a component that can be pointed at one (`PlanWorkspace`). */
+export type DesignStoreHook = typeof useDesignStore;
 
 function snapshotOf(s: DesignState): DesignSnapshot {
   return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical };
@@ -1217,9 +1393,14 @@ function fitToPlan(finishes: SurfaceFinish[], plan: FloorPlan): SurfaceFinish[] 
       }
     }
     if (finish.cells) {
-      const cells = finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
-      if (cells.length === 0) return [];
-      if (cells.length !== finish.cells.length) return [{ ...finish, cells }];
+      // Floor tiles are squares of the room's grid; on a wall the same list is patches of
+      // that wall's own grid, so each is measured against the thing it was painted on.
+      const kept =
+        finish.surface === 'wall' && finish.wallIndex != null
+          ? finish.cells.filter((cell) => patchInRange(room, finish.wallIndex!, cell))
+          : finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
+      if (kept.length === 0) return [];
+      if (kept.length !== finish.cells.length) return [{ ...finish, cells: kept }];
     }
     return [finish];
   });

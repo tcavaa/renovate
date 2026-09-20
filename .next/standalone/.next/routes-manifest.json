@@ -134,6 +134,14 @@
       "namedRegex": "^/admin/stores/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/admin/teams/[id]",
+      "regex": "^/admin/teams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/teams/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/admin/users/[id]",
       "regex": "^/admin/users/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -222,6 +230,14 @@
       "namedRegex": "^/api/stores/(?<nxtPid>[^/]+?)/approval(?:/)?$"
     },
     {
+      "page": "/api/teams/[id]",
+      "regex": "^/api/teams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/teams/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/users/[id]",
       "regex": "^/api/users/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -276,6 +292,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/profile/projects/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/teams/[slug]",
+      "regex": "^/teams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/teams/(?<nxtPslug>[^/]+?)(?:/)?$"
     },
     {
       "page": "/workers/[id]",
@@ -382,6 +406,18 @@
       "regex": "^/admin/stores/new(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/admin/stores/new(?:/)?$"
+    },
+    {
+      "page": "/admin/teams",
+      "regex": "^/admin/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/teams(?:/)?$"
+    },
+    {
+      "page": "/admin/teams/new",
+      "regex": "^/admin/teams/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/teams/new(?:/)?$"
     },
     {
       "page": "/admin/users",
@@ -532,6 +568,12 @@
       "regex": "^/api/stores(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/stores(?:/)?$"
+    },
+    {
+      "page": "/api/teams",
+      "regex": "^/api/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/teams(?:/)?$"
     },
     {
       "page": "/api/upload",
@@ -712,6 +754,12 @@
       "regex": "^/reset\\-password(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/reset\\-password(?:/)?$"
+    },
+    {
+      "page": "/teams",
+      "regex": "^/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/teams(?:/)?$"
     },
     {
       "page": "/terms",

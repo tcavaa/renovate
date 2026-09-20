@@ -52,6 +52,8 @@ const LIGHT_CATEGORY_KEY: Record<LightCategory, keyof Dictionary['build']> = { p
 
 export interface InspectorActions {
   updateWall: (id: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
+  /** Stretches the wall to a typed length; without it the length is shown and not edited. */
+  resizeWall?: (id: string, lengthM: number) => void;
   removeWall: (id: string) => void;
   updateOpening: (roomId: string, id: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>) => void;
   removeOpening: (roomId: string, id: string) => void;
@@ -87,7 +89,11 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     const rooms = plan.rooms.filter((r) => r.wallIds?.includes(wall.id));
     return (
       <Section title={t.build.inspectorWall} onDelete={locked ? undefined : () => actions.removeWall(wall.id)} className={className}>
-        <Fact label={t.build.length} value={`${wallLength(wall).toFixed(2)} ${t.units.m}`} />
+        {actions.resizeWall && !locked && !wall.locked ? (
+          <NumberField label={`${t.build.length} (${t.units.m})`} value={Number(wallLength(wall).toFixed(2))} min={0.1} max={80} step={0.01} onCommit={(v) => actions.resizeWall!(wall.id, v)} />
+        ) : (
+          <Fact label={t.build.length} value={`${wallLength(wall).toFixed(2)} ${t.units.m}`} />
+        )}
         <Field label={t.build.thickness}>
           <div className="flex flex-wrap gap-1">
             {WALL_THICKNESS_OPTIONS_M.map((m) => (

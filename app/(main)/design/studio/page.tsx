@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eraser, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { SwapPanel } from '@/components/design/SwapPanel';
@@ -17,12 +18,13 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
+import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
@@ -33,6 +35,7 @@ import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
+import { DESIGN_STEP_HREFS, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
@@ -43,7 +46,7 @@ import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool } from '@/components/plan/PlanEditor';
-import type { ElectricalKind, PlacedItem, Vec2 } from '@/lib/design/types';
+import type { ElectricalKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
 
@@ -58,7 +61,7 @@ const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) =
 
 type SurfaceSelection = { roomId: string; surface: 'floor' | 'wall'; wallIndex?: number } | null;
 
-const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furniture: 'furniture', electric: 'electrical', finishes: 'finishes', budget: 'furniture' };
+const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furniture: 'furniture', electric: 'electrical', technical: 'build', finishes: 'finishes', budget: 'furniture' };
 /**
  * How far the pointer may travel between going down and coming up and still count as a
  * click. Past it the gesture was a drag — of the camera, or of a fitting already on the
@@ -70,6 +73,7 @@ const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
   build: ['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam'],
   furniture: ['select', 'pan'],
   electric: ['select', 'pan', 'electrical'],
+  technical: ['select', 'pan', 'technical'],
   finishes: ['select', 'pan', 'paint'],
   budget: ['select', 'pan'],
 };
@@ -138,7 +142,7 @@ export default function StudioPage() {
 
   // The existing house is kept the first time the studio opens on a plan.
   useEffect(() => {
-    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionExisting);
+    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
     // Once per plan identity is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.rooms.length]);
@@ -150,6 +154,8 @@ export default function StudioPage() {
   const [thicknessM, setThicknessM] = useState(plan?.wallThicknessM ?? 0.12);
   const [electricalKind, setElectricalKind] = useState<ElectricalKind>('socket');
   const [electricalArmed, setElectricalArmed] = useState(false);
+  const [technicalKind, setTechnicalKind] = useState<TechnicalKind>('water_supply');
+  const [technicalArmed, setTechnicalArmed] = useState(false);
   const [finishScope, setFinishScope] = useState<FinishScope>('room');
   const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
   /**
@@ -164,11 +170,15 @@ export default function StudioPage() {
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
-  const [navOpen, setNavOpen] = useState(true);
+  // The controls card starts folded: it is a reminder, not a panel, and open by default it
+  // sat across the furniture list in the same corner.
+  const [navOpen, setNavOpen] = useState(false);
   const [shot, setShot] = useState<StudioShot | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
   /** The one refusal banner: what was refused, or null while nothing was. */
   const [refused, setRefused] = useState<string | null>(null);
+  /** "Start from scratch" asks first — in a dialogue of ours, not the browser's. */
+  const [clearOpen, setClearOpen] = useState(false);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
@@ -191,10 +201,13 @@ export default function StudioPage() {
   const pressAt = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
+    // A studio with no plan is the "upload one first" card; claiming step 5 there would
+    // make the journey's resume send people back to it for ever.
+    const ready = (store.plan?.rooms.length ?? 0) > 0;
     if (searchParams.get('tool') === 'finishes') {
       setCategory('finishes');
-      store.setStep(6);
-    } else store.setStep(5);
+      if (ready) store.setStep(6);
+    } else if (ready) store.setStep(5);
     // Only the query parameter matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -404,6 +417,13 @@ export default function StudioPage() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view]);
 
+  /** How many technical points of each kind stand on the plan, for the tray's tiles. */
+  const technicalCounts = useMemo(() => {
+    const counts: Partial<Record<TechnicalKind, number>> = {};
+    for (const point of plan?.technical?.points ?? []) counts[point.kind] = (counts[point.kind] ?? 0) + 1;
+    return counts;
+  }, [plan]);
+
   const itemsPerRoom = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of items) counts.set(item.roomId, (counts.get(item.roomId) ?? 0) + 1);
@@ -456,8 +476,12 @@ export default function StudioPage() {
       setTrayOpen(true);
     }
     setElectricalArmed(false);
+    setTechnicalArmed(false);
     if (next !== 'build') setBuildTool('select');
-    if (next === 'build' || next === 'electric') store.selectItem(null);
+    if (next === 'build' || next === 'electric' || next === 'technical') store.selectItem(null);
+    // The technical points are placed on the board, where the plan is: the 3D view has no
+    // way to show a pipe run or a panel, so the studio switches for them.
+    if (next === 'technical' && view !== '2d') setView('2d');
   };
 
   /** A build tool that draws needs the 2D board; the studio switches for it. */
@@ -615,6 +639,7 @@ export default function StudioPage() {
 
   const inspectorActions = {
     updateWall: store.updateWall,
+    resizeWall: store.resizeWall,
     removeWall: store.removeWall,
     updateOpening: (roomId: string, openingId: string, patch: Parameters<typeof store.updateOpening>[2]) => store.updateOpening(roomId, openingId, patch, products),
     removeOpening: store.removeOpening,
@@ -652,7 +677,10 @@ export default function StudioPage() {
         ? t.build.hintElectrical
         : null;
 
-  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen;
+  // The furniture shelf keeps a list of what is already standing beside it: the room's own
+  // when one is in focus, the whole flat grouped by room otherwise.
+  const itemsPanelOpen = category === 'furniture' && !selected && !selectedElement && !versionsOpen;
+  const rightPanelOpen = (selected && view !== '2d' && category !== 'finishes') || selectedElement || versionsOpen || itemsPanelOpen;
   const showRightPanel = !!rightPanelOpen && view !== 'walk';
   const trayShown = trayOpen && view !== 'walk';
 
@@ -719,13 +747,14 @@ export default function StudioPage() {
             <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-[9.5rem]' : 'pb-16')}>
               <PlanWorkspace
                 tools={CATEGORY_TOOLS[category]}
-                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
+                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'technical' ? (technicalArmed ? 'technical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
                 onTool={(tool) => {
                   if (category === 'build') setBuildTool(tool);
                   if (category === 'electric') setElectricalArmed(tool === 'electrical');
+                  if (category === 'technical') setTechnicalArmed(tool === 'technical');
                   if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
                 }}
-                paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+                paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
                 onPaint={onPaint}
                 roomsOnly={category === 'finishes'}
                 hideToolbar
@@ -734,10 +763,11 @@ export default function StudioPage() {
                 furniture
                 locked={structureLocked}
                 electricalKind={electricalKind}
+                technicalKind={technicalKind}
                 layers={{ furniture: true, dimensions: category === 'build' }}
                 height="100%"
                 className="h-full"
-                onRefused={() => setRefused(t.design.openingRefused)}
+                onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
               />
             </div>
           ) : (
@@ -764,7 +794,7 @@ export default function StudioPage() {
               onHoverItem={onHoverItem}
               onSelectItem={onSelectItem}
               onSelectSurface={onSelectSurface}
-              paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+              paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
               onPaint={onPaint}
               onPlaceItem={onPlaceItem}
               carryingItemId={carryingItemId}
@@ -783,7 +813,7 @@ export default function StudioPage() {
           onView={setView}
           showWalls={showWalls}
           onToggleWalls={() => setShowWalls((v) => !v)}
-          onRegenerate={() => store.generate(products)}
+          onClear={() => setClearOpen(true)}
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
@@ -796,8 +826,8 @@ export default function StudioPage() {
           versionsOpen={versionsOpen}
           onVersions={() => setVersionsOpen((v) => !v)}
           onHelp={() => setTourOpen(true)}
-          nextHref={category === 'finishes' ? '/design/summary' : '/design/studio?tool=finishes'}
-          nextLabel={category === 'finishes' ? t.build.budgetTitle : t.design.step6}
+          nextHref={category === 'finishes' ? nextStepHref(6, homeState, mode) : '/design/studio?tool=finishes'}
+          nextLabel={category === 'finishes' ? (nextStep(6, homeState, mode) === 3 ? t.design.step3 : t.build.budgetTitle) : t.design.step6}
         />
 
         {/* ---- left: the categories, the rooms beside them ---- */}
@@ -820,7 +850,7 @@ export default function StudioPage() {
 
         {/* ---- right panel: an overlay the full height of the studio; nothing under it moves ---- */}
         {showRightPanel && (
-          <div className="pointer-events-auto absolute bottom-4 right-4 top-20 z-40 flex w-[360px] flex-col">
+          <div className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
             {versionsOpen ? (
               <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
@@ -870,6 +900,20 @@ export default function StudioPage() {
                   onRemove={() => store.removeOpening(selectedElement.roomId, selectedElement.id)}
                 />
               </FloatingPanel>
+            ) : itemsPanelOpen ? (
+              <FurnitureDrawer
+                items={items}
+                rooms={plan.rooms}
+                focusRoomId={focusRoomId}
+                selectedItemId={selectedItemId}
+                roomLabel={focusRoom ? focusRoom.name : t.design.wholeFlat}
+                onSelect={(id) => {
+                  store.selectItem(id);
+                  const room = items.find((i) => i.id === id)?.roomId;
+                  if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
+                }}
+                onRemove={(id) => store.removeItem(id)}
+              />
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} className="border-0" />
@@ -929,13 +973,28 @@ export default function StudioPage() {
                     }}
                   />
                 )}
+                {category === 'technical' && (
+                  <TechnicalTray
+                    kind={technicalKind}
+                    onKind={setTechnicalKind}
+                    armed={technicalArmed}
+                    onArm={(armed: boolean) => {
+                      setTechnicalArmed(armed);
+                      if (armed && view !== '2d') setView('2d');
+                    }}
+                    counts={technicalCounts}
+                    onAuto={() => store.suggestTechnical()}
+                    onRadiators={() => store.suggestRadiators(products)}
+                    stepHref={DESIGN_STEP_HREFS[3]}
+                  />
+                )}
                 {category === 'finishes' && (
                   <FinishesTray
                     surface={finishSurface}
                     onSurface={(surface) => {
                       setFinishSurface(surface);
                       // The brush goes with the surface: a floor laminate does not paint a wall.
-                      setFinishScope(painting && surface === 'wall' ? 'strip' : painting && surface === 'floor' ? 'cell' : 'room');
+                      setFinishScope(painting && surface === 'wall' ? (finishScope === 'patch' ? 'patch' : 'strip') : painting && surface === 'floor' ? 'cell' : 'room');
                       setBrush(undefined);
                     }}
                     scope={finishScope}
@@ -957,7 +1016,8 @@ export default function StudioPage() {
         </div>
 
         {/* ---- help and zoom ---- */}
-        <div className={cn('pointer-events-auto absolute right-4 z-30 flex flex-col items-end gap-2', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
+        {/* Open, the card is what the person is reading, so it goes above the right panel. */}
+        <div className={cn('pointer-events-auto absolute right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
           <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} onFullscreen={toggleFullscreen} fullscreen={fullscreen} disabled={view !== '3d' || !viewerApi} />
         </div>
@@ -965,6 +1025,38 @@ export default function StudioPage() {
         <HoverCard ref={hoverCard} />
         <TutorialOverlay open={tourOpen} onClose={() => setTourOpen(false)} container={workspaceEl} onStep={onTourStep} />
       </div>
+
+      {/*
+        Emptying the flat is one click away from everything else on the bar, and it cannot be
+        undone by looking for the furniture again — so it asks, and version 01 (the flat as
+        the studio found it) is there to go back to either way.
+      */}
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-danger/10 text-danger">
+              <Eraser className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">{t.build.fromScratch}</DialogTitle>
+            <DialogDescription className="text-center">{t.build.fromScratchConfirm}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="outline" onClick={() => setClearOpen(false)}>
+              {t.common.cancel}
+            </Button>
+            <Button
+              variant="ink"
+              onClick={() => {
+                store.clearDesign();
+                setClearOpen(false);
+              }}
+            >
+              <Eraser className="h-4 w-4" />
+              {t.build.fromScratch}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PhotoDialog shot={shot} open={photoOpen} onOpenChange={setPhotoOpen} ensureSaved={ensureSaved} />
     </>

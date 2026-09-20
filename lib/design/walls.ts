@@ -378,17 +378,21 @@ function boxOverlapArea(a: Vec2[], b: Vec2[]): number {
  * small jog where the thicknesses differ; two pieces of the *same* wall are merged first.
  */
 export function innerPolygon(centre: Vec2[], thickness: number[], wallIds: string[]): { polygon: Vec2[]; wallIds: string[] } {
-  // Merge consecutive pieces of one wall into one edge.
+  // Merge consecutive stretches of wall that run on into one edge. What matters is the
+  // thickness, not which wall object it is: since walls stopped being fused into each other
+  // (`addWalls`), one side of a room is routinely two walls end to end — its neighbour's,
+  // then its own — and treating that as two edges gave the room a phantom vertex, an extra
+  // wall index and a finish that stopped halfway along a flat wall.
   const pts: Vec2[] = [];
   const ids: string[] = [];
   const ths: number[] = [];
   const n = centre.length;
   for (let i = 0; i < n; i++) {
-    const prevId = wallIds[(i - 1 + n) % n];
-    const dirPrev = unit(sub(centre[i], centre[(i - 1 + n) % n]));
+    const prev = (i - 1 + n) % n;
+    const dirPrev = unit(sub(centre[i], centre[prev]));
     const dirNext = unit(sub(centre[(i + 1) % n], centre[i]));
     const collinear = Math.abs(cross(dirPrev, dirNext)) < 1e-6 && dot(dirPrev, dirNext) > 0;
-    if (collinear && prevId === wallIds[i]) continue; // vertex in the middle of one wall
+    if (collinear && Math.abs(thickness[prev] - thickness[i]) < 0.001) continue; // in the middle of a run
     pts.push(centre[i]);
     ids.push(wallIds[i]);
     ths.push(thickness[i]);
@@ -613,7 +617,41 @@ export function wallsFromRooms(rooms: PlanRoom[], defaultThicknessM: number, ori
       });
     }
   }
-  return walls;
+  // One wall per line of the flat would be one wall under four rooms; each junction ends it.
+  return splitAtJunctions(walls);
+}
+
+/**
+ * Cuts every wall where another wall meets it. A plan that arrived as polygons is built one
+ * wall per line of the flat, so the partition between two rooms came out as one wall running
+ * the length of the flat: selecting it selected all of it, dragging it moved four rooms, and
+ * there was no such thing as *this room's* wall. Each junction now ends one wall and starts
+ * the next, which is what the wall graph already does behind the scenes.
+ */
+export function splitAtJunctions(walls: Wall[]): Wall[] {
+  const ends = walls.flatMap((w) => [w.a, w.b]);
+  const out: Wall[] = [];
+  for (const wall of walls) {
+    const dir = unit(sub(wall.b, wall.a));
+    const length = wallLength(wall);
+    const cuts = [0, length];
+    for (const point of ends) {
+      const at = dot(sub(point, wall.a), dir);
+      if (at < NODE_TOL_M || at > length - NODE_TOL_M) continue;
+      // Only a junction: a point off the line is another wall passing by, not meeting.
+      if (Math.abs(dot(sub(point, wall.a), leftNormal(dir))) > NODE_TOL_M) continue;
+      if (!cuts.some((c) => Math.abs(c - at) < NODE_TOL_M)) cuts.push(at);
+    }
+    if (cuts.length === 2) {
+      out.push(wall);
+      continue;
+    }
+    cuts.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      out.push({ ...wall, id: i === 0 ? wall.id : `${wall.id}j${i}`, a: roundVec(add(wall.a, scale(dir, cuts[i]))), b: roundVec(add(wall.a, scale(dir, cuts[i + 1]))) });
+    }
+  }
+  return out;
 }
 
 /** Drops vertices that sit on the straight line between their neighbours, and repeats. */
@@ -639,7 +677,13 @@ export function simplifyPolygon(polygon: Vec2[]): Vec2[] {
  * names, doors and windows. A plan that already has walls comes back as it is.
  */
 export function ensureWalls(plan: FloorPlan): FloorPlan {
-  if (plan.walls && plan.walls.length > 0) return withAlignedTwins(plan);
+  if (plan.walls && plan.walls.length > 0) {
+    // A plan drawn before walls were cut at their junctions carries one wall under four
+    // rooms; this is the hook every plan taken in passes through, so it is put right here
+    // rather than waiting for the first edit.
+    const cut = splitAtJunctions(plan.walls);
+    return withAlignedTwins(cut.length === plan.walls.length ? plan : rebuildRooms(plan, cut));
+  }
   if (plan.rooms.length === 0) return { ...plan, walls: [] };
   const walls = wallsFromRooms(plan.rooms, plan.wallThicknessM, plan.source === 'manual' ? 'user' : 'existing');
   const rooms = roomsFromWalls(walls, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
@@ -666,8 +710,12 @@ export function withBounds(plan: FloorPlan): FloorPlan {
  * survived), bounds refreshed. Every wall edit in the store ends here.
  */
 export function rebuildRooms(plan: FloorPlan, walls: Wall[]): FloorPlan {
-  const rooms = roomsFromWalls(walls, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
-  return withBounds({ ...plan, walls, rooms });
+  // A wall runs from junction to junction and no further, whatever it was drawn as. Without
+  // this a partition dropped into a long wall left that wall whole underneath it: selecting
+  // it selected the length of the flat and dragging it moved every room along it.
+  const cut = splitAtJunctions(walls);
+  const rooms = roomsFromWalls(cut, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
+  return withBounds({ ...plan, walls: cut, rooms });
 }
 
 // ---------------------------------------------------------------------------
@@ -675,45 +723,81 @@ export function rebuildRooms(plan: FloorPlan, walls: Wall[]): FloorPlan {
 // ---------------------------------------------------------------------------
 
 /**
- * Adds walls, merging each with any wall already on the same line that it overlaps or
- * touches end to end (drawing over a wall extends it rather than doubling it).
+ * Adds walls without ever fusing one into another.
+ *
+ * Every collinear wall that touched used to be unioned, and a room drawn against its
+ * neighbours therefore dissolved into them: four walls became one eleven-metre wall running
+ * under three rooms, and from that moment there was no such thing as *this room's* wall —
+ * nothing could be pulled apart again. Now a new wall only gives way where a wall of the
+ * same thickness genuinely stands on the same stretch already (drawing over one twice), and
+ * the stretches nobody holds are added exactly as drawn. A room that snapped up against its
+ * neighbour keeps its own four walls and stays detachable (`moveRooms`).
  */
 export function addWalls(walls: Wall[], added: Wall[]): Wall[] {
-  let out = [...walls];
+  const out = [...walls];
   for (const wall of added) {
     if (wallLength(wall) < NODE_TOL_M * 2) continue;
-    let current = wall;
-    for (;;) {
-      const partner = out.find((w) => sameThicknessCollinearTouching(w, current));
-      if (!partner) break;
-      out = out.filter((w) => w.id !== partner.id);
-      current = unionWalls(partner, current);
-    }
-    out.push(current);
+    out.push(...uncoveredPieces(wall, out));
   }
   return out;
 }
 
-function sameThicknessCollinearTouching(w: Wall, v: Wall): boolean {
-  if (Math.abs(w.thicknessM - v.thicknessM) > 0.001) return false;
-  const dw = unit(sub(w.b, w.a));
-  const dv = unit(sub(v.b, v.a));
-  if (Math.abs(cross(dw, dv)) > 1e-3) return false;
-  const n = leftNormal(dw);
-  if (Math.abs(dot(sub(v.a, w.a), n)) > NODE_TOL_M) return false;
-  const s = (p: Vec2) => dot(sub(p, w.a), dw);
-  const lo = Math.min(s(v.a), s(v.b));
-  const hi = Math.max(s(v.a), s(v.b));
-  return hi >= -NODE_TOL_M && lo <= wallLength(w) + NODE_TOL_M;
+/** The stretches of `wall` that no wall in `existing` already covers, in the order drawn. */
+function uncoveredPieces(wall: Wall, existing: Wall[]): Wall[] {
+  const dir = unit(sub(wall.b, wall.a));
+  const along = (p: Vec2) => dot(sub(p, wall.a), dir);
+  let free: Array<[number, number]> = [[0, wallLength(wall)]];
+  for (const other of existing) {
+    if (!collinearSameThickness(wall, other)) continue;
+    const lo = Math.min(along(other.a), along(other.b));
+    const hi = Math.max(along(other.a), along(other.b));
+    if (hi - lo < NODE_TOL_M) continue;
+    free = free.flatMap(([a, b]): Array<[number, number]> => {
+      if (hi <= a + NODE_TOL_M || lo >= b - NODE_TOL_M) return [[a, b]];
+      const rest: Array<[number, number]> = [];
+      if (lo - a > NODE_TOL_M) rest.push([a, lo]);
+      if (b - hi > NODE_TOL_M) rest.push([hi, b]);
+      return rest;
+    });
+  }
+  return free
+    .filter(([a, b]) => b - a >= NODE_TOL_M * 2)
+    .map(([a, b], i) => ({ ...wall, id: i === 0 ? wall.id : `${wall.id}s${i}`, a: roundVec(add(wall.a, scale(dir, a))), b: roundVec(add(wall.a, scale(dir, b))) }));
 }
 
-function unionWalls(w: Wall, v: Wall): Wall {
+/** Two walls on one line, the same thickness — so one can stand for the other. */
+function collinearSameThickness(w: Wall, v: Wall): boolean {
+  if (Math.abs(w.thicknessM - v.thicknessM) > 0.001) return false;
   const dw = unit(sub(w.b, w.a));
-  const s = (p: Vec2) => dot(sub(p, w.a), dw);
-  const values = [0, wallLength(w), s(v.a), s(v.b)];
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  return { ...w, a: roundVec(add(w.a, scale(dw, lo))), b: roundVec(add(w.a, scale(dw, hi))) };
+  if (Math.abs(cross(dw, unit(sub(v.b, v.a)))) > 1e-3) return false;
+  return Math.abs(dot(sub(v.a, w.a), leftNormal(dw))) <= NODE_TOL_M;
+}
+
+/**
+ * Moves whole rooms across the plan, detaching them from the rooms staying behind.
+ *
+ * A wall only the moving rooms use travels with them. A wall they share with a room that
+ * stays is *split*: the original stays for the room that stays, and a copy goes with the
+ * movers — which is the only thing "pull this room away from that one" can mean once two
+ * rooms have a wall in common. Rooms keep their identity because the previous rooms are
+ * handed to `rebuildRooms` already shifted, so each moved face finds its own room again.
+ */
+export function moveRooms(plan: FloorPlan, roomIds: string[], delta: Vec2): FloorPlan {
+  const moving = new Set(roomIds);
+  const movers = plan.rooms.filter((r) => moving.has(r.id));
+  if (movers.length === 0 || (Math.abs(delta.x) < 1e-4 && Math.abs(delta.z) < 1e-4)) return plan;
+  const shift = (p: Vec2): Vec2 => roundVec({ x: p.x + delta.x, z: p.z + delta.z });
+  const mine = new Set(movers.flatMap((r) => r.wallIds ?? []));
+  const theirs = new Set(plan.rooms.filter((r) => !moving.has(r.id)).flatMap((r) => r.wallIds ?? []));
+  let copies = 0;
+  const walls: Wall[] = [];
+  for (const wall of plan.walls ?? []) {
+    if (!mine.has(wall.id)) walls.push(wall);
+    else if (theirs.has(wall.id)) walls.push(wall, { ...wall, id: `${wall.id}m${++copies}`, a: shift(wall.a), b: shift(wall.b) });
+    else walls.push({ ...wall, a: shift(wall.a), b: shift(wall.b) });
+  }
+  const previous = plan.rooms.map((r) => (moving.has(r.id) ? { ...r, polygon: r.polygon.map(shift) } : r));
+  return rebuildRooms({ ...plan, rooms: previous }, walls);
 }
 
 /**
@@ -744,6 +828,20 @@ export function offsetWall(walls: Wall[], id: string, distance: number): Wall[] 
 }
 
 /** Moves a junction: every wall end within a junction's tolerance of `from` goes to `to`. */
+/**
+ * Stretches a wall to `lengthM`, keeping the end it starts from and its direction. Whatever
+ * meets its far end comes along, exactly as dragging that end by hand does — typing 4.20
+ * into the inspector and pulling the handle until it reads 4.20 are the same edit.
+ */
+export function resizeWall(walls: Wall[], id: string, lengthM: number): Wall[] {
+  const wall = walls.find((w) => w.id === id);
+  if (!wall) return walls;
+  const current = wallLength(wall);
+  const wanted = Math.max(0.1, lengthM);
+  if (current < EPS || Math.abs(current - wanted) < 0.005) return walls;
+  return moveNode(walls, wall.b, roundVec(add(wall.a, scale(wallDirection(wall), wanted))));
+}
+
 export function moveNode(walls: Wall[], from: Vec2, to: Vec2): Wall[] {
   const target = roundVec(to);
   return walls.map((w) => ({

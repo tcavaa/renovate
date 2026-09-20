@@ -132,13 +132,17 @@ export interface PlanToolbarProps {
 
 export function PlanToolbar({ tools, tool, onTool, thicknessM, onThickness, technicalKind, onTechnicalKind, electricalKind, onElectricalKind, layers, onLayers, layerKeys, onFit, onZoom, className, vertical, kindPicker = true }: PlanToolbarProps) {
   const t = useT();
-  const showThickness = tool === 'wall' || tool === 'room';
+  const drawing = tool === 'wall' || tool === 'room';
+  // A room is a shape of the wall tool, not a tool of its own: one tile, then a line or a
+  // square. The tile row therefore leaves `room` out and the shape switch offers it.
+  const shapes = tools.includes('room');
+  const tiles = shapes ? tools.filter((id) => id !== 'room') : tools;
   return (
     <div className={cn('flex flex-wrap items-start gap-3', vertical && 'flex-col', className)}>
       <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap')} role="toolbar" aria-label={t.build.layers}>
-        {tools.map((id) => {
+        {tiles.map((id) => {
           const Icon = TOOL_ICON[id];
-          const active = tool === id;
+          const active = id === 'wall' && shapes ? drawing : tool === id;
           return (
             <button
               key={id}
@@ -158,7 +162,30 @@ export function PlanToolbar({ tools, tool, onTool, thicknessM, onThickness, tech
         })}
       </div>
 
-      {showThickness && (
+      {shapes && drawing && (
+        <div className="flex items-center gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.wallShape}>
+          <span className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.wallShape}</span>
+          {(['wall', 'room'] as const).map((id) => {
+            const Icon = id === 'wall' ? Minus : Square;
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={tool === id}
+                onClick={() => onTool(id)}
+                title={toolLabel(t, id)}
+                className={cn('flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+              >
+                <Icon className="h-4 w-4" />
+                {toolLabel(t, id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {drawing && (
         <div className="flex items-center gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.thickness}>
           <span className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.thickness}</span>
           {WALL_THICKNESS_OPTIONS_M.map((m) => (

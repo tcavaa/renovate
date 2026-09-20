@@ -33,6 +33,8 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
   const [edits, setEdits] = useState<Record<number, ItemEdit>>({});
   const [added, setAdded] = useState<NewItem[]>([]);
   const [message, setMessage] = useState(order.partnerMessage ?? '');
+  /** The agent's own record of the call: what was checked, what was agreed. Staff only. */
+  const [staffNote, setStaffNote] = useState(order.staffNote ?? '');
   const [status, setStatus] = useState<OrderStatus>(order.status);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -48,7 +50,7 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edits, added, order]);
 
-  const dirty = Object.keys(edits).length > 0 || added.length > 0 || message !== (order.partnerMessage ?? '') || status !== order.status;
+  const dirty = Object.keys(edits).length > 0 || added.length > 0 || message !== (order.partnerMessage ?? '') || staffNote !== (order.staffNote ?? '') || status !== order.status;
 
   const save = async () => {
     setSaving(true);
@@ -56,6 +58,7 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
     const body = {
       status: status !== order.status ? status : undefined,
       partnerMessage: message !== (order.partnerMessage ?? '') ? message || null : undefined,
+      staffNote: mode === 'admin' && staffNote !== (order.staffNote ?? '') ? staffNote || null : undefined,
       items: Object.entries(edits).map(([id, e]) => ({ id: Number(id), qty: e.qty, unitPrice: e.unitPrice, removed: e.removed, note: e.note })),
       addItems: added.filter((a) => a.nameKa.trim()).map((a) => ({ nameKa: a.nameKa.trim(), qty: a.qty, unitPrice: a.unitPrice, unit: a.unit })),
     };
@@ -297,6 +300,22 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
         {mode === 'admin' && <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.adminEdit}</p>}
         {closed && <p className="mt-2 text-xs text-warning">{t.partner.closed}</p>}
       </section>
+
+      {/*
+        The agent's own note. Checking that the furniture is still to be had, ringing the
+        customer about a substitution and agreeing what goes instead is most of the job, and
+        none of it is written anywhere until it is written here. Neither the customer nor the
+        partner ever sees it — the API strips it for both.
+      */}
+      {mode === 'admin' && (
+        <section className="border border-warning/40 bg-warning/5 p-5">
+          <label className="block">
+            <span className="eyebrow">{t.admin.ordersPage.staffNote}</span>
+            <Textarea value={staffNote} onChange={(e) => setStaffNote(e.target.value)} placeholder={t.admin.ordersPage.staffNotePlaceholder} rows={3} className="mt-2 bg-white" />
+          </label>
+          <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.staffNoteHint}</p>
+        </section>
+      )}
 
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/90 py-3 backdrop-blur-md">
         <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-ink">

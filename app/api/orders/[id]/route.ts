@@ -1,8 +1,9 @@
 import { auth } from '@/auth';
 import { API_ERRORS, fail, handle, ok, parseId, requirePartner } from '@/lib/api/route';
-import { applyOrderEdit, loadOrderView, partnerOwnsOrder } from '@/lib/finance/orders';
+import { applyOrderEdit, loadOrderView, partnerOwnsOrder, redactForPartner } from '@/lib/finance/orders';
 import type { OrderStatus } from '@/lib/finance/money';
 import { orderEditSchema } from '@/lib/validations/checkout.schema';
+import { canAdmin } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,13 +20,15 @@ export const GET = handle('GET /api/orders/[id]', 'Failed to load order', async 
 
   const user = session.user;
   const isCustomer = view.order.userId != null && view.order.userId === Number(user.id);
-  const isPartner = partnerOwnsOrder({ storeId: user.storeId, workerId: user.workerId }, view.order);
-  if (!isCustomer && !isPartner && user.role !== 'admin') return fail(API_ERRORS.FORBIDDEN, 403);
-  return ok(view);
+  const isPartner = partnerOwnsOrder({ storeId: user.storeId, workerId: user.workerId, teamId: user.teamId }, view.order);
+  const isStaff = canAdmin(user.role, 'orders');
+  if (!isCustomer && !isPartner && !isStaff) return fail(API_ERRORS.FORBIDDEN, 403);
+  return ok(isStaff ? view : redactForPartner(view));
 });
 
 /**
- * A partner adjusting their order — items, message, status — or admin overriding it.
+ * A partner adjusting their order — items, message, status — or the platform's own people
+ * (admin, or the agent who works the orders) overriding it.
  * A cancelled or done order is closed to partners; admin can still reopen it.
  */
 export const PUT = handle('PUT /api/orders/[id]', 'Failed to update order', async (req, { params }) => {
@@ -40,12 +43,16 @@ export const PUT = handle('PUT /api/orders/[id]', 'Failed to update order', asyn
   const view = await loadOrderView(id);
   if (!view) return fail(API_ERRORS.NOT_FOUND, 404);
   const user = partner.session.user;
-  const isAdmin = user.role === 'admin';
-  if (!isAdmin && !partnerOwnsOrder({ storeId: user.storeId, workerId: user.workerId }, view.order)) return fail(API_ERRORS.FORBIDDEN, 403);
+  // Admin and the orders agent both work every order and may reopen a closed one; the
+  // partner on the other end of it may not.
+  const isAdmin = canAdmin(user.role, 'orders');
+  if (!isAdmin && !partnerOwnsOrder({ storeId: user.storeId, workerId: user.workerId, teamId: user.teamId }, view.order)) return fail(API_ERRORS.FORBIDDEN, 403);
   if (!isAdmin && (view.order.status === 'cancelled' || view.order.status === 'done') && parsed.data.status !== 'in_progress' && parsed.data.status !== 'confirmed') {
     return fail(API_ERRORS.ORDER_CLOSED, 409);
   }
 
-  const updated = await applyOrderEdit(id, { ...parsed.data, status: parsed.data.status as OrderStatus | undefined });
-  return ok(updated);
+  // Only the platform's own people write the staff note, whatever was sent.
+  const { staffNote, ...edit } = parsed.data;
+  const updated = await applyOrderEdit(id, { ...edit, status: parsed.data.status as OrderStatus | undefined, ...(isAdmin ? { staffNote } : {}) });
+  return ok(isAdmin ? updated : updated && redactForPartner(updated));
 });

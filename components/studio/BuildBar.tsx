@@ -2,23 +2,24 @@
 
 /**
  * The studio's categories, the way a game's build mode does it: a narrow rail of tiles down
- * the left — build, furniture, electric & light, finishes, budget — with the rooms list
+ * the left — build, furniture, electric & light, technical, finishes, budget — with the rooms list
  * beside it, and, along the bottom of the canvas, the tray of the open category: its tools,
  * or the shelf of products or finishes. One category open at a time; clicking it again folds
  * the tray so the canvas gets the room back.
  */
 
-import { BrickWall, Cable, PaintBucket, Sofa, Wallet, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, PaintBucket, Sofa, Wallet, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import type { Dictionary } from '@/lib/i18n';
 
-export type StudioCategory = 'build' | 'furniture' | 'electric' | 'finishes' | 'budget';
+export type StudioCategory = 'build' | 'furniture' | 'electric' | 'technical' | 'finishes' | 'budget';
 
 const CATEGORIES: Array<{ id: StudioCategory; icon: LucideIcon; key: keyof Dictionary['build'] }> = [
   { id: 'build', icon: BrickWall, key: 'catBuild' },
   { id: 'furniture', icon: Sofa, key: 'catFurniture' },
   { id: 'electric', icon: Cable, key: 'catElectric' },
+  { id: 'technical', icon: Wrench, key: 'catTechnical' },
   { id: 'finishes', icon: PaintBucket, key: 'catFinishes' },
   { id: 'budget', icon: Wallet, key: 'catBudget' },
 ];

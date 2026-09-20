@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * The kept versions of the flat. Version 01 is the existing house and is never lost; the
- * working state is shown as the current version, and "save version" keeps a snapshot with
- * a name. Restoring one keeps the present first, so nothing is thrown away.
+ * The kept versions of the flat. Version 01 is the flat as the studio first found it —
+ * furniture, fittings and finishes included — and is never lost; the working state is shown
+ * as the current version, and "save version" keeps a snapshot with a name. Restoring one
+ * keeps the present first, so nothing is thrown away.
  */
 
 import { useState } from 'react';
@@ -63,7 +64,7 @@ export function VersionsPanel({ className }: { className?: string }) {
         ))}
         <li className="rounded-[12px] border border-dashed border-ink/40 bg-sand-light/60 p-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{String(nextNumber).padStart(2, '0')} · {t.build.versionCurrent}</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink">{versions.some((v) => v.kind === 'existing') ? t.build.versionModified : t.build.versionExisting}</p>
+          <p className="mt-0.5 text-sm font-semibold text-ink">{versions.some((v) => v.kind === 'existing') ? t.build.versionModified : t.build.versionStart}</p>
         </li>
       </ul>
       <div className="flex gap-2">

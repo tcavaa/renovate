@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatM2 } from '@/lib/utils';
-import { useDesignStore } from '@/store/designStore';
+import { useDesignStore, type DesignStoreHook } from '@/store/designStore';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
@@ -50,26 +50,35 @@ export interface PlanWorkspaceProps {
   showTotals?: boolean;
   /** Called when the pointer tool finished a one-shot action. */
   onToolDone?: () => void;
-  /** A refused drop (a window on a shared wall). */
-  onRefused?: () => void;
+  /** A refused drop, and why (`PlanEditor.onRefused`). */
+  onRefused?: (reason: 'opening' | 'overlap') => void;
   /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
-  paintScope?: 'cell' | 'strip' | null;
+  paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
   /** Only rooms and floor zones answer to the select tool (the studio's finishes). */
   roomsOnly?: boolean;
+  /**
+   * Which board to edit. The studio's by default; the calculator hands in its own
+   * (`useCalculatorPlanStore`) so the two flats never meet.
+   */
+  store?: DesignStoreHook;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, store = useDesignStore }: PlanWorkspaceProps) {
   const t = useT();
-  const plan = useDesignStore((s) => s.plan);
-  const planSerial = useDesignStore((s) => s.planSerial);
-  const items = useDesignStore((s) => s.items);
-  const electrical = useDesignStore((s) => s.electrical);
-  const finishes = useDesignStore((s) => s.finishes);
-  const selection = useDesignStore((s) => s.selectedElement);
-  const selectedItemId = useDesignStore((s) => s.selectedItemId);
-  const focusRoomId = useDesignStore((s) => s.focusRoomId);
-  const actions = useDesignStore();
+  // The hook comes in as a prop, but it is a module constant either way — the same store for
+  // the life of the component, so the rules of hooks hold.
+  const useStore = store;
+  const plan = useStore((s) => s.plan);
+  const planSerial = useStore((s) => s.planSerial);
+  const items = useStore((s) => s.items);
+  const electrical = useStore((s) => s.electrical);
+  const finishes = useStore((s) => s.finishes);
+  const selection = useStore((s) => s.selectedElement);
+  const selectedItemId = useStore((s) => s.selectedItemId);
+  const focusRoomId = useStore((s) => s.focusRoomId);
+  const selectedRoomIds = useStore((s) => s.selectedRoomIds);
+  const actions = useStore();
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
   const tool = controlledTool ?? innerTool;
@@ -95,7 +104,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   const fitKey = useMemo(() => `${planSerial}:${plan?.source ?? ''}:${plan?.imageUrl ?? ''}`, [planSerial, plan?.source, plan?.imageUrl]);
 
   const deleteSelected = useCallback(() => {
-    const s = useDesignStore.getState();
+    const s = useStore.getState();
     const sel = s.selectedElement;
     if (s.selectedItemId && !sel) {
       const item = s.items.find((i) => i.id === s.selectedItemId);
@@ -128,14 +137,16 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
         s.removeFinishZone(sel.roomId, sel.id);
         break;
       case 'room':
-        if (!locked) s.removeRoom(sel.id);
+        // A rubber band selection goes at once; a single pick is just itself.
+        if (!locked) for (const id of s.selectedRoomIds.includes(sel.id) ? s.selectedRoomIds : [sel.id]) s.removeRoom(id);
         break;
     }
     s.selectElement(null);
-  }, [locked]);
+    s.selectRooms([]);
+  }, [locked, useStore]);
 
-  const undo = useCallback(() => useDesignStore.getState().undo(), []);
-  const redo = useCallback(() => useDesignStore.getState().redo(), []);
+  const undo = useCallback(() => useStore.getState().undo(), [useStore]);
+  const redo = useCallback(() => useStore.getState().redo(), [useStore]);
 
   if (!plan) return null;
 
@@ -185,9 +196,12 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           locked={locked}
           selection={selection}
           selectedRoomId={focusRoomId}
+          selectedRoomIds={selectedRoomIds}
           selectedItemId={selectedItemId}
           onSelect={actions.selectElement}
           onSelectRoom={actions.setFocusRoom}
+          onSelectRooms={actions.selectRooms}
+          onMoveRooms={locked ? undefined : actions.moveRooms}
           onSelectItem={actions.selectItem}
           onAddWall={(a, b) => actions.addWall({ a, b, thicknessM })}
           onAddRectangle={(rect) => actions.addRectangleRoom(rect)}

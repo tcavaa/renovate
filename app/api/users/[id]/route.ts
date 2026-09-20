@@ -3,17 +3,20 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { USER_ROLES, type UserRole } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const updateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  role: z.enum(['user', 'admin', 'store', 'worker']).optional(),
+  role: z.enum(USER_ROLES as unknown as [string, ...string[]]).optional(),
   /** Which store a `store` account manages; cleared automatically for other roles. */
   storeId: z.number().int().positive().nullable().optional(),
   /** Which worker profile a `worker` account manages. */
   workerId: z.number().int().positive().nullable().optional(),
+  /** Which team a `team` account speaks for. */
+  teamId: z.number().int().positive().nullable().optional(),
 });
 
 export const GET = handle('GET /api/users/[id]', 'Failed to load user', async (_req, { params }) => {
@@ -56,9 +59,10 @@ export const PUT = handle('PUT /api/users/[id]', 'Failed to update user', async 
 
   // A partner link only makes sense with the matching role; anything else is cleared so a
   // demoted account does not keep a door into the portal.
-  const patch = { ...parsed.data };
+  const patch = { ...parsed.data, role: parsed.data.role as UserRole | undefined };
   if (patch.role && patch.role !== 'store') patch.storeId = null;
   if (patch.role && patch.role !== 'worker') patch.workerId = null;
+  if (patch.role && patch.role !== 'team') patch.teamId = null;
   await db.update(users).set(patch).where(eq(users.id, id));
   return ok({ id });
 });
