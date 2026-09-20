@@ -1761,6 +1761,7 @@ export const en: Dictionary = {
     lcIndirect: 'Indirect',
     lcDecorative: 'Decorative',
     standardHeightHint: 'Standard height: {n} cm — change it as you need',
+    acHeightHint: 'An air conditioner hangs {gap} cm below the ceiling — {n} cm in this room. Change it as you need.',
     technicalTitle: 'Technical setup',
     technicalSubtitle: 'Where the water, sewer, electricity and heating are (or will be) — before the 3D is built',
     technicalPointsTitle: 'Points on the plan',

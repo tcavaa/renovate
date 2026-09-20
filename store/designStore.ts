@@ -53,7 +53,7 @@ import {
 } from '@/lib/design/walls';
 import { fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
-import { technicalAnchors, TECHNICAL_KINDS } from '@/lib/design/technical';
+import { technicalAnchors, technicalElevation, TECHNICAL_KINDS } from '@/lib/design/technical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
@@ -627,13 +627,36 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           commit((s) => {
             if (!s.plan) return null;
             const room = roomId ? s.plan.rooms.find((r) => r.id === roomId) : s.plan.rooms.find((r) => pointInPolygon(position, r.polygon));
-            const point: TechnicalPoint = { id, kind, roomId: room?.id ?? null, position, elevationM: TECHNICAL_KINDS[kind].defaultElevationM, origin: 'user' };
+            // An air conditioner hangs from the ceiling down, so its height is the room's.
+            const point: TechnicalPoint = { id, kind, roomId: room?.id ?? null, position, elevationM: technicalElevation(kind, room), origin: 'user' };
             return { plan: { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), point], works: s.plan.technical?.works } } };
           });
           return id;
         },
         updateTechnicalPoint: (id, patch) =>
-          commit((s) => (s.plan?.technical ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical.points.map((p) => (p.id === id ? { ...p, ...patch } : p)) } } } : null)),
+          commit((s) => {
+            if (!s.plan?.technical) return null;
+            const plan = s.plan;
+            return {
+              plan: {
+                ...plan,
+                technical: {
+                  ...plan.technical!,
+                  points: plan.technical!.points.map((p) => {
+                    if (p.id !== id) return p;
+                    const next = { ...p, ...patch };
+                    // Re-kinding takes the new kind's usual height unless one was asked for
+                    // in the same breath — otherwise a socket turned into an air
+                    // conditioner stayed at 45 cm off the floor.
+                    if (patch.kind && patch.kind !== p.kind && patch.elevationM === undefined) {
+                      next.elevationM = technicalElevation(patch.kind, plan.rooms.find((r) => r.id === p.roomId));
+                    }
+                    return next;
+                  }),
+                },
+              },
+            };
+          }),
         removeTechnicalPoint: (id) =>
           commit((s) => (s.plan?.technical ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical.points.filter((p) => p.id !== id) } } } : null)),
         setRadiatorProduct: (id, product) =>

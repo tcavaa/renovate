@@ -14,7 +14,7 @@
 import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges } from './planGeometry';
-import { closestOnSegment } from './walls';
+import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
@@ -42,6 +42,39 @@ export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
 };
 
 export const TECHNICAL_KIND_LIST = Object.keys(TECHNICAL_KINDS) as TechnicalKind[];
+
+/**
+ * A wall split unit's own height — what hangs below the bracket.
+ */
+export const AC_UNIT_HEIGHT_M = 0.3;
+/**
+ * How much room is left above it. A split unit draws its air in through the top, so it is
+ * hung a hand's width under the ceiling — 15 to 20 cm is the fitter's rule, and this is the
+ * middle of it. Any lower and it blows along the ceiling badly; any higher and it starves.
+ */
+export const AC_CEILING_GAP_M = 0.18;
+/** However low the ceiling, the unit does not come down to head height. */
+export const AC_MIN_ELEVATION_M = 1.8;
+
+/**
+ * Where a point of this kind sits above the floor in *this* room.
+ *
+ * Every other kind has one usual height — a socket is a socket whatever the ceiling. An air
+ * conditioner is the exception: it is hung from the ceiling down, not from the floor up, so
+ * in a 3.2 m room it belongs 40 cm higher than in a 2.8 m one. The number is the bottom of
+ * the unit, which is what the 3D view and the inspector both read, and the person can
+ * change it afterwards like any other height.
+ */
+export function technicalElevation(kind: TechnicalKind, room?: { heightM?: number } | null): number {
+  const info = TECHNICAL_KINDS[kind];
+  if (kind !== 'ac_unit') return info.defaultElevationM;
+  const ceiling = room?.heightM ?? DEFAULT_WALL_HEIGHT_M;
+  return round2(Math.max(AC_MIN_ELEVATION_M, ceiling - AC_CEILING_GAP_M - AC_UNIT_HEIGHT_M));
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 /** The works a renovation may need, in the order they happen; `phase` is the calculator's phase number. */
 export interface WorkItem {

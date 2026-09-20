@@ -17,7 +17,7 @@ import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { roomEdges } from '@/lib/design/planGeometry';
 import { WALL_THICKNESS_OPTIONS_M, wallLength } from '@/lib/design/walls';
-import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
+import { AC_CEILING_GAP_M, TECHNICAL_KIND_LIST, technicalElevation } from '@/lib/design/technical';
 import { ELECTRICAL_KINDS, ELECTRICAL_KIND_LIST, LIGHT_CATEGORIES, isLight } from '@/lib/design/electrical';
 import { zoneAreaM2 } from '@/lib/design/zones';
 import { isAutoRoomName, nextRoomName } from '@/lib/design/planGeometry';
@@ -230,7 +230,17 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
             })}
           </div>
         </Field>
-        <NumberField label={`${t.build.elevation} (${t.units.m})`} value={point.elevationM ?? 0} min={0} max={4} step={0.05} onCommit={(v) => actions.updateTechnical(point.id, { elevationM: v })} />
+        <NumberField label={`${t.build.elevation} (${t.units.m})`} value={point.elevationM ?? 0} min={0} max={Math.max(4, room?.heightM ?? 0)} step={0.05} onCommit={(v) => actions.updateTechnical(point.id, { elevationM: v })} />
+        {/*
+          An air conditioner is measured from the ceiling down, not from the floor up, so
+          its suggested height is the room's, and saying so explains a number that would
+          otherwise look arbitrary. Everything else has one usual height.
+        */}
+        <p className="-mt-1 text-[11px] text-ink-muted">
+          {point.kind === 'ac_unit'
+            ? fill(t.build.acHeightHint, { gap: Math.round(AC_CEILING_GAP_M * 100), n: Math.round(technicalElevation('ac_unit', room) * 100) })
+            : fill(t.build.standardHeightHint, { n: Math.round(technicalElevation(point.kind, room) * 100) })}
+        </p>
         {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         <Field label={t.build.note}>
           <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm" />
