@@ -109,8 +109,11 @@ export interface PlanEditorProps {
   onMoveItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
   /** Delete or Backspace with something selected. */
   onDelete?: () => void;
-  /** A drop the plan would not accept (a window on a shared wall). */
-  onRefused?: () => void;
+  /**
+   * A drop the plan would not accept, and why: `opening` — a window on a shared wall, a
+   * door with no wall to go on; `overlap` — a room drawn on top of a room.
+   */
+  onRefused?: (reason: 'opening' | 'overlap') => void;
   /** A one-shot tool finished (a column placed): the page may go back to select. */
   onToolDone?: () => void;
   /** Ctrl+Z / Ctrl+Y (Cmd on a Mac) while the board has the keyboard; undone by the page. */
@@ -817,7 +820,7 @@ export function PlanEditor(props: PlanEditorProps) {
         const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
         const tt = projectToEdge(target.edge, world, widthM);
         const id = callbacks.current.onAddOpening?.(tool, { roomId: target.room.id, wallIndex: target.edge.index, t: tt }) ?? null;
-        if (id === null) callbacks.current.onRefused?.();
+        if (id === null) callbacks.current.onRefused?.('opening');
         else {
           edited.current = true;
           callbacks.current.onSelect({ kind: 'opening', id, roomId: target.room.id });
@@ -847,7 +850,7 @@ export function PlanEditor(props: PlanEditorProps) {
       case 'electrical': {
         const room = roomAt(world);
         if (!room) {
-          callbacks.current.onRefused?.();
+          callbacks.current.onRefused?.('opening');
           return;
         }
         edited.current = true;
@@ -1072,7 +1075,7 @@ export function PlanEditor(props: PlanEditorProps) {
             const snapped = gesture.snapped ?? snapRectangle(rect, walls, wallThicknessM, SNAP_PX * perPx() * 1.5).rect;
             // Rooms do not lie on top of each other: the wall graph would trace the
             // crossings as slivers and nothing could be pulled apart again.
-            if (roomUnderRect(snapped, plan.rooms)) callbacks.current.onRefused?.();
+            if (roomUnderRect(snapped, plan.rooms)) callbacks.current.onRefused?.('overlap');
             else callbacks.current.onAddRectangle?.(snapped);
           } else if (tool === 'zone' && gesture.roomId) {
             callbacks.current.onAddZone?.(gesture.roomId, rect);
@@ -1098,7 +1101,7 @@ export function PlanEditor(props: PlanEditorProps) {
           }
         } else {
           const id = callbacks.current.onMoveOpeningToWall?.(gesture.room.id, gesture.opening.id, { roomId: room.id, wallIndex: edge.index, t: tt }) ?? null;
-          if (id === null) callbacks.current.onRefused?.();
+          if (id === null) callbacks.current.onRefused?.('opening');
           else callbacks.current.onSelect({ kind: 'opening', id, roomId: room.id });
         }
         break;

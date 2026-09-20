@@ -1483,6 +1483,7 @@ export const ru: Dictionary = {
     openingsHint: 'Перетащите дверь или окно вдоль стены · настройки слева',
     noOpenings: 'В этой комнате нет дверей и окон',
     openingRefused: 'На эту стену добавить нельзя',
+    roomOverlapRefused: 'Комнату нельзя рисовать поверх другой — поставьте рядом',
     addFurniture: 'Добавить мебель',
     searchFurniture: 'Поиск: название, магазин…',
     allKinds: 'Все типы',

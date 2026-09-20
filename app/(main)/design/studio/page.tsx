@@ -762,7 +762,7 @@ export default function StudioPage() {
                 layers={{ furniture: true, dimensions: category === 'build' }}
                 height="100%"
                 className="h-full"
-                onRefused={() => setRefused(t.design.openingRefused)}
+                onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
               />
             </div>
           ) : (

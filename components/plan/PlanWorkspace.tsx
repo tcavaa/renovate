@@ -50,8 +50,8 @@ export interface PlanWorkspaceProps {
   showTotals?: boolean;
   /** Called when the pointer tool finished a one-shot action. */
   onToolDone?: () => void;
-  /** A refused drop (a window on a shared wall). */
-  onRefused?: () => void;
+  /** A refused drop, and why (`PlanEditor.onRefused`). */
+  onRefused?: (reason: 'opening' | 'overlap') => void;
   /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
   paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;

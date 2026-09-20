@@ -34,11 +34,11 @@ export default function ExistingHousePage() {
   const homeState = useDesignStore((s) => s.homeState);
   const mode = useDesignStore((s) => s.mode);
   const actions = useDesignStore();
-  const [refused, setRefused] = useState(false);
+  const [refused, setRefused] = useState<string | null>(null);
 
   useEffect(() => {
     if (!refused) return;
-    const handle = window.setTimeout(() => setRefused(false), 2200);
+    const handle = window.setTimeout(() => setRefused(null), 2200);
     return () => window.clearTimeout(handle);
   }, [refused]);
 
@@ -112,10 +112,10 @@ export default function ExistingHousePage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="relative min-w-0">
-            <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']} layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']} height="calc(100vh - 260px)" onRefused={() => setRefused(true)} />
+            <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']} layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']} height="calc(100vh - 260px)" onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)} />
             {refused && (
               <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
-                {t.design.openingRefused}
+                {refused}
               </p>
             )}
           </div>
@@ -133,7 +133,7 @@ export default function ExistingHousePage() {
                 addOpening: (roomId, kind, wallIndex) => {
                   const id = actions.addOpening(roomId, kind, wallIndex);
                   if (id) actions.selectElement({ kind: 'opening', id, roomId });
-                  else setRefused(true);
+                  else setRefused(t.design.openingRefused);
                 },
                 updateColumn: actions.updateColumn,
                 removeColumn: actions.removeColumn,

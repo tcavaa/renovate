@@ -1485,6 +1485,7 @@ export const en: Dictionary = {
     openingsHint: 'Drag a door or window along its wall · settings on the left',
     noOpenings: 'No doors or windows in this room',
     openingRefused: 'Cannot be added on this wall',
+    roomOverlapRefused: 'A room cannot be drawn over another — move it beside it',
     addFurniture: 'Add furniture',
     searchFurniture: 'Search: name, store…',
     allKinds: 'All types',

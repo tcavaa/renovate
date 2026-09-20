@@ -677,7 +677,13 @@ export function simplifyPolygon(polygon: Vec2[]): Vec2[] {
  * names, doors and windows. A plan that already has walls comes back as it is.
  */
 export function ensureWalls(plan: FloorPlan): FloorPlan {
-  if (plan.walls && plan.walls.length > 0) return withAlignedTwins(plan);
+  if (plan.walls && plan.walls.length > 0) {
+    // A plan drawn before walls were cut at their junctions carries one wall under four
+    // rooms; this is the hook every plan taken in passes through, so it is put right here
+    // rather than waiting for the first edit.
+    const cut = splitAtJunctions(plan.walls);
+    return withAlignedTwins(cut.length === plan.walls.length ? plan : rebuildRooms(plan, cut));
+  }
   if (plan.rooms.length === 0) return { ...plan, walls: [] };
   const walls = wallsFromRooms(plan.rooms, plan.wallThicknessM, plan.source === 'manual' ? 'user' : 'existing');
   const rooms = roomsFromWalls(walls, { previous: plan.rooms, defaultHeightM: plan.wallHeightM, defaultThicknessM: plan.wallThicknessM });
