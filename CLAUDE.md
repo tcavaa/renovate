@@ -115,7 +115,7 @@ app/
       style/                       4 style test (StyleQuiz) or a direct pick, budget, generate
       studio/                      5 the 3D studio (build mode); 6 = the same page with ?tool=finishes
       summary/                     7 the budget: materials + products + labour, quantities per line
-      workers/                     8 the trades the budget needs, with workers to book
+      workers/                     8 the trades the budget needs, and the brigades that cover them
     catalog/[slug]  workers/  teams/  teams/[slug]  about/  contact/  profile/  privacy/  terms/
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
