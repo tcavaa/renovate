@@ -153,9 +153,16 @@ export function calculatorLinesByStore(
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
   const roomName = new Map(rooms.map((r) => [r.id, r.nameKa]));
   // A finish picked for one room names that room on the order line, like furniture does.
-  for (const p of Object.values(selectedProducts)) push(result, storeOf(p.productId), line(p, p.roomId ? roomName.get(p.roomId) ?? null : null));
+  // A pick ticked off the order on the summary is not ordered at all.
+  for (const p of Object.values(selectedProducts)) {
+    if (p.excluded) continue;
+    push(result, storeOf(p.productId), line(p, p.roomId ? roomName.get(p.roomId) ?? null : null));
+  }
   for (const [roomId, list] of Object.entries(selectedFurniture)) {
-    for (const p of list) push(result, storeOf(p.productId), line(p, roomName.get(roomId) ?? null));
+    for (const p of list) {
+      if (p.excluded) continue;
+      push(result, storeOf(p.productId), line(p, roomName.get(roomId) ?? null));
+    }
   }
   return result;
 }

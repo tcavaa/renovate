@@ -20,9 +20,10 @@ export interface FlowStep {
  * been made and the things that fed it cannot be changed under it any more. "Start again"
  * sits at the end, because closing a step has to leave a way out of it.
  *
- * Shared by the calculator and the design studio.
+ * Shared by the calculator and the design studio, which shut a step for different reasons —
+ * hence `lockedTitle`; the default says it was the 3D design.
  */
-export function StepStrip({ steps, current, lockedBefore = 0, kind }: { steps: FlowStep[]; current: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Which journey "start again" empties. */ kind?: FlowKind }) {
+export function StepStrip({ steps, current, lockedBefore = 0, kind, lockedTitle }: { steps: FlowStep[]; current: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Which journey "start again" empties. */ kind?: FlowKind; /** Why those steps are shut. */ lockedTitle?: string }) {
   const t = useT();
   return (
     <nav aria-label="steps" className="border-b border-line bg-bg-base">
@@ -76,7 +77,7 @@ export function StepStrip({ steps, current, lockedBefore = 0, kind }: { steps: F
                   {inner}
                 </Link>
               ) : (
-                <div className={cell} title={status === 'locked' ? t.flow.lockedStep : undefined}>
+                <div className={cell} title={status === 'locked' ? lockedTitle ?? t.flow.lockedStep : undefined}>
                   {inner}
                 </div>
               )}

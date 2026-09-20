@@ -21,9 +21,13 @@ export function calculatorCheckoutPart(
     totalM2: rooms.reduce((s, r) => s + r.floorM2, 0),
     feePerM2,
     lines: [
-      ...Object.values(selectedProducts).map((p, i) => ({ key: `m-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: p.roomId ? roomName.get(p.roomId) ?? null : null })),
+      ...Object.values(selectedProducts)
+        .filter((p) => !p.excluded)
+        .map((p, i) => ({ key: `m-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: p.roomId ? roomName.get(p.roomId) ?? null : null })),
       ...Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
-        list.map((p, i) => ({ key: `f-${roomId}-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: roomName.get(roomId) ?? null }))
+        list
+          .filter((p) => !p.excluded)
+          .map((p, i) => ({ key: `f-${roomId}-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: roomName.get(roomId) ?? null }))
       ),
     ],
   };

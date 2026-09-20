@@ -34,7 +34,7 @@ type PlanMode = 'upload' | 'draw';
 export default function CalculatorStep1Page() {
   const router = useRouter();
   const t = useT();
-  const { homeState, rooms, setHomeState, replaceRooms } = useCalculatorStore();
+  const { homeState, rooms, setHomeState, replaceRooms, setCalculated } = useCalculatorStore();
   const plan = useCalculatorPlan();
   const setPlan = useCalculatorPlanStore((s) => s.setPlan);
   const floorPlanUrl = useCalculatorPlanStore((s) => s.floorPlanUrl);
@@ -65,6 +65,9 @@ export default function CalculatorStep1Page() {
       document.getElementById('home-state-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
+    // From here the flat and its condition are settled: everything after is quantified from
+    // them, so step 1 closes behind us.
+    setCalculated();
     router.push('/calculator/materials');
   };
 

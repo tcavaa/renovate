@@ -1067,7 +1067,12 @@ function createDesignStore(storageName: string) {
         },
 
         beginAdd: (product, roomId) => {
-          const { plan, items } = get();
+          const { plan, carryingItemId } = get();
+          // Whatever is still riding on the pointer goes back: choosing a second tile off the
+          // shelf is changing your mind about the first, not asking for both. Without this
+          // the abandoned piece stayed wherever the automatic spot had put it, which looked
+          // exactly like the shelf placing furniture by itself.
+          const items = carryingItemId ? get().items.filter((i) => i.id !== carryingItemId) : get().items;
           const kind = product.model3dKind;
           const archetype = kind ? getArchetype(kind) : undefined;
           if (!plan || !kind || !archetype || !product.model3dUrl) return null;

@@ -60,6 +60,12 @@ export interface SelectedProduct {
   categorySlug?: string;
   /** Set when the product was chosen for one room (a finish), not for the whole flat. */
   roomId?: string;
+  /**
+   * Ticked off the order on the summary: still part of the estimate — it is what the work
+   * costs — but not something the person is buying through the platform. The budget, the
+   * baskets and the checkout all leave it out.
+   */
+  excluded?: boolean;
 }
 
 export interface CalculatorState {
