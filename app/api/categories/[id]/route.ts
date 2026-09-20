@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products } from '@/lib/db/schema';
 import { categorySchema } from '@/lib/validations/category.schema';
-import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok, parseId, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,7 @@ export const GET = handle('GET /api/categories/[id]', 'Failed to load category',
 });
 
 export const PUT = handle('PUT /api/categories/[id]', 'Failed to update category', async (req, { params }) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('categories');
   if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;
@@ -33,7 +33,7 @@ export const PUT = handle('PUT /api/categories/[id]', 'Failed to update category
 });
 
 export const DELETE = handle('DELETE /api/categories/[id]', 'Failed to delete category', async (_req, { params }) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('categories');
   if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;

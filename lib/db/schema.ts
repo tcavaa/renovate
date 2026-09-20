@@ -8,6 +8,7 @@ import {
   timestamp,
   mysqlEnum,
   index,
+  type AnyMySqlColumn,
 } from 'drizzle-orm/mysql-core';
 import { json } from './json';
 
@@ -16,12 +17,18 @@ export const users = mysqlTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: varchar('password_hash', { length: 255 }),
-  /** `store` and `worker` are partner accounts: they see the partner portal, not the admin. */
-  role: mysqlEnum('role', ['user', 'admin', 'store', 'worker']).default('user').notNull(),
+  /**
+   * `store`, `worker` and `team` are partner accounts: they see the partner portal, not the
+   * admin. `agent_orders` and `agent_catalog` are staff — they see the admin, each with the
+   * part of it their job needs (`lib/auth/roles.ts`).
+   */
+  role: mysqlEnum('role', ['user', 'admin', 'agent_orders', 'agent_catalog', 'store', 'worker', 'team']).default('user').notNull(),
   /** The store a `store` account manages — its orders, its products. */
   storeId: int('store_id').references(() => stores.id, { onDelete: 'set null' }),
   /** The worker profile a `worker` account manages. */
   workerId: int('worker_id').references(() => workers.id, { onDelete: 'set null' }),
+  /** The team a `team` account speaks for — its foreman. */
+  teamId: int('team_id').references((): AnyMySqlColumn => teams.id, { onDelete: 'set null' }),
   /** Set when the address was confirmed by link (or came from Google, which already did). */
   emailVerifiedAt: timestamp('email_verified_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -211,6 +218,62 @@ export const workers = mysqlTable('workers', {
 }));
 
 /** A client's review of a worker; `workers.rating` / `reviewCount` are kept as aggregates. */
+/**
+ * A brigade — ბრიგადა — the unit a Georgian renovation is actually hired as.
+ *
+ * Nobody books a tiler, then an electrician, then a plasterer and hopes the dates line up:
+ * they hire a team that already has all of them and a foreman who answers the phone. A team
+ * is therefore the partner a whole job is sent to, beside the stores that supply it, and the
+ * trades it covers come from the workers in it (`team_members`).
+ */
+export const teams = mysqlTable('teams', {
+  id: int('id').primaryKey().autoincrement(),
+  nameKa: varchar('name_ka', { length: 255 }).notNull(),
+  nameEn: varchar('name_en', { length: 255 }),
+  nameRu: varchar('name_ru', { length: 255 }),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  descriptionKa: text('description_ka'),
+  descriptionEn: text('description_en'),
+  descriptionRu: text('description_ru'),
+  /** The foreman — who the customer talks to. */
+  leadName: varchar('lead_name', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  /** Where a job sent to the team is announced. */
+  email: varchar('email', { length: 255 }),
+  logoUrl: varchar('logo_url', { length: 500 }),
+  city: varchar('city', { length: 100 }),
+  rating: decimal('rating', { precision: 3, scale: 2 }).default('5.00'),
+  reviewCount: int('review_count').default(0),
+  completedJobs: int('completed_jobs').default(0),
+  experienceYears: int('experience_years'),
+  /** What the team charges over the trades' own rates, percent; null = nothing. */
+  markupPct: decimal('markup_pct', { precision: 5, scale: 2 }),
+  /** Platform commission on this team's jobs, percent. Null = the platform default. */
+  commissionRate: decimal('commission_rate', { precision: 5, scale: 2 }).default('5.00'),
+  /** How much work the team can take on at once; the directory says who is free. */
+  capacityJobs: int('capacity_jobs').default(1),
+  isVerified: boolean('is_verified').default(false).notNull(),
+  /** Self-registered teams wait here (`pending`, inactive) until admin approves them. */
+  approvalStatus: mysqlEnum('approval_status', ['pending', 'approved', 'rejected']).default('approved').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  activeCityIdx: index('teams_active_city_idx').on(t.isActive, t.city),
+}));
+
+/** Which workers a team is made of; the trades it covers are theirs. */
+export const teamMembers = mysqlTable('team_members', {
+  id: int('id').primaryKey().autoincrement(),
+  teamId: int('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  workerId: int('worker_id').notNull().references(() => workers.id, { onDelete: 'cascade' }),
+  /** The foreman, who answers for the job. */
+  isLead: boolean('is_lead').default(false).notNull(),
+  sortOrder: int('sort_order').default(0).notNull(),
+}, (t) => ({
+  teamIdx: index('team_members_team_idx').on(t.teamId),
+  workerIdx: index('team_members_worker_idx').on(t.workerId),
+}));
+
 export const workerReviews = mysqlTable('worker_reviews', {
   id: int('id').primaryKey().autoincrement(),
   workerId: int('worker_id').notNull().references(() => workers.id, { onDelete: 'cascade' }),
@@ -361,9 +424,10 @@ export const orders = mysqlTable('orders', {
   checkoutId: int('checkout_id').references(() => checkouts.id, { onDelete: 'set null' }),
   projectId: int('project_id').references(() => projects.id, { onDelete: 'set null' }),
   userId: int('user_id').references(() => users.id, { onDelete: 'set null' }),
-  partnerType: mysqlEnum('partner_type', ['store', 'worker']).notNull(),
+  partnerType: mysqlEnum('partner_type', ['store', 'worker', 'team']).notNull(),
   storeId: int('store_id').references(() => stores.id, { onDelete: 'set null' }),
   workerId: int('worker_id').references(() => workers.id, { onDelete: 'set null' }),
+  teamId: int('team_id').references(() => teams.id, { onDelete: 'set null' }),
   status: mysqlEnum('status', ['new', 'confirmed', 'in_progress', 'done', 'cancelled']).default('new').notNull(),
   subtotal: decimal('subtotal', { precision: 12, scale: 2 }).default('0.00').notNull(),
   deliveryFee: decimal('delivery_fee', { precision: 10, scale: 2 }).default('0.00').notNull(),
@@ -376,6 +440,11 @@ export const orders = mysqlTable('orders', {
   customerNote: text('customer_note'),
   /** What the partner wrote back — delivery date, a substitution, a question. */
   partnerMessage: text('partner_message'),
+  /**
+   * The agent's own note: what they checked, who they rang, what they changed and why. It
+   * belongs to the platform, not to the customer or the partner, and neither of them sees it.
+   */
+  staffNote: text('staff_note'),
   /** First time the partner opened it; null = unread badge. */
   viewedAt: timestamp('viewed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -383,6 +452,7 @@ export const orders = mysqlTable('orders', {
 }, (t) => ({
   storeCreatedIdx: index('orders_store_created_idx').on(t.storeId, t.createdAt),
   workerCreatedIdx: index('orders_worker_created_idx').on(t.workerId, t.createdAt),
+  teamCreatedIdx: index('orders_team_created_idx').on(t.teamId, t.createdAt),
   statusIdx: index('orders_status_idx').on(t.status),
   createdIdx: index('orders_created_idx').on(t.createdAt),
 }));
@@ -437,3 +507,6 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
 export type OrderStatus = Order['status'];
 export type UserRole = User['role'];
+export type Team = typeof teams.$inferSelect;
+export type NewTeam = typeof teams.$inferInsert;
+export type TeamMember = typeof teamMembers.$inferSelect;

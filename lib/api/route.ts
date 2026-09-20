@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { log } from '@/lib/log';
+import { canAdmin, isPartnerRole, type AdminSection } from '@/lib/auth/roles';
 
 /**
  * The small vocabulary every route handler shares.
@@ -58,6 +59,22 @@ export async function requireAdmin() {
   return { session, response: null };
 }
 
+/**
+ * Admin, or an agent whose job covers this part of the admin (`lib/auth/roles`). Everything
+ * the platform's own people do goes through here, so a route says which section it belongs
+ * to rather than naming the roles that may reach it.
+ */
+export async function requireStaff(section: AdminSection) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
+  }
+  if (!canAdmin(session.user.role, section)) {
+    return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
+  }
+  return { session, response: null };
+}
+
 /** Any signed-in session, otherwise a ready 401. */
 export async function requireSession() {
   const session = await auth();
@@ -77,12 +94,14 @@ export async function requirePartner() {
   if (!session?.user?.id) {
     return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
   }
-  const { role, storeId, workerId } = session.user;
-  if (role === 'admin') return { session, response: null };
-  if (role !== 'store' && role !== 'worker') {
+  const { role, storeId, workerId, teamId } = session.user;
+  // An orders agent works every order, so the portal's routes admit them too.
+  if (role === 'admin' || role === 'agent_orders') return { session, response: null };
+  if (!isPartnerRole(role)) {
     return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
   }
-  if ((role === 'store' && !storeId) || (role === 'worker' && !workerId)) {
+  const link = { store: storeId, worker: workerId, team: teamId }[role];
+  if (!link) {
     return { session: null, response: fail(API_ERRORS.PARTNER_NOT_LINKED, 403) };
   }
   return { session, response: null };
@@ -97,7 +116,7 @@ export async function requireCatalogEditor() {
   if (!session?.user?.id) {
     return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
   }
-  if (session.user.role === 'admin') return { session, response: null };
+  if (canAdmin(session.user.role, 'products')) return { session, response: null };
   if (session.user.role === 'store' && session.user.storeId) return { session, response: null };
   if (session.user.role === 'store') return { session: null, response: fail(API_ERRORS.PARTNER_NOT_LINKED, 403) };
   return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
@@ -109,8 +128,8 @@ export async function requireUploader() {
   if (!session?.user?.id) {
     return { session: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
   }
-  const { role, storeId, workerId } = session.user;
-  if (role === 'admin' || (role === 'store' && storeId) || (role === 'worker' && workerId)) return { session, response: null };
+  const { role, storeId, workerId, teamId } = session.user;
+  if (canAdmin(role, 'products') || (role === 'store' && storeId) || (role === 'worker' && workerId) || (role === 'team' && teamId)) return { session, response: null };
   return { session: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
 }
 

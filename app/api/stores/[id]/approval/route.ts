@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { stores } from '@/lib/db/schema';
 import { approvalDecisionSchema } from '@/lib/validations/partner.schema';
-import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok, parseId, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * appear in the catalogue and the studio; rejecting keeps it switched off.
  */
 export const POST = handle('POST /api/stores/[id]/approval', 'Failed to update store', async (req, { params }) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('stores');
   if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;

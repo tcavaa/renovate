@@ -33,6 +33,7 @@
     "models:photos": "tsx scripts/model-photos.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",
+    "db:seed:teams": "tsx scripts/seed-teams.ts",
     "db:seed:workers": "tsx scripts/seed-workers.ts",
     "db:seed:partners": "tsx scripts/seed-partners.ts",
     "db:indexes": "tsx scripts/db-indexes.ts",

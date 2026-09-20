@@ -1,15 +1,21 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AdminSidebar } from '@/components/layout/AdminSidebar';
+import { canOpenAdmin } from '@/lib/auth/roles';
 import { getT } from '@/lib/i18n/server';
 
 export const metadata = { title: 'Admin' };
 
+/**
+ * The admin shell. Admin sees all of it; an agent sees the sections their job covers and the
+ * sidebar shows only those (`lib/auth/roles`). Each page guards itself as well — the sidebar
+ * is navigation, not a lock.
+ */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   const ka = await getT();
   if (!session?.user) redirect('/login?callbackUrl=/admin');
-  if (session.user.role !== 'admin') {
+  if (!canOpenAdmin(session.user.role)) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="rounded-lg border border-line bg-bg-surface p-8 text-center">

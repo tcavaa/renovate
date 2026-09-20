@@ -5,9 +5,10 @@ import { canOpenPartnerPortal, type UserRole } from '@/lib/auth/roles';
  * The part of the auth setup that runs in the proxy (edge-safe: no database). The role and
  * the partner link are copied from the user row into the JWT at sign-in and from the JWT
  * into the session on every request, so pages and routes read `session.user.role`,
- * `session.user.storeId` and `session.user.workerId` without touching the database.
+ * `session.user.storeId`, `session.user.workerId` and `session.user.teamId` without
+ * touching the database.
  */
-type SignedInUser = { id: string; role?: UserRole; storeId?: number | null; workerId?: number | null };
+type SignedInUser = { id: string; role?: UserRole; storeId?: number | null; workerId?: number | null; teamId?: number | null };
 
 export const authConfig = {
   session: { strategy: 'jwt' },
@@ -23,6 +24,7 @@ export const authConfig = {
         token.role = u.role ?? 'user';
         token.storeId = u.storeId ?? null;
         token.workerId = u.workerId ?? null;
+        token.teamId = u.teamId ?? null;
       }
       return token;
     },
@@ -32,6 +34,7 @@ export const authConfig = {
         session.user.role = (token.role as UserRole | undefined) ?? 'user';
         session.user.storeId = (token.storeId as number | null | undefined) ?? null;
         session.user.workerId = (token.workerId as number | null | undefined) ?? null;
+        session.user.teamId = (token.teamId as number | null | undefined) ?? null;
       }
       return session;
     },

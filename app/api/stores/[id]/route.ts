@@ -2,7 +2,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { storeSchema, toStoreRow } from '@/lib/validations/store.schema';
-import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok, parseId, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,7 @@ export const GET = handle('GET /api/stores/[id]', 'Failed to load store', async 
 });
 
 export const PUT = handle('PUT /api/stores/[id]', 'Failed to update store', async (req, { params }) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('stores');
   if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;
@@ -33,7 +33,7 @@ export const PUT = handle('PUT /api/stores/[id]', 'Failed to update store', asyn
 });
 
 export const DELETE = handle('DELETE /api/stores/[id]', 'Failed to delete store', async (_req, { params }) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('stores');
   if (admin.response) return admin.response;
   const { id, response } = parseId(params.id);
   if (response) return response;

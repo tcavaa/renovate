@@ -2,7 +2,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
 import { categorySchema } from '@/lib/validations/category.schema';
-import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
+import { fail, handle, ok, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 
 export const runtime = 'nodejs';
@@ -25,7 +25,7 @@ export const GET = handle('GET /api/categories', 'Failed to load categories', as
 });
 
 export const POST = handle('POST /api/categories', 'Failed to create category', async (req) => {
-  const admin = await requireAdmin();
+  const admin = await requireStaff('categories');
   if (admin.response) return admin.response;
 
   const parsed = categorySchema.safeParse(await req.json());

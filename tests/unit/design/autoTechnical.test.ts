@@ -42,7 +42,7 @@ describe('placing the technical points by the rules', () => {
 
   it('brings the water to the wall behind the fixture it serves', () => {
     const plan = planOf([room('bath', 'bathroom', 0, 0, 3, 2)]);
-    const sink: PlacedItem = { id: 'i1', kind: 'sink', roomId: 'bath', position: P(2.6, 1), rotation: 0, size: { width: 0.6, depth: 0.45, height: 0.85 }, elevationM: 0, product: null, origin: 'style' };
+    const sink: PlacedItem = { id: 'i1', slot: 'sink', kind: 'sink', roomId: 'bath', position: P(2.6, 1), rotation: 0, size: { width: 0.6, depth: 0.45, height: 0.85 }, elevationM: 0, product: null, origin: 'style' };
     const { points } = suggestTechnical(plan, [sink], ids);
     const water = points.find((p) => p.kind === 'water_supply')!;
     // On the wall the basin stands against (x = 3), not in the middle of the room.

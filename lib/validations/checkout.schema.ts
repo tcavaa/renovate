@@ -16,16 +16,25 @@ export const checkoutSchema = z.object({
   customer: customerSchema,
 });
 
-export const bookingSchema = z.object({
-  workerId: z.number().int().positive(),
-  projectId: z.number().int().positive().optional().nullable(),
-  customer: customerSchema,
-});
+/**
+ * Booking one trade (`workerId`) or a whole brigade (`teamId`) — one of the two, never
+ * both, because they are two different orders with two different people answering for them.
+ */
+export const bookingSchema = z
+  .object({
+    workerId: z.number().int().positive().optional(),
+    teamId: z.number().int().positive().optional(),
+    projectId: z.number().int().positive().optional().nullable(),
+    customer: customerSchema,
+  })
+  .refine((v) => (v.workerId ? 1 : 0) + (v.teamId ? 1 : 0) === 1, { message: 'BOOK_ONE_PARTNER' });
 
 /** What a partner (or admin) may change on an order. */
 export const orderEditSchema = z.object({
   status: z.enum(ORDER_STATUSES as [string, ...string[]]).optional(),
   partnerMessage: z.string().trim().max(4000).nullable().optional(),
+  /** The agent's own note. Written and read by the platform's people only. */
+  staffNote: z.string().trim().max(4000).nullable().optional(),
   items: z
     .array(
       z.object({

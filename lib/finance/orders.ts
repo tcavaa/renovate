@@ -12,6 +12,7 @@ import {
   type OrderItem,
   type Project,
   type Worker,
+  type Team,
 } from '@/lib/db/schema';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
@@ -363,6 +364,67 @@ export async function createWorkerBooking(args: { worker: Worker; project: Proje
   return { orderId, ...totals, commissionPct, itemCount: lines.length };
 }
 
+/**
+ * Books a brigade for the whole job.
+ *
+ * A worker booking carries one trade's lines; a team's carries all of them, because the
+ * team is hired to do the lot and its foreman is the one who answers for the dates. The
+ * team's own markup, if it has one, is a line of its own rather than a quiet adjustment of
+ * everybody's rates — the customer can see what the brigade charges for running the job.
+ */
+export async function createTeamBooking(args: { team: Team; project: Project | null; customer: CustomerContact; userId: number | null }): Promise<BookingResult> {
+  const { team, project, customer, userId } = args;
+  const settings = await loadPlatformSettings();
+  const commissionPct = effectiveCommissionPct(team.commissionRate, settings.workerCommissionPct);
+
+  let lines: OrderLineDraft[] = [];
+  if (project) {
+    const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
+    const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
+    const summary = buildProjectSummary(
+      (project.rooms ?? []) as Room[],
+      project.homeState as HomeState,
+      Object.values(selectedProducts),
+      Object.values(selectedFurniture).flat(),
+      await loadRateBook()
+    );
+    lines = labourLines(summary, workTypeNames);
+    const markup = Number(team.markupPct ?? 0);
+    if (markup > 0 && lines.length > 0) {
+      const base = lines.reduce((s, l) => s + l.total, 0);
+      const fee = round2((base * markup) / 100);
+      if (fee > 0) lines.push({ productId: null, nameKa: 'ბრიგადის მართვა', nameEn: 'Site management', nameRu: 'Управление работами', categorySlug: 'labour:team_markup', roomName: null, unit: 'unit', qty: 1, unitPrice: fee, total: fee });
+    }
+  }
+  const totals = orderTotals(lines, commissionPct);
+
+  const orderId = await db.transaction(async (tx) => {
+    const [orderInsert] = await tx.insert(orders).values({
+      checkoutId: null,
+      projectId: project?.id ?? null,
+      userId,
+      partnerType: 'team',
+      teamId: team.id,
+      status: 'new',
+      subtotal: String(totals.subtotal),
+      deliveryFee: '0.00',
+      commissionPct: String(commissionPct),
+      commissionAmount: String(totals.commissionAmount),
+      customerName: customer.name,
+      customerPhone: customer.phone,
+      customerEmail: customer.email,
+      customerNote: customer.note,
+    });
+    const id = orderInsert.insertId;
+    if (lines.length) await tx.insert(orderItems).values(itemRows(id, lines));
+    return id;
+  });
+
+  log.info('team booked', { orderId, teamId: team.id, projectId: project?.id ?? null, subtotal: totals.subtotal });
+  await notifyPartnerNewOrder({ email: team.email, partnerName: team.nameKa, orderId, customer, lines, subtotal: totals.subtotal, deliveryFee: 0, kind: 'worker' });
+  return { orderId, ...totals, commissionPct, itemCount: lines.length };
+}
+
 // ---------------------------------------------------------------------------
 // Reading
 // ---------------------------------------------------------------------------
@@ -407,6 +469,8 @@ export async function markOrderViewed(orderId: number): Promise<void> {
 export interface OrderEdit {
   status?: OrderStatus;
   partnerMessage?: string | null;
+  /** The agent's own note; never shown to the customer or the partner. */
+  staffNote?: string | null;
   items?: Array<{ id: number; qty?: number; unitPrice?: number; removed?: boolean; note?: string | null }>;
   addItems?: Array<{ nameKa: string; qty: number; unitPrice: number; unit?: string; note?: string | null }>;
 }
@@ -466,6 +530,7 @@ export async function applyOrderEdit(orderId: number, edit: OrderEdit, notifyCus
         commissionAmount: String(totals.commissionAmount),
         status: edit.status ?? before.order.status,
         partnerMessage: edit.partnerMessage === undefined ? before.order.partnerMessage : edit.partnerMessage,
+        staffNote: edit.staffNote === undefined ? before.order.staffNote : edit.staffNote,
       })
       .where(eq(orders.id, orderId));
   });
@@ -492,17 +557,29 @@ export async function applyOrderEdit(orderId: number, edit: OrderEdit, notifyCus
 export interface PartnerRef {
   storeId: number | null;
   workerId: number | null;
+  teamId?: number | null;
 }
 
 export function partnerCondition(ref: PartnerRef) {
   if (ref.storeId) return eq(orders.storeId, ref.storeId);
   if (ref.workerId) return eq(orders.workerId, ref.workerId);
+  if (ref.teamId) return eq(orders.teamId, ref.teamId);
   return sql`1 = 0`;
 }
 
-export function partnerOwnsOrder(ref: PartnerRef, order: Pick<Order, 'storeId' | 'workerId'>): boolean {
+/**
+ * The order as the person asking is allowed to see it. The agent's note is the platform's
+ * own record of what was checked and what was agreed on the telephone; a partner reading it
+ * would be reading about themselves, and the customer was never meant to see it at all.
+ */
+export function redactForPartner<T extends { order: Order }>(view: T): T {
+  return { ...view, order: { ...view.order, staffNote: null } };
+}
+
+export function partnerOwnsOrder(ref: PartnerRef, order: Pick<Order, 'storeId' | 'workerId' | 'teamId'>): boolean {
   if (ref.storeId && order.storeId === ref.storeId) return true;
   if (ref.workerId && order.workerId === ref.workerId) return true;
+  if (ref.teamId && order.teamId === ref.teamId) return true;
   return false;
 }
 

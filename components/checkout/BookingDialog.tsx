@@ -20,11 +20,12 @@ interface ProjectOption {
 }
 
 /**
- * "Book this worker": contact details and, for a signed-in customer, one of their saved
- * projects so the booking carries the labour estimate. The worker gets the mail, the
- * platform gets its commission line.
+ * "Send them the job": contact details and, for a signed-in customer, one of their saved
+ * projects so the booking carries the labour estimate. One trade (`workerId`) or a whole
+ * brigade (`teamId`) — a team's booking carries every trade's lines, because a team is
+ * hired to do the lot. The partner gets the mail, the platform gets its commission line.
  */
-export function BookingDialog({ workerId, workerName }: { workerId: number; workerName: string }) {
+export function BookingDialog({ workerId, teamId, workerName, label }: { workerId?: number; teamId?: number; workerName: string; label?: string }) {
   const t = useT();
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
@@ -43,13 +44,15 @@ export function BookingDialog({ workerId, workerName }: { workerId: number; work
     fetch('/api/projects')
       .then((r) => r.json())
       .then((json: { data: ProjectOption[] | null }) => {
-        if (!cancelled) setProjects((json.data ?? []).filter((p) => !p.plan));
+        // A brigade is hired for a flat that has been designed as well as calculated, so a
+        // team's dialogue offers every project; one trade is still booked off a calculation.
+        if (!cancelled) setProjects((json.data ?? []).filter((p) => (teamId ? true : !p.plan)));
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [open, status]);
+  }, [open, status, teamId]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +62,7 @@ export function BookingDialog({ workerId, workerName }: { workerId: number; work
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workerId, projectId, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
+        body: JSON.stringify({ ...(teamId ? { teamId } : { workerId }), projectId, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
       });
       const json = (await res.json()) as { data: { orderId: number } | null; error: string | null };
       if (!res.ok || !json.data) {
@@ -80,7 +83,7 @@ export function BookingDialog({ workerId, workerName }: { workerId: number; work
     <>
       <Button type="button" variant="outline" size="lg" onClick={() => setOpen(true)}>
         <Hammer className="h-4 w-4" />
-        {t.market.bookWorker}
+        {label ?? t.market.bookWorker}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
