@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Home, PenLine, Sofa, Upload } from 'lucide-react';
+import { AlertCircle, Check, Home, Info, PenLine, Plug, Receipt, Sofa, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
@@ -18,6 +18,7 @@ import { fill } from '@/lib/admin/list';
 import { DEFAULT_WALL_THICKNESS_M, planFromCalculatorRooms } from '@/lib/design/planGeometry';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 import type { FloorPlan } from '@/lib/design/types';
+import type { HomeState } from '@/lib/calculator/types';
 
 type PlanMode = 'upload' | 'scratch';
 
@@ -129,10 +130,16 @@ export default function DesignStartPage() {
                   {fill(t.design.planReady, { n: uploaded.plan.rooms.length })}
                 </p>
               )}
+              {/*
+                Not a feature — a shortcut out of work already done. It says whose rooms
+                these are and what pressing it does, because "use the calculator's rooms"
+                read as an option nobody had asked for.
+              */}
               {calculatorRooms.length > 0 && (
-                <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
-                  <p className="text-sm text-ink-muted">{t.design.noPlanDesc}</p>
-                  <Button type="button" variant="outline" size="sm" onClick={useCalculator}>
+                <div className="mt-5 border-t border-line pt-4">
+                  <p className="text-sm font-semibold text-ink">{fill(t.design.useCalculatorTitle, { n: calculatorRooms.length })}</p>
+                  <p className="mt-1 max-w-prose text-sm leading-relaxed text-ink-muted">{t.design.useCalculatorDesc}</p>
+                  <Button type="button" variant="outline" size="sm" className="mt-3" onClick={useCalculator}>
                     {t.design.useCalculatorRooms} ({calculatorRooms.length})
                   </Button>
                 </div>
@@ -148,19 +155,47 @@ export default function DesignStartPage() {
           )}
         </section>
 
+        {/*
+          Each mode says what it covers, item by item, because "design only" sounded like it
+          might still include the wiring and "renovation + design" like it might not include
+          the sofa. Once a home state is chosen the section goes further and says what that
+          state means: a green frame has its electrics and pipes already, so the technical
+          step records them rather than charging for them.
+        */}
         <section id="mode-section" className="mt-14 space-y-5">
           <SectionHead index="02" title={t.design.modeTitle} subtitle={t.design.modeSubtitle} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <ModeCard active={modeChosen && mode === 'design_only'} onClick={() => setMode('design_only')} icon={<Sofa className="h-5 w-5" />} label={t.design.modeDesignOnlyLabel} description={t.design.modeDesignOnlyDesc} />
-            <ModeCard active={modeChosen && mode === 'full'} onClick={() => setMode('full')} icon={<Home className="h-5 w-5" />} label={t.design.modeFullLabel} description={t.design.modeFullDesc} />
+            <ModeCard
+              active={modeChosen && mode === 'design_only'}
+              onClick={() => setMode('design_only')}
+              icon={<Sofa className="h-5 w-5" />}
+              label={t.design.modeDesignOnlyLabel}
+              description={t.design.modeDesignOnlyDesc}
+              coversLabel={t.design.modeCoversLabel}
+              covers={t.design.modeDesignOnlyCovers}
+            />
+            <ModeCard
+              active={modeChosen && mode === 'full'}
+              onClick={() => setMode('full')}
+              icon={<Home className="h-5 w-5" />}
+              label={t.design.modeFullLabel}
+              description={t.design.modeFullDesc}
+              coversLabel={t.design.modeCoversLabel}
+              covers={t.design.modeFullCovers}
+            />
           </div>
+
+          {modeChosen && mode === 'design_only' && <ModeNote>{t.design.modeDesignOnlyExcept}</ModeNote>}
+
           {modeChosen && mode === 'full' && (
             <div className="space-y-3 pt-2">
+              <ModeNote>{t.design.modeFullExcept}</ModeNote>
               <div>
                 <p className="eyebrow">{t.homeState.title}</p>
                 <p className="mt-1 text-sm text-ink-muted">{t.homeState.subtitle}</p>
               </div>
               <HomeStateSelector value={homeState} onChange={setHomeState} />
+              {homeState && <HomeStateCover state={homeState} />}
             </div>
           )}
         </section>
@@ -178,7 +213,7 @@ export default function DesignStartPage() {
   );
 }
 
-function ModeCard({ active, onClick, icon, label, description }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; description: string }) {
+function ModeCard({ active, onClick, icon, label, description, coversLabel, covers }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; description: string; coversLabel: string; covers: readonly string[] }) {
   return (
     <button
       type="button"
@@ -190,10 +225,63 @@ function ModeCard({ active, onClick, icon, label, description }: { active: boole
       <span className="min-w-0 flex-1">
         <span className="block font-serif text-lg font-semibold leading-tight">{label}</span>
         <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{description}</span>
+        <span className={cn('mt-3 block border-t pt-3', active ? 'border-white/15' : 'border-line')}>
+          <span className={cn('block text-[11px] font-semibold uppercase tracking-wide', active ? 'text-white/50' : 'text-ink-faint')}>{coversLabel}</span>
+          <span className="mt-1.5 block space-y-1">
+            {covers.map((line) => (
+              <span key={line} className="flex items-start gap-2">
+                <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-white/60' : 'text-success')} />
+                <span className={cn('text-[13px] leading-snug', active ? 'text-white/70' : 'text-ink-soft')}>{line}</span>
+              </span>
+            ))}
+          </span>
+        </span>
       </span>
       <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-white bg-white text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
         <Check className="h-3 w-3" />
       </span>
     </button>
+  );
+}
+
+/** The qualification under the chosen mode: what it will *not* do, or what it still needs. */
+function ModeNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex gap-2.5 rounded-[12px] border border-line bg-sand-light p-4 text-sm leading-relaxed text-ink-soft">
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
+      <span className="max-w-prose">{children}</span>
+    </p>
+  );
+}
+
+/**
+ * What the chosen home state means for this project — what is already standing, what the
+ * estimate will charge for, and what happens to the technical points. The third column is
+ * the one that was missing: in a green frame the sockets and pipes exist and the plan only
+ * records where they are, while in a black frame they are drawn and paid for.
+ */
+function HomeStateCover({ state }: { state: HomeState }) {
+  const t = useT();
+  const copy = t.homeStateCover[state];
+  const rows: Array<{ label: string; value: string; icon: React.ReactNode }> = [
+    { label: t.design.modeCoverDone, value: copy.done, icon: <Check className="h-3.5 w-3.5 text-success" /> },
+    { label: t.design.modeCoverTodo, value: copy.todo, icon: <Receipt className="h-3.5 w-3.5 text-brand" /> },
+    { label: t.design.modeCoverPoints, value: copy.points, icon: <Plug className="h-3.5 w-3.5 text-ink-muted" /> },
+  ];
+  return (
+    <div className="rounded-[16px] border border-line bg-white">
+      <p className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">{t.design.modeCoverTitle}</p>
+      <dl className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-3">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+              {row.icon}
+              {row.label}
+            </dt>
+            <dd className="mt-1 leading-relaxed text-ink-soft">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

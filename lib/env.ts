@@ -38,6 +38,8 @@ const schema = z
 
     GOOGLE_CLIENT_ID: optionalString,
     GOOGLE_CLIENT_SECRET: optionalString,
+    FACEBOOK_CLIENT_ID: optionalString,
+    FACEBOOK_CLIENT_SECRET: optionalString,
     ANTHROPIC_API_KEY: optionalString,
 
     ADMIN_EMAIL: optionalString,
@@ -79,8 +81,14 @@ const schema = z
         if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required when MAIL_DRIVER=smtp' });
       }
     }
-    if ((value.GOOGLE_CLIENT_ID ? 1 : 0) + (value.GOOGLE_CLIENT_SECRET ? 1 : 0) === 1) {
-      ctx.addIssue({ code: 'custom', path: ['GOOGLE_CLIENT_SECRET'], message: 'set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET or neither' });
+    // A social login is offered only when both halves of its key pair are present: half a
+    // pair is a typo, not a configuration, and NextAuth would fail at the redirect instead.
+    for (const provider of ['GOOGLE', 'FACEBOOK'] as const) {
+      const id = `${provider}_CLIENT_ID` as const;
+      const secret = `${provider}_CLIENT_SECRET` as const;
+      if ((value[id] ? 1 : 0) + (value[secret] ? 1 : 0) === 1) {
+        ctx.addIssue({ code: 'custom', path: [secret], message: `set both ${id} and ${secret} or neither` });
+      }
     }
   });
 
