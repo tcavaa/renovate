@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Check, HardHat, MapPin, Phone, Printer, Save, ShoppingBag, Truck } from 'lucide-react';
+import { Check, FileDown, HardHat, Loader2, MapPin, Phone, Printer, Save, ShoppingBag, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -28,6 +28,7 @@ import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { getStyle } from '@/lib/design/styles';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { designStepPosition, previousStep, previousStepHref } from '@/lib/design/steps';
+import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import { electricalLabel, technicalLabel } from '@/components/plan/PlanToolbar';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
@@ -48,6 +49,16 @@ const SECTION_KEY: Record<BudgetSection, keyof Dictionary['build']> = {
 };
 
 /**
+ * The product a budget line is, when it is one. Only a real SKU can be ticked off an order;
+ * a labour line, a bulk material and a catalogue-free estimate are what the work costs
+ * whoever does it, not something anybody buys from a shop.
+ */
+function productIdOf(line: BudgetLine): number | null {
+  const id = line.key.startsWith('product-') ? Number(line.key.slice('product-'.length)) : NaN;
+  return Number.isFinite(id) ? id : null;
+}
+
+/**
  * Step 7: the budget. Materials + products + labour = the estimated project cost, every line
  * with its quantity and price, grouped the way a builder would read it — finishes with their
  * m², doors and windows, furniture, lighting, sockets, pipes, heating, the bulk materials,
@@ -56,27 +67,31 @@ const SECTION_KEY: Record<BudgetSection, keyof Dictionary['build']> = {
 export default function BudgetPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, projectId, calculatorPicks } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, projectId, calculatorPicks, excluded, toggleExcluded, setExcluded } = useDesignStore();
   const calculator = useCalculatorStore();
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fees = usePlatformFees();
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded]);
   const { book } = useRateBook();
-  const cost = useMemo(
-    () =>
-      plan
-        ? priceScene(plan, scene, {
-            homeState: homeState ?? undefined,
-            book,
-            locale,
-            surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling },
-          })
-        : null,
-    [plan, scene, homeState, book, t, locale]
+  const priceOptions = useMemo(
+    () => ({ homeState: homeState ?? undefined, book, locale, surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling } }),
+    [homeState, book, locale, t]
+  );
+  /** The project as it stands: what is being ordered. */
+  const cost = useMemo(() => (plan ? priceScene(plan, scene, priceOptions) : null), [plan, scene, priceOptions]);
+  /**
+   * The same project with nothing ticked off, so the page can say what the ticks came to.
+   * Priced twice rather than subtracted: a product that is out takes its delivery and its
+   * labour with it, and only the engine knows that.
+   */
+  const fullCost = useMemo(
+    () => (plan && excluded.length > 0 ? priceScene(plan, { ...scene, excluded: [] }, priceOptions) : null),
+    [plan, scene, excluded.length, priceOptions]
   );
 
   if (!plan || !cost) {
@@ -110,13 +125,40 @@ export default function BudgetPage() {
   const style = getStyle(styleId);
   const areaM2 = totalFloorAreaM2(plan);
   const fee = platformFee(areaM2, fees.designFeePerM2);
-  const designPart = designCheckoutPart(plan, items, finishes, fees.designFeePerM2, locale);
+  const designPart = designCheckoutPart(plan, items, finishes, fees.designFeePerM2, locale, excluded);
   const checkoutParts: CheckoutPart[] = [
     ...(calculatorPicks && calculator.rooms.length > 0 ? [calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale)] : []),
     ...(designPart ? [designPart] : []),
   ];
   const summary = budgetSummary(cost);
   const sections = budgetSections(cost);
+
+  const isExcluded = (line: BudgetLine): boolean => {
+    const id = productIdOf(line);
+    return id != null && excluded.includes(id);
+  };
+  const excludedTotal = fullCost ? Math.round((fullCost.grandTotal - cost.grandTotal) * 100) / 100 : 0;
+
+  /** The 2D plan as a PDF: the board's own drawing at print resolution, on one A4 sheet. */
+  const exportPlan = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadPlanPdf(plan, `${t.design.title}-${new Date().toISOString().slice(0, 10)}`, {
+        title: t.design.title,
+        areaLabel: formatM2(areaM2),
+        roomsLabel: fill(t.build.roomCount, { n: plan.rooms.length }),
+        unitM2: t.units.m2,
+        items,
+        electrical,
+        furniture: true,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const lineName = (line: BudgetLine): string => {
     if (line.key.startsWith('electrical_')) return electricalLabel(t, line.key.slice('electrical_'.length) as ElectricalKind);
@@ -162,6 +204,10 @@ export default function BudgetPage() {
                 <Printer className="h-4 w-4" />
                 {t.design.print}
               </Button>
+              <Button type="button" variant="outline" onClick={exportPlan} disabled={exporting}>
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                {t.build.exportPlanPdf}
+              </Button>
               <Button type="button" variant="outline" onClick={save} disabled={saving || savedId != null}>
                 {savedId != null ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                 {saving ? t.design.saving : savedId != null ? t.design.savedTitle : t.design.saveDesign}
@@ -170,6 +216,7 @@ export default function BudgetPage() {
           }
         />
         <StageBrief step={7} className="mt-6" />
+        <p className="no-print mt-4 text-xs text-ink-muted">{excluded.length === 0 ? t.build.excludedNone : fill(t.build.excludedCount, { n: excluded.length })}</p>
 
         {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
 
@@ -203,10 +250,23 @@ export default function BudgetPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {lines.map((line, i) => (
+                      {lines.map((line, i) => {
+                        const productId = productIdOf(line);
+                        return (
                         <tr key={`${line.key}-${i}`} className="border-t border-line/70">
                           <td className="px-4 py-2">
-                            <p className="font-medium text-ink">{lineName(line)}</p>
+                            <p className="flex items-start gap-2 font-medium text-ink">
+                              {productId != null && (
+                                <input
+                                  type="checkbox"
+                                  checked
+                                  onChange={() => toggleExcluded(productId)}
+                                  aria-label={`${t.build.includeInOrder} — ${lineName(line)}`}
+                                  className="no-print mt-0.5 accent-ink"
+                                />
+                              )}
+                              {lineName(line)}
+                            </p>
                             <p className="text-xs text-ink-muted">
                               {line.roomName}
                               {line.estimated && (
@@ -220,7 +280,28 @@ export default function BudgetPage() {
                           <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-ink-muted">{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
                           <td className="whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums">{formatGEL(line.total)}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
+                      {/* What was ticked off in this section, so it can be put back. */}
+                      {(fullCost?.lines ?? []).filter((l) => l.section === section && isExcluded(l)).map((line, i) => {
+                        const productId = productIdOf(line)!;
+                        return (
+                          <tr key={`out-${line.key}-${i}`} className="border-t border-line/70 text-ink-faint">
+                            <td className="px-4 py-2">
+                              <p className="flex items-start gap-2 font-medium line-through">
+                                <input type="checkbox" checked={false} onChange={() => toggleExcluded(productId)} aria-label={`${t.build.includeInOrder} — ${lineName(line)}`} className="no-print mt-0.5 accent-ink" />
+                                {lineName(line)}
+                              </p>
+                              <p className="text-xs">{line.roomName}</p>
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                              {formatNumber(line.qty)} {formatUnit(line.unit)}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
+                            <td className="whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums line-through">{formatGEL(line.total)}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </section>
@@ -303,8 +384,21 @@ export default function BudgetPage() {
                   </>
                 )}
                 <MoneyRow label={t.design.delivery} value={cost.deliveryTotal} />
+                {/* What the ticks came to: the whole estimate, what was taken out, what is left. */}
+                {fullCost && (
+                  <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+                    <MoneyRow label={t.build.fullEstimate} value={fullCost.grandTotal} muted />
+                    <div className="flex items-baseline justify-between gap-3 text-danger">
+                      <span>{t.build.excludedTotal}</span>
+                      <span className="shrink-0 font-medium tabular-nums">−{formatGEL(excludedTotal)}</span>
+                    </div>
+                    <button type="button" onClick={() => setExcluded([])} className="no-print text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink">
+                      {t.build.includeAll}
+                    </button>
+                  </div>
+                )}
                 <div className="mt-3 flex items-baseline justify-between border-t-2 border-ink pt-3">
-                  <span className="font-serif font-semibold">{t.design.grandTotal}</span>
+                  <span className="font-serif font-semibold">{fullCost ? t.build.orderTotal : t.design.grandTotal}</span>
                   <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
                 </div>
                 <div className="mt-3 space-y-1.5 border-t border-line pt-3">

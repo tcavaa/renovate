@@ -167,13 +167,15 @@ export function calculatorLinesByStore(
 export function sceneLinesByStore(plan: FloorPlan, scene: DesignScene, storeOf: StoreOf = () => null): LinesByStore {
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
+  // Ticked off on the budget page: in the design, not in the order.
+  const excluded = new Set(scene.excluded ?? []);
   for (const item of scene.items) {
-    if (!item.product) continue;
+    if (!item.product || excluded.has(item.product.productId)) continue;
     const storeId = item.product.store?.id ?? storeOf(item.product.productId);
     push(result, storeId, line(item.product as never, roomName.get(item.roomId) ?? null));
   }
   for (const finish of scene.finishes) {
-    if (!finish.product) continue;
+    if (!finish.product || excluded.has(finish.product.productId)) continue;
     const storeId = finish.product.store?.id ?? storeOf(finish.product.productId);
     push(result, storeId, line(finish.product as never, roomName.get(finish.roomId) ?? null));
   }

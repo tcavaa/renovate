@@ -130,6 +130,8 @@ interface DesignState {
   styleId: StyleId;
   /** The five answers of the style test, when it was taken. */
   styleProfile: StyleProfile | null;
+  /** Products the person is not ordering — ticked off on the budget page. */
+  excluded: number[];
   budgetGel: number | null;
   plan: FloorPlan | null;
   floorPlanUrl: string | null;
@@ -177,6 +179,10 @@ interface DesignActions {
   setProjectId: (id: number | null) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setStyleProfile: (profile: StyleProfile | null) => void;
+  /** Puts a product in or out of the order; the budget and the checkout follow. */
+  toggleExcluded: (productId: number) => void;
+  /** Everything in, or a whole section out, in one go. */
+  setExcluded: (productIds: number[]) => void;
   setBudget: (budgetGel: number | null, catalog: CatalogProduct[]) => void;
   /** A new plan — a new flat, a new project. Walls are derived when the plan has none. */
   setPlan: (plan: FloorPlan, floorPlanUrl?: string | null) => void;
@@ -350,6 +356,7 @@ const initial: DesignState = {
   calculatorPicks: null,
   styleId: 'scandinavian',
   styleProfile: null,
+  excluded: [],
   budgetGel: null,
   plan: null,
   floorPlanUrl: null,
@@ -453,6 +460,8 @@ function createDesignStore(storageName: string) {
           });
         },
         setStyleProfile: (styleProfile) => set({ styleProfile }),
+        toggleExcluded: (productId) => set((s) => ({ excluded: s.excluded.includes(productId) ? s.excluded.filter((id) => id !== productId) : [...s.excluded, productId] })),
+        setExcluded: (excluded) => set({ excluded: [...new Set(excluded)] }),
 
         setBudget: (budgetGel, catalog) => {
           const { items, styleId, plan } = get();
@@ -502,6 +511,7 @@ function createDesignStore(storageName: string) {
             modeChosen: true,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
+            excluded: scene.excluded ?? [],
             budgetGel: scene.budgetGel,
             items: scene.items,
             finishes: scene.finishes,
@@ -1218,8 +1228,8 @@ function createDesignStore(storageName: string) {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile } = get();
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile };
+          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded } = get();
+          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded };
         },
       };
     },
@@ -1245,6 +1255,7 @@ function createDesignStore(storageName: string) {
         calculatorPicks: s.calculatorPicks,
         styleId: s.styleId,
         styleProfile: s.styleProfile,
+        excluded: s.excluded,
         budgetGel: s.budgetGel,
         plan: s.plan,
         floorPlanUrl: s.floorPlanUrl,

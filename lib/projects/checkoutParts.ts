@@ -29,16 +29,19 @@ export function calculatorCheckoutPart(
   };
 }
 
-export function designCheckoutPart(plan: FloorPlan | null, items: PlacedItem[], finishes: SurfaceFinish[], feePerM2: number, locale: Locale): CheckoutPart | null {
+export function designCheckoutPart(plan: FloorPlan | null, items: PlacedItem[], finishes: SurfaceFinish[], feePerM2: number, locale: Locale, excluded: readonly number[] = []): CheckoutPart | null {
   if (!plan) return null;
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
+  // Products the person ticked off on the budget stay in the design and out of the order.
+  const skipped = new Set(excluded);
+  const ordering = (productId: number) => !skipped.has(productId);
   return {
     kind: 'design',
     totalM2: totalFloorAreaM2(plan),
     feePerM2,
     lines: [
-      ...items.filter((i) => i.product).map((i) => ({ key: `i-${i.id}`, productId: i.product!.productId, name: localizedName(locale, i.product!), qty: i.product!.qty, total: i.product!.totalPrice, where: roomName.get(i.roomId) ?? null })),
-      ...finishes.filter((f) => f.product).map((f) => ({ key: `s-${f.roomId}-${f.surface}`, productId: f.product!.productId, name: localizedName(locale, f.product!), qty: f.product!.qty, total: f.product!.totalPrice, where: roomName.get(f.roomId) ?? null })),
+      ...items.filter((i) => i.product && ordering(i.product.productId)).map((i) => ({ key: `i-${i.id}`, productId: i.product!.productId, name: localizedName(locale, i.product!), qty: i.product!.qty, total: i.product!.totalPrice, where: roomName.get(i.roomId) ?? null })),
+      ...finishes.filter((f) => f.product && ordering(f.product.productId)).map((f) => ({ key: `s-${f.roomId}-${f.surface}`, productId: f.product!.productId, name: localizedName(locale, f.product!), qty: f.product!.qty, total: f.product!.totalPrice, where: roomName.get(f.roomId) ?? null })),
     ],
   };
 }

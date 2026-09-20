@@ -97,6 +97,10 @@ export function priceScene(
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
   const locale = options.locale ?? 'ka';
   const lines: BudgetLine[] = [];
+  // Products the person ticked off on the budget page: still in the design, not in the
+  // order — so they are not in the lines, the baskets or the totals either.
+  const skipped = new Set(scene.excluded ?? []);
+  const ordering = (productId: number | null | undefined): boolean => productId == null || !skipped.has(productId);
 
   // --- furniture ---
   let furnitureTotal = 0;
@@ -112,6 +116,7 @@ export function priceScene(
   for (const item of scene.items) {
     const product = item.product;
     if (!product || measured.has(item.id)) continue;
+    if (!ordering(product.productId)) continue;
 
     furnitureTotal += product.totalPrice;
     const isLight = item.slot === 'pendant' || item.slot === 'floor_lamp';
@@ -165,7 +170,7 @@ export function priceScene(
   // tile or paint with a price, in either mode — choosing it is asking for it.
   // What the flat already has is left out of the budget altogether, line, basket and total.
   const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(scene.mode === 'full' ? options.homeState : null));
-  const chargeable = scene.finishes.filter((f) => !have.surface(f.surface));
+  const chargeable = scene.finishes.filter((f) => !have.surface(f.surface) && ordering(f.product?.productId));
   let finishesTotal = 0;
   for (const finish of chargeable) {
     if (!finish.product) continue;
@@ -230,8 +235,8 @@ export function priceScene(
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale);
-  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have);
+  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale, ordering);
+  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, ordering);
   lines.push(...openingLines, ...technicalLines);
   const openingsTotal = round2(openingLines.reduce((s, l) => s + l.total, 0));
   const technicalTotal = round2(technicalLines.reduce((s, l) => s + l.total, 0));
@@ -289,7 +294,7 @@ function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: s
  * renovation with the doors-and-windows phase ticked every opening is new; otherwise only
  * the ones the person added themselves are priced — the rest are already in the wall.
  */
-export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka'): BudgetLine[] {
+export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', ordering: (productId: number | null | undefined) => boolean = () => true): BudgetLine[] {
   const all = full && phases.includes(10);
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
@@ -308,6 +313,7 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
         seen.add(key);
       }
       if (!all && opening.origin !== 'user') continue;
+      if (!ordering(opening.product?.productId)) continue;
       if (opening.product && opening.kind !== 'archway') {
         const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, qty: 0, total: 0, rooms: new Set<string>() };
         bought.qty += 1;
@@ -353,7 +359,7 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
  * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
  * home only what the person added themselves is new work.
  */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING): BudgetLine[] {
+export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, ordering: (productId: number | null | undefined) => boolean = () => true): BudgetLine[] {
   const lines: BudgetLine[] = [];
   const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
   const electricalOn = full && (phases.includes(3) || phases.includes(14));
@@ -368,6 +374,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     if (!(electricalOn || point.origin === 'user')) continue;
     // Already wired, or already lit: the flat came with it.
     if (have.has(point.kind.startsWith('light_') ? 'lighting' : 'electrical')) continue;
+    if (!ordering(point.product?.productId)) continue;
     const perMetre = point.kind === 'light_strip' || point.kind === 'light_furniture';
     const units = perMetre ? (point.lengthM ?? 1.5) : 1;
     const labour = ELECTRICAL_LABOUR[point.kind];
