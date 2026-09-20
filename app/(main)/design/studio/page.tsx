@@ -17,7 +17,7 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
@@ -746,7 +746,7 @@ export default function StudioPage() {
                   if (category === 'technical') setTechnicalArmed(tool === 'technical');
                   if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
                 }}
-                paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+                paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
                 onPaint={onPaint}
                 roomsOnly={category === 'finishes'}
                 hideToolbar
@@ -786,7 +786,7 @@ export default function StudioPage() {
               onHoverItem={onHoverItem}
               onSelectItem={onSelectItem}
               onSelectSurface={onSelectSurface}
-              paintScope={category === 'finishes' && painting ? (finishScope === 'strip' ? 'strip' : 'cell') : null}
+              paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
               onPaint={onPaint}
               onPlaceItem={onPlaceItem}
               carryingItemId={carryingItemId}
@@ -989,7 +989,7 @@ export default function StudioPage() {
                     onSurface={(surface) => {
                       setFinishSurface(surface);
                       // The brush goes with the surface: a floor laminate does not paint a wall.
-                      setFinishScope(painting && surface === 'wall' ? 'strip' : painting && surface === 'floor' ? 'cell' : 'room');
+                      setFinishScope(painting && surface === 'wall' ? (finishScope === 'patch' ? 'patch' : 'strip') : painting && surface === 'floor' ? 'cell' : 'room');
                       setBrush(undefined);
                     }}
                     scope={finishScope}

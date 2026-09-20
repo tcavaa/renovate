@@ -60,7 +60,7 @@ import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/l
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
-import { cellPolygon, paintCell, paintSpan, type PaintTarget } from '@/lib/design/paint';
+import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
 import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type {
@@ -937,7 +937,12 @@ function createDesignStore(storageName: string) {
           commit((s) => {
             const room = s.plan?.rooms.find((r) => r.id === target.roomId);
             if (!room) return null;
-            const finishes = target.surface === 'floor' ? paintCell(s.finishes, room, target.cell, product) : paintSpan(s.finishes, room, target.wallIndex, target.span, product);
+            const finishes =
+              target.surface === 'floor'
+                ? paintCell(s.finishes, room, target.cell, product)
+                : target.patch
+                  ? paintPatch(s.finishes, room, target.wallIndex, target.patch, product)
+                  : paintSpan(s.finishes, room, target.wallIndex, target.span, product);
             return finishes === s.finishes ? null : { finishes };
           }),
 
@@ -1314,9 +1319,14 @@ function fitToPlan(finishes: SurfaceFinish[], plan: FloorPlan): SurfaceFinish[] 
       }
     }
     if (finish.cells) {
-      const cells = finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
-      if (cells.length === 0) return [];
-      if (cells.length !== finish.cells.length) return [{ ...finish, cells }];
+      // Floor tiles are squares of the room's grid; on a wall the same list is patches of
+      // that wall's own grid, so each is measured against the thing it was painted on.
+      const kept =
+        finish.surface === 'wall' && finish.wallIndex != null
+          ? finish.cells.filter((cell) => patchInRange(room, finish.wallIndex!, cell))
+          : finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
+      if (kept.length === 0) return [];
+      if (kept.length !== finish.cells.length) return [{ ...finish, cells: kept }];
     }
     return [finish];
   });

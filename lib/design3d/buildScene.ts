@@ -25,11 +25,11 @@ import { pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { wallFinishFor } from '@/lib/design/zones';
-import { wallSpans } from '@/lib/design/paint';
+import { patchSpans, wallPatches, wallSpans } from '@/lib/design/paint';
 import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
 import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
 import { buildElectrical, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
-import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallHole } from './wallGeometry';
+import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallFaceSpan, type WallHole } from './wallGeometry';
 import type {
   DesignScene,
   FloorPlan,
@@ -255,12 +255,21 @@ function buildRoomShell(
         return slotOf(wallMaterialFor(neighbour, neighbourEdge, pickFeatureWall(neighbour, roomEdges(neighbour.polygon)), finishes, style, materials));
       });
 
-      // The strips of this wall somebody painted on their own.
-      const spans = wallSpans(finishes, room.id, edge.index).map((finish) => ({
+      // What somebody painted on this wall on their own: metre-wide strips floor to
+      // ceiling, and single square metres of it.
+      const wallBase = isWet ? style.surfaces.wetWall : style.surfaces.wall;
+      const spans: WallFaceSpan[] = wallSpans(finishes, room.id, edge.index).map((finish) => ({
         from: finish.span!.from,
         to: finish.span!.to,
-        slot: slotOf(materials.metreSurface(isWet ? style.surfaces.wetWall : style.surfaces.wall, finishOverrides(finish))),
+        slot: slotOf(materials.metreSurface(wallBase, finishOverrides(finish))),
       }));
+      for (const finish of wallPatches(finishes, room.id, edge.index)) {
+        const slot = slotOf(materials.metreSurface(wallBase, finishOverrides(finish)));
+        for (const patch of finish.cells ?? []) {
+          const { along, up } = patchSpans(edge, height, patch);
+          spans.push({ from: along.from, to: along.to, bottom: up.from, top: up.to, slot });
+        }
+      }
 
       const holes: WallHole[] = [];
       for (const opening of openings) {

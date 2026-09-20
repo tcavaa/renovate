@@ -250,12 +250,17 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onRadiators,
   );
 }
 
-export type FinishScope = 'room' | 'wall' | 'strip' | 'cell';
+export type FinishScope = 'room' | 'wall' | 'strip' | 'cell' | 'patch';
 export type FinishSurface = 'floor' | 'wall' | 'skirting' | 'cornice';
 
 /** The scopes that paint a piece at a click instead of applying to what is selected. */
-export function isPaintScope(scope: FinishScope): scope is 'strip' | 'cell' {
-  return scope === 'strip' || scope === 'cell';
+export function isPaintScope(scope: FinishScope): scope is 'strip' | 'cell' | 'patch' {
+  return scope === 'strip' || scope === 'cell' || scope === 'patch';
+}
+
+/** What the brush lays down in a painting scope, for the board and the 3D view. */
+export function paintScopeOf(scope: FinishScope): 'cell' | 'strip' | 'patch' | null {
+  return isPaintScope(scope) ? scope : null;
 }
 
 /** What is being finished, down the left edge of the tray. */
@@ -287,6 +292,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
           { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
           { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
+          { id: 'patch', label: t.build.applyPatch, icon: Grid2x2 },
         ]
       : [
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },

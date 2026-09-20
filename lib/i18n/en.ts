@@ -1973,6 +1973,7 @@ export const en: Dictionary = {
     applyHalf: 'Half',
     applyCell: 'A 1 m² tile',
     applyStrip: 'A 1 m strip',
+    applyPatch: 'A 1 m² patch',
     toolPaint: 'Brush',
     hintPaint: 'Pick a material on the shelf and click — the brush paints one square metre of floor or a metre-wide strip of wall; drag to paint everything it passes over',
     paintHint: 'Pick a material, then click the floor or a wall: the floor is painted a square metre at a time, a wall in metre-wide strips from floor to ceiling. The style default is the eraser.',

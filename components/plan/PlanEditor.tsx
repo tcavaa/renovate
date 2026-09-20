@@ -30,7 +30,7 @@ import { wallNormal } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
-import { cellAt, cellPolygon, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
+import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
 import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallLength, drawZone, toWorld, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
@@ -94,10 +94,12 @@ export interface PlanEditorProps {
   onAddZone?: (roomId: string, rect: { x: number; z: number; width: number; depth: number }) => void;
   /**
    * The paint tool: what a click paints — `cell`, the square metre of floor under the
-   * pointer, or `strip`, the metre of wall nearest to it (from inside the room) — and the
-   * click itself. Dragging paints everything the pointer passes over.
+   * pointer; `strip`, the metre of wall nearest to it (from inside the room), floor to
+   * ceiling; or `patch`, one square metre of that wall. Dragging paints everything the
+   * pointer passes over. A plan has no height, so a patch painted here is the bottom metre
+   * of the wall; the rest of the wall is painted in the 3D view.
    */
-  paintScope?: 'cell' | 'strip' | null;
+  paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
   /**
    * The select tool sees rooms and floor zones and nothing else: while the finishes are
@@ -467,8 +469,18 @@ export function PlanEditor(props: PlanEditorProps) {
         if (finish.surface !== 'wall' || finish.wallIndex == null) continue;
         const room = plan.rooms.find((r) => r.id === finish.roomId);
         const edge = room ? roomEdges(room.polygon).find((e) => e.index === finish.wallIndex) : null;
-        if (!edge) continue;
-        drawWallBand(ctx, tr, edge, finish.span?.from ?? 0, Math.min(edge.length, finish.span?.to ?? edge.length), finish.product?.colorHex ?? finish.colorHex ?? null);
+        if (!edge || !room) continue;
+        const color = finish.product?.colorHex ?? finish.colorHex ?? null;
+        // A patch is a square metre at some height; a plan has no height, so the band shows
+        // which stretch of the wall has been painted and the 3D view shows how much of it.
+        if (finish.cells) {
+          for (const patch of finish.cells) {
+            const { along } = patchSpans(edge, room.heightM, patch);
+            drawWallBand(ctx, tr, edge, along.from, Math.min(edge.length, along.to), color);
+          }
+          continue;
+        }
+        drawWallBand(ctx, tr, edge, finish.span?.from ?? 0, Math.min(edge.length, finish.span?.to ?? edge.length), color);
       }
     }
     if (paintHover?.surface === 'wall') {
@@ -692,9 +704,15 @@ export function PlanEditor(props: PlanEditorProps) {
       return cell ? { roomId: room.id, surface: 'floor', cell } : null;
     }
     const spot = wallSpotAt(room, world, Math.max(0.6, 40 * perPx()));
-    return spot ? { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span: stripAt(spot.edge, spot.s) } : null;
+    if (!spot) return null;
+    const span = stripAt(spot.edge, spot.s);
+    // A plan is flat: the square metre it can point at is the one at the foot of the wall.
+    return paintScope === 'patch'
+      ? { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span, patch: patchAt(spot.edge, room.heightM, spot.s, 0) }
+      : { roomId: room.id, surface: 'wall', wallIndex: spot.edge.index, span };
   };
-  const paintKey = (target: PaintTarget | null): string => (!target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.span.from}`);
+  const paintKey = (target: PaintTarget | null): string =>
+    !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.patch ? target.patch.join(',') : target.span.from}`;
 
   // -------------------------------------------------------------------------
   // Pointer

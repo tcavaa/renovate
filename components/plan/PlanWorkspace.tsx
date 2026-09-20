@@ -53,7 +53,7 @@ export interface PlanWorkspaceProps {
   /** A refused drop (a window on a shared wall). */
   onRefused?: () => void;
   /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
-  paintScope?: 'cell' | 'strip' | null;
+  paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
   /** Only rooms and floor zones answer to the select tool (the studio's finishes). */
   roomsOnly?: boolean;
