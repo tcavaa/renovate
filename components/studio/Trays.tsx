@@ -26,11 +26,11 @@ import type { EditorTool } from '@/components/plan/PlanEditor';
 import { electricalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
+/** A room is a shape of the wall tool — one line, one square — not a tile of its own. */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
   { id: 'pan', icon: Hand },
   { id: 'wall', icon: BrickWall },
-  { id: 'room', icon: Square },
   { id: 'door', icon: DoorOpen },
   { id: 'window', icon: RectangleHorizontal },
   { id: 'column', icon: SquareDashed },
@@ -39,17 +39,34 @@ const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
 
 export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void }) {
   const t = useT();
+  const drawing = tool === 'wall' || tool === 'room';
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1" role="toolbar">
-        {BUILD_TOOLS.map(({ id, icon: Icon }) => (
-          <button key={id} type="button" onClick={() => onTool(id)} aria-pressed={tool === id} title={toolLabel(t, id)} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
-            <Icon className="h-5 w-5" />
-            <span className="truncate px-1">{toolLabel(t, id)}</span>
-          </button>
-        ))}
+        {BUILD_TOOLS.map(({ id, icon: Icon }) => {
+          const active = id === 'wall' ? drawing : tool === id;
+          return (
+            <button key={id} type="button" onClick={() => onTool(id)} aria-pressed={active} title={toolLabel(t, id)} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+              <Icon className="h-5 w-5" />
+              <span className="truncate px-1">{toolLabel(t, id)}</span>
+            </button>
+          );
+        })}
       </div>
-      {(tool === 'wall' || tool === 'room') && (
+      {drawing && (
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
+          {(['wall', 'room'] as const).map((id) => {
+            const Icon = id === 'wall' ? Minus : Square;
+            return (
+              <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                <Icon className="h-3.5 w-3.5" />
+                {toolLabel(t, id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {drawing && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.thickness}>
           {WALL_THICKNESS_OPTIONS_M.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} onClick={() => onThickness(m)} className={cn('h-8 rounded-[8px] px-2.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
@@ -79,7 +96,13 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
 }
 
 const LIGHT_KINDS: ElectricalKind[] = ['light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture'];
-const POWER_KINDS: ElectricalKind[] = ['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'tv', 'internet'];
+/**
+ * The power shelf: a socket, a switch, an aerial and a data point. The double, the high and
+ * the kitchen socket are the same plate at another height or another width — the automatic
+ * wiring still places them, and a placed one can still be re-kinded from its card — but as
+ * four extra tiles they only made the shelf harder to read.
+ */
+const POWER_KINDS: ElectricalKind[] = ['socket', 'switch', 'tv', 'internet'];
 
 export const ELECTRICAL_DRAG_TYPE = 'application/x-renovate-electrical';
 

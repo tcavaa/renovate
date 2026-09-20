@@ -30,7 +30,7 @@ import { StepNav } from '@/components/flow/StepNav';
 import { Button3d } from '@/components/ui/button-3d';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import { useDesignStore } from '@/store/designStore';
+import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
@@ -79,7 +79,10 @@ export default function SummaryPage() {
   const designExists = designHasItems && currentProjectId != null && designProjectId === currentProjectId;
   const viewIn3d = () => {
     if (!homeState) return;
-    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId });
+    // The drawing the calculator was working on crosses into the studio here and nowhere
+    // else — the two boards are separate until the person asks for this.
+    const board = useCalculatorPlanStore.getState();
+    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl });
     router.push(landing === 'studio' ? '/design/studio' : '/design/style');
   };
 
@@ -171,6 +174,7 @@ export default function SummaryPage() {
     setResetOpen(false);
     reset();
     resetDesign();
+    useCalculatorPlanStore.getState().reset();
     router.push('/calculator');
   }, [reset, resetDesign, router]);
   const askStartOver = () => {

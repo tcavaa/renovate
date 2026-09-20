@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import { useDesignStore } from '@/store/designStore';
+import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 
 async function deleteProject(id: number): Promise<string | null> {
   const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
@@ -20,8 +20,9 @@ async function deleteProject(id: number): Promise<string | null> {
 function forgetLocally(ids: number[]) {
   const calc = useCalculatorStore.getState();
   if (calc.projectId != null && ids.includes(calc.projectId)) calc.setProjectId(null);
-  const design = useDesignStore.getState();
-  if (design.projectId != null && ids.includes(design.projectId)) design.setProjectId(null);
+  for (const board of [useCalculatorPlanStore.getState(), useDesignStore.getState()]) {
+    if (board.projectId != null && ids.includes(board.projectId)) board.setProjectId(null);
+  }
 }
 
 /** Deletes one project after a confirmation; the page refreshes itself. */

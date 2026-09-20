@@ -119,6 +119,7 @@ export default function ExistingHousePage() {
               selection={selection && selection.kind !== 'room' ? selection : null}
               actions={{
                 updateWall: actions.updateWall,
+                resizeWall: actions.resizeWall,
                 removeWall: actions.removeWall,
                 updateOpening: actions.updateOpening,
                 removeOpening: actions.removeOpening,

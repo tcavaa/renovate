@@ -46,7 +46,9 @@ import {
   moveNode as moveWallNodeIn,
   offsetWall as offsetWallIn,
   rebuildRooms,
+  moveRooms as moveRoomsIn,
   removeWall as removeWallIn,
+  resizeWall as resizeWallIn,
   updateWall as updateWallIn,
   wallsForRectangle,
   withBounds,
@@ -139,6 +141,12 @@ interface DesignState {
   versions: DesignVersion[];
   /** Room the camera is focused on, or null for the whole flat. */
   focusRoomId: string | null;
+  /**
+   * Rooms picked out on the 2D board — one click, or a rubber band across several, the way
+   * a desktop selects folders. They move together and detach from what stays behind. A
+   * fact about this session, so not persisted.
+   */
+  selectedRoomIds: string[];
   selectedItemId: string | null;
   selectedElement: ElementSelection;
   /** An item just added from the catalogue, riding on the pointer until it is clicked down. */
@@ -183,12 +191,21 @@ interface DesignActions {
   /** Four walls around a drawn rectangle; the room inside is exactly the rectangle. Returns its id. */
   addRectangleRoom: (rect: { x: number; z: number; width: number; depth: number }, type?: RoomType, name?: string) => string | null;
   removeRoom: (roomId: string) => void;
+  /** The rooms picked out on the board (a click, or a rubber band across several). */
+  selectRooms: (roomIds: string[]) => void;
+  /**
+   * Moves those rooms bodily, with their walls, furniture, fittings, technical points and
+   * painted zones. A wall shared with a room staying behind is split, so the two come apart.
+   */
+  moveRooms: (roomIds: string[], delta: Vec2) => void;
   // --- walls, columns, beams ---
   setWalls: (walls: Wall[]) => void;
   addWall: (wall: Omit<Wall, 'id' | 'origin'> & { origin?: Wall['origin'] }) => string;
   offsetWall: (wallId: string, distance: number) => void;
   moveWallNode: (from: Vec2, to: Vec2) => void;
   updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
+  /** Stretches a wall to a typed length, its far end (and whatever meets it) following. */
+  resizeWall: (wallId: string, lengthM: number) => void;
   removeWall: (wallId: string) => void;
   addColumn: (position: Vec2, size?: Partial<Pick<Column, 'widthM' | 'depthM' | 'heightM' | 'material'>>) => string;
   updateColumn: (id: string, patch: Partial<Omit<Column, 'id'>>) => void;
@@ -235,6 +252,9 @@ interface DesignActions {
     selectedFurniture: Record<string, SelectedProduct[]>;
     /** The saved calculator project, so the design is written into the same row. */
     projectId?: number | null;
+    /** The calculator's own drawing, which is the one the person has just been editing. */
+    plan?: FloorPlan | null;
+    floorPlanUrl?: string | null;
   }) => 'studio' | 'style';
   /** Puts pending calculator picks into the existing design without re-laying it out. */
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
@@ -333,6 +353,7 @@ const initial: DesignState = {
   selectedItemId: null,
   selectedElement: null,
   carryingItemId: null,
+  selectedRoomIds: [],
   structureLocked: true,
   clipboard: null,
   pendingPicks: false,
@@ -344,7 +365,21 @@ const initial: DesignState = {
 
 const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
 
-export const useDesignStore = create<DesignState & DesignActions>()(
+export type DesignStore = DesignState & DesignActions;
+
+/**
+ * One drawing board, made twice.
+ *
+ * The Design Studio and the calculator each edit a plan, and they are not the same plan: a
+ * flat someone is furnishing in 3D has nothing to do with the flat they are pricing a
+ * renovation for, and finding the other one waiting was the single most confusing thing
+ * about the two products sharing an engine. So the store is a factory over its localStorage
+ * key, and there are two of them — `useDesignStore` for the studio, `useCalculatorPlanStore`
+ * for the calculator's first step. Work crosses between them only when the person asks for
+ * it: "see it in 3D" from the calculator's summary, "calculate the costs" from a design.
+ */
+function createDesignStore(storageName: string) {
+  return create<DesignStore>()(
   persist(
     (set, get) => {
       /** Applies a change after recording the present, so it can be undone. */
@@ -434,6 +469,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
               focusRoomId: null,
               selectedItemId: null,
               selectedElement: null,
+              selectedRoomIds: [],
               // …and a new project on the server: the next save gets its own row.
               projectId: null,
               history: emptyHistory(),
@@ -467,6 +503,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             focusRoomId: null,
             selectedItemId: null,
             selectedElement: null,
+            selectedRoomIds: [],
             step: 5,
             history: emptyHistory(),
           })),
@@ -571,6 +608,29 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           return created;
         },
 
+        selectRooms: (roomIds) => set({ selectedRoomIds: roomIds }),
+
+        moveRooms: (roomIds, delta) =>
+          commit((s) => {
+            if (!s.plan) return null;
+            const plan = moveRoomsIn(s.plan, roomIds, delta);
+            if (plan === s.plan) return null;
+            const moving = new Set(roomIds);
+            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 100) / 100, z: Math.round((p.z + delta.z) * 100) / 100 });
+            // Everything standing in a room travels with it: the furniture, the fittings on
+            // its walls, the technical points, and whatever was painted on its floor.
+            const withTechnical: FloorPlan = plan.technical
+              ? { ...plan, technical: { ...plan.technical, points: plan.technical.points.map((p) => (p.roomId && moving.has(p.roomId) ? { ...p, position: shift(p.position) } : p)) } }
+              : plan;
+            const travelled: DesignState = {
+              ...s,
+              items: s.items.map((i) => (moving.has(i.roomId) ? { ...i, position: shift(i.position) } : i)),
+              electrical: s.electrical.map((p) => (moving.has(p.roomId) ? { ...p, position: shift(p.position) } : p)),
+              finishes: s.finishes.map((f) => (f.zone && moving.has(f.roomId) ? { ...f, zone: { ...f.zone, polygon: f.zone.polygon.map(shift) } } : f)),
+            };
+            return reconcile(travelled, withTechnical);
+          }),
+
         removeRoom: (roomId) =>
           commit((s) => {
             if (!s.plan) return null;
@@ -604,6 +664,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
         offsetWall: (wallId, distance) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(offsetWallIn(s.plan.walls, wallId, distance), wallId)) : null)),
         moveWallNode: (from, to) => commit((s) => (s.plan?.walls ? withWalls(s, moveWallNodeIn(s.plan.walls, from, to)) : null)),
         updateWall: (wallId, patch) => commit((s) => (s.plan?.walls ? withWalls(s, updateWallIn(s.plan.walls, wallId, patch)) : null)),
+        resizeWall: (wallId, lengthM) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(resizeWallIn(s.plan.walls, wallId, lengthM), wallId)) : null)),
         removeWall: (wallId) => commit((s) => (s.plan?.walls ? withWalls(s, removeWallIn(s.plan.walls, wallId)) : null)),
 
         addColumn: (position, size = {}) => {
@@ -771,18 +832,20 @@ export const useDesignStore = create<DesignState & DesignActions>()(
           });
         },
 
-        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null }) => {
+        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null }) => {
           let landing: 'studio' | 'style' = 'style';
           set((s) => {
-            // A plan uploaded in the calculator keeps its real walls; rooms typed by hand become
-            // a row of rectangles. Either way the calculator's types, names and heights win.
+            // A plan uploaded or drawn in the calculator keeps its real walls; rooms typed by
+            // hand become a row of rectangles. Either way the calculator's types, names and
+            // heights win.
             const ids = new Set(rooms.map((r) => r.id));
-            const current = s.plan;
-            const reusable =
-              !!current &&
-              current.source !== 'calculator' &&
-              current.rooms.length === rooms.length &&
-              current.rooms.every((r) => ids.has(r.id));
+            /** A drawing of this same flat — same rooms, drawn rather than derived. */
+            const describesFlat = (p: FloorPlan | null | undefined): p is FloorPlan =>
+              !!p && p.source !== 'calculator' && p.rooms.length === rooms.length && p.rooms.every((r) => ids.has(r.id));
+            // The calculator's own board is the drawing just left behind; the studio's is
+            // what an earlier design of the same flat kept. The first wins.
+            const current = describesFlat(fromCalculator) ? fromCalculator : describesFlat(s.plan) ? s.plan : null;
+            const reusable = current !== null;
             let plan: FloorPlan;
             if (reusable && current) {
               const synced = current.rooms.map((pr) => {
@@ -797,14 +860,15 @@ export const useDesignStore = create<DesignState & DesignActions>()(
             const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture);
             // The same project already has a design: keep it, and let the studio put the
             // calculator's picks into it rather than laying the flat out again.
-            const keepDesign = projectId != null && s.projectId === projectId && reusable && s.items.length > 0;
+            const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;
             if (keepDesign) {
               landing = 'studio';
-              return { plan, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 5 };
+              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
             }
             return {
               plan,
-              planSerial: reusable ? s.planSerial : s.planSerial + 1,
+              floorPlanUrl: floorPlanUrl ?? s.floorPlanUrl,
+              planSerial: reusable && current === s.plan ? s.planSerial : s.planSerial + 1,
               projectId,
               mode: 'full',
               modeChosen: true,
@@ -1136,7 +1200,7 @@ export const useDesignStore = create<DesignState & DesignActions>()(
       };
     },
     {
-      name: 'renovate-design',
+      name: storageName,
       storage: createJSONStorage(() => localStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
@@ -1168,7 +1232,21 @@ export const useDesignStore = create<DesignState & DesignActions>()(
       }),
     }
   )
-);
+  );
+}
+
+/** The Design Studio's board — the eight-step journey's plan, scene, versions and history. */
+export const useDesignStore = createDesignStore('renovate-design');
+
+/**
+ * The calculator's own board, in its own localStorage. Same machine, different flat: the
+ * calculator's first step draws here and reads its rooms off it (`hooks/useCalculatorPlan`),
+ * and nothing it does shows up in the studio.
+ */
+export const useCalculatorPlanStore = createDesignStore('renovate-calculator-plan');
+
+/** Either board, for a component that can be pointed at one (`PlanWorkspace`). */
+export type DesignStoreHook = typeof useDesignStore;
 
 function snapshotOf(s: DesignState): DesignSnapshot {
   return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical };

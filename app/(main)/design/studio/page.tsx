@@ -615,6 +615,7 @@ export default function StudioPage() {
 
   const inspectorActions = {
     updateWall: store.updateWall,
+    resizeWall: store.resizeWall,
     removeWall: store.removeWall,
     updateOpening: (roomId: string, openingId: string, patch: Parameters<typeof store.updateOpening>[2]) => store.updateOpening(roomId, openingId, patch, products),
     removeOpening: store.removeOpening,

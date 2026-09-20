@@ -4,6 +4,7 @@ import {
   buildWallGraph,
   ensureWalls,
   moveNode,
+  moveRooms,
   offsetWall,
   orphanWallSegments,
   rebuildRooms,
@@ -32,6 +33,8 @@ function box(prefix: string, x0: number, z0: number, x1: number, z1: number, t =
     wall(`${prefix}-left`, P(x0, z1), P(x0, z0), t),
   ];
 }
+
+const polygonCentroidX = (room: PlanRoom): number => room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
 
 const rect = (id: string, x: number, z: number, w: number, d: number, type: PlanRoom['type'] = 'bedroom'): PlanRoom =>
   refreshRoom({
@@ -163,12 +166,40 @@ describe('editing walls', () => {
     expect(roomsFromWalls(moved)).toHaveLength(1);
   });
 
-  it('merges a wall drawn along an existing one instead of doubling it', () => {
+  it('leaves a wall drawn on from the end as its own wall, so the two come apart again', () => {
     const walls = addWalls(box('a', 0, 0, 4, 3), [wall('ext', P(4, 0), P(7, 0))]);
+    const top = walls.filter((w) => w.a.z === 0 && w.b.z === 0);
+    expect(top).toHaveLength(2);
+    expect(walls.find((w) => w.id === 'ext')).toMatchObject({ a: P(4, 0), b: P(7, 0) });
+    expect(walls.find((w) => w.id === 'a-top')).toMatchObject({ a: P(0, 0), b: P(4, 0) });
+  });
+
+  it('does not double a wall drawn straight over one already there', () => {
+    const walls = addWalls(box('a', 0, 0, 4, 3), [wall('again', P(0, 0), P(4, 0))]);
     expect(walls.filter((w) => w.a.z === 0 && w.b.z === 0)).toHaveLength(1);
-    const top = walls.find((w) => w.a.z === 0 && w.b.z === 0)!;
-    expect(Math.max(top.a.x, top.b.x)).toBe(7);
-    expect(Math.min(top.a.x, top.b.x)).toBe(0);
+  });
+
+  it('keeps only the stretch of a new wall nobody already holds', () => {
+    const walls = addWalls(box('a', 0, 0, 4, 3), [wall('long', P(2, 0), P(7, 0))]);
+    const added = walls.find((w) => w.id === 'long')!;
+    expect(Math.min(added.a.x, added.b.x)).toBeCloseTo(4, 5);
+    expect(Math.max(added.a.x, added.b.x)).toBeCloseTo(7, 5);
+  });
+
+  it('pulls a room away from its neighbour, splitting the wall they shared', () => {
+    // Two rooms side by side on one shared wall.
+    const walls = [...box('a', 0, 0, 4, 3), ...wallsForRectangle({ x: 4.06, z: 0.06, width: 3.88, depth: 2.88 }, 0.12, 'user', 'b')];
+    const plan = rebuildRooms({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, walls);
+    expect(plan.rooms).toHaveLength(2);
+    const [left, right] = [...plan.rooms].sort((p, q) => polygonCentroidX(p) - polygonCentroidX(q));
+    const before = plan.walls!.length;
+    const moved = moveRooms(plan, [right.id], P(2, 0));
+    // The right room kept its identity and travelled; the left one stayed where it was.
+    expect(moved.rooms.map((r) => r.id).sort()).toEqual([left.id, right.id].sort());
+    expect(polygonCentroidX(moved.rooms.find((r) => r.id === right.id)!)).toBeCloseTo(polygonCentroidX(right) + 2, 1);
+    expect(polygonCentroidX(moved.rooms.find((r) => r.id === left.id)!)).toBeCloseTo(polygonCentroidX(left), 1);
+    // The wall they had in common was split, so both still have one.
+    expect(moved.walls!.length).toBeGreaterThan(before);
   });
 
   it('removing the partition merges the rooms into one that keeps the larger room’s identity', () => {

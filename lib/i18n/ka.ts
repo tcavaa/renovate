@@ -1653,6 +1653,7 @@ export const ka = {
     toolPan: 'გადაწევა',
     toolWall: 'კედელი',
     toolRoom: 'ოთახი',
+    wallShape: 'ფორმა',
     toolDoor: 'კარი',
     toolWindow: 'ფანჯარა',
     toolColumn: 'სვეტი',

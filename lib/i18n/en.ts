@@ -1648,6 +1648,7 @@ export const en: Dictionary = {
     toolPan: 'Pan',
     toolWall: 'Wall',
     toolRoom: 'Room',
+    wallShape: 'Shape',
     toolDoor: 'Door',
     toolWindow: 'Window',
     toolColumn: 'Column',

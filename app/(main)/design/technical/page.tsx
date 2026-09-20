@@ -220,6 +220,7 @@ export default function TechnicalPage() {
                 locked
                 actions={{
                   updateWall: actions.updateWall,
+                  resizeWall: actions.resizeWall,
                   removeWall: actions.removeWall,
                   updateOpening: actions.updateOpening,
                   removeOpening: actions.removeOpening,

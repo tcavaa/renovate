@@ -1646,6 +1646,7 @@ export const ru: Dictionary = {
     toolPan: 'Сдвиг',
     toolWall: 'Стена',
     toolRoom: 'Комната',
+    wallShape: 'Форма',
     toolDoor: 'Дверь',
     toolWindow: 'Окно',
     toolColumn: 'Колонна',

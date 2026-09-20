@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import { useDesignStore } from '@/store/designStore';
+import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { picksFromScene, type SavedProjectInput } from '@/lib/projects/saved';
 
@@ -19,6 +19,7 @@ export function CalculateCostsButton({ project, size = 'md', className }: { proj
   const t = useT();
   const openSavedProject = useCalculatorStore((s) => s.openSavedProject);
   const openSaved = useDesignStore((s) => s.openSaved);
+  const openCalculatorBoard = useCalculatorPlanStore((s) => s.openSaved);
 
   const open = () => {
     // A project designed first has no calculator picks yet: the studio's products stand in,
@@ -34,6 +35,9 @@ export function CalculateCostsButton({ project, size = 'md', className }: { proj
     });
     if (project.plan && project.scene) {
       openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
+      // The calculator draws on its own board, so the saved plan is opened there as well —
+      // otherwise step 1 would offer a blank sheet for a flat that is already drawn.
+      openCalculatorBoard({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });
     }
     // Plan and home state already settled means step 1 is done: straight to the materials.
     router.push(project.hasCalculator ? '/calculator/materials' : '/calculator');
