@@ -56,6 +56,7 @@ import {
 import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
 import { technicalAnchors, technicalElevation, TECHNICAL_KINDS } from '@/lib/design/technical';
+import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { isPlacementValid } from '@/lib/design/manipulate';
@@ -229,6 +230,11 @@ interface DesignActions {
   suggestRadiators: (catalog?: CatalogProduct[]) => number;
   /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
+  /**
+   * Places the technical points the plan implies — water, waste, drains, gas, the panel,
+   * the extractors, the air conditioners, one boiler — and returns how many went in.
+   */
+  suggestTechnical: () => number;
   setWorks: (works: string[]) => void;
   /** What the flat already has, so the budget leaves it out (`lib/design/existing`). */
   setExisting: (keys: string[]) => void;
@@ -765,6 +771,18 @@ function createDesignStore(storageName: string) {
           if (!plan || catalog.length === 0) return;
           const next = withRadiatorProducts(plan, catalog, styleId);
           if (next !== plan) set({ plan: next });
+        },
+        suggestTechnical: () => {
+          let placed = 0;
+          commit((s) => {
+            if (!s.plan) return null;
+            let n = 0;
+            const { points } = suggestTechnicalIn(s.plan, s.items, () => `${uid('t')}${n++}`);
+            if (points.length === 0) return null;
+            placed = points.length;
+            return { plan: { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), ...points], works: s.plan.technical?.works, existing: s.plan.technical?.existing } } };
+          });
+          return placed;
         },
         setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works, existing: s.plan.technical?.existing } } } : s)),
         setExisting: (existing) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { points: s.plan.technical?.points ?? [], works: s.plan.technical?.works, existing } } } : s)),

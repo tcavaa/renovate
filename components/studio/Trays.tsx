@@ -194,7 +194,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
  * the whole technical layer can be laid out without leaving the studio. The works checklist,
  * which is a page of its own, is one link away.
  */
-export function TechnicalTray({ kind, onKind, armed, onArm, counts, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; onRadiators: () => void; stepHref: string }) {
+export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC. */ onAuto: () => void; onRadiators: () => void; stepHref: string }) {
   const t = useT();
   const placed = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   return (
@@ -234,9 +234,12 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onRadiators,
             })}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onRadiators} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+              <Sparkles className="h-3.5 w-3.5" />
+              {t.build.autoTechnical}
+            </button>
+            <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink hover:text-ink">
               <Flame className="h-3.5 w-3.5" />
-              {t.build.hangRadiators}
             </button>
             <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
               {t.build.worksTitle}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, ChevronDown, Flame, Lightbulb } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Flame, Lightbulb, Sparkles } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
@@ -78,6 +78,8 @@ export default function TechnicalPage() {
   const [kind, setKind] = useState<TechnicalKind>('water_supply');
   /** What the last "hang the radiators" did: how many were added, or 0 when every room had one. */
   const [radiatorsHung, setRadiatorsHung] = useState<number | null>(null);
+  /** What the last automatic placement did, for the line under the button. */
+  const [autoPlaced, setAutoPlaced] = useState<number | null>(null);
 
   // Every radiator is a product where the catalogue has one, its sections counted from its room.
   const radiatorSignature = useMemo(() => (plan ? radiatorPoints(plan).map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.sections ?? ''}`).join('|') + `#${plan.rooms.map((r) => r.areaM2).join(',')}` : ''), [plan]);
@@ -184,6 +186,32 @@ export default function TechnicalPage() {
                   );
                 })}
               </div>
+            </section>
+
+            {/*
+              The step people skip. Marking water, waste, drains, gas, the panel, the
+              extractors and the air conditioning by hand is the least rewarding part of the
+              journey, and a flat with none of them is priced as though it needed no
+              plumbing — so the rules place what they can and leave the rest.
+            */}
+            <section className="rounded-[16px] border border-line bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <Sparkles className="h-4 w-4 text-brand" />
+                    {t.build.autoTechnical}
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.autoTechnicalHint}</p>
+                </div>
+                <button type="button" onClick={() => setAutoPlaced(actions.suggestTechnical())} className="h-9 shrink-0 rounded-[10px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  {t.build.autoTechnical}
+                </button>
+              </div>
+              {autoPlaced != null && (
+                <p className="mt-2 text-xs font-medium text-success" role="status">
+                  {autoPlaced > 0 ? fill(t.build.autoTechnicalDone, { n: autoPlaced }) : t.build.autoTechnicalNone}
+                </p>
+              )}
             </section>
 
             {/* Heating: how many sections each room wants, and a radiator under every window at a click. */}

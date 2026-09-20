@@ -979,6 +979,7 @@ export default function StudioPage() {
                       if (armed && view !== '2d') setView('2d');
                     }}
                     counts={technicalCounts}
+                    onAuto={() => store.suggestTechnical()}
                     onRadiators={() => store.suggestRadiators(products)}
                     stepHref={DESIGN_STEP_HREFS[3]}
                   />
