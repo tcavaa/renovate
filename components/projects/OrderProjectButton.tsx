@@ -6,6 +6,7 @@ import { ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
+import { priceScene } from '@/lib/design/pricing';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { useLocale, useT } from '@/lib/i18n/client';
 import type { SavedProjectInput } from '@/lib/projects/saved';
@@ -27,8 +28,9 @@ export function OrderProjectButton({ project, size = 'lg', className }: { projec
     const list: CheckoutPart[] = [];
     if (project.hasCalculator) list.push(calculatorCheckoutPart(project.rooms, project.selectedProducts, project.selectedFurniture, fees.calculatorFeePerM2, locale));
     if (project.hasDesign && project.plan && project.scene) {
-      // With the ticks the project was saved with — the server reads the same list.
-      const design = designCheckoutPart(project.plan, project.scene.items, project.scene.finishes, fees.designFeePerM2, locale, project.scene.excluded ?? []);
+      // The row as saved, priced as the server will price it — its scene, its ticks, its
+      // home state — so the dialogue lists the product lines the stores will be sent.
+      const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState, locale }), fees.designFeePerM2, locale);
       if (design) list.push(design);
     }
     return list;

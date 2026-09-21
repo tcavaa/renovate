@@ -553,10 +553,18 @@ export interface StyleDefinition {
 // Cost
 // ---------------------------------------------------------------------------
 
+/**
+ * What one store is being asked for: every product line of the budget that is its own and
+ * is still ticked — furniture, finishes, doors and windows, fittings, radiators alike. A
+ * line the budget folds (one paint over five rooms, twelve sockets of one model) is one
+ * line here, and its `product` carries the folded quantity and total, not one instance's.
+ */
 export interface StoreBasket {
   store: SceneStore | null;
   lines: Array<{
+    /** What the product is here — "Sofa", "Wall covering", "Interior door" — in the caller's language. */
     item: string;
+    /** The room, or every room a folded line covers; empty when the line has none. */
     roomName: string;
     product: SceneProduct;
   }>;
@@ -598,6 +606,10 @@ export interface DesignCost {
     tick?: string;
     /** Ticked off: on the sheet where it was, counted nowhere. */
     excluded?: boolean;
+    /** The product a product line is, with the line's own quantity and total — what the baskets, the checkout and the orders are built from. */
+    product?: SceneProduct;
+    /** What that product is here ("Sofa", "Wall covering", "Interior door"), for the basket. */
+    item?: string;
   }>;
   /** The made-to-measure kitchens, measured — see `lib/design/kitchen.ts`. */
   kitchens: Array<{ itemId: string; roomId: string; roomName?: string; slot: string; lengthM: number; lowerM2: number; upperM2: number; worktopM: number; totalM2: number; totalGel: number }>;
