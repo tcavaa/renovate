@@ -52,7 +52,10 @@ export interface WallMeshSpec {
   height: number;
   pieces: WallPiece[];
   holes: WallHole[];
-  /** Stretches of the room face with their own material slot; everything else is `WALL_SLOT_BASE`. */
+  /**
+   * Stretches of the room face with their own material slot; everything else is
+   * `WALL_SLOT_BASE`. Where two overlap the later one shows — list strips before patches.
+   */
   spans?: WallFaceSpan[];
   /** The material slot of each piece's far face, by piece index; `WALL_SLOT_BASE` when absent. */
   farSlots?: number[];
@@ -104,8 +107,16 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
   const outward: [number, number, number] = [-edge.inward.x, 0, -edge.inward.z];
   const forward: [number, number, number] = [edge.dir.x, 0, edge.dir.z];
   const backward: [number, number, number] = [-edge.dir.x, 0, -edge.dir.z];
-  const slotAt = (s: number, y = 0): number =>
-    spans.find((span) => s >= span.from && s <= span.to && y >= (span.bottom ?? 0) && y <= (span.top ?? Infinity))?.slot ?? WALL_SLOT_BASE;
+  // Later in the list lies on top, like paint: a square metre painted over a strip is what
+  // shows. Taking the first match instead hid every patch laid on a strip — the strips are
+  // listed first — so the brush seemed not to apply there at all.
+  const slotAt = (s: number, y = 0): number => {
+    for (let i = spans.length - 1; i >= 0; i--) {
+      const span = spans[i];
+      if (s >= span.from && s <= span.to && y >= (span.bottom ?? 0) && y <= (span.top ?? Infinity)) return span.slot;
+    }
+    return WALL_SLOT_BASE;
+  };
 
   pieces.forEach((piece, index) => {
     const holes = spec.holes

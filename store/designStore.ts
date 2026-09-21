@@ -47,9 +47,11 @@ import {
   offsetWall as offsetWallIn,
   rebuildRooms,
   moveRooms as moveRoomsIn,
+  roomCluster,
   removeWall as removeWallIn,
   resizeWall as resizeWallIn,
   updateWall as updateWallIn,
+  wallsBoundingRoom,
   wallsForRectangle,
   withBounds,
 } from '@/lib/design/walls';
@@ -62,6 +64,7 @@ import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } fro
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
 import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
+import { pruneTicks, toggleTick, type Tick } from '@/lib/design/ticks';
 import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type {
@@ -131,8 +134,8 @@ interface DesignState {
   styleId: StyleId;
   /** The five answers of the style test, when it was taken. */
   styleProfile: StyleProfile | null;
-  /** Products the person is not ordering — ticked off on the budget page. */
-  excluded: number[];
+  /** The budget lines the person is not ordering — ticked off on the budget page (`lib/design/ticks`). */
+  excluded: Tick[];
   budgetGel: number | null;
   plan: FloorPlan | null;
   floorPlanUrl: string | null;
@@ -189,10 +192,10 @@ interface DesignActions {
   setProjectId: (id: number | null) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setStyleProfile: (profile: StyleProfile | null) => void;
-  /** Puts a product in or out of the order; the budget and the checkout follow. */
-  toggleExcluded: (productId: number) => void;
+  /** Puts one budget line in or out of the order; the budget and the checkout follow. */
+  toggleExcluded: (tick: string, productId?: number | null) => void;
   /** Everything in, or a whole section out, in one go. */
-  setExcluded: (productIds: number[]) => void;
+  setExcluded: (ticks: Tick[]) => void;
   setBudget: (budgetGel: number | null, catalog: CatalogProduct[]) => void;
   /** A new plan — a new flat, a new project. Walls are derived when the plan has none. */
   setPlan: (plan: FloorPlan, floorPlanUrl?: string | null) => void;
@@ -479,7 +482,7 @@ function createDesignStore(storageName: string) {
           });
         },
         setStyleProfile: (styleProfile) => set({ styleProfile }),
-        toggleExcluded: (productId) => set((s) => ({ excluded: s.excluded.includes(productId) ? s.excluded.filter((id) => id !== productId) : [...s.excluded, productId] })),
+        toggleExcluded: (tick, productId) => set((s) => ({ excluded: toggleTick(s.excluded, tick, productId) })),
         setExcluded: (excluded) => set({ excluded: [...new Set(excluded)] }),
 
         setBudget: (budgetGel, catalog) => {
@@ -655,8 +658,13 @@ function createDesignStore(storageName: string) {
             if (!s.plan) return null;
             const plan = moveRoomsIn(s.plan, roomIds, delta);
             if (plan === s.plan) return null;
-            const moving = new Set(roomIds);
-            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 100) / 100, z: Math.round((p.z + delta.z) * 100) / 100 });
+            // Rooms with a wall in common travel as one body, so what travels is the cluster —
+            // the same one the walls were moved for — not just the rooms that were grabbed.
+            const moving = new Set(roomCluster(s.plan, roomIds));
+            // To the millimetre, like the walls: a room snapped onto its neighbour travels by
+            // whatever closes the gap exactly, which is not always a whole centimetre, and a
+            // sofa rounded differently from the wall it stands against ends up inside it.
+            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 1000) / 1000, z: Math.round((p.z + delta.z) * 1000) / 1000 });
             // Everything standing in a room travels with it: the furniture, the fittings on
             // its walls, the technical points, and whatever was painted on its floor.
             const withTechnical: FloorPlan = plan.technical
@@ -677,10 +685,13 @@ function createDesignStore(storageName: string) {
             const room = s.plan.rooms.find((r) => r.id === roomId);
             if (!room) return null;
             // Take away the walls only this room used; a shared wall stays for its neighbour.
+            // Asked of the geometry, like a move: `wallIds` names one wall per edge, and a side
+            // a neighbour covers half of is two walls — the unnamed half used to be left
+            // standing as a stub where the room had been.
             const walls = s.plan.walls ?? [];
             if (walls.length > 0 && room.wallIds) {
-              const shared = new Set(s.plan.rooms.filter((r) => r.id !== roomId).flatMap((r) => r.wallIds ?? []));
-              const gone = new Set((room.wallIds ?? []).filter((id) => !shared.has(id)));
+              const shared = new Set(s.plan.rooms.filter((r) => r.id !== roomId).flatMap((r) => [...wallsBoundingRoom(walls, r)]));
+              const gone = new Set([...wallsBoundingRoom(walls, room)].filter((id) => !shared.has(id)));
               const kept = walls.filter((w) => !gone.has(w.id));
               const plan = rebuildRooms(s.plan, kept);
               // The room's area may now be a bounded face again (fully shared walls): drop it explicitly.
@@ -1296,7 +1307,8 @@ function createDesignStore(storageName: string) {
 
         scene: () => {
           const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded } = get();
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded };
+          // A tick outlives nothing: one left by a piece since deleted is not saved.
+          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, items.map((i) => i.id)) };
         },
       };
     },

@@ -250,7 +250,8 @@ export const designSceneSchema = z.object({
   finishes: z.array(surfaceFinishSchema).max(800),
   electrical: z.array(electricalPointSchema).max(600).optional(),
   styleProfile: styleProfileSchema.nullable().optional(),
-  excluded: z.array(z.number().int().positive()).max(800).optional(),
+  /** Ticked-off budget lines: `item:<id>`, `finish:<productId>`… — or a bare product id from an older scene. */
+  excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
 });
 
 /** A kept version of the flat: the plan and scene as they were, with a name. */

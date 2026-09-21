@@ -494,19 +494,41 @@ routinely two walls end to end, its neighbour's and then its own, and treating t
 edges gave the room a phantom vertex, an extra wall index and a finish that stopped halfway
 along a flat wall.
 
-**Rooms come apart again.** `moveRooms(plan, roomIds, delta)` moves whole rooms with their
-walls: a wall only the movers use travels, a wall shared with a room staying behind is
-*split* (the original stays, a copy goes). Identity survives because the previous rooms are
-handed to `rebuildRooms` already shifted. The store's `moveRooms` takes the furniture,
-fittings, technical points and painted zones of those rooms along with them.
+**Rooms that share a wall are one body, and nothing is ever pulled apart** (`roomCluster`).
+For a while a room could be dragged away from its neighbour — the wall between them was
+*split*, the original staying and a copy leaving — and every version of that came back broken:
+a room with a side missing, a stub left on the neighbour, and, pushed back, two walls six
+centimetres apart on what had been one line, which the wall graph cuts into slivers and jogs.
+Nobody needed it (a flat is moved as a flat), so it is gone: a drag takes the closure of the
+grabbed rooms under "has a wall in common", and **Ctrl+Z is the way back** from a room pushed
+up against the wrong neighbour. `wallsForMove(plan, roomIds)` is what travels, worked out once
+when the drag begins: the cluster's walls, the partitions and stubs standing inside those
+rooms, and any free wall hanging off them (a half-drawn room on the side of the flat goes with
+the flat) unless it also touches a room that stays. `moveRooms` shifts those, the columns and
+beams standing in the moved rooms, and hands the previous rooms to `rebuildRooms` already
+shifted so identity survives; the store's `moveRooms` takes the furniture, fittings, technical
+points and painted zones of the whole cluster along, to the millimetre like the walls.
+
+**Pushed together means one wall between them.** Where a travelling wall lands on the line of
+a wall that stayed, the stretch the two have in common is kept once — the wall that was there
+stands for both, *whatever its thickness* (`uncoveredPieces(…, anyThickness)`; a wall being
+*drawn* still only gives way to one of its own thickness) — and the traveller keeps what
+sticks out past it. That shared wall is also what makes them one body from then on. What two
+parallel walls may never do is stand half inside each other (`wallsClash`: off each other's
+line, closer than their bodies plus `WALL_CLEARANCE_M`, overlapping along their length); the
+board snaps so that it does not happen by accident and refuses the drop when it would happen
+anyway — a room pushed into a gap a hand too narrow for it.
 
 **Which walls are a room's is asked of the geometry, not of `wallIds`.** `room.wallIds` names
 one wall per *edge*, and walls are cut at every junction — so a side that a neighbour covers
-only half of is two walls, and only the first was ever named. Dragging such a room away left
-the rest of that side standing where it was: the room arrived with a hole in it. Instead
-`wallsBoundingRoom(walls, room)` sweeps every wall and keeps the ones running parallel to an
-edge, half a thickness outside it, overlapping it along its length — all of them, however the
-side was cut. Pinned by "takes every wall of a room along, even the sides cut into several".
+only half of is two walls, and only the first is named. `wallsBoundingRoom(walls, room)` sweeps
+every wall and keeps the ones running parallel to an edge, half a thickness outside it,
+overlapping it along its length — all of them, however the side was cut. The cluster, the move
+and the store's `removeRoom` all ask it (deleting a room used to leave the unnamed half of a
+side standing as a stub). `orphanWallSegments` has the mirror-image rule: a wall piece is
+measured against a room side's *line*, because a side is routinely longer than the piece
+behind it — measured to the piece, every such piece read as free-standing and the 3D view stood
+a second wall inside the room's own.
 
 `ensureWalls` is what `setPlan` and `openSaved` call. Every wall edit in the store —
 `addWall`, `offsetWall` (sideways along `wallNormal`, connected walls follow),
@@ -540,7 +562,18 @@ red and the drop is refused with its own message.
 **Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
 or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
 tool, and W/A/S/D or the arrows — matched on `event.code`, like the 3D view). The group then drags bodily through `moveRooms`, with a live plate saying how
-far it has travelled, and comes apart from whatever stays behind. Delete takes the whole
+far it has travelled — and every room joined to it comes too (the ghost shows all of them and
+their walls; the *selection* stays what was clicked, so Delete does not take the flat with the
+room). **A dragged room snaps wall to wall** (`snapRoomMove`): each axis looks for a wall of the
+travellers and a parallel wall staying behind whose centrelines the move would bring close, and
+closes the distance exactly. A wall that would run *alongside* wins over one that continues it
+end to end, which wins over one merely in line across the sheet; the nearest within a kind; a
+wall alongside is in reach for as long as the two bodies would overlap, however far the view is
+zoomed in. Each snap draws the full-sheet line the two walls now share (and the neighbour's
+wall, when it is one) — the "lines room to room" that say what it is squaring up with. A drop
+that would still leave a wall half inside another turns the ghost red and is refused with the
+same message as a room over a room; both boards show it (the calculator's had no banner, so a
+refusal there looked like a drag that had not worked). Delete takes the whole
 selection. **Every gesture that changes a size carries its ruler**: the wall being drawn,
 the rectangle being pulled out, a wall dragged sideways (with its offset), a wall stretched
 by an end, and the selected or hovered wall — and a wall's length is an input in the
@@ -696,14 +729,32 @@ version 01 stays. Versions are persisted locally and in `projects.versions`.
 
 ### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
 
-**A budget line that is a product can be ticked off.** Unticking one leaves it in the design
-— still in the room, still in 3D — and takes it out of the order: `scene.excluded` holds the
-product ids, is saved with the project, and is read by `priceScene` (out of the lines, the
-baskets and the totals), `designCheckoutPart` and `sceneLinesByStore`, so the checkout does
-not order it either. The budget page prices the flat twice — as it stands and with nothing
-ticked off — to say what the difference came to, and keeps the excluded lines on the sheet,
-struck through, so they can be put back. Only `product-<id>` lines can be ticked: a labour
-row, a bulk material and a catalogue-free estimate are what the work costs whoever does it.
+**A budget line that is a product can be ticked off — the line, not the product**
+(`lib/design/ticks.ts`). Unticking one leaves it in the design — still in the room, still in
+3D — and takes it out of the order. `scene.excluded` holds one key per *line*: a placed piece
+is `item:<its id>`, and the lines the budget folds per product are that product within its
+kind (`finish:<id>`, `opening:<id>`, `fixture:<id>`, `radiator:<id>`). The first version kept
+bare product ids, and a flat with the same bed in four bedrooms is four lines of one product:
+unticking one struck all four, which read as three rows appearing from nowhere. (A bare number
+in an older scene still means "every line of that product" when read; `toggleTick` never
+writes one, and `pruneTicks` drops the tick of a piece since deleted before a save.)
+`priceScene` keeps a ticked-off line **in `lines`, flagged `excluded`, exactly where it would
+otherwise stand** and counts it nowhere — not in a total, a section, a basket or the three
+header figures (`budgetSections` / `budgetSummary` skip it). The page used to list what was
+ticked off *after* the rest, from a second pricing, so the sheet reshuffled under the pointer at
+every tick; and the radiators never asked the ticks at all, so one ticked off stayed in the
+total and was listed twice, once ticked and once struck through. The second pricing survives
+only to say what the ticks came to (`fullCost.grandTotal − cost.grandTotal`), because a product
+that is out can take its store's delivery with it. **What a tick takes out is the product; the
+labour stays** — a socket somebody already owns still has to be wired, a radiator hung, a
+skirting board fitted. `designCheckoutPart` and `sceneLinesByStore` read the same keys, so the
+dialogue lists what the stores are sent; the calculator's summary and the project page's order
+button pass the ticks too (they used to list everything). Only product lines carry a `tick`: a
+labour row, a bulk material and a catalogue-free estimate are what the work costs whoever does
+it. `tests/unit/design/ticks.test.ts` pins all of it, including that the totals card's rows,
+the sections and the header figures each come to the grand total in both modes — the card
+hid its labour row outside a renovation, and a design-only project that chose a skirting board
+pays to have it fitted, so its rows came up short of the total under them.
 
 **The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
 draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
@@ -934,6 +985,18 @@ as well as vertically. The grid is the room's own (counted from its bounding
 box, each tile clipped to the outline, so the last column is a part tile), and a strip
 shorter than 25 cm at the end of a wall joins the strip before it. `fitToPlan` in the store
 drops a strip past the end of a wall that got shorter and a tile a room no longer reaches.
+
+**The layers of a wall lie like paint: base, this wall's own finish, strips, square metres.**
+`buildWallGeometry` gives each spot the *last* span that covers it, and `buildScene` lists the
+strips before the patches, so a square painted over a strip is what shows (it took the *first*
+match once, the strips came first, and the 1 m² brush seemed not to apply anywhere a strip had
+been painted; the data was there all along). The other direction is settled in the data: a
+strip is floor to ceiling, so `paintSpan` takes every square in the stretch it paints off the
+wall — and only in that stretch, not in the rest of a span of the same product it runs on into
+— and the strip eraser clears them with it. The 1 m² eraser on a strip cannot leave a hole in
+one, so the column leaves the strip and goes on wearing its product as squares, every row but
+the erased one (`erasePatchFromStrip`), priced as what is left. The 2D board draws the same
+order — whole wall, strips, squares — whatever order the finishes are stored in.
 
 **While the finishes category is open the pointer sees the room and nothing else**: the
 viewer picks through `shellHitAt` (floors, walls, zones), so the sofa in front of the wall,
@@ -1772,7 +1835,11 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 ## Known gaps / roadmap
 
 - New walls are drawn in the 2D view only; in 3D a wall can be selected, unlocked and
-  dragged sideways, not drawn. Rooms are likewise selected and dragged in 2D only. Floor
+  dragged sideways, not drawn. Rooms are likewise selected and dragged in 2D only. Rooms that
+  share a wall cannot be pulled apart by dragging — undo, or delete and redraw, is the way
+  back — and a plan saved while detaching still existed may hold two walls a few centimetres
+  apart that nothing repairs on load. A door on an outside wall that becomes a shared wall when
+  its room is pushed against a neighbour stays one-sided (no twin is cut in the neighbour). Floor
   zones are drawn in 2D (the whole room, one wall, half the floor, a painted tile, a painted
   strip and a painted wall patch all work from 3D). Beams are not obstacles for the layout
   engine.
@@ -1792,8 +1859,19 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 - The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
   reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
 - What a flat "already has" is ten ticks, not a survey: ticking "sockets" excludes every
-  socket in the flat, not the three that are actually there. The same goes for a product
-  ticked off the budget — it is out of the order entirely, never partly.
+  socket in the flat, not the three that are actually there. On the budget a placed piece is
+  ticked on its own, but a line the budget folds per product — a finish over every room it is
+  on, the doors of one model, the sockets of one model, the radiators of one design — is in or
+  out as a whole.
+- **Doors, windows, fittings and radiators are budget lines but are not ordered.** The
+  per-store baskets (`cost.baskets`), `designCheckoutPart` and `sceneLinesByStore` were written
+  when only furniture and finishes were products and still list only those: a door from Domus
+  or a socket from Lumina has a price and a tick on the budget, no basket, no delivery line of
+  its own and no order line at checkout. The honest fix is to derive all three from
+  `priceScene`'s product lines (it alone knows which openings and points are new work).
+- Each finish is priced by its own area: a base wall finish is charged for the whole room's
+  walls even where one wall, a strip or a square metre of another product lies over it, so
+  overlaid finishes over-count the base by the area they cover.
 - The e2e studio spec walks all eight steps but is not run in CI (needs the DB).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).

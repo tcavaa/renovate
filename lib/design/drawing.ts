@@ -12,7 +12,7 @@
  */
 
 import type { Beam, Column, ElectricalPoint, TechnicalPoint, Vec2, Wall } from './types';
-import { closestOnSegment, nearestWallTo, wallNodes, NODE_TOL_M } from './walls';
+import { closestOnSegment, nearestWallTo, wallNodes, NODE_TOL_M, WALL_CLEARANCE_M } from './walls';
 import { clipPolygon } from './zones';
 import { polygonAreaM2, pointInPolygon } from './planGeometry';
 
@@ -226,6 +226,91 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
   // To the millimetre, like the walls themselves: a 15 cm wall puts the face 7.5 cm off its line.
   return { rect: { x: round3(x.start), z: round3(z.start), width: round3(x.size), depth: round3(z.size) }, guides };
 }
+
+/**
+ * Where rooms being dragged should land: the pointer's travel, pulled onto the walls nearby.
+ *
+ * Each axis looks for a wall of the travellers and a parallel wall staying behind whose
+ * centrelines the move would bring close, and closes the distance exactly — a room pushed up
+ * against its neighbour ends with one wall between them, not two a hand apart, which is what
+ * every broken outline on this board used to start from. Three kinds of neighbour, in order
+ * of authority, the nearest within a kind:
+ *
+ *   1. a wall that would run *alongside* the traveller's — the room it is being pushed
+ *      against. Within reach for as long as the two bodies would overlap, however far the
+ *      view is zoomed in, because two walls may share a line but never half of one;
+ *   2. a wall that continues the traveller's end to end — the flat it is being lined up with;
+ *   3. a wall anywhere else on the sheet that it would line up with — the guide CAD users
+ *      expect, so two rooms across a courtyard can still be squared with each other.
+ *
+ * An axis nothing claims falls to the grid. Every snap reports a guide: the full-sheet line
+ * the two walls now share, and for a neighbour alongside, the neighbour's wall itself.
+ */
+export function snapRoomMove(moving: Wall[], staying: Wall[], raw: Vec2, options: { tolM: number; gridM: number }): { delta: Vec2; guides: SnapGuide[] } {
+  const { tolM, gridM } = options;
+  const vertical = (w: Wall) => Math.abs(w.a.x - w.b.x) < 1e-6;
+  const horizontal = (w: Wall) => Math.abs(w.a.z - w.b.z) < 1e-6;
+
+  interface Candidate {
+    delta: number;
+    mover: Wall;
+    wall: Wall;
+    /** 0 alongside, 1 end to end, 2 merely in line. */
+    rank: 0 | 1 | 2;
+    overlap: number;
+  }
+  const better = (p: Candidate, q: Candidate | null): boolean => {
+    if (!q) return true;
+    if (p.rank !== q.rank) return p.rank < q.rank;
+    if (Math.abs(Math.abs(p.delta) - Math.abs(q.delta)) > 1e-6) return Math.abs(p.delta) < Math.abs(q.delta);
+    return p.overlap > q.overlap;
+  };
+  /** The best pair on one axis; `other` is the travel already decided (or guessed) on the other axis. */
+  const bestFor = (axis: 'x' | 'z', travel: number, other: number): Candidate | null => {
+    const pick = axis === 'x' ? vertical : horizontal;
+    const line = (w: Wall) => (axis === 'x' ? w.a.x : w.a.z);
+    const span = (w: Wall): [number, number] => (axis === 'x' ? [Math.min(w.a.z, w.b.z), Math.max(w.a.z, w.b.z)] : [Math.min(w.a.x, w.b.x), Math.max(w.a.x, w.b.x)]);
+    const theirs = staying.filter(pick);
+    let best: Candidate | null = null;
+    for (const mover of moving.filter(pick)) {
+      const [from, to] = span(mover).map((v) => v + other) as [number, number];
+      for (const wall of theirs) {
+        const [lo, hi] = span(wall);
+        const overlap = Math.min(hi, to) - Math.max(lo, from);
+        const rank = overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5) ? 0 : overlap >= -tolM ? 1 : 2;
+        const reach = rank === 0 ? Math.max(tolM * BESIDE_REACH, (mover.thicknessM + wall.thicknessM) / 2 + WALL_CLEARANCE_M) : tolM;
+        const delta = line(wall) - (line(mover) + travel);
+        if (Math.abs(delta) > reach) continue;
+        const candidate: Candidate = { delta, mover, wall, rank, overlap };
+        if (better(candidate, best)) best = candidate;
+      }
+    }
+    return best;
+  };
+  const grid = (v: number) => Math.round(v / gridM) * gridM;
+
+  const x = bestFor('x', raw.x, raw.z);
+  const dx = x ? raw.x + x.delta : grid(raw.x);
+  const z = bestFor('z', raw.z, dx);
+  const dz = z ? raw.z + z.delta : grid(raw.z);
+  const delta = { x: round3(dx), z: round3(dz) };
+
+  const guides: SnapGuide[] = [];
+  for (const hit of [x, z]) {
+    if (!hit) continue;
+    const moved = { x: (hit.mover.a.x + hit.mover.b.x) / 2 + delta.x, z: (hit.mover.a.z + hit.mover.b.z) / 2 + delta.z };
+    const at = closestOnSegment(moved, hit.wall.a, hit.wall.b).point;
+    // The line the two walls share, right across the sheet; `drawGuides` takes its direction
+    // from the two points, which lie along it — so they must not coincide.
+    const along = hit === x ? { x: at.x, z: at.z + 1 } : { x: at.x + 1, z: at.z };
+    guides.push({ kind: 'align', a: at, b: Math.hypot(moved.x - at.x, moved.z - at.z) > 0.05 ? moved : along });
+    if (hit.rank === 0) guides.push({ kind: 'wall', a: hit.wall.a, b: hit.wall.b });
+  }
+  return { delta, guides };
+}
+
+/** A wall alongside is worth reaching further for than a line to square up with. */
+const BESIDE_REACH = 1.6;
 
 /**
  * How much of an existing room a new rectangle may cover before it is refused. A rectangle

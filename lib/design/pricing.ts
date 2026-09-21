@@ -29,6 +29,7 @@ import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
 import { measureKitchens } from './kitchen';
 import { finishCoverage, type FinishCoverage } from './zones';
+import { tickFor, tickedOff } from './ticks';
 import type {
   DesignCost,
   DesignScene,
@@ -87,6 +88,17 @@ export interface BudgetLine {
   total: number;
   /** A rate-book or catalogue-free estimate rather than a real product's price. */
   estimated: boolean;
+  /**
+   * The key that ticks this line in or out of the order (`lib/design/ticks`). Only a line
+   * that is a product has one: a labour row, a bulk material and a catalogue-free estimate
+   * are what the work costs whoever does it.
+   */
+  tick?: string;
+  /**
+   * Ticked off: the line stays on the sheet, where it was, so it can be put back — but it
+   * counts for nothing. Every total, section and basket leaves it out.
+   */
+  excluded?: boolean;
 }
 
 export function priceScene(
@@ -97,10 +109,13 @@ export function priceScene(
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
   const locale = options.locale ?? 'ka';
   const lines: BudgetLine[] = [];
-  // Products the person ticked off on the budget page: still in the design, not in the
-  // order — so they are not in the lines, the baskets or the totals either.
-  const skipped = new Set(scene.excluded ?? []);
-  const ordering = (productId: number | null | undefined): boolean => productId == null || !skipped.has(productId);
+  // Lines the person ticked off on the budget page: still in the design, not in the order.
+  // They stay in `lines`, flagged, exactly where they would otherwise be — a sheet that
+  // reshuffles itself under the pointer every time a box is ticked cannot be read — and out
+  // of every total and basket. What a tick takes out is the *product* and, through the
+  // basket, its share of the delivery; the labour stays, because a socket somebody already
+  // owns still has to be wired and a skirting board bought elsewhere still has to be fitted.
+  const isOut = tickedOff(scene.excluded);
 
   // --- furniture ---
   let furnitureTotal = 0;
@@ -116,10 +131,27 @@ export function priceScene(
   for (const item of scene.items) {
     const product = item.product;
     if (!product || measured.has(item.id)) continue;
-    if (!ordering(product.productId)) continue;
+    const isLight = item.slot === 'pendant' || item.slot === 'floor_lamp';
+    // One line per placed piece, ticked on its own: the same bed in four bedrooms is four
+    // lines, and unticking one of them is not unticking the other three.
+    const tick = tickFor.item(item.id);
+    const out = isOut(tick, product.productId);
+    lines.push({
+      section: isLight ? 'lighting' : 'furniture',
+      key: `product-${product.productId}`,
+      tick,
+      ...(out ? { excluded: true } : {}),
+      name: localizedName(product, locale),
+      roomName: roomName.get(item.roomId),
+      qty: product.qty,
+      unit: product.unit,
+      unitPrice: product.pricePerUnit,
+      total: product.totalPrice,
+      estimated: false,
+    });
+    if (out) continue;
 
     furnitureTotal += product.totalPrice;
-    const isLight = item.slot === 'pendant' || item.slot === 'floor_lamp';
     if (isLight) lightingTotal += product.totalPrice;
     perRoom.set(item.roomId, (perRoom.get(item.roomId) ?? 0) + product.totalPrice);
 
@@ -135,17 +167,6 @@ export function priceScene(
       product,
     });
     basket.subtotal = round2(basket.subtotal + product.totalPrice);
-    lines.push({
-      section: isLight ? 'lighting' : 'furniture',
-      key: `product-${product.productId}`,
-      name: localizedName(product, locale),
-      roomName: roomName.get(item.roomId),
-      qty: product.qty,
-      unit: product.unit,
-      unitPrice: product.pricePerUnit,
-      total: product.totalPrice,
-      estimated: false,
-    });
   }
 
   // The kitchens, one line each: what a joiner measures (the façade in m², the worktop by
@@ -170,7 +191,8 @@ export function priceScene(
   // tile or paint with a price, in either mode — choosing it is asking for it.
   // What the flat already has is left out of the budget altogether, line, basket and total.
   const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(scene.mode === 'full' ? options.homeState : null));
-  const chargeable = scene.finishes.filter((f) => !have.surface(f.surface) && ordering(f.product?.productId));
+  const priced = scene.finishes.filter((f) => !have.surface(f.surface));
+  const chargeable = priced.filter((f) => !f.product || !isOut(tickFor.finish(f.product.productId), f.product.productId));
   let finishesTotal = 0;
   for (const finish of chargeable) {
     if (!finish.product) continue;
@@ -190,11 +212,16 @@ export function priceScene(
     });
     basket.subtotal = round2(basket.subtotal + finish.product.totalPrice);
   }
+  // What is being bought, for the "m² per material" list; the sheet lists every finish,
+  // the ticked-off ones struck through in the place they would hold anyway.
   const coverage = finishCoverage(chargeable);
-  for (const entry of coverage) {
+  for (const entry of finishCoverage(priced)) {
+    const tick = tickFor.finish(entry.product.productId);
     lines.push({
       section: 'finishes',
       key: `product-${entry.product.productId}`,
+      tick,
+      ...(isOut(tick, entry.product.productId) ? { excluded: true } : {}),
       name: localizedName(entry.product, locale),
       roomName: entry.rooms.map((id) => roomName.get(id) ?? id).join(', '),
       qty: entry.areaM2,
@@ -205,8 +232,8 @@ export function priceScene(
     });
   }
   // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
-  // choosing it is asking for it.
-  const trimMetres = round2(chargeable.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
+  // choosing it is asking for it — and one ticked off the order is fitted all the same.
+  const trimMetres = round2(priced.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
   let trimLabourTotal = 0;
   if (trimMetres > 0) {
     const price = options.book?.labour.trim_install?.price ?? TRIM_INSTALL_DEFAULT_GEL;
@@ -235,12 +262,13 @@ export function priceScene(
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale, ordering);
-  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, ordering);
+  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale, isOut);
+  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, isOut);
   lines.push(...openingLines, ...technicalLines);
-  const openingsTotal = round2(openingLines.reduce((s, l) => s + l.total, 0));
-  const technicalTotal = round2(technicalLines.reduce((s, l) => s + l.total, 0));
+  const openingsTotal = round2(openingLines.reduce((s, l) => s + (l.excluded ? 0 : l.total), 0));
+  const technicalTotal = round2(technicalLines.reduce((s, l) => s + (l.excluded ? 0 : l.total), 0));
   for (const line of [...openingLines, ...technicalLines]) {
+    if (line.excluded) continue;
     const id = line.roomName ? [...roomName.entries()].find(([, name]) => name === line.roomName)?.[0] : undefined;
     if (id) perRoom.set(id, (perRoom.get(id) ?? 0) + line.total);
   }
@@ -294,7 +322,7 @@ function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: s
  * renovation with the doors-and-windows phase ticked every opening is new; otherwise only
  * the ones the person added themselves are priced — the rest are already in the wall.
  */
-export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', ordering: (productId: number | null | undefined) => boolean = () => true): BudgetLine[] {
+export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', isOut: (tick: string, productId?: number | null) => boolean = () => false): BudgetLine[] {
   const all = full && phases.includes(10);
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
@@ -313,7 +341,6 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
         seen.add(key);
       }
       if (!all && opening.origin !== 'user') continue;
-      if (!ordering(opening.product?.productId)) continue;
       if (opening.product && opening.kind !== 'archway') {
         const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, qty: 0, total: 0, rooms: new Set<string>() };
         bought.qty += 1;
@@ -327,7 +354,8 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
     }
   }
   for (const bought of byProduct.values()) {
-    lines.push({ section: 'openings', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
+    const tick = tickFor.opening(bought.product.productId);
+    lines.push({ section: 'openings', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
   }
   return lines;
 }
@@ -359,7 +387,7 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
  * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
  * home only what the person added themselves is new work.
  */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, ordering: (productId: number | null | undefined) => boolean = () => true): BudgetLine[] {
+export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, isOut: (tick: string, productId?: number | null) => boolean = () => false): BudgetLine[] {
   const lines: BudgetLine[] = [];
   const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
   const electricalOn = full && (phases.includes(3) || phases.includes(14));
@@ -374,7 +402,6 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     if (!(electricalOn || point.origin === 'user')) continue;
     // Already wired, or already lit: the flat came with it.
     if (have.has(point.kind.startsWith('light_') ? 'lighting' : 'electrical')) continue;
-    if (!ordering(point.product?.productId)) continue;
     const perMetre = point.kind === 'light_strip' || point.kind === 'light_furniture';
     const units = perMetre ? (point.lengthM ?? 1.5) : 1;
     const labour = ELECTRICAL_LABOUR[point.kind];
@@ -392,7 +419,8 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     byKind.set(point.kind, entry);
   }
   for (const bought of byProduct.values()) {
-    lines.push({ section: bought.light ? 'lighting' : 'electrical', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: bought.product.unit, unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
+    const tick = tickFor.fixture(bought.product.productId);
+    lines.push({ section: bought.light ? 'lighting' : 'electrical', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: bought.product.unit, unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
   }
   for (const [kind, entry] of byKind) {
     const material = ELECTRICAL_MATERIAL_GEL[kind as ElectricalPoint['kind']];
@@ -427,8 +455,12 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     }
     techByKind.set(point.kind, entry);
   }
+  // The radiators never asked the ticks at all: one ticked off stayed in the totals, and the
+  // sheet — which lists what was ticked off from a second pricing — showed it twice, once
+  // ticked and once struck through.
   for (const bought of radiatorsBought.values()) {
-    lines.push({ section: 'heating', key: `product-${bought.product.productId}`, name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total: round2(bought.sections * bought.product.pricePerUnit), estimated: false });
+    const tick = tickFor.radiator(bought.product.productId);
+    lines.push({ section: 'heating', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total: round2(bought.sections * bought.product.pricePerUnit), estimated: false });
   }
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];
@@ -466,7 +498,7 @@ function deliveryFeeFor(store: SceneStore | null, subtotal: number): number {
 /** Totals per section, for the budget page's header figures. */
 export function budgetSections(cost: DesignCost): Record<BudgetSection, number> {
   const out: Record<BudgetSection, number> = { furniture: 0, lighting: 0, finishes: 0, openings: 0, electrical: 0, plumbing: 0, heating: 0, climate: 0, materials: 0, labour: 0, delivery: 0 };
-  for (const line of cost.lines) out[line.section] = round2(out[line.section] + line.total);
+  for (const line of cost.lines) if (!line.excluded) out[line.section] = round2(out[line.section] + line.total);
   return out;
 }
 
@@ -476,6 +508,7 @@ export function budgetSummary(cost: DesignCost): { materials: number; products: 
   let products = 0;
   let labour = 0;
   for (const line of cost.lines) {
+    if (line.excluded) continue;
     if (line.section === 'labour') labour += line.total;
     else if (line.estimated) materials += line.total;
     else products += line.total;

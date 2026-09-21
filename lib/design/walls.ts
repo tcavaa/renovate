@@ -730,8 +730,7 @@ export function rebuildRooms(plan: FloorPlan, walls: Wall[]): FloorPlan {
  * under three rooms, and from that moment there was no such thing as *this room's* wall —
  * nothing could be pulled apart again. Now a new wall only gives way where a wall of the
  * same thickness genuinely stands on the same stretch already (drawing over one twice), and
- * the stretches nobody holds are added exactly as drawn. A room that snapped up against its
- * neighbour keeps its own four walls and stays detachable (`moveRooms`).
+ * the stretches nobody holds are added exactly as drawn.
  */
 export function addWalls(walls: Wall[], added: Wall[]): Wall[] {
   const out = [...walls];
@@ -742,13 +741,18 @@ export function addWalls(walls: Wall[], added: Wall[]): Wall[] {
   return out;
 }
 
-/** The stretches of `wall` that no wall in `existing` already covers, in the order drawn. */
-function uncoveredPieces(wall: Wall, existing: Wall[]): Wall[] {
+/**
+ * The stretches of `wall` that no wall in `existing` already covers, in the order drawn.
+ * A wall being *drawn* only gives way to one of its own thickness; a wall arriving with a
+ * moved room (`anyThickness`) gives way to whatever already stands on that line — two rooms
+ * pushed together have one wall between them, and it is the one that was there first.
+ */
+function uncoveredPieces(wall: Wall, existing: Wall[], anyThickness = false): Wall[] {
   const dir = unit(sub(wall.b, wall.a));
   const along = (p: Vec2) => dot(sub(p, wall.a), dir);
   let free: Array<[number, number]> = [[0, wallLength(wall)]];
   for (const other of existing) {
-    if (!collinearSameThickness(wall, other)) continue;
+    if (!(anyThickness ? collinear(wall, other) : collinearSameThickness(wall, other))) continue;
     const lo = Math.min(along(other.a), along(other.b));
     const hi = Math.max(along(other.a), along(other.b));
     if (hi - lo < NODE_TOL_M) continue;
@@ -767,42 +771,177 @@ function uncoveredPieces(wall: Wall, existing: Wall[]): Wall[] {
 
 /** Two walls on one line, the same thickness — so one can stand for the other. */
 function collinearSameThickness(w: Wall, v: Wall): boolean {
-  if (Math.abs(w.thicknessM - v.thicknessM) > 0.001) return false;
+  return Math.abs(w.thicknessM - v.thicknessM) <= 0.001 && collinear(w, v);
+}
+
+/** Two walls on one line, whatever their thickness. */
+function collinear(w: Pick<Wall, 'a' | 'b'>, v: Pick<Wall, 'a' | 'b'>): boolean {
   const dw = unit(sub(w.b, w.a));
   if (Math.abs(cross(dw, unit(sub(v.b, v.a)))) > 1e-3) return false;
   return Math.abs(dot(sub(v.a, w.a), leftNormal(dw))) <= NODE_TOL_M;
 }
 
 /**
- * Moves whole rooms across the plan, detaching them from the rooms staying behind.
+ * Rooms that share a wall are one body, and this is the body a room belongs to.
  *
- * A wall only the moving rooms use travels with them. A wall they share with a room that
- * stays is *split*: the original stays for the room that stays, and a copy goes with the
- * movers — which is the only thing "pull this room away from that one" can mean once two
- * rooms have a wall in common. Rooms keep their identity because the previous rooms are
- * handed to `rebuildRooms` already shifted, so each moved face finds its own room again.
+ * Pulling a room away from its neighbour used to split the wall between them — the original
+ * stayed, a copy left — and pushing it back put two walls a few centimetres apart on what
+ * had been one line. Every version of that came back as a room with a wall missing or a
+ * stub left on the neighbour, and none of it was something anybody needed: a flat is moved
+ * as a flat. So the closure under "has a wall in common" is what travels, and nothing is
+ * ever split. Undo is the way back from a room pushed up against the wrong neighbour.
+ */
+export function roomCluster(plan: FloorPlan, roomIds: string[]): string[] {
+  const walls = plan.walls ?? [];
+  const bounding = new Map(plan.rooms.map((r) => [r.id, wallsBoundingRoom(walls, r)]));
+  const cluster = new Set(roomIds.filter((id) => bounding.has(id)));
+  const queue = [...cluster];
+  while (queue.length > 0) {
+    const mine = bounding.get(queue.pop()!)!;
+    for (const [id, theirs] of bounding) {
+      if (cluster.has(id)) continue;
+      let shared = false;
+      for (const wallId of mine) {
+        if (theirs.has(wallId)) {
+          shared = true;
+          break;
+        }
+      }
+      if (!shared) continue;
+      cluster.add(id);
+      queue.push(id);
+    }
+  }
+  return plan.rooms.filter((r) => cluster.has(r.id)).map((r) => r.id);
+}
+
+export interface RoomMove {
+  /** The rooms that travel: the ones asked for and everything joined to them. */
+  roomIds: string[];
+  /** Their walls, where they stand now. */
+  moving: Wall[];
+  /** Every other wall of the plan. */
+  staying: Wall[];
+}
+
+/**
+ * What a drag of these rooms takes along, worked out once when the drag begins: the whole
+ * cluster's walls, the partitions and stubs standing inside those rooms, and any free wall
+ * that hangs off them — a half-drawn room on the side of the flat goes with the flat. A free
+ * wall that also touches a room staying behind is left where it is.
+ */
+export function wallsForMove(plan: FloorPlan, roomIds: string[]): RoomMove {
+  const walls = plan.walls ?? [];
+  const ids = roomCluster(plan, roomIds);
+  const moving = new Set(ids);
+  const movers = plan.rooms.filter((r) => moving.has(r.id));
+  const stayers = plan.rooms.filter((r) => !moving.has(r.id));
+  const mine = new Set(movers.flatMap((r) => [...wallsBoundingRoom(walls, r)]));
+  const theirs = new Set(stayers.flatMap((r) => [...wallsBoundingRoom(walls, r)]));
+
+  const midpoint = (w: Wall): Vec2 => ({ x: (w.a.x + w.b.x) / 2, z: (w.a.z + w.b.z) / 2 });
+  const touches = (w: Wall, v: Wall): boolean =>
+    closestOnSegment(w.a, v.a, v.b).distance <= NODE_TOL_M ||
+    closestOnSegment(w.b, v.a, v.b).distance <= NODE_TOL_M ||
+    closestOnSegment(v.a, w.a, w.b).distance <= NODE_TOL_M ||
+    closestOnSegment(v.b, w.a, w.b).distance <= NODE_TOL_M;
+
+  const free = walls.filter((w) => !mine.has(w.id) && !theirs.has(w.id));
+  const anchored = free.filter((w) => walls.some((v) => theirs.has(v.id) && touches(w, v)));
+  const held = new Set(anchored.map((w) => w.id));
+  for (const wall of free) {
+    if (!held.has(wall.id) && movers.some((r) => pointInPolygon(midpoint(wall), r.polygon))) mine.add(wall.id);
+  }
+  // Free walls hanging off the travellers, and the free walls hanging off those.
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const wall of free) {
+      if (mine.has(wall.id) || held.has(wall.id)) continue;
+      if (!walls.some((v) => mine.has(v.id) && touches(wall, v))) continue;
+      mine.add(wall.id);
+      grew = true;
+    }
+  }
+  return { roomIds: ids, moving: walls.filter((w) => mine.has(w.id)), staying: walls.filter((w) => !mine.has(w.id)) };
+}
+
+/**
+ * How much air two parallel walls need between them to be two walls. Closer than this and
+ * off each other's line, they are a wall standing half inside another.
+ */
+export const WALL_CLEARANCE_M = 0.05;
+
+/**
+ * Would these walls, set down here, stand half inside walls already there?
+ *
+ * Two parallel walls may share a line — then they are one wall, and `moveRooms` keeps the one
+ * that was there first — or stand clear of each other. What they may not do is run side by
+ * side a few centimetres apart with their bodies overlapping: the wall graph cuts both at
+ * every junction of the other, slivers open between them, and the rooms either side come
+ * back with jogs in their outlines and corners that do not close. The board snaps a dragged
+ * room onto its neighbour's line so that this does not happen by accident, and refuses the
+ * drop when it would happen anyway (a room pushed into a gap a hand too narrow for it).
+ */
+export function wallsClash(moved: Wall[], staying: Wall[]): boolean {
+  for (const wall of moved) {
+    const dir = wallDirection(wall);
+    const normal = leftNormal(dir);
+    const length = wallLength(wall);
+    for (const other of staying) {
+      if (Math.abs(cross(dir, wallDirection(other))) > 1e-3) continue;
+      const apart = Math.abs(dot(sub(other.a, wall.a), normal));
+      if (apart <= NODE_TOL_M) continue; // one line: they join, or one stands for the other
+      if (apart >= (wall.thicknessM + other.thicknessM) / 2 + WALL_CLEARANCE_M) continue;
+      const lo = Math.min(dot(sub(other.a, wall.a), dir), dot(sub(other.b, wall.a), dir));
+      const hi = Math.max(dot(sub(other.a, wall.a), dir), dot(sub(other.b, wall.a), dir));
+      if (hi <= NODE_TOL_M || lo >= length - NODE_TOL_M) continue; // end to end, not side by side
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Moves rooms across the plan — together with every room joined to them (`roomCluster`) and
+ * whatever stands inside them (`wallsForMove`), columns and beams included.
+ *
+ * Where a travelling wall lands on the line of a wall that stayed, the stretch the two have
+ * in common is kept once: the wall that was there stands for both, whatever its thickness,
+ * and the traveller keeps only what sticks out past it. That is what "pushed up against its
+ * neighbour" means for two rooms — one wall between them — and it is also why they then move
+ * as one. Rooms keep their identity because the previous rooms are handed to `rebuildRooms`
+ * already shifted, so each moved face finds its own room again.
  */
 export function moveRooms(plan: FloorPlan, roomIds: string[], delta: Vec2): FloorPlan {
-  const moving = new Set(roomIds);
-  const movers = plan.rooms.filter((r) => moving.has(r.id));
-  if (movers.length === 0 || (Math.abs(delta.x) < 1e-4 && Math.abs(delta.z) < 1e-4)) return plan;
+  if (Math.abs(delta.x) < 1e-4 && Math.abs(delta.z) < 1e-4) return plan;
+  const move = wallsForMove(plan, roomIds);
+  if (move.roomIds.length === 0) return plan;
+  const moving = new Set(move.roomIds);
   const shift = (p: Vec2): Vec2 => roundVec({ x: p.x + delta.x, z: p.z + delta.z });
-  // Which walls a room stands on is asked of the geometry, not of `wallIds`: that list has
-  // one id per *edge*, and since walls are cut at their junctions a single side of a room is
-  // routinely two or three walls end to end. Taking only the named one left the rest behind
-  // and the room arrived at its new place with holes in it.
-  const walls0 = plan.walls ?? [];
-  const mine = new Set(movers.flatMap((r) => [...wallsBoundingRoom(walls0, r)]));
-  const theirs = new Set(plan.rooms.filter((r) => !moving.has(r.id)).flatMap((r) => [...wallsBoundingRoom(walls0, r)]));
-  let copies = 0;
-  const walls: Wall[] = [];
-  for (const wall of plan.walls ?? []) {
-    if (!mine.has(wall.id)) walls.push(wall);
-    else if (theirs.has(wall.id)) walls.push(wall, { ...wall, id: `${wall.id}m${++copies}`, a: shift(wall.a), b: shift(wall.b) });
-    else walls.push({ ...wall, a: shift(wall.a), b: shift(wall.b) });
-  }
+
+  const walls = [...move.staying];
+  for (const wall of move.moving) walls.push(...uncoveredPieces({ ...wall, a: shift(wall.a), b: shift(wall.b) }, move.staying, true));
+
+  // A column or a beam belongs to the room it stands in (or against: a column is as often
+  // in the corner, half inside the wall), unless a room staying behind has the better claim.
+  const movers = plan.rooms.filter((r) => moving.has(r.id));
+  const stayers = plan.rooms.filter((r) => !moving.has(r.id));
+  const travels = (p: Vec2): boolean =>
+    !stayers.some((r) => pointInPolygon(p, r.polygon)) && movers.some((r) => pointInPolygon(p, r.polygon) || distanceToOutline(p, r.polygon) <= STRUCTURE_REACH_M);
+  const columns = plan.columns?.map((c) => (travels(c.position) ? { ...c, position: shift(c.position) } : c));
+  const beams = plan.beams?.map((b) => (travels({ x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2 }) ? { ...b, a: shift(b.a), b: shift(b.b) } : b));
+
   const previous = plan.rooms.map((r) => (moving.has(r.id) ? { ...r, polygon: r.polygon.map(shift) } : r));
-  return rebuildRooms({ ...plan, rooms: previous }, walls);
+  return rebuildRooms({ ...plan, rooms: previous, ...(columns ? { columns } : {}), ...(beams ? { beams } : {}) }, walls);
+}
+
+/** A column this close to a room's outline stands in that room's wall. */
+const STRUCTURE_REACH_M = 0.3;
+
+function distanceToOutline(p: Vec2, polygon: Vec2[]): number {
+  let best = Infinity;
+  for (let i = 0; i < polygon.length; i++) best = Math.min(best, closestOnSegment(p, polygon[i], polygon[(i + 1) % polygon.length]).distance);
+  return best;
 }
 
 /**
@@ -951,15 +1090,23 @@ export function orphanWallSegments(plan: FloorPlan): Array<{ wall: Wall; a: Vec2
     const length = wallLength(wall);
     if (length < NODE_TOL_M) continue;
     const covered: Array<[number, number]> = [];
+    const normal = leftNormal(dir);
     for (const room of plan.rooms) {
       for (const edge of roomEdges(room.polygon)) {
         if (Math.abs(dot(edge.dir, dir)) < 0.95) continue;
-        const { distance } = closestOnSegment(edge.a, wall.a, wall.b);
-        const { distance: distanceB } = closestOnSegment(edge.b, wall.a, wall.b);
-        if (Math.abs(distance - wall.thicknessM / 2) > NODE_TOL_M * 2.5 || Math.abs(distanceB - wall.thicknessM / 2) > NODE_TOL_M * 2.5) continue;
+        // Measured to the wall's *line*, not to the piece of it: a room's side is routinely
+        // longer than the wall behind it — cut where a neighbour meets it, or running on
+        // past the end of a neighbour it was pushed up against — and measuring from the
+        // side's far end to the piece called every such piece free-standing, so the 3D view
+        // stood a second wall inside the room's own.
+        const off = Math.abs(dot(sub(edge.a, wall.a), normal));
+        const offB = Math.abs(dot(sub(edge.b, wall.a), normal));
+        if (Math.abs(off - wall.thicknessM / 2) > NODE_TOL_M * 2.5 || Math.abs(offB - wall.thicknessM / 2) > NODE_TOL_M * 2.5) continue;
         const s0 = dot(sub(edge.a, wall.a), dir);
         const s1 = dot(sub(edge.b, wall.a), dir);
-        covered.push([Math.max(0, Math.min(s0, s1)), Math.min(length, Math.max(s0, s1))]);
+        const lo = Math.max(0, Math.min(s0, s1));
+        const hi = Math.min(length, Math.max(s0, s1));
+        if (hi > lo) covered.push([lo, hi]);
       }
     }
     // A room's edge stops half a wall short of the corner, so the corners of a bounded wall
