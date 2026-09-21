@@ -186,6 +186,7 @@ export const ru: Dictionary = {
     projectName: 'Мой проект',
     saveError: 'Не удалось сохранить',
     startOver: 'Заново',
+    orderPicksTitle: 'Что вы заказываете',
     savedAndGo: 'Сохранено — открыть',
     successDescTpl:
       'Ваш проект сохранён (ID #{id}). Скоро вы будете перенаправлены в профиль.',
@@ -1316,6 +1317,7 @@ export const ru: Dictionary = {
     resetUnsaved: 'Проект не сохранён — начерченный план и выбранные товары исчезнут навсегда.',
     resetGenerated: 'Проект не сохранён. 3D-дизайн, мебель и все изменения исчезнут навсегда — генерацию придётся повторить.',
     lockedStep: 'Шаг закрыт — 3D-дизайн уже создан',
+    lockedStepCalculator: 'Шаг закрыт — смета уже рассчитана',
   },
   common: {
     step: 'Шаг',

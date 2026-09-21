@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { OrderPicks } from '@/components/calculator/OrderPicks';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -36,7 +37,7 @@ import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
-import { designCheckoutPart } from '@/lib/projects/checkoutParts';
+import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel, localizedName } from '@/lib/i18n/labels';
@@ -108,16 +109,10 @@ export default function SummaryPage() {
     () => (designExists ? designCheckoutPart(designPlan, designItems, designFinishes, fees.designFeePerM2, locale) : null),
     [designExists, designPlan, designItems, designFinishes, fees.designFeePerM2, locale]
   );
+  // Built from the picks rather than from the estimate, because the two differ: what the
+  // person ticked off on the order list is still costed and no longer bought.
   const checkoutParts: CheckoutPart[] = summary
-    ? [
-        {
-          kind: 'calculator',
-          totalM2,
-          feePerM2: fees.calculatorFeePerM2,
-          lines: [...summary.products, ...summary.furniture].map((p, i) => ({ key: `${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: null })),
-        },
-        ...(designPart ? [designPart] : []),
-      ]
+    ? [calculatorCheckoutPart(rooms, selectedProducts, selectedFurniture, fees.calculatorFeePerM2, locale), ...(designPart ? [designPart] : [])]
     : [];
 
   /**
@@ -256,6 +251,10 @@ export default function SummaryPage() {
 
         <div className="mt-8">
           <SummaryCard summary={summary} platformFee={{ perM2: fees.calculatorFeePerM2, m2: totalM2, total: fee }} />
+        </div>
+
+        <div className="mt-8">
+          <OrderPicks rooms={rooms} />
         </div>
 
         {error && <p className="mt-6 border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}

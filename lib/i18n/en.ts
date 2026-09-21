@@ -188,6 +188,7 @@ export const en: Dictionary = {
     projectName: 'My project',
     saveError: 'Failed to save',
     startOver: 'Start over',
+    orderPicksTitle: 'What you are ordering',
     savedAndGo: 'Saved — open',
     successDescTpl:
       'Your project has been saved (ID #{id}). You will be redirected to your profile shortly.',
@@ -1318,6 +1319,7 @@ export const en: Dictionary = {
     resetUnsaved: 'This project is not saved — the plan you drew and the products you picked go for good.',
     resetGenerated: 'This project is not saved. The 3D design, the furniture and every change go for good, and it would have to be generated again.',
     lockedStep: 'This step is closed — the 3D design has been made',
+    lockedStepCalculator: 'This step is closed — the estimate has been worked out',
   },
   common: {
     step: 'Step',

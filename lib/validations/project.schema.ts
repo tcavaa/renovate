@@ -13,6 +13,8 @@ const selectedProductSchema = z.object({
   imageUrl: z.string().nullable().optional(),
   categorySlug: z.string().optional(),
   roomId: z.string().max(64).optional(),
+  /** Ticked off the order on the summary; still part of the estimate. */
+  excluded: z.boolean().optional(),
 });
 
 export const saveProjectSchema = calculatorRequestSchema.extend({

@@ -787,8 +787,13 @@ export function moveRooms(plan: FloorPlan, roomIds: string[], delta: Vec2): Floo
   const movers = plan.rooms.filter((r) => moving.has(r.id));
   if (movers.length === 0 || (Math.abs(delta.x) < 1e-4 && Math.abs(delta.z) < 1e-4)) return plan;
   const shift = (p: Vec2): Vec2 => roundVec({ x: p.x + delta.x, z: p.z + delta.z });
-  const mine = new Set(movers.flatMap((r) => r.wallIds ?? []));
-  const theirs = new Set(plan.rooms.filter((r) => !moving.has(r.id)).flatMap((r) => r.wallIds ?? []));
+  // Which walls a room stands on is asked of the geometry, not of `wallIds`: that list has
+  // one id per *edge*, and since walls are cut at their junctions a single side of a room is
+  // routinely two or three walls end to end. Taking only the named one left the rest behind
+  // and the room arrived at its new place with holes in it.
+  const walls0 = plan.walls ?? [];
+  const mine = new Set(movers.flatMap((r) => [...wallsBoundingRoom(walls0, r)]));
+  const theirs = new Set(plan.rooms.filter((r) => !moving.has(r.id)).flatMap((r) => [...wallsBoundingRoom(walls0, r)]));
   let copies = 0;
   const walls: Wall[] = [];
   for (const wall of plan.walls ?? []) {
@@ -798,6 +803,36 @@ export function moveRooms(plan: FloorPlan, roomIds: string[], delta: Vec2): Floo
   }
   const previous = plan.rooms.map((r) => (moving.has(r.id) ? { ...r, polygon: r.polygon.map(shift) } : r));
   return rebuildRooms({ ...plan, rooms: previous }, walls);
+}
+
+/**
+ * Every wall a room stands on — the whole boundary, however many pieces it is cut into.
+ *
+ * A wall bounds a room when it runs alongside one of the room's edges with its centreline
+ * half a thickness *outside* the inner face (which is exactly how `innerPolygon` built that
+ * face) and overlaps the edge along its length. `room.wallIds` cannot answer this: it names
+ * one wall per edge, and a side backed by two walls end to end is the ordinary case since
+ * walls are cut at their junctions.
+ */
+export function wallsBoundingRoom(walls: Wall[], room: PlanRoom): Set<string> {
+  const edges = roomEdges(room.polygon);
+  const found = new Set<string>();
+  for (const wall of walls) {
+    const dir = wallDirection(wall);
+    for (const edge of edges) {
+      if (Math.abs(cross(dir, edge.dir)) > 1e-3) continue;
+      // The inner face is the room's edge; the centreline sits half a thickness beyond it.
+      const outward = -dot(sub(wall.a, edge.a), edge.inward);
+      if (Math.abs(outward - wall.thicknessM / 2) > NODE_TOL_M * 2) continue;
+      const along = (p: Vec2) => dot(sub(p, edge.a), edge.dir);
+      const lo = Math.min(along(wall.a), along(wall.b));
+      const hi = Math.max(along(wall.a), along(wall.b));
+      if (hi <= NODE_TOL_M || lo >= edge.length - NODE_TOL_M) continue;
+      found.add(wall.id);
+      break;
+    }
+  }
+  return found;
 }
 
 /**

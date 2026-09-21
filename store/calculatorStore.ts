@@ -16,6 +16,21 @@ interface CalculatorStore extends CalculatorState {
   /** The saved project this calculation belongs to, so saving again writes into the same row. */
   projectId: number | null;
   setProjectId: (id: number | null) => void;
+  /**
+   * The estimate has been worked out, so the flat and its condition are settled.
+   *
+   * Everything after — materials, products, furniture, the summary — is still open, but
+   * going back to redraw the rooms or change the home state would pull the ground out from
+   * under every quantity and every pick made since. Starting over is deliberate
+   * (`StartOverButton`), not a click on the step strip.
+   */
+  calculated: boolean;
+  /** Marks the calculation as worked out; called when step 1 is left. */
+  setCalculated: () => void;
+  /** Puts one pick in or out of the order — the estimate keeps it either way. */
+  toggleExcluded: (key: string, roomId?: string) => void;
+  /** Everything back in the order. */
+  includeAll: () => void;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   setSaveState: (state: CalculatorStore['saveState']) => void;
@@ -56,13 +71,14 @@ interface CalculatorStore extends CalculatorState {
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
 const PERSIST_VERSION = 1;
 
-const initial: CalculatorState & { projectId: number | null } = {
+const initial: CalculatorState & { projectId: number | null; calculated: boolean } = {
   homeState: null,
   rooms: [],
   selectedProducts: {},
   selectedFurniture: {},
   step: 1,
   projectId: null,
+  calculated: false,
 };
 
 export const useCalculatorStore = create<CalculatorStore>()(
@@ -72,6 +88,22 @@ export const useCalculatorStore = create<CalculatorStore>()(
       saveState: 'idle',
       setSaveState: (saveState) => set({ saveState }),
       setProjectId: (projectId) => set({ projectId }),
+      setCalculated: () => set({ calculated: true }),
+      toggleExcluded: (key, roomId) =>
+        set((s) => {
+          if (roomId === undefined) {
+            const pick = s.selectedProducts[key];
+            if (!pick) return {};
+            return { selectedProducts: { ...s.selectedProducts, [key]: { ...pick, excluded: !pick.excluded } } };
+          }
+          const list = s.selectedFurniture[roomId] ?? [];
+          return { selectedFurniture: { ...s.selectedFurniture, [roomId]: list.map((p) => (String(p.productId) === key ? { ...p, excluded: !p.excluded } : p)) } };
+        }),
+      includeAll: () =>
+        set((s) => ({
+          selectedProducts: Object.fromEntries(Object.entries(s.selectedProducts).map(([k, p]) => [k, { ...p, excluded: false }])),
+          selectedFurniture: Object.fromEntries(Object.entries(s.selectedFurniture).map(([k, list]) => [k, list.map((p) => ({ ...p, excluded: false }))])),
+        })),
       openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture }) =>
         set({ projectId, rooms, homeState, selectedProducts, selectedFurniture, step: 1 }),
       setHomeState: (homeState) => set({ homeState }),
@@ -85,7 +117,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
           return { rooms, selectedFurniture };
         }),
       // A new plan is a new project — including on the server: the next save gets its own row.
-      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {}, projectId: null }),
+      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {}, projectId: null, calculated: false }),
       moveRoom: (id, x, z) => set((s) => ({ rooms: s.rooms.map((r) => (r.id === id ? { ...r, x, z } : r)) })),
       reorderRoom: (id, direction) =>
         set((s) => {
@@ -165,6 +197,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
         selectedFurniture: s.selectedFurniture,
         step: s.step,
         projectId: s.projectId,
+        calculated: s.calculated,
       }),
     }
   )
@@ -187,6 +220,7 @@ const selectedProductSchema = z.object({
   imageUrl: z.string().nullable(),
   categorySlug: z.string().optional(),
   roomId: z.string().optional(),
+  excluded: z.boolean().optional(),
 });
 
 const persistedSchema = z.object({
@@ -196,9 +230,10 @@ const persistedSchema = z.object({
   selectedFurniture: z.record(z.array(selectedProductSchema)),
   step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
   projectId: z.number().int().positive().nullable().optional(),
+  calculated: z.boolean().optional(),
 });
 
-function migratePersisted(persisted: unknown, version: number): CalculatorState & { projectId: number | null } {
+function migratePersisted(persisted: unknown, version: number): CalculatorState & { projectId: number | null; calculated: boolean } {
   if (version !== PERSIST_VERSION) return { ...initial };
   const parsed = persistedSchema.safeParse(persisted);
   if (!parsed.success) return { ...initial };
@@ -206,6 +241,7 @@ function migratePersisted(persisted: unknown, version: number): CalculatorState 
     ...initial,
     ...parsed.data,
     projectId: parsed.data.projectId ?? null,
+    calculated: parsed.data.calculated ?? false,
     rooms: parsed.data.rooms as Room[],
     selectedProducts: parsed.data.selectedProducts as Record<string, SelectedProduct>,
     selectedFurniture: parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,

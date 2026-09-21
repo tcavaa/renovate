@@ -211,6 +211,18 @@ whole flat, `<slug>_room:<roomId>` one chosen for a single room (floor and wall 
 `roomIdFromKey` — and a per-room snapshot also carries `roomId` so the summaries, the order
 lines and the studio can name the room. Never build or parse these strings by hand.
 
+**A pick can be ticked off the order** (`SelectedProduct.excluded`), the calculator's half of
+the bargain the design's budget makes: the line stays in the estimate — it is what the work
+costs, whoever buys the tiles — and leaves the order. `OrderPicks` on the calculator's summary
+is the list (materials keyed by selection key, furniture by product id within its room, a
+checkbox each, "−X ₾" at the foot and one link to put everything back);
+`calculatorStore.toggleExcluded` / `includeAll` flip it, the flag rides in the saved project
+(`selectedProductSchema`, kept by `repriceSnapshot`), and `calculatorCheckoutPart` and
+`calculatorLinesByStore` both skip it, so no store is ever sent it. The summary page builds
+its checkout part **from the picks, not from the estimate** — `buildProjectSummary` knows
+nothing of the tick, and reading the dialogue off it was how the first version offered six
+lines while the list showed four.
+
 ### Managing the catalogue
 
 `/admin/stores` is full CRUD for partners — the fields there are exactly what the studio's
@@ -487,6 +499,14 @@ walls: a wall only the movers use travels, a wall shared with a room staying beh
 *split* (the original stays, a copy goes). Identity survives because the previous rooms are
 handed to `rebuildRooms` already shifted. The store's `moveRooms` takes the furniture,
 fittings, technical points and painted zones of those rooms along with them.
+
+**Which walls are a room's is asked of the geometry, not of `wallIds`.** `room.wallIds` names
+one wall per *edge*, and walls are cut at every junction — so a side that a neighbour covers
+only half of is two walls, and only the first was ever named. Dragging such a room away left
+the rest of that side standing where it was: the room arrived with a hole in it. Instead
+`wallsBoundingRoom(walls, room)` sweeps every wall and keeps the ones running parallel to an
+edge, half a thickness outside it, overlapping it along its length — all of them, however the
+side was cut. Pinned by "takes every wall of a room along, even the sides cut into several".
 
 `ensureWalls` is what `setPlan` and `openSaved` call. Every wall edit in the store —
 `addWall`, `offsetWall` (sideways along `wallNormal`, connected walls follow),
@@ -1095,6 +1115,12 @@ not, R turns it (`ViewerApi.carryPose` gives the page the spot under the pointer
 at), a click sets it down only on green, and Escape (`cancelCarry`) removes it. Picking a
 room in either panel focuses it in 3D.
 
+**One piece rides on the pointer at a time.** `beginAdd` drops whatever is still being
+carried before it creates the new item: reaching for a second tile off the shelf is changing
+your mind about the first, not asking for both. Before this the first piece was left standing
+wherever `placeAdditional` had put it — usually beside the bed, since that is where the free
+floor is — and the person had a sofa they never placed and did not want.
+
 Every row of that catalogue list is also **draggable straight into the 3D view** (HTML5
 drag and drop, `FURNITURE_DRAG_TYPE` on the `dataTransfer`): the studio's workspace accepts
 the drop, asks the viewer which floor point and room lie under the pointer
@@ -1206,6 +1232,20 @@ claiming step 5 there sent people back to it for ever.
 strip (`StepStrip.lockedBefore`) and a redirect if the URL is typed. In the renovation order
 the technical step comes after the studio and stays open. The studio's "lay it out again"
 button is gone for the same reason.
+
+The calculator has the same pair, around its own hinge: pressing "გამოთვლის დაწყება" sets
+`calculatorStore.calculated`, which shuts step 1 (`lockedBefore={2}`, the padlock's tooltip
+`flow.lockedStepCalculator` — the estimate has been worked out, not the design) and hands the
+first step on to wherever the journey got to. Redrawing the rooms or changing the home state
+there would pull the ground out from under every quantity and every pick made since.
+
+**The mark only ever moves forward.** `StepIndicator` records the step it renders, but only
+when the page really has that step to show (every page also has an "finish the previous step
+first" state) and only when it is further on than what is stored. The step is how far the
+journey got, not which page is open: walking back to change a product must not throw the rest
+away, and step 1 — which the guard bounces off the moment it loads — was rewriting a 5 to a 1
+on its way out, so "ნახე ბინა 3D-ში" and back landed on the materials step instead of the
+summary. The design flow records on its "next" buttons, which never went backwards.
 
 **Start again** is therefore in the strip on every step of both journeys. It asks first and
 says what is at stake — nothing yet, work that was never saved, or a design that took a

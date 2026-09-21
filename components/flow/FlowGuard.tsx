@@ -55,10 +55,13 @@ export function CalculatorFlowGuard({ step }: { step: CalculatorStep }) {
   const rooms = useCalculatorStore((s) => s.rooms.length);
   const stored = useCalculatorStore((s) => s.step);
   const homeState = useCalculatorStore((s) => s.homeState);
+  const calculated = useCalculatorStore((s) => s.calculated);
 
   useEffect(() => {
-    if (step === 1 && rooms > 0 && homeState && stored > 1) router.replace(CALCULATOR_STEP_HREFS[stored]);
-  }, [step, rooms, stored, homeState, router]);
+    if (step !== 1 || rooms === 0 || !homeState) return;
+    // Once the estimate exists, step 1 is shut: it hands on to wherever the journey got to.
+    if (calculated || stored > 1) router.replace(CALCULATOR_STEP_HREFS[Math.max(stored, calculated ? 2 : 1) as CalculatorStep]);
+  }, [step, rooms, stored, homeState, calculated, router]);
 
   return null;
 }

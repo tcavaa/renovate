@@ -6,6 +6,7 @@ import {
   moveNode,
   moveRooms,
   splitAtJunctions,
+  wallsBoundingRoom,
   offsetWall,
   orphanWallSegments,
   rebuildRooms,
@@ -34,6 +35,8 @@ function box(prefix: string, x0: number, z0: number, x1: number, z1: number, t =
     wall(`${prefix}-left`, P(x0, z1), P(x0, z0), t),
   ];
 }
+
+const blankPlan = (): FloorPlan => ({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] });
 
 const polygonCentroidX = (room: PlanRoom): number => room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
 
@@ -205,6 +208,30 @@ describe('editing walls', () => {
     const added = walls.find((w) => w.id === 'long')!;
     expect(Math.min(added.a.x, added.b.x)).toBeCloseTo(4, 5);
     expect(Math.max(added.a.x, added.b.x)).toBeCloseTo(7, 5);
+  });
+
+  it('takes every wall of a room along, even the sides cut into several', () => {
+    // Two rooms side by side with a wide one under both: the wide room's top side is met by
+    // the partition above it, so `splitAtJunctions` cuts that side in two and `wallIds`
+    // names only one of the pieces.
+    const rects = [
+      { x: 0.06, z: 0.06, width: 3.88, depth: 2.88 },
+      { x: 4.06, z: 0.06, width: 3.88, depth: 2.88 },
+      { x: 0.06, z: 3.06, width: 7.88, depth: 2.88 },
+    ];
+    const walls = rects.reduce((all, rect, i) => addWalls(all, wallsForRectangle(rect, 0.12, 'user', `r${i}`)), [] as Wall[]);
+    const plan = rebuildRooms(blankPlan(), walls);
+    expect(plan.rooms).toHaveLength(3);
+    const wide = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
+    // Its boundary really is more walls than it has edges.
+    expect(wallsBoundingRoom(plan.walls!, wide).size).toBeGreaterThan(wide.polygon.length);
+
+    const moved = moveRooms(plan, [wide.id], P(0, 6));
+    const after = moved.rooms.find((r) => r.id === wide.id)!;
+    // It arrives whole: the same floor, all four sides, nothing left behind.
+    expect(after.areaM2).toBeCloseTo(wide.areaM2, 1);
+    expect(moved.rooms).toHaveLength(3);
+    expect(wallsBoundingRoom(moved.walls!, after).size).toBeGreaterThanOrEqual(4);
   });
 
   it('pulls a room away from its neighbour, splitting the wall they shared', () => {
