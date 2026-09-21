@@ -11,7 +11,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { apiErrorMessage, localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import type { CheckoutResult, ProjectOrderState } from '@/lib/finance/orders';
-import { platformFee, type CheckoutKind } from '@/lib/finance/money';
+import { lineTotal, platformFee, round2, type CheckoutKind } from '@/lib/finance/money';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
 /** One half of a project as the dialog summarises it: the fee it carries and the products it would send. */
@@ -19,7 +19,8 @@ export interface CheckoutPart {
   kind: CheckoutKind;
   totalM2: number;
   feePerM2: number;
-  lines: Array<{ key: string; productId: number | null; name: string; qty: number; total: number; where: string | null }>;
+  /** `unitPrice` lets a line partly ordered before be shown as the units still to send, priced as the server prices them. */
+  lines: Array<{ key: string; productId: number | null; name: string; qty: number; unitPrice?: number; total: number; where: string | null }>;
 }
 
 /**
@@ -81,6 +82,10 @@ export function CheckoutDialog({
   const covered: Record<number, number> = {};
   for (const [key, qty] of Object.entries(state?.orderedQty ?? {})) covered[Number(key)] = qty;
   const marked = new Map<string, boolean>();
+  // A line partly ordered before goes out as what is left of it. The design's lines are the
+  // budget's, folded per product — twelve sockets are one line — so a thirteenth added after
+  // the first order is the ordinary case, and it is one socket that is sent, not thirteen.
+  const partly = new Map<string, { qty: number; total: number }>();
   for (const part of [...parts.filter((p) => p.kind === 'design'), ...parts.filter((p) => p.kind !== 'design')]) {
     for (const line of part.lines) {
       if (line.productId == null) {
@@ -97,12 +102,16 @@ export function CheckoutDialog({
         marked.set(line.key, true);
         continue;
       }
+      if (remaining > 0) {
+        const qty = round2(line.qty - remaining);
+        partly.set(line.key, { qty, total: lineTotal(qty, line.unitPrice ?? (line.qty > 0 ? line.total / line.qty : 0)) });
+      }
       covered[line.productId] = 0;
       marked.set(line.key, false);
     }
   }
   const view = parts.map((part) => {
-    const lines = part.lines.map((line) => ({ ...line, duplicate: marked.get(line.key) ?? false }));
+    const lines = part.lines.map((line) => ({ ...line, ...partly.get(line.key), duplicate: marked.get(line.key) ?? false }));
     const feePaid = orderedKinds.has(part.kind);
     return {
       ...part,

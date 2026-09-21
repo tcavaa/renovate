@@ -8,7 +8,9 @@ import { priceScene } from '@/lib/design/pricing';
 import { quantityFor } from '@/lib/design/matcher';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { isTrimSurface } from '@/lib/design/trims';
-import type { DesignScene, FloorPlan } from '@/lib/design/types';
+import { fixtureQuantity } from '@/lib/design/electrical';
+import { radiatorSections } from '@/lib/design/radiators';
+import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { loadProductPrices, repriceFinishSnapshot, repriceSnapshot } from '@/lib/api/productPrices';
 import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
@@ -40,21 +42,46 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   const { nameKa, homeState, floorPlanUrl, projectId, draft, versions } = parsed.data;
-  const plan = parsed.data.plan as FloorPlan;
+  const submittedPlan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
-  const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
+  const roomsById = new Map(submittedPlan.rooms.map((r) => [r.id, r]));
 
   // The client's prices and quantities are a preview. Every product snapshot in the scene is
   // repriced from the catalogue and re-quantified from the slot or the room before anything
-  // is summed or stored, so a figure edited in devtools never becomes the record.
+  // is summed or stored, so a figure edited in devtools never becomes the record. That
+  // goes for the plan's snapshots as much as the scene's: a door, a socket and a radiator
+  // are order lines a store is sent, exactly as a sofa is.
   const known = await loadProductPrices(
     [
       ...submitted.items.map((i) => i.product?.productId),
       ...submitted.finishes.map((f) => f.product?.productId),
+      ...(submitted.electrical ?? []).map((p) => p.product?.productId),
+      ...submittedPlan.rooms.flatMap((r) => r.openings.map((o) => o.product?.productId)),
+      ...(submittedPlan.technical?.points ?? []).map((p) => p.product?.productId),
     ].filter((id): id is number => typeof id === 'number')
   );
 
-  const scene: DesignScene = { ...submitted, items: [], finishes: [] };
+  // Doors and windows are bought one apiece; a radiator by the section, as many as its room
+  // calls for — counted on the plan as submitted, which is the plan the sections belong to.
+  const unknownProducts: number[] = [];
+  const repriced = <T extends { product?: SceneProduct | null }>(holder: T, qty: number): T => {
+    if (!holder.product) return holder;
+    const product = repriceSnapshot(holder.product, known, qty);
+    if (!product) unknownProducts.push(holder.product.productId);
+    return product ? { ...holder, product } : holder;
+  };
+  const plan: FloorPlan = {
+    ...submittedPlan,
+    rooms: submittedPlan.rooms.map((room) => ({ ...room, openings: room.openings.map((opening) => repriced(opening, 1)) })),
+    ...(submittedPlan.technical
+      ? { technical: { ...submittedPlan.technical, points: submittedPlan.technical.points.map((point) => (point.kind === 'radiator' ? repriced(point, radiatorSections(submittedPlan, point)) : point)) } }
+      : {}),
+  };
+  // A double socket is two plates and a strip is bought by the metre (`fixtureQuantity`).
+  const electrical = submitted.electrical?.map((point) => repriced(point, fixtureQuantity(point)));
+  if (unknownProducts.length > 0) return fail(`Unknown product ${unknownProducts[0]}`, 400);
+
+  const scene: DesignScene = { ...submitted, items: [], finishes: [], ...(electrical ? { electrical } : {}) };
   for (const item of submitted.items) {
     if (!item.product) {
       scene.items.push(item);

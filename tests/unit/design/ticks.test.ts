@@ -3,6 +3,7 @@ import { budgetSections, budgetSummary, priceScene } from '@/lib/design/pricing'
 import { pruneTicks, tickFor, tickedOff, toggleTick } from '@/lib/design/ticks';
 import { designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { sceneLinesByStore } from '@/lib/finance/money';
+import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import type { DesignScene, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SceneProduct, SceneStore, SurfaceFinish, Vec2 } from '@/lib/design/types';
 
@@ -30,7 +31,7 @@ describe('ticks are per line', () => {
     expect(budgetSummary(cost).products).toBe(3 * 2450);
     // The basket, the dialogue and the order the stores are sent all agree.
     expect(cost.baskets[0].lines).toHaveLength(3);
-    expect(designCheckoutPart(plan, beds, [], 12, 'ka', excluded)!.lines.map((l) => l.key)).toEqual(['i-bed-b2', 'i-bed-b3', 'i-bed-b5']);
+    expect(designCheckoutPart(plan, cost, 12, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
     const sent = sceneLinesByStore(plan, scene({ excluded }));
     expect(sent.groups.get(1)).toHaveLength(3);
   });
@@ -72,7 +73,11 @@ describe('every kind of product line honours its tick', () => {
     expect(heating).toHaveLength(1);
     expect(heating[0].excluded).toBe(true);
     expect(budgetSections(out).heating).toBe(0);
-    expect(out.grandTotal).toBeCloseTo(full.grandTotal - line.total, 2);
+    // The radiator, and the 40 ₾ its store charged to bring it: the radiator was all that
+    // store was bringing, and a store with nothing in its basket delivers nothing.
+    expect(full.deliveryTotal).toBe(40);
+    expect(out.deliveryTotal).toBe(0);
+    expect(out.grandTotal).toBeCloseTo(full.grandTotal - line.total - 40, 2);
     // Hanging it is still work somebody does.
     expect(out.lines.find((l) => l.key === 'radiator_install')?.total).toBe(full.lines.find((l) => l.key === 'radiator_install')?.total);
   });
@@ -84,7 +89,7 @@ describe('every kind of product line honours its tick', () => {
     expect(out.lines.filter((l) => l.excluded).map((l) => l.tick).sort()).toEqual([tickFor.finish(3), tickFor.fixture(9)].sort());
     expect(out.finishesTotal).toBe(0);
     expect(out.coverage).toHaveLength(0);
-    // The socket, the paint, and the 40 ₾ the paint's store would have charged to bring it.
+    // The socket, the paint, and the 40 ₾ their store would have charged to bring the two.
     expect(full.grandTotal - out.grandTotal).toBeCloseTo(30 + 360 + 40, 2);
     expect(out.lines.find((l) => l.key === 'electrical_point')?.total).toBe(full.lines.find((l) => l.key === 'electrical_point')?.total);
   });
@@ -96,6 +101,110 @@ describe('every kind of product line honours its tick', () => {
     expect(full.deliveryTotal).toBe(40);
     expect(out.deliveryTotal).toBe(0);
     expect(full.grandTotal - out.grandTotal).toBe(340);
+  });
+});
+
+describe('a door, a fitting and a radiator are bought like a sofa is', () => {
+  const shop = (id: number, nameKa: string, deliveryFeeGel: number): SceneStore => ({ ...store, id, nameKa, deliveryFeeGel });
+  const domus = shop(2, 'Domus', 60);
+  const lumina = shop(3, 'Lumina', 25);
+  const sanPlus = shop(4, 'San Plus', 35);
+  const doorProduct = product(21, 620, 1, { categorySlug: 'doors', store: domus });
+  const windowProduct = product(22, 480, 1, { categorySlug: 'windows', store: domus });
+  const socketProduct = product(9, 30, 1, { categorySlug: 'sockets-switches', store: lumina });
+  const radiatorProduct = product(90, 55, 6, { categorySlug: 'radiators', store: sanPlus });
+
+  // An interior door between b1 and b2 — two halves, one door — and a window in b3, both
+  // the person's own additions, so a finished home still pays for them.
+  const withOpenings = (): PlanRoom[] => {
+    let next = addOpening(rooms, 'b1', 'door', 1, 0.12).rooms;
+    next = addOpening(next, 'b3', 'window', 0, 0.12).rooms;
+    return next.map((r) => ({ ...r, openings: r.openings.map((o) => ({ ...o, origin: 'user' as const, product: o.kind === 'door' ? doorProduct : windowProduct })) }));
+  };
+  const fitted: FloorPlan = {
+    ...plan,
+    rooms: withOpenings(),
+    technical: { points: [{ id: 't1', kind: 'radiator', roomId: 'b1', position: P(2, 0.1), origin: 'user', sections: 6, product: radiatorProduct }] },
+  };
+  const sockets: ElectricalPoint[] = [
+    { id: 's1', roomId: 'b1', kind: 'socket_double', position: P(1, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.2, count: 2, origin: 'user', product: { ...socketProduct, qty: 2, totalPrice: 60 } },
+    { id: 's2', roomId: 'b2', kind: 'socket', position: P(5, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.2, origin: 'user', product: socketProduct },
+  ];
+  const ticks = [tickFor.opening(21), tickFor.opening(22), tickFor.fixture(9), tickFor.radiator(90)];
+  const furnished = (excluded: DesignScene['excluded'] = []) => scene({ electrical: sockets, excluded });
+
+  it('gives each of them a basket at its own store, and that store its delivery', () => {
+    const cost = priceScene(fitted, furnished());
+    expect(cost.baskets.map((b) => [b.store?.nameKa, b.subtotal, b.deliveryFee])).toEqual([
+      ['Woody', 9800, 0],
+      ['Domus', 1100, 60],
+      ['San Plus', 330, 35],
+      ['Lumina', 90, 25],
+    ]);
+    expect(cost.deliveryTotal).toBe(120);
+    // The two halves of the interior door are one door; the double socket is two plates.
+    const domusLines = cost.baskets[1].lines;
+    expect(domusLines.map((l) => [l.item, l.roomName, l.product.qty, l.product.totalPrice])).toEqual([
+      ['შიდა კარი', 'b1', 1, 620],
+      ['ფანჯარა', 'b3', 1, 480],
+    ]);
+    expect(cost.baskets[3].lines[0]).toMatchObject({ item: 'როზეტი', roomName: 'b1, b2', product: { productId: 9, qty: 3, totalPrice: 90 } });
+    expect(cost.baskets[2].lines[0]).toMatchObject({ item: 'რადიატორი', product: { productId: 90, qty: 6, totalPrice: 330 } });
+    // Everything a store is bringing, and nothing else, is what the products figure is made of.
+    expect(budgetSummary(cost).products).toBe(9800 + 1100 + 330 + 90 + 120);
+  });
+
+  it('labels them in the language of whoever is asking', () => {
+    const cost = priceScene(fitted, furnished(), { productLabels: { door: 'Interior door', socket: 'Socket' } });
+    const items = cost.baskets.flatMap((b) => b.lines.map((l) => l.item));
+    expect(items).toContain('Interior door');
+    expect(items).toContain('Socket');
+    expect(items).toContain('ფანჯარა'); // Georgian for whatever was not handed over
+  });
+
+  it('lists them in the checkout dialogue and sends each store its lines — the same ones', () => {
+    const cost = priceScene(fitted, furnished());
+    const part = designCheckoutPart(fitted, cost, 12, 'ka')!;
+    expect(part.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5', ...ticks.slice(0, 2), tickFor.fixture(9), tickFor.radiator(90)]);
+    expect(part.lines.reduce((sum, l) => sum + l.total, 0)).toBe(budgetSummary(cost).products - cost.deliveryTotal);
+
+    const sent = sceneLinesByStore(fitted, furnished());
+    expect([...sent.groups.keys()].sort()).toEqual([1, 2, 3, 4]);
+    expect(sent.groups.get(2)!.map((l) => [l.productId, l.qty, l.total, l.categorySlug])).toEqual([[21, 1, 620, 'doors'], [22, 1, 480, 'windows']]);
+    expect(sent.groups.get(3)).toEqual([expect.objectContaining({ productId: 9, qty: 3, unitPrice: 30, total: 90, roomName: 'b1, b2' })]);
+    expect(sent.groups.get(4)).toEqual([expect.objectContaining({ productId: 90, qty: 6, unitPrice: 55, total: 330, roomName: 'b1' })]);
+    // Line for line what the dialogue showed, and store for store what the baskets came to.
+    const all = [...sent.groups.values()].flat();
+    expect(all.map((l) => l.productId)).toEqual(part.lines.map((l) => l.productId));
+    expect(all.map((l) => l.total)).toEqual(part.lines.map((l) => l.total));
+    for (const basket of cost.baskets) expect(sent.groups.get(basket.store!.id)!.reduce((sum, l) => sum + l.total, 0)).toBe(basket.subtotal);
+  });
+
+  it('ticked off, they have no basket, no delivery, no line in the dialogue and no order — and are fitted all the same', () => {
+    const full = priceScene(fitted, furnished());
+    const cost = priceScene(fitted, furnished(ticks));
+    expect(cost.baskets.map((b) => b.store?.nameKa)).toEqual(['Woody']);
+    expect(cost.deliveryTotal).toBe(0);
+    expect(full.grandTotal - cost.grandTotal).toBeCloseTo(1100 + 330 + 90 + 120, 2);
+    expect(designCheckoutPart(fitted, cost, 12, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
+    expect([...sceneLinesByStore(fitted, furnished(ticks)).groups.keys()]).toEqual([1]);
+    for (const key of ['electrical_point', 'radiator_install']) expect(cost.lines.find((l) => l.key === key)?.total).toBe(full.lines.find((l) => l.key === key)?.total);
+  });
+
+  it('orders only what is new work: what the flat came with is on nobody’s order', () => {
+    // The same flat, nothing in it the person's own: a finished home buys none of it…
+    const asFound: FloorPlan = {
+      ...fitted,
+      rooms: fitted.rooms.map((r) => ({ ...r, openings: r.openings.map((o) => ({ ...o, origin: 'existing' as const })) })),
+      technical: { points: fitted.technical!.points.map((p) => ({ ...p, origin: 'existing' as const })) },
+    };
+    const generated = scene({ electrical: sockets.map((s) => ({ ...s, origin: 'generated' as const })) });
+    expect([...sceneLinesByStore(asFound, generated).groups.keys()]).toEqual([1]);
+    // …a renovation that redoes the doors, the wiring and the heating buys all of it, and a
+    // green frame — the same scene, the project's home state the only difference — none.
+    const renovation: DesignScene = { ...generated, mode: 'full' };
+    expect([...sceneLinesByStore(asFound, renovation, () => null, { homeState: 'white_frame' }).groups.keys()].sort()).toEqual([1, 2, 3, 4]);
+    expect([...sceneLinesByStore(asFound, renovation, () => null, { homeState: 'green_frame' }).groups.keys()]).toEqual([1]);
   });
 });
 

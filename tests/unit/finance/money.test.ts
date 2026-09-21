@@ -3,16 +3,22 @@ import {
   buildStoreOrders,
   calculatorLinesByStore,
   commissionFor,
+  costLinesByStore,
   eachDay,
   effectiveCommissionPct,
   labourLines,
+  mergeLines,
   orderTotals,
   periodRange,
   platformFee,
   sceneLinesByStore,
 } from '@/lib/finance/money';
+import { priceScene } from '@/lib/design/pricing';
+import { tickFor } from '@/lib/design/ticks';
+import { addOpening } from '@/lib/design/openings';
+import { refreshRoom } from '@/lib/design/planGeometry';
 import type { SelectedProduct } from '@/lib/calculator/types';
-import type { DesignScene, FloorPlan } from '@/lib/design/types';
+import type { DesignScene, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SceneProduct, SceneStore, Vec2 } from '@/lib/design/types';
 
 const pick = (productId: number, price: number, qty = 1, extra: Partial<SelectedProduct> = {}): SelectedProduct => ({
   productId,
@@ -102,17 +108,108 @@ describe('grouping a project into partner orders', () => {
     expect(small.commissionAmount).toBe(120);
   });
 
+  // A design is ordered from its budget (`priceScene`), so the fixtures are a real plan and
+  // a real scene: two bedrooms side by side, a wall's thickness apart.
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const bedroom = (id: string, name: string, x: number): PlanRoom =>
+    refreshRoom({ id, type: 'bedroom', name, polygon: [P(x, 0), P(x + 4, 0), P(x + 4, 3), P(x, 3)], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [] });
+  const bedrooms = [bedroom('r1', 'საძინებელი', 0), bedroom('r2', 'საბავშვო', 4.12)];
+  const flat = (rooms: PlanRoom[] = bedrooms, technical?: FloorPlan['technical']): FloorPlan => ({ rooms, metresPerPixel: null, bounds: { width: 8.12, depth: 3 }, source: 'manual', wallThicknessM: 0.12, ...(technical ? { technical } : {}) });
+  const shop = (id: number): SceneStore => ({ id, nameKa: `მაღაზია ${id}`, logoUrl: null, websiteUrl: null, phone: null, address: null, city: null, rating: null, deliveryDays: 3, deliveryFeeGel: 40 });
+  const sold = (productId: number, nameKa: string, price: number, store: SceneStore | null, extra: Partial<SceneProduct> = {}): SceneProduct => ({ productId, nameKa, slug: `p-${productId}`, brand: null, pricePerUnit: price, unit: 'piece', qty: 1, totalPrice: price, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: null, store, ...extra });
+  const placed = (id: string, roomId: string, product: SceneProduct | null): PlacedItem => ({ id, roomId, slot: 'bed', kind: 'bed_double', position: P(1, 1), elevationM: 0, rotation: 0, size: { width: 1.6, depth: 2, height: 0.9 }, product });
+  const design = (extra: Partial<DesignScene> = {}): DesignScene => ({ styleId: 'modern', mode: 'design_only', budgetGel: null, items: [], finishes: [], ...extra });
+
   it('reads the store off a scene snapshot and names the room', () => {
-    const plan = { rooms: [{ id: 'r1', name: 'საძინებელი' }] } as unknown as FloorPlan;
-    const product = { productId: 5, nameKa: 'საწოლი', pricePerUnit: 2000, unit: 'piece', qty: 1, totalPrice: 2000, store: { id: 7 } };
-    const scene = {
-      items: [{ roomId: 'r1', product }, { roomId: 'r1', product: null }],
-      finishes: [{ roomId: 'r1', product: { ...product, productId: 6, nameKa: 'ლამინატი', unit: 'm2', qty: 14.2, pricePerUnit: 45, store: null } }],
-    } as unknown as DesignScene;
-    const result = sceneLinesByStore(plan, scene, (id) => (id === 6 ? 9 : null));
+    const laminate = sold(6, 'ლამინატი', 45, null, { unit: 'm2', qty: 14.2, totalPrice: 639 });
+    const scene = design({
+      items: [placed('i1', 'r1', sold(5, 'საწოლი', 2000, shop(7))), placed('i2', 'r1', null)],
+      finishes: [{ roomId: 'r1', surface: 'floor', colorHex: '#fff', textureUrl: null, textureScaleM: 1, product: laminate }],
+    });
+    const result = sceneLinesByStore(flat(), scene, (id) => (id === 6 ? 9 : null));
     expect(result.groups.get(7)![0].roomName).toBe('საძინებელი');
     expect(result.groups.get(9)![0].total).toBe(639);
     expect(result.unassigned).toHaveLength(0);
+  });
+
+  // The one the platform was losing: a door, a socket and a radiator had a price on the
+  // budget and no order behind it, because the order was built from furniture and finishes.
+  describe('doors, fittings and radiators', () => {
+    const doorProduct = sold(21, 'კარი „Oak“', 620, shop(11), { nameEn: 'Door "Oak"', nameRu: 'Дверь «Oak»', categorySlug: 'doors' });
+    const socketProduct = sold(9, 'როზეტი', 30, shop(12), { categorySlug: 'sockets-switches' });
+    const radiatorProduct = sold(90, 'რადიატორი „Panel“ (1 სექცია)', 38, null, { categorySlug: 'radiators' });
+    // An interior door — two halves in the plan, one door in the wall — the person's own.
+    const rooms = addOpening(bedrooms, 'r1', 'door', 1, 0.12).rooms.map((r) => ({ ...r, openings: r.openings.map((o) => ({ ...o, origin: 'user' as const, product: doorProduct })) }));
+    const plan = flat(rooms, { points: [{ id: 't1', kind: 'radiator', roomId: 'r2', position: P(6, 0.1), origin: 'user', sections: 8, product: radiatorProduct }] });
+    const sockets: ElectricalPoint[] = ['r1', 'r2', 'r2'].map((roomId, i) => ({ id: `s${i}`, roomId, kind: 'socket', position: P(1 + i, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.2 + i * 0.2, origin: 'user', product: socketProduct }));
+    const scene = (excluded: DesignScene['excluded'] = []) => design({ electrical: sockets, excluded });
+
+    it('sends each to the store that sells it, as the budget counts it', () => {
+      // The radiator's snapshot names no store, so the catalogue answers for it.
+      const result = sceneLinesByStore(plan, scene(), (id) => (id === 90 ? 13 : null));
+      expect([...result.groups.keys()].sort()).toEqual([11, 12, 13]);
+      // One door for the pair of halves, under the names and the category it is sold by.
+      expect(result.groups.get(11)).toEqual([{ productId: 21, nameKa: 'კარი „Oak“', nameEn: 'Door "Oak"', nameRu: 'Дверь «Oak»', categorySlug: 'doors', roomName: 'საძინებელი', unit: 'piece', qty: 1, unitPrice: 620, total: 620 }]);
+      // Three sockets of one model are one line; the rooms it covers are named once each.
+      expect(result.groups.get(12)).toEqual([expect.objectContaining({ productId: 9, qty: 3, unitPrice: 30, total: 90, roomName: 'საძინებელი, საბავშვო' })]);
+      // A radiator is bought by the section: eight of them, at the price of one.
+      expect(result.groups.get(13)).toEqual([expect.objectContaining({ productId: 90, unit: 'piece', qty: 8, unitPrice: 38, total: 304, roomName: 'საბავშვო' })]);
+      expect(result.unassigned).toHaveLength(0);
+    });
+
+    it('prices the orders the way the budget priced the baskets, delivery included', () => {
+      const cost = priceScene(plan, scene());
+      const result = costLinesByStore(cost, (id) => (id === 90 ? 13 : null));
+      const stores = new Map([11, 12, 13].map((id) => [id, { id, commissionRate: null, deliveryFeeGel: '40.00' }]));
+      const orders = buildStoreOrders(result.groups, stores, 5);
+      expect(orders.map((o) => [o.storeId, o.subtotal, o.deliveryFee])).toEqual([[11, 620, 40], [13, 304, 40], [12, 90, 40]]);
+      // The two shops the scene knows by name are the budget's baskets, to the tetri.
+      for (const basket of cost.baskets.filter((b) => b.store)) {
+        const order = orders.find((o) => o.storeId === basket.store!.id)!;
+        expect([order.subtotal, order.deliveryFee]).toEqual([basket.subtotal, basket.deliveryFee]);
+      }
+    });
+
+    it('sends nothing that was ticked off the budget', () => {
+      const result = sceneLinesByStore(plan, scene([tickFor.opening(21), tickFor.fixture(9), tickFor.radiator(90)]), () => 13);
+      expect(result.groups.size).toBe(0);
+      expect(result.unassigned).toHaveLength(0);
+      // One of the three put back is one order again.
+      const back = sceneLinesByStore(plan, scene([tickFor.opening(21), tickFor.radiator(90)]), () => 13);
+      expect([...back.groups.keys()]).toEqual([12]);
+    });
+
+    it('leaves a made-to-measure kitchen to the joiner and what the flat already has to the flat', () => {
+      const kitchen: PlacedItem = { ...placed('k1', 'r1', sold(40, 'სამზარეულო', 5200, shop(14))), slot: 'kitchen_run', kind: 'kitchen_run', size: { width: 3, depth: 0.6, height: 0.9 } };
+      const paint = { roomId: 'r1', surface: 'wall' as const, colorHex: '#fff', textureUrl: null, textureScaleM: 1.5, product: sold(3, 'საღებავი', 12, shop(15), { unit: 'm2', qty: 30, totalPrice: 360 }) };
+      const custom = sceneLinesByStore(flat(), design({ items: [kitchen], finishes: [paint] }));
+      expect([...custom.groups.keys()]).toEqual([15]);
+      // Bought off the shelf instead, the kitchen is a product again and its shop gets the order.
+      const stock = sceneLinesByStore(flat(), design({ items: [{ ...kitchen, custom: false }], finishes: [paint] }));
+      expect([...stock.groups.keys()].sort()).toEqual([14, 15]);
+      // Walls the flat already has painted are not painted again, and nobody is sent the paint.
+      const painted = sceneLinesByStore(flat(bedrooms, { points: [], existing: ['wall'] }), design({ finishes: [paint] }));
+      expect(painted.groups.size).toBe(0);
+    });
+
+    it('folds into what was ordered before: a thirteenth socket is one socket, not thirteen', () => {
+      const result = sceneLinesByStore(plan, scene(), () => 13);
+      const again = mergeLines(result, null, { 9: 2, 21: 1 });
+      expect(again.groups.get(12)).toEqual([expect.objectContaining({ productId: 9, qty: 1, total: 30 })]);
+      expect(again.groups.has(11)).toBe(false);
+      expect(again.skipped).toBe(1);
+      // A calculator pick of the same door is the studio's door, not a second one.
+      const calculator = calculatorLinesByStore({ doors_global: pick(21, 620, 1) }, {}, [], () => 11);
+      expect(mergeLines(result, calculator).groups.get(11)).toHaveLength(1);
+    });
+
+    it('keeps a room list that would not fit the column from failing the order', () => {
+      const long = bedrooms.map((r, i) => ({ ...r, name: `${'ოთახი '.repeat(30)}${i}` }));
+      const crowded = sceneLinesByStore(flat(long), design({ electrical: sockets }));
+      const roomName = crowded.groups.get(12)![0].roomName!;
+      expect(roomName.length).toBeLessThanOrEqual(255);
+      expect(roomName.endsWith('…')).toBe(true);
+    });
   });
 
   it('turns the labour estimate into booking lines', () => {

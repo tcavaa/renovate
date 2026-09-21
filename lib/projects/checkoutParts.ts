@@ -1,9 +1,9 @@
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
-import type { FloorPlan, PlacedItem, SurfaceFinish } from '@/lib/design/types';
+import type { DesignCost, FloorPlan } from '@/lib/design/types';
 import type { CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { orderedLines } from '@/lib/design/pricing';
 import { localizedName, type Locale } from '@/lib/i18n/labels';
-import { tickFor, tickedOff, type Tick } from '@/lib/design/ticks';
 
 /**
  * The two halves of a project as the checkout dialog summarises them. Both summary pages
@@ -24,30 +24,34 @@ export function calculatorCheckoutPart(
     lines: [
       ...Object.values(selectedProducts)
         .filter((p) => !p.excluded)
-        .map((p, i) => ({ key: `m-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: p.roomId ? roomName.get(p.roomId) ?? null : null })),
+        .map((p, i) => ({ key: `m-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, unitPrice: p.pricePerUnit, total: p.totalPrice, where: p.roomId ? roomName.get(p.roomId) ?? null : null })),
       ...Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
         list
           .filter((p) => !p.excluded)
-          .map((p, i) => ({ key: `f-${roomId}-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, total: p.totalPrice, where: roomName.get(roomId) ?? null }))
+          .map((p, i) => ({ key: `f-${roomId}-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, unitPrice: p.pricePerUnit, total: p.totalPrice, where: roomName.get(roomId) ?? null }))
       ),
     ],
   };
 }
 
-export function designCheckoutPart(plan: FloorPlan | null, items: PlacedItem[], finishes: SurfaceFinish[], feePerM2: number, locale: Locale, excluded: readonly Tick[] = []): CheckoutPart | null {
-  if (!plan) return null;
-  const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
-  // Lines ticked off on the budget stay in the design and out of the order — a piece by its
-  // own tick, a finish by its product's, exactly as `sceneLinesByStore` reads them, so what
-  // the dialogue lists is what the stores are sent.
-  const isOut = tickedOff(excluded);
+/**
+ * The design half, from the design as priced (`priceScene`) rather than from the scene: the
+ * dialogue lists the budget's product lines that are still ticked — the same list
+ * `sceneLinesByStore` turns into orders, so what it shows is what the stores are sent. It
+ * used to walk the furniture and the finishes itself, and a flat whose budget said 31 873 ₾
+ * of products was offered 29 697 ₾ of them to order: the doors, the windows, the sockets
+ * and the radiators had a price and a tick on the sheet and no line here.
+ *
+ * The caller prices with the project's own home state, as the server will.
+ */
+export function designCheckoutPart(plan: FloorPlan | null, cost: Pick<DesignCost, 'lines'> | null, feePerM2: number, locale: Locale): CheckoutPart | null {
+  if (!plan || !cost) return null;
   return {
     kind: 'design',
     totalM2: totalFloorAreaM2(plan),
     feePerM2,
-    lines: [
-      ...items.filter((i) => i.product && !isOut(tickFor.item(i.id), i.product.productId)).map((i) => ({ key: `i-${i.id}`, productId: i.product!.productId, name: localizedName(locale, i.product!), qty: i.product!.qty, total: i.product!.totalPrice, where: roomName.get(i.roomId) ?? null })),
-      ...finishes.filter((f) => f.product && !isOut(tickFor.finish(f.product.productId), f.product.productId)).map((f, n) => ({ key: `s-${f.roomId}-${f.surface}-${n}`, productId: f.product!.productId, name: localizedName(locale, f.product!), qty: f.product!.qty, total: f.product!.totalPrice, where: roomName.get(f.roomId) ?? null })),
-    ],
+    // A product line's tick is its own and nobody else's (`lib/design/ticks`), which is
+    // exactly what a list key has to be.
+    lines: orderedLines(cost).map((line, i) => ({ key: line.tick ?? `p-${line.product.productId}-${i}`, productId: line.product.productId, name: localizedName(locale, line.product), qty: line.qty, unitPrice: line.unitPrice, total: line.total, where: line.roomName ?? null })),
   };
 }

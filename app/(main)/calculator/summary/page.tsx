@@ -38,6 +38,7 @@ import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
+import { priceScene } from '@/lib/design/pricing';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel, localizedName } from '@/lib/i18n/labels';
@@ -103,14 +104,21 @@ export default function SummaryPage() {
   // Select the slices, not a derived object: a selector that builds a new object every call
   // is a new snapshot every render, and useSyncExternalStore loops on that.
   const designPlan = useDesignStore((s) => s.plan);
+  const designStyleId = useDesignStore((s) => s.styleId);
   const designItems = useDesignStore((s) => s.items);
   const designFinishes = useDesignStore((s) => s.finishes);
+  const designElectrical = useDesignStore((s) => s.electrical);
   // The ticks made on the design's budget hold here too: this dialogue lists the same order.
   const designExcluded = useDesignStore((s) => s.excluded);
-  const designPart = useMemo(
-    () => (designExists ? designCheckoutPart(designPlan, designItems, designFinishes, fees.designFeePerM2, locale, designExcluded) : null),
-    [designExists, designPlan, designItems, designFinishes, fees.designFeePerM2, locale, designExcluded]
-  );
+  // The design half is the design's budget — its product lines, the doors, fittings and
+  // radiators with the furniture — priced the way the server will price it once this page
+  // has saved: the calculator's save writes its own home state into the shared row and
+  // makes the design a renovation (`mode: 'full'`), and the order is priced from that row.
+  const designPart = useMemo(() => {
+    if (!designExists || !designPlan || !homeState) return null;
+    const scene = { styleId: designStyleId, mode: 'full' as const, budgetGel: null, items: designItems, finishes: designFinishes, electrical: designElectrical, excluded: designExcluded };
+    return designCheckoutPart(designPlan, priceScene(designPlan, scene, { homeState, locale }), fees.designFeePerM2, locale);
+  }, [designExists, designPlan, designStyleId, designItems, designFinishes, designElectrical, designExcluded, homeState, fees.designFeePerM2, locale]);
   // Built from the picks rather than from the estimate, because the two differ: what the
   // person ticked off on the order list is still costed and no longer bought.
   const checkoutParts: CheckoutPart[] = summary
