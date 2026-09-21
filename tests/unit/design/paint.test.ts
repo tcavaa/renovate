@@ -141,4 +141,57 @@ describe('wall patches', () => {
     expect(wallSpans(finishes, room.id, 1)).toHaveLength(1);
     expect(wallPatches(finishes, room.id, 1)).toHaveLength(1);
   });
+
+  it('lies on top of a strip it is painted over, and says so', () => {
+    let finishes: SurfaceFinish[] = paintSpan([], room, 1, { from: 0, to: 1 }, product(1, 30));
+    finishes = paintPatch(finishes, room, 1, [0, 1], product(2, 50));
+    // Both are there — the strip whole, the square on it — and the square is what the spot wears.
+    expect(wallSpans(finishes, room.id, 1)[0].span).toEqual({ from: 0, to: 1 });
+    expect(paintedProductAt(finishes, { roomId: 'r', surface: 'wall', wallIndex: 1, span: { from: 0, to: 1 }, patch: [0, 1] })?.productId).toBe(2);
+  });
+
+  it('gives way to a strip painted over it, and only in that strip', () => {
+    let finishes: SurfaceFinish[] = paintPatch([], room, 1, [0, 1], product(2, 50));
+    finishes = paintPatch(finishes, room, 1, [1, 1], product(2, 50));
+    finishes = paintSpan(finishes, room, 1, { from: 0, to: 1 }, product(1, 30));
+    // The square in the first column is under the new strip and goes; its neighbour stays.
+    expect(wallPatches(finishes, room.id, 1)[0].cells).toEqual([[1, 1]]);
+    expect(wallPatches(finishes, room.id, 1)[0].product?.qty).toBeCloseTo(1, 6);
+    expect(wallSpans(finishes, room.id, 1)).toHaveLength(1);
+  });
+
+  it('keeps the squares lying on a strip when the same strip is run on beside it', () => {
+    let finishes: SurfaceFinish[] = paintSpan([], room, 1, { from: 0, to: 1 }, product(1, 30));
+    finishes = paintPatch(finishes, room, 1, [0, 1], product(2, 50));
+    finishes = paintSpan(finishes, room, 1, { from: 1, to: 2 }, product(1, 30));
+    // One span now, 0 → 2 — but only the second metre was painted, so the square on the first stays.
+    expect(wallSpans(finishes, room.id, 1).map((f) => f.span)).toEqual([{ from: 0, to: 2 }]);
+    expect(wallPatches(finishes, room.id, 1)[0].cells).toEqual([[0, 1]]);
+  });
+
+  it('erases a strip and the squares on it together', () => {
+    let finishes: SurfaceFinish[] = paintSpan([], room, 1, { from: 0, to: 1 }, product(1, 30));
+    finishes = paintPatch(finishes, room, 1, [0, 1], product(2, 50));
+    expect(paintSpan(finishes, room, 1, { from: 0, to: 1 }, null)).toEqual([]);
+  });
+
+  it('takes one square out of a strip with the eraser: the rest of the column stays painted', () => {
+    // Wall 1 of the room is 2.5 m long and 2.8 m high: a strip over its first two metres.
+    let finishes: SurfaceFinish[] = paintSpan([], room, 1, { from: 0, to: 2 }, product(1, 30));
+    const before = finishes[0].product!.qty;
+    finishes = paintPatch(finishes, room, 1, [0, 1], null);
+    // The first metre left the strip…
+    expect(wallSpans(finishes, room.id, 1).map((f) => f.span)).toEqual([{ from: 1, to: 2 }]);
+    // …and wears the same product as squares, every row but the erased one.
+    const squares = wallPatches(finishes, room.id, 1);
+    expect(squares).toHaveLength(1);
+    expect(squares[0].product?.productId).toBe(1);
+    expect(squares[0].cells!.some(([column, row]) => column === 0 && row === 1)).toBe(false);
+    expect(squares[0].cells!.every(([column]) => column === 0)).toBe(true);
+    // Priced as what is left: the strip's area less the one square.
+    const after = finishes.reduce((sum, f) => sum + (f.product?.qty ?? 0), 0);
+    expect(after).toBeCloseTo(before - 1, 1);
+    // The eraser on bare wall still does nothing.
+    expect(paintPatch(finishes, room, 1, [0, 1], null)).toBe(finishes);
+  });
 });

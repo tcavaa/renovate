@@ -503,7 +503,12 @@ export function PlanEditor(props: PlanEditorProps) {
     // Walls with a finish of their own — the whole wall, or metre-wide strips of it — as a
     // band of that finish along the inside of the room.
     if (layers.zones) {
-      for (const finish of finishes) {
+      // In the order they lie on the wall — the whole wall, then strips, then the square
+      // metres painted over them — not the order they happen to be stored in: a square joins
+      // its product's finish wherever that sits in the list, which can be before the strip
+      // it was painted on.
+      const layer = (f: SurfaceFinish) => (f.cells ? 2 : f.span ? 1 : 0);
+      for (const finish of [...finishes].sort((a, b) => layer(a) - layer(b))) {
         if (finish.surface !== 'wall' || finish.wallIndex == null) continue;
         const room = plan.rooms.find((r) => r.id === finish.roomId);
         const edge = room ? roomEdges(room.polygon).find((e) => e.index === finish.wallIndex) : null;

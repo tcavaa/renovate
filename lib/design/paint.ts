@@ -193,6 +193,9 @@ export function paintPatch(finishes: SurfaceFinish[], room: PlanRoom, wallIndex:
   const isPatches = (f: SurfaceFinish) => f.roomId === room.id && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.cells;
   const already = product ? finishes.find((f) => isPatches(f) && f.product?.productId === product.id && f.cells!.some((c) => sameCell(c, patch))) : undefined;
   if (already) return finishes;
+  // The eraser on a square no patch holds: what shows there is the strip underneath, so that
+  // is what gives the square up (`erasePatchFromStrip`).
+  if (!product && !finishes.some((f) => isPatches(f) && f.cells!.some((c) => sameCell(c, patch)))) return erasePatchFromStrip(finishes, room, edge, wallIndex, patch);
 
   let joined = false;
   const next: SurfaceFinish[] = [];
@@ -249,15 +252,47 @@ export function wallSpans(finishes: SurfaceFinish[], roomId: string, wallIndex: 
  * Paints a stretch of one wall: the stretch is cut out of every painted span it crosses,
  * then laid as the product's own span — run together with a span of the same product it
  * touches. With no product the cut is all there is: the eraser.
+ *
+ * A strip is floor to ceiling, so it also takes the place of every square metre painted in
+ * the stretch: those lie *on top* of strips (`buildWallGeometry`), and one left under a new
+ * strip would go on showing through it — the strip would seem not to apply. The other way
+ * round needs nothing: a square painted over a strip simply lies on it.
  */
 export function paintSpan(finishes: SurfaceFinish[], room: PlanRoom, wallIndex: number, span: Span, product: CatalogProduct | null): SurfaceFinish[] {
   const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
   if (!edge) return finishes;
-  let from = Math.max(0, span.from);
-  let to = Math.min(edge.length, span.to);
-  if (to - from < 0.01) return finishes;
-  const onWall = (f: SurfaceFinish) => f.roomId === room.id && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.span;
+  const painted = { from: Math.max(0, span.from), to: Math.min(edge.length, span.to) };
+  if (painted.to - painted.from < 0.01) return finishes;
+  const cut = cutOutOfSpans(finishes, room, wallIndex, painted, product?.id ?? null);
+  const next = clearPatchesIn(cut.finishes, room, edge, wallIndex, painted);
+  if (product) {
+    const laid = { from: round3(cut.from), to: round3(cut.to) };
+    next.push(pricedByArea({ ...finishFromProduct(room, 'wall', product), wallIndex, span: laid }, spanAreaM2(room, wallIndex, laid)));
+  }
+  return next;
+}
 
+/**
+ * Every painted span of the wall with `range` taken out of it. A span of `joinProductId`
+ * that touches the range is swallowed whole instead, and the range comes back grown to hold
+ * it — the caller lays one span over the lot.
+ */
+function cutOutOfSpans(finishes: SurfaceFinish[], room: PlanRoom, wallIndex: number, range: Span, joinProductId: number | null): { finishes: SurfaceFinish[]; from: number; to: number } {
+  let { from, to } = range;
+  const onWall = (f: SurfaceFinish) => f.roomId === room.id && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.span;
+  // Touching or overlapping, and the same product: one span. Until nothing more joins — a
+  // span two along only touches once the one between them has been taken in.
+  for (let grew = joinProductId != null; grew; ) {
+    grew = false;
+    for (const finish of finishes) {
+      const s = finish.span;
+      if (!s || !onWall(finish) || finish.product?.productId !== joinProductId) continue;
+      if (s.to < from - 1e-6 || s.from > to + 1e-6 || (s.from >= from - 1e-6 && s.to <= to + 1e-6)) continue;
+      from = Math.min(from, s.from);
+      to = Math.max(to, s.to);
+      grew = true;
+    }
+  }
   const next: SurfaceFinish[] = [];
   for (const finish of finishes) {
     if (!onWall(finish)) {
@@ -265,22 +300,65 @@ export function paintSpan(finishes: SurfaceFinish[], room: PlanRoom, wallIndex: 
       continue;
     }
     const s = finish.span!;
-    const same = !!product && finish.product?.productId === product.id;
-    if (same && s.to >= from - 1e-6 && s.from <= to + 1e-6) {
-      // Touching or overlapping, and the same product: one span.
-      from = Math.min(from, s.from);
-      to = Math.max(to, s.to);
-      continue;
-    }
+    if (joinProductId != null && finish.product?.productId === joinProductId && s.to >= from - 1e-6 && s.from <= to + 1e-6) continue;
     // What is left of it on either side of the new stretch.
     for (const rest of [{ from: s.from, to: Math.min(s.to, from) }, { from: Math.max(s.from, to), to: s.to }]) {
       if (rest.to - rest.from < 0.01) continue;
       next.push(pricedByArea({ ...finish, span: { from: round3(rest.from), to: round3(rest.to) } }, spanAreaM2(room, wallIndex, rest)));
     }
   }
-  if (product) {
-    const laid = { from: round3(from), to: round3(to) };
-    next.push(pricedByArea({ ...finishFromProduct(room, 'wall', product), wallIndex, span: laid }, spanAreaM2(room, wallIndex, laid)));
+  return { finishes: next, from, to };
+}
+
+/** The painted square metres of the wall whose column falls in `range`, taken off it. */
+function clearPatchesIn(finishes: SurfaceFinish[], room: PlanRoom, edge: PlanEdge, wallIndex: number, range: Span): SurfaceFinish[] {
+  const next: SurfaceFinish[] = [];
+  for (const finish of finishes) {
+    if (!(finish.roomId === room.id && finish.surface === 'wall' && finish.wallIndex === wallIndex && finish.cells)) {
+      next.push(finish);
+      continue;
+    }
+    const cells = finish.cells.filter((cell) => {
+      const { along } = patchSpans(edge, room.heightM, cell);
+      const middle = (along.from + along.to) / 2;
+      return middle < range.from || middle > range.to;
+    });
+    if (cells.length === finish.cells.length) next.push(finish);
+    else if (cells.length > 0) next.push(pricedByArea({ ...finish, cells }, patchesAreaM2(room, wallIndex, cells)));
+  }
+  return next;
+}
+
+/**
+ * The 1 m² eraser on a strip. A strip cannot have a hole in it — it is a stretch of wall,
+ * floor to ceiling — so the column the square stands in leaves the strip, and the rest of
+ * that column goes on wearing the strip's product as square metres of it. What is on the
+ * wall afterwards is exactly what was there less the one square, and priced as such.
+ */
+function erasePatchFromStrip(finishes: SurfaceFinish[], room: PlanRoom, edge: PlanEdge, wallIndex: number, patch: Cell): SurfaceFinish[] {
+  const { along } = patchSpans(edge, room.heightM, patch);
+  const middle = (along.from + along.to) / 2;
+  const strip = wallSpans(finishes, room.id, wallIndex).find((f) => middle > f.span!.from && middle < f.span!.to);
+  if (!strip?.product) return finishes;
+
+  const onThisWall = (f: SurfaceFinish) => f.roomId === room.id && f.surface === 'wall' && f.wallIndex === wallIndex && !!f.cells;
+  // Squares other products already hold in the column lie on top of the strip and stay.
+  const held = finishes.filter(onThisWall).flatMap((f) => f.cells!);
+  const rest: Cell[] = [];
+  for (let row = 0; row < stepCount(room.heightM); row++) {
+    const cell: Cell = [patch[0], row];
+    if (row !== patch[1] && !held.some((c) => sameCell(c, cell))) rest.push(cell);
+  }
+
+  const next = cutOutOfSpans(finishes, room, wallIndex, along, null).finishes;
+  if (rest.length === 0) return next;
+  const own = next.findIndex((f) => onThisWall(f) && f.product?.productId === strip.product!.productId);
+  if (own >= 0) {
+    const cells = [...next[own].cells!, ...rest];
+    next[own] = pricedByArea({ ...next[own], cells }, patchesAreaM2(room, wallIndex, cells));
+  } else {
+    const { span: _span, ...asPatches } = strip;
+    next.push(pricedByArea({ ...asPatches, cells: rest }, patchesAreaM2(room, wallIndex, rest)));
   }
   return next;
 }

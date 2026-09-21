@@ -133,10 +133,10 @@ export default function BudgetPage() {
   const summary = budgetSummary(cost);
   const sections = budgetSections(cost);
 
-  const isExcluded = (line: BudgetLine): boolean => {
-    const id = productIdOf(line);
-    return id != null && excluded.includes(id);
-  };
+  // What the ticks came to. The lines themselves are all in `cost.lines`, the ticked-off
+  // ones flagged where they stand; the second pricing is only for the difference, because a
+  // product that is out can take its store's delivery with it and only the engine knows.
+  const excludedLines = cost.lines.filter((l) => l.excluded).length;
   const excludedTotal = fullCost ? Math.round((fullCost.grandTotal - cost.grandTotal) * 100) / 100 : 0;
 
   /** The 2D plan as a PDF: the board's own drawing at print resolution, on one A4 sheet. */
@@ -216,7 +216,7 @@ export default function BudgetPage() {
           }
         />
         <StageBrief step={7} className="mt-6" />
-        <p className="no-print mt-4 text-xs text-ink-muted">{excluded.length === 0 ? t.build.excludedNone : fill(t.build.excludedCount, { n: excluded.length })}</p>
+        <p className="no-print mt-4 text-xs text-ink-muted">{excludedLines === 0 ? t.build.excludedNone : fill(t.build.excludedCount, { n: excludedLines })}</p>
 
         {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
 
@@ -232,11 +232,11 @@ export default function BudgetPage() {
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-5">
             {SECTION_ORDER.map((section) => {
+              // Every line of the section in the order the engine lists them, ticked or not:
+              // a line ticked off is struck through *where it stands*. Listing those after
+              // the rest made the sheet reshuffle under the pointer at every tick.
               const lines = cost.lines.filter((l) => l.section === section);
-              // A section whose every line was ticked off still shows, struck through, or
-              // there would be no way to put any of it back.
-              const dropped = (fullCost?.lines ?? []).filter((l) => l.section === section && isExcluded(l));
-              if (lines.length === 0 && dropped.length === 0) return null;
+              if (lines.length === 0) return null;
               return (
                 <section key={section} className="overflow-hidden rounded-[16px] border border-line bg-bg-surface">
                   <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -254,54 +254,34 @@ export default function BudgetPage() {
                     </thead>
                     <tbody>
                       {lines.map((line, i) => {
-                        const productId = productIdOf(line);
+                        const off = !!line.excluded;
                         return (
-                        <tr key={`${line.key}-${i}`} className="border-t border-line/70">
-                          <td className="px-4 py-2">
-                            <p className="flex items-start gap-2 font-medium text-ink">
-                              {productId != null && (
-                                <input
-                                  type="checkbox"
-                                  checked
-                                  onChange={() => toggleExcluded(productId)}
-                                  aria-label={`${t.build.includeInOrder} — ${lineName(line)}`}
-                                  className="no-print mt-0.5 accent-ink"
-                                />
-                              )}
-                              {lineName(line)}
-                            </p>
-                            <p className="text-xs text-ink-muted">
-                              {line.roomName}
-                              {line.estimated && (
-                                <span className={cn('ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted')}>{t.build.estimated}</span>
-                              )}
-                            </p>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-ink-soft">
-                            {formatNumber(line.qty)} {formatUnit(line.unit)}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-ink-muted">{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
-                          <td className="whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums">{formatGEL(line.total)}</td>
-                        </tr>
-                        );
-                      })}
-                      {/* What was ticked off in this section, so it can be put back. */}
-                      {dropped.map((line, i) => {
-                        const productId = productIdOf(line)!;
-                        return (
-                          <tr key={`out-${line.key}-${i}`} className="border-t border-line/70 text-ink-faint">
+                          <tr key={line.tick ?? `${line.key}-${i}`} className={cn('border-t border-line/70', off && 'text-ink-faint')}>
                             <td className="px-4 py-2">
-                              <p className="flex items-start gap-2 font-medium line-through">
-                                <input type="checkbox" checked={false} onChange={() => toggleExcluded(productId)} aria-label={`${t.build.includeInOrder} — ${lineName(line)}`} className="no-print mt-0.5 accent-ink" />
+                              <p className={cn('flex items-start gap-2 font-medium', off ? 'line-through' : 'text-ink')}>
+                                {line.tick != null && (
+                                  <input
+                                    type="checkbox"
+                                    checked={!off}
+                                    onChange={() => toggleExcluded(line.tick!, productIdOf(line))}
+                                    aria-label={`${t.build.includeInOrder} — ${lineName(line)}`}
+                                    className="no-print mt-0.5 accent-ink"
+                                  />
+                                )}
                                 {lineName(line)}
                               </p>
-                              <p className="text-xs">{line.roomName}</p>
+                              <p className={cn('text-xs', !off && 'text-ink-muted')}>
+                                {line.roomName}
+                                {line.estimated && (
+                                  <span className={cn('ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted')}>{t.build.estimated}</span>
+                                )}
+                              </p>
                             </td>
-                            <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                            <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', !off && 'text-ink-soft')}>
                               {formatNumber(line.qty)} {formatUnit(line.unit)}
                             </td>
-                            <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
-                            <td className="whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums line-through">{formatGEL(line.total)}</td>
+                            <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', !off && 'text-ink-muted')}>{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
+                            <td className={cn('whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums', off && 'line-through')}>{formatGEL(line.total)}</td>
                           </tr>
                         );
                       })}
@@ -380,12 +360,11 @@ export default function BudgetPage() {
                 {cost.finishesTotal > 0 && <MoneyRow label={t.design.finishesTotal} value={cost.finishesTotal} />}
                 {cost.openingsTotal > 0 && <MoneyRow label={t.build.secOpenings} value={cost.openingsTotal} />}
                 {cost.technicalTotal > 0 && <MoneyRow label={`${t.build.secElectrical} · ${t.build.secPlumbing}`} value={cost.technicalTotal} />}
-                {mode === 'full' && (
-                  <>
-                    <MoneyRow label={t.design.materialsTotal} value={cost.materialsTotal} />
-                    <MoneyRow label={t.design.labourTotal} value={cost.labourTotal} />
-                  </>
-                )}
+                {/* Whenever there is any, not only in a renovation: fitting a skirting board
+                    somebody chose is labour in a design-only project too, and with the row
+                    hidden the rows above no longer added up to the total under them. */}
+                {(mode === 'full' || cost.materialsTotal > 0) && <MoneyRow label={t.design.materialsTotal} value={cost.materialsTotal} />}
+                {(mode === 'full' || cost.labourTotal > 0) && <MoneyRow label={t.design.labourTotal} value={cost.labourTotal} />}
                 <MoneyRow label={t.design.delivery} value={cost.deliveryTotal} />
                 {/* What the ticks came to: the whole estimate, what was taken out, what is left. */}
                 {fullCost && (

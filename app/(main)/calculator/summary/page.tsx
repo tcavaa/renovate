@@ -105,9 +105,11 @@ export default function SummaryPage() {
   const designPlan = useDesignStore((s) => s.plan);
   const designItems = useDesignStore((s) => s.items);
   const designFinishes = useDesignStore((s) => s.finishes);
+  // The ticks made on the design's budget hold here too: this dialogue lists the same order.
+  const designExcluded = useDesignStore((s) => s.excluded);
   const designPart = useMemo(
-    () => (designExists ? designCheckoutPart(designPlan, designItems, designFinishes, fees.designFeePerM2, locale) : null),
-    [designExists, designPlan, designItems, designFinishes, fees.designFeePerM2, locale]
+    () => (designExists ? designCheckoutPart(designPlan, designItems, designFinishes, fees.designFeePerM2, locale, designExcluded) : null),
+    [designExists, designPlan, designItems, designFinishes, fees.designFeePerM2, locale, designExcluded]
   );
   // Built from the picks rather than from the estimate, because the two differ: what the
   // person ticked off on the order list is still costed and no longer bought.

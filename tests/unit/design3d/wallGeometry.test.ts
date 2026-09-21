@@ -113,6 +113,27 @@ describe('buildWallGeometry', () => {
     for (let i = 0; i < normal.count; i++) expect(Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i))).toBeCloseTo(1, 5);
   });
 
+  it('shows a square metre painted over a strip: what was painted last lies on top', () => {
+    const plan = fromRects({ x: 0, z: 0, width: 4, depth: 3 });
+    const wall = [...planEdgeWalls(plan).values()][0];
+    const area = (geometry: ReturnType<typeof buildWallGeometry>, slot: number) => {
+      const position = geometry.getAttribute('position');
+      let sum = 0;
+      for (const group of geometry.groups.filter((g) => g.materialIndex === slot)) {
+        for (let i = group.start; i < group.start + group.count; i += 3) {
+          const [ax, ay, az, bx, by, bz, cx, cy, cz] = [0, 1, 2].flatMap((k) => [position.getX(i + k), position.getY(i + k), position.getZ(i + k)]);
+          const [ux, uy, uz, vx, vy, vz] = [bx - ax, by - ay, bz - az, cx - ax, cy - ay, cz - az];
+          sum += Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) / 2;
+        }
+      }
+      return sum;
+    };
+    // A strip from 2 m to 3 m, and one square metre of another finish in the middle of it.
+    const painted = buildWallGeometry({ edge: wall.edge, height: 2.8, pieces: wall.pieces, holes: [], spans: [{ from: 2, to: 3, slot: 3 }, { from: 2, to: 3, bottom: 1, top: 2, slot: 4 }] });
+    expect(area(painted, 4)).toBeCloseTo(1, 4);
+    expect(area(painted, 3)).toBeCloseTo(2.8 - 1, 4);
+  });
+
   it('sweeps a moulding round a room so neighbouring runs meet on the mitre', () => {
     const plan = fromRects({ x: 0, z: 0, width: 4, depth: 3 });
     const edges = roomEdges(plan.rooms[0].polygon);

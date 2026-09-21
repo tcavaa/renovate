@@ -459,11 +459,13 @@ export interface DesignScene {
   /** How the style was chosen: the five answers of the style test, when it was taken. */
   styleProfile?: StyleProfile | null;
   /**
-   * Products the person ticked off on the budget: still in the design, still in the room,
-   * but not being bought. The budget leaves them out of its lines and totals and the
-   * checkout does not order them.
+   * The budget lines the person ticked off: still in the design, still in the room, but not
+   * being bought. One key per *line* (`lib/design/ticks`) — a placed piece on its own, a
+   * folded line per product within its kind; a bare number is a product id from a scene saved
+   * when ticks were per product. The budget keeps the line, struck through, and counts it
+   * nowhere; the checkout does not order it.
    */
-  excluded?: number[];
+  excluded?: Array<string | number>;
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */
@@ -592,6 +594,10 @@ export interface DesignCost {
     unitPrice: number;
     total: number;
     estimated: boolean;
+    /** The key that ticks a product line in or out of the order (`lib/design/ticks`). */
+    tick?: string;
+    /** Ticked off: on the sheet where it was, counted nowhere. */
+    excluded?: boolean;
   }>;
   /** The made-to-measure kitchens, measured — see `lib/design/kitchen.ts`. */
   kitchens: Array<{ itemId: string; roomId: string; roomName?: string; slot: string; lengthM: number; lowerM2: number; upperM2: number; worktopM: number; totalM2: number; totalGel: number }>;

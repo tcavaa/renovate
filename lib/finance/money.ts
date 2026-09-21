@@ -1,6 +1,7 @@
 import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { FREE_DELIVERY_THRESHOLD_GEL } from '@/lib/design/pricing';
+import { tickFor, tickedOff } from '@/lib/design/ticks';
 
 /**
  * The marketplace arithmetic, with no database and no React.
@@ -174,15 +175,16 @@ export function calculatorLinesByStore(
 export function sceneLinesByStore(plan: FloorPlan, scene: DesignScene, storeOf: StoreOf = () => null): LinesByStore {
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
-  // Ticked off on the budget page: in the design, not in the order.
-  const excluded = new Set(scene.excluded ?? []);
+  // Ticked off on the budget page: in the design, not in the order. A piece by its own
+  // tick, a finish by its product's (`lib/design/ticks`).
+  const isOut = tickedOff(scene.excluded);
   for (const item of scene.items) {
-    if (!item.product || excluded.has(item.product.productId)) continue;
+    if (!item.product || isOut(tickFor.item(item.id), item.product.productId)) continue;
     const storeId = item.product.store?.id ?? storeOf(item.product.productId);
     push(result, storeId, line(item.product as never, roomName.get(item.roomId) ?? null));
   }
   for (const finish of scene.finishes) {
-    if (!finish.product || excluded.has(finish.product.productId)) continue;
+    if (!finish.product || isOut(tickFor.finish(finish.product.productId), finish.product.productId)) continue;
     const storeId = finish.product.store?.id ?? storeOf(finish.product.productId);
     push(result, storeId, line(finish.product as never, roomName.get(finish.roomId) ?? null));
   }

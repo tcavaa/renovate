@@ -27,7 +27,8 @@ export function OrderProjectButton({ project, size = 'lg', className }: { projec
     const list: CheckoutPart[] = [];
     if (project.hasCalculator) list.push(calculatorCheckoutPart(project.rooms, project.selectedProducts, project.selectedFurniture, fees.calculatorFeePerM2, locale));
     if (project.hasDesign && project.plan && project.scene) {
-      const design = designCheckoutPart(project.plan, project.scene.items, project.scene.finishes, fees.designFeePerM2, locale);
+      // With the ticks the project was saved with — the server reads the same list.
+      const design = designCheckoutPart(project.plan, project.scene.items, project.scene.finishes, fees.designFeePerM2, locale, project.scene.excluded ?? []);
       if (design) list.push(design);
     }
     return list;
