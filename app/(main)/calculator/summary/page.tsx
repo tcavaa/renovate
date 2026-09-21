@@ -32,6 +32,7 @@ import { Button3d } from '@/components/ui/button-3d';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
+import { resetFlow } from '@/lib/flow/reset';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
@@ -58,7 +59,6 @@ export default function SummaryPage() {
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
-  const resetDesign = useDesignStore((s) => s.reset);
   const designProjectId = useDesignStore((s) => s.projectId);
   const designHasItems = useDesignStore((s) => s.items.length > 0 && s.plan != null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -170,18 +170,17 @@ export default function SummaryPage() {
   }, [reset, router]);
 
   /**
-   * "Start over" empties both stores — the calculator's rooms and picks, and the plan the
-   * drawing board keeps in the design store — and returns to the first step. Unless the
-   * project was saved with the button just now, it asks first: an autosaved draft is not
-   * something the person chose to keep, and the rooms and picks are gone for good.
+   * "Start over" empties the calculator — its rooms and picks, and the plan on its own
+   * drawing board — and returns to the first step; the studio's work is the studio's and
+   * stays (`resetFlow`). Unless the project was saved with the button just now, it asks
+   * first: an autosaved draft is not something the person chose to keep, and the rooms and
+   * picks are gone for good.
    */
   const startOver = useCallback(() => {
     setResetOpen(false);
-    reset();
-    resetDesign();
-    useCalculatorPlanStore.getState().reset();
+    resetFlow('calculator');
     router.push('/calculator');
-  }, [reset, resetDesign, router]);
+  }, [router]);
   const askStartOver = () => {
     if (savedId != null) startOver();
     else setResetOpen(true);
