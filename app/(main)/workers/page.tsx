@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { and, asc, count, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -29,6 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
  * toolbar, plates in the grid. Every filter is a query parameter, so any view has a URL.
  */
 export default async function WorkersPage(props: { searchParams: Promise<SearchParams> }) {
+  // Switched off (`lib/features`): whoever still has the address is sent to the brigades.
+  if (!WORKERS_DIRECTORY) redirect('/teams');
   const searchParams = await props.searchParams;
   const t = await getT();
   const params = parseListParams<Sort>(searchParams, { sorts: SORTS, defaultSort: 'rating', pageSize: PAGE_SIZE });

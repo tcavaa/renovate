@@ -8,6 +8,7 @@ import { UserMenu } from '@/components/layout/UserMenu';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 
 export const HEADER_HEIGHT_CLASS = 'h-[72px]';
 
@@ -40,7 +41,7 @@ export function Header() {
     { href: '/calculator', label: t.nav.calculator },
     { href: '/catalog', label: t.nav.catalog },
     { href: '/teams', label: t.nav.teams },
-    { href: '/workers', label: t.nav.workers },
+    ...(WORKERS_DIRECTORY ? [{ href: '/workers', label: t.nav.workers }] : []),
   ];
 
   const frosted = scrolled || !onLanding || open;
@@ -71,9 +72,6 @@ export function Header() {
                 )}
               >
                 {link.label}
-                {link.badge && (
-                  <span className="ml-1.5 bg-brand/12 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-dark">{link.badge}</span>
-                )}
                 {active && <span className="absolute inset-x-4 -bottom-0.5 h-px bg-ink" />}
               </Link>
             );

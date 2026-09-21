@@ -28,6 +28,9 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     '.next-build/**',
+    // Other checkouts of this repo (a background session's worktree, with its own build
+    // output) are not this project's source: linting them is slow and reports their state.
+    '.claude/**',
     'coverage/**',
     'playwright-report/**',
     'test-results/**',

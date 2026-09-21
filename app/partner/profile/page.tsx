@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 import { ArrowUpRight } from 'lucide-react';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -33,7 +34,7 @@ export default async function PartnerProfilePage(props: { searchParams: Promise<
           <h1 className="mt-2 font-serif text-3xl font-bold">{worker.nameKa}</h1>
           <p className="mt-1 text-sm text-ink-muted">{worker.specialty}</p>
         </div>
-        {worker.isActive && (
+        {worker.isActive && WORKERS_DIRECTORY && (
           <Button asChild variant="outline">
             <Link href={`/workers/${worker.id}`}>
               {t.partner.publicProfile}

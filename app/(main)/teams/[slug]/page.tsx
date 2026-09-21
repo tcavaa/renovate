@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, Briefcase, MapPin, Phone, Star, UsersRound } from 'lucide-react';
 import { BookingDialog } from '@/components/checkout/BookingDialog';
 import { loadTeam } from '@/lib/teams/queries';
@@ -84,9 +85,14 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
                   </span>
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 truncate text-sm font-medium text-ink">
-                      <Link href={`/workers/${m.workerId}`} className="truncate hover:text-brand">
-                        {localizedName(locale, m)}
-                      </Link>
+                      {/* A member's own page exists only while the workers' directory does. */}
+                      {WORKERS_DIRECTORY ? (
+                        <Link href={`/workers/${m.workerId}`} className="truncate hover:text-brand">
+                          {localizedName(locale, m)}
+                        </Link>
+                      ) : (
+                        <span className="truncate">{localizedName(locale, m)}</span>
+                      )}
                       {m.isLead && <span className="shrink-0 border border-ink px-1 text-[10px] uppercase tracking-wide">{t.teams.lead}</span>}
                     </span>
                     <span className="block truncate text-xs text-ink-muted">{workerSpecialtyLabel(t, m.specialtySlug)}</span>
