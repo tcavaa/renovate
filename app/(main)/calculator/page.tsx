@@ -47,6 +47,14 @@ export default function CalculatorStep1Page() {
   const [mode, setMode] = useState<PlanMode>(() => (plan && plan.rooms.length > 0 ? 'draw' : 'upload'));
   const [error, setError] = useState<string | null>(null);
   const [planNotice, setPlanNotice] = useState<number | null>(null);
+  // A drop the board refused — a room over a room, a wall half inside another — says so for a
+  // moment; refused in silence it looked like the drag had simply not worked.
+  const [refused, setRefused] = useState<string | null>(null);
+  useEffect(() => {
+    if (!refused) return;
+    const handle = window.setTimeout(() => setRefused(null), 2600);
+    return () => window.clearTimeout(handle);
+  }, [refused]);
 
   const canContinue = !!homeState && rooms.length > 0;
 
@@ -167,8 +175,19 @@ export default function CalculatorStep1Page() {
 
           {mode === 'draw' && plan && (
             <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="min-w-0">
-                <PlanWorkspace store={useCalculatorPlanStore} tools={['select', 'pan', 'wall', 'room', 'door', 'window']} layerKeys={['walls', 'openings', 'dimensions']} height={560} />
+              <div className="relative min-w-0">
+                <PlanWorkspace
+                  store={useCalculatorPlanStore}
+                  tools={['select', 'pan', 'wall', 'room', 'door', 'window']}
+                  layerKeys={['walls', 'openings', 'dimensions']}
+                  height={560}
+                  onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+                />
+                {refused && (
+                  <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
+                    {refused}
+                  </p>
+                )}
               </div>
               <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
                 <ElementInspector

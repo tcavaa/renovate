@@ -22,16 +22,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, wallAt, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
-import { wallNormal } from '@/lib/design/walls';
+import { wallNormal, wallsClash, wallsForMove } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallLength, drawZone, toWorld, type Transform } from './draw';
+import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, toWorld, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
@@ -162,7 +162,19 @@ type Gesture =
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
   | { kind: 'paint'; last: string }
   | { kind: 'marquee'; start: Vec2; current: Vec2; additive: boolean }
-  | { kind: 'room-drag'; roomIds: string[]; startWorld: Vec2; delta: Vec2; moved: boolean; /** Where it would land, it would sit on a room that is staying put. */ overlaps: boolean };
+  | {
+      kind: 'room-drag';
+      /** The rooms that travel: the ones grabbed and every room joined to them (`roomCluster`). */
+      roomIds: string[];
+      /** Their walls and everyone else's, worked out once when the drag began. */
+      moving: Wall[];
+      staying: Wall[];
+      startWorld: Vec2;
+      delta: Vec2;
+      moved: boolean;
+      /** Where it would land it would lie on a room staying put, or stand half inside one of its walls. */
+      overlaps: boolean;
+    };
 
 interface Hover {
   kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | null;
@@ -575,6 +587,9 @@ export function PlanEditor(props: PlanEditorProps) {
         const room = plan.rooms.find((r) => r.id === id);
         if (room) drawRoomGhost(ctx, tr, room.polygon, gesture.delta, tint);
       }
+      // The walls are what snaps, so the walls are what is shown arriving: the room's floor
+      // stops half a thickness short of the line its wall lands on.
+      if (gesture.moved) for (const wall of gesture.moving) drawWallGhost(ctx, tr, wall, gesture.delta, tint);
       if (pointerWorld) {
         const at = toScreenPoint(tr, pointerWorld);
         drawMeasure(ctx, at.x, at.y - 22, `${gesture.delta.x >= 0 ? '+' : ''}${gesture.delta.x.toFixed(2)} · ${gesture.delta.z >= 0 ? '+' : ''}${gesture.delta.z.toFixed(2)} ${t.units.m}`, tint);
@@ -904,7 +919,11 @@ export function PlanEditor(props: PlanEditorProps) {
           callbacks.current.onSelect({ kind: 'room', id });
           callbacks.current.onSelectRoom?.(id);
           if (!locked && !roomsOnly && callbacks.current.onMoveRooms && group.includes(id)) {
-            gestureRef.current = { kind: 'room-drag', roomIds: group, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
+            // Rooms with a wall in common are one body: the drag takes every room joined to
+            // the ones grabbed, and nothing is ever pulled apart. The selection stays what
+            // was clicked — Delete must not take the flat with the room.
+            const move = wallsForMove(plan, group);
+            gestureRef.current = { kind: 'room-drag', roomIds: move.roomIds, moving: move.moving, staying: move.staying, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
           }
         } else {
           // Empty sheet: a rubber band across the rooms, not a pan. Panning is still space,
@@ -1009,15 +1028,21 @@ export function PlanEditor(props: PlanEditorProps) {
           return;
         }
         case 'room-drag': {
-          const step = shiftHeld.current ? MOVE_STEP_M : 0.05;
-          gesture.delta = {
-            x: Math.round((world.x - gesture.startWorld.x) / step) * step,
-            z: Math.round((world.z - gesture.startWorld.z) / step) * step,
-          };
-          gesture.moved = gesture.moved || Math.hypot(world.x - gesture.startWorld.x, world.z - gesture.startWorld.z) * transformRef.current.scale > DRAG_THRESHOLD_PX;
+          // A wall of the travellers that comes near a wall staying behind lands exactly on
+          // its line, so two rooms pushed together have one wall between them; the guides
+          // say which line that is. Nothing in reach: the grid.
+          const raw = { x: world.x - gesture.startWorld.x, z: world.z - gesture.startWorld.z };
+          const snapped = snapRoomMove(gesture.moving, gesture.staying, raw, { tolM: SNAP_PX * perPx() * 1.5, gridM: shiftHeld.current ? MOVE_STEP_M : 0.05 });
+          gesture.delta = snapped.delta;
+          gesture.moved = gesture.moved || Math.hypot(raw.x, raw.z) * transformRef.current.scale > DRAG_THRESHOLD_PX;
+          setGuides(gesture.moved ? snapped.guides : []);
           // Dropped on a room that is staying put, the two outlines would cross and the wall
-          // graph would trace the crossing as a sliver room with walls through it.
-          gesture.overlaps = roomsWouldOverlap(plan.rooms, gesture.roomIds, gesture.delta);
+          // graph would trace the crossing as a sliver room with walls through it; a wall set
+          // down half inside another does the same damage a few centimetres at a time.
+          const delta = snapped.delta;
+          gesture.overlaps =
+            roomsWouldOverlap(plan.rooms, gesture.roomIds, delta) ||
+            wallsClash(gesture.moving.map((w) => ({ ...w, a: { x: w.a.x + delta.x, z: w.a.z + delta.z }, b: { x: w.b.x + delta.x, z: w.b.z + delta.z } })), gesture.staying);
           setGestureVersion((v) => v + 1);
           return;
         }

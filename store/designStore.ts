@@ -47,9 +47,11 @@ import {
   offsetWall as offsetWallIn,
   rebuildRooms,
   moveRooms as moveRoomsIn,
+  roomCluster,
   removeWall as removeWallIn,
   resizeWall as resizeWallIn,
   updateWall as updateWallIn,
+  wallsBoundingRoom,
   wallsForRectangle,
   withBounds,
 } from '@/lib/design/walls';
@@ -655,8 +657,13 @@ function createDesignStore(storageName: string) {
             if (!s.plan) return null;
             const plan = moveRoomsIn(s.plan, roomIds, delta);
             if (plan === s.plan) return null;
-            const moving = new Set(roomIds);
-            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 100) / 100, z: Math.round((p.z + delta.z) * 100) / 100 });
+            // Rooms with a wall in common travel as one body, so what travels is the cluster —
+            // the same one the walls were moved for — not just the rooms that were grabbed.
+            const moving = new Set(roomCluster(s.plan, roomIds));
+            // To the millimetre, like the walls: a room snapped onto its neighbour travels by
+            // whatever closes the gap exactly, which is not always a whole centimetre, and a
+            // sofa rounded differently from the wall it stands against ends up inside it.
+            const shift = (p: Vec2): Vec2 => ({ x: Math.round((p.x + delta.x) * 1000) / 1000, z: Math.round((p.z + delta.z) * 1000) / 1000 });
             // Everything standing in a room travels with it: the furniture, the fittings on
             // its walls, the technical points, and whatever was painted on its floor.
             const withTechnical: FloorPlan = plan.technical
@@ -677,10 +684,13 @@ function createDesignStore(storageName: string) {
             const room = s.plan.rooms.find((r) => r.id === roomId);
             if (!room) return null;
             // Take away the walls only this room used; a shared wall stays for its neighbour.
+            // Asked of the geometry, like a move: `wallIds` names one wall per edge, and a side
+            // a neighbour covers half of is two walls — the unnamed half used to be left
+            // standing as a stub where the room had been.
             const walls = s.plan.walls ?? [];
             if (walls.length > 0 && room.wallIds) {
-              const shared = new Set(s.plan.rooms.filter((r) => r.id !== roomId).flatMap((r) => r.wallIds ?? []));
-              const gone = new Set((room.wallIds ?? []).filter((id) => !shared.has(id)));
+              const shared = new Set(s.plan.rooms.filter((r) => r.id !== roomId).flatMap((r) => [...wallsBoundingRoom(walls, r)]));
+              const gone = new Set([...wallsBoundingRoom(walls, room)].filter((id) => !shared.has(id)));
               const kept = walls.filter((w) => !gone.has(w.id));
               const plan = rebuildRooms(s.plan, kept);
               // The room's area may now be a bounded face again (fully shared walls): drop it explicitly.

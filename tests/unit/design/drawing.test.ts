@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, wallAt } from '@/lib/design/drawing';
-import { addWalls, roomsFromWalls, wallsForRectangle } from '@/lib/design/walls';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, snapRoomMove, wallAt } from '@/lib/design/drawing';
+import { addWalls, roomsFromWalls, wallsClash, wallsForRectangle } from '@/lib/design/walls';
 import type { Beam, Column, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
 const wall = (id: string, a: Vec2, b: Vec2, thicknessM = 0.12): Wall => ({ id, a, b, thicknessM, origin: 'user' });
@@ -120,6 +120,59 @@ describe('snapRectangle', () => {
     const { rect, guides } = snapRectangle({ x: 9, z: 9, width: 3, depth: 2 }, square, 0.12, 0.2);
     expect(rect).toEqual({ x: 9, z: 9, width: 3, depth: 2 });
     expect(guides).toHaveLength(0);
+  });
+});
+
+describe('snapRoomMove', () => {
+  /** A box of walls with its centrelines on the given rectangle. */
+  const box = (id: string, x0: number, z0: number, x1: number, z1: number, t = 0.12): Wall[] => [
+    wall(`${id}-t`, P(x0, z0), P(x1, z0), t),
+    wall(`${id}-r`, P(x1, z0), P(x1, z1), t),
+    wall(`${id}-b`, P(x1, z1), P(x0, z1), t),
+    wall(`${id}-l`, P(x0, z1), P(x0, z0), t),
+  ];
+  const shifted = (walls: Wall[], d: Vec2): Wall[] => walls.map((w) => ({ ...w, a: P(w.a.x + d.x, w.a.z + d.z), b: P(w.b.x + d.x, w.b.z + d.z) }));
+  const upper = box('a', 0, 0, 5.15, 4);
+  const lower = box('b', 1.2, 6, 5.2, 10);
+  const options = { tolM: 0.3, gridM: 0.05 };
+
+  it('lands a room pushed up under another exactly on its wall — the six centimetres never happen', () => {
+    // The hand stops with the two walls 6 cm apart, which is how the board used to leave them.
+    const { delta, guides } = snapRoomMove(lower, upper, P(0.41, -1.94), options);
+    expect(delta.z).toBe(-2);
+    expect(wallsClash(shifted(lower, delta), upper)).toBe(false);
+    // It says which wall it took, and draws the line the two now share.
+    expect(guides.some((g) => g.kind === 'wall' && g.a.z === 4 && g.b?.z === 4)).toBe(true);
+    expect(guides.some((g) => g.kind === 'align')).toBe(true);
+  });
+
+  it('squares the side walls up with the neighbour’s when they come close', () => {
+    // Sliding left along the upper room: its left wall comes within reach of the other's.
+    const { delta } = snapRoomMove(lower, upper, P(-1.13, -2.02), options);
+    expect(delta).toEqual(P(-1.2, -2));
+  });
+
+  it('prefers the wall it is being pushed against to a line it merely passes', () => {
+    // 20 cm short of the upper room's wall, and 4 cm off lining up with a wall far away.
+    const far = [wall('far', P(20, 8.24), P(24, 8.24))];
+    const { delta } = snapRoomMove(lower, [...upper, ...far], P(0.4, -1.8), options);
+    expect(delta.z).toBe(-2);
+  });
+
+  it('lines up with a room across the sheet when nothing is nearer', () => {
+    const across = box('c', 12, 6.07, 16, 9);
+    const { delta, guides } = snapRoomMove(lower, across, P(0, 0.02), options);
+    expect(delta.z).toBeCloseTo(0.07, 6);
+    expect(guides.filter((g) => g.kind === 'wall')).toHaveLength(0);
+  });
+
+  it('reaches a wall its own would overlap however small the pointer’s reach', () => {
+    const { delta } = snapRoomMove(lower, upper, P(0.4, -1.9), { tolM: 0.02, gridM: 0.01 });
+    expect(delta.z).toBe(-2);
+  });
+
+  it('falls to the grid when no wall is near', () => {
+    expect(snapRoomMove(lower, upper, P(7.03, 3.98), options).delta).toEqual(P(7.05, 4));
   });
 });
 

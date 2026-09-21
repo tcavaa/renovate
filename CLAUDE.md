@@ -494,19 +494,41 @@ routinely two walls end to end, its neighbour's and then its own, and treating t
 edges gave the room a phantom vertex, an extra wall index and a finish that stopped halfway
 along a flat wall.
 
-**Rooms come apart again.** `moveRooms(plan, roomIds, delta)` moves whole rooms with their
-walls: a wall only the movers use travels, a wall shared with a room staying behind is
-*split* (the original stays, a copy goes). Identity survives because the previous rooms are
-handed to `rebuildRooms` already shifted. The store's `moveRooms` takes the furniture,
-fittings, technical points and painted zones of those rooms along with them.
+**Rooms that share a wall are one body, and nothing is ever pulled apart** (`roomCluster`).
+For a while a room could be dragged away from its neighbour — the wall between them was
+*split*, the original staying and a copy leaving — and every version of that came back broken:
+a room with a side missing, a stub left on the neighbour, and, pushed back, two walls six
+centimetres apart on what had been one line, which the wall graph cuts into slivers and jogs.
+Nobody needed it (a flat is moved as a flat), so it is gone: a drag takes the closure of the
+grabbed rooms under "has a wall in common", and **Ctrl+Z is the way back** from a room pushed
+up against the wrong neighbour. `wallsForMove(plan, roomIds)` is what travels, worked out once
+when the drag begins: the cluster's walls, the partitions and stubs standing inside those
+rooms, and any free wall hanging off them (a half-drawn room on the side of the flat goes with
+the flat) unless it also touches a room that stays. `moveRooms` shifts those, the columns and
+beams standing in the moved rooms, and hands the previous rooms to `rebuildRooms` already
+shifted so identity survives; the store's `moveRooms` takes the furniture, fittings, technical
+points and painted zones of the whole cluster along, to the millimetre like the walls.
+
+**Pushed together means one wall between them.** Where a travelling wall lands on the line of
+a wall that stayed, the stretch the two have in common is kept once — the wall that was there
+stands for both, *whatever its thickness* (`uncoveredPieces(…, anyThickness)`; a wall being
+*drawn* still only gives way to one of its own thickness) — and the traveller keeps what
+sticks out past it. That shared wall is also what makes them one body from then on. What two
+parallel walls may never do is stand half inside each other (`wallsClash`: off each other's
+line, closer than their bodies plus `WALL_CLEARANCE_M`, overlapping along their length); the
+board snaps so that it does not happen by accident and refuses the drop when it would happen
+anyway — a room pushed into a gap a hand too narrow for it.
 
 **Which walls are a room's is asked of the geometry, not of `wallIds`.** `room.wallIds` names
 one wall per *edge*, and walls are cut at every junction — so a side that a neighbour covers
-only half of is two walls, and only the first was ever named. Dragging such a room away left
-the rest of that side standing where it was: the room arrived with a hole in it. Instead
-`wallsBoundingRoom(walls, room)` sweeps every wall and keeps the ones running parallel to an
-edge, half a thickness outside it, overlapping it along its length — all of them, however the
-side was cut. Pinned by "takes every wall of a room along, even the sides cut into several".
+only half of is two walls, and only the first is named. `wallsBoundingRoom(walls, room)` sweeps
+every wall and keeps the ones running parallel to an edge, half a thickness outside it,
+overlapping it along its length — all of them, however the side was cut. The cluster, the move
+and the store's `removeRoom` all ask it (deleting a room used to leave the unnamed half of a
+side standing as a stub). `orphanWallSegments` has the mirror-image rule: a wall piece is
+measured against a room side's *line*, because a side is routinely longer than the piece
+behind it — measured to the piece, every such piece read as free-standing and the 3D view stood
+a second wall inside the room's own.
 
 `ensureWalls` is what `setPlan` and `openSaved` call. Every wall edit in the store —
 `addWall`, `offsetWall` (sideways along `wallNormal`, connected walls follow),
@@ -540,7 +562,18 @@ red and the drop is refused with its own message.
 **Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
 or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
 tool, and W/A/S/D or the arrows — matched on `event.code`, like the 3D view). The group then drags bodily through `moveRooms`, with a live plate saying how
-far it has travelled, and comes apart from whatever stays behind. Delete takes the whole
+far it has travelled — and every room joined to it comes too (the ghost shows all of them and
+their walls; the *selection* stays what was clicked, so Delete does not take the flat with the
+room). **A dragged room snaps wall to wall** (`snapRoomMove`): each axis looks for a wall of the
+travellers and a parallel wall staying behind whose centrelines the move would bring close, and
+closes the distance exactly. A wall that would run *alongside* wins over one that continues it
+end to end, which wins over one merely in line across the sheet; the nearest within a kind; a
+wall alongside is in reach for as long as the two bodies would overlap, however far the view is
+zoomed in. Each snap draws the full-sheet line the two walls now share (and the neighbour's
+wall, when it is one) — the "lines room to room" that say what it is squaring up with. A drop
+that would still leave a wall half inside another turns the ghost red and is refused with the
+same message as a room over a room; both boards show it (the calculator's had no banner, so a
+refusal there looked like a drag that had not worked). Delete takes the whole
 selection. **Every gesture that changes a size carries its ruler**: the wall being drawn,
 the rectangle being pulled out, a wall dragged sideways (with its offset), a wall stretched
 by an end, and the selected or hovered wall — and a wall's length is an input in the
@@ -1772,7 +1805,11 @@ Everything the app needs to run unattended on the VPS, and where each piece live
 ## Known gaps / roadmap
 
 - New walls are drawn in the 2D view only; in 3D a wall can be selected, unlocked and
-  dragged sideways, not drawn. Rooms are likewise selected and dragged in 2D only. Floor
+  dragged sideways, not drawn. Rooms are likewise selected and dragged in 2D only. Rooms that
+  share a wall cannot be pulled apart by dragging — undo, or delete and redraw, is the way
+  back — and a plan saved while detaching still existed may hold two walls a few centimetres
+  apart that nothing repairs on load. A door on an outside wall that becomes a shared wall when
+  its room is pushed against a neighbour stays one-sided (no twin is cut in the neighbour). Floor
   zones are drawn in 2D (the whole room, one wall, half the floor, a painted tile, a painted
   strip and a painted wall patch all work from 3D). Beams are not obstacles for the layout
   engine.

@@ -549,6 +549,22 @@ export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polyg
   ctx.restore();
 }
 
+/** A wall travelling with a dragged room: its body, translucent, where it would land. */
+export function drawWallGhost(ctx: CanvasRenderingContext2D, t: Transform, wall: Pick<Wall, 'a' | 'b' | 'thicknessM'>, delta: Vec2, color: string = EDITOR.selected): void {
+  const a = toScreen(t, { x: wall.a.x + delta.x, z: wall.a.z + delta.z });
+  const b = toScreen(t, { x: wall.b.x + delta.x, z: wall.b.z + delta.z });
+  ctx.save();
+  ctx.lineCap = 'square';
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = Math.max(2, wall.thicknessM * t.scale);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 /**
  * A measurement on the sheet: a dark plate with the figure in it, at a screen point. The
  * ruler every gesture that changes a size shows — a wall being drawn, dragged sideways or

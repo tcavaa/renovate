@@ -5,8 +5,11 @@ import {
   ensureWalls,
   moveNode,
   moveRooms,
+  roomCluster,
   splitAtJunctions,
   wallsBoundingRoom,
+  wallsClash,
+  wallsForMove,
   offsetWall,
   orphanWallSegments,
   rebuildRooms,
@@ -39,6 +42,17 @@ function box(prefix: string, x0: number, z0: number, x1: number, z1: number, t =
 const blankPlan = (): FloorPlan => ({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] });
 
 const polygonCentroidX = (room: PlanRoom): number => room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
+
+/** Two rooms side by side with a wide one under both, drawn one after another as on the board. */
+function threeRooms(): FloorPlan {
+  const rects = [
+    { x: 0.06, z: 0.06, width: 3.88, depth: 2.88 },
+    { x: 4.06, z: 0.06, width: 3.88, depth: 2.88 },
+    { x: 0.06, z: 3.06, width: 7.88, depth: 2.88 },
+  ];
+  const walls = rects.reduce((all, r, i) => addWalls(all, wallsForRectangle(r, 0.12, 'user', `r${i}`)), [] as Wall[]);
+  return rebuildRooms(blankPlan(), walls);
+}
 
 const rect = (id: string, x: number, z: number, w: number, d: number, type: PlanRoom['type'] = 'bedroom'): PlanRoom =>
   refreshRoom({
@@ -210,44 +224,125 @@ describe('editing walls', () => {
     expect(Math.max(added.a.x, added.b.x)).toBeCloseTo(7, 5);
   });
 
-  it('takes every wall of a room along, even the sides cut into several', () => {
+  it('knows every wall of a room, even the sides cut into several', () => {
     // Two rooms side by side with a wide one under both: the wide room's top side is met by
     // the partition above it, so `splitAtJunctions` cuts that side in two and `wallIds`
     // names only one of the pieces.
-    const rects = [
-      { x: 0.06, z: 0.06, width: 3.88, depth: 2.88 },
-      { x: 4.06, z: 0.06, width: 3.88, depth: 2.88 },
-      { x: 0.06, z: 3.06, width: 7.88, depth: 2.88 },
-    ];
-    const walls = rects.reduce((all, rect, i) => addWalls(all, wallsForRectangle(rect, 0.12, 'user', `r${i}`)), [] as Wall[]);
-    const plan = rebuildRooms(blankPlan(), walls);
+    const plan = threeRooms();
     expect(plan.rooms).toHaveLength(3);
     const wide = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
-    // Its boundary really is more walls than it has edges.
     expect(wallsBoundingRoom(plan.walls!, wide).size).toBeGreaterThan(wide.polygon.length);
-
-    const moved = moveRooms(plan, [wide.id], P(0, 6));
-    const after = moved.rooms.find((r) => r.id === wide.id)!;
-    // It arrives whole: the same floor, all four sides, nothing left behind.
-    expect(after.areaM2).toBeCloseTo(wide.areaM2, 1);
-    expect(moved.rooms).toHaveLength(3);
-    expect(wallsBoundingRoom(moved.walls!, after).size).toBeGreaterThanOrEqual(4);
   });
 
-  it('pulls a room away from its neighbour, splitting the wall they shared', () => {
-    // Two rooms side by side on one shared wall.
-    const walls = [...box('a', 0, 0, 4, 3), ...wallsForRectangle({ x: 4.06, z: 0.06, width: 3.88, depth: 2.88 }, 0.12, 'user', 'b')];
-    const plan = rebuildRooms({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, walls);
-    expect(plan.rooms).toHaveLength(2);
+  it('moves rooms that share a wall as one body — nothing is pulled apart', () => {
+    const plan = threeRooms();
+    const wide = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
+    // Grabbing one room takes the flat.
+    expect(roomCluster(plan, [wide.id]).sort()).toEqual(plan.rooms.map((r) => r.id).sort());
+
+    const moved = moveRooms(plan, [wide.id], P(2, 6));
+    expect(moved.rooms.map((r) => r.id).sort()).toEqual(plan.rooms.map((r) => r.id).sort());
+    for (const room of plan.rooms) {
+      const after = moved.rooms.find((r) => r.id === room.id)!;
+      expect(after.areaM2).toBeCloseTo(room.areaM2, 2);
+      expect(polygonCentroidX(after)).toBeCloseTo(polygonCentroidX(room) + 2, 2);
+    }
+    // No wall was split and none was left behind: the same walls, all six metres further down.
+    expect(moved.walls!.length).toBe(plan.walls!.length);
+    expect(Math.min(...moved.walls!.flatMap((w) => [w.a.z, w.b.z]))).toBeCloseTo(6, 3);
+  });
+
+  it('leaves a room that shares no wall where it is', () => {
+    const walls = [...box('a', 0, 0, 4, 3), ...box('b', 6, 0, 10, 3)];
+    const plan = rebuildRooms(blankPlan(), walls);
     const [left, right] = [...plan.rooms].sort((p, q) => polygonCentroidX(p) - polygonCentroidX(q));
-    const before = plan.walls!.length;
-    const moved = moveRooms(plan, [right.id], P(2, 0));
-    // The right room kept its identity and travelled; the left one stayed where it was.
-    expect(moved.rooms.map((r) => r.id).sort()).toEqual([left.id, right.id].sort());
-    expect(polygonCentroidX(moved.rooms.find((r) => r.id === right.id)!)).toBeCloseTo(polygonCentroidX(right) + 2, 1);
-    expect(polygonCentroidX(moved.rooms.find((r) => r.id === left.id)!)).toBeCloseTo(polygonCentroidX(left), 1);
-    // The wall they had in common was split, so both still have one.
-    expect(moved.walls!.length).toBeGreaterThan(before);
+    expect(roomCluster(plan, [right.id])).toEqual([right.id]);
+    const moved = moveRooms(plan, [right.id], P(3, 1));
+    expect(polygonCentroidX(moved.rooms.find((r) => r.id === left.id)!)).toBeCloseTo(polygonCentroidX(left), 3);
+    expect(polygonCentroidX(moved.rooms.find((r) => r.id === right.id)!)).toBeCloseTo(polygonCentroidX(right) + 3, 3);
+  });
+
+  it('gives two rooms pushed together one wall between them, and they then move as one', () => {
+    // A 5 m room with a 4 m room under it, 1.2 m in from its left — the case from the board.
+    const walls = [...box('a', 0, 0, 5, 4), ...box('b', 1.2, 6, 5.2, 10)];
+    const plan = rebuildRooms(blankPlan(), walls);
+    const [top, bottom] = [...plan.rooms].sort((p, q) => p.polygon[0].z - q.polygon[0].z);
+    const pushed = moveRooms(plan, [bottom.id], P(0, -2));
+
+    // Still two rooms, each exactly the floor it had.
+    expect(pushed.rooms.map((r) => r.id).sort()).toEqual([top.id, bottom.id].sort());
+    expect(pushed.rooms.find((r) => r.id === top.id)!.areaM2).toBeCloseTo(top.areaM2, 2);
+    expect(pushed.rooms.find((r) => r.id === bottom.id)!.areaM2).toBeCloseTo(bottom.areaM2, 2);
+    // One wall on the line z = 4 wherever both rooms stand: nothing is doubled…
+    const onLine = pushed.walls!.filter((w) => Math.abs(w.a.z - 4) < 1e-6 && Math.abs(w.b.z - 4) < 1e-6);
+    const covered = onLine.reduce((sum, w) => sum + Math.abs(w.a.x - w.b.x), 0);
+    expect(covered).toBeCloseTo(5.2, 3); // 0 → 5 is the upper room's wall, 5 → 5.2 what sticks out of the lower one
+    // …and no wall stands anywhere but on the two rooms' outlines.
+    expect(orphanWallSegments(pushed)).toHaveLength(0);
+
+    // From now on they are one body.
+    expect(roomCluster(pushed, [bottom.id]).sort()).toEqual([top.id, bottom.id].sort());
+    const together = moveRooms(pushed, [bottom.id], P(-3, 0));
+    expect(polygonCentroidX(together.rooms.find((r) => r.id === top.id)!)).toBeCloseTo(polygonCentroidX(top) - 3, 2);
+    expect(together.walls!.length).toBe(pushed.walls!.length);
+  });
+
+  it('lets the wall that was there stand for a thinner one arriving on its line', () => {
+    const walls = [...box('a', 0, 0, 5, 4, 0.2), ...box('b', 0, 6, 5, 10, 0.1)];
+    const plan = rebuildRooms(blankPlan(), walls);
+    const bottom = [...plan.rooms].sort((p, q) => q.polygon[0].z - p.polygon[0].z)[0];
+    const pushed = moveRooms(plan, [bottom.id], P(0, -2));
+    const between = pushed.walls!.filter((w) => Math.abs(w.a.z - 4) < 1e-6 && Math.abs(w.b.z - 4) < 1e-6);
+    expect(between).toHaveLength(1);
+    expect(between[0].thicknessM).toBe(0.2);
+    expect(pushed.rooms).toHaveLength(2);
+  });
+
+  it('takes a partition inside a room and a stub hanging off it along, but not a wall tied to a room that stays', () => {
+    const walls = [
+      ...box('a', 0, 0, 4, 3),
+      wall('inside', P(2, 0), P(2, 1.5)), // a partition that closes nothing
+      wall('stub', P(4, 3), P(4, 5)), // a half-drawn room on the corner
+      ...box('b', 8, 0, 12, 3),
+      wall('fence', P(8, 3), P(8, 5)), // hangs off the room that stays
+    ];
+    const plan = rebuildRooms(blankPlan(), walls);
+    const left = [...plan.rooms].sort((p, q) => polygonCentroidX(p) - polygonCentroidX(q))[0];
+    const move = wallsForMove(plan, [left.id]);
+    const travelling = move.moving.map((w) => w.id);
+    expect(travelling.some((id) => id.startsWith('inside'))).toBe(true);
+    expect(travelling.some((id) => id.startsWith('stub'))).toBe(true);
+    expect(travelling.some((id) => id.startsWith('fence'))).toBe(false);
+    expect(travelling.some((id) => id.startsWith('b-'))).toBe(false);
+  });
+
+  it('carries the columns and beams standing in a moved room', () => {
+    const base = rebuildRooms(blankPlan(), [...box('a', 0, 0, 4, 3), ...box('b', 8, 0, 12, 3)]);
+    const left = [...base.rooms].sort((p, q) => polygonCentroidX(p) - polygonCentroidX(q))[0];
+    const plan: FloorPlan = {
+      ...base,
+      columns: [
+        { id: 'in-corner', position: P(0.1, 0.1), widthM: 0.3, depthM: 0.3, origin: 'user' },
+        { id: 'elsewhere', position: P(10, 1.5), widthM: 0.3, depthM: 0.3, origin: 'user' },
+      ],
+      beams: [{ id: 'beam', a: P(0, 1.5), b: P(4, 1.5), widthM: 0.25, depthM: 0.3, elevationM: 2.4, origin: 'user' }],
+    };
+    const moved = moveRooms(plan, [left.id], P(0, 5));
+    expect(moved.columns!.find((c) => c.id === 'in-corner')!.position).toEqual(P(0.1, 5.1));
+    expect(moved.columns!.find((c) => c.id === 'elsewhere')!.position).toEqual(P(10, 1.5));
+    expect(moved.beams![0].a).toEqual(P(0, 6.5));
+  });
+
+  it('calls it a clash when a wall would stand half inside another, not when it shares its line or stands clear', () => {
+    const staying = [wall('s', P(0, 4), P(5, 4))];
+    const at = (z: number, x0 = 1, x1 = 4) => [wall('m', P(x0, z), P(x1, z))];
+    expect(wallsClash(at(4), staying)).toBe(false); // one line: one wall
+    expect(wallsClash(at(4.06), staying)).toBe(true); // the six centimetres from the board
+    expect(wallsClash(at(3.9), staying)).toBe(true); // …from either side
+    expect(wallsClash(at(4.14), staying)).toBe(true); // back to back with no air between
+    expect(wallsClash(at(4.5), staying)).toBe(false); // clear
+    expect(wallsClash(at(4.06, 5, 9), staying)).toBe(false); // end to end is a jog, not an overlap
+    expect(wallsClash([wall('m', P(2, 4.06), P(2, 8))], staying)).toBe(false); // a wall meeting it square
   });
 
   it('removing the partition merges the rooms into one that keeps the larger room’s identity', () => {
