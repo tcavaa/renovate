@@ -466,6 +466,12 @@ export interface DesignScene {
    * nowhere; the checkout does not order it.
    */
   excluded?: Array<string | number>;
+  /**
+   * Quantities the person set themselves on the budget, by line key (`lib/design/ticks`).
+   * What the sheet works out stays the original and is shown beside each; this is what is
+   * counted, put in the baskets and ordered instead.
+   */
+  quantities?: Record<string, number>;
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */
@@ -593,7 +599,7 @@ export interface DesignCost {
   baskets: StoreBasket[];
   /** Every row of the budget with its quantity — see `BudgetLine` in lib/design/pricing.ts. */
   lines: Array<{
-    section: 'furniture' | 'lighting' | 'finishes' | 'openings' | 'electrical' | 'plumbing' | 'heating' | 'climate' | 'materials' | 'labour' | 'delivery';
+    section: 'furniture' | 'lighting' | 'finishes' | 'products' | 'openings' | 'electrical' | 'plumbing' | 'heating' | 'climate' | 'materials' | 'labour' | 'delivery';
     key: string;
     name?: string;
     roomName?: string;
@@ -602,10 +608,14 @@ export interface DesignCost {
     unitPrice: number;
     total: number;
     estimated: boolean;
-    /** The key that ticks a product line in or out of the order (`lib/design/ticks`). */
+    /** The line's own key (`lib/design/ticks`): what a tick and a changed quantity are kept under. */
     tick?: string;
     /** Ticked off: on the sheet where it was, counted nowhere. */
     excluded?: boolean;
+    /** What the sheet worked the quantity out to be, when the person has set their own. */
+    originalQty?: number;
+    /** Which of the totals above the line counts towards. */
+    bucket?: 'furniture' | 'finishes' | 'products' | 'materials' | 'labour' | 'openings' | 'technical' | 'delivery';
     /** The product a product line is, with the line's own quantity and total — what the baskets, the checkout and the orders are built from. */
     product?: SceneProduct;
     /** What that product is here ("Sofa", "Wall covering", "Interior door"), for the basket. */

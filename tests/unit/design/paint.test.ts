@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellAt, cellPolygon, cellsAreaM2, paintCell, paintPatch, paintSpan, paintedProductAt, patchAreaM2, patchAt, patchInRange, patchSpans, spanAreaM2, stripAt, wallPatches, wallSpans } from '@/lib/design/paint';
+import { cellAt, cellPolygon, cellsAreaM2, paintCell, paintPatch, paintSpan, paintedProductAt, patchAreaM2, patchAt, patchInRange, patchSpans, patchSpansOnWall, spanAreaM2, stripAt, wallPatches, wallSpans } from '@/lib/design/paint';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { polygonAreaM2, polygonPerimeterM } from '@/lib/design/planGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
@@ -87,6 +87,9 @@ describe('wall strips', () => {
     expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1 })).toBeCloseTo(7, 6);
     expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1, span: { from: 0, to: 1 } })).toBeCloseTo(2.8, 6);
     expect(finishQuantity(room, { ...base, surface: 'floor', cells: [[0, 0], [3, 2]] })).toBeCloseTo(1.16, 6);
+    // The same two pairs on a wall are square metres of that wall — a whole one at its foot
+    // and the 0.8 m left under a 2.8 m ceiling — not floor tiles that happen to share the numbers.
+    expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1, cells: [[0, 0], [0, 2]] })).toBeCloseTo(1.8, 6);
     expect(finishQuantity(room, { ...base, surface: 'cornice' })).toBeCloseTo(11.6, 6);
     expect(finishQuantity(room, { ...base, surface: 'skirting' })).toBeCloseTo(10.7, 6);
   });
@@ -193,5 +196,23 @@ describe('wall patches', () => {
     expect(after).toBeCloseTo(before - 1, 1);
     // The eraser on bare wall still does nothing.
     expect(paintPatch(finishes, room, 1, [0, 1], null)).toBe(finishes);
+  });
+});
+
+describe('a patch on a wall with a height of its own', () => {
+  const edge = { length: 3.32 };
+
+  it('is the room’s grid, the top row running on to the top of the wall', () => {
+    // A 2.8 m room: rows 0–1, 1–2 and 2–2.8. On a wall raised to 3.5 m the top row goes up with it…
+    expect(patchSpansOnWall(edge, 2.8, 3.5, [0, 2])?.up).toEqual({ from: 2, to: 3.5 });
+    // …the rows under it are what they were, and on an ordinary wall nothing changes.
+    expect(patchSpansOnWall(edge, 2.8, 3.5, [0, 1])?.up).toEqual({ from: 1, to: 2 });
+    expect(patchSpansOnWall(edge, 2.8, 2.8, [0, 2])).toEqual(patchSpans(edge, 2.8, [0, 2]));
+  });
+
+  it('is cut off by a wall that stops short of the ceiling, and gone above it', () => {
+    expect(patchSpansOnWall(edge, 2.8, 1.4, [0, 1])?.up).toEqual({ from: 1, to: 1.4 });
+    expect(patchSpansOnWall(edge, 2.8, 1.4, [0, 2])).toBeNull();
+    expect(patchSpansOnWall(edge, 2.8, 1, [0, 1])).toBeNull();
   });
 });

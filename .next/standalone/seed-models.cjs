@@ -25954,6 +25954,13 @@ var projects = mysqlTable("projects", {
   rooms: json2("rooms").notNull(),
   selectedProducts: json2("selected_products"),
   selectedFurniture: json2("selected_furniture"),
+  /**
+   * What the person made of the calculator's estimate on its summary: `{ excluded, quantities }`
+   * by line key (`lib/design/ticks`). The estimate itself is never stored — it is worked out
+   * again from the rooms and the picks — so this is all that is needed to show the original
+   * beside the edit. The design half keeps its own in `scene`.
+   */
+  calculatorEdits: json2("calculator_edits"),
   totalMaterialsCost: decimal("total_materials_cost", { precision: 12, scale: 2 }),
   totalFurnitureCost: decimal("total_furniture_cost", { precision: 12, scale: 2 }),
   totalWorkersCost: decimal("total_workers_cost", { precision: 12, scale: 2 }),

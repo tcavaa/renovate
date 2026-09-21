@@ -29,7 +29,7 @@ export function StartOverButton({ kind, className }: { kind: FlowKind; className
   };
 
   const start = () => {
-    resetFlow();
+    resetFlow(kind);
     setOpen(false);
     router.push(kind === 'calculator' ? '/calculator' : '/design');
   };

@@ -24,14 +24,18 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { StepIndicator } from '@/components/calculator/StepIndicator';
-import { OrderPicks } from '@/components/calculator/OrderPicks';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
+import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
+import { calculatorSheet } from '@/lib/summary/calculatorSheet';
+import { usePickStores } from '@/hooks/usePickStores';
+import { fill } from '@/lib/admin/list';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { Button3d } from '@/components/ui/button-3d';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
+import { resetFlow } from '@/lib/flow/reset';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
@@ -41,7 +45,7 @@ import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/check
 import { priceScene } from '@/lib/design/pricing';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { homeStateLabel, localizedName } from '@/lib/i18n/labels';
+import { homeStateLabel } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 
 const CALLBACK_URL = '/calculator/summary?autoSave=1';
@@ -53,12 +57,11 @@ export default function SummaryPage() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
-  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId } =
+  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearEdits } =
     useCalculatorStore();
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
-  const resetDesign = useDesignStore((s) => s.reset);
   const designProjectId = useDesignStore((s) => s.projectId);
   const designHasItems = useDesignStore((s) => s.items.length > 0 && s.plan != null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -97,6 +100,22 @@ export default function SummaryPage() {
     return buildProjectSummary(rooms, homeState, products, furniture, book);
   }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book]);
 
+  // The estimate as one sheet: every line with its tick and its quantity, the picks under the
+  // shop that sells them. The engine's figures are the original; the person's edits — lines
+  // ticked off, quantities of their own — are laid over them and kept in the store.
+  const pickIds = useMemo(() => [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()].map((p) => p.productId), [selectedProducts, selectedFurniture]);
+  const storeOf = usePickStores(pickIds);
+  const edits = useMemo(() => ({ excluded, quantities }), [excluded, quantities]);
+  const sheet = useMemo(
+    () => (summary ? calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits, storeOf }) : null),
+    [summary, selectedProducts, selectedFurniture, rooms, edits, storeOf]
+  );
+  const sheetActions: SheetActions = {
+    toggle: (line) => line.tick && toggleExcluded(line.tick),
+    setMany: (lines, out) => setLinesExcluded(lines.flatMap((l) => (l.tick ? [l.tick] : [])), out),
+    setQuantity: (line, qty) => line.tick && setQuantity(line.tick, qty, line.originalQty ?? line.qty),
+  };
+
   // The platform's own line: a fee per square metre of the flat, shown, not collected.
   const totalM2 = useMemo(() => rooms.reduce((s, r) => s + r.floorM2, 0), [rooms]);
   const fee = platformFee(totalM2, fees.calculatorFeePerM2);
@@ -122,7 +141,7 @@ export default function SummaryPage() {
   // Built from the picks rather than from the estimate, because the two differ: what the
   // person ticked off on the order list is still costed and no longer bought.
   const checkoutParts: CheckoutPart[] = summary
-    ? [calculatorCheckoutPart(rooms, selectedProducts, selectedFurniture, fees.calculatorFeePerM2, locale), ...(designPart ? [designPart] : [])]
+    ? [calculatorCheckoutPart(rooms, selectedProducts, selectedFurniture, fees.calculatorFeePerM2, locale, edits), ...(designPart ? [designPart] : [])]
     : [];
 
   /**
@@ -170,18 +189,17 @@ export default function SummaryPage() {
   }, [reset, router]);
 
   /**
-   * "Start over" empties both stores — the calculator's rooms and picks, and the plan the
-   * drawing board keeps in the design store — and returns to the first step. Unless the
-   * project was saved with the button just now, it asks first: an autosaved draft is not
-   * something the person chose to keep, and the rooms and picks are gone for good.
+   * "Start over" empties the calculator — its rooms and picks, and the plan on its own
+   * drawing board — and returns to the first step; the studio's work is the studio's and
+   * stays (`resetFlow`). Unless the project was saved with the button just now, it asks
+   * first: an autosaved draft is not something the person chose to keep, and the rooms and
+   * picks are gone for good.
    */
   const startOver = useCallback(() => {
     setResetOpen(false);
-    reset();
-    resetDesign();
-    useCalculatorPlanStore.getState().reset();
+    resetFlow('calculator');
     router.push('/calculator');
-  }, [reset, resetDesign, router]);
+  }, [router]);
   const askStartOver = () => {
     if (savedId != null) startOver();
     else setResetOpen(true);
@@ -205,7 +223,7 @@ export default function SummaryPage() {
     router.replace('/calculator/summary');
   }, [ready, status, searchParams, persistProject, router]);
 
-  if (!ready || !summary) {
+  if (!ready || !summary || !sheet) {
     return (
       <>
         <StepIndicator current={5} />
@@ -260,11 +278,21 @@ export default function SummaryPage() {
         />
 
         <div className="mt-8">
-          <SummaryCard summary={summary} platformFee={{ perM2: fees.calculatorFeePerM2, m2: totalM2, total: fee }} />
-        </div>
-
-        <div className="mt-8">
-          <OrderPicks rooms={rooms} />
+          <SummaryCard
+            totals={sheet}
+            original={sheet.original}
+            platformFee={{ perM2: fees.calculatorFeePerM2, m2: totalM2, total: fee }}
+            onResetEdits={clearEdits}
+            note={
+              <>
+                {ka.build.sheetHint}
+                <span className="mx-1.5 text-ink-faint">·</span>
+                {sheet.excludedCount === 0 && sheet.changedCount === 0 ? ka.build.editsNone : fill(ka.build.editsCount, { out: sheet.excludedCount, changed: sheet.changedCount })}
+              </>
+            }
+          >
+            <BudgetSheet lines={sheet.lines} actions={sheetActions} />
+          </SummaryCard>
         </div>
 
         {error && <p className="mt-6 border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
@@ -276,7 +304,7 @@ export default function SummaryPage() {
       >
         <div className="flex flex-wrap items-center justify-end gap-4">
           <p className="text-sm text-ink-muted">
-            {ka.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(summary.grandTotalWithMargin + fee)}</span>
+            {ka.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(sheet.grandTotalWithMargin + fee)}</span>
           </p>
           <Button3d onClick={viewIn3d} disabled={!ready}>
             {designExists ? ka.profile.openIn3d : ka.calculator.view3dButton}

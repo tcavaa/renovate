@@ -6,17 +6,23 @@ import { MoneyRow } from '@/components/ui/money-row';
 import type { Project } from '@/lib/db/schema';
 import type { Dictionary } from '@/lib/i18n/ka';
 import type { Locale } from '@/lib/i18n';
-import { formatM2L, homeStateLabel, roomTypeLabel, materialLabel, workTypeLabel, unitLabel, statusLabel, localizedName } from '@/lib/i18n/labels';
-import { formatGEL, formatNumber, cn } from '@/lib/utils';
-import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
+import { formatM2L, homeStateLabel, roomTypeLabel, statusLabel } from '@/lib/i18n/labels';
+import { formatGEL, cn } from '@/lib/utils';
+import type { Room } from '@/lib/calculator/types';
+import type { FloorPlan } from '@/lib/design/types';
 import { projectKind } from '@/lib/projects/saved';
+import type { ProjectSheets } from '@/lib/projects/sheets';
+import { BudgetSheet } from '@/components/budget/BudgetSheet';
+import { fill } from '@/lib/admin/list';
 import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
 import { FoldSection } from '@/components/projects/FoldSection';
 
 /**
- * A saved project, in full: meta, the layout, the rooms, materials, products, furniture,
- * labour and the cost breakdown — as an editorial spread of hairline ledgers.
+ * A saved project, in full: meta, the layout, the rooms, and the sheet of each journey the
+ * project went through — the calculator's estimate and the 3D design's budget — exactly as
+ * it was left on the summary, with what was worked out still showing under every edit: a
+ * line ticked off stands struck through where it stood, a changed quantity has the
+ * calculated one beside it, and the breakdown says what the changes came to.
  *
  * Rendered identically for the owner (`/profile/projects/[id]`) and for admin
  * (`/admin/projects/[id]`); only the back link, the actions and any extra meta rows differ.
@@ -32,12 +38,9 @@ export function dateLocaleFor(locale: Locale): string {
   return locale === 'ka' ? 'ka-GE' : locale === 'ru' ? 'ru-RU' : 'en-US';
 }
 
-const TH = 'px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted';
-const TD = 'px-4 py-2.5 align-top';
-
 export function ProjectDetail({
   project,
-  summary,
+  sheets,
   t,
   locale,
   backHref,
@@ -48,7 +51,8 @@ export function ProjectDetail({
   orders,
 }: {
   project: Project;
-  summary: ProjectSummary;
+  /** Both halves priced as saved, with and without the edits (`loadProjectSheets`). */
+  sheets: ProjectSheets;
   t: Dictionary;
   locale: Locale;
   backHref: string;
@@ -61,13 +65,12 @@ export function ProjectDetail({
   /** The orders placed against the project — the last folding block before the breakdown. */
   orders?: React.ReactNode;
 }) {
-  const rooms = summary.rooms as Room[];
+  const rooms = (project.rooms ?? []) as Room[];
   const plan = (project.plan as FloorPlan | null) ?? null;
+  const { calculator, design } = sheets;
   const kind = projectKind(project);
   const isDesign = kind.hasDesign;
   const kindLabel = [kind.hasCalculator ? t.profile.typeCalculator : null, kind.hasDesign ? t.profile.typeDesign : null].filter(Boolean).join(' + ') || t.profile.typeCalculator;
-  const scene = (project.scene as DesignScene | null) ?? null;
-  const design = scene ? designLines(scene, plan, t) : null;
   const facts: Array<{ label: string; value: string }> = [
     { label: 'ID', value: `#${project.id}` },
     { label: t.profile.colType, value: kindLabel },
@@ -105,10 +108,16 @@ export function ProjectDetail({
       </dl>
 
       <div className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label={t.summary.materials} value={formatGEL(summary.subtotalMaterials + summary.subtotalProducts)} />
-        <Figure label={t.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
-        <Figure label={t.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
-        {design && design.total > 0 ? <Figure label={t.profile.designTotal} value={formatGEL(design.total)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(summary.grandTotalWithMargin)} emphasis />}
+        {calculator ? (
+          <>
+            <Figure label={t.summary.materials} value={formatGEL(calculator.subtotalMaterials + calculator.subtotalProducts)} />
+            <Figure label={t.summary.furniture} value={formatGEL(calculator.subtotalFurniture)} />
+            <Figure label={t.summary.workers} value={formatGEL(calculator.subtotalWorkers)} />
+            {design ? <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(calculator.grandTotalWithMargin)} emphasis />}
+          </>
+        ) : (
+          design && <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal)} emphasis />
+        )}
       </div>
 
       {/* Every block folds on its title; the breakdown at the end stays open. */}
@@ -159,73 +168,55 @@ export function ProjectDetail({
         </div>
         </FoldSection>
 
-        <FoldSection title={t.summary.materials} count={summary.materials.length} defaultOpen={summary.materials.length > 0}>
-          <Table
-            head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
-            rows={summary.materials.map((m) => {
-              const total = m.estimatedPriceGEL ? m.qty * m.estimatedPriceGEL : 0;
-              return [materialLabel(t, m.key), formatNumber(m.qty), unitLabel(t, m.unit), m.estimatedPriceGEL ? formatGEL(m.estimatedPriceGEL, true) : '—', total > 0 ? formatGEL(total) : '—'];
-            })}
-            empty={t.summary.materialsEmpty}
-            subtotal={summary.materials.length ? { label: t.summary.subtotal, value: summary.subtotalMaterials } : undefined}
-          />
-        </FoldSection>
-
-        <FoldSection title={t.summary.products} count={summary.products.length} defaultOpen={summary.products.length > 0}>
-          <ProductsTable items={summary.products} subtotal={summary.subtotalProducts} emptyText={t.summary.productsEmpty} t={t} locale={locale} rooms={rooms} />
-        </FoldSection>
-
-        <FoldSection title={t.summary.furniture} count={summary.furniture.length} defaultOpen={summary.furniture.length > 0}>
-          <ProductsTable items={summary.furniture} subtotal={summary.subtotalFurniture} emptyText={design && design.groups.length > 0 ? t.profile.furnitureInStudio : t.summary.furnitureEmpty} t={t} locale={locale} />
-        </FoldSection>
-
-        {design && design.groups.length > 0 && (
-          <FoldSection title={t.profile.designProducts} count={design.count} aside={<span className="font-serif text-lg font-semibold text-ink">{formatGEL(design.total)}</span>}>
-            <p className="text-sm text-ink-muted">{t.profile.designProductsHint}</p>
-            <div className="space-y-6">
-              {design.groups.map((group) => (
-                <div key={group.storeKey} className="space-y-2">
-                  <p className="eyebrow">{group.storeName}</p>
-                  <Table
-                    head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
-                    rows={group.lines.map((l) => [`${localizedName(locale, l.product)}${l.where ? ` · ${l.where}` : ''}`, formatNumber(l.product.qty), unitLabel(t, l.product.unit), formatGEL(l.product.pricePerUnit, true), formatGEL(l.product.totalPrice)])}
-                    empty=""
-                    subtotal={{ label: t.summary.subtotal, value: group.subtotal }}
-                  />
-                </div>
-              ))}
-            </div>
+        {calculator && calculator.lines.length > 0 && (
+          <FoldSection title={t.profile.sheetCalculator} count={calculator.lines.length} aside={<SheetAside total={calculator.grandTotalWithMargin} original={calculator.original?.grandTotalWithMargin ?? null} />} defaultOpen>
+            <p className="mb-4 text-sm text-ink-muted">{calculator.original ? fill(t.profile.sheetEdited, { out: calculator.excludedCount, changed: calculator.changedCount }) : t.profile.sheetUnedited}</p>
+            <BudgetSheet lines={calculator.lines} />
           </FoldSection>
         )}
 
-        <FoldSection title={t.summary.workers} count={summary.workerCosts.length} defaultOpen={summary.workerCosts.length > 0}>
-          <Table
-            head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
-            rows={summary.workerCosts.map((w) => [workTypeLabel(t, w.key), formatNumber(w.qty), unitLabel(t, w.qtyUnit), formatGEL(w.pricePerQty, true), formatGEL(w.totalGEL)])}
-            empty={t.summary.workEmpty}
-            subtotal={summary.workerCosts.length ? { label: t.summary.subtotal, value: summary.subtotalWorkers } : undefined}
-          />
-        </FoldSection>
+        {design && design.lines.length > 0 && (
+          <FoldSection title={t.profile.sheetDesign} count={design.lines.length} aside={<SheetAside total={design.grandTotal} original={design.originalGrandTotal} />} defaultOpen={!calculator}>
+            <p className="mb-4 text-sm text-ink-muted">{design.originalGrandTotal != null ? fill(t.profile.sheetEdited, { out: design.excludedCount, changed: design.changedCount }) : t.profile.sheetUnedited}</p>
+            <BudgetSheet lines={design.lines} />
+          </FoldSection>
+        )}
 
         {renders}
 
         {orders}
 
         <Section title={t.summary.breakdown} className="pt-8">
-          <div className="max-w-xl border border-line bg-bg-surface p-5 md:p-6">
-            <div className="space-y-2">
-              <MoneyRow label={t.summary.materials} value={summary.subtotalMaterials + summary.subtotalProducts} />
-              <MoneyRow label={t.summary.furniture} value={summary.subtotalFurniture} />
-              <MoneyRow label={t.summary.workers} value={summary.subtotalWorkers} />
-            </div>
-            <div className="mt-4 space-y-2 border-t border-line pt-4">
-              <MoneyRow label={t.summary.grandTotal} value={summary.grandTotal} bold />
-              <MoneyRow label={t.summary.contingency} value={summary.grandTotalWithMargin - summary.grandTotal} muted />
-            </div>
-            <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
-              <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
-              <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
-            </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            {calculator && (
+              <div className="border border-line bg-bg-surface p-5 md:p-6">
+                <p className="eyebrow mb-3">{t.profile.sheetCalculator}</p>
+                <div className="space-y-2">
+                  <MoneyRow label={t.summary.materials} value={calculator.subtotalMaterials + calculator.subtotalProducts} />
+                  <MoneyRow label={t.summary.furniture} value={calculator.subtotalFurniture} />
+                  <MoneyRow label={t.summary.workers} value={calculator.subtotalWorkers} />
+                </div>
+                <div className="mt-4 space-y-2 border-t border-line pt-4">
+                  <MoneyRow label={t.summary.grandTotal} value={calculator.grandTotal} bold />
+                  <MoneyRow label={t.summary.contingency} value={calculator.grandTotalWithMargin - calculator.grandTotal} muted />
+                </div>
+                {calculator.original && <EditsRows t={t} original={calculator.original.grandTotalWithMargin} edited={calculator.grandTotalWithMargin} />}
+                <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
+                  <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
+                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(calculator.grandTotalWithMargin)}</span>
+                </div>
+              </div>
+            )}
+            {design && (
+              <div className="border border-line bg-bg-surface p-5 md:p-6">
+                <p className="eyebrow mb-3">{t.profile.sheetDesign}</p>
+                {design.originalGrandTotal != null && <EditsRows t={t} original={design.originalGrandTotal} edited={design.grandTotal} flush />}
+                <div className={cn('flex items-baseline justify-between', design.originalGrandTotal != null && 'mt-4 border-t-2 border-ink pt-4')}>
+                  <span className="font-serif text-lg font-semibold text-ink">{t.profile.designBudgetTotal}</span>
+                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(design.grandTotal)}</span>
+                </div>
+              </div>
+            )}
           </div>
         </Section>
       </div>
@@ -249,89 +240,29 @@ function Section({ title, count, aside, className, children }: { title: string; 
   );
 }
 
-function Table({ head, rows, empty, subtotal }: { head: string[]; rows: string[][]; empty: string; subtotal?: { label: string; value: number } }) {
-  if (rows.length === 0) return <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{empty}</p>;
+/** A sheet's total at the head of its block, the one that was worked out struck through beside it when it was edited. */
+function SheetAside({ total, original }: { total: number; original: number | null }) {
   return (
-    <div className="overflow-x-auto border border-line bg-bg-surface">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-line">
-            {head.map((h, i) => (
-              <th key={h} className={cn(TH, i > 0 && i !== 2 && 'text-right')}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={i} className="border-b border-line/70 last:border-b-0">
-              {r.map((c, j) => (
-                <td key={j} className={cn(TD, j === 0 ? 'font-medium text-ink' : j === 2 ? 'text-ink-muted' : 'text-right tabular-nums', j === 3 && 'text-ink-muted', j === 4 && 'font-medium')}>
-                  {c}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-        {subtotal && (
-          <tfoot className="border-t-2 border-ink">
-            <tr>
-              <td colSpan={head.length - 1} className="px-4 py-3 text-right text-sm font-semibold text-ink">
-                {subtotal.label}
-              </td>
-              <td className="px-4 py-3 text-right font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(subtotal.value)}</td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
+    <span className="flex items-baseline gap-2">
+      {original != null && <s className="text-sm tabular-nums text-ink-faint">{formatGEL(original)}</s>}
+      <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(total)}</span>
+    </span>
+  );
+}
+
+/** What was worked out, and what the person's changes came to — under it or over it. */
+function EditsRows({ t, original, edited, flush = false }: { t: Dictionary; original: number; edited: number; flush?: boolean }) {
+  const delta = Math.round((edited - original) * 100) / 100;
+  return (
+    <div className={cn('space-y-2 text-sm', !flush && 'mt-4 border-t border-line pt-4')}>
+      <MoneyRow label={t.build.originalEstimate} value={original} muted />
+      <div className={cn('flex items-baseline justify-between gap-3', delta < 0 && 'text-danger')}>
+        <span>{t.build.editsChange}</span>
+        <span className="shrink-0 font-medium tabular-nums">
+          {delta < 0 ? '−' : '+'}
+          {formatGEL(Math.abs(delta))}
+        </span>
+      </div>
     </div>
   );
-}
-
-export function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className="py-8 text-center text-sm text-ink-muted">
-        {text}
-      </td>
-    </tr>
-  );
-}
-
-export function ProductsTable({ items, subtotal, emptyText, t, locale, rooms = [] }: { items: SelectedProduct[]; subtotal: number; emptyText: string; t: Dictionary; locale: Locale; rooms?: Pick<Room, 'id' | 'nameKa'>[] }) {
-  const roomName = new Map(rooms.map((r) => [r.id, r.nameKa]));
-  return (
-    <Table
-      head={[t.summary.item, t.summary.qty, t.summary.unit, t.summary.unitPrice, t.calculator.total]}
-      rows={items.map((p) => [`${localizedName(locale, p)}${p.roomId && roomName.get(p.roomId) ? ` · ${roomName.get(p.roomId)}` : ''}`, formatNumber(p.qty), unitLabel(t, p.unit), formatGEL(p.pricePerUnit, true), formatGEL(p.totalPrice)])}
-      empty={emptyText}
-      subtotal={items.length ? { label: t.summary.subtotal, value: subtotal } : undefined}
-    />
-  );
-}
-
-/**
- * The studio's products, grouped by the store that sells them: every placed item with a
- * product and every chosen finish, each with the room (and surface) it belongs to. The
- * store snapshots travel with the scene, so this needs no catalogue lookup.
- */
-function designLines(scene: DesignScene, plan: FloorPlan | null, t: Dictionary) {
-  const roomName = new Map((plan?.rooms ?? []).map((r) => [r.id, r.name]));
-  const groups = new Map<string, { storeKey: string; storeName: string; lines: Array<{ product: SceneProduct; where: string | null }>; subtotal: number }>();
-  const push = (product: SceneProduct, where: string | null) => {
-    const key = product.store ? String(product.store.id) : 'none';
-    const group = groups.get(key) ?? { storeKey: key, storeName: product.store?.nameKa ?? '—', lines: [], subtotal: 0 };
-    group.lines.push({ product, where });
-    group.subtotal += product.totalPrice;
-    groups.set(key, group);
-  };
-  for (const item of scene.items) if (item.product) push(item.product, roomName.get(item.roomId) ?? null);
-  for (const finish of scene.finishes) {
-    if (!finish.product) continue;
-    const surface = finish.surface === 'floor' ? t.design.finishFloor : finish.surface === 'wall' ? t.design.finishWall : t.design.finishCeiling;
-    push(finish.product, [roomName.get(finish.roomId), surface].filter(Boolean).join(' · ') || null);
-  }
-  const list = [...groups.values()].sort((a, b) => b.subtotal - a.subtotal);
-  return { groups: list, count: list.reduce((n, g) => n + g.lines.length, 0), total: list.reduce((n, g) => n + g.subtotal, 0) };
 }

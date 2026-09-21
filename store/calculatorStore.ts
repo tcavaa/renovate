@@ -5,6 +5,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
 import { categorySlugFromKey, roomIdFromKey, selectionKey } from '@/lib/calculator/quantities';
+import { tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
+import { effectiveExcluded } from '@/lib/summary/calculatorSheet';
 import type {
   CalculatorState,
   HomeState,
@@ -27,10 +29,22 @@ interface CalculatorStore extends CalculatorState {
   calculated: boolean;
   /** Marks the calculation as worked out; called when step 1 is left. */
   setCalculated: () => void;
-  /** Puts one pick in or out of the order — the estimate keeps it either way. */
-  toggleExcluded: (key: string, roomId?: string) => void;
-  /** Everything back in the order. */
-  includeAll: () => void;
+  /**
+   * What the person made of the estimate on the summary: lines ticked out of the order, and
+   * quantities of their own, by line key (`lib/design/ticks`) — a material, a labour phase, a
+   * pick, a piece of furniture alike. The estimate itself is never touched: it is worked out
+   * again from the rooms and the picks, and stands beside each edit as the original.
+   */
+  excluded: Tick[];
+  quantities: Quantities;
+  /** Puts one line in or out of the order. */
+  toggleExcluded: (tick: string) => void;
+  /** A whole store's lines, or a whole kind's, in or out together. */
+  setLinesExcluded: (ticks: string[], excluded: boolean) => void;
+  /** Sets one line's quantity; `null` — or the quantity that was worked out — lets go of the edit. */
+  setQuantity: (tick: string, qty: number | null, original?: number) => void;
+  /** Every tick and every quantity back to what was worked out. */
+  clearEdits: () => void;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   setSaveState: (state: CalculatorStore['saveState']) => void;
@@ -41,6 +55,7 @@ interface CalculatorStore extends CalculatorState {
     homeState: HomeState | null;
     selectedProducts: Record<string, SelectedProduct>;
     selectedFurniture: Record<string, SelectedProduct[]>;
+    edits?: { excluded?: Tick[]; quantities?: Quantities } | null;
   }) => void;
   setHomeState: (state: HomeState) => void;
   addRoom: (room: Room) => void;
@@ -71,7 +86,9 @@ interface CalculatorStore extends CalculatorState {
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
 const PERSIST_VERSION = 1;
 
-const initial: CalculatorState & { projectId: number | null; calculated: boolean } = {
+type Persisted = CalculatorState & { projectId: number | null; calculated: boolean; excluded: Tick[]; quantities: Quantities };
+
+const initial: Persisted = {
   homeState: null,
   rooms: [],
   selectedProducts: {},
@@ -79,7 +96,25 @@ const initial: CalculatorState & { projectId: number | null; calculated: boolean
   step: 1,
   projectId: null,
   calculated: false,
+  excluded: [],
+  quantities: {},
 };
+
+/**
+ * The first version of the summary's ticks was a flag on the pick itself. They are line keys
+ * now, like every other line's; a flag found in stored state becomes the key it meant.
+ */
+function liftFlags<T extends Pick<Persisted, 'selectedProducts' | 'selectedFurniture' | 'excluded'>>(state: T): T {
+  const flagged = Object.values(state.selectedProducts).some((p) => p.excluded) || Object.values(state.selectedFurniture).some((list) => list.some((p) => p.excluded));
+  if (!flagged) return state;
+  const strip = ({ excluded: _flag, ...pick }: SelectedProduct): SelectedProduct => pick;
+  return {
+    ...state,
+    excluded: [...new Set(effectiveExcluded(state, { excluded: state.excluded }))],
+    selectedProducts: Object.fromEntries(Object.entries(state.selectedProducts).map(([k, p]) => [k, strip(p)])),
+    selectedFurniture: Object.fromEntries(Object.entries(state.selectedFurniture).map(([k, list]) => [k, list.map(strip)])),
+  };
+}
 
 export const useCalculatorStore = create<CalculatorStore>()(
   persist(
@@ -89,23 +124,20 @@ export const useCalculatorStore = create<CalculatorStore>()(
       setSaveState: (saveState) => set({ saveState }),
       setProjectId: (projectId) => set({ projectId }),
       setCalculated: () => set({ calculated: true }),
-      toggleExcluded: (key, roomId) =>
+      toggleExcluded: (tick) => set((s) => ({ excluded: toggleTick(s.excluded, tick) })),
+      setLinesExcluded: (ticks, excluded) =>
         set((s) => {
-          if (roomId === undefined) {
-            const pick = s.selectedProducts[key];
-            if (!pick) return {};
-            return { selectedProducts: { ...s.selectedProducts, [key]: { ...pick, excluded: !pick.excluded } } };
+          if (!excluded) {
+            const back = new Set<Tick>(ticks);
+            return { excluded: s.excluded.filter((t) => !back.has(t)) };
           }
-          const list = s.selectedFurniture[roomId] ?? [];
-          return { selectedFurniture: { ...s.selectedFurniture, [roomId]: list.map((p) => (String(p.productId) === key ? { ...p, excluded: !p.excluded } : p)) } };
+          const isOut = tickedOff(s.excluded);
+          return { excluded: [...s.excluded, ...ticks.filter((t) => !isOut(t))] };
         }),
-      includeAll: () =>
-        set((s) => ({
-          selectedProducts: Object.fromEntries(Object.entries(s.selectedProducts).map(([k, p]) => [k, { ...p, excluded: false }])),
-          selectedFurniture: Object.fromEntries(Object.entries(s.selectedFurniture).map(([k, list]) => [k, list.map((p) => ({ ...p, excluded: false }))])),
-        })),
-      openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture }) =>
-        set({ projectId, rooms, homeState, selectedProducts, selectedFurniture, step: 1 }),
+      setQuantity: (tick, qty, original) => set((s) => ({ quantities: withQuantity(s.quantities, tick, qty, original) })),
+      clearEdits: () => set({ excluded: [], quantities: {} }),
+      openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture, edits }) =>
+        set(liftFlags({ projectId, rooms, homeState, selectedProducts, selectedFurniture, excluded: edits?.excluded ?? [], quantities: edits?.quantities ?? {}, step: 1 as const })),
       setHomeState: (homeState) => set({ homeState }),
       addRoom: (room) => set((s) => ({ rooms: [...s.rooms, room] })),
       setRooms: (rooms) =>
@@ -117,7 +149,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
           return { rooms, selectedFurniture };
         }),
       // A new plan is a new project — including on the server: the next save gets its own row.
-      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {}, projectId: null, calculated: false }),
+      replaceRooms: (rooms) => set({ rooms, selectedProducts: {}, selectedFurniture: {}, excluded: [], quantities: {}, projectId: null, calculated: false }),
       moveRoom: (id, x, z) => set((s) => ({ rooms: s.rooms.map((r) => (r.id === id ? { ...r, x, z } : r)) })),
       reorderRoom: (id, direction) =>
         set((s) => {
@@ -189,6 +221,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
       storage: createJSONStorage(() => localStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
+      merge: (persisted, current) => liftFlags({ ...current, ...(persisted as Partial<Persisted>) }),
       // The autosave's status is a fact about this session, not about the project.
       partialize: (s) => ({
         homeState: s.homeState,
@@ -198,6 +231,8 @@ export const useCalculatorStore = create<CalculatorStore>()(
         step: s.step,
         projectId: s.projectId,
         calculated: s.calculated,
+        excluded: s.excluded,
+        quantities: s.quantities,
       }),
     }
   )
@@ -231,9 +266,11 @@ const persistedSchema = z.object({
   step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
   projectId: z.number().int().positive().nullable().optional(),
   calculated: z.boolean().optional(),
+  excluded: z.array(z.union([z.string(), z.number()])).optional(),
+  quantities: z.record(z.number()).optional(),
 });
 
-function migratePersisted(persisted: unknown, version: number): CalculatorState & { projectId: number | null; calculated: boolean } {
+function migratePersisted(persisted: unknown, version: number): Persisted {
   if (version !== PERSIST_VERSION) return { ...initial };
   const parsed = persistedSchema.safeParse(persisted);
   if (!parsed.success) return { ...initial };
@@ -242,6 +279,8 @@ function migratePersisted(persisted: unknown, version: number): CalculatorState 
     ...parsed.data,
     projectId: parsed.data.projectId ?? null,
     calculated: parsed.data.calculated ?? false,
+    excluded: parsed.data.excluded ?? [],
+    quantities: parsed.data.quantities ?? {},
     rooms: parsed.data.rooms as Room[],
     selectedProducts: parsed.data.selectedProducts as Record<string, SelectedProduct>,
     selectedFurniture: parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,

@@ -19,6 +19,7 @@ import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { orderedLines, priceScene } from '@/lib/design/pricing';
 import { loadRateBook } from '@/lib/api/rateBook';
+import { ka } from '@/lib/i18n/ka';
 import { en } from '@/lib/i18n/en';
 import { ru } from '@/lib/i18n/ru';
 import { log } from '@/lib/log';
@@ -28,7 +29,6 @@ import {
   costLinesByStore,
   effectiveCommissionPct,
   feePerM2For,
-  labourLines,
   mergeLines,
   type OrderedQuantities,
   orderTotals,
@@ -42,6 +42,8 @@ import {
 import { notifyCustomerCheckout, notifyCustomerOrderUpdate, notifyPartnerNewOrder, type CustomerContact } from './notify';
 import { loadPlatformSettings } from './settings';
 import { projectKind } from '@/lib/projects/saved';
+import { calculatorSheet, sheetLabour, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import type { BudgetLine } from '@/lib/design/pricing';
 
 /**
  * Writing and reading orders.
@@ -128,7 +130,7 @@ async function calculatorLinesOf(project: Project): Promise<LinesByStore | null>
   const selectedProducts = project.selectedProducts as Record<string, SelectedProduct>;
   const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
   const ids = [...Object.values(selectedProducts).map((p) => p.productId), ...Object.values(selectedFurniture).flat().map((p) => p.productId)];
-  return calculatorLinesByStore(selectedProducts, selectedFurniture, (project.rooms ?? []) as Room[], await storeLookup(ids));
+  return calculatorLinesByStore(selectedProducts, selectedFurniture, (project.rooms ?? []) as Room[], await storeLookup(ids), (project.calculatorEdits ?? null) as CalculatorEdits | null);
 }
 
 /**
@@ -306,6 +308,47 @@ const workTypeNames = (key: string) => ({
   ru: (ru.workTypes as Record<string, string>)[key] ?? null,
 });
 
+/**
+ * The work a project asks for, as the customer left it on their summary: the labour lines
+ * of the sheet, less the ones ticked off, at the quantities they set.
+ *
+ * A project with a design is read off the design's budget, because that is the fuller
+ * account — the calculator's phases, but also an electrician's point for every socket that
+ * was actually placed, the radiators hung, the skirting board fitted, and only the works
+ * ticked on the technical step. A calculation on its own is the calculator's sheet. Either
+ * way it is the same list the customer was looking at when they chose who to send it to;
+ * it used to be the calculator's estimate worked out afresh, whatever had been edited.
+ */
+async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
+  const book = await loadRateBook();
+  let labour: BudgetLine[];
+  if (project.plan && project.scene) {
+    const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState as HomeState, book });
+    labour = sheetLabour(cost.lines);
+  } else {
+    const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
+    const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
+    const rooms = (project.rooms ?? []) as Room[];
+    const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book);
+    labour = sheetLabour(calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines);
+  }
+  return labour.map((line) => {
+    const names = workTypeNames(line.key);
+    return {
+      productId: null,
+      nameKa: (ka.workTypes as Record<string, string>)[line.key] ?? line.name ?? line.key,
+      nameEn: names.en,
+      nameRu: names.ru,
+      categorySlug: `labour:${line.key}`,
+      roomName: null,
+      unit: line.unit,
+      qty: round2(line.qty),
+      unitPrice: round2(line.unitPrice),
+      total: round2(line.total),
+    };
+  });
+}
+
 export interface BookingResult {
   orderId: number;
   subtotal: number;
@@ -326,16 +369,7 @@ export async function createWorkerBooking(args: { worker: Worker; project: Proje
 
   let lines: OrderLineDraft[] = [];
   if (project) {
-    const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-    const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-    const summary = buildProjectSummary(
-      (project.rooms ?? []) as Room[],
-      project.homeState as HomeState,
-      Object.values(selectedProducts),
-      Object.values(selectedFurniture).flat(),
-      await loadRateBook()
-    );
-    lines = labourLines(summary, workTypeNames);
+    lines = await projectLabour(project);
   } else if (worker.priceUnit === 'fixed' && worker.pricePerUnit) {
     const price = Number(worker.pricePerUnit);
     lines = [{ productId: null, nameKa: worker.specialty, nameEn: null, nameRu: null, categorySlug: `labour:${worker.specialtySlug}`, roomName: null, unit: 'unit', qty: 1, unitPrice: price, total: round2(price) }];
@@ -384,16 +418,7 @@ export async function createTeamBooking(args: { team: Team; project: Project | n
 
   let lines: OrderLineDraft[] = [];
   if (project) {
-    const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-    const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-    const summary = buildProjectSummary(
-      (project.rooms ?? []) as Room[],
-      project.homeState as HomeState,
-      Object.values(selectedProducts),
-      Object.values(selectedFurniture).flat(),
-      await loadRateBook()
-    );
-    lines = labourLines(summary, workTypeNames);
+    lines = await projectLabour(project);
     const markup = Number(team.markupPct ?? 0);
     if (markup > 0 && lines.length > 0) {
       const base = lines.reduce((s, l) => s + l.total, 0);

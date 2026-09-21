@@ -20,6 +20,9 @@ export async function saveCalculatorProject(options: { draft: boolean; nameKa: s
       nameKa: options.nameKa,
       selectedProducts: s.selectedProducts,
       selectedFurniture: s.selectedFurniture,
+      // What was ticked off the summary and the quantities changed on it. The estimate is
+      // worked out again on the server; these are laid over it there as they are here.
+      edits: { excluded: s.excluded, quantities: s.quantities },
       // A project opened from the profile, or one this session already saved, is written
       // into rather than duplicated.
       projectId: s.projectId ?? undefined,

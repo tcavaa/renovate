@@ -3,6 +3,7 @@ import { ArrowRight, Calculator, Home, LayoutGrid, Hammer, MapPinOff } from 'luc
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/lib/i18n/server';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 
 /**
  * The 404 body, shared by the root and the `(main)` not-found pages — the root one has to
@@ -13,7 +14,7 @@ export async function NotFoundContent() {
   const suggestions = [
     { href: '/calculator', icon: Calculator, label: ka.notFound.calculator },
     { href: '/catalog', icon: LayoutGrid, label: ka.notFound.catalogSuggest },
-    { href: '/workers', icon: Hammer, label: ka.notFound.workersSuggest },
+    WORKERS_DIRECTORY ? { href: '/workers', icon: Hammer, label: ka.notFound.workersSuggest } : { href: '/teams', icon: Hammer, label: ka.nav.teams },
   ];
   return (
     <section className="relative overflow-hidden">

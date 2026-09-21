@@ -9,7 +9,7 @@
 
 import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { teamMembers, teams, workers, type Team } from '@/lib/db/schema';
+import { orders, teamMembers, teams, workers, type Team } from '@/lib/db/schema';
 
 export interface TeamMemberRow {
   teamId: number;
@@ -92,6 +92,27 @@ export interface TeamListFilters {
 export interface TeamListRow extends TeamWithMembers {
   /** How many of the asked-for trades this team covers, when any were asked for. */
   covered: number;
+  /** Jobs the brigade has on its hands right now: orders it has not finished or turned down. */
+  openJobs: number;
+  /** False when that is as many as it says it can run at once (`capacityJobs`). */
+  available: boolean;
+}
+
+/** The order statuses that keep a brigade busy. */
+const OPEN_STATUSES = ['new', 'confirmed', 'in_progress'] as const;
+
+/** How many jobs each of these teams has open. */
+export async function openJobsOf(teamIds: number[]): Promise<Map<number, number>> {
+  const out = new Map<number, number>();
+  if (teamIds.length === 0) return out;
+  // Joined and grouped rather than a correlated count: Drizzle emits those uncorrelated.
+  const rows = await db
+    .select({ teamId: orders.teamId, n: sql<number>`count(*)` })
+    .from(orders)
+    .where(and(eq(orders.partnerType, 'team'), inArray(orders.teamId, teamIds), inArray(orders.status, [...OPEN_STATUSES])))
+    .groupBy(orders.teamId);
+  for (const row of rows) if (row.teamId != null) out.set(row.teamId, Number(row.n));
+  return out;
 }
 
 /**
@@ -116,13 +137,17 @@ export async function listTeams(filters: TeamListFilters = {}): Promise<TeamList
     .limit(filters.limit ?? 60);
 
   const members = await membersOf(rows.map((r) => r.id));
+  const open = await openJobsOf(rows.map((r) => r.id));
   const wanted = filters.covers ?? [];
   const list: TeamListRow[] = rows.map((team) => {
     const own = members.get(team.id) ?? [];
     const trades = tradesOf(own);
-    return { team, members: own, trades, covered: wanted.filter((slug) => trades.includes(slug)).length };
+    const openJobs = open.get(team.id) ?? 0;
+    return { team, members: own, trades, covered: wanted.filter((slug) => trades.includes(slug)).length, openJobs, available: team.capacityJobs == null || openJobs < team.capacityJobs };
   });
-  return wanted.length > 0 ? list.sort((a, b) => b.covered - a.covered) : list;
+  // A brigade that can start comes before one that cannot, whatever it covers; among those,
+  // the ones that cover more of the job. The sort is stable, so rating still breaks ties.
+  return list.sort((a, b) => Number(b.available) - Number(a.available) || (wanted.length > 0 ? b.covered - a.covered : 0));
 }
 
 /** The cities teams work in, for the directory's sidebar. */

@@ -212,6 +212,21 @@ describe('grouping a project into partner orders', () => {
     });
   });
 
+  it('orders the calculator\u2019s picks as the summary left them', () => {
+    const result = calculatorLinesByStore(
+      { tiles_global: pick(1, 45, 12, { unit: 'm2' }), paint_global: pick(2, 18, 9) },
+      { r1: [pick(5, 900), pick(5, 900)] },
+      [{ id: 'r1', nameKa: '\u10e1\u10d0\u10eb\u10d8\u10dc\u10d4\u10d1\u10d4\u10da\u10d8' }],
+      () => 7,
+      { excluded: ['pick:paint_global', 'furniture:r1:5:0'], quantities: { 'pick:tiles_global': 10 } }
+    );
+    const lines = result.groups.get(7)!;
+    expect(lines.map((l) => [l.productId, l.qty, l.total])).toEqual([
+      [1, 10, 450],
+      [5, 1, 900],
+    ]);
+  });
+
   it('turns the labour estimate into booking lines', () => {
     const lines = labourLines({
       workerCosts: [

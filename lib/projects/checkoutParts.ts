@@ -4,6 +4,7 @@ import type { CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { orderedLines } from '@/lib/design/pricing';
 import { localizedName, type Locale } from '@/lib/i18n/labels';
+import { orderedPickLines, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
 
 /**
  * The two halves of a project as the checkout dialog summarises them. Both summary pages
@@ -14,23 +15,25 @@ export function calculatorCheckoutPart(
   selectedProducts: Record<string, SelectedProduct>,
   selectedFurniture: Record<string, SelectedProduct[]>,
   feePerM2: number,
-  locale: Locale
+  locale: Locale,
+  /** What the person made of the estimate on the summary: lines ticked off, quantities of their own. */
+  edits?: CalculatorEdits | null
 ): CheckoutPart {
-  const roomName = new Map(rooms.map((r) => [r.id, r.nameKa]));
   return {
     kind: 'calculator',
     totalM2: rooms.reduce((s, r) => s + r.floorM2, 0),
     feePerM2,
-    lines: [
-      ...Object.values(selectedProducts)
-        .filter((p) => !p.excluded)
-        .map((p, i) => ({ key: `m-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, unitPrice: p.pricePerUnit, total: p.totalPrice, where: p.roomId ? roomName.get(p.roomId) ?? null : null })),
-      ...Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
-        list
-          .filter((p) => !p.excluded)
-          .map((p, i) => ({ key: `f-${roomId}-${p.productId}-${i}`, productId: p.productId, name: localizedName(locale, p), qty: p.qty, unitPrice: p.pricePerUnit, total: p.totalPrice, where: roomName.get(roomId) ?? null }))
-      ),
-    ],
+    // Read off the same edited lines the orders are (`orderedPickLines`), so the dialogue
+    // lists what the stores will be sent — at the quantity on the sheet, not the pick's own.
+    lines: orderedPickLines({ selectedProducts, selectedFurniture }, rooms, edits).map((line) => ({
+      key: line.tick!,
+      productId: line.product!.productId,
+      name: localizedName(locale, line.product!),
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      total: line.total,
+      where: line.roomName ?? null,
+    })),
   };
 }
 

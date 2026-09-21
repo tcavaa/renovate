@@ -29,9 +29,11 @@ test.describe('public pages', () => {
     await expect(page.locator('a[aria-current="page"]')).toHaveCount(1);
   });
 
-  test('workers directory filters by specialty', async ({ page }) => {
+  test('the workers directory is switched off and sends visitors to the brigades', async ({ page }) => {
+    // `WORKERS_DIRECTORY` in lib/features: a renovation is hired as a brigade for now.
     await page.goto('/workers?specialty=tiling');
-    await expect(page.locator('a[aria-current="page"]')).toHaveAttribute('href', '/workers?specialty=tiling');
+    await expect(page).toHaveURL(/\/teams$/);
+    await expect(page.locator('header a[href="/workers"]')).toHaveCount(0);
   });
 
   test('unknown routes show the 404 page with a way home', async ({ page }) => {

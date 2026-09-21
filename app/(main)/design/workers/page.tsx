@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, HardHat, UsersRound } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { ArrowUpRight, CheckCircle2, Clock, HardHat, UsersRound, XCircle } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -12,7 +13,9 @@ import { BookingDialog } from '@/components/checkout/BookingDialog';
 import { useDesignStore } from '@/store/designStore';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { localizedName, workerSpecialtyLabel, workTypeLabel } from '@/lib/i18n/labels';
+import { localizedName, orderStatusLabel, workerSpecialtyLabel, workTypeLabel } from '@/lib/i18n/labels';
+import { saveDesign } from '@/lib/design/saveDesign';
+import type { OrderStatus } from '@/lib/finance/money';
 import { priceScene } from '@/lib/design/pricing';
 import { designStepPosition } from '@/lib/design/steps';
 import { tradesNeeded, TRADE_SLUGS, type TradeSlug } from '@/lib/design/trades';
@@ -33,26 +36,44 @@ interface TeamRow {
   trades: string[];
   memberCount: number;
   covered: number;
+  available: boolean;
+  openJobs: number;
+}
+
+/** A job already sent to a brigade for this project, and what the brigade answered. */
+interface SentBooking {
+  id: number;
+  teamId: number | null;
+  status: OrderStatus;
+  partnerMessage: string | null;
 }
 
 /**
  * Step 8: the brigade.
  *
  * A renovation is hired as a team, not as a row of separate trades — so this asks the
- * budget which trades the job needs and then shows the brigades that cover them, the ones
- * that cover all of it first. The trades themselves are listed underneath with what each is
- * worth in this project, because that is what the customer is being quoted for; a gap in a
- * team's cover is named rather than hidden.
+ * budget which trades the job needs and then shows the brigades that cover them: the ones
+ * free to start first, and among those the ones that cover all of it. The trades themselves
+ * are listed above with what each is worth in this project, because that is what the
+ * customer is being quoted for; a gap in a team's cover is named rather than hidden.
+ *
+ * Choosing a brigade sends it *this* project — saved on the spot if it has to be — with the
+ * labour exactly as it was left on the budget: a phase ticked off there is not asked for
+ * here, a quantity changed there is the quantity sent. The order lands in the brigade's own
+ * account (`/partner`), where it is accepted or turned down, and the card says which the
+ * next time this page is opened.
  */
 export default function TeamsStepPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, excluded } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, excluded, quantities, projectId } = useDesignStore();
   const { book } = useRateBook();
+  const { status } = useSession();
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sent, setSent] = useState<SentBooking[]>([]);
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities]);
   const cost = useMemo(() => (plan ? priceScene(plan, scene, { homeState: homeState ?? undefined, book, locale }) : null), [plan, scene, homeState, book, locale]);
   const trades = useMemo(() => (cost ? tradesNeeded(cost) : []), [cost]);
   const slugs: TradeSlug[] = trades.length > 0 ? trades.map((n) => n.slug) : TRADE_SLUGS;
@@ -76,6 +97,19 @@ export default function TeamsStepPage() {
     };
   }, [covers]);
 
+  // What this project has already been sent to, and what each brigade answered.
+  const loadSent = useCallback(() => {
+    if (status !== 'authenticated' || projectId == null) return;
+    fetch(`/api/bookings?projectId=${projectId}`)
+      .then((r) => r.json())
+      .then((json: { data: SentBooking[] | null }) => setSent(json.data ?? []))
+      .catch(() => undefined);
+  }, [status, projectId]);
+  useEffect(loadSent, [loadSent]);
+
+  /** The design as a project row: saved now when it is not yet, so the booking has something to carry. */
+  const ensureProject = useCallback(async () => useDesignStore.getState().projectId ?? (await saveDesign({ draft: true, nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}` })), [t]);
+
   if (!plan || !cost) {
     return (
       <>
@@ -86,6 +120,15 @@ export default function TeamsStepPage() {
   }
 
   const labourTotal = trades.reduce((s, n) => s + n.total, 0);
+  const labourLines = cost.lines.filter((l) => l.section === 'labour' && !l.excluded && l.total > 0);
+  const labourSum = Math.round(labourLines.reduce((s, l) => s + l.total, 0) * 100) / 100;
+  /** The latest booking sent to a brigade — a turned-down one can be sent again, or elsewhere. */
+  const bookingOf = (teamId: number) => sent.find((b) => b.teamId === teamId) ?? null;
+  const isLive = (teamId: number) => {
+    const booking = bookingOf(teamId);
+    return !!booking && booking.status !== 'cancelled';
+  };
+  const taken = sent.some((b) => b.teamId != null && b.status !== 'cancelled');
 
   return (
     <>
@@ -136,7 +179,7 @@ export default function TeamsStepPage() {
                 {t.teams.forProject}
               </p>
               <h2 className="mt-1 font-serif text-2xl font-semibold text-ink">{t.teams.title}</h2>
-              <p className="mt-1 text-sm text-ink-muted">{t.teams.forProjectHint}</p>
+              <p className="mt-1 max-w-2xl text-sm text-ink-muted">{t.teams.chooseHint}</p>
             </div>
             <Link href={`/teams?covers=${encodeURIComponent(covers)}`} className="bracket-link text-sm font-medium text-ink hover:text-brand">
               {t.teams.seeAll}
@@ -149,15 +192,26 @@ export default function TeamsStepPage() {
             <p className="py-10 text-center text-sm text-ink-muted">{t.teams.empty}</p>
           ) : (
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {teams.map((team) => {
+              {/* The brigade this project went to stands first — it is "busy" with this very job. */}
+              {[...teams].sort((a, b) => Number(isLive(b.id)) - Number(isLive(a.id))).map((team) => {
                 const missing = slugs.filter((s) => !team.trades.includes(s));
+                const booking = bookingOf(team.id);
+                const live = booking && booking.status !== 'cancelled';
                 return (
-                  <article key={team.id} className="flex flex-col border border-line bg-bg-surface p-5">
-                    <h3 className="font-serif text-lg font-semibold leading-tight text-ink">
-                      <Link href={`/teams/${team.slug}`} className="hover:text-brand">
-                        {localizedName(locale, team)}
-                      </Link>
-                    </h3>
+                  <article key={team.id} className={cn('flex flex-col border bg-bg-surface p-5', live ? 'border-ink' : 'border-line')}>
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-serif text-lg font-semibold leading-tight text-ink">
+                        <Link href={`/teams/${team.slug}`} className="hover:text-brand">
+                          {localizedName(locale, team)}
+                        </Link>
+                      </h3>
+                      <span
+                        title={team.available ? undefined : fill(t.teams.busyHint, { n: team.openJobs })}
+                        className={cn('shrink-0 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', team.available ? 'border-success/50 text-success' : 'border-line text-ink-muted')}
+                      >
+                        {team.available ? t.teams.available : t.teams.busy}
+                      </span>
+                    </div>
                     <p className="mt-0.5 text-xs text-ink-muted">
                       {[team.city, team.leadName, `${team.memberCount} ${t.teams.membersCount}`].filter(Boolean).join(' · ')}
                     </p>
@@ -172,7 +226,29 @@ export default function TeamsStepPage() {
                       {missing.length === 0 ? t.teams.coversAll : `${t.teams.missingTrades}: ${missing.map((s) => workerSpecialtyLabel(t, s)).join(', ')}`}
                     </p>
                     <div className="mt-auto pt-4">
-                      <BookingDialog teamId={team.id} workerName={localizedName(locale, team)} label={t.teams.hire} />
+                      {booking && (
+                        <div className={cn('mb-3 border-l-2 pl-3 text-xs', booking.status === 'cancelled' ? 'border-danger text-danger' : booking.status === 'new' ? 'border-warning text-ink' : 'border-success text-ink')}>
+                          <p className="flex items-center gap-1.5 font-medium">
+                            {booking.status === 'cancelled' ? <XCircle className="h-3.5 w-3.5" /> : booking.status === 'new' ? <Clock className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5 text-success" />}
+                            {fill(t.teams.sentTo, { id: booking.id })} · {orderStatusLabel(t, booking.status)}
+                          </p>
+                          <p className="mt-0.5 text-ink-muted">{booking.status === 'cancelled' ? t.teams.declined : booking.partnerMessage || t.teams.sentHint}</p>
+                        </div>
+                      )}
+                      {!live && (
+                        <BookingDialog
+                          teamId={team.id}
+                          workerName={localizedName(locale, team)}
+                          label={t.teams.choose}
+                          variant={team.available && !taken ? 'ink' : 'outline'}
+                          disabled={!team.available}
+                          project={{ ensure: ensureProject, lines: labourLines.length, total: labourSum }}
+                          onBooked={(orderId) => {
+                            setSent((list) => [{ id: orderId, teamId: team.id, status: 'new', partnerMessage: null }, ...list]);
+                            loadSent();
+                          }}
+                        />
+                      )}
                     </div>
                   </article>
                 );

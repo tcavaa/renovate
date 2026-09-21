@@ -112,6 +112,7 @@ export default function StudioPage() {
     selectedItemId,
     selectedElement,
     carryingItemId,
+    carryRestore,
     structureLocked,
     history,
     saveState,
@@ -320,6 +321,12 @@ export default function StudioPage() {
     if (!id) store.selectElement(null);
   }, [store]);
 
+  // Only the 3D view carries: leaving it with a piece still on the pointer gives the piece up
+  // the way Escape does — an added one goes, a swap that found no room is the old sofa again.
+  useEffect(() => {
+    if (view !== '3d' && carryingItemId) store.cancelCarry();
+  }, [view, carryingItemId, store]);
+
   // A product dropped before the viewer carried it is set down where it was dropped as soon
   // as the carry exists.
   useEffect(() => {
@@ -498,6 +505,17 @@ export default function StudioPage() {
   };
 
   /**
+   * A tile clicked on the shelf. Only the 3D view has a pointer to carry a piece on; on the
+   * 2D board it is stood in the room (the focused one, else the largest) where the layout
+   * finds it a spot, to be dragged from there.
+   */
+  const pickProduct = (product: CatalogProduct): boolean => {
+    if (view === '3d') return store.beginAdd(product, focusRoomId) !== null;
+    const largest = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
+    return !!largest && store.addItem(product, focusRoomId ?? largest.id) !== null;
+  };
+
+  /**
    * A tile picked up on the shelf: in 3D the product is put on the pointer at once
    * (`beginAdd`) — the tile's own picture is not dragged — and the model follows the drag
    * until it is dropped or the drag ends off the canvas.
@@ -670,7 +688,9 @@ export default function StudioPage() {
    * else — how a tool works, what a shelf is for — each tray says in its own hint line.
    */
   const transientHint = carryingItemId
-    ? t.design.carryHint
+    ? carryRestore
+      ? t.design.carrySwapHint
+      : t.design.carryHint
     : view === 'walk'
       ? t.build.walkNoEdit
       : electricalArmed
@@ -862,7 +882,9 @@ export default function StudioPage() {
                   item={selected}
                   catalog={products}
                   styleId={styleId}
-                  onSwap={(product) => store.swapProduct(selected.id, product)}
+                  // A bigger piece that finds no room where the old one stood rides on the pointer;
+                  // Escape brings the old one back.
+                  onSwap={(product) => store.swapProduct(selected.id, product, { carry: view === '3d' })}
                   onRotate={rotateSelected}
                   rotateBlocked={rotateBlocked}
                   onRemove={() => store.removeItem(selected.id)}
@@ -954,7 +976,7 @@ export default function StudioPage() {
                     catalog={products}
                     styleId={styleId}
                     roomLabel={focusRoom?.name ?? t.design.wholeFlat}
-                    onPick={(product) => store.beginAdd(product, focusRoomId) !== null}
+                    onPick={pickProduct}
                     onDragProduct={onDragProduct}
                   />
                 )}

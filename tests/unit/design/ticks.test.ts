@@ -242,3 +242,58 @@ describe('the budget adds up, ticks or no ticks', () => {
   });
 });
 
+describe('every line can be taken out, and any quantity changed', () => {
+  const socket: ElectricalPoint = { id: 's1', roomId: 'b1', kind: 'socket', position: P(1, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.2, origin: 'user', product: product(9, 30, 1, { categorySlug: 'sockets-switches' }) };
+  const base = (extra: Partial<DesignScene> = {}): DesignScene => ({ styleId: 'modern', mode: 'full', budgetGel: null, items: beds, finishes: [], electrical: [socket], ...extra });
+  const options = { homeState: 'black_frame' as const };
+
+  it('gives every line but delivery a key of its own', () => {
+    const cost = priceScene(plan, base(), options);
+    const keyed = cost.lines.filter((l) => l.section !== 'delivery');
+    expect(keyed.every((l) => !!l.tick)).toBe(true);
+    expect(new Set(keyed.map((l) => l.tick)).size).toBe(keyed.length);
+    expect(cost.lines.filter((l) => l.section === 'delivery').every((l) => l.tick == null)).toBe(true);
+  });
+
+  it('takes a bulk material and a labour phase out like any product', () => {
+    const full = priceScene(plan, base(), options);
+    const material = full.lines.find((l) => l.section === 'materials' && l.total > 0)!;
+    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plastering')!;
+    const out = priceScene(plan, base({ excluded: [material.tick!, labour.tick!] }), options);
+    expect(out.materialsTotal).toBeCloseTo(full.materialsTotal - material.total, 2);
+    expect(out.labourTotal).toBeCloseTo(full.labourTotal - labour.total, 2);
+    expect(out.grandTotal).toBeCloseTo(full.grandTotal - material.total - labour.total, 2);
+    // Struck through where they stood, not gone.
+    expect(out.lines.map((l) => l.tick ?? l.key)).toEqual(full.lines.map((l) => l.tick ?? l.key));
+  });
+
+  it('counts the quantity the person set and keeps the one that was worked out beside it', () => {
+    const tick = tickFor.item('bed-b2');
+    const cost = priceScene(plan, base({ quantities: { [tick]: 3 } }), options);
+    const line = cost.lines.find((l) => l.tick === tick)!;
+    expect(line.qty).toBe(3);
+    expect(line.originalQty).toBe(1);
+    expect(line.total).toBe(3 * 2450);
+    // The basket and the order are read off the same line.
+    expect(cost.baskets[0].lines.find((l) => l.roomName === 'b2')?.product.qty).toBe(3);
+    expect(sceneLinesByStore(plan, base({ quantities: { [tick]: 3 } })).groups.get(1)!.find((l) => l.roomName === 'b2')?.qty).toBe(3);
+    // Setting it back to what was worked out lets go of the edit.
+    expect(priceScene(plan, base({ quantities: { [tick]: 1 } }), options).lines.find((l) => l.tick === tick)?.originalQty).toBeUndefined();
+  });
+
+  it('changes a labour quantity, and the trades and the totals follow', () => {
+    const full = priceScene(plan, base(), options);
+    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plastering')!;
+    const half = priceScene(plan, base({ quantities: { [labour.tick!]: labour.qty / 2 } }), options);
+    expect(half.labourTotal).toBeCloseTo(full.labourTotal - labour.total / 2, 1);
+    expect(half.lines.find((l) => l.tick === labour.tick)?.originalQty).toBe(labour.qty);
+  });
+
+  it('ignores a quantity nobody could mean', () => {
+    const tick = tickFor.item('bed-b2');
+    for (const bad of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(priceScene(plan, base({ quantities: { [tick]: bad } }), options).lines.find((l) => l.tick === tick)?.qty).toBe(1);
+    }
+  });
+});
+

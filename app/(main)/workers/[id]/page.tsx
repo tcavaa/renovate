@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, ChevronRight, MapPin, Phone } from 'lucide-react';
 import { asc, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -36,6 +37,8 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
  * the portfolio of finished jobs and the client reviews with a rating breakdown.
  */
 export default async function WorkerProfilePage(props: { params: Promise<{ id: string }> }) {
+  // Switched off with the directory it hangs off (`lib/features`).
+  if (!WORKERS_DIRECTORY) redirect('/teams');
   const { id } = await props.params;
   const worker = await loadWorker(id);
   if (!worker) notFound();

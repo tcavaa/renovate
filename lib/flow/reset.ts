@@ -3,11 +3,12 @@
 /**
  * Starting over, from any step of either journey.
  *
- * Both products keep their work in the browser — the calculator, its own drawing board and
- * the studio, three stores and three localStorage keys — so "start again" has to mean all
- * three, or the next flat inherits half of the last one. What is worth warning about first
- * depends on how far the person got: a plan that was never saved is gone for good, and a
- * design that has been laid out took a generation to make.
+ * The two products keep their work apart in the browser — the calculator and its own
+ * drawing board on one side, the studio on the other, three stores and three localStorage
+ * keys — and "start again" means *this* journey's: the calculator empties the calculator and
+ * its board, the studio empties the studio. What is worth warning about first depends on how
+ * far the person got: a plan that was never saved is gone for good, and a design that has
+ * been laid out took a generation to make.
  */
 
 import { useCalculatorStore } from '@/store/calculatorStore';
@@ -44,12 +45,20 @@ export function readFlowState(kind: FlowKind): FlowState {
 }
 
 /**
- * Empties both products and both boards. One journey's reset clears the other as well: they
- * are two halves of one project the moment either hands over to the other, and leaving the
- * studio furnished while the calculator starts a new flat is how the two used to disagree.
+ * Empties one journey and leaves the other alone.
+ *
+ * It used to empty both — "two halves of one project" — and that cost people their design:
+ * somebody who had furnished a flat in the studio and then started a new estimate in the
+ * calculator came back to an empty studio. The two are separate work with separate storage,
+ * and a project that really is shared lives in its row on the server, where neither reset
+ * reaches it. A calculator that starts over lets go of the project id, so the next estimate
+ * is a new row and cannot write over the design's.
  */
-export function resetFlow(): void {
-  useCalculatorStore.getState().reset();
-  useCalculatorPlanStore.getState().reset();
+export function resetFlow(kind: FlowKind): void {
+  if (kind === 'calculator') {
+    useCalculatorStore.getState().reset();
+    useCalculatorPlanStore.getState().reset();
+    return;
+  }
   useDesignStore.getState().reset();
 }

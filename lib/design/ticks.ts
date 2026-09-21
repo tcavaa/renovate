@@ -15,13 +15,53 @@
 
 export type Tick = string | number;
 
+/**
+ * Every line of the budget has a key — not only the products. The person decides what of the
+ * estimate they are taking: the tiles, but also the plastering, the bags of screed, the
+ * electrician's points. A key names the line for good, whatever else on the sheet changes,
+ * so a tick and a changed quantity (`Quantities`) both hang on it.
+ */
 export const tickFor = {
   item: (itemId: string): string => `item:${itemId}`,
   finish: (productId: number): string => `finish:${productId}`,
   opening: (productId: number): string => `opening:${productId}`,
   fixture: (productId: number): string => `fixture:${productId}`,
   radiator: (productId: number): string => `radiator:${productId}`,
+  /** A made-to-measure kitchen: the joiner's quote for one placed run or island. */
+  kitchen: (itemId: string): string => `kitchen:${itemId}`,
+  /** A door or window with no product chosen, estimated on its own. */
+  openingEstimate: (openingId: string): string => `opening-estimate:${openingId}`,
+  /** A catalogue-free estimate folded per kind: `electrical_socket`, `technical_sewer`… */
+  estimate: (key: string): string => `estimate:${key}`,
+  /** A bulk material of the rate book: `cement`, `plaster`… */
+  material: (key: string): string => `material:${key}`,
+  /** A labour line: `plastering`, `electrical_point`, `trim_install`… */
+  labour: (key: string): string => `labour:${key}`,
+  /** A product picked in the calculator, by its selection key (`lib/calculator/quantities`). */
+  pick: (selectionKey: string): string => `pick:${selectionKey}`,
+  /** A piece of furniture picked in the calculator for one room — the n-th of that product there, since the same chair can be picked twice. */
+  furniture: (roomId: string, productId: number, n = 0): string => `furniture:${roomId}:${productId}:${n}`,
 };
+
+/**
+ * Quantities the person set themselves, by line key. The sheet works every quantity out —
+ * square metres off the plan, sections off the heat a room needs — and that stays the
+ * *original*: an entry here is what is being ordered instead, shown beside it.
+ */
+export type Quantities = Record<string, number>;
+
+/** A quantity somebody could mean: finite, not negative, not absurd. */
+export function validQuantity(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1_000_000;
+}
+
+/** The map with one line's quantity set — or let go of, when it is back to what was worked out. */
+export function withQuantity(quantities: Quantities, tick: string, qty: number | null, original?: number): Quantities {
+  const next = { ...quantities };
+  if (qty == null || !validQuantity(qty) || (original != null && Math.abs(qty - original) < 1e-9)) delete next[tick];
+  else next[tick] = qty;
+  return next;
+}
 
 /** Is this line ticked off? By its own key, or by a bare product id from an older scene. */
 export function tickedOff(excluded: readonly Tick[] | null | undefined): (tick: string, productId?: number | null) => boolean {
@@ -40,5 +80,16 @@ export function toggleTick(excluded: readonly Tick[], tick: string, productId?: 
 /** Ticks whose piece is no longer in the design — kept out of what gets saved. */
 export function pruneTicks(excluded: readonly Tick[], itemIds: Iterable<string>): Tick[] {
   const present = new Set(itemIds);
-  return excluded.filter((t) => typeof t !== 'string' || !t.startsWith('item:') || present.has(t.slice('item:'.length)));
+  return excluded.filter((t) => typeof t !== 'string' || !ofMissingPiece(t, present));
+}
+
+/** The same for quantities: one set on a piece since deleted is not saved. */
+export function pruneQuantities(quantities: Quantities, itemIds: Iterable<string>): Quantities {
+  const present = new Set(itemIds);
+  return Object.fromEntries(Object.entries(quantities).filter(([tick]) => !ofMissingPiece(tick, present)));
+}
+
+function ofMissingPiece(tick: string, present: Set<string>): boolean {
+  for (const prefix of ['item:', 'kitchen:']) if (tick.startsWith(prefix)) return !present.has(tick.slice(prefix.length));
+  return false;
 }

@@ -25,7 +25,7 @@ import { pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { wallFinishFor } from '@/lib/design/zones';
-import { patchSpans, wallPatches, wallSpans } from '@/lib/design/paint';
+import { patchSpansOnWall, wallPatches, wallSpans } from '@/lib/design/paint';
 import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
 import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
 import { buildElectrical, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
@@ -221,6 +221,10 @@ function buildRoomShell(
     const featureIndex = pickFeatureWall(room, edges);
     const cut = materials.metreSurface({ colorHex: WALL_CUT_COLOR, roughness: 0.9 });
     const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
+    // How high each side of the room stands: the wall's own height when it was given one in
+    // the inspector, the room's otherwise. The wall is built to it, and so is whatever is
+    // fixed to its top.
+    const tops = edges.map((edge) => wallForEdge(plan, room, edge)?.heightM ?? room.heightM);
 
     edges.forEach((edge, order) => {
       const openings = room.openings.filter((o) => o.wallIndex === edge.index);
@@ -229,7 +233,7 @@ function buildRoomShell(
       const thickness = edgeWall?.thickness ?? planWall?.thicknessM ?? plan.wallThicknessM;
       // Nudge each room's wall height by a hair so the two halves of a shared wall do not
       // z-fight along their top edge when seen from above.
-      const height = (planWall?.heightM ?? room.heightM) + index * 0.0006;
+      const height = tops[order] + index * 0.0006;
       const pieces: WallPiece[] = edgeWall?.pieces ?? [{ from: 0, to: edge.length, farFrom: 0, farTo: edge.length, depth: thickness, neighbour: null }];
 
       // One material slot per look: the wall's own finish, the cut, then whatever the far
@@ -266,8 +270,9 @@ function buildRoomShell(
       for (const finish of wallPatches(finishes, room.id, edge.index)) {
         const slot = slotOf(materials.metreSurface(wallBase, finishOverrides(finish)));
         for (const patch of finish.cells ?? []) {
-          const { along, up } = patchSpans(edge, height, patch);
-          spans.push({ from: along.from, to: along.to, bottom: up.from, top: up.to, slot });
+          // The room's grid, its top row running on to the top of this wall.
+          const box = patchSpansOnWall(edge, room.heightM, tops[order], patch);
+          if (box) spans.push({ from: box.along.from, to: box.along.to, bottom: box.up.from, top: box.up.to, slot });
         }
       }
 
@@ -288,11 +293,14 @@ function buildRoomShell(
       tag(wall, wallData);
       group.add(wall);
 
-      // The mouldings belong to their wall, so they hide and show with it.
-      const previous = edges[(order - 1 + edges.length) % edges.length];
-      const next = edges[(order + 1) % edges.length];
+      // The mouldings belong to their wall, so they hide and show with it — and the cornice
+      // runs along the top of *this* wall, not at the room's ceiling height: a wall raised in
+      // the inspector used to leave its cornice behind, a white line halfway up it.
+      const before = (order - 1 + edges.length) % edges.length;
+      const after = (order + 1) % edges.length;
+      const corner = { top: tops[order], previousTop: tops[before], nextTop: tops[after] };
       for (const kind of ['skirting', 'cornice'] as const) {
-        const trim = buildTrim(kind, room, edge, previous, next, openings, finishes, style, materials);
+        const trim = buildTrim(kind, room, edge, edges[before], edges[after], corner, openings, finishes, style, materials);
         if (!trim) continue;
         tag(trim, wallData);
         group.add(trim);
@@ -338,7 +346,19 @@ function wallMaterialFor(room: PlanRoom, edge: PlanEdge, featureIndex: number, f
  * passes through. The shape and colour come from the product the room was given, or from
  * the style when it was given none (`STYLE_TRIMS`; some styles have no cornice at all).
  */
-function buildTrim(kind: TrimKind, room: PlanRoom, edge: PlanEdge, previous: PlanEdge, next: PlanEdge, openings: Opening[], finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Group | null {
+function buildTrim(
+  kind: TrimKind,
+  room: PlanRoom,
+  edge: PlanEdge,
+  previous: PlanEdge,
+  next: PlanEdge,
+  /** How high this wall and the two it meets stand — where a cornice runs, and whether it has a partner to mitre with. */
+  corner: { top: number; previousTop: number; nextTop: number },
+  openings: Opening[],
+  finishes: SurfaceFinish[],
+  style: StyleDefinition,
+  materials: StyleMaterials
+): THREE.Group | null {
   const chosen = trimFor(finishes, room.id, kind);
   const fallback = STYLE_TRIMS[style.id][kind];
   const spec = chosen ? chosen.trim : fallback;
@@ -370,13 +390,16 @@ function buildTrim(kind: TrimKind, room: PlanRoom, edge: PlanEdge, previous: Pla
     const turn = Math.atan2(from.dir.x * to.dir.z - from.dir.z * to.dir.x, from.dir.x * to.dir.x + from.dir.z * to.dir.z);
     return Math.max(-3, Math.min(3, Math.tan(turn / 2)));
   };
+  // A cornice only meets the next wall's on the diagonal when the two run at one height;
+  // beside a wall that stands higher or lower it is cut square and stops at the corner.
+  const level = (a: number, b: number) => kind === 'skirting' || Math.abs(a - b) < 0.005;
   const group = new THREE.Group();
   group.name = kind;
   for (const [from, to] of runs) {
     if (to - from < 0.05) continue;
-    const startCut = from < 1e-6 ? mitre(previous, edge) : 0;
-    const endCut = to > edge.length - 1e-6 ? mitre(edge, next) : 0;
-    const mesh = own(new THREE.Mesh(buildMouldingGeometry(edge, from, to, kind === 'skirting' ? 0 : room.heightM, outline, startCut, endCut), material));
+    const startCut = from < 1e-6 && level(corner.top, corner.previousTop) ? mitre(previous, edge) : 0;
+    const endCut = to > edge.length - 1e-6 && level(corner.top, corner.nextTop) ? mitre(edge, next) : 0;
+    const mesh = own(new THREE.Mesh(buildMouldingGeometry(edge, from, to, kind === 'skirting' ? 0 : corner.top, outline, startCut, endCut), material));
     mesh.castShadow = kind === 'skirting';
     mesh.receiveShadow = true;
     group.add(mesh);

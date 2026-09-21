@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { saveProjectSchema } from '@/lib/validations/project.schema';
 import { buildProjectSummary } from '@/lib/calculator/materials';
+import { calculatorSheet } from '@/lib/summary/calculatorSheet';
 import type { SelectedProduct } from '@/lib/calculator/types';
 import { auth } from '@/auth';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
@@ -52,6 +53,12 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     await loadRateBook()
   );
   const totalM2 = rooms.reduce((s, r) => s + r.floorM2, 0);
+  // What the person made of the estimate — lines ticked off, quantities of their own — is
+  // laid over the figures just worked out, never over the client's. The row keeps the edits
+  // and the totals *as edited*: what the estimate was before them is worked out again from
+  // the rooms and the picks whenever somebody wants to see it.
+  const edits = parsed.data.edits ?? null;
+  const sheet = calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits });
 
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
@@ -62,10 +69,11 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     rooms,
     selectedProducts,
     selectedFurniture,
-    totalMaterialsCost: String(summary.subtotalMaterials + summary.subtotalProducts),
-    totalFurnitureCost: String(summary.subtotalFurniture),
-    totalWorkersCost: String(summary.subtotalWorkers),
-    totalCost: String(summary.grandTotalWithMargin),
+    calculatorEdits: edits && ((edits.excluded?.length ?? 0) > 0 || Object.keys(edits.quantities ?? {}).length > 0) ? edits : null,
+    totalMaterialsCost: String(Math.round((sheet.subtotalMaterials + sheet.subtotalProducts) * 100) / 100),
+    totalFurnitureCost: String(sheet.subtotalFurniture),
+    totalWorkersCost: String(sheet.subtotalWorkers),
+    totalCost: String(sheet.grandTotalWithMargin),
   };
 
   // One project, both halves: a saved design (or an earlier calculation) of the caller's is

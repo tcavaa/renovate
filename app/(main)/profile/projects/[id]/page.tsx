@@ -4,7 +4,7 @@ import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { getT, getLocale } from '@/lib/i18n/server';
-import { buildProjectSummary } from '@/lib/calculator/materials';
+import { loadProjectSheets } from '@/lib/projects/sheets';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
 import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
@@ -14,7 +14,6 @@ import { savedProjectInput } from '@/lib/projects/saved';
 import { ProjectOrders } from '@/components/orders/ProjectOrders';
 import { ProjectRenders } from '@/components/projects/ProjectRenders';
 import { DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
-import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,22 +34,14 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
   const project = rows[0];
   if (!project) notFound();
 
-  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-  const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-
-  // Priced with the current rate book, so this page agrees with the calculator.
-  const summary = buildProjectSummary(
-    (project.rooms ?? []) as Room[],
-    project.homeState as HomeState,
-    Object.values(selectedProducts),
-    Object.values(selectedFurniture).flat(),
-    await loadRateBook()
-  );
+  // Both journeys' sheets, priced with the current rate book so this page agrees with the
+  // summaries — as they were left, and as they were worked out before anything was edited.
+  const sheets = await loadProjectSheets(project, await loadRateBook(), ka, locale);
 
   return (
     <ProjectDetail
       project={project}
-      summary={summary}
+      sheets={sheets}
       t={ka}
       locale={locale}
       backHref="/profile"

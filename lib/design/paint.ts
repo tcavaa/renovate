@@ -150,6 +150,20 @@ export function patchSpans(edge: Pick<PlanEdge, 'length'>, heightM: number, patc
   return { along: stepSpan(edge.length, patch[0]), up: stepSpan(heightM, patch[1]) };
 }
 
+/**
+ * The extent of a patch as it is drawn on a wall that stands `wallTopM` high. The grid is the
+ * room's — its rows are counted against the ceiling — but a wall can be given a height of its
+ * own in the inspector, and then "the top row runs on to the ceiling" means to the top of
+ * *that wall*: higher than the room, or cut off short by a wall that stops below it. Null
+ * when the whole row lies above the wall.
+ */
+export function patchSpansOnWall(edge: Pick<PlanEdge, 'length'>, roomHeightM: number, wallTopM: number, patch: Cell): { along: Span; up: Span } | null {
+  const { along, up } = patchSpans(edge, roomHeightM, patch);
+  const topRow = patch[1] >= stepCount(roomHeightM) - 1;
+  const to = topRow ? wallTopM : Math.min(up.to, wallTopM);
+  return to - up.from > 1e-3 ? { along, up: { from: up.from, to: round3(to) } } : null;
+}
+
 /** Square metres of one wall patch — the part of it a door or window takes is not painted. */
 export function patchAreaM2(room: PlanRoom, wallIndex: number, patch: Cell): number {
   const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);

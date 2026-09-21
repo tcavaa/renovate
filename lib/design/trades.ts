@@ -57,7 +57,8 @@ export interface TradeNeed {
 export function tradesNeeded(cost: Pick<DesignCost, 'lines'>): TradeNeed[] {
   const byTrade = new Map<TradeSlug, TradeNeed>();
   for (const line of cost.lines) {
-    if (line.section !== 'labour' || line.total <= 0) continue;
+    // Work the person ticked off the budget is work they are not hiring anybody for.
+    if (line.section !== 'labour' || line.total <= 0 || line.excluded) continue;
     const slug = LABOUR_TRADE[line.key];
     if (!slug) continue;
     const need = byTrade.get(slug) ?? { slug, lines: [], total: 0 };

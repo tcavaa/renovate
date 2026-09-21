@@ -1,9 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
-import { Check, FileDown, HardHat, Loader2, MapPin, Phone, Printer, Save, ShoppingBag, Truck } from 'lucide-react';
+import { Check, FileDown, HardHat, Loader2, Printer, Save, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -14,49 +13,22 @@ import { Figure } from '@/components/calculator/MaterialsTable';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { basketLabels, localizedName, materialLabel, workTypeLabel } from '@/lib/i18n/labels';
-import { budgetSections, budgetSummary, priceScene, type BudgetLine, type BudgetSection } from '@/lib/design/pricing';
+import { basketLabels, localizedName } from '@/lib/i18n/labels';
+import { budgetSummary, priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { platformFee } from '@/lib/finance/money';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL, formatM2, formatNumber, formatUnit } from '@/lib/utils';
+import { cn, formatGEL, formatM2 } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
 import { getStyle } from '@/lib/design/styles';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { designStepPosition, previousStep, previousStepHref } from '@/lib/design/steps';
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
-import { electricalLabel, technicalLabel } from '@/components/plan/PlanToolbar';
-import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
-import type { Dictionary } from '@/lib/i18n';
-
-const SECTION_ORDER: BudgetSection[] = ['finishes', 'openings', 'furniture', 'lighting', 'electrical', 'plumbing', 'heating', 'climate', 'materials', 'labour', 'delivery'];
-const SECTION_KEY: Record<BudgetSection, keyof Dictionary['build']> = {
-  furniture: 'secFurniture',
-  lighting: 'secLighting',
-  finishes: 'secFinishes',
-  openings: 'secOpenings',
-  electrical: 'secElectrical',
-  plumbing: 'secPlumbing',
-  heating: 'secHeating',
-  climate: 'secClimate',
-  materials: 'secMaterials',
-  labour: 'secLabour',
-  delivery: 'secDelivery',
-};
-
-/**
- * The product a budget line is, when it is one. Only a real SKU can be ticked off an order;
- * a labour line, a bulk material and a catalogue-free estimate are what the work costs
- * whoever does it, not something anybody buys from a shop.
- */
-function productIdOf(line: BudgetLine): number | null {
-  const id = line.key.startsWith('product-') ? Number(line.key.slice('product-'.length)) : NaN;
-  return Number.isFinite(id) ? id : null;
-}
 
 /**
  * Step 7: the budget. Materials + products + labour = the estimated project cost, every line
@@ -67,7 +39,7 @@ function productIdOf(line: BudgetLine): number | null {
 export default function BudgetPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, projectId, calculatorPicks, excluded, toggleExcluded, setExcluded } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, projectId, calculatorPicks, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearBudgetEdits } = useDesignStore();
   const calculator = useCalculatorStore();
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<number | null>(null);
@@ -76,19 +48,21 @@ export default function BudgetPage() {
   const [exporting, setExporting] = useState(false);
   const fees = usePlatformFees();
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities]);
   const { book } = useRateBook();
   const priceOptions = useMemo(() => ({ homeState: homeState ?? undefined, book, locale, ...basketLabels(t) }), [homeState, book, locale, t]);
   /** The project as it stands: what is being ordered. */
   const cost = useMemo(() => (plan ? priceScene(plan, scene, priceOptions) : null), [plan, scene, priceOptions]);
   /**
-   * The same project with nothing ticked off, so the page can say what the ticks came to.
-   * Priced twice rather than subtracted: a product that is out takes its delivery and its
-   * labour with it, and only the engine knows that.
+   * The same project as the sheet worked it out — nothing ticked off, no quantity changed —
+   * so the page can show the original beside what the person made of it. Priced twice rather
+   * than subtracted: a product that is out can take its store's delivery with it, and only
+   * the engine knows that.
    */
+  const edited = excluded.length > 0 || Object.keys(quantities).length > 0;
   const fullCost = useMemo(
-    () => (plan && excluded.length > 0 ? priceScene(plan, { ...scene, excluded: [] }, priceOptions) : null),
-    [plan, scene, excluded.length, priceOptions]
+    () => (plan && edited ? priceScene(plan, { ...scene, excluded: [], quantities: {} }, priceOptions) : null),
+    [plan, scene, edited, priceOptions]
   );
 
   if (!plan || !cost) {
@@ -130,13 +104,19 @@ export default function BudgetPage() {
     ...(designPart ? [designPart] : []),
   ];
   const summary = budgetSummary(cost);
-  const sections = budgetSections(cost);
 
   // What the ticks came to. The lines themselves are all in `cost.lines`, the ticked-off
   // ones flagged where they stand; the second pricing is only for the difference, because a
   // product that is out can take its store's delivery with it and only the engine knows.
   const excludedLines = cost.lines.filter((l) => l.excluded).length;
-  const excludedTotal = fullCost ? Math.round((fullCost.grandTotal - cost.grandTotal) * 100) / 100 : 0;
+  const changedLines = cost.lines.filter((l) => l.originalQty != null && !l.excluded).length;
+  /** What the edits came to: negative when things were taken out, positive when more was ordered. */
+  const editsDelta = fullCost ? Math.round((cost.grandTotal - fullCost.grandTotal) * 100) / 100 : 0;
+  const sheetActions: SheetActions = {
+    toggle: (line) => line.tick && toggleExcluded(line.tick, line.product?.productId),
+    setMany: (lines, out) => setLinesExcluded(lines.filter((l) => l.tick).map((l) => ({ tick: l.tick!, productId: l.product?.productId })), out),
+    setQuantity: (line, qty) => line.tick && setQuantity(line.tick, qty, line.originalQty ?? line.qty),
+  };
 
   /** The 2D plan as a PDF: the board's own drawing at print resolution, on one A4 sheet. */
   const exportPlan = async () => {
@@ -157,19 +137,6 @@ export default function BudgetPage() {
     } finally {
       setExporting(false);
     }
-  };
-
-  const lineName = (line: BudgetLine): string => {
-    if (line.key.startsWith('electrical_')) return electricalLabel(t, line.key.slice('electrical_'.length) as ElectricalKind);
-    if (line.key.startsWith('technical_')) return technicalLabel(t, line.key.slice('technical_'.length) as TechnicalKind);
-    if (line.key === 'window') return t.build.lineWindow;
-    if (line.key === 'door') return t.build.lineDoor;
-    if (line.key === 'entrance_door') return t.build.lineEntranceDoor;
-    if (line.key === 'kitchen_run_custom') return t.build.lineKitchenRun;
-    if (line.key === 'kitchen_island_custom') return t.build.lineKitchenIsland;
-    if (line.section === 'labour') return workTypeLabel(t, line.key);
-    if (line.section === 'materials') return materialLabel(t, line.key);
-    return line.name ?? line.key;
   };
 
   return (
@@ -215,7 +182,11 @@ export default function BudgetPage() {
           }
         />
         <StageBrief step={7} className="mt-6" />
-        <p className="no-print mt-4 text-xs text-ink-muted">{excludedLines === 0 ? t.build.excludedNone : fill(t.build.excludedCount, { n: excludedLines })}</p>
+        <p className="no-print mt-4 text-xs text-ink-muted">
+          {t.build.sheetHint}
+          <span className="mx-1.5 text-ink-faint">·</span>
+          {excludedLines === 0 && changedLines === 0 ? t.build.editsNone : fill(t.build.editsCount, { out: excludedLines, changed: changedLines })}
+        </p>
 
         {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
 
@@ -230,121 +201,7 @@ export default function BudgetPage() {
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-5">
-            {SECTION_ORDER.map((section) => {
-              // Every line of the section in the order the engine lists them, ticked or not:
-              // a line ticked off is struck through *where it stands*. Listing those after
-              // the rest made the sheet reshuffle under the pointer at every tick.
-              const lines = cost.lines.filter((l) => l.section === section);
-              if (lines.length === 0) return null;
-              return (
-                <section key={section} className="overflow-hidden rounded-[16px] border border-line bg-bg-surface">
-                  <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                    <h3 className="font-serif text-lg font-semibold text-ink">{t.build[SECTION_KEY[section]]}</h3>
-                    <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(sections[section])}</span>
-                  </header>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-muted">
-                        <th className="px-4 py-2 text-left font-semibold">{t.build.colItem}</th>
-                        <th className="px-2 py-2 text-right font-semibold">{t.build.colQty}</th>
-                        <th className="px-2 py-2 text-right font-semibold">{t.build.colUnitPrice}</th>
-                        <th className="px-4 py-2 text-right font-semibold">{t.build.colTotal}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lines.map((line, i) => {
-                        const off = !!line.excluded;
-                        return (
-                          <tr key={line.tick ?? `${line.key}-${i}`} className={cn('border-t border-line/70', off && 'text-ink-faint')}>
-                            <td className="px-4 py-2">
-                              <p className={cn('flex items-start gap-2 font-medium', off ? 'line-through' : 'text-ink')}>
-                                {line.tick != null && (
-                                  <input
-                                    type="checkbox"
-                                    checked={!off}
-                                    onChange={() => toggleExcluded(line.tick!, productIdOf(line))}
-                                    aria-label={`${t.build.includeInOrder} — ${lineName(line)}`}
-                                    className="no-print mt-0.5 accent-ink"
-                                  />
-                                )}
-                                {lineName(line)}
-                              </p>
-                              <p className={cn('text-xs', !off && 'text-ink-muted')}>
-                                {line.roomName}
-                                {line.estimated && (
-                                  <span className={cn('ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted')}>{t.build.estimated}</span>
-                                )}
-                              </p>
-                            </td>
-                            <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', !off && 'text-ink-soft')}>
-                              {formatNumber(line.qty)} {formatUnit(line.unit)}
-                            </td>
-                            <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', !off && 'text-ink-muted')}>{formatGEL(line.unitPrice, line.unitPrice < 10)}</td>
-                            <td className={cn('whitespace-nowrap px-4 py-2 text-right font-semibold tabular-nums', off && 'line-through')}>{formatGEL(line.total)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </section>
-              );
-            })}
-
-            {/* Products, per partner store. */}
-            {cost.baskets.length > 0 && <p className="eyebrow pt-2">{t.design.byStore}</p>}
-            {cost.baskets.map((basket, index) => (
-              <section key={basket.store?.id ?? `none-${index}`} className="overflow-hidden rounded-[16px] border border-line bg-bg-surface">
-                <header className="flex items-center gap-4 border-b border-line p-4">
-                  {basket.store?.logoUrl ? (
-                    <Image src={basket.store.logoUrl} alt={localizedName(locale, basket.store)} width={40} height={40} className="rounded-[8px] border border-line" />
-                  ) : (
-                    <span className="grid h-10 w-10 place-items-center rounded-[8px] border border-line font-serif text-base font-semibold text-ink">{(basket.store ? localizedName(locale, basket.store) : '—').slice(0, 1)}</span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-serif text-lg font-semibold text-ink">{basket.store ? localizedName(locale, basket.store) : '—'}</h3>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
-                      {basket.store?.address && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {basket.store.address}
-                        </span>
-                      )}
-                      {basket.store?.phone && (
-                        <a href={`tel:${basket.store.phone}`} className="flex items-center gap-1 hover:text-ink">
-                          <Phone className="h-3 w-3" />
-                          {basket.store.phone}
-                        </a>
-                      )}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(basket.subtotal)}</p>
-                    <p className="flex items-center justify-end gap-1 text-[11px] text-ink-muted">
-                      <Truck className="h-3 w-3" />
-                      {basket.deliveryFee === 0 ? t.design.freeDelivery : formatGEL(basket.deliveryFee)}
-                    </p>
-                  </div>
-                </header>
-                <table className="w-full text-sm">
-                  <tbody>
-                    {basket.lines.map((line, i) => (
-                      <tr key={`${line.product.productId}-${i}`} className="border-b border-line/70 last:border-b-0">
-                        <td className="py-2.5 pl-4 pr-2">
-                          <p className="font-medium text-ink">{localizedName(locale, line.product)}</p>
-                          {/* A folded line names every room it covers; a radiator with no room names none. */}
-                          <p className="text-xs text-ink-muted">{[line.item, line.roomName].filter(Boolean).join(' · ')}</p>
-                        </td>
-                        <td className="whitespace-nowrap py-2.5 text-right text-xs tabular-nums text-ink-muted">
-                          {line.product.qty !== 1 && `${formatNumber(line.product.qty)} × `}
-                          {formatGEL(line.product.pricePerUnit)}
-                        </td>
-                        <td className="whitespace-nowrap py-2.5 pl-3 pr-4 text-right font-semibold tabular-nums">{formatGEL(line.product.totalPrice)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            ))}
+            <BudgetSheet lines={cost.lines} actions={sheetActions} rounded />
           </div>
 
           {/* ---- totals ---- */}
@@ -367,13 +224,16 @@ export default function BudgetPage() {
                 {/* What the ticks came to: the whole estimate, what was taken out, what is left. */}
                 {fullCost && (
                   <div className="mt-3 space-y-1.5 border-t border-line pt-3">
-                    <MoneyRow label={t.build.fullEstimate} value={fullCost.grandTotal} muted />
-                    <div className="flex items-baseline justify-between gap-3 text-danger">
-                      <span>{t.build.excludedTotal}</span>
-                      <span className="shrink-0 font-medium tabular-nums">−{formatGEL(excludedTotal)}</span>
+                    <MoneyRow label={t.build.originalEstimate} value={fullCost.grandTotal} muted />
+                    <div className={cn('flex items-baseline justify-between gap-3', editsDelta < 0 ? 'text-danger' : 'text-ink')}>
+                      <span>{t.build.editsChange}</span>
+                      <span className="shrink-0 font-medium tabular-nums">
+                        {editsDelta < 0 ? '−' : '+'}
+                        {formatGEL(Math.abs(editsDelta))}
+                      </span>
                     </div>
-                    <button type="button" onClick={() => setExcluded([])} className="no-print text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink">
-                      {t.build.includeAll}
+                    <button type="button" onClick={clearBudgetEdits} className="no-print text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink">
+                      {t.build.resetEdits}
                     </button>
                   </div>
                 )}

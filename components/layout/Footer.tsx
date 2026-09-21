@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
+import { WORKERS_DIRECTORY } from '@/lib/features';
 
 /** Quiet footer with an oversized wordmark — the brand is the last thing on every page. */
 export async function Footer() {
@@ -12,7 +13,8 @@ export async function Footer() {
         { href: '/design', label: t.design.nav },
         { href: '/calculator', label: t.nav.calculator },
         { href: '/catalog', label: t.nav.catalog },
-        { href: '/workers', label: t.nav.workers },
+        // A renovation is hired as a brigade; the workers' own directory is switched off.
+        WORKERS_DIRECTORY ? { href: '/workers', label: t.nav.workers } : { href: '/teams', label: t.nav.teams },
       ],
     },
     {

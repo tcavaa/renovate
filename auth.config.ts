@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from 'next-auth';
-import { canOpenPartnerPortal, type UserRole } from '@/lib/auth/roles';
+import { canOpenAdmin, canOpenPartnerPortal, type UserRole } from '@/lib/auth/roles';
 
 /**
  * The part of the auth setup that runs in the proxy (edge-safe: no database). The role and
@@ -50,7 +50,10 @@ export const authConfig = {
         loginUrl.searchParams.set('callbackUrl', path);
         return Response.redirect(loginUrl);
       }
-      if (isAdminRoute && auth.user.role !== 'admin') {
+      // Anybody with a part of the admin may come in — the agents as well as admin; which
+      // part is theirs is each section's layout to say (`lib/auth/roles`). Asking for
+      // `admin` here turned both kinds of agent away at the door, every time, to the landing.
+      if (isAdminRoute && !canOpenAdmin(auth.user.role)) {
         return Response.redirect(new URL('/', request.nextUrl));
       }
       if (isPartnerRoute && !canOpenPartnerPortal(auth.user.role)) {
