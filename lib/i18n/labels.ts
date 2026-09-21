@@ -1,4 +1,5 @@
 import type { Dictionary } from './ka';
+import type { ProductLabels, SurfaceLabels } from '@/lib/design/pricing';
 
 type AnyMap = Record<string, string>;
 
@@ -55,6 +56,32 @@ export function orderStatusLabel(t: Dictionary, status: string): string {
 
 export function styleLabel(t: Dictionary, styleId: string): string {
   return (t.styleNames as unknown as AnyMap)[styleId] ?? styleId;
+}
+
+/**
+ * What the pricing engine calls a basket line, in the visitor's language: the surface a
+ * finish lies on, the kind of opening, the kind of fitting, the radiator. The engine has
+ * Georgian defaults and no dictionary; a page that shows the baskets hands it these.
+ */
+export function basketLabels(t: Dictionary): { surfaceLabels: SurfaceLabels; productLabels: ProductLabels } {
+  return {
+    surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling, skirting: t.design.finishSkirting, cornice: t.design.finishCornice },
+    productLabels: {
+      door: t.build.lineDoor,
+      entrance_door: t.build.lineEntranceDoor,
+      window: t.build.lineWindow,
+      radiator: t.build.tkRadiator,
+      socket: t.build.ekSocket,
+      switch: t.build.ekSwitch,
+      tv: t.build.ekTv,
+      internet: t.build.ekInternet,
+      light_ceiling: t.build.ekLightCeiling,
+      light_wall: t.build.ekLightWall,
+      light_spot: t.build.ekLightSpot,
+      light_strip: t.build.ekLightStrip,
+      light_furniture: t.build.ekLightFurniture,
+    },
+  };
 }
 
 /**

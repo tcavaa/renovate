@@ -17,6 +17,7 @@ import {
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
+import { orderedLines, priceScene } from '@/lib/design/pricing';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { en } from '@/lib/i18n/en';
 import { ru } from '@/lib/i18n/ru';
@@ -24,6 +25,7 @@ import { log } from '@/lib/log';
 import {
   buildStoreOrders,
   calculatorLinesByStore,
+  costLinesByStore,
   effectiveCommissionPct,
   feePerM2For,
   labourLines,
@@ -32,7 +34,6 @@ import {
   orderTotals,
   platformFee,
   round2,
-  sceneLinesByStore,
   type CheckoutKind,
   type LinesByStore,
   type OrderLineDraft,
@@ -130,13 +131,17 @@ async function calculatorLinesOf(project: Project): Promise<LinesByStore | null>
   return calculatorLinesByStore(selectedProducts, selectedFurniture, (project.rooms ?? []) as Room[], await storeLookup(ids));
 }
 
-/** The studio's products by store, or null when the project has no design half. */
+/**
+ * The studio's products by store, or null when the project has no design half. Priced once,
+ * against the project's own home state — the budget the customer ordered from — and the
+ * order is that budget's product lines: doors, windows, fittings and radiators with the
+ * furniture and the finishes, less whatever was ticked off. The store lookup covers every
+ * product on those lines; it used to be gathered from the items and the finishes alone.
+ */
 async function sceneLinesOf(project: Project): Promise<LinesByStore | null> {
   if (!project.plan || !project.scene) return null;
-  const plan = project.plan as FloorPlan;
-  const scene = project.scene as DesignScene;
-  const ids = [...scene.items.map((i) => i.product?.productId), ...scene.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number');
-  return sceneLinesByStore(plan, scene, await storeLookup(ids));
+  const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState as HomeState });
+  return costLinesByStore(cost, await storeLookup(orderedLines(cost).map((line) => line.product.productId)));
 }
 
 function itemRows(orderId: number, lines: OrderLineDraft[]) {

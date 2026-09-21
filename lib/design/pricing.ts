@@ -11,6 +11,15 @@
  * Everything comes back twice: as totals per section for the cost bar, and as `lines` — one
  * row per material, product, point and work with its quantity, unit and price — for the
  * budget page's "Materials + Products + Labour = Estimated project cost".
+ *
+ * The lines are also the only account of what is being *bought*. Which door is new work,
+ * which socket the flat already had, which half of an interior door counts, how many
+ * sections a radiator comes to — all of that is decided here and nowhere else, so the
+ * baskets per store (and with them the delivery), the checkout dialogue and the orders the
+ * stores are sent are read off the product lines (`orderedLines`) rather than worked out
+ * again from the scene. They used to be: three loops over furniture and finishes, written
+ * before a door or a socket was a product, which priced those on the budget and then sent
+ * nobody an order for them.
  */
 
 import type { RateBook } from '@/lib/calculator/rates';
@@ -39,6 +48,7 @@ import type {
   SceneProduct,
   SceneStore,
   StoreBasket,
+  SurfaceFinish,
   TechnicalPoint,
 } from './types';
 import { archetypeLabel } from './catalog';
@@ -50,6 +60,8 @@ export interface PriceOptions {
   book?: RateBook;
   /** Basket line labels for finishes, in the user's language. Georgian for any that are omitted. */
   surfaceLabels?: Partial<SurfaceLabels>;
+  /** The same for doors, windows, fittings and radiators. Georgian for any that are omitted. */
+  productLabels?: Partial<ProductLabels>;
   /** Language for the furniture line labels (archetype names). Georgian when omitted. */
   locale?: 'ka' | 'en' | 'ru';
   /** The works ticked on the technical step; the plan's own list when omitted. */
@@ -71,6 +83,32 @@ const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
   skirting: 'იატაკის პლინტუსი',
   cornice: 'ჭერის პლინტუსი',
 };
+
+/**
+ * What a basket line is when it is neither furniture (its archetype says) nor a finish (its
+ * surface does): the kind of opening, the radiator, or the kind of fitting — the four
+ * sockets as one, since one socket product serves them all.
+ */
+export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
+export type ProductLabels = Record<ProductLabelKey, string>;
+
+const DEFAULT_PRODUCT_LABELS: ProductLabels = {
+  door: 'შიდა კარი',
+  entrance_door: 'შესასვლელი კარი',
+  window: 'ფანჯარა',
+  radiator: 'რადიატორი',
+  socket: 'როზეტი',
+  switch: 'ჩამრთველი',
+  tv: 'ტელევიზორი',
+  internet: 'ინტერნეტი',
+  light_ceiling: 'ჭერის განათება',
+  light_wall: 'კედლის სანათი',
+  light_spot: 'სპოტი',
+  light_strip: 'LED ლენტი',
+  light_furniture: 'ავეჯის განათება',
+};
+
+const fittingLabelKey = (kind: ElectricalPoint['kind']): ProductLabelKey => (kind.startsWith('socket') ? 'socket' : (kind as ProductLabelKey));
 
 export type BudgetSection = 'furniture' | 'lighting' | 'finishes' | 'openings' | 'electrical' | 'plumbing' | 'heating' | 'climate' | 'materials' | 'labour' | 'delivery';
 
@@ -99,6 +137,34 @@ export interface BudgetLine {
    * counts for nothing. Every total, section and basket leaves it out.
    */
   excluded?: boolean;
+  /**
+   * The catalogue product a product line is: its names in three languages, its category and
+   * the shop that sells it, carrying the *line's* quantity and total — a folded line is every
+   * instance together, not the first of them. A line that has one is something a store is
+   * asked for; the baskets, the checkout dialogue and the orders are read off these and
+   * nothing else (`orderedLines`).
+   */
+  product?: SceneProduct;
+  /** What that product is here — "Sofa", "Wall covering", "Interior door" — in the caller's language, for the basket. */
+  item?: string;
+}
+
+/** A budget line that is a product somebody sells. */
+export type ProductLine = BudgetLine & { product: SceneProduct };
+
+/**
+ * What is being bought: every product line still ticked, in the order the budget lists them.
+ * The one list the baskets, the checkout dialogue (`designCheckoutPart`) and the orders
+ * (`sceneLinesByStore`) are made from, so none of them can disagree with the sheet the
+ * person was looking at when they pressed the button.
+ */
+export function orderedLines(cost: Pick<DesignCost, 'lines'>): ProductLine[] {
+  return cost.lines.filter((line): line is ProductLine => !!line.product && !line.excluded);
+}
+
+/** A line's product as the line counts it: the snapshot with the folded quantity and total. */
+function lineProduct(product: SceneProduct, qty: number, total: number): SceneProduct {
+  return { ...product, qty, totalPrice: total };
 }
 
 export function priceScene(
@@ -121,10 +187,10 @@ export function priceScene(
   let furnitureTotal = 0;
   let lightingTotal = 0;
   const perRoom = new Map<string, number>();
-  const basketsByStore = new Map<number | 'none', StoreBasket>();
 
   // A made-to-measure kitchen is quoted by its façade, not by the model's price — the model
-  // is only what is drawn. Its lines come below, with the measurement on them.
+  // is only what is drawn. Its lines come below, with the measurement on them; it is a
+  // joiner's job and not a product line, so no store is sent it either.
   const kitchens = measureKitchens(scene.items, plan.rooms);
   const measured = new Set(kitchens.map((k) => k.itemId));
 
@@ -148,25 +214,14 @@ export function priceScene(
       unitPrice: product.pricePerUnit,
       total: product.totalPrice,
       estimated: false,
+      product,
+      item: archetypeLabel(item.kind, locale),
     });
     if (out) continue;
 
     furnitureTotal += product.totalPrice;
     if (isLight) lightingTotal += product.totalPrice;
     perRoom.set(item.roomId, (perRoom.get(item.roomId) ?? 0) + product.totalPrice);
-
-    const key = product.store?.id ?? 'none';
-    let basket = basketsByStore.get(key);
-    if (!basket) {
-      basket = { store: product.store, lines: [], subtotal: 0, deliveryFee: 0 };
-      basketsByStore.set(key, basket);
-    }
-    basket.lines.push({
-      item: archetypeLabel(item.kind, locale),
-      roomName: roomName.get(item.roomId) ?? item.roomId,
-      product,
-    });
-    basket.subtotal = round2(basket.subtotal + product.totalPrice);
   }
 
   // The kitchens, one line each: what a joiner measures (the façade in m², the worktop by
@@ -194,23 +249,19 @@ export function priceScene(
   const priced = scene.finishes.filter((f) => !have.surface(f.surface));
   const chargeable = priced.filter((f) => !f.product || !isOut(tickFor.finish(f.product.productId), f.product.productId));
   let finishesTotal = 0;
+  // Which surfaces each product lies on, for the basket's label: one tile on a bathroom's
+  // floor and its walls is one line, and says both.
+  const surfacesOf = new Map<number, SurfaceFinish['surface'][]>();
+  for (const finish of priced) {
+    if (!finish.product) continue;
+    const surfaces = surfacesOf.get(finish.product.productId) ?? [];
+    if (!surfaces.includes(finish.surface)) surfaces.push(finish.surface);
+    surfacesOf.set(finish.product.productId, surfaces);
+  }
   for (const finish of chargeable) {
     if (!finish.product) continue;
     finishesTotal += finish.product.totalPrice;
     perRoom.set(finish.roomId, (perRoom.get(finish.roomId) ?? 0) + finish.product.totalPrice);
-
-    const key = finish.product.store?.id ?? 'none';
-    let basket = basketsByStore.get(key);
-    if (!basket) {
-      basket = { store: finish.product.store, lines: [], subtotal: 0, deliveryFee: 0 };
-      basketsByStore.set(key, basket);
-    }
-    basket.lines.push({
-      item: options.surfaceLabels?.[finish.surface] ?? DEFAULT_SURFACE_LABELS[finish.surface],
-      roomName: roomName.get(finish.roomId) ?? finish.roomId,
-      product: finish.product,
-    });
-    basket.subtotal = round2(basket.subtotal + finish.product.totalPrice);
   }
   // What is being bought, for the "m² per material" list; the sheet lists every finish,
   // the ticked-off ones struck through in the place they would hold anyway.
@@ -229,6 +280,8 @@ export function priceScene(
       unitPrice: entry.product.pricePerUnit,
       total: entry.total,
       estimated: false,
+      product: lineProduct(entry.product, entry.areaM2, entry.total),
+      item: (surfacesOf.get(entry.product.productId) ?? []).map((surface) => options.surfaceLabels?.[surface] ?? DEFAULT_SURFACE_LABELS[surface]).join(', '),
     });
   }
   // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
@@ -262,8 +315,9 @@ export function priceScene(
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale, isOut);
-  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, isOut);
+  const productLabels: ProductLabels = { ...DEFAULT_PRODUCT_LABELS, ...options.productLabels };
+  const openingLines = have.has('openings') ? [] : priceOpenings(plan, full, phases, roomName, locale, isOut, productLabels);
+  const technicalLines = priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, isOut, productLabels);
   lines.push(...openingLines, ...technicalLines);
   const openingsTotal = round2(openingLines.reduce((s, l) => s + (l.excluded ? 0 : l.total), 0));
   const technicalTotal = round2(technicalLines.reduce((s, l) => s + (l.excluded ? 0 : l.total), 0));
@@ -273,7 +327,24 @@ export function priceScene(
     if (id) perRoom.set(id, (perRoom.get(id) ?? 0) + line.total);
   }
 
-  // --- delivery, once per store ---
+  // --- the baskets: what each store is asked for ---
+  // Read off the lines once every section has had its say, not gathered along the way: they
+  // were filled in the furniture loop and the finishes loop and nowhere else, so a door from
+  // one shop and a socket from another were priced above and belonged to no basket — and a
+  // shop that sold the flat nothing but its doors charged no delivery for bringing them.
+  const basketsByStore = new Map<number | 'none', StoreBasket>();
+  for (const line of orderedLines({ lines })) {
+    const key = line.product.store?.id ?? 'none';
+    let basket = basketsByStore.get(key);
+    if (!basket) {
+      basket = { store: line.product.store, lines: [], subtotal: 0, deliveryFee: 0 };
+      basketsByStore.set(key, basket);
+    }
+    basket.lines.push({ item: line.item ?? '', roomName: line.roomName ?? '', product: line.product });
+    basket.subtotal = round2(basket.subtotal + line.total);
+  }
+
+  // --- delivery, once per store, on everything that store is bringing ---
   const baskets = [...basketsByStore.values()].sort((a, b) => b.subtotal - a.subtotal);
   let deliveryTotal = 0;
   for (const basket of baskets) {
@@ -322,11 +393,11 @@ function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: s
  * renovation with the doors-and-windows phase ticked every opening is new; otherwise only
  * the ones the person added themselves are priced — the rest are already in the wall.
  */
-export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', isOut: (tick: string, productId?: number | null) => boolean = () => false): BudgetLine[] {
+export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', isOut: (tick: string, productId?: number | null) => boolean = () => false, labels: ProductLabels = DEFAULT_PRODUCT_LABELS): BudgetLine[] {
   const all = full && phases.includes(10);
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
-  const byProduct = new Map<number, { product: SceneProduct; qty: number; total: number; rooms: Set<string> }>();
+  const byProduct = new Map<number, { product: SceneProduct; label: ProductLabelKey; qty: number; total: number; rooms: Set<string> }>();
   for (const room of plan.rooms) {
     // The two halves of an interior door are listed in the same order on both sides of the
     // wall, so the n-th door between rooms A and B is one door however its halves sit.
@@ -342,7 +413,8 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
       }
       if (!all && opening.origin !== 'user') continue;
       if (opening.product && opening.kind !== 'archway') {
-        const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, qty: 0, total: 0, rooms: new Set<string>() };
+        const label: ProductLabelKey = opening.kind === 'window' ? 'window' : opening.exterior ? 'entrance_door' : 'door';
+        const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, label, qty: 0, total: 0, rooms: new Set<string>() };
         bought.qty += 1;
         bought.total = round2(bought.total + opening.product.pricePerUnit);
         bought.rooms.add(room.id);
@@ -355,7 +427,7 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
   }
   for (const bought of byProduct.values()) {
     const tick = tickFor.opening(bought.product.productId);
-    lines.push({ section: 'openings', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
+    lines.push({ section: 'openings', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false, product: lineProduct(bought.product, bought.qty, bought.total), item: labels[bought.label] });
   }
   return lines;
 }
@@ -387,7 +459,7 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
  * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
  * home only what the person added themselves is new work.
  */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, isOut: (tick: string, productId?: number | null) => boolean = () => false): BudgetLine[] {
+export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, isOut: (tick: string, productId?: number | null) => boolean = () => false, labels: ProductLabels = DEFAULT_PRODUCT_LABELS): BudgetLine[] {
   const lines: BudgetLine[] = [];
   const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
   const electricalOn = full && (phases.includes(3) || phases.includes(14));
@@ -397,7 +469,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   // same product across points folds into one row — and the rest are estimates grouped by
   // kind, so the budget reads "12 × socket" not twelve rows. The labour is per point either way.
   const byKind = new Map<string, { point: ElectricalPoint; units: number; labourUnits: number }>();
-  const byProduct = new Map<number, { product: NonNullable<ElectricalPoint['product']>; qty: number; total: number; light: boolean; rooms: Set<string> }>();
+  const byProduct = new Map<number, { product: NonNullable<ElectricalPoint['product']>; label: ProductLabelKey; qty: number; total: number; light: boolean; rooms: Set<string> }>();
   for (const point of electrical) {
     if (!(electricalOn || point.origin === 'user')) continue;
     // Already wired, or already lit: the flat came with it.
@@ -407,7 +479,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     const labour = ELECTRICAL_LABOUR[point.kind];
     const entry = byKind.get(point.kind) ?? { point, units: 0, labourUnits: 0 };
     if (point.product) {
-      const bought = byProduct.get(point.product.productId) ?? { product: point.product, qty: 0, total: 0, light: point.kind.startsWith('light_'), rooms: new Set<string>() };
+      const bought = byProduct.get(point.product.productId) ?? { product: point.product, label: fittingLabelKey(point.kind), qty: 0, total: 0, light: point.kind.startsWith('light_'), rooms: new Set<string>() };
       bought.qty = round2(bought.qty + point.product.qty);
       bought.total = round2(bought.total + point.product.totalPrice);
       bought.rooms.add(point.roomId);
@@ -420,7 +492,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   }
   for (const bought of byProduct.values()) {
     const tick = tickFor.fixture(bought.product.productId);
-    lines.push({ section: bought.light ? 'lighting' : 'electrical', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: bought.product.unit, unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false });
+    lines.push({ section: bought.light ? 'lighting' : 'electrical', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.qty, unit: bought.product.unit, unitPrice: bought.product.pricePerUnit, total: bought.total, estimated: false, product: lineProduct(bought.product, bought.qty, bought.total), item: labels[bought.label] });
   }
   for (const [kind, entry] of byKind) {
     const material = ELECTRICAL_MATERIAL_GEL[kind as ElectricalPoint['kind']];
@@ -460,7 +532,8 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   // ticked and once struck through.
   for (const bought of radiatorsBought.values()) {
     const tick = tickFor.radiator(bought.product.productId);
-    lines.push({ section: 'heating', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total: round2(bought.sections * bought.product.pricePerUnit), estimated: false });
+    const total = round2(bought.sections * bought.product.pricePerUnit);
+    lines.push({ section: 'heating', key: `product-${bought.product.productId}`, tick, ...(isOut(tick, bought.product.productId) ? { excluded: true } : {}), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total, estimated: false, product: lineProduct(bought.product, bought.sections, total), item: labels.radiator });
   }
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];

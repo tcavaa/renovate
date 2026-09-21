@@ -29,6 +29,9 @@ vi.mock('@/lib/api/productPrices', async (importOriginal) => {
         [1, { pricePerUnit: 100, nameKa: 'ლამინატი', unit: 'm2', coveragePerUnit: null }],
         [2, { pricePerUnit: 800, nameKa: 'დივანი', unit: 'piece', coveragePerUnit: null }],
         [3, { pricePerUnit: 50, nameKa: 'საღებავი', unit: 'liter', coveragePerUnit: 10 }],
+        [4, { pricePerUnit: 620, nameKa: 'კარი', unit: 'piece', coveragePerUnit: null }],
+        [5, { pricePerUnit: 30, nameKa: 'როზეტი', unit: 'piece', coveragePerUnit: null }],
+        [6, { pricePerUnit: 38, nameKa: 'რადიატორი (1 სექცია)', unit: 'piece', coveragePerUnit: null }],
       ]),
   };
 });
@@ -219,6 +222,53 @@ describe('POST /api/design/projects', () => {
     expect(body.data.cost.finishesTotal).toBe(100); // 20 m² × (50 GEL / 10 m² per litre)
     const inserted = insertValues.mock.calls[0][0] as { scene: { finishes: Array<{ product: { unit: string; qty: number } }> } };
     expect(inserted.scene.finishes[0].product).toMatchObject({ unit: 'm2', qty: 20 });
+  });
+
+  // A door, a socket and a radiator are order lines a store is sent, exactly as a sofa is —
+  // so their snapshots are no more to be trusted than a sofa's.
+  const fittedPlan = (doorId: number) => ({
+    ...plan,
+    rooms: [
+      {
+        ...plan.rooms[0],
+        openings: [{ id: 'd1', kind: 'door', wallIndex: 0, t: 0.5, widthM: 0.9, heightM: 2.1, sillM: 0, roomId: 'living', exterior: true, origin: 'user', product: snapshot(doorId, 7) }],
+      },
+    ],
+    technical: { points: [{ id: 't1', kind: 'radiator', roomId: 'living', position: { x: 2, z: 0.1 }, origin: 'user', sections: 8, product: snapshot(6, 1) }] },
+  });
+  const fittedScene = {
+    styleId: 'scandinavian',
+    mode: 'design_only',
+    budgetGel: null,
+    items: [],
+    finishes: [],
+    electrical: [{ id: 's1', roomId: 'living', kind: 'socket_double', position: { x: 1, z: 0.01 }, elevationM: 0.45, wallIndex: 0, t: 0.2, count: 2, origin: 'user', product: snapshot(5, 99) }],
+  };
+
+  it('reprices doors, fittings and radiators too: a door apiece, a double socket as two, a radiator by its sections', async () => {
+    const POST = await load();
+    const res = await POST(post('http://localhost/api/design/projects', { plan: fittedPlan(4), scene: fittedScene }), { params: Promise.resolve({}) });
+    expect(res.status).toBe(200);
+    const inserted = insertValues.mock.calls[0][0] as {
+      plan: { rooms: Array<{ openings: Array<{ product: Record<string, number> }> }>; technical: { points: Array<{ product: Record<string, number> }> } };
+      scene: { electrical: Array<{ product: Record<string, number> }> };
+    };
+    expect(inserted.plan.rooms[0].openings[0].product).toMatchObject({ pricePerUnit: 620, qty: 1, totalPrice: 620 });
+    expect(inserted.scene.electrical[0].product).toMatchObject({ pricePerUnit: 30, qty: 2, totalPrice: 60 });
+    expect(inserted.plan.technical.points[0].product).toMatchObject({ pricePerUnit: 38, qty: 8, totalPrice: 304 });
+    // And the budget that is stored and ordered from is made of those prices, not the forged 1 ₾.
+    const { cost } = (await res.json()).data;
+    expect(cost.openingsTotal).toBe(620);
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-5')).toMatchObject({ qty: 2, total: 60 });
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-6')).toMatchObject({ qty: 8, total: 304 });
+  });
+
+  it('refuses a door the catalogue does not know', async () => {
+    const POST = await load();
+    const res = await POST(post('http://localhost/api/design/projects', { plan: fittedPlan(999), scene: fittedScene }), { params: Promise.resolve({}) });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain('999');
+    expect(insertValues).not.toHaveBeenCalled();
   });
 
   it('refuses a finish for a room that is not on the plan', async () => {

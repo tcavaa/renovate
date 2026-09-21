@@ -1,7 +1,6 @@
-import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { DesignScene, FloorPlan } from '@/lib/design/types';
-import { FREE_DELIVERY_THRESHOLD_GEL } from '@/lib/design/pricing';
-import { tickFor, tickedOff } from '@/lib/design/ticks';
+import type { HomeState, ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
+import type { DesignCost, DesignScene, FloorPlan } from '@/lib/design/types';
+import { FREE_DELIVERY_THRESHOLD_GEL, orderedLines, priceScene } from '@/lib/design/pricing';
 
 /**
  * The marketplace arithmetic, with no database and no React.
@@ -104,7 +103,14 @@ export function orderTotals(items: ItemLike[], commissionPct: number): { subtota
   return { subtotal, commissionAmount: commissionFor(subtotal, commissionPct) };
 }
 
-function line(p: Pick<SelectedProduct, 'productId' | 'nameKa' | 'nameEn' | 'nameRu' | 'pricePerUnit' | 'unit' | 'qty'> & { categorySlug?: string | null }, roomName: string | null): OrderLineDraft {
+/** `order_items.room_name` is 255 characters, and a folded line names every room it covers. */
+const ROOM_NAME_MAX = 255;
+
+function clip(text: string | null, max: number): string | null {
+  return text && text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function line(p: Pick<SelectedProduct, 'productId' | 'nameKa' | 'nameEn' | 'nameRu' | 'pricePerUnit' | 'qty'> & { unit: string; categorySlug?: string | null }, roomName: string | null): OrderLineDraft {
   const qty = Number(p.qty) || 0;
   const unitPrice = Number(p.pricePerUnit) || 0;
   return {
@@ -113,7 +119,7 @@ function line(p: Pick<SelectedProduct, 'productId' | 'nameKa' | 'nameEn' | 'name
     nameEn: p.nameEn ?? null,
     nameRu: p.nameRu ?? null,
     categorySlug: p.categorySlug ?? null,
-    roomName,
+    roomName: clip(roomName, ROOM_NAME_MAX),
     unit: String(p.unit ?? 'piece'),
     qty,
     unitPrice,
@@ -169,26 +175,35 @@ export function calculatorLinesByStore(
 }
 
 /**
- * A design scene's furniture and finishes by store. The scene's own store snapshot is used
- * first; `storeOf` (the catalogue today) fills in when a snapshot has none.
+ * A priced design by store: one order line per product line of the budget that is still
+ * ticked (`orderedLines`). The line's own store snapshot is used first; `storeOf` (the
+ * catalogue today) fills in when a snapshot has none. The quantity and the price are the
+ * budget line's, the unit the product's own — the one the store sells it by — and the total
+ * is worked out the way every later edit of the order works it out, quantity × price.
  */
-export function sceneLinesByStore(plan: FloorPlan, scene: DesignScene, storeOf: StoreOf = () => null): LinesByStore {
+export function costLinesByStore(cost: Pick<DesignCost, 'lines'>, storeOf: StoreOf = () => null): LinesByStore {
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
-  const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
-  // Ticked off on the budget page: in the design, not in the order. A piece by its own
-  // tick, a finish by its product's (`lib/design/ticks`).
-  const isOut = tickedOff(scene.excluded);
-  for (const item of scene.items) {
-    if (!item.product || isOut(tickFor.item(item.id), item.product.productId)) continue;
-    const storeId = item.product.store?.id ?? storeOf(item.product.productId);
-    push(result, storeId, line(item.product as never, roomName.get(item.roomId) ?? null));
-  }
-  for (const finish of scene.finishes) {
-    if (!finish.product || isOut(tickFor.finish(finish.product.productId), finish.product.productId)) continue;
-    const storeId = finish.product.store?.id ?? storeOf(finish.product.productId);
-    push(result, storeId, line(finish.product as never, roomName.get(finish.roomId) ?? null));
+  for (const bought of orderedLines(cost)) {
+    const storeId = bought.product.store?.id ?? storeOf(bought.product.productId);
+    push(result, storeId, line({ ...bought.product, qty: bought.qty, pricePerUnit: bought.unitPrice }, bought.roomName ?? null));
   }
   return result;
+}
+
+/**
+ * What a design sends to the stores — everything the budget lists as a product and nothing
+ * it does not: furniture, finishes, doors and windows, sockets, switches, lamps, radiators.
+ *
+ * It prices the scene rather than walking it. Only `priceScene` knows which door is new work
+ * and which was already in the wall, what the flat already has, that the two halves of an
+ * interior door are one door, how many sections a radiator comes to and what was ticked off;
+ * a second reading of the scene here is how doors and fittings came to have a price on the
+ * budget and no order behind it. `homeState` must be the project's own, as the budget page
+ * prices with it: in a renovation it decides which phases — and so which openings and
+ * points — are being paid for.
+ */
+export function sceneLinesByStore(plan: FloorPlan, scene: DesignScene, storeOf: StoreOf = () => null, options: { homeState?: HomeState | null } = {}): LinesByStore {
+  return costLinesByStore(priceScene(plan, scene, { homeState: options.homeState ?? undefined }), storeOf);
 }
 
 /** Units of each product an earlier checkout of the project already sent to a store. */

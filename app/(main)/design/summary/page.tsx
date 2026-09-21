@@ -14,7 +14,7 @@ import { Figure } from '@/components/calculator/MaterialsTable';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { localizedName, materialLabel, workTypeLabel } from '@/lib/i18n/labels';
+import { basketLabels, localizedName, materialLabel, workTypeLabel } from '@/lib/i18n/labels';
 import { budgetSections, budgetSummary, priceScene, type BudgetLine, type BudgetSection } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
@@ -78,10 +78,7 @@ export default function BudgetPage() {
 
   const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded]);
   const { book } = useRateBook();
-  const priceOptions = useMemo(
-    () => ({ homeState: homeState ?? undefined, book, locale, surfaceLabels: { floor: t.design.finishFloor, wall: t.design.finishWall, ceiling: t.design.finishCeiling } }),
-    [homeState, book, locale, t]
-  );
+  const priceOptions = useMemo(() => ({ homeState: homeState ?? undefined, book, locale, ...basketLabels(t) }), [homeState, book, locale, t]);
   /** The project as it stands: what is being ordered. */
   const cost = useMemo(() => (plan ? priceScene(plan, scene, priceOptions) : null), [plan, scene, priceOptions]);
   /**
@@ -125,7 +122,9 @@ export default function BudgetPage() {
   const style = getStyle(styleId);
   const areaM2 = totalFloorAreaM2(plan);
   const fee = platformFee(areaM2, fees.designFeePerM2);
-  const designPart = designCheckoutPart(plan, items, finishes, fees.designFeePerM2, locale, excluded);
+  // From the budget on this page, not from the scene: the dialogue lists the product lines
+  // above that are still ticked — doors, fittings and radiators with the rest.
+  const designPart = designCheckoutPart(plan, cost, fees.designFeePerM2, locale);
   const checkoutParts: CheckoutPart[] = [
     ...(calculatorPicks && calculator.rooms.length > 0 ? [calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale)] : []),
     ...(designPart ? [designPart] : []),
@@ -332,9 +331,8 @@ export default function BudgetPage() {
                       <tr key={`${line.product.productId}-${i}`} className="border-b border-line/70 last:border-b-0">
                         <td className="py-2.5 pl-4 pr-2">
                           <p className="font-medium text-ink">{localizedName(locale, line.product)}</p>
-                          <p className="text-xs text-ink-muted">
-                            {line.item} · {line.roomName}
-                          </p>
+                          {/* A folded line names every room it covers; a radiator with no room names none. */}
+                          <p className="text-xs text-ink-muted">{[line.item, line.roomName].filter(Boolean).join(' · ')}</p>
                         </td>
                         <td className="whitespace-nowrap py-2.5 text-right text-xs tabular-nums text-ink-muted">
                           {line.product.qty !== 1 && `${formatNumber(line.product.qty)} × `}

@@ -747,14 +747,42 @@ total and was listed twice, once ticked and once struck through. The second pric
 only to say what the ticks came to (`fullCost.grandTotal − cost.grandTotal`), because a product
 that is out can take its store's delivery with it. **What a tick takes out is the product; the
 labour stays** — a socket somebody already owns still has to be wired, a radiator hung, a
-skirting board fitted. `designCheckoutPart` and `sceneLinesByStore` read the same keys, so the
-dialogue lists what the stores are sent; the calculator's summary and the project page's order
-button pass the ticks too (they used to list everything). Only product lines carry a `tick`: a
+skirting board fitted. The dialogue and the orders do not read the ticks at all any more: they
+read the lines (next paragraph), and a ticked-off line is simply not one of them. Only product
+lines carry a `tick`: a
 labour row, a bulk material and a catalogue-free estimate are what the work costs whoever does
 it. `tests/unit/design/ticks.test.ts` pins all of it, including that the totals card's rows,
 the sections and the header figures each come to the grand total in both modes — the card
 hid its labour row outside a renovation, and a design-only project that chose a skirting board
 pays to have it fitted, so its rows came up short of the total under them.
+
+**What is bought is read off the budget, by everyone** (`orderedLines`). Every product line
+carries its `product` — the snapshot with its three names, its category and its shop, holding
+the *line's* quantity and total, so a folded line (one paint over five rooms, twelve sockets of
+one model, a radiator's sections) is every instance together and not the first of them — and
+an `item`, what the product is here ("Sofa", "Wall covering", "Interior door"). The lines that
+have one and are still ticked are the one list three things are made from: the **baskets**
+per store, built at the end of `priceScene` from those lines and only then charged delivery
+(`deliveryFeeFor`, once per store, on everything that store is bringing); the **checkout
+dialogue** (`designCheckoutPart(plan, cost, …)`, which takes the priced design, not the scene);
+and the **orders** (`costLinesByStore` / `sceneLinesByStore` in `lib/finance/money.ts`). All
+three used to walk `scene.items` and `scene.finishes` themselves, from when nothing else was a
+product: a door from Domus or a socket from Lumina had a price and a tick on the sheet, no
+basket, no delivery and no order — a flat whose budget said 31 873 ₾ of products was offered
+29 697 ₾ of them at checkout. Walking the scene a second time is also the wrong shape for the
+fix, because only `priceScene` knows which door is new work (`all` / `origin: 'user'`, the
+ticked phases), what the flat already has (`plan.technical.existing`), that two halves of an
+interior door are one door, and how many sections a radiator comes to. **Do not re-derive any
+of that in an order builder; add the product to the line.** Three things follow from reading
+the lines that the old loops got wrong in the other direction: a finish the flat already has
+and a made-to-measure kitchen (an estimate, a joiner's job) are on nobody's order, and a paint
+brushed on in twenty strips is one order line of its square metres rather than twenty.
+The basket labels follow the `surfaceLabels` pattern — `productLabels` in `PriceOptions`, the
+four sockets as one key, Georgian defaults — and `basketLabels(t)` in `lib/i18n/labels.ts`
+hands a page both maps from the dictionary (the `ek*`, `tkRadiator` and `line*` strings the
+fitting cards and the estimates already use). **Delivery rose for scenes whose doors or
+fittings come from a shop below `FREE_DELIVERY_THRESHOLD_GEL`** — that shop was always going to
+charge for the van; the budget now says so.
 
 **The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
 draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
@@ -1043,6 +1071,10 @@ quote is the one a joiner gives: the façade of the lower units and of the upper
 square metre, the worktop and the fitting by the running metre (`KITCHEN_RATES`). The
 measurement is in `DesignCost.kitchens` and the budget's line carries the m², marked as an
 estimate. A person who would rather buy a stock kitchen sets `custom: false` on the item.
+An estimate is not a product line, so a measured kitchen is in no basket and on no store's
+order — the checkout used to send the shop the model at its catalogue price all the same,
+while the budget charged the joiner's quote; `custom: false` makes it a product and an order
+line again.
 
 ### Finishes (`lib/design/surfaces.ts`, `components/design/FinishPanel.tsx`)
 
@@ -1466,9 +1498,11 @@ collected (there is no payment integration; the fee is shown on the summaries an
 summary → "შეკვეთის გაფორმება" → CheckoutDialog (name, phone, e-mail; guests welcome)
   → saves the project if it is not saved yet (each summary in its own shape)
   → POST /api/checkout { projectId, customer }
-      lib/finance/money.ts     group the project's picks by store (calculator: products.storeId
-                               lookup; design: the scene's store snapshot), one order per store,
-                               delivery per store, commission at that store's rate, fee = m² × rate
+      lib/finance/money.ts     group what is bought by store (calculator: the picks, by a
+                               products.storeId lookup; design: the *budget's* product lines —
+                               priceScene, see below — by the line's store snapshot, the lookup
+                               filling in), one order per store, delivery per store, commission
+                               at that store's rate, fee = m² × rate
       lib/finance/orders.ts    one transaction: checkout + orders + items; project → 'submitted'
       lib/finance/notify.ts    mail to every store (MAIL_DRIVER=log in dev → logs/app-*.log)
                                and to the customer; never fatal
@@ -1488,6 +1522,43 @@ would be charged or sent the route answers `PROJECT_ALREADY_ORDERED`. The checko
 shows one quick line per half — fee, products, a half already paid marked as such — with the
 full list a click away, and `GET /api/checkout?projectId=` tells it what was ordered before.
 Items nobody sells (product without a store) are left out and reported as `unassigned`.
+
+**A design is ordered from its budget, not from its scene.** `sceneLinesOf` prices the saved
+project once — `priceScene(plan, scene, { homeState: project.homeState })` — and
+`costLinesByStore` turns the product lines still ticked (`orderedLines`, see "Budget") into
+order lines: the furniture and the finishes, and the doors, windows, sockets, switches, lamps
+and radiators, which had been budget lines without anybody being sent an order for one.
+The store lookup covers every product id on those lines (it used to be gathered from items and
+finishes). `sceneLinesByStore(plan, scene, storeOf, { homeState })` is the same thing in one
+call. **The home state is not optional in spirit**: in a renovation it decides the phases, and
+the phases decide which openings and points are new work, so an order priced without the
+project's own would send a green frame its doors. The quantity and the price on an order line
+are the budget line's; the unit is the product's own (a radiator's sections go out as so many
+`piece`s of a product named "(1 სექცია)", a skirting by `linear_m`); the total is
+`lineTotal(qty, unitPrice)`, because that is how `applyOrderEdit` will work it out at the first
+edit, and an order whose subtotal moved a tetri when its status changed would be worse than
+one that differs a tetri from a sheet. A folded line names every room it covers, clipped to
+the 255 characters `order_items.room_name` holds — forty rooms of sockets would otherwise
+fail the whole transaction. `mergeLines` needed no change: it already dedupes and nets off
+per product, which is what a folded line is. What it does mean is that a line partly ordered
+before is now the ordinary case (twelve sockets ordered, a thirteenth added), so the dialogue
+shows what is left to send (`CheckoutPart.lines[].unitPrice`), priced as the server prices it,
+instead of the whole line again.
+
+**The three callers price the way the server will.** The design's budget page hands the
+dialogue the `cost` already on screen. The project page's `OrderProjectButton` prices the row
+as saved, with the row's home state. The calculator's summary is the odd one: its own save
+writes the *calculator's* home state into the shared row and turns the stored scene into a
+renovation (`mode: 'full'`), and the order is priced from that row — so that page prices the
+design half as `mode: 'full'` against the calculator's home state, not the studio's.
+
+**Everything an order line is made of is repriced on save.** `POST /api/design/projects`
+looked up catalogue prices for `scene.items` and `scene.finishes` only, which was the whole
+order at the time. The snapshots on openings (`plan.rooms[].openings[].product`, one apiece),
+on fittings (`scene.electrical[].product`, `fixtureQuantity` of them) and on radiators
+(`plan.technical.points[].product`, `radiatorSections` of them) are repriced the same way
+now, and one the catalogue does not know refuses the save like an unknown sofa does — a price
+edited in devtools would otherwise have gone to a store as an order.
 
 **Partner portal (`/partner`)** — a `store` / `worker` account sees its own orders and
 nothing else: dashboard (unread, open, this month's sales, the platform's cut, their share),
@@ -1512,7 +1583,11 @@ status, total, delivery, and whatever the partner wrote back — and can order a
 from there (`OrderProjectButton`, the same dialog built from the row as saved).
 
 `tests/unit/finance/money.test.ts` covers the arithmetic — fee, commission, grouping,
-delivery, struck-out lines, report periods — and `lib/finance/money.ts` is in the coverage
+delivery, struck-out lines, report periods — and that a door, a fitting and a radiator each
+reach their store as the budget counts them, fold into what was ordered before and go nowhere
+when ticked off; `tests/unit/design/ticks.test.ts` pins that basket, dialogue and order agree
+line for line; `tests/integration/save-routes.test.ts` that a forged door, socket or radiator
+price never reaches the row. `lib/finance/money.ts` is in the coverage
 gate. Everything that touches the database (`orders.ts`, `report.ts`, `settings.ts`) is
 exercised by the routes, not by unit tests.
 
@@ -1863,12 +1938,21 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   ticked on its own, but a line the budget folds per product — a finish over every room it is
   on, the doors of one model, the sockets of one model, the radiators of one design — is in or
   out as a whole.
-- **Doors, windows, fittings and radiators are budget lines but are not ordered.** The
-  per-store baskets (`cost.baskets`), `designCheckoutPart` and `sceneLinesByStore` were written
-  when only furniture and finishes were products and still list only those: a door from Domus
-  or a socket from Lumina has a price and a tick on the budget, no basket, no delivery line of
-  its own and no order line at checkout. The honest fix is to derive all three from
-  `priceScene`'s product lines (it alone knows which openings and points are new work).
+- The two halves of a project agree on a product only by its id. The studio inherits the
+  calculator's furniture and finishes, so those are one order line; it does not inherit a door,
+  a window or a socket picked in the calculator (`applyFinishPicks`: "a pick that is not a
+  finish is simply not a finish") and gives every opening and point a product of its own. Now
+  that the studio's doors and fittings are ordered, a project with both halves whose calculator
+  picked door A while the studio hung door B is sent both — the same thing a sofa swapped in
+  the studio has always done to the calculator's sofa. The tick on either summary is the way
+  out until calculator picks of those kinds reach the openings and the points.
+- The project page's "3D design products" block (`designLines` in `ProjectDetail`) still walks
+  the scene — furniture and finishes, whatever is ticked — so it lists neither the doors, the
+  fittings and the radiators the order button beside it will send, nor leaves out the
+  made-to-measure kitchen it will not. It is an inventory, not an order, which is why it was
+  left; reading `cost.baskets` would make the two agree.
+- The checkout dialogue totals the goods and the fee; the delivery each store will add is on
+  the budget (`cost.baskets`) and on the order, not in the dialogue.
 - Each finish is priced by its own area: a base wall finish is charged for the whole room's
   walls even where one wall, a strip or a square metre of another product lies over it, so
   overlaid finishes over-count the base by the area they cover.
