@@ -1702,6 +1702,7 @@ export const en: Dictionary = {
     aiLowConfidence: 'The dimensions printed on the plan disagree slightly — please check the rooms.',
     dragHint: 'Drag furniture to move it · R to rotate · WASD / arrows to move the view',
     carryHint: 'The item is on your pointer · move it over the room and click to set it down · R — rotate · Esc — cancel',
+    carrySwapHint: 'It does not fit where the old one stood · move it over the room and click where it fits · R — rotate · Esc — the old piece comes back',
     carryStarted: 'The item is on your pointer — place it in the room: green outline = fits, red = not yet. Esc cancels.',
     walkHint: 'Drag to look · WASD or arrows to walk · Shift to hurry',
     tightPassage: 'Tight passage — {n} cm',

@@ -11,6 +11,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { registerFootprintMask } from '@/lib/design/footprintMasks';
+import { footprintMaskOf } from './footprintFromModel';
 
 interface CachedModel {
   object: THREE.Object3D;
@@ -49,6 +51,14 @@ export function loadModel(url: string): Promise<THREE.Object3D> {
       pivot.position.set(-centre.x, -box.min.y, -centre.z);
       const root = new THREE.Group();
       root.add(pivot);
+      // The floor the model really covers, for the pieces that are not their whole box — a
+      // corner sofa, an L-shaped desk — so that something can stand in the corner they leave
+      // (`footprintMasks`). Read once per file; a model that fails here is simply its box.
+      try {
+        registerFootprintMask(url, footprintMaskOf(root, size));
+      } catch {
+        registerFootprintMask(url, null);
+      }
       return { object: root, size };
     });
     modelCache.set(url, entry);

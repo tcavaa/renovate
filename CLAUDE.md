@@ -1068,6 +1068,15 @@ one, so the column leaves the strip and goes on wearing its product as squares, 
 the erased one (`erasePatchFromStrip`), priced as what is left. The 2D board draws the same
 order — whole wall, strips, squares — whatever order the finishes are stored in.
 
+**"The whole room" is the whole room.** A swatch picked in the room scope (`setFinish`) takes
+everything off that surface in those rooms before it lays the new base: a wall's own finish,
+the strips, the square metres; on a floor the painted tiles and the drawn zones (a zone that
+was selected is let go of). It used to replace the base only, so a room painted white kept
+its old stripes on top and nothing said why — the accents are one Ctrl+Z away, or painted
+again over the new colour. The style default in that scope is therefore the room's eraser.
+`finishQuantity` reads `cells` on a *wall* as square metres of that wall (`patchesAreaM2`);
+it read them as floor tiles once, and a patch near the ceiling was priced at nothing.
+
 **While the finishes category is open the pointer sees the room and nothing else**: the
 viewer picks through `shellHitAt` (floors, walls, zones), so the sofa in front of the wall,
 the socket on it and the door in it can be neither clicked nor dragged, and the 2D board
@@ -1258,6 +1267,25 @@ your mind about the first, not asking for both. Before this the first piece was 
 wherever `placeAdditional` had put it — usually beside the bed, since that is where the free
 floor is — and the person had a sofa they never placed and did not want.
 
+**A swap that does not fit rides on the pointer too** (`swapProduct(itemId, product, { carry })`).
+`fitSwapped` (`lib/design/manipulate.ts`) says where the new product stands: a piece against
+a wall keeps its *back* on the wall rather than its centre where it was (a deeper sofa with
+the same centre has its back through the plaster; only the step towards the wall is taken,
+never the grid's rounding along it), anything else stays put when it fits and is otherwise
+eased back inside the room. It never goes looking across the room. When it answers null the
+3D view gets the new piece on the pointer with the old one kept in `carryRestore`; Escape
+(`cancelCarry`), another tile off the shelf, or leaving the 3D view put the old piece back,
+selected. Without `carry` (nothing can carry on the 2D board) it goes in as it is, outlined
+red. Before this a sofa twice the size was simply stood through the television.
+
+**A carry is one step of history, and nothing until it is set down.** `beginAdd` and a
+carrying swap use `set`, `placeItem` of the carried piece (the R key, the set-down) is
+silent, and `finishCarry` pushes the single snapshot — `beforeCarry`, the flat as Escape
+would leave it. `commit`, `undo`, the persisted `items` and `scene()` (what is saved and
+priced) all read `withoutCarry`, so a reload or an autosave in the middle of a carry never
+keeps a piece nobody put anywhere. Only the 3D view carries: a tile clicked on the 2D board
+is `addItem`, and the page cancels a carry when the view changes.
+
 Every row of that catalogue list is also **draggable straight into the 3D view** (HTML5
 drag and drop, `FURNITURE_DRAG_TYPE` on the `dataTransfer`): the studio's workspace accepts
 the drop, asks the viewer which floor point and room lie under the pointer
@@ -1297,6 +1325,28 @@ make that land cleanly. `snapPlacement` squares the rotation to the nearest wall
 position to a 5 cm grid, pushes the item flush if it was shoved against a wall, clamps it
 inside the room and reports whether it collides. An invalid drop is refused and the item
 returns to where it came from, outlined in red on the way.
+
+**A rug gets in nothing's way, and nothing gets in a rug's** (`blockersFor`). `blockingItems`
+always left the ghosts (rugs, pendants, artwork, curtains) out of what a dragged piece must
+avoid, but the rule ran one way: the layout engine laid the rug under the sofa, and once a
+person picked that rug up there was no floor in the room to put it down on again, because
+every spot worth a rug has furniture on it. A moving ghost now has no blockers; the walls
+still hold it in.
+
+**A piece covers the floor its model covers, not its box** (`lib/design/footprintMasks.ts`,
+`lib/design3d/footprintFromModel.ts`). A corner sofa's bounding box includes the corner it
+leaves empty, and nothing could stand there. When `loadModel` has a file, the model is looked
+at from above on a 12 × 12 grid — a real triangle-against-square test, because the box of a
+cushion's diagonal triangle covers exactly the empty corner — and the covered cells are
+merged into at most eight rectangles, as fractions of the box (so `fitToItem`'s stretch does
+not matter). A model that fills its box (less than 12 % empty) or is too ragged registers
+`null` and stays a box. `itemFootprints` turns and mirrors the parts with the item;
+`snapPlacement`, `rotateItem` and `isPlacementValid` test piece against piece with them and
+the *walls* against the whole box (the outside of an L is the outside of its box). The
+registry is plain data filled by the viewer, so `lib/design` stays free of three.js; until a
+model has loaded, and everywhere else (`placeFitting`, `placeAdditional`, `tightSpots`), a
+piece is its box, which only ever errs on the side of keeping things apart.
+`tests/unit/design3d/footprintFromModel.test.ts` runs the real Kenney corner sofa through it.
 
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
 the nearest wall would instantly undo every rotation of anything already sitting flush. It
@@ -1994,6 +2044,9 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   zones are drawn in 2D (the whole room, one wall, half the floor, a painted tile, a painted
   strip and a painted wall patch all work from 3D). Beams are not obstacles for the layout
   engine.
+- A model's real footprint (`footprintMasks`) is known only once the 3D view has loaded that
+  file in this session; the 2D board still draws every piece as its box, and the layout
+  engine, the matcher's fit check and the tight-passage warning all use the box.
 - The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
   room programs, `snapPlacement` and the footprints assume right angles).
 - Estimates for pipes and air conditioning (`lib/design/technicalRates.ts`) are market

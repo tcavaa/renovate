@@ -87,6 +87,9 @@ describe('wall strips', () => {
     expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1 })).toBeCloseTo(7, 6);
     expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1, span: { from: 0, to: 1 } })).toBeCloseTo(2.8, 6);
     expect(finishQuantity(room, { ...base, surface: 'floor', cells: [[0, 0], [3, 2]] })).toBeCloseTo(1.16, 6);
+    // The same two pairs on a wall are square metres of that wall — a whole one at its foot
+    // and the 0.8 m left under a 2.8 m ceiling — not floor tiles that happen to share the numbers.
+    expect(finishQuantity(room, { ...base, surface: 'wall', wallIndex: 1, cells: [[0, 0], [0, 2]] })).toBeCloseTo(1.8, 6);
     expect(finishQuantity(room, { ...base, surface: 'cornice' })).toBeCloseTo(11.6, 6);
     expect(finishQuantity(room, { ...base, surface: 'skirting' })).toBeCloseTo(10.7, 6);
   });

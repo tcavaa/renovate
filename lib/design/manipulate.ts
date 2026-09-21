@@ -17,6 +17,7 @@ import {
   type PlanEdge,
 } from './planGeometry';
 import { getArchetype } from './catalog';
+import { footprintMaskFor } from './footprintMasks';
 import type { PlacedItem, PlanRoom, Vec2 } from './types';
 
 /** Axis-aligned box in the ground plane. */
@@ -110,6 +111,56 @@ export function blockingItems(items: PlacedItem[], roomId: string, ignoreId: str
   );
 }
 
+/**
+ * What *this* piece has to avoid. The rule above cuts both ways: a rug gets in nothing's
+ * way, and nothing gets in a rug's. It only ran one way — the layout engine laid the rug
+ * under the sofa, and the moment a person picked that rug up there was no floor in the room
+ * it could be put down on again, because every spot worth a rug has furniture standing on it.
+ */
+function blockersFor(item: PlacedItem, others: PlacedItem[], roomId: string): PlacedItem[] {
+  return getArchetype(item.kind)?.ghost ? [] : blockingItems(others, roomId, item.id);
+}
+
+/**
+ * The floor an item really covers: its bounding box, or — when its model is known to leave
+ * part of that box empty (`footprintMasks`: a corner sofa, an L-shaped desk) — the parts it
+ * does cover. Each part is turned with the item and boxed on the axes, which is exact at the
+ * right angles furniture stands at and conservative in between, like `footprintOf`.
+ */
+export function itemFootprints(item: Pick<PlacedItem, 'position' | 'size' | 'rotation' | 'mirrored' | 'product'>, pose?: Placement): Footprint[] {
+  const position = pose?.position ?? item.position;
+  const rotation = pose?.rotation ?? item.rotation;
+  const mask = footprintMaskFor(item.product?.model3dUrl);
+  if (!mask) return [footprintOf(position, item.size, rotation)];
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return mask.map((rect) => {
+    // A mirrored piece is the same model flipped across its facing axis.
+    const x0 = item.mirrored ? 1 - rect.x1 : rect.x0;
+    const x1 = item.mirrored ? 1 - rect.x0 : rect.x1;
+    const box: Footprint = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+    for (const fx of [x0, x1]) {
+      for (const fz of [rect.z0, rect.z1]) {
+        const lx = (fx - 0.5) * item.size.width;
+        const lz = (fz - 0.5) * item.size.depth;
+        // The wrapper's yaw, as three.js turns it: x' = x·cos + z·sin, z' = −x·sin + z·cos.
+        const x = position.x + lx * cos + lz * sin;
+        const z = position.z - lx * sin + lz * cos;
+        box.minX = Math.min(box.minX, x);
+        box.maxX = Math.max(box.maxX, x);
+        box.minZ = Math.min(box.minZ, z);
+        box.maxZ = Math.max(box.maxZ, z);
+      }
+    }
+    return box;
+  });
+}
+
+/** Do any of the floor these two pieces cover coincide? */
+function coverOverlaps(a: Footprint[], b: Footprint[]): boolean {
+  return a.some((p) => b.some((q) => footprintsOverlap(p, q)));
+}
+
 // ---------------------------------------------------------------------------
 // Snapping
 // ---------------------------------------------------------------------------
@@ -146,13 +197,11 @@ export function snapPlacement(
   position = clampInsideRoom(room, position, item.size, flush?.rotation ?? rotation);
   const finalRotation = flush?.rotation ?? rotation;
 
+  // The walls are tested against the whole box — the outside of an L is the outside of its
+  // box — and the other pieces against the floor each really covers.
   const footprint = footprintOf(position, item.size, finalRotation);
-  const blockers = blockingItems(others, room.id, item.id);
-  const valid =
-    footprintInRoom(footprint, room.polygon) &&
-    !blockers.some((other) =>
-      footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))
-    );
+  const cover = itemFootprints(item, { position, rotation: finalRotation });
+  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
 
   return { position, rotation: finalRotation, valid, snappedToWall };
 }
@@ -406,7 +455,7 @@ export function rotateItem(
   others: PlacedItem[]
 ): SnapResult {
   const rotation = item.rotation + steps * ROTATE_STEP_RAD;
-  const blockers = blockingItems(others, room.id, item.id);
+  const blockers = blockersFor(item, others, room.id).map((other) => itemFootprints(other));
   const bounds = polygonBounds(room.polygon);
   const centre = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
 
@@ -420,12 +469,9 @@ export function rotateItem(
       rotation
     );
     const footprint = footprintOf(candidate, item.size, rotation);
+    const cover = itemFootprints(item, { position: candidate, rotation });
 
-    const fits =
-      footprintInRoom(footprint, room.polygon) &&
-      !blockers.some((other) =>
-        footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))
-      );
+    const fits = footprintInRoom(footprint, room.polygon) && !blockers.some((other) => coverOverlaps(cover, other));
 
     if (fits) return { position: candidate, rotation, valid: true, snappedToWall: false };
   }
@@ -441,9 +487,35 @@ export function rotateItem(
 export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[]): boolean {
   const footprint = footprintOf(item.position, item.size, item.rotation);
   if (!footprintInRoom(footprint, room.polygon)) return false;
-  return !blockingItems(others, room.id, item.id).some((other) =>
-    footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))
-  );
+  const cover = itemFootprints(item);
+  return !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
+}
+
+/**
+ * Where a piece stands once its product has been swapped for one of another size — or null
+ * when it fits nowhere near where the old one stood.
+ *
+ * A piece against a wall keeps its *back* on the wall, not its centre where it was: a deeper
+ * sofa with the same centre has its back through the plaster, a shallower one stands a hand
+ * away from it. Anything else stays where it is when it fits there, and is otherwise eased
+ * back inside the room. What this never does is go looking across the room for a free spot:
+ * the person chose where the sofa goes, and a sofa that no longer fits there is theirs to
+ * put somewhere else (the studio hands it to the pointer).
+ */
+export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedItem[]): PlacedItem | null {
+  const snapped = snapPlacement(room, swapped, { position: swapped.position, rotation: swapped.rotation }, others);
+  const eased = { ...swapped, position: snapped.position, rotation: snapped.rotation };
+  if (snapped.valid && snapped.snappedToWall) {
+    // Only the step towards or away from the wall is wanted. The snap also rounds the place
+    // along the wall to the grid, and a sofa that shifts two centimetres sideways whenever
+    // its product changes is no longer in front of its coffee table.
+    const n = { x: Math.sin(snapped.rotation), z: Math.cos(snapped.rotation) };
+    const step = (snapped.position.x - swapped.position.x) * n.x + (snapped.position.z - swapped.position.z) * n.z;
+    const straight = { ...eased, position: { x: swapped.position.x + n.x * step, z: swapped.position.z + n.z * step } };
+    return isPlacementValid(room, straight, others) ? straight : eased;
+  }
+  if (isPlacementValid(room, swapped, others)) return swapped;
+  return snapped.valid ? eased : null;
 }
 
 function normalise(v: Vec2): Vec2 {

@@ -61,7 +61,7 @@ import { technicalAnchors, technicalElevation, TECHNICAL_KINDS } from '@/lib/des
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
-import { isPlacementValid } from '@/lib/design/manipulate';
+import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
 import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
 import { pruneQuantities, pruneTicks, tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
@@ -159,6 +159,12 @@ interface DesignState {
   selectedElement: ElementSelection;
   /** An item just added from the catalogue, riding on the pointer until it is clicked down. */
   carryingItemId: string | null;
+  /**
+   * What Escape puts back, when the piece on the pointer is a *swap* that found no room where
+   * the old one stood: the old piece, exactly as it was. Absent for a piece that was simply
+   * added — giving that one up removes it.
+   */
+  carryRestore: PlacedItem | null;
   /** Walls, doors and windows are locked until the person unlocks them in the toolbar. */
   structureLocked: boolean;
   /** A piece copied with Ctrl+C, waiting for Ctrl+V. */
@@ -312,7 +318,13 @@ interface DesignActions {
   addFinishZone: (roomId: string, zone: FinishZone, product: CatalogProduct | null) => string;
   updateFinishZone: (roomId: string, zoneId: string, patch: { zone?: FinishZone; product?: CatalogProduct | null }) => void;
   removeFinishZone: (roomId: string, zoneId: string) => void;
-  swapProduct: (itemId: string, product: CatalogProduct) => void;
+  /**
+   * Gives a placed piece another product. When the new one fits where the old one stood — as
+   * it is, or pushed back flush against its wall, which is all a deeper sofa usually needs —
+   * it takes its place. When it does not, it is handed to the pointer (`carry`, the 3D view)
+   * for the person to find it a place; Escape puts the old piece back. Returns which happened.
+   */
+  swapProduct: (itemId: string, product: CatalogProduct, options?: { carry?: boolean }) => 'swapped' | 'carrying' | null;
   /**
    * Puts one more product into a room: the layout engine finds it a spot among what is
    * already there. Returns the new item's id, or null when the room has no room for it.
@@ -398,6 +410,7 @@ const initial: DesignState = {
   selectedItemId: null,
   selectedElement: null,
   carryingItemId: null,
+  carryRestore: null,
   selectedRoomIds: [],
   generated: false,
   structureLocked: true,
@@ -433,7 +446,7 @@ function createDesignStore(storageName: string) {
         set((s) => {
           const next = recipe(s);
           if (!next) return s;
-          return { ...next, history: pushHistory(s.history, snapshotOf(s)) };
+          return { ...next, history: pushHistory(s.history, beforeCarry(s)) };
         });
 
       /** A plan edit that changed the rooms: prune what belonged to rooms that are gone, re-home the rest. */
@@ -927,6 +940,7 @@ function createDesignStore(storageName: string) {
               selectedItemId: null,
               selectedElement: null,
               carryingItemId: null,
+              carryRestore: null,
               ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}),
               generated: true,
               versions: [],
@@ -943,6 +957,7 @@ function createDesignStore(storageName: string) {
             selectedItemId: null,
             selectedElement: null,
             carryingItemId: null,
+            carryRestore: null,
           })),
 
         startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null }) => {
@@ -1022,13 +1037,19 @@ function createDesignStore(storageName: string) {
           commit((s) => {
             if (!s.plan) return null;
             const rooms = s.plan.rooms.filter((r) => roomIds.includes(r.id));
-            // The room's base finish for the surface; single walls and zones on it stay.
-            const next = s.finishes.filter((f) => !(f.surface === surface && roomIds.includes(f.roomId) && isBaseFinish(f)));
+            // "The whole room" is the whole room. Whatever was painted on this surface before —
+            // one wall, a metre-wide strip, a square metre, a zone of the floor — is painted
+            // over with the rest, the way a roller goes over an accent. They used to stay on
+            // top, so a room painted white kept its old stripes and nothing said why; the one
+            // who wants the accent back has Ctrl+Z, or paints it again over the new colour.
+            const next = s.finishes.filter((f) => !(f.surface === surface && roomIds.includes(f.roomId)));
             for (const room of rooms) {
               if (isTrimSurface(surface)) next.push(product ? trimFromProduct(room, surface, product) : defaultTrim(room, surface, s.styleId));
               else next.push(product ? finishFromProduct(room, surface, product) : defaultFinish(room, surface, s.styleId));
             }
-            return { finishes: next };
+            // A zone that was selected may be one of those just painted over.
+            const zoneGone = s.selectedElement?.kind === 'zone' && !next.some((f) => f.zone?.id === s.selectedElement?.id);
+            return { finishes: next, ...(zoneGone ? { selectedElement: null } : {}) };
           }),
 
         paintSurface: (target, product) =>
@@ -1100,12 +1121,12 @@ function createDesignStore(storageName: string) {
         },
 
         beginAdd: (product, roomId) => {
-          const { plan, carryingItemId } = get();
+          const { plan } = get();
           // Whatever is still riding on the pointer goes back: choosing a second tile off the
           // shelf is changing your mind about the first, not asking for both. Without this
           // the abandoned piece stayed wherever the automatic spot had put it, which looked
           // exactly like the shelf placing furniture by itself.
-          const items = carryingItemId ? get().items.filter((i) => i.id !== carryingItemId) : get().items;
+          const items = withoutCarry(get());
           const kind = product.model3dKind;
           const archetype = kind ? getArchetype(kind) : undefined;
           if (!plan || !kind || !archetype || !product.model3dUrl) return null;
@@ -1142,19 +1163,31 @@ function createDesignStore(storageName: string) {
           };
           const id = `${extra.id}-${Date.now().toString(36)}`;
           const placed = applySwap([...items, { ...extra, id }], id, product);
-          commit(() => ({ items: placed, selectedItemId: id, carryingItemId: id, selectedElement: null }));
+          // Not a step of history yet: a carry is one step, recorded when the piece is set down
+          // (`finishCarry`), and none at all when Escape gives it up.
+          set({ items: placed, selectedItemId: id, carryingItemId: id, carryRestore: null, selectedElement: null });
           return id;
         },
 
-        finishCarry: () => set({ carryingItemId: null }),
+        /**
+         * The piece on the pointer was set down. This is where the carry becomes a step of
+         * history — one step, back to the flat as it was before the piece was picked off the
+         * shelf or the swap was asked for, however many times it was turned on the way.
+         */
+        finishCarry: () =>
+          set((s) => (s.carryingItemId ? { carryingItemId: null, carryRestore: null, history: pushHistory(s.history, beforeCarry(s)) } : s)),
 
         cancelCarry: () => {
-          const { carryingItemId, items, selectedItemId } = get();
-          if (!carryingItemId) return;
+          const state = get();
+          if (!state.carryingItemId) return;
+          // A piece that was added goes; a swap that found no room gives way to the piece it
+          // was replacing, which stays selected — the person is back where they started.
+          const restored = state.carryRestore?.id === state.carryingItemId;
           set({
-            items: items.filter((i) => i.id !== carryingItemId),
-            selectedItemId: selectedItemId === carryingItemId ? null : selectedItemId,
+            items: withoutCarry(state),
+            selectedItemId: restored ? state.carryingItemId : state.selectedItemId === state.carryingItemId ? null : state.selectedItemId,
             carryingItemId: null,
+            carryRestore: null,
           });
         },
 
@@ -1224,21 +1257,46 @@ function createDesignStore(storageName: string) {
         removeOpening: (roomId, openingId) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, rooms: removeOpeningFrom(s.plan.rooms, roomId, openingId) }, selectedElement: s.selectedElement?.kind === 'opening' && s.selectedElement.id === openingId ? null : s.selectedElement } : null)),
 
-        swapProduct: (itemId, product) => commit((s) => ({ items: applySwap(s.items, itemId, product) })),
+        swapProduct: (itemId, product, options = {}) => {
+          const state = get();
+          const original = state.items.find((i) => i.id === itemId);
+          const room = original && state.plan?.rooms.find((r) => r.id === original.roomId);
+          if (!original || !room) return null;
+          const others = withoutCarry(state);
+          const swapped = applySwap([original], itemId, product)[0];
+          // Where the old one stood — its back kept on the wall it stood against — if the new
+          // one fits there (`fitSwapped`).
+          const placed = fitSwapped(room, swapped, others);
+          if (placed || !options.carry) {
+            // No room and nobody to carry it (the 2D board): it goes in as it is, outlined red,
+            // for the person to drag — which is what a swap always did.
+            const next = placed ?? swapped;
+            commit(() => ({ items: others.map((i) => (i.id === itemId ? next : i)), carryingItemId: null, carryRestore: null }));
+            return 'swapped';
+          }
+          // It does not fit here: it rides on the pointer until it is set down somewhere it
+          // does, and Escape brings the old piece back (`cancelCarry`). Before this a sofa
+          // twice the size was simply stood through the television.
+          set({ items: others.map((i) => (i.id === itemId ? swapped : i)), selectedItemId: itemId, selectedElement: null, carryingItemId: itemId, carryRestore: original });
+          return 'carrying';
+        },
 
-        placeItem: (itemId, position, rotation, roomId) =>
-          commit((s) => ({
-            items: s.items.map((item) =>
-              item.id === itemId
-                ? { ...item, position, rotation, roomId: roomId ?? item.roomId }
-                : item
-            ),
-          })),
+        placeItem: (itemId, position, rotation, roomId) => {
+          const place = (s: DesignState): Partial<DesignState> => ({
+            items: s.items.map((item) => (item.id === itemId ? { ...item, position, rotation, roomId: roomId ?? item.roomId } : item)),
+          });
+          // The piece on the pointer is turned and moved without a word to the history: the
+          // whole carry is one step, recorded when it is set down (`finishCarry`).
+          if (get().carryingItemId === itemId) set(place);
+          else commit(place);
+        },
 
         removeItem: (itemId) =>
           commit((s) => ({
             items: s.items.filter((i) => i.id !== itemId),
             selectedItemId: s.selectedItemId === itemId ? null : s.selectedItemId,
+            // Deleting the piece on the pointer ends the carry; of a swap, neither sofa is left.
+            ...(s.carryingItemId === itemId ? { carryingItemId: null, carryRestore: null } : {}),
           })),
 
         mirrorItem: (itemId) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, mirrored: !i.mirrored, pinned: true } : i)) })),
@@ -1272,15 +1330,15 @@ function createDesignStore(storageName: string) {
         // --- history and versions ---
         undo: () =>
           set((s) => {
-            const result = undoHistory(s.history, snapshotOf(s));
+            const result = undoHistory(s.history, beforeCarry(s));
             if (!result) return s;
-            return { ...result.snapshot, history: result.history, selectedItemId: null, selectedElement: null, carryingItemId: null };
+            return { ...result.snapshot, history: result.history, selectedItemId: null, selectedElement: null, carryingItemId: null, carryRestore: null };
           }),
         redo: () =>
           set((s) => {
-            const result = redoHistory(s.history, snapshotOf(s));
+            const result = redoHistory(s.history, beforeCarry(s));
             if (!result) return s;
-            return { ...result.snapshot, history: result.history, selectedItemId: null, selectedElement: null, carryingItemId: null };
+            return { ...result.snapshot, history: result.history, selectedItemId: null, selectedElement: null, carryingItemId: null, carryRestore: null };
           }),
 
         ensureExistingVersion: (name) =>
@@ -1318,6 +1376,7 @@ function createDesignStore(storageName: string) {
               selectedItemId: null,
               selectedElement: null,
               carryingItemId: null,
+              carryRestore: null,
               history: pushHistory(s.history, snapshotOf(s)),
             };
           }),
@@ -1328,7 +1387,10 @@ function createDesignStore(storageName: string) {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities } = get();
+          const { styleId, mode, budgetGel, finishes, electrical, styleProfile, excluded, quantities } = get();
+          // What rides on the pointer has not been put anywhere yet: the scene that is saved
+          // and priced is the one Escape would leave.
+          const items = withoutCarry(get());
           // An edit outlives nothing: one left by a piece since deleted is not saved.
           const ids = items.map((i) => i.id);
           return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids) };
@@ -1362,7 +1424,9 @@ function createDesignStore(storageName: string) {
         budgetGel: s.budgetGel,
         plan: s.plan,
         floorPlanUrl: s.floorPlanUrl,
-        items: s.items,
+        // A reload in the middle of a carry finds the flat as Escape would have left it: the
+        // pointer that was carrying the piece is gone, and so is the way to put it back.
+        items: withoutCarry(s),
         finishes: s.finishes,
         electrical: s.electrical,
         versions: s.versions,
@@ -1389,6 +1453,15 @@ export type DesignStoreHook = typeof useDesignStore;
 
 function snapshotOf(s: DesignState): DesignSnapshot {
   return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical };
+}
+
+/**
+ * What undo goes back to. A piece riding on the pointer has not been put anywhere yet, so
+ * the flat that is remembered is the one Escape would leave: without the piece being added,
+ * with the sofa a swap was about to replace.
+ */
+function beforeCarry(s: DesignState): DesignSnapshot {
+  return snapshotOf({ ...s, items: withoutCarry(s) });
 }
 
 function versionOf(s: DesignState, name: string, kind: DesignVersion['kind']): DesignVersion {
@@ -1571,6 +1644,17 @@ function migratePersisted(persisted: unknown, version: number): DesignState {
     step,
     history: emptyHistory(),
   };
+}
+
+/**
+ * The items with whatever is riding on the pointer given up, the way Escape gives it up: a
+ * piece that was being added is gone, a swap that was looking for room is the old piece again.
+ */
+function withoutCarry(state: Pick<DesignState, 'items' | 'carryingItemId' | 'carryRestore'>): PlacedItem[] {
+  const { items, carryingItemId, carryRestore } = state;
+  if (!carryingItemId) return items;
+  if (carryRestore?.id === carryingItemId) return items.map((i) => (i.id === carryingItemId ? carryRestore : i));
+  return items.filter((i) => i.id !== carryingItemId);
 }
 
 export type { CatalogProduct };
