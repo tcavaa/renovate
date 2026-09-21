@@ -1,6 +1,7 @@
 import type { Project } from '@/lib/db/schema';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, DesignVersion, FloorPlan, SceneProduct } from '@/lib/design/types';
+import type { CalculatorEdits } from '@/lib/summary/calculatorSheet';
 
 /** The slice of a saved project the studio needs to reopen it. Serialisable, so a server page can pass it. */
 export interface SavedProjectInput {
@@ -9,6 +10,8 @@ export interface SavedProjectInput {
   homeState: HomeState;
   selectedProducts: Record<string, SelectedProduct>;
   selectedFurniture: Record<string, SelectedProduct[]>;
+  /** What was ticked off the calculator's summary and the quantities changed on it. */
+  calculatorEdits: CalculatorEdits | null;
   plan: FloorPlan | null;
   scene: DesignScene | null;
   floorPlanUrl: string | null;
@@ -25,6 +28,7 @@ export function savedProjectInput(p: Project): SavedProjectInput {
     homeState: p.homeState as HomeState,
     selectedProducts: (p.selectedProducts ?? {}) as Record<string, SelectedProduct>,
     selectedFurniture: (p.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>,
+    calculatorEdits: (p.calculatorEdits as CalculatorEdits | null) ?? null,
     plan: (p.plan as FloorPlan | null) ?? null,
     scene: (p.scene as DesignScene | null) ?? null,
     floorPlanUrl: p.floorPlanUrl ?? null,

@@ -252,6 +252,8 @@ export const designSceneSchema = z.object({
   styleProfile: styleProfileSchema.nullable().optional(),
   /** Ticked-off budget lines: `item:<id>`, `finish:<productId>`… — or a bare product id from an older scene. */
   excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
+  /** Quantities the person set themselves on the budget, by line key. */
+  quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
 });
 
 /** A kept version of the flat: the plan and scene as they were, with a name. */

@@ -31,7 +31,7 @@ export async function saveDesign(options: { draft: boolean; nameKa: string }): P
       projectId: s.projectId ?? undefined,
       calculator:
         s.calculatorPicks && calculator.rooms.length > 0 && calculator.homeState
-          ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture }
+          ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture, edits: { excluded: calculator.excluded, quantities: calculator.quantities } }
           : undefined,
       draft: options.draft,
       versions: s.versions,

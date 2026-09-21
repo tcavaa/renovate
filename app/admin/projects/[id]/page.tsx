@@ -4,11 +4,10 @@ import { User } from 'lucide-react';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { getT, getLocale } from '@/lib/i18n/server';
-import { buildProjectSummary } from '@/lib/calculator/materials';
+import { loadProjectSheets } from '@/lib/projects/sheets';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
 import { ProjectRenders } from '@/components/projects/ProjectRenders';
-import type { Room, HomeState, SelectedProduct } from '@/lib/calculator/types';
 import { ProjectOrders } from '@/components/orders/ProjectOrders';
 
 export const dynamic = 'force-dynamic';
@@ -30,21 +29,13 @@ export default async function AdminProjectDetailPage(props: { params: Promise<{ 
   if (!row) notFound();
   const { project, userName, userEmail } = row;
 
-  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-  const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-
-  const summary = buildProjectSummary(
-    (project.rooms ?? []) as Room[],
-    project.homeState as HomeState,
-    Object.values(selectedProducts),
-    Object.values(selectedFurniture).flat(),
-    await loadRateBook()
-  );
+  // The customer's two sheets as they left them, with what was worked out beside every edit.
+  const sheets = await loadProjectSheets(project, await loadRateBook(), ka, locale);
 
   return (
     <ProjectDetail
       project={project}
-      summary={summary}
+      sheets={sheets}
       t={ka}
       locale={locale}
       backHref="/admin/projects"

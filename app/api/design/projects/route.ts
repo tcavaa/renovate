@@ -112,7 +112,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
 
   // A design that came straight out of the calculator carries the calculator's picks, so the
   // one row has both halves from the start. They are repriced like the calculator save does.
-  let calculatorColumns: { selectedProducts: Record<string, SelectedProduct>; selectedFurniture: Record<string, SelectedProduct[]> } | null = null;
+  let calculatorColumns: { selectedProducts: Record<string, SelectedProduct>; selectedFurniture: Record<string, SelectedProduct[]>; calculatorEdits: unknown } | null = null;
   if (parsed.data.calculator) {
     const repriced = await repriceCalculatorPicks(
       parsed.data.calculator.rooms,
@@ -120,7 +120,8 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
       parsed.data.calculator.selectedFurniture as Record<string, SelectedProduct[]>
     );
     if (isUnknownProduct(repriced)) return fail(`Unknown product ${repriced.unknownProductId}`, 400);
-    calculatorColumns = repriced;
+    // With whatever the person made of that estimate on the calculator's summary.
+    calculatorColumns = { ...repriced, calculatorEdits: parsed.data.calculator.edits ?? null };
   }
 
   const session = await auth();
@@ -167,6 +168,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     ...designColumns,
     selectedProducts: calculatorColumns?.selectedProducts ?? null,
     selectedFurniture: calculatorColumns?.selectedFurniture ?? null,
+    calculatorEdits: calculatorColumns?.calculatorEdits ?? null,
     status: userId && !draft ? 'saved' : 'draft',
   });
 

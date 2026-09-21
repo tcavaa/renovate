@@ -64,7 +64,7 @@ import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } fro
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
 import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
-import { pruneTicks, toggleTick, type Tick } from '@/lib/design/ticks';
+import { pruneQuantities, pruneTicks, tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
 import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type {
@@ -136,6 +136,8 @@ interface DesignState {
   styleProfile: StyleProfile | null;
   /** The budget lines the person is not ordering — ticked off on the budget page (`lib/design/ticks`). */
   excluded: Tick[];
+  /** Quantities the person set themselves on the budget, by line key; the sheet's own stay the original. */
+  quantities: Quantities;
   budgetGel: number | null;
   plan: FloorPlan | null;
   floorPlanUrl: string | null;
@@ -196,6 +198,12 @@ interface DesignActions {
   toggleExcluded: (tick: string, productId?: number | null) => void;
   /** Everything in, or a whole section out, in one go. */
   setExcluded: (ticks: Tick[]) => void;
+  /** A whole store's lines (or a section's) in or out together — the "all" box at its head. */
+  setLinesExcluded: (lines: Array<{ tick: string; productId?: number | null }>, excluded: boolean) => void;
+  /** Sets one line's quantity; `null` — or the quantity the sheet worked out — lets go of the edit. */
+  setQuantity: (tick: string, qty: number | null, original?: number) => void;
+  /** Every tick and every quantity back to what the sheet worked out. */
+  clearBudgetEdits: () => void;
   setBudget: (budgetGel: number | null, catalog: CatalogProduct[]) => void;
   /** A new plan — a new flat, a new project. Walls are derived when the plan has none. */
   setPlan: (plan: FloorPlan, floorPlanUrl?: string | null) => void;
@@ -378,6 +386,7 @@ const initial: DesignState = {
   styleId: 'scandinavian',
   styleProfile: null,
   excluded: [],
+  quantities: {},
   budgetGel: null,
   plan: null,
   floorPlanUrl: null,
@@ -484,6 +493,18 @@ function createDesignStore(storageName: string) {
         setStyleProfile: (styleProfile) => set({ styleProfile }),
         toggleExcluded: (tick, productId) => set((s) => ({ excluded: toggleTick(s.excluded, tick, productId) })),
         setExcluded: (excluded) => set({ excluded: [...new Set(excluded)] }),
+        setLinesExcluded: (lines, excluded) =>
+          set((s) => {
+            // Out: add each line's own key. In: take it out, and any product-wide entry from
+            // an older scene that was holding it out too.
+            const isOut = tickedOff(s.excluded);
+            if (excluded) return { excluded: [...s.excluded, ...lines.filter((l) => !isOut(l.tick, l.productId)).map((l) => l.tick)] };
+            const ticks = new Set<Tick>(lines.map((l) => l.tick));
+            for (const l of lines) if (l.productId != null) ticks.add(l.productId);
+            return { excluded: s.excluded.filter((t) => !ticks.has(t)) };
+          }),
+        setQuantity: (tick, qty, original) => set((s) => ({ quantities: withQuantity(s.quantities, tick, qty, original) })),
+        clearBudgetEdits: () => set({ excluded: [], quantities: {} }),
 
         setBudget: (budgetGel, catalog) => {
           const { items, styleId, plan } = get();
@@ -536,6 +557,7 @@ function createDesignStore(storageName: string) {
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
             excluded: scene.excluded ?? [],
+            quantities: scene.quantities ?? {},
             budgetGel: scene.budgetGel,
             items: scene.items,
             finishes: scene.finishes,
@@ -1306,9 +1328,10 @@ function createDesignStore(storageName: string) {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded } = get();
-          // A tick outlives nothing: one left by a piece since deleted is not saved.
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, items.map((i) => i.id)) };
+          const { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities } = get();
+          // An edit outlives nothing: one left by a piece since deleted is not saved.
+          const ids = items.map((i) => i.id);
+          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids) };
         },
       };
     },
@@ -1335,6 +1358,7 @@ function createDesignStore(storageName: string) {
         styleId: s.styleId,
         styleProfile: s.styleProfile,
         excluded: s.excluded,
+        quantities: s.quantities,
         budgetGel: s.budgetGel,
         plan: s.plan,
         floorPlanUrl: s.floorPlanUrl,

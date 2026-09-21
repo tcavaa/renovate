@@ -17,9 +17,15 @@ export function CalculatorAutosave() {
   const selectedProducts = useCalculatorStore((s) => s.selectedProducts);
   const selectedFurniture = useCalculatorStore((s) => s.selectedFurniture);
   const projectId = useCalculatorStore((s) => s.projectId);
+  // A line ticked off the summary, or a quantity changed on it, is work like any other.
+  const excluded = useCalculatorStore((s) => s.excluded);
+  const quantities = useCalculatorStore((s) => s.quantities);
   const setSaveState = useCalculatorStore((s) => s.setSaveState);
 
-  const signature = useMemo(() => JSON.stringify({ rooms, homeState, selectedProducts, selectedFurniture, projectId }), [rooms, homeState, selectedProducts, selectedFurniture, projectId]);
+  const signature = useMemo(
+    () => JSON.stringify({ rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities }),
+    [rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities]
+  );
 
   useAutosave({
     enabled: !!homeState && rooms.length > 0,

@@ -45,6 +45,17 @@ describe('calculatorCheckoutPart', () => {
     expect(part.feePerM2).toBe(2);
   });
 
+  it('lists what the summary left in the order: a line ticked off is out, a changed quantity is the quantity', () => {
+    const part = calculatorCheckoutPart(rooms, { floor_global: pick(1, { qty: 10, totalPrice: 1000 }) }, { r1: [pick(3), pick(3)] }, 2, 'ka', {
+      excluded: ['furniture:r1:3:1'],
+      quantities: { 'pick:floor_global': 8 },
+    });
+    expect(part.lines.map((l) => [l.productId, l.qty, l.total])).toEqual([
+      [1, 8, 800],
+      [3, 1, 100],
+    ]);
+  });
+
   it('keeps a per-room material line under its own room', () => {
     const part = calculatorCheckoutPart(rooms, { tiles_room: pick(9, { roomId: 'r2' }) }, {}, 2, 'ka');
     expect(part.lines).toHaveLength(1);

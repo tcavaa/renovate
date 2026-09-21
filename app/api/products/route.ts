@@ -1,4 +1,4 @@
-import { and, eq, desc, asc, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, desc, asc, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
@@ -19,11 +19,20 @@ export const GET = handle('GET /api/products', 'Failed to load products', async 
   const { searchParams } = new URL(req.url);
   const categorySlug = searchParams.get('category');
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
-  const limit = Math.min(60, Math.max(1, Number(searchParams.get('limit') ?? 12) || 12));
+  const requested = Math.max(1, Number(searchParams.get('limit') ?? 12) || 12);
+  // A list of ids is its own limit; a browse is capped.
+  const limit = searchParams.get('ids') ? 300 : Math.min(60, requested);
   const featured = searchParams.get('featured') === 'true';
+  // `ids=3,21,345`: exactly these products — what a summary asks to learn who sells its picks.
+  const ids = (searchParams.get('ids') ?? '')
+    .split(',')
+    .map((v) => Number(v))
+    .filter((v) => Number.isInteger(v) && v > 0)
+    .slice(0, 300);
 
   const conditions = [publicProductCondition()!];
   if (featured) conditions.push(eq(products.isFeatured, true));
+  if (ids.length > 0) conditions.push(inArray(products.id, ids));
 
   if (categorySlug) {
     const c = await db.select().from(categories).where(eq(categories.slug, categorySlug)).limit(1);

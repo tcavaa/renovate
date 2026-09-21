@@ -32,6 +32,8 @@ export function CalculateCostsButton({ project, size = 'md', className }: { proj
       // A design-only project never chose a home state; the row's default is not a choice.
       homeState: project.hasCalculator ? project.homeState : null,
       ...picks,
+      // The summary opens as it was left: the same lines ticked off, the same quantities.
+      edits: noPicks ? null : project.calculatorEdits,
     });
     if (project.plan && project.scene) {
       openSaved({ projectId: project.id, plan: project.plan, scene: project.scene, floorPlanUrl: project.floorPlanUrl, homeState: project.homeState });

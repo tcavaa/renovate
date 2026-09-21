@@ -80,10 +80,49 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
     }
   };
 
+  /**
+   * The partner's answer to a new order, in one press: accepted or turned down. It is the
+   * status select's `confirmed` / `cancelled` and nothing more — but a brigade that has just
+   * been chosen by a customer should not have to find a dropdown to say yes, and the
+   * customer's page is waiting on exactly this.
+   */
+  const answer = async (next: 'confirmed' | 'cancelled') => {
+    setSaving(true);
+    setNotice(null);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next, partnerMessage: message !== (order.partnerMessage ?? '') ? message || null : undefined }) });
+      const json = (await res.json()) as { error: string | null };
+      if (!res.ok) {
+        setNotice({ ok: false, text: apiErrorMessage(t, json.error) });
+        return;
+      }
+      setStatus(next);
+      setNotice({ ok: true, text: t.partner.saved });
+      router.refresh();
+    } catch {
+      setNotice({ ok: false, text: t.partner.saveError });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const net = Math.max(0, totals.subtotal - totals.commissionAmount);
 
   return (
     <div className="space-y-6">
+      {mode === 'partner' && order.status === 'new' && (
+        <section className="flex flex-wrap items-center justify-between gap-4 border border-ink bg-bg-surface p-5">
+          <p className="max-w-2xl text-sm text-ink">{t.teams.acceptHint}</p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="button" variant="outline" onClick={() => answer('cancelled')} disabled={saving}>
+              {t.teams.decline}
+            </Button>
+            <Button type="button" variant="ink" onClick={() => answer('confirmed')} disabled={saving}>
+              {t.teams.accept}
+            </Button>
+          </div>
+        </section>
+      )}
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
         {/* customer */}
         <section className="border border-line bg-bg-surface p-5">

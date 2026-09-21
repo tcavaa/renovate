@@ -54,6 +54,10 @@ export const GET = handle('GET /api/teams', 'Failed to load teams', async (req) 
       trades: r.trades,
       memberCount: r.members.length,
       covered: r.covered,
+      // Whether it can take another job now: open orders against what it says it can run.
+      available: r.available,
+      openJobs: r.openJobs,
+      capacityJobs: r.team.capacityJobs,
     }))
   );
 });

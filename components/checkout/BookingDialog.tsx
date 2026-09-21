@@ -19,13 +19,28 @@ interface ProjectOption {
   plan: unknown;
 }
 
+/** The project a booking is for, when it is made from inside that project's own flow. */
+export interface BookingProject {
+  /** Saves the project if it is not saved yet and returns its id — the booking is attached to it. */
+  ensure: () => Promise<number>;
+  /** What is being sent: how many labour lines the budget holds, and what they come to. */
+  lines: number;
+  total: number;
+}
+
 /**
- * "Send them the job": contact details and, for a signed-in customer, one of their saved
- * projects so the booking carries the labour estimate. One trade (`workerId`) or a whole
- * brigade (`teamId`) — a team's booking carries every trade's lines, because a team is
- * hired to do the lot. The partner gets the mail, the platform gets its commission line.
+ * "Send them the job": contact details and the project whose work it is. One trade
+ * (`workerId`) or a whole brigade (`teamId`) — a team's booking carries every trade's lines,
+ * because a team is hired to do the lot. The partner gets the mail and the order in their
+ * own account, where they accept it; the platform gets its commission line.
+ *
+ * From a directory page the customer attaches one of their saved projects, or none. From
+ * the last step of the design (`project`) there is nothing to choose: it is *this* flat's
+ * work, as it was left on the budget, and the dialogue saves the design first if it has to —
+ * picking "which project?" out of a list, on the last step of that very project, was the
+ * one question there that had an obvious answer.
  */
-export function BookingDialog({ workerId, teamId, workerName, label }: { workerId?: number; teamId?: number; workerName: string; label?: string }) {
+export function BookingDialog({ workerId, teamId, workerName, label, project, onBooked, disabled, variant = 'outline' }: { workerId?: number; teamId?: number; workerName: string; label?: string; project?: BookingProject; onBooked?: (orderId: number) => void; disabled?: boolean; variant?: 'outline' | 'ink' }) {
   const t = useT();
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
@@ -39,7 +54,7 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
   const [doneId, setDoneId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!open || status !== 'authenticated') return;
+    if (!open || status !== 'authenticated' || project) return;
     let cancelled = false;
     fetch('/api/projects')
       .then((r) => r.json())
@@ -52,17 +67,19 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
     return () => {
       cancelled = true;
     };
-  }, [open, status, teamId]);
+  }, [open, status, teamId, project]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
+      // Inside a project's own flow the booking is for that project, saved now if need be.
+      const attached = project ? await project.ensure() : projectId;
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(teamId ? { teamId } : { workerId }), projectId, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
+        body: JSON.stringify({ ...(teamId ? { teamId } : { workerId }), projectId: attached, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
       });
       const json = (await res.json()) as { data: { orderId: number } | null; error: string | null };
       if (!res.ok || !json.data) {
@@ -81,11 +98,19 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
 
   return (
     <>
-      <Button type="button" variant="outline" size="lg" onClick={() => setOpen(true)}>
+      <Button type="button" variant={variant} size="lg" onClick={() => setOpen(true)} disabled={disabled}>
         <Hammer className="h-4 w-4" />
         {label ?? t.market.bookWorker}
       </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          // Told only once the "sent" message has been read and closed: the page this sits on
+          // may well stop showing the button — and this dialogue with it — the moment it knows.
+          if (!next && doneId != null) onBooked?.(doneId);
+        }}
+      >
         <DialogContent className="max-w-lg">
           {doneId != null ? (
             <>
@@ -96,7 +121,15 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
                 <DialogTitle className="text-center">{t.market.bookSuccessTitle}</DialogTitle>
                 <DialogDescription className="text-center">{fill(t.market.bookSuccessDesc, { id: doneId })}</DialogDescription>
               </DialogHeader>
-              <Button type="button" variant="ink" className="w-full" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="ink"
+                className="w-full"
+                onClick={() => {
+                  setOpen(false);
+                  if (doneId != null) onBooked?.(doneId);
+                }}
+              >
                 {t.market.close}
               </Button>
             </>
@@ -104,8 +137,14 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
             <form onSubmit={submit} className="space-y-4">
               <DialogHeader>
                 <DialogTitle>{fill(t.market.bookTitle, { name: workerName })}</DialogTitle>
-                <DialogDescription>{t.market.bookDesc}</DialogDescription>
+                <DialogDescription>{project ? t.teams.chooseHint : t.market.bookDesc}</DialogDescription>
               </DialogHeader>
+              {project ? (
+                <div className="border border-line bg-bg-base px-3 py-2.5">
+                  <p className="text-sm font-medium text-ink">{t.teams.thisProject}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{fill(t.teams.thisProjectLines, { n: project.lines, total: formatGEL(project.total) })}</p>
+                </div>
+              ) : (
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium text-ink">{t.market.attachProject}</span>
                 {status === 'authenticated' ? (
@@ -123,6 +162,7 @@ export function BookingDialog({ workerId, teamId, workerName, label }: { workerI
                 )}
                 {selected && selected.totalWorkersCost && <span className="block text-xs text-ink-muted">{t.summary.workers}: {formatGEL(Number(selected.totalWorkersCost))}</span>}
               </label>
+              )}
               <CustomerFields value={value} onChange={setForm} />
               {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
               <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting}>

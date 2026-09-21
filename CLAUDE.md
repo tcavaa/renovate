@@ -116,7 +116,8 @@ app/
       studio/                      5 the 3D studio (build mode); 6 = the same page with ?tool=finishes
       summary/                     7 the budget: materials + products + labour, quantities per line
       workers/                     8 the trades the budget needs, and the brigades that cover them
-    catalog/[slug]  workers/  teams/  teams/[slug]  about/  contact/  profile/  privacy/  terms/
+    catalog/[slug]  teams/  teams/[slug]  about/  contact/  profile/  privacy/  terms/
+    workers/                       switched off for now (lib/features.ts) — the proxy sends it to /teams
   admin/                           dashboard + CRUD (products, categories, stores, workers, orders, users)
   api/
     products/ categories/ stores/ projects/ projects/[id] (GET, DELETE) workers/ upload/ calculator/materials
@@ -142,6 +143,8 @@ components/
                or window's card) · dragImage
                StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief (what / why / need / change / next)
+  budget/      BudgetSheet (the one sheet both summaries and the saved project are read on: shop
+               cards with a select-all box, a tick and a quantity per line, leftovers by kind) · lineName
   design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D ItemCard SwapPanel
                FinishPanel StudioControls FloatingPanel HoverCard PhotoDialog DesignAutosave WalkControls
   auth/        AuthForm PartnerRegisterForm
@@ -165,11 +168,15 @@ lib/
                fittings, zones, lights) · modelLoader.ts (GLB cache, furniture and fixtures) · fixtureManifest.ts
                (generated) · outline.ts · daylight.ts · modelPreview.ts
   db/          schema.ts · index.ts (mysql2 pool + drizzle) · migrations/
+  summary/     calculatorSheet.ts (the calculator's estimate as `BudgetLine`s, edits laid over) ·
+               quantity.ts (what the quantity dropdown offers)
+  features.ts  parts of the site that exist and are switched off (the workers' directory)
   i18n/        ka.ts (primary) en.ts ru.ts client.tsx server.ts labels.ts index.ts
   validations/ zod schemas per entity (partner.schema.ts = self-registration + worker self-edit)
   utils.ts     cn() formatGEL() formatM2() formatUnit() slugify()
 store/         calculatorStore.ts · designStore.ts
 hooks/         useProducts · useCategories · useCalculator · useWorkers · useDesignCatalog · useAutosave
+               usePickStores (who sells the calculator's picks, for its summary)
 scripts/       seed.ts · seed-design.ts · convert-models.ts · stock-models.ts · fixture-models.ts · model-photos.ts · seed-models.ts
                lib/objGroups.ts · lib/textureClassify.ts · extract-assets.sh · test-plan-*.ts
 public/
@@ -192,7 +199,7 @@ public/
 | `workers` | nameKa, specialty, specialtySlug, phone, pricePerM2/pricePerUnit, priceUnit, rating, bio, `city`, `experienceYears`, `completedJobs`, isVerified, **`approvalStatus`** (as for stores) |
 | `worker_reviews` | workerId (cascade), authorName, rating 1–5, textKa/En/Ru, jobKa/En/Ru — `workers.rating`/`reviewCount` are the aggregates |
 | `worker_works` | workerId (cascade), titleKa/En/Ru, descriptionKa/En/Ru, imageUrl, areaM2, city, year, sortOrder — the portfolio |
-| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, cost columns, status (`draft` = autosaved or guest / `saved` = confirmed with the save button / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json** (rooms + `walls`, `columns`, `beams`, `technical`), **`scene` json** (items, finishes incl. per-wall and zones, `electrical`, `styleProfile`), **`versions` json** (`DesignVersion[]`, migration 0006) |
+| `projects` | userId (nullable → guest), sessionId, nameKa, homeState, totalM2, `rooms` json, `selectedProducts` json, `selectedFurniture` json, **`calculatorEdits` json** (`{ excluded, quantities }` by line key — what was ticked off the calculator's summary and the quantities changed on it; migration 0009), cost columns (as edited), status (`draft` = autosaved or guest / `saved` = confirmed with the save button / `submitted` = ordered), **`mode`**, **`styleId`**, **`budgetGel`**, **`floorPlanUrl`**, **`plan` json** (rooms + `walls`, `columns`, `beams`, `technical`), **`scene` json** (items, finishes incl. per-wall and zones, `electrical`, `styleProfile`), **`versions` json** (`DesignVersion[]`, migration 0006) |
 | `project_renders` | projectId (cascade), userId, `sourceUrl` (the studio's own screenshot, stored at once), `renderUrl` (filled when the realistic render exists), status `queued` → `processing` → `ready` / `failed`, `roomName`, `camera` json |
 | `platform_settings` | one row: `calculatorFeePerM2`, `designFeePerM2`, `storeCommissionPct`, `workerCommissionPct` — edited at `/admin/settings` |
 | `checkouts` | a customer ordering a project: projectId, userId, kind `calculator` / `design`, totalM2, feePerM2, `platformFee`, goodsTotal, commissionTotal, customer name/phone/email, note |
@@ -211,17 +218,51 @@ whole flat, `<slug>_room:<roomId>` one chosen for a single room (floor and wall 
 `roomIdFromKey` — and a per-room snapshot also carries `roomId` so the summaries, the order
 lines and the studio can name the room. Never build or parse these strings by hand.
 
-**A pick can be ticked off the order** (`SelectedProduct.excluded`), the calculator's half of
-the bargain the design's budget makes: the line stays in the estimate — it is what the work
-costs, whoever buys the tiles — and leaves the order. `OrderPicks` on the calculator's summary
-is the list (materials keyed by selection key, furniture by product id within its room, a
-checkbox each, "−X ₾" at the foot and one link to put everything back);
-`calculatorStore.toggleExcluded` / `includeAll` flip it, the flag rides in the saved project
-(`selectedProductSchema`, kept by `repriceSnapshot`), and `calculatorCheckoutPart` and
-`calculatorLinesByStore` both skip it, so no store is ever sent it. The summary page builds
-its checkout part **from the picks, not from the estimate** — `buildProjectSummary` knows
-nothing of the tick, and reading the dialogue off it was how the first version offered six
-lines while the list showed four.
+**One sheet for both summaries** (`lib/summary/`, `components/budget/BudgetSheet.tsx`). The
+calculator's last step and the design's budget are the same thing to the person reading
+them — what it all comes to, and what of it they are taking — so they are the same sheet:
+`BudgetLine[]` (`lib/design/pricing`), rendered by `BudgetSheet`. The design's lines come from
+`priceScene`; the calculator's from `calculatorSheet(summary, picks, { rooms, edits, storeOf })`,
+which lays the engine's materials and labour and the person's picks out in that shape (a pick
+the calculator never recorded a shop for asks `usePickStores` → `GET /api/products?ids=…` +
+`/api/stores`; on the server `loadProjectSheets` asks the database).
+
+- **Shown once, under whoever sells it.** Everything a shop sells stands in that shop's card —
+  that is who is asked for it and what its delivery is charged on — with the ticks, the
+  quantities and a box at the head that takes the whole shop in or out. What nobody sells (bulk
+  materials, labour, estimates for things not chosen yet, picks without a shop) stays under its
+  kind. The first version listed products twice, by kind with the ticks and again by shop
+  without them. Shops stand in the order they first appear on the sheet, never by subtotal,
+  which would reshuffle the page at every tick.
+- **Every line has a key, not only the products** (`tickFor` in `lib/design/ticks`):
+  `item:`, `kitchen:`, `finish:`, `opening:`, `opening-estimate:`, `fixture:`, `radiator:`,
+  `estimate:`, `material:`, `labour:`, and for the calculator `pick:<selection key>` and
+  `furniture:<room>:<product>:<n>` (the n-th copy, because the same bed can be picked twice for
+  one room). Only delivery has none: it is not chosen, it follows from what the shops bring.
+- **Two kinds of edit hang on the key**: a tick (`excluded`) and a quantity (`quantities`). The
+  quantity is a *choice*, not a free field — the pencil opens a list around the figure that was
+  worked out (`quantityOptions`: counted things 1, 2, 3…, measured things −50 % … +50 % in
+  fives, the original marked) — because a typed "300" where "30.0" was meant is an order
+  somebody has to unpick with a shop. Choosing the original again lets go of the edit.
+- **The original never leaves the sheet.** `withEdits` is applied in one pass after every
+  section has said what it works the line out to be: a ticked-off line stays where it stood,
+  struck through; a changed quantity carries `originalQty` and shows it beside the new one; the
+  totals card says what was worked out, what the changes came to (it can be *more* — three
+  sofas), and the way back (`clearBudgetEdits` / `clearEdits`). Nothing about "the original" is
+  stored: the row keeps the rooms, the picks, the scene and the edits (`calculatorEdits`,
+  `scene.excluded`, `scene.quantities`), and both versions are priced from those whenever
+  somebody looks — which is why the saved project's page (`ProjectDetail` ←
+  `loadProjectSheets`) can show every edit with what was there before it.
+- **The server lays the edits over its own figures, never the client's.** Both save routes
+  reprice and re-quantify from the catalogue and the geometry first; the edits are keys and
+  numbers applied on top (`calculatorSheet` in `POST /api/projects`, `priceScene` in the design
+  save), and the cost columns are the totals *as edited*. `orderedPickLines` /
+  `orderedLines` are what the checkout dialogue and the store orders are made from, so a
+  changed quantity is the quantity a shop is sent. A flag on the pick itself
+  (`SelectedProduct.excluded`, the first version) is still read, as the key it meant, and
+  lifted into `excluded` when a stored calculator is rehydrated (`liftFlags`).
+- The sheet rounds each line and adds the lines up, so what is read down the page comes to
+  the figure under it; the engine rounds the sum once. They can differ by a few tetri.
 
 ### Managing the catalogue
 
@@ -729,32 +770,33 @@ version 01 stays. Versions are persisted locally and in `projects.versions`.
 
 ### Budget (`lib/design/pricing.ts`) and trades (`trades.ts`)
 
-**A budget line that is a product can be ticked off — the line, not the product**
-(`lib/design/ticks.ts`). Unticking one leaves it in the design — still in the room, still in
-3D — and takes it out of the order. `scene.excluded` holds one key per *line*: a placed piece
-is `item:<its id>`, and the lines the budget folds per product are that product within its
-kind (`finish:<id>`, `opening:<id>`, `fixture:<id>`, `radiator:<id>`). The first version kept
-bare product ids, and a flat with the same bed in four bedrooms is four lines of one product:
-unticking one struck all four, which read as three rows appearing from nowhere. (A bare number
-in an older scene still means "every line of that product" when read; `toggleTick` never
-writes one, and `pruneTicks` drops the tick of a piece since deleted before a save.)
-`priceScene` keeps a ticked-off line **in `lines`, flagged `excluded`, exactly where it would
-otherwise stand** and counts it nowhere — not in a total, a section, a basket or the three
-header figures (`budgetSections` / `budgetSummary` skip it). The page used to list what was
-ticked off *after* the rest, from a second pricing, so the sheet reshuffled under the pointer at
-every tick; and the radiators never asked the ticks at all, so one ticked off stayed in the
-total and was listed twice, once ticked and once struck through. The second pricing survives
-only to say what the ticks came to (`fullCost.grandTotal − cost.grandTotal`), because a product
-that is out can take its store's delivery with it. **What a tick takes out is the product; the
-labour stays** — a socket somebody already owns still has to be wired, a radiator hung, a
-skirting board fitted. The dialogue and the orders do not read the ticks at all any more: they
-read the lines (next paragraph), and a ticked-off line is simply not one of them. Only product
-lines carry a `tick`: a
-labour row, a bulk material and a catalogue-free estimate are what the work costs whoever does
-it. `tests/unit/design/ticks.test.ts` pins all of it, including that the totals card's rows,
-the sections and the header figures each come to the grand total in both modes — the card
-hid its labour row outside a renovation, and a design-only project that chose a skirting board
-pays to have it fitted, so its rows came up short of the total under them.
+**A tick belongs to a line, not to a product** (`lib/design/ticks.ts`). Unticking a line
+leaves it in the design — still in the room, still in 3D — and takes it out of the order.
+`scene.excluded` holds one key per *line*: a placed piece is `item:<its id>`, and the lines
+the budget folds per product are that product within its kind (`finish:<id>`,
+`opening:<id>`, `fixture:<id>`, `radiator:<id>`). The first version kept bare product ids, and
+a flat with the same bed in four bedrooms is four lines of one product: unticking one struck
+all four, which read as three rows appearing from nowhere. (A bare number in an older scene
+still means "every line of that product" when read; `toggleTick` never writes one, and
+`pruneTicks` / `pruneQuantities` drop the edits of a piece since deleted before a save.)
+`priceScene` builds the sheet as it works it out (`raw`), lays the person's edits over it in
+one pass (`withEdits`: ticks and `scene.quantities`), and counts every total, section, basket
+and header figure off the result — a ticked-off line is **in `lines`, flagged, exactly where
+it would otherwise stand**, and counted nowhere. The page used to list what was ticked off
+*after* the rest, from a second pricing, so the sheet reshuffled under the pointer at every
+tick; and the radiators never asked the ticks at all, so one ticked off stayed in the total
+and was listed twice. The second pricing survives only to say what the edits came to, because
+a product that is out can take its store's delivery with it. **A tick takes out that line and
+nothing else**: unticking a socket leaves the electrician's point — a socket somebody already
+owns still has to be wired — and the point has a tick of its own for the person who is wiring
+it themselves; the same goes for the bags of plaster and the plastering. See "One sheet for
+both summaries" above for the keys, the quantities and the page.
+`tests/unit/design/ticks.test.ts` pins all of it, including that the totals card's rows, the
+sections and the header figures each come to the grand total in both modes — the card hid its
+labour row outside a renovation, and a design-only project that chose a skirting board pays to
+have it fitted, so its rows came up short of the total under them. `budgetLineName` reads the
+*kind* of line before the shape of its key: `electrical_rough` and `electrical_point` are
+labour, not a kind of fitting, and read by their prefix they were rows with no name.
 
 **What is bought is read off the budget, by everyone** (`orderedLines`). Every product line
 carries its `product` — the snapshot with its three names, its category and its shop, holding
@@ -1344,8 +1386,12 @@ summary. The design flow records on its "next" buttons, which never went backwar
 
 **Start again** is therefore in the strip on every step of both journeys. It asks first and
 says what is at stake — nothing yet, work that was never saved, or a design that took a
-generation to make — and `resetFlow` empties all three stores, because leaving the studio
-furnished while the calculator starts a new flat is how the two used to disagree.
+generation to make — and `resetFlow(kind)` empties **that journey and not the other**: the
+calculator's empties the calculator and its drawing board, the studio's empties the studio. It
+emptied all three for a while ("two halves of one project"), and that cost people their
+design: a flat furnished in the studio was gone the moment a new estimate was started. A
+project the two really share lives in its row on the server, where neither reset reaches it,
+and a calculator that starts over lets go of the project id so its next save is a new row.
 
 ### Two modes
 
@@ -1439,9 +1485,11 @@ wrong about the whole flow.
 
 `/profile/projects/[id]` and `/admin/projects/[id]` share `ProjectDetail`: the title on its
 own line with the action buttons under it (side by side, the buttons squeezed the name into a
-column of words), then the blocks in a fixed order — layout · rooms, materials, products,
-furniture, the studio's products, workers, photos & renders (the `renders` slot), orders
-(the `orders` slot) — each a `FoldSection` (client; the title row toggles, + / − in the
+column of words), then the blocks in a fixed order — layout · rooms, the calculator's sheet,
+the 3D design's budget (each the read-only `BudgetSheet` of that journey as it was left, with
+every edit showing what was there before it — `loadProjectSheets`; a renovation designed first
+has no calculator sheet of its own, its materials and labour are the design's), photos &
+renders (the `renders` slot), orders (the `orders` slot) — each a `FoldSection` (client; the title row toggles, + / − in the
 corner, folded by default when the block is empty), and last, never folded, the breakdown.
 `ProjectRenders` and `ProjectOrders` render their own `FoldSection`, so a page passes them
 in whole.
@@ -1506,9 +1554,28 @@ summary → "შეკვეთის გაფორმება" → CheckoutD
       lib/finance/orders.ts    one transaction: checkout + orders + items; project → 'submitted'
       lib/finance/notify.ts    mail to every store (MAIL_DRIVER=log in dev → logs/app-*.log)
                                and to the customer; never fatal
-worker profile → "დაკვეთა" → BookingDialog → POST /api/bookings { workerId, projectId? }
-  → a worker order; with a project its lines are the calculator's labour estimate
+design step 8 → "ბრიგადის არჩევა" → BookingDialog → POST /api/bookings { teamId, projectId }
+  → a team order for *this* project (saved on the spot if need be); its lines are the project's
+    labour as it was left on the budget (`projectLabour`) plus the brigade's own site-management
+    line; the brigade accepts or turns it down in its own account
 ```
+
+**The brigade step** (`app/(main)/design/workers/page.tsx`). The trades the budget calls for,
+then the brigades: the ones **free to start first** (`listTeams` counts a brigade's open
+orders — `new` / `confirmed` / `in_progress` — against its `capacityJobs`; a busy one is shown,
+greyed, with its button off), among those the ones that cover the whole job, and the one this
+project already went to at the very top. "Choose" opens the `BookingDialog` with `project`
+set, so there is nothing to pick out of a list on the last step of that very project: it says
+how many labour lines are being sent and what they come to, saves the design if it has to, and
+posts the booking. `GET /api/bookings?projectId=` is what the page reads back, so a customer who
+returns sees "order #87 sent · confirmed" and the brigade's message rather than a button that
+would send the job twice; a brigade that turned it down can be chosen again, or another one.
+**`projectLabour` is the one way to the work a project asks for** (worker and team bookings
+alike): a project with a design is read off the design's budget — the calculator's phases, but
+also a point for every socket actually placed, the radiators hung, the skirting fitted, only
+the works ticked on the technical step — a calculation on its own off the calculator's sheet;
+either way less what was ticked off and at the quantities that were set. It used to be the
+calculator's estimate worked out afresh, whatever had been edited.
 
 A project can be ordered in two sittings — the calculation first, the 3D design later, or
 both at once — and stays one row throughout: `ownProject` writes into an ordered project
@@ -1568,7 +1635,16 @@ added lines, a message to the customer, the status. Every save recomputes `subto
 `commissionAmount` from the items (`applyOrderEdit`); a status or message change mails the
 customer. Opening an order sets `viewedAt` and clears the badge. Stores also see their
 product list (read-only), workers their public card. Admin can open the portal as any partner
-with `?store=ID` / `?worker=ID`. `pnpm db:seed:partners` creates the logins.
+with `?store=ID` / `?worker=ID` / `?team=ID`. `pnpm db:seed:partners` creates the store and
+worker logins, `pnpm db:seed:teams` the brigades' (`TEAM_PASSWORD`, or generated and printed
+once). **A new order has its answer at the top of the page**: "accept" and "turn down" are the
+status select's `confirmed` and `cancelled` in one press (`OrderEditor.answer`), because a
+brigade a customer has just chosen should not have to find a dropdown to say yes, and the
+customer's brigade step is waiting on exactly that.
+
+The proxy lets in **anybody with a part of the admin** (`canOpenAdmin`), not only `admin`:
+asking for the role `admin` there turned both kinds of agent away at the door, to the landing
+page, every time — each section's layout is what says which part is theirs.
 
 **Admin** — `/admin/orders` (every order, filters in the URL like the other lists, admin may
 edit any order), `/admin/revenue` (period → fees split calculator/design, commissions split
@@ -1933,6 +2009,12 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   product.
 - The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
   reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
+- A summary's edits are ticks and quantities on the lines the sheet works out; a line cannot
+  be *added* there, a price cannot be changed, and a folded line (a finish over every room it
+  is on, twelve sockets of one model) is edited as a whole. The calculator's sheet shows no
+  delivery — its estimate never included it; the orders do charge it — while the design's does.
+- A brigade's availability is its open orders against `capacityJobs`, nothing more: no
+  calendar, no dates, and an order it never answers keeps it "busy" until somebody closes it.
 - What a flat "already has" is ten ticks, not a survey: ticking "sockets" excludes every
   socket in the flat, not the three that are actually there. On the budget a placed piece is
   ticked on its own, but a line the budget folds per product — a finish over every room it is
@@ -2071,6 +2153,14 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   a price band, the result count and sort. Every control is a link or a GET form built
   with `hrefWith` from `lib/admin/list.ts`, so any filtered view is a URL and the page works
   without JavaScript; only the sort `<select>` and the style dropdown are client components.
+- **The workers' directory is switched off** (`WORKERS_DIRECTORY` in `lib/features.ts`,
+  September 2026): a renovation is hired as a brigade, so the site sends people to `/teams`.
+  The header, the footer and the 404 page link to the brigades instead, a brigade's members
+  are names rather than links, the worker's "public card" button is hidden in the portal, and
+  the proxy answers `/workers` and `/workers/[id]` with a real 307 to `/teams` (a `redirect()`
+  in the page only fires once the layout has begun to stream — a 200 and a one-second meta
+  refresh). The workers themselves stay: brigades are made of them, admin manages them, they
+  register and keep their card. One word switches it all back on. What the pages are:
 - **Workers** (`/workers`, `/workers/[id]`): the same shape as the catalogue — specialties
   with counts and cities in the sidebar, search, a verified toggle, count and sort in the
   toolbar, `WorkerCard` plates that link to the profile. The profile shows the bio, the

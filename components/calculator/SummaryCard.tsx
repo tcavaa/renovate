@@ -1,20 +1,21 @@
 'use client';
 
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { useLocale, useT } from '@/lib/i18n/client';
-import { materialLabel, workTypeLabel, phaseLabel, unitLabel, localizedName } from '@/lib/i18n/labels';
-import type { ProjectSummary } from '@/lib/calculator/types';
-import { MATERIAL_RATES_PER_M2 } from '@/lib/calculator/constants';
-import { formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import { useT } from '@/lib/i18n/client';
+import { formatGEL, formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import { MoneyRow } from '@/components/ui/money-row';
 import { Figure } from '@/components/calculator/MaterialsTable';
-
-const TH = 'py-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted';
+import type { SheetTotals } from '@/lib/summary/calculatorSheet';
 
 /**
  * The estimate: the grand total as one large figure on an ink band, the four subtotals as a
- * hairline strip, every line in collapsible ledgers, and the arithmetic at the end.
+ * hairline strip, the sheet itself (`children` — every line with its tick and its quantity,
+ * the picks under the shop that sells them), and the arithmetic at the end.
+ *
+ * The figures are what the person made of the estimate. When they changed anything — a line
+ * ticked out, a quantity of their own — the estimate as it was worked out stands beside
+ * them: struck through under the big figure, and as its own rows in the arithmetic, with the
+ * way back to it.
  */
 export interface PlatformFeeLine {
   perM2: number;
@@ -22,164 +23,88 @@ export interface PlatformFeeLine {
   total: number;
 }
 
-export function SummaryCard({ summary, platformFee }: { summary: ProjectSummary; platformFee?: PlatformFeeLine }) {
+export function SummaryCard({
+  totals,
+  original,
+  platformFee,
+  note,
+  onResetEdits,
+  children,
+}: {
+  totals: SheetTotals;
+  /** The same totals with no edit applied; absent when nothing was edited. */
+  original?: SheetTotals | null;
+  platformFee?: PlatformFeeLine;
+  /** A line under the subtotals: how to use the sheet, and how much of it was edited. */
+  note?: React.ReactNode;
+  onResetEdits?: () => void;
+  children?: React.ReactNode;
+}) {
   const t = useT();
-  const locale = useLocale();
-  const margin = summary.grandTotalWithMargin - summary.grandTotal;
+  const margin = totals.grandTotalWithMargin - totals.grandTotal;
+  const delta = original ? Math.round((totals.grandTotalWithMargin - original.grandTotalWithMargin) * 100) / 100 : 0;
 
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden bg-ink px-6 py-10 text-white md:px-10 md:py-14">
         <div className="grain absolute inset-0 opacity-60" />
         <p className="eyebrow relative text-white/60">{t.summary.grandTotalWithMargin}</p>
-        <p className="display relative mt-4 text-[clamp(2.75rem,7vw,6rem)] tabular-nums">{formatGEL(summary.grandTotalWithMargin)}</p>
+        <p className="display relative mt-4 text-[clamp(2.75rem,7vw,6rem)] tabular-nums">{formatGEL(totals.grandTotalWithMargin)}</p>
         <p className="relative mt-4 text-sm text-white/60">
-          {t.summary.grandTotal} <span className="text-white">{formatGEL(summary.grandTotal)}</span>
+          {t.summary.grandTotal} <span className="text-white">{formatGEL(totals.grandTotal)}</span>
           <span className="mx-2">+</span>
           {t.summary.contingency} <span className="text-white">{formatGEL(margin)}</span>
+          {original && (
+            <>
+              <span className="mx-2">·</span>
+              {t.build.originalEstimate} <s className="text-white/80">{formatGEL(original.grandTotalWithMargin)}</s>
+            </>
+          )}
         </p>
       </div>
 
       <div className="grid border-t border-l border-line sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label={t.summary.materials} value={formatGEL(summary.subtotalMaterials)} />
-        <Figure label={t.summary.products} value={formatGEL(summary.subtotalProducts)} />
-        <Figure label={t.summary.furniture} value={formatGEL(summary.subtotalFurniture)} />
-        <Figure label={t.summary.workers} value={formatGEL(summary.subtotalWorkers)} />
+        <Figure label={t.summary.materials} value={formatGEL(totals.subtotalMaterials)} />
+        <Figure label={t.summary.products} value={formatGEL(totals.subtotalProducts)} />
+        <Figure label={t.summary.furniture} value={formatGEL(totals.subtotalFurniture)} />
+        <Figure label={t.summary.workers} value={formatGEL(totals.subtotalWorkers)} />
       </div>
 
-      <div className="border border-line bg-bg-surface px-5">
-        <Accordion type="multiple" defaultValue={['materials']}>
-          <AccordionItem value="materials">
-            <AccordionTrigger className="font-serif text-base">
-              <span>
-                {t.summary.materials} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.materials.length})</span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-line text-left">
-                    <th className={TH}>{t.summary.item}</th>
-                    <th className={`${TH} text-right`}>{t.summary.qty}</th>
-                    <th className={`${TH} text-right`}>{t.summary.unitPrice}</th>
-                    <th className={`${TH} text-right`}>{t.summary.total}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.materials.map((m) => {
-                    const phase = MATERIAL_RATES_PER_M2[m.key]?.phase;
-                    return (
-                      <tr key={m.key} className="border-b border-line/60 last:border-0">
-                        <td className="py-2 pr-2">
-                          {materialLabel(t, m.key)}
-                          {phase != null && <span className="ml-2 text-xs text-ink-muted">· {phaseLabel(t, phase)}</span>}
-                        </td>
-                        <td className="py-2 pr-2 text-right tabular-nums">
-                          {formatNumber(m.qty)} {unitLabel(t, m.unit)}
-                        </td>
-                        <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">{m.estimatedPriceGEL != null ? formatGEL(m.estimatedPriceGEL, true) : '—'}</td>
-                        <td className="py-2 text-right font-medium tabular-nums">{m.estimatedPriceGEL != null ? formatGEL(m.qty * m.estimatedPriceGEL) : '—'}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </AccordionContent>
-          </AccordionItem>
+      {note && <p className="no-print text-xs text-ink-muted">{note}</p>}
 
-          <AccordionItem value="products">
-            <AccordionTrigger className="font-serif text-base">
-              <span>
-                {t.summary.products} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.products.length})</span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              {summary.products.length === 0 ? (
-                <p className="py-4 text-sm text-ink-muted">{t.calculator.noProductsSelectedHint}</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {summary.products.map((p) => (
-                      <tr key={`${p.productId}-${p.categorySlug ?? ''}-${p.roomId ?? ''}`} className="border-b border-line/60 last:border-0">
-                        <td className="py-2 pr-2">
-                          {localizedName(locale, p)}
-                          {p.roomId && <span className="ml-2 text-xs text-ink-muted">· {summary.rooms.find((r) => r.id === p.roomId)?.nameKa ?? ''}</span>}
-                        </td>
-                        <td className="py-2 pr-2 text-right tabular-nums">
-                          {formatNumber(p.qty)} {unitLabel(t, p.unit)}
-                        </td>
-                        <td className="py-2 text-right font-medium tabular-nums">{formatGEL(p.totalPrice)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="furniture">
-            <AccordionTrigger className="font-serif text-base">
-              <span>
-                {t.summary.furniture} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.furniture.length})</span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              {summary.furniture.length === 0 ? (
-                <p className="py-4 text-sm text-ink-muted">{t.calculator.noFurnitureSelectedHint}</p>
-              ) : (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {summary.furniture.map((p, i) => (
-                      <tr key={`${p.productId}-${i}`} className="border-b border-line/60 last:border-0">
-                        <td className="py-2 pr-2">{localizedName(locale, p)}</td>
-                        <td className="py-2 text-right font-medium tabular-nums">{formatGEL(p.totalPrice)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-
-          <AccordionItem value="workers" className="border-b-0">
-            <AccordionTrigger className="font-serif text-base">
-              <span>
-                {t.summary.workers} <span className="ml-2 text-sm font-normal text-ink-muted">({summary.workerCosts.length})</span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <table className="w-full text-sm">
-                <tbody>
-                  {summary.workerCosts.map((w) => (
-                    <tr key={w.key} className="border-b border-line/60 last:border-0">
-                      <td className="py-2 pr-2">{workTypeLabel(t, w.key)}</td>
-                      <td className="py-2 pr-2 text-right tabular-nums text-ink-muted">
-                        {formatNumber(w.qty)} {unitLabel(t, w.qtyUnit)}
-                      </td>
-                      <td className="py-2 text-right font-medium tabular-nums">{formatGEL(w.totalGEL)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
+      {children}
 
       <div className="border border-line bg-bg-surface p-5 md:p-6">
         <div className="space-y-2">
-          <MoneyRow label={t.summary.materials} value={summary.subtotalMaterials} />
-          <MoneyRow label={t.summary.products} value={summary.subtotalProducts} />
-          <MoneyRow label={t.summary.furniture} value={summary.subtotalFurniture} />
-          <MoneyRow label={t.summary.workers} value={summary.subtotalWorkers} />
+          <MoneyRow label={t.summary.materials} value={totals.subtotalMaterials} />
+          <MoneyRow label={t.summary.products} value={totals.subtotalProducts} />
+          <MoneyRow label={t.summary.furniture} value={totals.subtotalFurniture} />
+          <MoneyRow label={t.summary.workers} value={totals.subtotalWorkers} />
         </div>
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          <MoneyRow label={t.summary.subtotal} value={summary.grandTotal} bold />
+          <MoneyRow label={t.summary.subtotal} value={totals.grandTotal} bold />
           <MoneyRow label={t.summary.contingency} value={margin} muted />
         </div>
+        {original && (
+          <div className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
+            <MoneyRow label={t.build.originalEstimate} value={original.grandTotalWithMargin} muted />
+            <div className={delta < 0 ? 'flex items-baseline justify-between gap-3 text-danger' : 'flex items-baseline justify-between gap-3'}>
+              <span>{t.build.editsChange}</span>
+              <span className="shrink-0 font-medium tabular-nums">
+                {delta < 0 ? '−' : '+'}
+                {formatGEL(Math.abs(delta))}
+              </span>
+            </div>
+            {onResetEdits && (
+              <button type="button" onClick={onResetEdits} className="no-print text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink">
+                {t.build.resetEdits}
+              </button>
+            )}
+          </div>
+        )}
         <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
           <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
-          <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(summary.grandTotalWithMargin)}</span>
+          <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.grandTotalWithMargin)}</span>
         </div>
         {platformFee && (
           <div className="mt-4 space-y-2 border-t border-line pt-4">
@@ -192,7 +117,7 @@ export function SummaryCard({ summary, platformFee }: { summary: ProjectSummary;
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
-              <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(summary.grandTotalWithMargin + platformFee.total)}</span>
+              <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(totals.grandTotalWithMargin + platformFee.total)}</span>
             </div>
             <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
           </div>
