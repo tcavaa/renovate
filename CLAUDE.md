@@ -1099,6 +1099,17 @@ board), and `trim_install` is its labour. A room with no product wears the style
 moulding for nothing (`STYLE_TRIMS`; modern and industrial have no cornice at all).
 `scripts/lib/trimProducts.ts` is the seeded range — profile, height and depth in `specs`.
 
+**A cornice runs along the top of *its wall*, not at the room's ceiling height.** A wall can be
+given a height of its own in the inspector (`wall.heightM`; the 3D wall is built to it, the
+room's `heightM` is only the default), and the cornice was built at `room.heightM` — raise a
+wall and it stayed behind, a white line part of the way up. `buildRoomShell` works out every
+side's top once (`tops`) and hands `buildTrim` this wall's and its two neighbours': the run
+sits at its own wall's top, and it only meets the next wall's cornice on the mitre when the
+two stand level — beside a wall at another height it is cut square and runs corner to corner
+(`tests/unit/design3d/cornice.test.ts`). The painted square metres follow the same top
+(`patchSpansOnWall`: the room's grid, its top row running on to the top of *that wall*, or cut
+off by a wall that stops short), and so does the brush's glow.
+
 ### Radiators are bought by the section (`lib/design/radiators.ts`)
 
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
@@ -2088,6 +2099,11 @@ Everything the app needs to run unattended on the VPS, and where each piece live
   left; reading `cost.baskets` would make the two agree.
 - The checkout dialogue totals the goods and the fee; the delivery each store will add is on
   the budget (`cost.baskets`) and on the order, not in the dialogue.
+- A wall's own height is drawn, not priced. Every area the budget works out — a room's walls,
+  one wall, a strip, a square metre, the calculator's plaster and paint — is against
+  `room.heightM`; a wall raised in the inspector costs what it cost before. The room's
+  "ceiling height" is the field that moves walls, cornice and quantities together. Ceiling
+  lights and pendants hang from `room.heightM` too.
 - Each finish is priced by its own area: a base wall finish is charged for the whole room's
   walls even where one wall, a strip or a square metre of another product lies over it, so
   overlaid finishes over-count the base by the area they cover.

@@ -34,8 +34,8 @@ import {
 } from '@/lib/design3d/buildScene';
 import { buildFitting, lightsFrom } from '@/lib/design3d/buildStructure';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
-import { wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
-import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, type PaintTarget } from '@/lib/design/paint';
+import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
+import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
 import { edgeOf, projectToEdge } from '@/lib/design/openings';
@@ -712,11 +712,15 @@ function SceneContent({
         const edge = roomEdges(room.polygon).find((e) => e.index === target.wallIndex);
         if (edge) {
           const at = (along: number, y: number) => [edge.a.x + edge.dir.x * along + edge.inward.x * 0.012, y, edge.a.z + edge.dir.z * along + edge.inward.z * 0.012];
-          // A strip is the whole height of the wall; a patch is one square metre of it.
-          const box = target.patch ? patchSpans(edge, room.heightM, target.patch) : { along: target.span, up: { from: 0, to: room.heightM } };
-          const { from, to } = box.along;
-          const [low, high] = [box.up.from, box.up.to];
-          positions.push(...at(from, low), ...at(to, low), ...at(to, high), ...at(from, low), ...at(to, high), ...at(from, high));
+          // A strip is the whole height of the wall — this wall's, which may have been given
+          // one of its own — and a patch is one square metre of it.
+          const wallTop = wallHeightFor(plan, wallForEdge(plan, room, edge), room);
+          const box = target.patch ? patchSpansOnWall(edge, room.heightM, wallTop, target.patch) : { along: target.span, up: { from: 0, to: wallTop } };
+          if (box) {
+            const { from, to } = box.along;
+            const [low, high] = [box.up.from, box.up.to];
+            positions.push(...at(from, low), ...at(to, low), ...at(to, high), ...at(from, low), ...at(to, high), ...at(from, high));
+          }
         }
       }
       paintGlow.geometry.dispose();
@@ -725,7 +729,7 @@ function SceneContent({
       paintGlow.visible = positions.length > 0;
 
     },
-    [paintGlow, plan.rooms]
+    [paintGlow, plan]
   );
   // Leaving the paint scope, or a plan that changed under the glow, puts it out.
   useEffect(() => {
