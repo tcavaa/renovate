@@ -30555,9 +30555,9 @@ var ARCHETYPES = {
   rug_bed: {
     kind: "rug_bed",
     slot: "rug",
-    labelKa: "\u10EE\u10D0\u10DA\u10D8\u10E9\u10D0",
-    labelEn: "Rug",
-    labelRu: "\u041A\u043E\u0432\u0451\u0440",
+    labelKa: "\u10E1\u10D0\u10EC\u10DD\u10DA\u10D8\u10E1 \u10EE\u10D0\u10DA\u10D8\u10E9\u10D0",
+    labelEn: "Bedside rug",
+    labelRu: "\u041F\u0440\u0438\u043A\u0440\u043E\u0432\u0430\u0442\u043D\u044B\u0439 \u043A\u043E\u0432\u0451\u0440",
     categorySlug: "rugs",
     size: { width: 2.6, depth: 2, height: 0.02 },
     placement: { type: "under", to: "bed", padM: 0.55 },
@@ -30870,11 +30870,13 @@ async function main() {
       isActive: true,
       isFeatured: true
     };
-    const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+    const existing = await db.select({ id: products.id, specs: products.specs }).from(products).where(eq(products.slug, slug)).limit(1);
+    const kept = existing[0]?.specs && typeof existing[0].specs === "object" && !Array.isArray(existing[0].specs) ? existing[0].specs : {};
+    const specs = model.colors?.length ? { ...kept, colors: model.colors } : Object.keys(kept).length ? kept : null;
     if (existing.length) {
-      await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      await db.update(products).set({ ...row, specs }).where(eq(products.id, existing[0].id));
     } else {
-      await db.insert(products).values(row);
+      await db.insert(products).values({ ...row, specs });
     }
     upserted++;
     console.log(

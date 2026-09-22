@@ -44,6 +44,7 @@ import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 
 import { chooseGroups, readGroups, writeFilteredObj, type GroupSelection } from './lib/objGroups';
 import { classifyMaps, pickMaps } from './lib/textureClassify';
+import { colorsOfDocument } from './lib/modelColor';
 
 const run = promisify(execFile);
 
@@ -396,6 +397,11 @@ export interface ManifestModel {
   storeSlug: string;
   imageUrl: string | null;
   colorHex: string | null;
+  /**
+   * The colours the model is, read off its triangles and textures (`scripts/lib/modelColor`):
+   * up to three, the largest first. What the shelf's colour filter finds the product by.
+   */
+  colors?: string[];
   triangles: number;
   bytes: number;
   textures: string[];
@@ -564,6 +570,7 @@ async function convertOne(sourceRoot: string, entry: ModelSource): Promise<Manif
     }
 
     const imageUrl = await placePhoto(sourceRoot, entry);
+    const colors = await colorsOfDocument(doc).catch(() => [] as string[]);
 
     return {
       url: `/models/${entry.name}.glb`,
@@ -578,7 +585,9 @@ async function convertOne(sourceRoot: string, entry: ModelSource): Promise<Manif
       priceGel: entry.priceGel,
       storeSlug: entry.storeSlug,
       imageUrl,
-      colorHex: entry.colorHex ?? null,
+      // A colour given by hand above stays the product's one colour; the rest are read.
+      colorHex: entry.colorHex ?? colors[0] ?? null,
+      colors,
       triangles: countTriangles(doc),
       bytes: size,
       textures,

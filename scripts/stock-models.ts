@@ -40,6 +40,7 @@ import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer
 import { ARCHETYPES } from '../lib/design/catalog';
 import type { StyleId } from '../lib/design/types';
 import type { ManifestModel } from './convert-models';
+import { colorsOfDocument } from './lib/modelColor';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -673,6 +674,8 @@ async function convertOne(
   }
 
   const imageUrl = await placePhoto(photo, slug, entry.source);
+  // What colour the piece is, for the shelf's colour filter: read off the model itself.
+  const colors = await colorsOfDocument(doc).catch(() => [] as string[]);
 
   return {
     url: `/models/stock/${slug}.glb`,
@@ -688,7 +691,8 @@ async function convertOne(
     priceGel: entry.priceGel,
     storeSlug: entry.storeSlug,
     imageUrl,
-    colorHex: null,
+    colorHex: colors[0] ?? null,
+    colors,
     triangles,
     bytes,
     textures,

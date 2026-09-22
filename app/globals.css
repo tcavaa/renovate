@@ -40,6 +40,12 @@ p {
 ::-webkit-scrollbar-thumb { background: #E3DCD2; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: #C44D1A; }
 
+/* A row that scrolls without a scrollbar. Not inside a layer: it has to beat the global
+   ::-webkit-scrollbar rules above. `ScrollRow` (components/ui/scroll-row.tsx) is what uses
+   it, and says where there is more to see with a fading edge instead of a bar. */
+.scrollbar-none { scrollbar-width: none; -ms-overflow-style: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 @layer components {
   /* Translucent panel used over imagery and the 3D canvas. */
   .glass {

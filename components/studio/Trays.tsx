@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatGEL } from '@/lib/utils';
+import { ScrollRow } from '@/components/ui/scroll-row';
 import { WALL_THICKNESS_OPTIONS_M } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from '@/components/plan/icons';
@@ -138,7 +139,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-start gap-1.5">
           {/* One line that scrolls, like the furniture tray's kinds. */}
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="radiogroup" aria-label={family === 'light' ? t.build.secLighting : t.build.secElectrical}>
+          <ScrollRow className="min-w-0 flex-1" contentClassName="gap-1" role="radiogroup" ariaLabel={family === 'light' ? t.build.secLighting : t.build.secElectrical}>
             {kinds.map((k) => {
               const Icon = ELECTRICAL_ICON[k];
               const active = armed && kind === k;
@@ -170,7 +171,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
                 </button>
               );
             })}
-          </div>
+          </ScrollRow>
           <div className="flex shrink-0 items-center gap-1">
             <button type="button" onClick={onSuggest} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
               <Sparkles className="h-3.5 w-3.5" />
@@ -205,7 +206,7 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-start gap-1.5">
-          <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="radiogroup" aria-label={t.build.toolTechnical}>
+          <ScrollRow className="min-w-0 flex-1" contentClassName="gap-1" role="radiogroup" ariaLabel={t.build.toolTechnical}>
             {TECHNICAL_KIND_LIST.map((k) => {
               const Icon = TECHNICAL_ICON[k];
               const active = armed && kind === k;
@@ -232,7 +233,7 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
                 </button>
               );
             })}
-          </div>
+          </ScrollRow>
           <div className="flex shrink-0 items-center gap-1">
             <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
               <Sparkles className="h-3.5 w-3.5" />
@@ -337,7 +338,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             {areaLabel ? ` · ${areaLabel}` : ''}
           </span>
         </div>
-        <div className="flex gap-1 overflow-x-auto pb-0.5">
+        <ScrollRow contentClassName="gap-1 pb-0.5">
           <SwatchTile label={t.design.finishDefault} active={currentId === null} onClick={() => onPick(null)} />
           {options.map((p) => (
             <SwatchTile
@@ -351,7 +352,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             />
           ))}
           {options.length === 0 && <p className="py-3 text-xs text-ink-muted">{t.design.noAlternatives}</p>}
-        </div>
+        </ScrollRow>
         <p className="truncate text-[10px] leading-snug text-ink-muted">{painting ? (currentId === undefined ? t.build.paintBrushNone : t.build.paintHint) : trim ? t.design.trimHint : t.design.finishHint}</p>
       </div>
     </div>
