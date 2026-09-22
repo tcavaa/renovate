@@ -417,9 +417,9 @@ export const ARCHETYPES: Record<string, Archetype> = {
   rug_bed: {
     kind: 'rug_bed',
     slot: 'rug',
-    labelKa: 'ხალიჩა',
-    labelEn: 'Rug',
-    labelRu: 'Ковёр',
+    labelKa: 'საწოლის ხალიჩა',
+    labelEn: 'Bedside rug',
+    labelRu: 'Прикроватный ковёр',
     categorySlug: 'rugs',
     size: { width: 2.6, depth: 2.0, height: 0.02 },
     placement: { type: 'under', to: 'bed', padM: 0.55 },
@@ -624,6 +624,40 @@ export const DESIGN_CATEGORY_SLUGS = Array.from(
     ...TRIM_CATEGORY_SLUGS,
   ])
 );
+
+// ---------------------------------------------------------------------------
+// The furniture shelf: rooms, and what belongs in each
+// ---------------------------------------------------------------------------
+
+/** The rooms the furniture shelf is grouped by, in the order it lists them. */
+export const SHELF_ROOMS: RoomType[] = ['living_room', 'bedroom', 'kitchen', 'bathroom', 'toilet', 'hallway', 'office', 'closet', 'balcony', 'storage'];
+
+/**
+ * The kinds that belong in a room of this type, in the order its program furnishes it —
+ * the bed before the nightstands, the sofa before the rug. A kind belongs by the **slot**
+ * it fills, not by being named in the program: the program names the double bed and the
+ * three-seat sofa, and a person looking under "bedroom" wants the single bed and under
+ * "living room" the corner sofa too. An archetype added later lands in the right rooms by
+ * having the right slot, with nothing to register here.
+ */
+export function kindsForRoom(type: RoomType): string[] {
+  const out: string[] = [];
+  for (const entry of ROOM_PROGRAMS[type] ?? []) {
+    const slot = ARCHETYPES[entry.kind]?.slot;
+    if (!slot) continue;
+    // The program's own kind first, then the others that fill the same slot.
+    for (const kind of [entry.kind, ...Object.keys(ARCHETYPES).filter((k) => ARCHETYPES[k].slot === slot)]) {
+      if (!out.includes(kind)) out.push(kind);
+    }
+  }
+  return out;
+}
+
+/** The kinds no room's program has a slot for: only ever reachable under "all". */
+export function unroomedKinds(): string[] {
+  const roomed = new Set(SHELF_ROOMS.flatMap(kindsForRoom));
+  return Object.keys(ARCHETYPES).filter((kind) => !roomed.has(kind));
+}
 
 /** The archetype's label in the visitor's language, falling back to Georgian. */
 export function archetypeLabel(kind: string, locale: 'ka' | 'en' | 'ru'): string {

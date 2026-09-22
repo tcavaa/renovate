@@ -20,7 +20,7 @@
       "priceGel": 2400,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-sofa_02.jpg",
-      "colorHex": null,
+      "colorHex": "#110F09",
       "triangles": 2728,
       "bytes": 379568,
       "textures": [
@@ -30,7 +30,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#110F09",
+        "#361709"
+      ]
     },
     {
       "url": "/models/stock/ph-sofa_03.glb",
@@ -49,7 +53,7 @@
       "priceGel": 3900,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-sofa_03.jpg",
-      "colorHex": null,
+      "colorHex": "#543F2E",
       "triangles": 8004,
       "bytes": 524752,
       "textures": [
@@ -59,7 +63,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#543F2E"
+      ]
     },
     {
       "url": "/models/stock/ph-Sofa_01.glb",
@@ -77,7 +84,7 @@
       "priceGel": 2200,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-Sofa_01.jpg",
-      "colorHex": null,
+      "colorHex": "#93897F",
       "triangles": 4101,
       "bytes": 455832,
       "textures": [
@@ -87,7 +94,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#948A80"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_sofa.glb",
@@ -105,7 +115,7 @@
       "priceGel": 3600,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_sofa.jpg",
-      "colorHex": null,
+      "colorHex": "#6B4A33",
       "triangles": 704,
       "bytes": 194288,
       "textures": [
@@ -115,7 +125,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#6B4A33"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_sofa.glb",
@@ -134,7 +147,7 @@
       "priceGel": 1900,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_sofa.jpg",
-      "colorHex": null,
+      "colorHex": "#616466",
       "triangles": 5826,
       "bytes": 295428,
       "textures": [
@@ -144,7 +157,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#606263"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeSofa.glb",
@@ -163,13 +179,16 @@
       "priceGel": 1650,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeSofa.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 128,
       "bytes": 4508,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeDesignSofa.glb",
@@ -187,13 +206,16 @@
       "priceGel": 2100,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeDesignSofa.png",
-      "colorHex": null,
+      "colorHex": "#A1BEF0",
       "triangles": 116,
       "bytes": 4328,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#A1BEF0"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeSofaLong.glb",
@@ -212,13 +234,16 @@
       "priceGel": 2350,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeSofaLong.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 186,
       "bytes": 5160,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeSofaCorner.glb",
@@ -237,13 +262,16 @@
       "priceGel": 2900,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeSofaCorner.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 190,
       "bytes": 5212,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeDesignSofaCorner.glb",
@@ -262,13 +290,16 @@
       "priceGel": 3300,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeDesignSofaCorner.png",
-      "colorHex": null,
+      "colorHex": "#A1BEF0",
       "triangles": 176,
       "bytes": 5088,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#A1BEF0"
+      ]
     },
     {
       "url": "/models/stock/ph-ArmChair_01.glb",
@@ -286,7 +317,7 @@
       "priceGel": 1200,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-ArmChair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#989693",
       "triangles": 5626,
       "bytes": 683380,
       "textures": [
@@ -296,7 +327,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#979592",
+        "#2B2621"
+      ]
     },
     {
       "url": "/models/stock/ph-GreenChair_01.glb",
@@ -315,7 +350,7 @@
       "priceGel": 890,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-GreenChair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#41473D",
       "triangles": 4213,
       "bytes": 534464,
       "textures": [
@@ -325,7 +360,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#40463D",
+        "#241C14",
+        "#281B12"
+      ]
     },
     {
       "url": "/models/stock/ph-mid_century_lounge_chair.glb",
@@ -345,7 +385,7 @@
       "priceGel": 1650,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-mid_century_lounge_chair.jpg",
-      "colorHex": null,
+      "colorHex": "#5A3E26",
       "triangles": 6148,
       "bytes": 274616,
       "textures": [
@@ -355,7 +395,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#5A3E26"
+      ]
     },
     {
       "url": "/models/stock/ph-modern_arm_chair_01.glb",
@@ -374,7 +417,7 @@
       "priceGel": 1450,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-modern_arm_chair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#815C3E",
       "triangles": 8916,
       "bytes": 381388,
       "textures": [
@@ -387,7 +430,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#815D3E",
+        "#151513"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_armchair.glb",
@@ -405,7 +452,7 @@
       "priceGel": 1500,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_armchair.jpg",
-      "colorHex": null,
+      "colorHex": "#492B1B",
       "triangles": 2675,
       "bytes": 242464,
       "textures": [
@@ -415,7 +462,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#492B1B",
+        "#1F1610"
+      ]
     },
     {
       "url": "/models/stock/ph-Rockingchair_01.glb",
@@ -434,7 +485,7 @@
       "priceGel": 980,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-Rockingchair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#3F200E",
       "triangles": 11866,
       "bytes": 551352,
       "textures": [
@@ -444,7 +495,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#3F200E"
+      ]
     },
     {
       "url": "/models/stock/ph-Ottoman_01.glb",
@@ -464,7 +518,7 @@
       "priceGel": 520,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-Ottoman_01.jpg",
-      "colorHex": null,
+      "colorHex": "#2D2522",
       "triangles": 4240,
       "bytes": 585528,
       "textures": [
@@ -474,7 +528,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#2C2522",
+        "#6C513D"
+      ]
     },
     {
       "url": "/models/stock/ph-BarberShopChair_01.glb",
@@ -493,7 +551,7 @@
       "priceGel": 2100,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-BarberShopChair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#7E552C",
       "triangles": 4280,
       "bytes": 734232,
       "textures": [
@@ -503,7 +561,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#7D542B",
+        "#1B1E23",
+        "#D6B074"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeChair.glb",
@@ -522,13 +585,16 @@
       "priceGel": 780,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeChair.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 128,
       "bytes": 4508,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeChairRelax.glb",
@@ -547,13 +613,16 @@
       "priceGel": 920,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeChairRelax.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 188,
       "bytes": 6304,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-loungeDesignChair.glb",
@@ -571,13 +640,16 @@
       "priceGel": 990,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-loungeDesignChair.png",
-      "colorHex": null,
+      "colorHex": "#A1BEF0",
       "triangles": 116,
       "bytes": 4364,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#A1BEF0"
+      ]
     },
     {
       "url": "/models/stock/ph-CoffeeTable_01.glb",
@@ -596,7 +668,7 @@
       "priceGel": 640,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-CoffeeTable_01.jpg",
-      "colorHex": null,
+      "colorHex": "#805A3F",
       "triangles": 10404,
       "bytes": 664404,
       "textures": [
@@ -606,7 +678,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#805A3F",
+        "#52A9A2"
+      ]
     },
     {
       "url": "/models/stock/ph-coffee_table_round_01.glb",
@@ -624,7 +700,7 @@
       "priceGel": 890,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-coffee_table_round_01.jpg",
-      "colorHex": null,
+      "colorHex": "#B5BBCD",
       "triangles": 4044,
       "bytes": 202908,
       "textures": [
@@ -634,7 +710,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#B5BBCD",
+        "#1E1E1D",
+        "#B4B9C6"
+      ]
     },
     {
       "url": "/models/stock/ph-gothic_coffee_table.glb",
@@ -652,7 +733,7 @@
       "priceGel": 720,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-gothic_coffee_table.jpg",
-      "colorHex": null,
+      "colorHex": "#412716",
       "triangles": 23836,
       "bytes": 574076,
       "textures": [
@@ -662,7 +743,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#3D2413",
+        "#1F1613"
+      ]
     },
     {
       "url": "/models/stock/ph-industrial_coffee_table.glb",
@@ -680,7 +765,7 @@
       "priceGel": 560,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-industrial_coffee_table.jpg",
-      "colorHex": null,
+      "colorHex": "#543019",
       "triangles": 24000,
       "bytes": 448340,
       "textures": [
@@ -690,7 +775,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#512D17",
+        "#4E5356"
+      ]
     },
     {
       "url": "/models/stock/ph-modern_coffee_table_01.glb",
@@ -709,7 +798,7 @@
       "priceGel": 780,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-modern_coffee_table_01.jpg",
-      "colorHex": null,
+      "colorHex": "#816950",
       "triangles": 4504,
       "bytes": 186548,
       "textures": [
@@ -719,7 +808,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#82694F",
+        "#A77746"
+      ]
     },
     {
       "url": "/models/stock/ph-modern_coffee_table_02.glb",
@@ -737,7 +830,7 @@
       "priceGel": 820,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-modern_coffee_table_02.jpg",
-      "colorHex": null,
+      "colorHex": "#1F1B18",
       "triangles": 13645,
       "bytes": 509896,
       "textures": [
@@ -750,7 +843,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#1F1B18",
+        "#542D12"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_tea_table.glb",
@@ -768,7 +865,7 @@
       "priceGel": 690,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_tea_table.jpg",
-      "colorHex": null,
+      "colorHex": "#503321",
       "triangles": 2508,
       "bytes": 190248,
       "textures": [
@@ -778,7 +875,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#503321"
+      ]
     },
     {
       "url": "/models/stock/ph-gallinera_table.glb",
@@ -797,7 +897,7 @@
       "priceGel": 450,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-gallinera_table.jpg",
-      "colorHex": null,
+      "colorHex": "#28201B",
       "triangles": 5528,
       "bytes": 271476,
       "textures": [
@@ -807,7 +907,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#28201B",
+        "#2C1D13"
+      ]
     },
     {
       "url": "/models/stock/ph-small_wooden_table_01.glb",
@@ -827,7 +931,7 @@
       "priceGel": 380,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-small_wooden_table_01.jpg",
-      "colorHex": null,
+      "colorHex": "#574128",
       "triangles": 3410,
       "bytes": 354096,
       "textures": [
@@ -837,7 +941,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#574128"
+      ]
     },
     {
       "url": "/models/stock/kk-tableCoffee.glb",
@@ -856,13 +963,16 @@
       "priceGel": 420,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-tableCoffee.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 124,
       "bytes": 2984,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-tableCoffeeGlass.glb",
@@ -880,13 +990,16 @@
       "priceGel": 560,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-tableCoffeeGlass.png",
-      "colorHex": null,
+      "colorHex": "#DEEAEA",
       "triangles": 140,
       "bytes": 4168,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#DEEAEA"
+      ]
     },
     {
       "url": "/models/stock/kk-tableCoffeeGlassSquare.glb",
@@ -905,13 +1018,16 @@
       "priceGel": 540,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-tableCoffeeGlassSquare.png",
-      "colorHex": null,
+      "colorHex": "#DEEAEB",
       "triangles": 140,
       "bytes": 4144,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#DEEAEB"
+      ]
     },
     {
       "url": "/models/stock/ph-modern_wooden_cabinet.glb",
@@ -930,7 +1046,7 @@
       "priceGel": 1900,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-modern_wooden_cabinet.jpg",
-      "colorHex": null,
+      "colorHex": "#3E2816",
       "triangles": 24976,
       "bytes": 514824,
       "textures": [
@@ -940,7 +1056,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#3E2816"
+      ]
     },
     {
       "url": "/models/stock/ph-vintage_wooden_drawer_01.glb",
@@ -959,7 +1078,7 @@
       "priceGel": 640,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-vintage_wooden_drawer_01.jpg",
-      "colorHex": null,
+      "colorHex": "#614123",
       "triangles": 5184,
       "bytes": 627584,
       "textures": [
@@ -969,7 +1088,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#644324",
+        "#CC934E"
+      ]
     },
     {
       "url": "/models/stock/kk-cabinetTelevision.glb",
@@ -988,13 +1111,16 @@
       "priceGel": 720,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-cabinetTelevision.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 154,
       "bytes": 3420,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-cabinetTelevisionDoors.glb",
@@ -1014,13 +1140,16 @@
       "priceGel": 840,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-cabinetTelevisionDoors.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 210,
       "bytes": 5436,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-ClassicConsole_01.glb",
@@ -1038,7 +1167,7 @@
       "priceGel": 980,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-ClassicConsole_01.jpg",
-      "colorHex": null,
+      "colorHex": "#19130F",
       "triangles": 7566,
       "bytes": 617616,
       "textures": [
@@ -1048,7 +1177,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#191310"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_console_table.glb",
@@ -1066,7 +1198,7 @@
       "priceGel": 1100,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_console_table.jpg",
-      "colorHex": null,
+      "colorHex": "#5B3823",
       "triangles": 13648,
       "bytes": 476820,
       "textures": [
@@ -1076,7 +1208,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#5B3923"
+      ]
     },
     {
       "url": "/models/stock/kk-sideTableDrawers.glb",
@@ -1096,13 +1231,16 @@
       "priceGel": 390,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-sideTableDrawers.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 238,
       "bytes": 6856,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-cabinetBedDrawer.glb",
@@ -1123,13 +1261,16 @@
       "priceGel": 330,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-cabinetBedDrawer.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 182,
       "bytes": 6320,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-dining_table.glb",
@@ -1147,7 +1288,7 @@
       "priceGel": 1400,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-dining_table.jpg",
-      "colorHex": null,
+      "colorHex": "#907A66",
       "triangles": 1048,
       "bytes": 267804,
       "textures": [
@@ -1157,7 +1298,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#967E66",
+        "#C48B4F",
+        "#766B69"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_table.glb",
@@ -1176,7 +1322,7 @@
       "priceGel": 1600,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_table.jpg",
-      "colorHex": null,
+      "colorHex": "#44545D",
       "triangles": 600,
       "bytes": 177348,
       "textures": [
@@ -1186,7 +1332,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#41505A",
+        "#394046",
+        "#30363B"
+      ]
     },
     {
       "url": "/models/stock/ph-round_wooden_table_01.glb",
@@ -1205,7 +1356,7 @@
       "priceGel": 1350,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-round_wooden_table_01.jpg",
-      "colorHex": null,
+      "colorHex": "#3D1A0C",
       "triangles": 8640,
       "bytes": 389764,
       "textures": [
@@ -1215,7 +1366,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#3D190C"
+      ]
     },
     {
       "url": "/models/stock/ph-round_wooden_table_02.glb",
@@ -1234,7 +1388,7 @@
       "priceGel": 620,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-round_wooden_table_02.jpg",
-      "colorHex": null,
+      "colorHex": "#2B180E",
       "triangles": 4254,
       "bytes": 260216,
       "textures": [
@@ -1244,7 +1398,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#2B170D",
+        "#27201C"
+      ]
     },
     {
       "url": "/models/stock/ph-wooden_table_02.glb",
@@ -1263,7 +1421,7 @@
       "priceGel": 540,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-wooden_table_02.jpg",
-      "colorHex": null,
+      "colorHex": "#91532D",
       "triangles": 196,
       "bytes": 480592,
       "textures": [
@@ -1273,7 +1431,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#8F512C"
+      ]
     },
     {
       "url": "/models/stock/kk-table.glb",
@@ -1292,13 +1453,16 @@
       "priceGel": 780,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-table.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 120,
       "bytes": 3004,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-tableGlass.glb",
@@ -1316,13 +1480,16 @@
       "priceGel": 990,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-tableGlass.png",
-      "colorHex": null,
+      "colorHex": "#DEEAEA",
       "triangles": 144,
       "bytes": 4256,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#DEEAEA"
+      ]
     },
     {
       "url": "/models/stock/kk-tableCross.glb",
@@ -1341,13 +1508,16 @@
       "priceGel": 860,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-kk-tableCross.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 178,
       "bytes": 3788,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-dining_chair_02.glb",
@@ -1366,7 +1536,7 @@
       "priceGel": 420,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-dining_chair_02.jpg",
-      "colorHex": null,
+      "colorHex": "#312118",
       "triangles": 22013,
       "bytes": 563412,
       "textures": [
@@ -1376,7 +1546,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#312118",
+        "#140D09"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_chair_01.glb",
@@ -1395,7 +1569,7 @@
       "priceGel": 260,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_chair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#D0CFCD",
       "triangles": 724,
       "bytes": 467932,
       "textures": [
@@ -1405,7 +1579,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#D0CFCD",
+        "#795B3D",
+        "#DEDDDB"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_chair_02.glb",
@@ -1423,7 +1602,7 @@
       "priceGel": 240,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_chair_02.jpg",
-      "colorHex": null,
+      "colorHex": "#6D7576",
       "triangles": 1246,
       "bytes": 272144,
       "textures": [
@@ -1433,7 +1612,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#6D7577"
+      ]
     },
     {
       "url": "/models/stock/ph-SchoolChair_01.glb",
@@ -1452,7 +1634,7 @@
       "priceGel": 190,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-SchoolChair_01.jpg",
-      "colorHex": null,
+      "colorHex": "#1C2B42",
       "triangles": 5072,
       "bytes": 399332,
       "textures": [
@@ -1462,7 +1644,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#1C2B42",
+        "#8A8A8A"
+      ]
     },
     {
       "url": "/models/stock/ph-gallinera_chair.glb",
@@ -1480,7 +1666,7 @@
       "priceGel": 280,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-gallinera_chair.jpg",
-      "colorHex": null,
+      "colorHex": "#241F1C",
       "triangles": 11560,
       "bytes": 361004,
       "textures": [
@@ -1490,7 +1676,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#241F1C",
+        "#27190D"
+      ]
     },
     {
       "url": "/models/stock/kk-chair.glb",
@@ -1509,13 +1699,16 @@
       "priceGel": 180,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-chair.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 170,
       "bytes": 3492,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-chairCushion.glb",
@@ -1534,13 +1727,17 @@
       "priceGel": 210,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-chairCushion.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 198,
       "bytes": 4844,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8",
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-chairModernCushion.glb",
@@ -1558,13 +1755,17 @@
       "priceGel": 260,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-chairModernCushion.png",
-      "colorHex": null,
+      "colorHex": "#DFEAEC",
       "triangles": 92,
       "bytes": 3956,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#DFEAEC",
+        "#A1BEF0"
+      ]
     },
     {
       "url": "/models/stock/kk-chairRounded.glb",
@@ -1583,13 +1784,16 @@
       "priceGel": 230,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-kk-chairRounded.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 280,
       "bytes": 4924,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenCabinet.glb",
@@ -1610,13 +1814,17 @@
       "priceGel": 3200,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenCabinet.png",
-      "colorHex": null,
+      "colorHex": "#F2CBA8",
       "triangles": 114,
       "bytes": 5368,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2CBA8",
+        "#DFEAEC"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenCabinetDrawer-run.glb",
@@ -1637,13 +1845,16 @@
       "priceGel": 3600,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenCabinetDrawer-run.png",
-      "colorHex": null,
+      "colorHex": "#F2CBA8",
       "triangles": 174,
       "bytes": 6052,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2CBA8"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenBar.glb",
@@ -1663,13 +1874,17 @@
       "priceGel": 1900,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenBar.png",
-      "colorHex": null,
+      "colorHex": "#F1CAA7",
       "triangles": 76,
       "bytes": 4632,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F1CAA7",
+        "#DFEAEC"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenCabinetDrawer.glb",
@@ -1690,13 +1905,16 @@
       "priceGel": 1400,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenCabinetDrawer.png",
-      "colorHex": null,
+      "colorHex": "#F2CBA8",
       "triangles": 174,
       "bytes": 6076,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2CBA8"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenFridge.glb",
@@ -1717,13 +1935,16 @@
       "priceGel": 1850,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenFridge.png",
-      "colorHex": null,
+      "colorHex": "#F7FCF9",
       "triangles": 250,
       "bytes": 8136,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F7FCF9"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenFridgeLarge.glb",
@@ -1742,13 +1963,16 @@
       "priceGel": 2900,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenFridgeLarge.png",
-      "colorHex": null,
+      "colorHex": "#F8FDFA",
       "triangles": 436,
       "bytes": 8372,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F8FDFA"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenFridgeSmall.glb",
@@ -1769,13 +1993,16 @@
       "priceGel": 1100,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenFridgeSmall.png",
-      "colorHex": null,
+      "colorHex": "#F7FCF9",
       "triangles": 152,
       "bytes": 6940,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F7FCF9"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenFridgeBuiltIn.glb",
@@ -1794,13 +2021,17 @@
       "priceGel": 2400,
       "storeSlug": "kartuli-aveji",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenFridgeBuiltIn.png",
-      "colorHex": null,
+      "colorHex": "#F7FCF9",
       "triangles": 268,
       "bytes": 9576,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F7FCF9",
+        "#F2CBA8"
+      ]
     },
     {
       "url": "/models/stock/kk-toilet.glb",
@@ -1821,13 +2052,16 @@
       "priceGel": 620,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-toilet.png",
-      "colorHex": null,
+      "colorHex": "#FCFFFF",
       "triangles": 230,
       "bytes": 8648,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FCFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-toiletSquare.glb",
@@ -1846,13 +2080,16 @@
       "priceGel": 780,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-toiletSquare.png",
-      "colorHex": null,
+      "colorHex": "#FCFFFF",
       "triangles": 228,
       "bytes": 6008,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FCFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-bathroomSink.glb",
@@ -1873,13 +2110,16 @@
       "priceGel": 540,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-bathroomSink.png",
-      "colorHex": null,
+      "colorHex": "#FFFFFF",
       "triangles": 316,
       "bytes": 7792,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FFFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-bathroomSinkSquare.glb",
@@ -1898,13 +2138,16 @@
       "priceGel": 610,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-bathroomSinkSquare.png",
-      "colorHex": null,
+      "colorHex": "#FCFFFF",
       "triangles": 234,
       "bytes": 6652,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FCFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-bathroomCabinet.glb",
@@ -1923,13 +2166,16 @@
       "priceGel": 890,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-bathroomCabinet.png",
-      "colorHex": null,
+      "colorHex": "#F2CBA8",
       "triangles": 64,
       "bytes": 4832,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2CBA8"
+      ]
     },
     {
       "url": "/models/stock/kk-bathroomCabinetDrawer.glb",
@@ -1950,13 +2196,17 @@
       "priceGel": 940,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-bathroomCabinetDrawer.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 508,
       "bytes": 10600,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8",
+        "#FCFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-shower.glb",
@@ -1977,13 +2227,16 @@
       "priceGel": 1450,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-shower.png",
-      "colorHex": null,
+      "colorHex": "#F1F9F6",
       "triangles": 810,
       "bytes": 13460,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F1F9F6"
+      ]
     },
     {
       "url": "/models/stock/kk-showerRound.glb",
@@ -2002,13 +2255,16 @@
       "priceGel": 1650,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-showerRound.png",
-      "colorHex": null,
+      "colorHex": "#F8FBFA",
       "triangles": 960,
       "bytes": 17624,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F8FBFA"
+      ]
     },
     {
       "url": "/models/stock/kk-bathtub.glb",
@@ -2029,13 +2285,16 @@
       "priceGel": 1300,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-bathtub.png",
-      "colorHex": null,
+      "colorHex": "#FAFEFC",
       "triangles": 602,
       "bytes": 11768,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FAFEFC"
+      ]
     },
     {
       "url": "/models/stock/kk-washer.glb",
@@ -2056,13 +2315,17 @@
       "priceGel": 1250,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-washer.png",
-      "colorHex": null,
+      "colorHex": "#F2F8F7",
       "triangles": 720,
       "bytes": 17408,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2F8F7",
+        "#A3B5B5"
+      ]
     },
     {
       "url": "/models/stock/kk-dryer.glb",
@@ -2083,13 +2346,17 @@
       "priceGel": 1350,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-dryer.png",
-      "colorHex": null,
+      "colorHex": "#F8FDFA",
       "triangles": 262,
       "bytes": 7068,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F8FDFA",
+        "#A3B5B5"
+      ]
     },
     {
       "url": "/models/stock/kk-washerDryerStacked.glb",
@@ -2108,13 +2375,17 @@
       "priceGel": 2450,
       "storeSlug": "san-plus",
       "imageUrl": "/uploads/furniture/stock-kk-washerDryerStacked.png",
-      "colorHex": null,
+      "colorHex": "#F4FAF8",
       "triangles": 992,
       "bytes": 20592,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F4FAF8",
+        "#A3B5B5"
+      ]
     },
     {
       "url": "/models/stock/ph-ornate_mirror_01.glb",
@@ -2135,7 +2406,7 @@
       "priceGel": 380,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-ornate_mirror_01.jpg",
-      "colorHex": null,
+      "colorHex": "#727272",
       "triangles": 14246,
       "bytes": 426604,
       "textures": [
@@ -2145,7 +2416,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#707070",
+        "#DADADA",
+        "#94774F"
+      ]
     },
     {
       "url": "/models/stock/ph-GothicBed_01.glb",
@@ -2163,7 +2439,7 @@
       "priceGel": 2900,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-GothicBed_01.jpg",
-      "colorHex": null,
+      "colorHex": "#331B0D",
       "triangles": 18745,
       "bytes": 723032,
       "textures": [
@@ -2173,7 +2449,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#3B200F",
+        "#BEB9B3",
+        "#180F07"
+      ]
     },
     {
       "url": "/models/stock/kk-bedDouble.glb",
@@ -2193,13 +2474,18 @@
       "priceGel": 1900,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bedDouble.png",
-      "colorHex": null,
+      "colorHex": "#FAFEFE",
       "triangles": 264,
       "bytes": 8796,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FAFEFE",
+        "#F3CCA8",
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/ph-old_bed_frame.glb",
@@ -2218,7 +2504,7 @@
       "priceGel": 780,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-old_bed_frame.jpg",
-      "colorHex": null,
+      "colorHex": "#66554B",
       "triangles": 23999,
       "bytes": 496572,
       "textures": [
@@ -2228,7 +2514,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#66544A",
+        "#948B82"
+      ]
     },
     {
       "url": "/models/stock/ph-vintage_day_bed.glb",
@@ -2247,7 +2537,7 @@
       "priceGel": 1700,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-vintage_day_bed.jpg",
-      "colorHex": null,
+      "colorHex": "#7E5B3B",
       "triangles": 2715,
       "bytes": 311708,
       "textures": [
@@ -2257,7 +2547,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#7E5A3A",
+        "#9C8E65",
+        "#BCBEB9"
+      ]
     },
     {
       "url": "/models/stock/kk-bedSingle.glb",
@@ -2276,13 +2571,18 @@
       "priceGel": 980,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bedSingle.png",
-      "colorHex": null,
+      "colorHex": "#F9FDFD",
       "triangles": 214,
       "bytes": 7976,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9FDFD",
+        "#F3CCA8",
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-bedBunk.glb",
@@ -2301,13 +2601,18 @@
       "priceGel": 1500,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bedBunk.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 580,
       "bytes": 10716,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8",
+        "#F9A39E",
+        "#FCFFFF"
+      ]
     },
     {
       "url": "/models/stock/ph-ClassicNightstand_01.glb",
@@ -2325,7 +2630,7 @@
       "priceGel": 420,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-ClassicNightstand_01.jpg",
-      "colorHex": null,
+      "colorHex": "#281A0D",
       "triangles": 2002,
       "bytes": 401632,
       "textures": [
@@ -2335,7 +2640,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#241609",
+        "#221912"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_nightstand.glb",
@@ -2354,7 +2663,7 @@
       "priceGel": 310,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_nightstand.jpg",
-      "colorHex": null,
+      "colorHex": "#3F4549",
       "triangles": 470,
       "bytes": 237128,
       "textures": [
@@ -2364,7 +2673,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#404649",
+        "#604D3C",
+        "#33312E"
+      ]
     },
     {
       "url": "/models/stock/ph-side_table_01.glb",
@@ -2383,7 +2697,7 @@
       "priceGel": 290,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-side_table_01.jpg",
-      "colorHex": null,
+      "colorHex": "#8E5F37",
       "triangles": 2756,
       "bytes": 421268,
       "textures": [
@@ -2393,7 +2707,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#8F5F37"
+      ]
     },
     {
       "url": "/models/stock/ph-side_table_tall_01.glb",
@@ -2412,7 +2729,7 @@
       "priceGel": 260,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-side_table_tall_01.jpg",
-      "colorHex": null,
+      "colorHex": "#371B0C",
       "triangles": 6408,
       "bytes": 430108,
       "textures": [
@@ -2422,7 +2739,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#361B0C"
+      ]
     },
     {
       "url": "/models/stock/ph-WoodenTable_02.glb",
@@ -2441,7 +2761,7 @@
       "priceGel": 180,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-WoodenTable_02.jpg",
-      "colorHex": null,
+      "colorHex": "#29150F",
       "triangles": 1514,
       "bytes": 473548,
       "textures": [
@@ -2451,7 +2771,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#2A160F",
+        "#2C211D"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_stool.glb",
@@ -2469,7 +2793,7 @@
       "priceGel": 340,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_stool.jpg",
-      "colorHex": null,
+      "colorHex": "#483025",
       "triangles": 1090,
       "bytes": 194244,
       "textures": [
@@ -2479,7 +2803,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#483025",
+        "#2B221C"
+      ]
     },
     {
       "url": "/models/stock/kk-sideTable.glb",
@@ -2498,13 +2826,17 @@
       "priceGel": 160,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-sideTable.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 118,
       "bytes": 4124,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8",
+        "#FFFFFF"
+      ]
     },
     {
       "url": "/models/stock/kk-cabinetBedDrawerTable.glb",
@@ -2524,13 +2856,16 @@
       "priceGel": 240,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-cabinetBedDrawerTable.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 140,
       "bytes": 5800,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-vintage_cabinet_01.glb",
@@ -2549,7 +2884,7 @@
       "priceGel": 2600,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-vintage_cabinet_01.jpg",
-      "colorHex": null,
+      "colorHex": "#2A130B",
       "triangles": 24007,
       "bytes": 652288,
       "textures": [
@@ -2563,7 +2898,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#2B130B"
+      ]
     },
     {
       "url": "/models/stock/ph-GothicCabinet_01.glb",
@@ -2581,7 +2919,7 @@
       "priceGel": 2400,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-GothicCabinet_01.jpg",
-      "colorHex": null,
+      "colorHex": "#452F1D",
       "triangles": 12170,
       "bytes": 687520,
       "textures": [
@@ -2591,7 +2929,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#462F1E"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_cabinet_02.glb",
@@ -2610,7 +2951,7 @@
       "priceGel": 1500,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_cabinet_02.jpg",
-      "colorHex": null,
+      "colorHex": "#493921",
       "triangles": 966,
       "bytes": 188612,
       "textures": [
@@ -2620,7 +2961,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#493820",
+        "#3C4A57",
+        "#6C6E70"
+      ]
     },
     {
       "url": "/models/stock/ph-drawer_cabinet.glb",
@@ -2639,7 +2985,7 @@
       "priceGel": 1300,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-drawer_cabinet.jpg",
-      "colorHex": null,
+      "colorHex": "#AB8056",
       "triangles": 26406,
       "bytes": 580352,
       "textures": [
@@ -2649,7 +2995,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#AC8056",
+        "#0B0B0D"
+      ]
     },
     {
       "url": "/models/stock/kk-bookcaseClosedDoors.glb",
@@ -2668,13 +3018,16 @@
       "priceGel": 1450,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bookcaseClosedDoors.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 296,
       "bytes": 6388,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-bookcaseClosedWide.glb",
@@ -2694,13 +3047,16 @@
       "priceGel": 1750,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bookcaseClosedWide.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 372,
       "bytes": 5612,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-GothicCommode_01.glb",
@@ -2718,7 +3074,7 @@
       "priceGel": 1250,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-GothicCommode_01.jpg",
-      "colorHex": null,
+      "colorHex": "#41210F",
       "triangles": 3897,
       "bytes": 513184,
       "textures": [
@@ -2728,7 +3084,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#41210E"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_cabinet.glb",
@@ -2747,7 +3106,7 @@
       "priceGel": 880,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_cabinet.jpg",
-      "colorHex": null,
+      "colorHex": "#4A3728",
       "triangles": 2227,
       "bytes": 242780,
       "textures": [
@@ -2757,7 +3116,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#483527",
+        "#B1AFA4",
+        "#191510"
+      ]
     },
     {
       "url": "/models/stock/ph-tool_cart.glb",
@@ -2775,7 +3139,7 @@
       "priceGel": 640,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-tool_cart.jpg",
-      "colorHex": null,
+      "colorHex": "#3F483A",
       "triangles": 24000,
       "bytes": 486928,
       "textures": [
@@ -2785,7 +3149,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#4D7256",
+        "#42483C",
+        "#37352B"
+      ]
     },
     {
       "url": "/models/stock/kk-cabinetBedDrawer-dresser.glb",
@@ -2804,13 +3173,16 @@
       "priceGel": 560,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-cabinetBedDrawer-dresser.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 182,
       "bytes": 6296,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-kitchenCabinetDrawer-dresser.glb",
@@ -2829,13 +3201,16 @@
       "priceGel": 520,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-kitchenCabinetDrawer-dresser.png",
-      "colorHex": null,
+      "colorHex": "#F2CBA8",
       "triangles": 174,
       "bytes": 6084,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F2CBA8"
+      ]
     },
     {
       "url": "/models/stock/ph-Shelf_01.glb",
@@ -2854,7 +3229,7 @@
       "priceGel": 620,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-Shelf_01.jpg",
-      "colorHex": null,
+      "colorHex": "#A5A5A4",
       "triangles": 182,
       "bytes": 596264,
       "textures": [
@@ -2864,7 +3239,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#A6A5A4"
+      ]
     },
     {
       "url": "/models/stock/ph-steel_frame_shelves_01.glb",
@@ -2883,7 +3261,7 @@
       "priceGel": 890,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-steel_frame_shelves_01.jpg",
-      "colorHex": null,
+      "colorHex": "#D29C65",
       "triangles": 4348,
       "bytes": 206316,
       "textures": [
@@ -2893,7 +3271,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#D39D66",
+        "#434241",
+        "#383837"
+      ]
     },
     {
       "url": "/models/stock/ph-steel_frame_shelves_03.glb",
@@ -2912,7 +3295,7 @@
       "priceGel": 1400,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-steel_frame_shelves_03.jpg",
-      "colorHex": null,
+      "colorHex": "#6F4B2F",
       "triangles": 8396,
       "bytes": 436192,
       "textures": [
@@ -2925,7 +3308,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#6F4C30",
+        "#232323"
+      ]
     },
     {
       "url": "/models/stock/ph-wooden_bookshelf_worn.glb",
@@ -2944,7 +3331,7 @@
       "priceGel": 540,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-wooden_bookshelf_worn.jpg",
-      "colorHex": null,
+      "colorHex": "#877268",
       "triangles": 10106,
       "bytes": 377508,
       "textures": [
@@ -2954,7 +3341,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#857065"
+      ]
     },
     {
       "url": "/models/stock/ph-wooden_display_shelves_01.glb",
@@ -2973,7 +3363,7 @@
       "priceGel": 480,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-wooden_display_shelves_01.jpg",
-      "colorHex": null,
+      "colorHex": "#C38A59",
       "triangles": 3174,
       "bytes": 397852,
       "textures": [
@@ -2983,7 +3373,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#C58C5A",
+        "#C5C5C5"
+      ]
     },
     {
       "url": "/models/stock/kk-bookcaseOpen.glb",
@@ -3002,13 +3396,16 @@
       "priceGel": 450,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bookcaseOpen.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 320,
       "bytes": 4432,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-bookcaseClosed.glb",
@@ -3028,13 +3425,16 @@
       "priceGel": 520,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bookcaseClosed.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 372,
       "bytes": 5368,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-steel_frame_shelves_02.glb",
@@ -3053,7 +3453,7 @@
       "priceGel": 560,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-steel_frame_shelves_02.jpg",
-      "colorHex": null,
+      "colorHex": "#CC955F",
       "triangles": 4348,
       "bytes": 445852,
       "textures": [
@@ -3063,7 +3463,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#CD9660",
+        "#40403F",
+        "#383838"
+      ]
     },
     {
       "url": "/models/stock/ph-painted_wooden_shelves.glb",
@@ -3082,7 +3487,7 @@
       "priceGel": 320,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-painted_wooden_shelves.jpg",
-      "colorHex": null,
+      "colorHex": "#543129",
       "triangles": 524,
       "bytes": 222628,
       "textures": [
@@ -3092,7 +3497,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#55312A",
+        "#291F1A"
+      ]
     },
     {
       "url": "/models/stock/ph-worn_metal_rack.glb",
@@ -3110,7 +3519,7 @@
       "priceGel": 380,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-worn_metal_rack.jpg",
-      "colorHex": null,
+      "colorHex": "#675F58",
       "triangles": 6372,
       "bytes": 267300,
       "textures": [
@@ -3120,7 +3529,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#675E58",
+        "#6A6454"
+      ]
     },
     {
       "url": "/models/stock/ph-industrial_storage_cart.glb",
@@ -3138,7 +3551,7 @@
       "priceGel": 720,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-industrial_storage_cart.jpg",
-      "colorHex": null,
+      "colorHex": "#525246",
       "triangles": 18902,
       "bytes": 410844,
       "textures": [
@@ -3148,7 +3561,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#545348",
+        "#4B4934",
+        "#444D36"
+      ]
     },
     {
       "url": "/models/stock/kk-bookcaseOpenLow.glb",
@@ -3167,13 +3585,16 @@
       "priceGel": 340,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-bookcaseOpenLow.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 184,
       "bytes": 3504,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-metal_office_desk.glb",
@@ -3192,7 +3613,7 @@
       "priceGel": 1100,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-metal_office_desk.jpg",
-      "colorHex": null,
+      "colorHex": "#58595B",
       "triangles": 6898,
       "bytes": 237264,
       "textures": [
@@ -3202,7 +3623,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#58595B"
+      ]
     },
     {
       "url": "/models/stock/ph-SchoolDesk_01.glb",
@@ -3221,7 +3645,7 @@
       "priceGel": 380,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-SchoolDesk_01.jpg",
-      "colorHex": null,
+      "colorHex": "#454545",
       "triangles": 4162,
       "bytes": 336624,
       "textures": [
@@ -3231,7 +3655,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#454545",
+        "#795935"
+      ]
     },
     {
       "url": "/models/stock/ph-WoodenTable_03.glb",
@@ -3250,7 +3678,7 @@
       "priceGel": 520,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-WoodenTable_03.jpg",
-      "colorHex": null,
+      "colorHex": "#70594A",
       "triangles": 2298,
       "bytes": 549396,
       "textures": [
@@ -3260,7 +3688,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#71594A",
+        "#888580"
+      ]
     },
     {
       "url": "/models/stock/kk-desk.glb",
@@ -3279,13 +3711,16 @@
       "priceGel": 690,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-desk.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 198,
       "bytes": 5348,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/kk-deskCorner.glb",
@@ -3303,13 +3738,16 @@
       "priceGel": 940,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-deskCorner.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 250,
       "bytes": 5880,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8"
+      ]
     },
     {
       "url": "/models/stock/ph-metal_stool_01.glb",
@@ -3328,7 +3766,7 @@
       "priceGel": 260,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-metal_stool_01.jpg",
-      "colorHex": null,
+      "colorHex": "#4F3626",
       "triangles": 8334,
       "bytes": 309508,
       "textures": [
@@ -3338,7 +3776,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#4F3626"
+      ]
     },
     {
       "url": "/models/stock/ph-metal_stool_03.glb",
@@ -3356,7 +3797,7 @@
       "priceGel": 300,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-metal_stool_03.jpg",
-      "colorHex": null,
+      "colorHex": "#2D3120",
       "triangles": 6576,
       "bytes": 305580,
       "textures": [
@@ -3366,7 +3807,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#2D3120",
+        "#483221"
+      ]
     },
     {
       "url": "/models/stock/ph-SchoolChair_01-office.glb",
@@ -3385,7 +3830,7 @@
       "priceGel": 190,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/stock-ph-SchoolChair_01-office.jpg",
-      "colorHex": null,
+      "colorHex": "#1C2B42",
       "triangles": 5072,
       "bytes": 399332,
       "textures": [
@@ -3395,7 +3840,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#1C2B42",
+        "#8A8A8A"
+      ]
     },
     {
       "url": "/models/stock/ph-dining_chair_02-office.glb",
@@ -3413,7 +3862,7 @@
       "priceGel": 420,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-dining_chair_02-office.jpg",
-      "colorHex": null,
+      "colorHex": "#312118",
       "triangles": 22013,
       "bytes": 563412,
       "textures": [
@@ -3423,7 +3872,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#312118",
+        "#140D09"
+      ]
     },
     {
       "url": "/models/stock/kk-chairDesk.glb",
@@ -3443,13 +3896,17 @@
       "priceGel": 380,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-chairDesk.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 588,
       "bytes": 10972,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E",
+        "#A3B6B6"
+      ]
     },
     {
       "url": "/models/stock/ph-Chandelier_01.glb",
@@ -3467,7 +3924,7 @@
       "priceGel": 1400,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-Chandelier_01.jpg",
-      "colorHex": null,
+      "colorHex": "#D0CDBE",
       "triangles": 26860,
       "bytes": 710148,
       "textures": [
@@ -3477,7 +3934,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#D0CDBE",
+        "#9B7F53"
+      ]
     },
     {
       "url": "/models/stock/ph-Chandelier_02.glb",
@@ -3495,7 +3956,7 @@
       "priceGel": 1250,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-Chandelier_02.jpg",
-      "colorHex": null,
+      "colorHex": "#BCBEB2",
       "triangles": 21514,
       "bytes": 775232,
       "textures": [
@@ -3505,7 +3966,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#BCBEB2",
+        "#A18057"
+      ]
     },
     {
       "url": "/models/stock/ph-Chandelier_03.glb",
@@ -3524,7 +3989,7 @@
       "priceGel": 1600,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-Chandelier_03.jpg",
-      "colorHex": null,
+      "colorHex": "#A38463",
       "triangles": 23999,
       "bytes": 785200,
       "textures": [
@@ -3535,7 +4000,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#A38463",
+        "#666666"
+      ]
     },
     {
       "url": "/models/stock/ph-chinese_chandelier.glb",
@@ -3553,7 +4022,7 @@
       "priceGel": 1300,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-chinese_chandelier.jpg",
-      "colorHex": null,
+      "colorHex": "#452D21",
       "triangles": 7828,
       "bytes": 352736,
       "textures": [
@@ -3563,7 +4032,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#462D21",
+        "#817A6F"
+      ]
     },
     {
       "url": "/models/stock/ph-lantern_chandelier_01.glb",
@@ -3582,7 +4055,7 @@
       "priceGel": 980,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-lantern_chandelier_01.jpg",
-      "colorHex": null,
+      "colorHex": "#6A4F3D",
       "triangles": 5971,
       "bytes": 600960,
       "textures": [
@@ -3596,7 +4069,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#6C503D",
+        "#25201B"
+      ]
     },
     {
       "url": "/models/stock/ph-hanging_industrial_lamp.glb",
@@ -3614,7 +4091,7 @@
       "priceGel": 420,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-hanging_industrial_lamp.jpg",
-      "colorHex": null,
+      "colorHex": "#7E7973",
       "triangles": 9530,
       "bytes": 433828,
       "textures": [
@@ -3626,7 +4103,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#7F7973",
+        "#E7E7E7",
+        "#8C8D70"
+      ]
     },
     {
       "url": "/models/stock/ph-caged_hanging_light.glb",
@@ -3644,7 +4126,7 @@
       "priceGel": 380,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-caged_hanging_light.jpg",
-      "colorHex": null,
+      "colorHex": "#525053",
       "triangles": 22893,
       "bytes": 522152,
       "textures": [
@@ -3655,7 +4137,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#514E51",
+        "#323124"
+      ]
     },
     {
       "url": "/models/stock/ph-modern_ceiling_lamp_01.glb",
@@ -3674,7 +4160,7 @@
       "priceGel": 460,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-modern_ceiling_lamp_01.jpg",
-      "colorHex": null,
+      "colorHex": "#C4BFB8",
       "triangles": 5602,
       "bytes": 337664,
       "textures": [
@@ -3684,7 +4170,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#C4BFB9"
+      ]
     },
     {
       "url": "/models/stock/ph-ceiling_fan.glb",
@@ -3703,7 +4192,7 @@
       "priceGel": 520,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-ph-ceiling_fan.jpg",
-      "colorHex": null,
+      "colorHex": "#0E1111",
       "triangles": 16356,
       "bytes": 345620,
       "textures": [
@@ -3715,7 +4204,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#0E1112",
+        "#7A7E7F"
+      ]
     },
     {
       "url": "/models/stock/kk-lampSquareCeiling.glb",
@@ -3734,13 +4227,17 @@
       "priceGel": 240,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-kk-lampSquareCeiling.png",
-      "colorHex": null,
+      "colorHex": "#FFF5CA",
       "triangles": 60,
       "bytes": 3592,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FFF5CA",
+        "#DFEAEC"
+      ]
     },
     {
       "url": "/models/stock/kk-lampRoundFloor.glb",
@@ -3760,13 +4257,17 @@
       "priceGel": 290,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-kk-lampRoundFloor.png",
-      "colorHex": null,
+      "colorHex": "#FFF5CA",
       "triangles": 76,
       "bytes": 3836,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FFF5CA",
+        "#DFEAEC"
+      ]
     },
     {
       "url": "/models/stock/kk-lampSquareFloor.glb",
@@ -3785,13 +4286,17 @@
       "priceGel": 310,
       "storeSlug": "lumina",
       "imageUrl": "/uploads/furniture/stock-kk-lampSquareFloor.png",
-      "colorHex": null,
+      "colorHex": "#FFF5CA",
       "triangles": 60,
       "bytes": 3576,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#FFF5CA",
+        "#DFEAEC"
+      ]
     },
     {
       "url": "/models/stock/kk-rugRectangle.glb",
@@ -3812,13 +4317,16 @@
       "priceGel": 380,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugRectangle.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 28,
       "bytes": 3164,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-rugRounded.glb",
@@ -3837,13 +4345,16 @@
       "priceGel": 360,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugRounded.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 204,
       "bytes": 4804,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-rugSquare.glb",
@@ -3862,13 +4373,16 @@
       "priceGel": 340,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugSquare.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 28,
       "bytes": 3156,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-rugRound.glb",
@@ -3887,13 +4401,16 @@
       "priceGel": 320,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugRound.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 188,
       "bytes": 4636,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-rugRectangle-bed.glb",
@@ -3914,13 +4431,16 @@
       "priceGel": 420,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugRectangle-bed.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 28,
       "bytes": 3156,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/kk-rugRounded-bed.glb",
@@ -3940,13 +4460,16 @@
       "priceGel": 400,
       "storeSlug": "textil-plus",
       "imageUrl": "/uploads/furniture/stock-kk-rugRounded-bed.png",
-      "colorHex": null,
+      "colorHex": "#F9A39E",
       "triangles": 204,
       "bytes": 4772,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F9A39E"
+      ]
     },
     {
       "url": "/models/stock/ph-potted_plant_01.glb",
@@ -3967,7 +4490,7 @@
       "priceGel": 140,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-potted_plant_01.jpg",
-      "colorHex": null,
+      "colorHex": "#785B42",
       "triangles": 24960,
       "bytes": 773344,
       "textures": [
@@ -3980,7 +4503,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#7A5B42",
+        "#AD6F4B",
+        "#5A6F38"
+      ]
     },
     {
       "url": "/models/stock/ph-potted_plant_02.glb",
@@ -4001,7 +4529,7 @@
       "priceGel": 120,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-potted_plant_02.jpg",
-      "colorHex": null,
+      "colorHex": "#AE6E4A",
       "triangles": 23999,
       "bytes": 628212,
       "textures": [
@@ -4014,7 +4542,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#AE6E4A",
+        "#5E5540",
+        "#68834D"
+      ]
     },
     {
       "url": "/models/stock/ph-planter_box_03.glb",
@@ -4033,7 +4566,7 @@
       "priceGel": 160,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/stock-ph-planter_box_03.jpg",
-      "colorHex": null,
+      "colorHex": "#4D3F2E",
       "triangles": 13112,
       "bytes": 409504,
       "textures": [
@@ -4043,7 +4576,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#4D3F2E",
+        "#201D1A"
+      ]
     },
     {
       "url": "/models/stock/kk-pottedPlant.glb",
@@ -4064,13 +4601,17 @@
       "priceGel": 95,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-pottedPlant.png",
-      "colorHex": null,
+      "colorHex": "#76EAC8",
       "triangles": 60,
       "bytes": 5268,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#76EAC8",
+        "#F1CAA7"
+      ]
     },
     {
       "url": "/models/stock/kk-plantSmall3.glb",
@@ -4091,13 +4632,17 @@
       "priceGel": 60,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-kk-plantSmall3.png",
-      "colorHex": null,
+      "colorHex": "#F3CCA8",
       "triangles": 98,
       "bytes": 4416,
       "textures": [],
       "source": "kenney",
       "license": "CC0",
-      "brand": "Kenney"
+      "brand": "Kenney",
+      "colors": [
+        "#F3CCA8",
+        "#76EAC8"
+      ]
     },
     {
       "url": "/models/stock/ph-hanging_picture_frame_01.glb",
@@ -4116,7 +4661,7 @@
       "priceGel": 180,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-hanging_picture_frame_01.jpg",
-      "colorHex": null,
+      "colorHex": "#111111",
       "triangles": 2586,
       "bytes": 328444,
       "textures": [
@@ -4128,7 +4673,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#111111",
+        "#664C2B",
+        "#868686"
+      ]
     },
     {
       "url": "/models/stock/ph-hanging_picture_frame_02.glb",
@@ -4147,7 +4697,7 @@
       "priceGel": 160,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-hanging_picture_frame_02.jpg",
-      "colorHex": null,
+      "colorHex": "#664E33",
       "triangles": 3678,
       "bytes": 618676,
       "textures": [
@@ -4160,7 +4710,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#695136",
+        "#EDE8E5",
+        "#111111"
+      ]
     },
     {
       "url": "/models/stock/ph-hanging_picture_frame_03.glb",
@@ -4178,7 +4733,7 @@
       "priceGel": 120,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-hanging_picture_frame_03.jpg",
-      "colorHex": null,
+      "colorHex": "#411F0D",
       "triangles": 24348,
       "bytes": 822548,
       "textures": [
@@ -4191,7 +4746,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#421F0D",
+        "#1B1715"
+      ]
     },
     {
       "url": "/models/stock/ph-fancy_picture_frame_01.glb",
@@ -4209,7 +4768,7 @@
       "priceGel": 260,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-fancy_picture_frame_01.jpg",
-      "colorHex": null,
+      "colorHex": "#56462A",
       "triangles": 938,
       "bytes": 724692,
       "textures": [
@@ -4222,7 +4781,11 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#554429",
+        "#BEC5BE"
+      ]
     },
     {
       "url": "/models/stock/ph-fancy_picture_frame_02.glb",
@@ -4240,7 +4803,7 @@
       "priceGel": 320,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/stock-ph-fancy_picture_frame_02.jpg",
-      "colorHex": null,
+      "colorHex": "#967752",
       "triangles": 24000,
       "bytes": 572840,
       "textures": [
@@ -4253,7 +4816,10 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#957751"
+      ]
     },
     {
       "url": "/models/stock/ph-wall_clock.glb",
@@ -4273,7 +4839,7 @@
       "priceGel": 110,
       "storeSlug": "domus-interior",
       "imageUrl": "/uploads/furniture/stock-ph-wall_clock.jpg",
-      "colorHex": null,
+      "colorHex": "#91A3B5",
       "triangles": 3658,
       "bytes": 240324,
       "textures": [
@@ -4284,7 +4850,12 @@
       ],
       "source": "polyhaven",
       "license": "CC0",
-      "brand": "Poly Haven"
+      "brand": "Poly Haven",
+      "colors": [
+        "#92A3B5",
+        "#1D1D1D",
+        "#E2E2E2"
+      ]
     }
   ]
 }

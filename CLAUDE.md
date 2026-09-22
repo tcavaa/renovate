@@ -74,6 +74,7 @@ pnpm models:stock --inspect --only=ph-sofa_02   # measure and report, write noth
 pnpm models:fixtures # the fittings (sockets, switches, lamps) and the doors and windows → public/models/fixtures
 pnpm models:radiators # the four central-heating radiators, one SECTION each → public/models/radiators
 pnpm models:photos  # render a product photo of each of those from its model (Playwright's Chromium)
+pnpm models:colors  # read every furniture model's colours off its triangles into the manifests (--force to redo)
 pnpm models:seed    # one product per model in the three manifests; deletes every other placeable product (the cPanel deploy runs the same, bundled)
 pnpm deploy:bundle-seed  # that seed as one plain-node file beside the standalone server (the cPanel workflow does this)
 pnpm textures:stock # floor/wall finish textures (partner drop + Poly Haven + ambientCG) → surface products
@@ -131,14 +132,14 @@ app/
       parse-plan/                  reads an uploaded plan with Claude; 503 + fallback:'cv' without a key
   partner/products/new, products/[id]   a store adds and edits its own products
 components/
-  ui/          button card input select dialog accordion badge label skeleton textarea tabs
+  ui/          button card input select dialog accordion badge label skeleton textarea tabs scroll-row (a line that scrolls without a bar, fading where it goes on)
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu
   calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard CalculatorAutosave
   plan/        PlanEditor (the 2D board, canvas) · PlanWorkspace (editor + toolbar wired to the store)
                PlanToolbar (Sims-style tool tiles, thickness, kinds, layers) · ElementInspector
                RoomsPanel · draw.ts (canvas routines) · palette.ts (room tints, origin and system colours)
                icons.ts (one icon per technical system and electrical kind)
-  studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray · archetypeIcons
+  studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray (rooms → kinds, colours) · archetypeIcons (a room and a kind each)
                Trays (build / electric / finishes / budget) · FixturePanel (a fitting's card) · OpeningPanel (a door
                or window's card) · dragImage
                StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
@@ -158,7 +159,7 @@ lib/
                (layout editor snapping) · saveProject.ts (client) · types.ts
   design/      types.ts · styles.ts · steps.ts (the order the eight steps are walked in) ·
                existing.ts (what the flat already has) · planPdfExport.ts (the plan as a PDF)
-               catalog.ts (archetypes + room programs) · planParser.ts
+               catalog.ts (archetypes + room programs + the shelf's rooms) · colors.ts (colour families) · planParser.ts
                planGeometry.ts · planImage.ts (browser) · planPdf.ts (browser) · autoLayout.ts · matcher.ts
                pricing.ts (budget lines) · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
                walls.ts (walls ⇄ rooms) · drawing.ts (snapping, hit tests) · technical.ts · electrical.ts
@@ -851,9 +852,10 @@ Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
 (`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
 (`Tray`), one at a time — build (tools + the wall's shape + thickness + the unlock button; a
 drawing tool switches to the 2D view), furniture (the catalogue as a shelf of small tiles —
-a picture and a price, kinds as icons — click to carry or drag into 3D; the project's own
-style is marked on the style chips, and a list of what is already standing in the room sits
-in the right-hand panel beside it), electric & light (four tiles — socket, switch, aerial,
+a picture and a price — browsed by room and then by kind, narrowed by colour swatches; click
+to carry or drag into 3D; the project's own style is marked on the style chips, and a list of
+what is already standing in the room sits in the right-hand panel beside it — see "Adding
+furniture in the studio"), electric & light (four tiles — socket, switch, aerial,
 data — and the lights; the double, high and kitchen sockets are still placed by the
 automatic wiring and still re-kindable from a fitting's card, but four extra tiles only made
 the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D board, the
@@ -1262,8 +1264,43 @@ Interior at made-up prices.
 
 ### Adding furniture in the studio
 
-The furniture tray (`FurnitureTray`) is the catalogue browser (search, archetype, style chips)
-scoped to the focused room. `designStore.beginAdd` creates the item with the product's real
+The furniture tray (`FurnitureTray`) is the catalogue browser scoped to the focused room.
+**It is browsed by room, then by kind.** Thirty-four kinds in one row of look-alike icons was
+a row nobody could read, so the line is two levels: the rooms as icons (`SHELF_ROOMS`,
+`roomIcon`), and inside a room the kinds that belong there (`kindsForRoom`, one icon each —
+`archetypeIcons` draws the tables, chairs, storage, corner sofa and rugs itself, in lucide's
+idiom, because lucide's tables are spreadsheets and it has one sofa). A kind belongs to a room
+by the **slot** it fills in the room's program, not by being named there: the program names
+the double bed and "bedroom" lists the single bed too. The opened room's chip stands at the
+head of the line as the way back and stays put while the kinds scroll; the shelf opens on the
+room the studio has in focus and follows it; a kind no program has a slot for is under
+"other" (`unroomedKinds`, pinned empty by `tests/unit/design/shelfRooms.test.ts`); a room or a
+kind nothing is sold for is not offered.
+
+**The colour filter is swatches of what is on the shelf.** `lib/design/colors.ts` sorts any
+hex into twelve families a person would name (hue, lightness and *chroma* — HSL saturation
+races to 1 near white, and a pale peach wood read as vivid orange), and the tray shows one
+swatch per family present among the products the other filters leave, with a count; a family
+ticked that the current room has nothing of stands aside instead of emptying the shelf. The
+colours themselves come **off the models**: `scripts/lib/modelColor.ts` reads every triangle's
+area and colour (the material's factor times the texel its middle maps to, nearest-sampled so
+a leaf atlas's cut-outs do not bleed; cut-out texels skipped) and keeps up to three families
+that cover an eighth of the piece, the largest first, as the mean hex of each — so "brown" is
+*this* walnut. Both converters run it on every model, `pnpm models:colors` fills the manifests
+already written (`colors`, and `colorHex` = the first unless the entry had one by hand), and
+`pnpm models:seed` carries them to `products.specs.colors` (`productColors` /
+`productColorFamilies` read a product either way). Eight of two hundred products had a colour
+before; nobody was going to type in the rest.
+
+**Rows scroll without a scrollbar** (`components/ui/scroll-row.tsx`): a bar under a 28 px row
+of icons is a third of the row, and the trays take every pixel from the 3D view. `ScrollRow`
+hides it (`.scrollbar-none`, outside the layers so it beats the global scrollbar rules) and
+says where there is more the way a phone does — the edge the row goes on past is blurred and
+washed to the tray's white, the edge it ends at is sharp, a row that fits shows nothing.
+A `ResizeObserver` on the scroller and its content keeps the edges honest as filters change
+the width; a wheel turned over the row scrolls it sideways (let through at either end), and on
+hover each fading edge carries an arrow that pages the row. Every icon row and shelf in the
+trays — furniture, finishes, electric, technical — is one. `designStore.beginAdd` creates the item with the product's real
 size — `placeAdditional` finds a free spot when there is one (a wall first, then any free
 floor; never a narrowed slot, which is how a 1.9 m cabinet used to land on its neighbours),
 the middle of the room otherwise — and hands it to the pointer (`carryingItemId`). In the

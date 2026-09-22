@@ -134,11 +134,15 @@ async function main() {
       isFeatured: true,
     };
 
-    const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+    const existing = await db.select({ id: products.id, specs: products.specs }).from(products).where(eq(products.slug, slug)).limit(1);
+    // The colours read off the model (`pnpm models:colors`) ride in `specs.colors`, beside
+    // whatever else the row's specs already hold; `colorHex` above is the first of them.
+    const kept = existing[0]?.specs && typeof existing[0].specs === 'object' && !Array.isArray(existing[0].specs) ? (existing[0].specs as Record<string, unknown>) : {};
+    const specs = model.colors?.length ? { ...kept, colors: model.colors } : Object.keys(kept).length ? kept : null;
     if (existing.length) {
-      await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      await db.update(products).set({ ...row, specs }).where(eq(products.id, existing[0].id));
     } else {
-      await db.insert(products).values(row);
+      await db.insert(products).values({ ...row, specs });
     }
     upserted++;
     console.log(

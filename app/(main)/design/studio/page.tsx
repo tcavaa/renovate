@@ -976,6 +976,7 @@ export default function StudioPage() {
                     catalog={products}
                     styleId={styleId}
                     roomLabel={focusRoom?.name ?? t.design.wholeFlat}
+                    roomType={focusRoom?.type ?? null}
                     onPick={pickProduct}
                     onDragProduct={onDragProduct}
                   />

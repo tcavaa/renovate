@@ -22,6 +22,9 @@
         "albedo:2b2b71175522.jpg",
         "normal:33c0abdbd8cf.jpg",
         "roughness:a1873ff7ad44.jpg"
+      ],
+      "colors": [
+        "#AF9575"
       ]
     },
     {
@@ -37,13 +40,16 @@
       "priceGel": 690,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/meccanica-chair.jpg",
-      "colorHex": null,
+      "colorHex": "#2F1A11",
       "triangles": 13999,
       "bytes": 1952436,
       "textures": [
         "albedo:FriendlyShade_Leather02_Albedo.jpg",
         "normal:FriendlyShade_Leather02_Normal.jpg",
         "roughness:FriendlyShade_Leather02_Gloss.jpg"
+      ],
+      "colors": [
+        "#2F1A11"
       ]
     },
     {
@@ -62,7 +68,10 @@
       "colorHex": "#2B2D31",
       "triangles": 13998,
       "bytes": 86076,
-      "textures": []
+      "textures": [],
+      "colors": [
+        "#2B2D31"
+      ]
     },
     {
       "url": "/models/node-sofa.glb",
@@ -83,6 +92,9 @@
       "textures": [
         "normal:LaCividina NODE3.jpg",
         "roughness:LaCividina NODE4.jpg"
+      ],
+      "colors": [
+        "#4A4A48"
       ]
     },
     {
@@ -98,12 +110,15 @@
       "priceGel": 1450,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/swivel-accent-chair.jpg",
-      "colorHex": null,
+      "colorHex": "#C1C1C1",
       "triangles": 1578,
       "bytes": 1136656,
       "textures": [
         "albedo:SWIVEL ACCENT CHAIR By ZARA HOME-001.jpg",
         "normal:SWIVEL ACCENT CHAIR By ZARA HOME-003.jpg"
+      ],
+      "colors": [
+        "#C2C2C2"
       ]
     },
     {
@@ -119,12 +134,15 @@
       "priceGel": 4250,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/industrial-divan.jpg",
-      "colorHex": null,
+      "colorHex": "#A1A1A1",
       "triangles": 13998,
       "bytes": 658836,
       "textures": [
         "albedo:divan Industrial-001.jpg",
         "normal:divan Industrial-004.jpg"
+      ],
+      "colors": [
+        "#A1A1A1"
       ]
     },
     {
@@ -140,13 +158,16 @@
       "priceGel": 2350,
       "storeSlug": "loft-42",
       "imageUrl": "/uploads/furniture/ind-barcelona-table.jpg",
-      "colorHex": null,
+      "colorHex": "#242426",
       "triangles": 1016,
       "bytes": 953820,
       "textures": [
         "albedo:TableTopD.jpg",
         "normal:DUST_05_NORM_8_bits_resized_1k.tiff.jpg",
         "roughness:3DCollective_TexturePack01_Scratches_0031_8K.jpg"
+      ],
+      "colors": [
+        "#252527"
       ]
     },
     {
@@ -162,11 +183,15 @@
       "priceGel": 1650,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/vadehavet-daybed.jpg",
-      "colorHex": null,
+      "colorHex": "#C69C7D",
       "triangles": 13996,
       "bytes": 336384,
       "textures": [
         "albedo:oak_natural_dif.jpg"
+      ],
+      "colors": [
+        "#C69C7E",
+        "#C19575"
       ]
     },
     {
@@ -182,12 +207,15 @@
       "priceGel": 480,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/ash-wood-chair.jpg",
-      "colorHex": null,
+      "colorHex": "#A68362",
       "triangles": 14000,
       "bytes": 318704,
       "textures": [
         "albedo:Wood_Veneer_2_d.jpg",
         "normal:Wood_Veneer_2_n.jpg"
+      ],
+      "colors": [
+        "#A78362"
       ]
     },
     {
@@ -206,7 +234,10 @@
       "colorHex": "#B08D57",
       "triangles": 7120,
       "bytes": 46560,
-      "textures": []
+      "textures": [],
+      "colors": [
+        "#B08D57"
+      ]
     },
     {
       "url": "/models/cloud-sofa.glb",
@@ -221,13 +252,16 @@
       "priceGel": 5200,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/cloud-sofa.jpg",
-      "colorHex": null,
+      "colorHex": "#D9CFC6",
       "triangles": 16681,
       "bytes": 1204968,
       "textures": [
         "albedo:fabric1.jpg",
         "normal:normal.jpg",
         "roughness:2_cloth.jpg"
+      ],
+      "colors": [
+        "#D8CEC6"
       ]
     },
     {
@@ -243,12 +277,15 @@
       "priceGel": 2650,
       "storeSlug": "nordic-home",
       "imageUrl": "/uploads/furniture/sca-dining-table.jpg",
-      "colorHex": null,
+      "colorHex": "#A07C57",
       "triangles": 15644,
       "bytes": 719008,
       "textures": [
         "albedo:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-004.jpg",
         "roughness:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-001.jpg"
+      ],
+      "colors": [
+        "#A07C57"
       ]
     },
     {
@@ -267,7 +304,10 @@
       "colorHex": "#E9E2D6",
       "triangles": 13999,
       "bytes": 112640,
-      "textures": []
+      "textures": [],
+      "colors": [
+        "#E9E2D6"
+      ]
     },
     {
       "url": "/models/vintage-bed.glb",
@@ -287,6 +327,10 @@
       "bytes": 166460,
       "textures": [
         "albedo:BED.png"
+      ],
+      "colors": [
+        "#FFFFFF",
+        "#555027"
       ]
     },
     {
@@ -302,13 +346,16 @@
       "priceGel": 1980,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/vin-rattan-chair.jpg",
-      "colorHex": null,
+      "colorHex": "#2E1205",
       "triangles": 300075,
       "bytes": 2855692,
       "textures": [
         "albedo:Rattan Chair-bambo_diff.jpg",
         "normal:Rattan Chair-fabric_normal.jpg",
         "roughness:Rattan Chair-fabric_glos.jpg"
+      ],
+      "colors": [
+        "#2E1205"
       ]
     },
     {
@@ -324,11 +371,14 @@
       "priceGel": 2790,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/ektorp-sofa.jpg",
-      "colorHex": null,
+      "colorHex": "#59585E",
       "triangles": 14000,
       "bytes": 437116,
       "textures": [
         "albedo:Gray Fabrik.jpg"
+      ],
+      "colors": [
+        "#59585E"
       ]
     },
     {
@@ -344,12 +394,15 @@
       "priceGel": 780,
       "storeSlug": "antikvari",
       "imageUrl": "/uploads/furniture/cupola-side-table.jpg",
-      "colorHex": null,
+      "colorHex": "#DACAB6",
       "triangles": 3840,
       "bytes": 1102844,
       "textures": [
         "albedo:CUPOLA CARVED ROUND SIDE TABLE-002.jpg",
         "roughness:CUPOLA CARVED ROUND SIDE TABLE-003.jpg"
+      ],
+      "colors": [
+        "#DACAB6"
       ]
     }
   ]
