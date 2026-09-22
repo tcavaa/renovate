@@ -9,6 +9,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { ItemCard } from '@/components/design/ItemCard';
+import { ProductPageLink } from '@/components/design/ProductPageLink';
 import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { formatGEL, cn } from '@/lib/utils';
@@ -22,6 +23,8 @@ interface SwapPanelProps {
   styleId: StyleId;
   onSwap: (product: CatalogProduct) => void;
   onRotate: (steps: number) => void;
+  /** Turns the piece to an exact angle, in radians — any angle, not only the 45° steps. */
+  onRotateTo?: (radians: number) => void;
   onRemove: () => void;
   /** Set when the last rotation was refused because the item no longer fits. */
   rotateBlocked?: boolean;
@@ -32,12 +35,48 @@ interface SwapPanelProps {
   onLock?: (locked: boolean) => void;
 }
 
+/** The angle as a slider and a number, 0–359°; both write the same rotation. */
+function AngleRow({ degrees, onChange, label }: { degrees: number; onChange: (deg: number) => void; label: string }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = (raw: string) => {
+    setDraft(null);
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    onChange(((Math.round(n) % 360) + 360) % 360);
+  };
+  return (
+    <label className="flex items-center gap-2 text-[11px] text-ink-muted">
+      <span className="w-10 shrink-0 font-semibold uppercase tracking-wide">{label}</span>
+      <input type="range" min={0} max={359} step={1} value={degrees} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} className="min-w-0 flex-1 accent-ink" />
+      <span className="flex shrink-0 items-center gap-0.5">
+        <input
+          type="number"
+          min={0}
+          max={359}
+          step={1}
+          inputMode="numeric"
+          value={draft ?? String(degrees)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => commit(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+          }}
+          aria-label={label}
+          className="h-7 w-14 rounded-[6px] border border-line bg-white px-1.5 text-right text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+        />
+        °
+      </span>
+    </label>
+  );
+}
+
 export function SwapPanel({
   item,
   catalog,
   styleId,
   onSwap,
   onRotate,
+  onRotateTo,
   onRemove,
   rotateBlocked,
   onMirror,
@@ -104,11 +143,17 @@ export function SwapPanel({
               {item.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
             </IconAction>
           )}
+          {/* The product's own page — the real photos — in a new tab, so the studio stays as it is. */}
+          {item.product?.slug && <ProductPageLink slug={item.product.slug} />}
           <span className="ml-auto" />
           <IconAction label={t.design.removeItem} danger onClick={onRemove}>
             <Trash2 className="h-4 w-4" />
           </IconAction>
         </div>
+        {/* Any angle: a slider for the hand and a number for the eye, degrees clockwise from facing +Z. */}
+        {onRotateTo && !item.locked && (
+          <AngleRow degrees={Math.round(((item.rotation * 180) / Math.PI + 360) % 360)} onChange={(deg) => onRotateTo((deg * Math.PI) / 180)} label={t.design.angle} />
+        )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
         {rotateBlocked && (
           <p role="alert" className="text-[11px] text-danger">

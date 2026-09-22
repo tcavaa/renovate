@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { MaterialsTable, Figure } from '@/components/calculator/MaterialsTable';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -42,7 +42,7 @@ export default function MaterialsPage() {
       <div className="container py-10 md:py-14">
         <StepHeader
           step={2}
-          total={5}
+          total={CALCULATOR_STEPS}
           title={t.calculator.step2}
           subtitle={t.calculator.materialsSubtitle.replace('{m2}', totals ? formatM2L(t, totals.totalFloorM2) : '')}
           meta={homeState && <span>{homeStateLabel(t, homeState)}</span>}

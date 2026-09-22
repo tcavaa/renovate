@@ -3,10 +3,11 @@
  * with its transform, and everything measured in metres is converted here.
  */
 
-import { pointOnEdge, polygonBounds, polygonCentroid, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { leafOnOtherSide } from '@/lib/design/openings';
-import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
+import { isBaseFinish } from '@/lib/design/zones';
+import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 import type { SnapGuide } from '@/lib/design/drawing';
 import { EDITOR, ELECTRICAL_COLOR, ORIGIN_COLOR, ROOM_TINT, ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
 
@@ -53,9 +54,19 @@ export interface RoomDrawOptions {
   hovered?: boolean;
   labels: boolean;
   unitM2: string;
-  dimensions: boolean;
   /** Draw the room's edge lengths (inner faces). */
+  dimensions: boolean;
   wetLabel?: string;
+  /** Print scale: the labels' type and offsets are multiplied by it (the PDF draws at 200 dpi). */
+  ui?: number;
+}
+
+/** What `drawRoomLabel` needs: the unit, the print scale, and whether to stand the label on a white plate. */
+export interface RoomLabelOptions {
+  unitM2: string;
+  ui?: number;
+  /** A translucent white plate under the two lines, so the label reads over whatever stands in the room. */
+  halo?: boolean;
 }
 
 export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, options: RoomDrawOptions): void {
@@ -76,27 +87,50 @@ export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: Plan
     ctx.setLineDash([]);
   }
 
-  if (options.labels) {
-    const centre = toScreen(t, polygonCentroid(room.polygon));
-    const bounds = polygonBounds(room.polygon);
-    const fits = bounds.width * t.scale > 70 && bounds.depth * t.scale > 40;
-    if (fits) {
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = EDITOR.label;
-      ctx.font = `600 ${Math.max(11, Math.min(14, t.scale * 0.32))}px system-ui, sans-serif`;
-      ctx.fillText(truncate(room.name, 22), centre.x, centre.y - 8);
-      ctx.fillStyle = EDITOR.labelMuted;
-      ctx.font = `${Math.max(10, Math.min(12, t.scale * 0.28))}px system-ui, sans-serif`;
-      ctx.fillText(`${room.areaM2.toFixed(1)} ${options.unitM2}`, centre.x, centre.y + 8);
-    }
-  }
+  if (options.labels) drawRoomLabel(ctx, t, room, { unitM2: options.unitM2, ui: options.ui });
   if (options.dimensions && t.scale >= 22) {
     for (const edge of roomEdges(room.polygon)) {
       if (edge.length < 0.6) continue;
       drawDimension(ctx, t, edge, room);
     }
   }
+}
+
+/**
+ * The room's name and area at its centre. Separate from `drawRoom` so a sheet can write the
+ * labels *after* the furniture — a name drawn first disappears under the sofa that stands
+ * on it — and larger, at print scale.
+ */
+export function drawRoomLabel(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, options: RoomLabelOptions): void {
+  const ui = options.ui ?? 1;
+  const centre = toScreen(t, polygonCentroid(room.polygon));
+  const bounds = polygonBounds(room.polygon);
+  const fits = bounds.width * t.scale > 70 * ui && bounds.depth * t.scale > 40 * ui;
+  if (!fits) return;
+  const namePx = Math.round(Math.max(11, Math.min(14, (t.scale / ui) * 0.32)) * ui);
+  const areaPx = Math.round(Math.max(10, Math.min(12, (t.scale / ui) * 0.28)) * ui);
+  const name = truncate(room.name, 22);
+  const area = `${room.areaM2.toFixed(1)} ${options.unitM2}`;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `600 ${namePx}px system-ui, sans-serif`;
+  if (options.halo) {
+    const nameW = ctx.measureText(name).width;
+    ctx.font = `${areaPx}px system-ui, sans-serif`;
+    const areaW = ctx.measureText(area).width;
+    const w = Math.max(nameW, areaW) + 12 * ui;
+    const h = 20 * ui + namePx + areaPx;
+    ctx.fillStyle = 'rgba(255,255,255,0.82)';
+    ctx.fillRect(centre.x - w / 2, centre.y - h / 2, w, h);
+    ctx.font = `600 ${namePx}px system-ui, sans-serif`;
+  }
+  ctx.fillStyle = EDITOR.label;
+  ctx.fillText(name, centre.x, centre.y - 8 * ui);
+  ctx.fillStyle = EDITOR.labelMuted;
+  ctx.font = `${areaPx}px system-ui, sans-serif`;
+  ctx.fillText(area, centre.x, centre.y + 8 * ui);
+  ctx.restore();
 }
 
 /** The length of a room's edge, written just inside the room along the wall. */
@@ -129,11 +163,64 @@ export interface WallDrawOptions {
   locked?: boolean;
   /** Colour by origin instead of the plain wall colour. */
   byOrigin?: boolean;
+  /** How far past each end the body is drawn, metres, so it meets the wall it turns into (`wallEndExtensions`). */
+  extendA?: number;
+  extendB?: number;
+}
+
+/**
+ * How far each wall's body is drawn past its ends, so that corners close. A wall is a
+ * stroked centreline with butt ends, and two such strokes meeting at an L-corner each stop
+ * at the node — leaving a square of half a thickness a side empty at the outer corner, and
+ * a hairline of paper where the inner faces should meet. At every end another wall meets
+ * at an angle, the body runs on by half of that wall's thickness: exactly to its far face at
+ * a corner, harmlessly inside it at a T. A wall that only continues in line is butted, and
+ * a free end stays where it is.
+ */
+export function wallEndExtensions(walls: Pick<Wall, 'id' | 'a' | 'b' | 'thicknessM'>[]): Map<string, { a: number; b: number }> {
+  const tol = 0.03;
+  const out = new Map<string, { a: number; b: number }>();
+  const directionOf = (w: Pick<Wall, 'a' | 'b'>): Vec2 => {
+    const dx = w.b.x - w.a.x;
+    const dz = w.b.z - w.a.z;
+    const l = Math.hypot(dx, dz) || 1;
+    return { x: dx / l, z: dz / l };
+  };
+  const toSegment = (p: Vec2, a: Vec2, b: Vec2): number => {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const l2 = dx * dx + dz * dz;
+    const u = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / l2));
+    return Math.hypot(p.x - (a.x + dx * u), p.z - (a.z + dz * u));
+  };
+  for (const wall of walls) {
+    const dir = directionOf(wall);
+    const extension = (end: Vec2): number => {
+      let best = 0;
+      for (const other of walls) {
+        if (other.id === wall.id) continue;
+        const meets = Math.hypot(other.a.x - end.x, other.a.z - end.z) <= tol || Math.hypot(other.b.x - end.x, other.b.z - end.z) <= tol || toSegment(end, other.a, other.b) <= tol;
+        if (!meets) continue;
+        const od = directionOf(other);
+        // In line with it: the two butt against each other and need no overlap.
+        if (Math.abs(dir.x * od.z - dir.z * od.x) < 0.2) continue;
+        best = Math.max(best, other.thicknessM / 2);
+      }
+      return best;
+    };
+    out.set(wall.id, { a: extension(wall.a), b: extension(wall.b) });
+  }
+  return out;
 }
 
 export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall, options: WallDrawOptions = {}): void {
-  const a = toScreen(t, wall.a);
-  const b = toScreen(t, wall.b);
+  // The body runs past the ends by whatever closes the corner (see `wallEndExtensions`).
+  const dx = wall.b.x - wall.a.x;
+  const dz = wall.b.z - wall.a.z;
+  const l = Math.hypot(dx, dz) || 1;
+  const ex = { x: dx / l, z: dz / l };
+  const a = toScreen(t, { x: wall.a.x - ex.x * (options.extendA ?? 0), z: wall.a.z - ex.z * (options.extendA ?? 0) });
+  const b = toScreen(t, { x: wall.b.x + ex.x * (options.extendB ?? 0), z: wall.b.z + ex.z * (options.extendB ?? 0) });
   const thickness = Math.max(2, wall.thicknessM * t.scale);
   ctx.lineCap = 'butt';
   ctx.lineJoin = 'miter';
@@ -437,7 +524,8 @@ export function drawWallBand(ctx: CanvasRenderingContext2D, t: Transform, edge: 
   ctx.stroke();
 }
 
-export function drawFurniture(ctx: CanvasRenderingContext2D, t: Transform, item: PlacedItem, label: string, state: { selected?: boolean; hovered?: boolean; invalid?: boolean } = {}): void {
+export function drawFurniture(ctx: CanvasRenderingContext2D, t: Transform, item: PlacedItem, label: string, state: { selected?: boolean; hovered?: boolean; invalid?: boolean; /** Riding on the pointer, not set down yet: dashed, green where it fits and red where it does not. */ carried?: boolean; /** Print scale: strokes and the label are multiplied by it (the PDF draws at 200 dpi). */ ui?: number } = {}): void {
+  const ui = state.ui ?? 1;
   const s = toScreen(t, item.position);
   const w = item.size.width * t.scale;
   const d = item.size.depth * t.scale;
@@ -445,26 +533,41 @@ export function drawFurniture(ctx: CanvasRenderingContext2D, t: Transform, item:
   ctx.translate(s.x, s.y);
   // Plan yaw: rotation 0 faces +z (down the screen), so the box turns by −rotation.
   ctx.rotate(-item.rotation);
-  ctx.fillStyle = state.invalid ? 'rgba(239,68,68,0.18)' : EDITOR.furnitureFill;
-  ctx.strokeStyle = state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : state.invalid ? EDITOR.invalid : EDITOR.furniture;
-  ctx.lineWidth = state.selected ? 2.5 : 1.5;
+  ctx.fillStyle = state.invalid ? 'rgba(239,68,68,0.18)' : state.carried ? 'rgba(34,197,94,0.16)' : EDITOR.furnitureFill;
+  ctx.strokeStyle = state.invalid ? EDITOR.invalid : state.carried ? EDITOR.valid : state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : EDITOR.furniture;
+  ctx.lineWidth = (state.selected || state.carried ? 2.5 : 1.5) * ui;
+  if (state.carried) ctx.setLineDash([6 * ui, 4 * ui]);
   ctx.beginPath();
   ctx.rect(-w / 2, -d / 2, w, d);
   ctx.fill();
   ctx.stroke();
+  ctx.setLineDash([]);
   // A short line on the front face shows which way it faces.
   ctx.beginPath();
   ctx.moveTo(-w / 4, d / 2);
   ctx.lineTo(w / 4, d / 2);
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * ui;
   ctx.stroke();
-  if (w > 34 && d > 18) {
+  if (w > 34 * ui && d > 18 * ui) {
     ctx.rotate(item.rotation);
     ctx.fillStyle = EDITOR.labelMuted;
-    ctx.font = '500 9px system-ui, sans-serif';
+    ctx.font = `500 ${Math.round(9 * ui)}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(truncate(label, 14), 0, 0);
+    // The label stays inside its piece: shortened until it fits the box, or left off a piece
+    // too small for even a stump of it — a name spilling over the edge read as the neighbour's.
+    // The text is upright on the screen, so what it has to fit is the piece's extent *on the
+    // screen* — a turned wardrobe is wide where its box is deep — along the longer axis,
+    // which the label runs along.
+    const acrossX = Math.abs(w * Math.cos(item.rotation)) + Math.abs(d * Math.sin(item.rotation));
+    const acrossY = Math.abs(w * Math.sin(item.rotation)) + Math.abs(d * Math.cos(item.rotation));
+    const room = Math.max(acrossX, acrossY) - 6 * ui;
+    let text = truncate(label, ui > 1 ? 24 : 14);
+    while (text.length > 4 && ctx.measureText(text).width > room) text = truncate(label, text.length - 2);
+    if (ctx.measureText(text).width <= room) {
+      if (acrossY > acrossX) ctx.rotate(-Math.PI / 2);
+      ctx.fillText(text, 0, 0);
+    }
   }
   ctx.restore();
 }
@@ -681,4 +784,278 @@ function blend(a: string, b: string): string {
   const pb = parseInt(b.slice(1), 16);
   const mix = (shift: number) => Math.round((((pa >> shift) & 255) + ((pb >> shift) & 255)) / 2);
   return `#${((mix(16) << 16) | (mix(8) << 8) | mix(0)).toString(16).padStart(6, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Finishes on the plan, dimensions outside it, the sizes of the openings
+// ---------------------------------------------------------------------------
+
+/** A muted palette for products that carry no colour of their own (or a white one), by product id. */
+const SWATCH_PALETTE = ['#C97B4A', '#7A9E7E', '#6B8CBB', '#B58BC4', '#C9A84A', '#5FA8A2', '#B5655E', '#8C8C6E'];
+
+/**
+ * The colour a finish is shown in on the sheet: the product's own, unless it has none or is
+ * (near) white, which would vanish on the paper — then a stand-in from a small palette, the
+ * same one for that product wherever it appears, so the legend and the plan agree.
+ */
+export function finishSwatchColor(finish: Pick<SurfaceFinish, 'colorHex' | 'product'>): string {
+  const own = finish.product?.colorHex ?? null;
+  if (own && /^#[0-9a-f]{6}$/i.test(own)) {
+    const n = parseInt(own.slice(1), 16);
+    const luminance = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+    if (luminance < 0.9) return own;
+  }
+  const id = finish.product?.productId;
+  return id != null ? SWATCH_PALETTE[Math.abs(id) % SWATCH_PALETTE.length] : finish.colorHex;
+}
+
+/**
+ * The finishes chosen for whole rooms, on the plan: a room's floor in its product's colour,
+ * its walls as a band in theirs along every edge. Only finishes that carry a product are
+ * drawn — a style's default is the room's ordinary paper. Strips, squares and zones are
+ * drawn by the board on top of these.
+ */
+export function drawBaseFinishes(ctx: CanvasRenderingContext2D, t: Transform, plan: Pick<FloorPlan, 'rooms'>, finishes: SurfaceFinish[]): void {
+  for (const finish of finishes) {
+    if (!finish.product || !isBaseFinish(finish) || (finish.surface !== 'floor' && finish.surface !== 'wall')) continue;
+    const room = plan.rooms.find((r) => r.id === finish.roomId);
+    if (!room) continue;
+    const color = finishSwatchColor(finish);
+    if (finish.surface === 'floor') {
+      ctx.save();
+      ctx.beginPath();
+      room.polygon.forEach((p, i) => {
+        const s = toScreen(t, p);
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.45;
+      ctx.fill();
+      ctx.restore();
+    } else {
+      for (const edge of roomEdges(room.polygon)) drawWallBand(ctx, t, edge, 0, edge.length, color);
+    }
+  }
+}
+
+/** A length for a dimension label: to the centimetre, with no trailing zeros ("3", "5.2", "8.35"). */
+export function formatDimension(metres: number, unitM: string): string {
+  const cm = Math.round(metres * 100) / 100;
+  return `${String(cm).replace(/\.?0+$/, '')} ${unitM}`;
+}
+
+export interface DimensionChains {
+  /** The x-coordinates the top and bottom chains are cut at; the z-coordinates for the sides. */
+  top: number[];
+  bottom: number[];
+  left: number[];
+  right: number[];
+  /** The outer faces of the walls: what the overall sizes measure. */
+  box: { minX: number; maxX: number; minZ: number; maxZ: number };
+}
+
+/**
+ * Where the outside dimensions of a flat go, the way an architect chains them along each
+ * side of the drawing: every exterior wall — one with a room on one side of it and nothing
+ * on the other — contributes its ends to the chain on the side it faces, so a side reads
+ * "3 m · 5 m" wall by wall, and the outer faces of the walls give the overall width and
+ * depth. Null for a plan with no walls.
+ */
+export function outerDimensionChains(plan: Pick<FloorPlan, 'rooms' | 'walls'>): DimensionChains | null {
+  const walls = plan.walls ?? [];
+  if (walls.length === 0) return null;
+  const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  const chains = { top: [] as number[], bottom: [] as number[], left: [] as number[], right: [] as number[] };
+  const inside = (p: Vec2) => plan.rooms.some((r) => pointInPolygon(p, r.polygon));
+  for (const wall of walls) {
+    const dx = wall.b.x - wall.a.x;
+    const dz = wall.b.z - wall.a.z;
+    const l = Math.hypot(dx, dz);
+    if (l < 1e-6) continue;
+    const half = wall.thicknessM / 2;
+    const horizontal = Math.abs(dx) >= Math.abs(dz);
+    if (horizontal) {
+      box.minX = Math.min(box.minX, wall.a.x, wall.b.x);
+      box.maxX = Math.max(box.maxX, wall.a.x, wall.b.x);
+      box.minZ = Math.min(box.minZ, wall.a.z - half, wall.b.z - half);
+      box.maxZ = Math.max(box.maxZ, wall.a.z + half, wall.b.z + half);
+    } else {
+      box.minX = Math.min(box.minX, wall.a.x - half, wall.b.x - half);
+      box.maxX = Math.max(box.maxX, wall.a.x + half, wall.b.x + half);
+      box.minZ = Math.min(box.minZ, wall.a.z, wall.b.z);
+      box.maxZ = Math.max(box.maxZ, wall.a.z, wall.b.z);
+    }
+    // Which side of the wall is a room, sampled a hand past the face at its middle.
+    const n = { x: -dz / l, z: dx / l };
+    const mid = { x: (wall.a.x + wall.b.x) / 2, z: (wall.a.z + wall.b.z) / 2 };
+    const reach = half + 0.08;
+    const plus = inside({ x: mid.x + n.x * reach, z: mid.z + n.z * reach });
+    const minus = inside({ x: mid.x - n.x * reach, z: mid.z - n.z * reach });
+    if (plus === minus) continue; // interior (rooms both sides) or free-standing (none)
+    const facing = plus ? { x: -n.x, z: -n.z } : n;
+    if (horizontal) (facing.z < 0 ? chains.top : chains.bottom).push(wall.a.x, wall.b.x);
+    else (facing.x < 0 ? chains.left : chains.right).push(wall.a.z, wall.b.z);
+  }
+  if (!Number.isFinite(box.minX)) return null;
+  const tidy = (marks: number[]): number[] => {
+    const sorted = [...marks].sort((a, b) => a - b);
+    const out: number[] = [];
+    for (const m of sorted) if (out.length === 0 || m - out[out.length - 1] > 0.03) out.push(m);
+    return out.length >= 2 ? out : [];
+  };
+  return { top: tidy(chains.top), bottom: tidy(chains.bottom), left: tidy(chains.left), right: tidy(chains.right), box };
+}
+
+export interface OuterDimensionOptions {
+  /** Pixels between the walls and the first chain; the overall size sits at twice that. */
+  gap?: number;
+  /** Multiplies every pixel size (lines, arrows, type) — the PDF renders at print resolution. */
+  ui?: number;
+  color?: string;
+}
+
+/**
+ * The chains from `outerDimensionChains`, drawn outside the plan: each stretch its own
+ * dimension line with an arrowhead at both ends and its length on a plate, an extension
+ * line at every mark reaching towards the wall, the overall width under the bottom chain and
+ * the overall depth beside the right one.
+ */
+export function drawOuterDimensions(ctx: CanvasRenderingContext2D, t: Transform, chains: DimensionChains, unitM: string, options: OuterDimensionOptions = {}): void {
+  const ui = options.ui ?? 1;
+  const gap = (options.gap ?? 28) * ui;
+  const color = options.color ?? EDITOR.dimension;
+  const { box } = chains;
+  const left = box.minX * t.scale + t.offsetX;
+  const right = box.maxX * t.scale + t.offsetX;
+  const top = box.minZ * t.scale + t.offsetY;
+  const bottom = box.maxZ * t.scale + t.offsetY;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(1, ui);
+  ctx.font = `500 ${Math.round(10 * ui)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const arrow = 5 * ui;
+
+  /** One dimension line between two screen points, arrowheads in, the label on a plate at its middle. */
+  const line = (ax: number, ay: number, bx: number, by: number, label: string, vertical: boolean) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const l = Math.hypot(dx, dy);
+    if (l < 1e-3) return;
+    const ux = dx / l;
+    const uy = dy / l;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    if (l > arrow * 3) {
+      for (const [px, py, sx, sy] of [
+        [ax, ay, ux, uy],
+        [bx, by, -ux, -uy],
+      ] as const) {
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + sx * arrow * 1.8 - sy * arrow * 0.7, py + sy * arrow * 1.8 + sx * arrow * 0.7);
+        ctx.lineTo(px + sx * arrow * 1.8 + sy * arrow * 0.7, py + sy * arrow * 1.8 - sx * arrow * 0.7);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    const w = ctx.measureText(label).width + 6 * ui;
+    const h = 13 * ui;
+    // The label sits on the line, on a plate the paper's colour, so the line reads as broken for it.
+    if (l < w + arrow * 4) return;
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    ctx.save();
+    ctx.translate(mx, my);
+    if (vertical) ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = EDITOR.paper;
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = color;
+    ctx.fillText(label, 0, 0.5 * ui);
+    ctx.restore();
+  };
+  /** A hairline from a mark towards the wall it measures, past the dimension line by a little. */
+  const extension = (x1: number, y1: number, x2: number, y2: number) => {
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  };
+  const chain = (marks: number[], along: 'x' | 'z', at: number, side: 'top' | 'bottom' | 'left' | 'right') => {
+    if (marks.length < 2) return;
+    const screen = (m: number) => (along === 'x' ? m * t.scale + t.offsetX : m * t.scale + t.offsetY);
+    const wallEdge = side === 'top' ? top : side === 'bottom' ? bottom : side === 'left' ? left : right;
+    const over = 4 * ui;
+    for (const m of marks) {
+      const s = screen(m);
+      if (along === 'x') extension(s, wallEdge, s, at + (side === 'top' ? -over : over));
+      else extension(wallEdge, s, at + (side === 'left' ? -over : over), s);
+    }
+    for (let i = 0; i + 1 < marks.length; i++) {
+      const a = screen(marks[i]);
+      const b = screen(marks[i + 1]);
+      const label = formatDimension(marks[i + 1] - marks[i], unitM);
+      if (along === 'x') line(a, at, b, at, label, false);
+      else line(at, a, at, b, label, true);
+    }
+  };
+  chain(chains.top, 'x', top - gap, 'top');
+  chain(chains.bottom, 'x', bottom + gap, 'bottom');
+  chain(chains.left, 'z', left - gap, 'left');
+  chain(chains.right, 'z', right + gap, 'right');
+  // The overall sizes, outer face to outer face, a chain further out.
+  const width = box.maxX - box.minX;
+  const depth = box.maxZ - box.minZ;
+  if (width > 0.05) {
+    const y = bottom + gap * 2;
+    extension(left, bottom, left, y + 4 * ui);
+    extension(right, bottom, right, y + 4 * ui);
+    line(left, y, right, y, formatDimension(width, unitM), false);
+  }
+  if (depth > 0.05) {
+    const x = right + gap * 2;
+    extension(right, top, x + 4 * ui, top);
+    extension(right, bottom, x + 4 * ui, bottom);
+    line(x, top, x, bottom, formatDimension(depth, unitM), true);
+  }
+  ctx.restore();
+}
+
+/**
+ * The size of a door or window, written just outside the wall at the opening's middle:
+ * width × height, so the sheet says what fits the hole without the inspector.
+ */
+export function drawOpeningSize(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, opening: Opening, thicknessM: number, unitM: string, options: { ui?: number } = {}): void {
+  const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
+  if (!edge) return;
+  const ui = options.ui ?? 1;
+  const mid = pointOnEdge(edge, opening.t);
+  // Outside the wall, a little past its far face; an interior door's two halves each write on their own side.
+  const out = thicknessM + 0.16;
+  const p = toScreen(t, { x: mid.x - edge.inward.x * out, z: mid.z - edge.inward.z * out });
+  const angle = Math.atan2(edge.dir.z, edge.dir.x);
+  const upright = angle > Math.PI / 2 || angle < -Math.PI / 2 ? angle + Math.PI : angle;
+  const text = `${formatDimension(opening.widthM, '').trim()} × ${formatDimension(opening.heightM, unitM)}`;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(upright);
+  ctx.font = `500 ${Math.round(9 * ui)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = ctx.measureText(text).width + 6 * ui;
+  const h = 12 * ui;
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = opening.kind === 'window' ? EDITOR.window : EDITOR.door;
+  ctx.fillText(text, 0, 0.5 * ui);
+  ctx.restore();
 }

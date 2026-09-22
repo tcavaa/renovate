@@ -4,11 +4,12 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
-import { categorySlugFromKey, roomIdFromKey, selectionKey } from '@/lib/calculator/quantities';
+import { cartKey, categorySlugFromKey, finishPickQuantity, isCartKey, roomIdFromKey, selectionKey } from '@/lib/calculator/quantities';
 import { tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
 import { effectiveExcluded } from '@/lib/summary/calculatorSheet';
 import type {
   CalculatorState,
+  CalculatorStepNumber,
   HomeState,
   Room,
   SelectedProduct,
@@ -69,8 +70,20 @@ interface CalculatorStore extends CalculatorState {
   reorderRoom: (id: string, direction: -1 | 1) => void;
   updateRoom: (id: string, room: Partial<Room>) => void;
   removeRoom: (id: string) => void;
-  setStep: (step: 1 | 2 | 3 | 4 | 5) => void;
+  setStep: (step: CalculatorStepNumber) => void;
   selectProduct: (key: string, product: SelectedProduct) => void;
+  /**
+   * A floor or wall material into the cart, to be laid on the rooms on the placement step.
+   * Several of one category can be in the cart at once (a tile for the bathroom, a laminate
+   * for the rest), each under its own key; the quantity is nothing until it is laid.
+   */
+  addCartFinish: (product: SelectedProduct) => void;
+  /**
+   * The areas laid on the board, by product id, become the cart's quantities: a material
+   * sold by the m² at its area plus the cutting waste, a paint in tins by its coverage
+   * (`finishPickQuantity`). Anything in the cart laid nowhere is at zero.
+   */
+  syncFinishAreas: (areas: ReadonlyMap<number, number>) => void;
   /**
    * A finish for the whole flat or for one room. Within a category the two are exclusive:
    * picking "the same everywhere" drops the per-room picks, picking for a room drops the
@@ -84,7 +97,7 @@ interface CalculatorStore extends CalculatorState {
 }
 
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
-const PERSIST_VERSION = 1;
+const PERSIST_VERSION = 2;
 
 type Persisted = CalculatorState & { projectId: number | null; calculated: boolean; excluded: Tick[]; quantities: Quantities };
 
@@ -178,6 +191,35 @@ export const useCalculatorStore = create<CalculatorStore>()(
         set((s) => ({
           selectedProducts: { ...s.selectedProducts, [key]: product },
         })),
+      addCartFinish: (product) =>
+        set((s) => {
+          const slug = product.categorySlug ?? 'finish';
+          const key = cartKey(slug, product.productId);
+          // Whatever area the board already holds of this product stays with it: the pick
+          // keeps its quantity when it is put back into the cart after being taken out.
+          const before = s.selectedProducts[key];
+          return { selectedProducts: { ...s.selectedProducts, [key]: { ...product, categorySlug: slug, qty: before?.qty ?? 0, totalPrice: before?.totalPrice ?? 0 } } };
+        }),
+      syncFinishAreas: (areas) =>
+        set((s) => {
+          let changed = false;
+          const next: Record<string, SelectedProduct> = {};
+          for (const [key, pick] of Object.entries(s.selectedProducts)) {
+            if (!isCartKey(key)) {
+              next[key] = pick;
+              continue;
+            }
+            const qty = finishPickQuantity(pick, areas.get(pick.productId) ?? 0);
+            const totalPrice = Math.round(qty * pick.pricePerUnit * 100) / 100;
+            if (qty === pick.qty && totalPrice === pick.totalPrice) {
+              next[key] = pick;
+              continue;
+            }
+            changed = true;
+            next[key] = { ...pick, qty, totalPrice };
+          }
+          return changed ? { selectedProducts: next } : {};
+        }),
       selectFinish: (categorySlug, roomId, product) =>
         set((s) => {
           const next: Record<string, SelectedProduct> = {};
@@ -256,6 +298,13 @@ const selectedProductSchema = z.object({
   categorySlug: z.string().optional(),
   roomId: z.string().optional(),
   excluded: z.boolean().optional(),
+  // A finish in the cart carries what the placement board needs (see `SelectedProduct`).
+  surface: z.enum(['floor', 'wall']).optional(),
+  slug: z.string().optional(),
+  textureUrl: z.string().nullable().optional(),
+  colorHex: z.string().nullable().optional(),
+  coveragePerUnit: z.number().nullable().optional(),
+  specs: z.unknown().optional(),
 });
 
 const persistedSchema = z.object({
@@ -263,7 +312,7 @@ const persistedSchema = z.object({
   rooms: calculatorRequestSchema.shape.rooms.element.array(),
   selectedProducts: z.record(selectedProductSchema),
   selectedFurniture: z.record(z.array(selectedProductSchema)),
-  step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
   projectId: z.number().int().positive().nullable().optional(),
   calculated: z.boolean().optional(),
   excluded: z.array(z.union([z.string(), z.number()])).optional(),
@@ -271,7 +320,12 @@ const persistedSchema = z.object({
 });
 
 function migratePersisted(persisted: unknown, version: number): Persisted {
-  if (version !== PERSIST_VERSION) return { ...initial };
+  // Version 1 had five steps; the placement step went in as the fourth, so a journey that
+  // had reached the furniture (4) or the summary (5) is one further on now.
+  if (version === 1 && persisted && typeof persisted === 'object') {
+    const old = persisted as { step?: number };
+    persisted = { ...old, step: typeof old.step === 'number' && old.step >= 4 ? old.step + 1 : old.step };
+  } else if (version !== PERSIST_VERSION) return { ...initial };
   const parsed = persistedSchema.safeParse(persisted);
   if (!parsed.success) return { ...initial };
   return {

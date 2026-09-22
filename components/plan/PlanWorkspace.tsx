@@ -57,6 +57,10 @@ export interface PlanWorkspaceProps {
   onPaint?: (target: PaintTarget) => void;
   /** Only rooms and floor zones answer to the select tool (the studio's finishes). */
   roomsOnly?: boolean;
+  /** Escape with nothing on the board to end — see `PlanEditor.onEscape`. */
+  onEscape?: () => void;
+  /** The board's view and carry controls, for a page that drives them (`PlanEditor.onApi`). */
+  onApi?: (api: PlanEditorApi | null) => void;
   /**
    * Which board to edit. The studio's by default; the calculator hands in its own
    * (`useCalculatorPlanStore`) so the two flats never meet.
@@ -64,7 +68,7 @@ export interface PlanWorkspaceProps {
   store?: DesignStoreHook;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, store = useDesignStore }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore }: PlanWorkspaceProps) {
   const t = useT();
   // The hook comes in as a prop, but it is a module constant either way — the same store for
   // the life of the component, so the rules of hooks hold.
@@ -78,6 +82,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   const selectedItemId = useStore((s) => s.selectedItemId);
   const focusRoomId = useStore((s) => s.focusRoomId);
   const selectedRoomIds = useStore((s) => s.selectedRoomIds);
+  const carryingItemId = useStore((s) => s.carryingItemId);
   const actions = useStore();
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
@@ -97,7 +102,13 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   const [layers, setLayers] = useState<EditorLayers>({ ...ALL_LAYERS, furniture, ...layerOverrides });
   useEffect(() => setLayers((l) => ({ ...l, ...layerOverrides, furniture: layerOverrides?.furniture ?? furniture })), [layerOverrides, furniture]);
   const [api, setApi] = useState<PlanEditorApi | null>(null);
-  const onApi = useCallback((next: PlanEditorApi | null) => setApi(next), []);
+  const onApi = useCallback(
+    (next: PlanEditorApi | null) => {
+      setApi(next);
+      onApiProp?.(next);
+    },
+    [onApiProp]
+  );
 
   // A new plan (a new upload, a saved project, the calculator's rooms) refits the view; an
   // edit to the plan on the board leaves the view exactly where the person had it.
@@ -218,6 +229,14 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onAddElectrical={(kind, position, roomId) => actions.addElectricalPoint(kind, position, roomId)}
           onMoveElectrical={actions.moveElectricalPoint}
           onMoveItem={furniture ? actions.placeItem : undefined}
+          // The piece on the pointer (the studio's shelf): set down through `placeItem`, then
+          // the carry becomes one step of history and the piece is the selection.
+          carryingItemId={furniture ? carryingItemId : null}
+          onCarryPlaced={(id) => {
+            actions.finishCarry();
+            actions.selectItem(id);
+          }}
+          onEscape={onEscape}
           onDelete={deleteSelected}
           onUndo={keyboardUndo ? undo : undefined}
           onRedo={keyboardUndo ? redo : undefined}

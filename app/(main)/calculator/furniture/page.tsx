@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { Loader2, Trash2 } from 'lucide-react';
-import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Loader2, Trash2 } from 'lucide-react';
+import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -12,6 +12,8 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, pickLocalizedName } from '@/lib/i18n/labels';
+import { fill } from '@/lib/admin/list';
+import { isCartKey } from '@/lib/calculator/quantities';
 import { formatGEL } from '@/lib/utils';
 import type { Product } from '@/lib/db/schema';
 import type { SelectedProduct } from '@/lib/calculator/types';
@@ -19,8 +21,17 @@ import type { SelectedProduct } from '@/lib/calculator/types';
 export default function FurnitureStepPage() {
   const t = useT();
   const locale = useLocale();
-  const { rooms, selectedFurniture, addFurniture, removeFurniture } = useCalculatorStore();
+  const { rooms, selectedFurniture, selectedProducts, addFurniture, removeFurniture } = useCalculatorStore();
   const { items: categories, loading: catLoading } = useCategories(true);
+  // The way back: the placement, when anything was laid; the cart otherwise.
+  const laidAny = Object.keys(selectedProducts).some(isCartKey);
+  /** The piece just added, for a moment: the card says so, in the room it went to. */
+  const [added, setAdded] = useState<{ productId: number; room: string } | null>(null);
+  useEffect(() => {
+    if (!added) return;
+    const handle = window.setTimeout(() => setAdded(null), 1800);
+    return () => window.clearTimeout(handle);
+  }, [added]);
 
   const [activeRoomId, setActiveRoomId] = useState<string | null>(rooms[0]?.id ?? null);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -36,7 +47,7 @@ export default function FurnitureStepPage() {
   if (rooms.length === 0) {
     return (
       <>
-        <StepIndicator current={4} />
+        <StepIndicator current={5} />
         <EmptyStep message={t.calculator.needRoomsFirst} back={t.common.back} />
       </>
     );
@@ -57,13 +68,16 @@ export default function FurnitureStepPage() {
       categorySlug: currentSlug ?? undefined,
     };
     addFurniture(activeRoomId, sel);
+    setAdded({ productId: p.id, room: activeRoom?.nameKa ?? '' });
   };
+  /** How many of this product the room already has: the card's button counts them. */
+  const countInRoom = (productId: number) => roomItems.filter((i) => i.productId === productId).length;
 
   return (
     <>
-      <StepIndicator current={4} />
+      <StepIndicator current={5} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={4} total={5} title={t.furniture.title} subtitle={t.furniture.subtitle} />
+        <StepHeader step={5} total={CALCULATOR_STEPS} title={t.furniture.title} subtitle={t.furniture.subtitle} />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-8 lg:sticky lg:top-24 lg:self-start">
@@ -112,9 +126,11 @@ export default function FurnitureStepPage() {
                 <div className="border border-dashed border-line p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {products.map((p) => (
-                    <ProductCard key={p.id} product={p} onAction={() => handleAdd(p)} />
-                  ))}
+                  {products.map((p) => {
+                    const n = countInRoom(p.id);
+                    // Added: the button says how many this room has and offers one more.
+                    return <ProductCard key={p.id} product={p} selected={n > 0} onAction={() => handleAdd(p)} selectedLabel={`${fill(t.furniture.inRoomCount, { n })} · ${t.furniture.addAgain}`} />;
+                  })}
                 </div>
               )}
             </div>
@@ -155,11 +171,18 @@ export default function FurnitureStepPage() {
         </div>
       </div>
 
-      <StepNav back={{ href: '/calculator/catalog', label: t.calculator.backButton }} next={{ href: '/calculator/summary', label: t.calculator.nextButton }}>
+      <StepNav back={{ href: laidAny ? '/calculator/placement' : '/calculator/catalog', label: t.calculator.backButton }} next={{ href: '/calculator/summary', label: t.calculator.nextButton }}>
         <p className="text-sm text-ink-muted sm:text-right">
           {t.calculator.totalFurniture} ({allItems.length}) · <span className="font-serif text-base font-semibold text-ink">{formatGEL(totalSelected)}</span>
         </p>
       </StepNav>
+
+      {added && (
+        <p role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[10px] bg-ink px-4 py-2 text-sm text-white shadow-cardHover">
+          <Check className="h-4 w-4 text-success" />
+          {fill(t.furniture.addedToRoom, { room: added.room })}
+        </p>
+      )}
     </>
   );
 }

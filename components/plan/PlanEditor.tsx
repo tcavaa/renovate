@@ -8,7 +8,9 @@
  * beams, technical and electrical points placed with a click. The select tool picks any of
  * them; a selected wall drags sideways and its ends drag as handles, a door slides along its
  * wall or onto another, points and columns move freely. Everything snaps (`lib/design/drawing`)
- * and every snap shows its guide.
+ * and every snap shows its guide. A piece of furniture picked off the studio's shelf rides on
+ * the pointer (`carryingItemId`) the way it does in 3D — green where it fits, red where it
+ * does not — and a click sets it down; the page's Escape gives it up.
  *
  * The editor owns only the view (pan, zoom) and the gesture in progress; the plan itself is
  * the store's, edited through the callbacks. It redraws from the props on every change, so
@@ -31,7 +33,7 @@ import { useLocale } from '@/lib/i18n/client';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, toWorld, type Transform } from './draw';
+import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
@@ -79,8 +81,10 @@ export interface PlanEditorProps {
   onSelectItem?: (itemId: string | null) => void;
   onAddWall?: (a: Vec2, b: Vec2) => void;
   onAddRectangle?: (rect: { x: number; z: number; width: number; depth: number }) => void;
-  onOffsetWall?: (wallId: string, distance: number) => void;
-  onMoveNode?: (from: Vec2, to: Vec2) => void;
+  /** A wall dragged sideways; `alone` (Shift held) asks for the wall and nothing that meets it. */
+  onOffsetWall?: (wallId: string, distance: number, alone?: boolean) => void;
+  /** A junction dragged; with `onlyWallId` (Shift held) only that wall's end goes, the rest of the junction stays. */
+  onMoveNode?: (from: Vec2, to: Vec2, onlyWallId?: string | null) => void;
   onAddOpening?: (kind: 'door' | 'window', target: WallTarget) => string | null;
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
   onMoveOpeningToWall?: (roomId: string, openingId: string, target: WallTarget) => string | null;
@@ -107,6 +111,13 @@ export interface PlanEditorProps {
    */
   roomsOnly?: boolean;
   onMoveItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
+  /**
+   * The piece riding on the pointer (the store's `carryingItemId`): it follows the pointer
+   * from room to room, snapped like a drag, and a click sets it down through `onMoveItem`
+   * where it fits — nowhere else — then `onCarryPlaced`. Escape is the page's (`cancelCarry`).
+   */
+  carryingItemId?: string | null;
+  onCarryPlaced?: (itemId: string) => void;
   /** Delete or Backspace with something selected. */
   onDelete?: () => void;
   /**
@@ -119,6 +130,12 @@ export interface PlanEditorProps {
   /** Ctrl+Z / Ctrl+Y (Cmd on a Mac) while the board has the keyboard; undone by the page. */
   onUndo?: () => void;
   onRedo?: () => void;
+  /**
+   * Escape with nothing of the board's own to end — no wall or beam run in progress, no piece
+   * on the pointer: the page may put its tool down. A run in progress is ended first, and the
+   * next Escape gets through, the way CAD does it.
+   */
+  onEscape?: () => void;
   className?: string;
   /** When this changes, the view refits to the plan. */
   fitKey?: unknown;
@@ -126,11 +143,37 @@ export interface PlanEditorProps {
   onApi?: (api: PlanEditorApi | null) => void;
 }
 
-/** Fit and zoom, for a page's own buttons. */
+/** Fit and zoom, for a page's own buttons — and the carried piece, for a drag from a tray. */
 export interface PlanEditorApi {
   fit: () => void;
   /** Multiplies the scale about the centre of the canvas; > 1 zooms in. */
   zoom: (factor: number) => void;
+  /** The carried piece follows a drag from a tray (client coordinates). */
+  moveCarriedTo: (clientX: number, clientY: number) => void;
+  /** Sets the carried piece down at a point (client coordinates); false when it does not fit there, and then it stays on the pointer. */
+  dropCarriedAt: (clientX: number, clientY: number) => boolean;
+  /** Where the carried piece stands right now, for the page to turn it there. */
+  carryPose: () => { position: Vec2; rotation: number; roomId: string } | null;
+}
+
+/** Where the carried piece would stand with the pointer at a point, and whether it fits there. */
+interface CarryPose {
+  position: Vec2;
+  rotation: number;
+  roomId: string;
+  valid: boolean;
+}
+
+/**
+ * The carried piece under the pointer: in the room the point is in (its own room when the
+ * point is outside every room), snapped like a drag and tested against the walls and the
+ * other pieces. The same rule the 3D view carries by.
+ */
+function carryPoseAt(rooms: PlanRoom[], items: PlacedItem[], item: PlacedItem, at: Vec2): CarryPose | null {
+  const room = roomAtPoint(rooms, at) ?? rooms.find((r) => r.id === item.roomId) ?? null;
+  if (!room) return null;
+  const result = snapPlacement(room, item, { position: at, rotation: item.rotation }, items);
+  return { position: result.position, rotation: result.rotation, roomId: room.id, valid: result.valid };
 }
 
 const SNAP_PX = 12;
@@ -155,8 +198,8 @@ const EMPTY_IDS: string[] = [];
 type Gesture =
   | { kind: 'pan'; startX: number; startY: number; offsetX: number; offsetY: number }
   | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number }; /** It would be drawn over a room that is already there. */ overlaps?: boolean }
-  | { kind: 'wall-drag'; wall: Wall; startWorld: Vec2; distance: number; moved: boolean }
-  | { kind: 'node-drag'; from: Vec2; to: Vec2; moved: boolean }
+  | { kind: 'wall-drag'; wall: Wall; startWorld: Vec2; distance: number; moved: boolean; /** Shift held: the wall goes alone, what meets it stays. */ alone: boolean }
+  | { kind: 'node-drag'; wallId: string; from: Vec2; to: Vec2; moved: boolean; /** Shift held: only this wall's end goes, the rest of the junction stays. */ alone: boolean }
   | { kind: 'opening-drag'; room: PlanRoom; opening: Opening; edge: PlanEdge; target: { room: PlanRoom; edge: PlanEdge; t: number }; moved: boolean }
   | { kind: 'point-drag'; what: 'column' | 'technical' | 'electrical'; id: string; position: Vec2; moved: boolean }
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
@@ -199,6 +242,7 @@ export function PlanEditor(props: PlanEditorProps) {
     selectedItemId = null,
     paintScope = null,
     roomsOnly = false,
+    carryingItemId = null,
     className,
     fitKey,
   } = props;
@@ -219,6 +263,11 @@ export function PlanEditor(props: PlanEditorProps) {
   const [draftBeam, setDraftBeam] = useState<{ anchor: Vec2; current: Vec2 } | null>(null);
   /** The tile or strip the paint brush is over. */
   const [paintHover, setPaintHover] = useState<PaintTarget | null>(null);
+  /**
+   * Where the pointer last was while carrying a piece — kept with the piece's id, so a
+   * different carry starts afresh from wherever the store stood the piece.
+   */
+  const [carryAt, setCarryAt] = useState<{ id: string; world: Vec2 } | null>(null);
   const [ghostOpening, setGhostOpening] = useState<{ room: PlanRoom; edge: PlanEdge; t: number; widthM: number; kind: 'door' | 'window'; openingId: string | null; faded: boolean } | null>(null);
   const spaceHeld = useRef(false);
   const shiftHeld = useRef(false);
@@ -235,6 +284,48 @@ export function PlanEditor(props: PlanEditorProps) {
   const technical = plan.technical?.points ?? [];
   const callbacks = useRef(props);
   callbacks.current = props;
+  // How far each wall's body runs past its ends to close its corners, and the chains of
+  // dimensions outside the plan — both from the plan alone, worked out once per plan.
+  const wallExtensions = useMemo(() => wallEndExtensions(plan.walls ?? []), [plan.walls]);
+  const dimensionChains = useMemo(() => (layers.dimensions ? outerDimensionChains(plan) : null), [plan, layers.dimensions]);
+
+  // The piece on the pointer, and where it stands: under the pointer once it has come onto
+  // the board, else where the store stood it (a free spot in its room, or the middle).
+  const carried = useMemo(() => (carryingItemId ? (items.find((i) => i.id === carryingItemId) ?? null) : null), [carryingItemId, items]);
+  const carryWorld = carried && carryAt?.id === carried.id ? carryAt.world : null;
+  const carryPose = useMemo(() => (carried ? carryPoseAt(plan.rooms, items, carried, carryWorld ?? carried.position) : null), [carried, items, plan.rooms, carryWorld]);
+  const carryPoseRef = useRef(carryPose);
+  useEffect(() => {
+    carryPoseRef.current = carryPose;
+  }, [carryPose]);
+
+  /** Client coordinates → metres on the sheet, from the refs alone, for the api's closures. */
+  const worldOfClient = useCallback((clientX: number, clientY: number): Vec2 | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return toWorld(transformRef.current, clientX - rect.left, clientY - rect.top);
+  }, []);
+
+  /** Sets the carried piece down at a point when it fits there; otherwise it stays on the pointer, there. */
+  const dropCarriedAt = useCallback(
+    (world: Vec2): boolean => {
+      const { plan: currentPlan, items: currentItems = [], carryingItemId: id } = callbacks.current;
+      const item = id ? currentItems.find((i) => i.id === id) : null;
+      if (!id || !item) return false;
+      const pose = carryPoseAt(currentPlan.rooms, currentItems, item, world);
+      if (!pose?.valid) {
+        setCarryAt({ id, world });
+        return false;
+      }
+      edited.current = true;
+      callbacks.current.onMoveItem?.(id, pose.position, pose.rotation, pose.roomId);
+      callbacks.current.onCarryPlaced?.(id);
+      setCarryAt(null);
+      return true;
+    },
+    []
+  );
 
   // -------------------------------------------------------------------------
   // View
@@ -251,7 +342,10 @@ export function PlanEditor(props: PlanEditorProps) {
       // ten metres at most — with the origin a metre in from the top left corner, where the
       // first wall usually starts. Zooming in and out is the person's, not the plan's.
       const scale = Math.max(36, Math.min(64, Math.min(width / 16, height / 10)));
-      transformRef.current = { scale, offsetX: scale, offsetY: scale };
+      // Two and a half metres in from the corner rather than one: the first room's dimension
+      // chain runs above and to the left of it, and the totals plate sits in that corner.
+      const inset = layers.dimensions ? scale * 2.5 : scale;
+      transformRef.current = { scale, offsetX: inset, offsetY: inset };
       redraw();
       return;
     }
@@ -259,7 +353,8 @@ export function PlanEditor(props: PlanEditorProps) {
     const maxX = Math.max(...points.map((p) => p.x));
     const minZ = Math.min(...points.map((p) => p.z));
     const maxZ = Math.max(...points.map((p) => p.z));
-    const margin = 48;
+    // The dimension chains stand outside the plan and need the room for it.
+    const margin = layers.dimensions ? 100 : 48;
     const scale = Math.max(8, Math.min(120, Math.min((width - margin * 2) / Math.max(1, maxX - minX), (height - margin * 2) / Math.max(1, maxZ - minZ))));
     transformRef.current = {
       scale,
@@ -267,7 +362,7 @@ export function PlanEditor(props: PlanEditorProps) {
       offsetY: margin + (height - margin * 2 - (maxZ - minZ) * scale) / 2 - minZ * scale,
     };
     redraw();
-  }, [plan.rooms, walls, redraw]);
+  }, [plan.rooms, walls, redraw, layers.dimensions]);
 
   useEffect(() => {
     if (fitted.current === fitKey && fitted.current !== undefined) return;
@@ -293,9 +388,22 @@ export function PlanEditor(props: PlanEditorProps) {
         userAdjusted.current = true;
         redraw();
       },
+      moveCarriedTo: (clientX, clientY) => {
+        const id = callbacks.current.carryingItemId;
+        const world = worldOfClient(clientX, clientY);
+        if (id && world) setCarryAt({ id, world });
+      },
+      dropCarriedAt: (clientX, clientY) => {
+        const world = worldOfClient(clientX, clientY);
+        return world ? dropCarriedAt(world) : false;
+      },
+      carryPose: () => {
+        const pose = carryPoseRef.current;
+        return pose ? { position: pose.position, rotation: pose.rotation, roomId: pose.roomId } : null;
+      },
     });
     return () => onApi(null);
-  }, [fitView, redraw]);
+  }, [fitView, redraw, worldOfClient, dropCarriedAt]);
 
   // Wheel: zoom around the pointer. Registered natively so the page does not scroll too.
   useEffect(() => {
@@ -344,10 +452,13 @@ export function PlanEditor(props: PlanEditorProps) {
           setDraftWall(null);
           setDraftBeam(null);
           setGuides([]);
-        } else {
+        } else if (!callbacks.current.carryingItemId) {
+          // A piece on the pointer is the page's to give up (`cancelCarry`); the board says
+          // nothing then, so a swap that came back keeps its selection.
           callbacks.current.onSelect(null);
           callbacks.current.onSelectItem?.(null);
           callbacks.current.onSelectRooms?.([]);
+          callbacks.current.onEscape?.();
         }
       }
       if ((e.code === 'Delete' || e.code === 'Backspace') && !e.metaKey && !e.ctrlKey) {
@@ -429,6 +540,10 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
 
+    // The finishes chosen for whole rooms — a floor in its product's colour, the walls as a
+    // band — under the zones, tiles and strips painted on top of them.
+    if (layers.zones) drawBaseFinishes(ctx, tr, plan, finishes);
+
     // Zones, drawn over the floor and under the walls.
     if (layers.zones) {
       for (const finish of finishes) {
@@ -454,9 +569,10 @@ export function PlanEditor(props: PlanEditorProps) {
       if (room) drawPaintedCell(ctx, tr, cellPolygon(room, paintHover.cell), null, { preview: true });
     }
 
-    // Furniture footprints.
+    // Furniture footprints; the piece on the pointer where it would land, over everything.
     if (layers.furniture) {
       for (const item of items) {
+        if (carried && item.id === carried.id) continue;
         const dragging = gesture?.kind === 'item-drag' && gesture.item.id === item.id;
         const live = dragging ? { ...item, position: gesture.position } : item;
         drawFurniture(ctx, tr, live, archetypeLabel(item.kind, locale), {
@@ -464,6 +580,9 @@ export function PlanEditor(props: PlanEditorProps) {
           hovered: hover.kind === 'item' && hover.id === item.id,
           invalid: dragging && !gesture.valid,
         });
+      }
+      if (carried && carryPose) {
+        drawFurniture(ctx, tr, { ...carried, position: carryPose.position, rotation: carryPose.rotation }, archetypeLabel(carried.kind, locale), { carried: true, invalid: !carryPose.valid });
       }
     }
 
@@ -478,16 +597,19 @@ export function PlanEditor(props: PlanEditorProps) {
           const n = wallNormal(wall);
           live = { ...wall, a: { x: wall.a.x + n.x * gesture.distance, z: wall.a.z + n.z * gesture.distance }, b: { x: wall.b.x + n.x * gesture.distance, z: wall.b.z + n.z * gesture.distance } };
         }
-        if (gesture?.kind === 'node-drag') {
+        if (gesture?.kind === 'node-drag' && (!gesture.alone || gesture.wallId === wall.id)) {
           const near = (p: Vec2) => Math.hypot(p.x - gesture.from.x, p.z - gesture.from.z) < 0.02;
           live = { ...live, a: near(wall.a) ? gesture.to : live.a, b: near(wall.b) ? gesture.to : live.b };
         }
         const isSelected = selection?.kind === 'wall' && selection.id === wall.id;
+        const extension = live === wall ? wallExtensions.get(wall.id) : undefined;
         drawWall(ctx, tr, live, {
           selected: isSelected,
           hovered: hover.kind === 'wall' && hover.id === wall.id,
           locked: locked || wall.locked,
           byOrigin: layers.origins,
+          extendA: extension?.a,
+          extendB: extension?.b,
         });
         if (gesture?.kind === 'wall-drag' && gesture.wall.id === wall.id) measured.push({ wall: live, extra: `${gesture.distance >= 0 ? '+' : ''}${gesture.distance.toFixed(2)} ${t.units.m}` });
         else if (gesture?.kind === 'node-drag' && live !== wall) measured.push({ wall: live });
@@ -601,7 +723,9 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion]);
+    // The sizes of the flat, chained along each side outside the walls.
+    if (dimensionChains) drawOuterDimensions(ctx, tr, dimensionChains, t.units.m);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
 
   useEffect(() => {
     draw();
@@ -782,6 +906,12 @@ export function PlanEditor(props: PlanEditorProps) {
       return;
     }
     if (e.button !== 0) return;
+    // A piece on the pointer: the click sets it down where it fits, and nothing else happens
+    // on the board until it is down or given up.
+    if (carried) {
+      dropCarriedAt(world);
+      return;
+    }
 
     switch (tool) {
       case 'wall': {
@@ -884,11 +1014,11 @@ export function PlanEditor(props: PlanEditorProps) {
         if (hit.kind === 'node' && selection?.kind === 'wall') {
           const wall = walls.find((w) => w.id === selection.id)!;
           const from = Math.hypot(wall.a.x - world.x, wall.a.z - world.z) <= Math.hypot(wall.b.x - world.x, wall.b.z - world.z) ? wall.a : wall.b;
-          gestureRef.current = { kind: 'node-drag', from, to: from, moved: false };
+          gestureRef.current = { kind: 'node-drag', wallId: wall.id, from, to: from, moved: false, alone: shiftHeld.current };
         } else if (hit.kind === 'wall') {
           callbacks.current.onSelect({ kind: 'wall', id: hit.id! });
           const wall = walls.find((w) => w.id === hit.id)!;
-          if (!locked && !wall.locked) gestureRef.current = { kind: 'wall-drag', wall, startWorld: world, distance: 0, moved: false };
+          if (!locked && !wall.locked) gestureRef.current = { kind: 'wall-drag', wall, startWorld: world, distance: 0, moved: false, alone: shiftHeld.current };
         } else if (hit.kind === 'opening') {
           const o = openingAt(world)!;
           callbacks.current.onSelect({ kind: 'opening', id: o.opening.id, roomId: o.room.id });
@@ -979,12 +1109,15 @@ export function PlanEditor(props: PlanEditorProps) {
           const raw = (world.x - gesture.startWorld.x) * n.x + (world.z - gesture.startWorld.z) * n.z;
           gesture.distance = Math.round(raw * 100) / 100;
           gesture.moved = gesture.moved || Math.abs(raw) * transformRef.current.scale > DRAG_THRESHOLD_PX;
+          // Shift can be pressed or let go in the middle of the drag: what counts is where it is at the drop.
+          gesture.alone = shiftHeld.current;
           setGestureVersion((v) => v + 1);
           return;
         }
         case 'node-drag': {
           const snapped = snapFor(world, null, null);
           gesture.to = snapped.point;
+          gesture.alone = shiftHeld.current;
           gesture.moved = gesture.moved || Math.hypot(world.x - gesture.from.x, world.z - gesture.from.z) * transformRef.current.scale > DRAG_THRESHOLD_PX;
           setGuides(snapped.guides);
           setGestureVersion((v) => v + 1);
@@ -1054,7 +1187,11 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
 
-    // No gesture: previews and hover.
+    // No gesture: the carried piece, else previews and hover.
+    if (carried) {
+      setCarryAt({ id: carried.id, world });
+      return;
+    }
     if (tool === 'paint') {
       const target = paintTargetFor(world);
       if (paintKey(target) !== paintKey(paintHover)) setPaintHover(target);
@@ -1117,10 +1254,10 @@ export function PlanEditor(props: PlanEditorProps) {
         break;
       }
       case 'wall-drag':
-        if (gesture.moved && Math.abs(gesture.distance) >= 0.01) callbacks.current.onOffsetWall?.(gesture.wall.id, gesture.distance);
+        if (gesture.moved && Math.abs(gesture.distance) >= 0.01) callbacks.current.onOffsetWall?.(gesture.wall.id, gesture.distance, gesture.alone);
         break;
       case 'node-drag':
-        if (gesture.moved && (Math.abs(gesture.to.x - gesture.from.x) > 0.005 || Math.abs(gesture.to.z - gesture.from.z) > 0.005)) callbacks.current.onMoveNode?.(gesture.from, gesture.to);
+        if (gesture.moved && (Math.abs(gesture.to.x - gesture.from.x) > 0.005 || Math.abs(gesture.to.z - gesture.from.z) > 0.005)) callbacks.current.onMoveNode?.(gesture.from, gesture.to, gesture.alone ? gesture.wallId : null);
         break;
       case 'opening-drag': {
         setGhostOpening(null);
@@ -1179,7 +1316,7 @@ export function PlanEditor(props: PlanEditorProps) {
   };
 
   const cursor =
-    tool === 'pan' ? 'grab' : tool === 'select' ? (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical' ? (locked && (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'column') ? 'pointer' : 'move') : hover.kind === 'node' ? 'crosshair' : 'default') : 'crosshair';
+    carried ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical' ? (locked && (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'column') ? 'pointer' : 'move') : hover.kind === 'node' ? 'crosshair' : 'default') : 'crosshair';
 
   return (
     <canvas

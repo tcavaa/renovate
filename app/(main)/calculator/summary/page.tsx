@@ -14,6 +14,7 @@ import {
   Lock,
   ArrowRight,
   ShoppingBag,
+  FileDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { StepIndicator } from '@/components/calculator/StepIndicator';
+import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
 import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
 import { calculatorSheet } from '@/lib/summary/calculatorSheet';
@@ -44,9 +45,12 @@ import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/Checkou
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { priceScene } from '@/lib/design/pricing';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
+import { finishAreasByProduct } from '@/lib/calculator/placement';
+import { downloadPlanPdf } from '@/lib/design/planPdfExport';
+import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel } from '@/lib/i18n/labels';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, formatM2 } from '@/lib/utils';
 
 const CALLBACK_URL = '/calculator/summary?autoSave=1';
 
@@ -57,8 +61,15 @@ export default function SummaryPage() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
-  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearEdits } =
+  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearEdits, syncFinishAreas } =
     useCalculatorStore();
+  // The calculator's own board: what was laid on it is what the cart's finishes are bought at.
+  const boardPlan = useCalculatorPlanStore((s) => s.plan);
+  const boardFinishes = useCalculatorPlanStore((s) => s.finishes);
+  useEffect(() => {
+    syncFinishAreas(finishAreasByProduct(boardFinishes));
+  }, [boardFinishes, syncFinishAreas]);
+  const [exporting, setExporting] = useState(false);
   const { book } = useRateBook();
   const fees = usePlatformFees();
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
@@ -87,7 +98,7 @@ export default function SummaryPage() {
     // The drawing the calculator was working on crosses into the studio here and nowhere
     // else — the two boards are separate until the person asks for this.
     const board = useCalculatorPlanStore.getState();
-    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl });
+    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: board.finishes });
     router.push(landing === 'studio' ? '/design/studio' : '/design/style');
   };
 
@@ -172,6 +183,28 @@ export default function SummaryPage() {
     }
   }, [saveOnce, ka]);
 
+  /** The plan as a PDF: the rooms with their sizes, the doors and windows with theirs, what each room wears. */
+  const exportPdf = async () => {
+    if (!boardPlan || boardPlan.rooms.length === 0 || !homeState) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await downloadPlanPdf(boardPlan, `${ka.calculator.projectName}-${new Date().toISOString().slice(0, 10)}`, {
+        title: ka.calculator.projectName,
+        subtitle: `${homeStateLabel(ka, homeState)} · ${new Date().toLocaleDateString('ka-GE')}`,
+        areaLabel: formatM2(totalFloorAreaM2(boardPlan)),
+        roomsLabel: fill(ka.build.roomCount, { n: boardPlan.rooms.length }),
+        unitM2: ka.units.m2,
+        unitM: ka.units.m,
+        finishes: boardFinishes,
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleSave = () => {
     if (!ready) return;
     if (status === 'loading') return;
@@ -226,7 +259,7 @@ export default function SummaryPage() {
   if (!ready || !summary || !sheet) {
     return (
       <>
-        <StepIndicator current={5} />
+        <StepIndicator current={6} />
         <EmptyStep message={ka.calculator.needRoomsFirst} back={ka.common.back} />
       </>
     );
@@ -236,11 +269,11 @@ export default function SummaryPage() {
 
   return (
     <>
-      <StepIndicator current={5} />
+      <StepIndicator current={6} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={5}
-          total={5}
+          step={6}
+          total={CALCULATOR_STEPS}
           title={ka.summary.title}
           subtitle={ka.summary.subtitle}
           meta={
@@ -256,6 +289,12 @@ export default function SummaryPage() {
                 <Printer className="h-4 w-4" />
                 {ka.summary.print}
               </Button>
+              {boardPlan && boardPlan.rooms.length > 0 && (
+                <Button variant="outline" onClick={exportPdf} disabled={exporting}>
+                  <FileDown className="h-4 w-4" />
+                  {ka.build.exportPlanPdf}
+                </Button>
+              )}
               {savedId != null ? (
                 <Button asChild variant="outline">
                   <Link href="/profile">

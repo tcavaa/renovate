@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Eraser, Loader2 } from 'lucide-react';
+import { AlertTriangle, Eraser, LayoutGrid, Loader2, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -18,6 +18,8 @@ import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
+import { CatalogBrowser } from '@/components/studio/CatalogBrowser';
+import { initialCatalogBrowserState, type CatalogBrowserState } from '@/lib/design/catalogBrowser';
 import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
@@ -37,7 +39,7 @@ import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { DESIGN_STEP_HREFS, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { formatGEL, cn } from '@/lib/utils';
-import { ROTATE_STEP_RAD, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
+import { ROTATE_STEP_RAD, isPlacementValid, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
 import { surfaceOptions } from '@/lib/design/surfaces';
@@ -45,7 +47,7 @@ import { isTrimSurface, trimFor, trimLengthM, trimOptions } from '@/lib/design/t
 import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
-import type { EditorTool } from '@/components/plan/PlanEditor';
+import type { EditorTool, PlanEditorApi } from '@/components/plan/PlanEditor';
 import type { ElectricalKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
@@ -157,8 +159,12 @@ export default function StudioPage() {
   const [electricalArmed, setElectricalArmed] = useState(false);
   const [technicalKind, setTechnicalKind] = useState<TechnicalKind>('water_supply');
   const [technicalArmed, setTechnicalArmed] = useState(false);
-  const [finishScope, setFinishScope] = useState<FinishScope>('room');
+  const [finishScopeState, setFinishScope] = useState<FinishScope>('room');
   const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
+  // A square metre of wall needs the height of the click, which the board has not: while
+  // the board is the view the brush is the metre-wide strip (the chip stands disabled and
+  // says why), and the square metre is back the moment the 3D view is.
+  const finishScope: FinishScope = view === '2d' && finishScopeState === 'patch' ? 'strip' : finishScopeState;
   /**
    * The brush of the two painting scopes: the product a click on a floor tile or a wall
    * strip lays down. `null` is the style's default — the eraser — and `undefined` an empty
@@ -180,8 +186,15 @@ export default function StudioPage() {
   const [refused, setRefused] = useState<string | null>(null);
   /** "Start from scratch" asks first — in a dialogue of ours, not the browser's. */
   const [clearOpen, setClearOpen] = useState(false);
+  // The catalogue modal: shut, open, or folded to a chip while a piece from it is placed.
+  // Its search and filters live here so that coming back finds them as they were left.
+  const [catalogBrowser, setCatalogBrowser] = useState<'closed' | 'open' | 'minimized'>('closed');
+  const [catalogState, setCatalogState] = useState<CatalogBrowserState>(initialCatalogBrowserState);
+  const [catalogLast, setCatalogLast] = useState<CatalogProduct | null>(null);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
+  /** The 2D board's controls while it is the view: the carried piece follows a drag through it. */
+  const [planApi, setPlanApi] = useState<PlanEditorApi | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [workspaceEl, setWorkspaceEl] = useState<HTMLDivElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -321,26 +334,29 @@ export default function StudioPage() {
     if (!id) store.selectElement(null);
   }, [store]);
 
-  // Only the 3D view carries: leaving it with a piece still on the pointer gives the piece up
-  // the way Escape does — an added one goes, a swap that found no room is the old sofa again.
+  // The 3D view and the 2D board both carry; the walk-through has no pointer to carry on, so
+  // entering it with a piece still on the pointer gives the piece up the way Escape does — an
+  // added one goes, a swap that found no room is the old sofa again.
   useEffect(() => {
-    if (view !== '3d' && carryingItemId) store.cancelCarry();
+    if (view === 'walk' && carryingItemId) store.cancelCarry();
   }, [view, carryingItemId, store]);
 
-  // A product dropped before the viewer carried it is set down where it was dropped as soon
+  // A product dropped before the view carried it is set down where it was dropped as soon
   // as the carry exists.
   useEffect(() => {
     const drop = pendingDrop.current;
-    if (!carryingItemId || !drop || !viewerApi) return;
+    const target = view === '3d' ? viewerApi : view === '2d' ? planApi : null;
+    if (!carryingItemId || !drop || !target) return;
     pendingDrop.current = null;
-    viewerApi.dropCarriedAt(drop.x, drop.y);
-  }, [carryingItemId, viewerApi]);
+    target.dropCarriedAt(drop.x, drop.y);
+  }, [carryingItemId, viewerApi, planApi, view]);
+
 
   const rotateSelected = useCallback(
     (steps: number) => {
       if (!selected || !plan || selected.locked) return;
       if (carryingItemId && selected.id === carryingItemId) {
-        const pose = viewerApi?.carryPose();
+        const pose = view === '2d' ? planApi?.carryPose() : viewerApi?.carryPose();
         store.placeItem(selected.id, pose?.position ?? selected.position, selected.rotation + steps * ROTATE_STEP_RAD, pose?.roomId ?? selected.roomId);
         setRotateBlocked(false);
         return;
@@ -351,10 +367,40 @@ export default function StudioPage() {
       setRotateBlocked(!result.valid);
       store.placeItem(selected.id, result.position, result.rotation, room.id);
     },
-    [selected, plan, items, store, carryingItemId, viewerApi]
+    [selected, plan, items, store, carryingItemId, viewerApi, planApi, view]
   );
 
   useEffect(() => setRotateBlocked(false), [selectedItemId]);
+
+  /**
+   * An exact angle from the card's slider or number: the piece turns in place to it, any
+   * angle at all, and the outline says whether it still fits there (a refused turn would
+   * make a sofa impossible to turn in any room without spare floor — see `rotateItem`).
+   */
+  const rotateSelectedTo = useCallback(
+    (radians: number) => {
+      if (!selected || !plan || selected.locked) return;
+      const room = plan.rooms.find((r) => r.id === selected.roomId);
+      if (!room) return;
+      store.placeItem(selected.id, selected.position, radians, room.id);
+      setRotateBlocked(!isPlacementValid(room, { ...selected, rotation: radians }, items));
+    },
+    [selected, plan, items, store]
+  );
+
+  /**
+   * Escape puts down whatever is in hand that is not a piece on the pointer: a drawing tool,
+   * an armed fitting or technical point, the brush. On the board the board says when — a
+   * wall run in progress is ended first (`PlanWorkspace.onEscape`); in 3D there is nothing
+   * to end first.
+   */
+  const putToolsDown = useCallback(() => {
+    setBuildTool('select');
+    setElectricalArmed(false);
+    setTechnicalArmed(false);
+    setFinishScope((scope) => (isPaintScope(scope) ? 'room' : scope));
+    setBrush(undefined);
+  }, []);
 
   // The fitting riding on the pointer is put away when the tool is, and when the 3D view is left.
   useEffect(() => {
@@ -368,6 +414,9 @@ export default function StudioPage() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)) return;
+      // The catalogue modal has the keyboard while it is open: Delete there must not take
+      // the selected piece out of the room behind it, and Escape is its own to close with.
+      if (catalogBrowser === 'open') return;
       const code = event.code;
       if (event.metaKey || event.ctrlKey) {
         if (code === 'KeyZ' && !event.shiftKey) {
@@ -395,7 +444,11 @@ export default function StudioPage() {
           store.selectElement(null);
         }
         setSelectedSurface(null);
+        // A fitting or a technical point armed for the next click is disarmed whatever the
+        // view; the rest of the tools are the board's to put down while it is showing.
         setElectricalArmed(false);
+        setTechnicalArmed(false);
+        if (view !== '2d') putToolsDown();
       } else if (code === 'KeyR' && selectedItemId) {
         event.preventDefault();
         rotateSelected(event.shiftKey ? -1 : 1);
@@ -422,7 +475,7 @@ export default function StudioPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view]);
+  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view, putToolsDown, catalogBrowser]);
 
   /** How many technical points of each kind stand on the plan, for the tray's tiles. */
   const technicalCounts = useMemo(() => {
@@ -505,27 +558,36 @@ export default function StudioPage() {
   };
 
   /**
-   * A tile clicked on the shelf. Only the 3D view has a pointer to carry a piece on; on the
-   * 2D board it is stood in the room (the focused one, else the largest) where the layout
-   * finds it a spot, to be dragged from there.
+   * A tile clicked on the shelf: the product goes on the pointer (`beginAdd`), in the 3D
+   * view and on the 2D board alike, and a click sets it down where it fits. It used to be
+   * stood in the room by itself on the board, wherever the layout found a spot, which read
+   * as the shelf placing furniture on its own.
    */
-  const pickProduct = (product: CatalogProduct): boolean => {
-    if (view === '3d') return store.beginAdd(product, focusRoomId) !== null;
-    const largest = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
-    return !!largest && store.addItem(product, focusRoomId ?? largest.id) !== null;
+  const pickProduct = (product: CatalogProduct): boolean => view !== 'walk' && store.beginAdd(product, focusRoomId) !== null;
+
+  /**
+   * "Place" in the catalogue modal: the product goes on the pointer like a tile off the
+   * shelf, and the modal folds to a chip so the room is in view to set it down in. The chip
+   * opens it again with the search and the filters as they were.
+   */
+  const placeFromCatalog = (product: CatalogProduct): boolean => {
+    if (!pickProduct(product)) return false;
+    setCatalogLast(product);
+    setCatalogBrowser('minimized');
+    return true;
   };
 
   /**
-   * A tile picked up on the shelf: in 3D the product is put on the pointer at once
-   * (`beginAdd`) — the tile's own picture is not dragged — and the model follows the drag
-   * until it is dropped or the drag ends off the canvas.
+   * A tile picked up on the shelf: the product is put on the pointer at once (`beginAdd`) —
+   * the tile's own picture is not dragged — and the model, or its footprint on the board,
+   * follows the drag until it is dropped or the drag ends off the canvas.
    */
   const onDragProduct = (product: CatalogProduct | null) => {
     if (!product) {
       endDragCarry();
       return;
     }
-    if (view !== '3d' || !viewerApi) return;
+    if (view === 'walk' || (view === '3d' && !viewerApi) || (view === '2d' && !planApi)) return;
     if (store.beginAdd(product, focusRoomId) !== null) dragCarry.current = true;
   };
 
@@ -538,7 +600,10 @@ export default function StudioPage() {
     if (types.includes(FURNITURE_DRAG_TYPE)) {
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
-      if (view === '3d' && viewerApi && dragCarry.current) viewerApi.moveCarriedTo(event.clientX, event.clientY);
+      if (dragCarry.current) {
+        if (view === '3d') viewerApi?.moveCarriedTo(event.clientX, event.clientY);
+        else if (view === '2d') planApi?.moveCarriedTo(event.clientX, event.clientY);
+      }
       return;
     }
     if (types.includes(ELECTRICAL_DRAG_TYPE)) {
@@ -570,19 +635,16 @@ export default function StudioPage() {
     event.preventDefault();
     const product = products.find((p) => p.id === Number(raw));
     if (!product) return;
-    if (view === '2d' || !viewerApi) {
-      const largest = [...plan.rooms].sort((a, b) => b.areaM2 - a.areaM2)[0];
-      store.addItem(product, focusRoomId ?? largest.id);
-      return;
-    }
+    const target = view === '3d' ? viewerApi : view === '2d' ? planApi : null;
+    if (!target) return;
     if (dragCarry.current) {
       // Already on the pointer: set it down here. A spot that does not fit leaves it on the
       // pointer, outlined red, for the person to move.
       dragCarry.current = false;
-      viewerApi.dropCarriedAt(event.clientX, event.clientY);
+      target.dropCarriedAt(event.clientX, event.clientY);
       return;
     }
-    const at = viewerApi.floorPointAt(event.clientX, event.clientY);
+    const at = view === '3d' && viewerApi ? viewerApi.floorPointAt(event.clientX, event.clientY) : null;
     pendingDrop.current = { x: event.clientX, y: event.clientY };
     if (store.beginAdd(product, at?.roomId ?? focusRoomId ?? null) === null) pendingDrop.current = null;
   };
@@ -788,6 +850,8 @@ export default function StudioPage() {
                 height="100%"
                 className="h-full"
                 onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+                onEscape={putToolsDown}
+                onApi={setPlanApi}
               />
             </div>
           ) : (
@@ -850,6 +914,21 @@ export default function StudioPage() {
           nextLabel={category === 'finishes' ? (nextStep(6, homeState, mode) === 3 ? t.design.step3 : t.build.budgetTitle) : t.design.step6}
         />
 
+        {/* ---- the catalogue modal, folded to a chip while a piece from it is placed ---- */}
+        {catalogBrowser === 'minimized' && (
+          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-[12px] bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur" data-tour="catalog-chip">
+            <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold">{t.design.catalogMinimized}</span>
+            {catalogLast && <span className="max-w-[180px] truncate text-[11px] text-white/70">· {localizedName(locale, catalogLast)}</span>}
+            <button type="button" onClick={() => setCatalogBrowser('open')} className="ml-1 h-6 rounded-[8px] bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
+              {t.design.catalogReopen}
+            </button>
+            <button type="button" onClick={() => setCatalogBrowser('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-[8px] transition-colors hover:bg-white/15">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* ---- left: the categories, the rooms beside them ---- */}
         <div className="pointer-events-auto absolute left-4 top-20 z-20 hidden items-start gap-2 md:flex">
           <CategoryRail category={category} trayOpen={trayShown} onCategory={pickCategory} badge={cost ? { budget: formatGEL(cost.grandTotal) } : undefined} />
@@ -886,6 +965,7 @@ export default function StudioPage() {
                   // Escape brings the old one back.
                   onSwap={(product) => store.swapProduct(selected.id, product, { carry: view === '3d' })}
                   onRotate={rotateSelected}
+                  onRotateTo={rotateSelectedTo}
                   rotateBlocked={rotateBlocked}
                   onRemove={() => store.removeItem(selected.id)}
                   onMirror={() => store.mirrorItem(selected.id)}
@@ -979,6 +1059,7 @@ export default function StudioPage() {
                     roomType={focusRoom?.type ?? null}
                     onPick={pickProduct}
                     onDragProduct={onDragProduct}
+                    onOpenCatalog={() => setCatalogBrowser('open')}
                   />
                 )}
                 {category === 'electric' && (
@@ -1030,6 +1111,7 @@ export default function StudioPage() {
                     onPick={(product) => pickFinish(finishSurface, product)}
                     canClear={canClearPartial}
                     onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
+                    flat={view === '2d'}
                   />
                 )}
                 {category === 'budget' && cost && <BudgetTray cost={cost} />}
@@ -1080,6 +1162,19 @@ export default function StudioPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <CatalogBrowser
+        open={catalogBrowser === 'open'}
+        onOpenChange={(next) => setCatalogBrowser(next ? 'open' : 'closed')}
+        catalog={products}
+        styleId={styleId}
+        focusRoom={focusRoom?.type ?? null}
+        roomLabel={focusRoom?.name ?? t.design.wholeFlat}
+        state={catalogState}
+        onState={setCatalogState}
+        placeMode={view}
+        onPlace={placeFromCatalog}
+      />
 
       <PhotoDialog shot={shot} open={photoOpen} onOpenChange={setPhotoOpen} ensureSaved={ensureSaved} />
     </>

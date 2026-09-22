@@ -22,15 +22,13 @@
 
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, Package, Palette, Search, X } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Package, Palette, Search, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, styleLabel } from '@/lib/i18n/labels';
 import { SHELF_ROOMS, archetypeLabel, kindsForRoom, unroomedKinds } from '@/lib/design/catalog';
 import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from '@/lib/design/colors';
 import { STYLE_IDS } from '@/lib/design/styles';
-import { isFixtureProductKind } from '@/lib/design/electrical';
-import { isOpeningProductKind } from '@/lib/design/openings';
-import { isRadiatorProductKind } from '@/lib/design/radiators';
+import { isFurnitureProduct } from '@/lib/design/catalogBrowser';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
@@ -51,6 +49,7 @@ export function FurnitureTray({
   roomType = null,
   onPick,
   onDragProduct,
+  onOpenCatalog,
 }: {
   catalog: CatalogProduct[];
   styleId: StyleId;
@@ -60,6 +59,8 @@ export function FurnitureTray({
   onPick: (product: CatalogProduct) => boolean;
   /** A tile started or finished being dragged; the studio shows it in 3D under the pointer meanwhile. */
   onDragProduct?: (product: CatalogProduct | null) => void;
+  /** Opens the whole catalogue as a page (`CatalogBrowser`): search, filters, details. */
+  onOpenCatalog?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -88,10 +89,9 @@ export function FurnitureTray({
   }
   const [notice, setNotice] = useState<{ id: number; ok: boolean } | null>(null);
 
-  // Sockets, switches and lamps are products too, but they belong to the electric tray.
   // A fitting, a door and a radiator are all products with a model, but none of them is
   // furniture: they belong to the electrical layer, the wall and the technical layer.
-  const placeable = useMemo(() => catalog.filter((p) => p.model3dUrl && p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind) && !isRadiatorProductKind(p.model3dKind)), [catalog]);
+  const placeable = useMemo(() => catalog.filter(isFurnitureProduct), [catalog]);
 
   // What the shelf holds of each kind, and from that the rooms worth listing and the kinds
   // worth listing in each: a room or a kind nobody sells anything for is not offered.
@@ -280,6 +280,13 @@ export function FurnitureTray({
             </div>
           )}
 
+          {/* The whole catalogue as a page — search, filters, details — for when the shelf is not enough. */}
+          {onOpenCatalog && (
+            <button type="button" onClick={onOpenCatalog} title={t.design.catalogOpenHint} data-tour="catalog" className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
+              <LayoutGrid className="h-3.5 w-3.5" />
+              {t.design.catalogOpen}
+            </button>
+          )}
           {/* The search: an icon until it is wanted, so the rooms have the line. */}
           {searching || query ? (
             <div className="relative shrink-0">

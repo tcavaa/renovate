@@ -44,7 +44,9 @@ import {
   columnFootprints,
   ensureWalls,
   moveNode as moveWallNodeIn,
+  moveWallEnd as moveWallEndIn,
   offsetWall as offsetWallIn,
+  offsetWallAlone as offsetWallAloneIn,
   rebuildRooms,
   moveRooms as moveRoomsIn,
   roomCluster,
@@ -234,8 +236,10 @@ interface DesignActions {
   // --- walls, columns, beams ---
   setWalls: (walls: Wall[]) => void;
   addWall: (wall: Omit<Wall, 'id' | 'origin'> & { origin?: Wall['origin'] }) => string;
-  offsetWall: (wallId: string, distance: number) => void;
-  moveWallNode: (from: Vec2, to: Vec2) => void;
+  /** Slides a wall sideways; the walls that meet it follow, unless `alone` (the Shift drag) leaves them where they are. */
+  offsetWall: (wallId: string, distance: number, alone?: boolean) => void;
+  /** Moves a junction and every wall end on it — or, with `onlyWallId` (the Shift drag), that one wall's end alone. */
+  moveWallNode: (from: Vec2, to: Vec2, onlyWallId?: string | null) => void;
   updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
   /** Stretches a wall to a typed length, its far end (and whatever meets it) following. */
   resizeWall: (wallId: string, lengthM: number) => void;
@@ -301,6 +305,8 @@ interface DesignActions {
     /** The calculator's own drawing, which is the one the person has just been editing. */
     plan?: FloorPlan | null;
     floorPlanUrl?: string | null;
+    /** What the calculator laid on that drawing's rooms — the floors and walls, as placed. */
+    finishes?: SurfaceFinish[];
   }) => 'studio' | 'style';
   /** Puts pending calculator picks into the existing design without re-laying it out. */
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
@@ -747,8 +753,9 @@ function createDesignStore(storageName: string) {
           });
           return id;
         },
-        offsetWall: (wallId, distance) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(offsetWallIn(s.plan.walls, wallId, distance), wallId)) : null)),
-        moveWallNode: (from, to) => commit((s) => (s.plan?.walls ? withWalls(s, moveWallNodeIn(s.plan.walls, from, to)) : null)),
+        offsetWall: (wallId, distance, alone = false) => commit((s) => (s.plan?.walls ? withWalls(s, markUser((alone ? offsetWallAloneIn : offsetWallIn)(s.plan.walls, wallId, distance), wallId)) : null)),
+        moveWallNode: (from, to, onlyWallId = null) =>
+          commit((s) => (s.plan?.walls ? withWalls(s, onlyWallId ? markUser(moveWallEndIn(s.plan.walls, onlyWallId, from, to), onlyWallId) : moveWallNodeIn(s.plan.walls, from, to)) : null)),
         updateWall: (wallId, patch) => commit((s) => (s.plan?.walls ? withWalls(s, updateWallIn(s.plan.walls, wallId, patch)) : null)),
         resizeWall: (wallId, lengthM) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(resizeWallIn(s.plan.walls, wallId, lengthM), wallId)) : null)),
         removeWall: (wallId) => commit((s) => (s.plan?.walls ? withWalls(s, removeWallIn(s.plan.walls, wallId)) : null)),
@@ -960,7 +967,7 @@ function createDesignStore(storageName: string) {
             carryRestore: null,
           })),
 
-        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null }) => {
+        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null, finishes: laid = [] }) => {
           let landing: 'studio' | 'style' = 'style';
           set((s) => {
             // A plan uploaded or drawn in the calculator keeps its real walls; rooms typed by
@@ -985,7 +992,9 @@ function createDesignStore(storageName: string) {
             } else {
               plan = ensureWalls(planFromCalculatorRooms(rooms));
             }
-            const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture);
+            // The finishes laid on the calculator's board travel with its plan and nothing else's:
+            // laid on another drawing, their rooms would be somebody else's rooms.
+            const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture, describesFlat(fromCalculator) ? laid : []);
             // The same project already has a design: keep it, and let the studio put the
             // calculator's picks into it rather than laying the flat out again.
             const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;

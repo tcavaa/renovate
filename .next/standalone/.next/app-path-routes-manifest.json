@@ -10,6 +10,7 @@
   "/(main)/calculator/furniture/page": "/calculator/furniture",
   "/(main)/calculator/materials/page": "/calculator/materials",
   "/(main)/calculator/page": "/calculator",
+  "/(main)/calculator/placement/page": "/calculator/placement",
   "/(main)/calculator/summary/page": "/calculator/summary",
   "/(main)/catalog/[slug]/page": "/catalog/[slug]",
   "/(main)/catalog/page": "/catalog",

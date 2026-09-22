@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-15",
+  "generatedAt": "2026-09-22",
   "note": "Written by scripts/fixture-models.ts. Wall fixtures are centred on x/y with the back on z = 0 and the front along +z; ceiling fixtures centred on x/z with the top at y = 0; doors and windows centred on x/z, standing on y = 0, the room side along +z, a door’s leaf (node `leaf`) hung from x min.",
   "models": [
     {
@@ -548,7 +548,7 @@
       "heightCm": 212,
       "depthCm": 22,
       "triangles": 456,
-      "bytes": 21644,
+      "bytes": 21668,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/LI93WgnjyS",
       "title": "Door",
@@ -582,7 +582,7 @@
       "heightCm": 212,
       "depthCm": 22,
       "triangles": 172,
-      "bytes": 12952,
+      "bytes": 12948,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/KGt4ztcKrM",
       "title": "Door",
@@ -592,6 +592,7 @@
         "frame",
         "leaf"
       ],
+      "role": "door",
       "imageUrl": "/uploads/furniture/fixture-door-flat.png",
       "product": {
         "kind": "door",
@@ -682,7 +683,7 @@
       "heightCm": 215,
       "depthCm": 23,
       "triangles": 1224,
-      "bytes": 52516,
+      "bytes": 52520,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/xuFNaNLzfE",
       "title": "Door",

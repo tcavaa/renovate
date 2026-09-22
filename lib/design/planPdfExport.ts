@@ -15,8 +15,9 @@
  * Browser-only: it touches `document` and `canvas`.
  */
 
-import type { ElectricalPoint, FloorPlan, PlacedItem } from './types';
-import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawRoom, drawTechnical, drawWall, type Transform } from '@/components/plan/draw';
+import type { ElectricalPoint, FloorPlan, PlacedItem, SurfaceFinish } from './types';
+import { leafOnOtherSide } from './openings';
+import { drawBaseFinishes, drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from '@/components/plan/draw';
 
 /** A4 at 72 points to the inch. */
 const A4 = { short: 595.28, long: 841.89 };
@@ -27,16 +28,27 @@ const SCALE = 200 / 72;
 export interface PlanPdfOptions {
   /** The title block's heading — the project's name. */
   title: string;
+  /** A line under the title: the flat, the date — whatever the page is about. */
+  subtitle?: string;
   /** "Total area" and "N rooms", already in the reader's language. */
   areaLabel: string;
   roomsLabel: string;
   /** The unit areas are labelled with on the sheet. */
   unitM2: string;
+  /** The unit lengths are labelled with — the dimension chains and the doors' sizes. */
+  unitM?: string;
   items?: PlacedItem[];
   electrical?: ElectricalPoint[];
+  /** The finishes chosen for the rooms: a floor in its product's colour, the walls as bands. */
+  finishes?: SurfaceFinish[];
   /** Draw the furniture footprints too. */
   furniture?: boolean;
+  /** What a piece of furniture is called on the sheet (its kind, in the reader's language). */
+  itemLabel?: (item: PlacedItem) => string;
 }
+
+/** Pixels of the board's own scale that the dimension chains take outside the walls, on each side. */
+const DIMENSIONS_GAP = 24;
 
 /** The plan as a one-page PDF. Throws when the browser will not give up the canvas. */
 export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Promise<Blob> {
@@ -51,7 +63,10 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
   const landscape = maxX - minX >= maxZ - minZ;
   const pageW = landscape ? A4.long : A4.short;
   const pageH = landscape ? A4.short : A4.long;
-  const headerPt = 54;
+  const headerPt = 70;
+  // The chains of dimensions stand outside the walls: two rows of them below and to the
+  // right, one above and to the left, all at print size.
+  const dimPad = DIMENSIONS_GAP * SCALE * 3.2;
 
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(pageW * SCALE);
@@ -61,32 +76,51 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Metres → canvas pixels, the plan centred under the title block.
-  const usableW = (pageW - MARGIN_PT * 2) * SCALE;
-  const usableH = (pageH - MARGIN_PT * 2 - headerPt) * SCALE;
+  // Metres → canvas pixels, the plan centred under the title block with room for the
+  // dimensions around it.
+  const usableW = (pageW - MARGIN_PT * 2) * SCALE - dimPad * 2;
+  const usableH = (pageH - MARGIN_PT * 2 - headerPt) * SCALE - dimPad * 2;
   const scale = Math.min(usableW / Math.max(0.5, maxX - minX), usableH / Math.max(0.5, maxZ - minZ));
   const transform: Transform = {
     scale,
-    offsetX: MARGIN_PT * SCALE + (usableW - (maxX - minX) * scale) / 2 - minX * scale,
-    offsetY: (MARGIN_PT + headerPt) * SCALE + (usableH - (maxZ - minZ) * scale) / 2 - minZ * scale,
+    offsetX: MARGIN_PT * SCALE + dimPad + (usableW - (maxX - minX) * scale) / 2 - minX * scale,
+    offsetY: (MARGIN_PT + headerPt) * SCALE + dimPad + (usableH - (maxZ - minZ) * scale) / 2 - minZ * scale,
   };
+  const unitM = options.unitM ?? 'm';
 
   drawTitleBlock(ctx, options, pageW);
 
+  // The rooms' tints; their names come last, over the furniture. The edge lengths inside the
+  // rooms are left off the sheet: the chains outside the walls carry every size at print
+  // size, and the small figures at the walls' middles only collided with the fittings there.
   for (const room of plan.rooms) {
-    drawRoom(ctx, transform, room, { selected: false, hovered: false, labels: true, dimensions: true, unitM2: options.unitM2 });
+    drawRoom(ctx, transform, room, { selected: false, hovered: false, labels: false, dimensions: false, unitM2: options.unitM2 });
   }
-  for (const wall of plan.walls ?? []) drawWall(ctx, transform, wall, {});
+  // What each room wears, as chosen — the calculator's placement or the studio's finishes.
+  if (options.finishes) drawBaseFinishes(ctx, transform, plan, options.finishes);
+  // Walls with their corners closed, like the board.
+  const extensions = wallEndExtensions(plan.walls ?? []);
+  for (const wall of plan.walls ?? []) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b });
   for (const room of plan.rooms) {
-    for (const opening of room.openings) drawOpening(ctx, transform, room, opening, plan.wallThicknessM, {});
+    for (const opening of room.openings) {
+      drawOpening(ctx, transform, room, opening, plan.wallThicknessM, {});
+      // Every door and window with its size, so the sheet says what fits the hole — an
+      // interior door once, on the half that draws the leaf, not on each of its two halves.
+      if (opening.kind !== 'archway' && !leafOnOtherSide(opening)) drawOpeningSize(ctx, transform, room, opening, plan.wallThicknessM, unitM, { ui: SCALE });
+    }
   }
   for (const column of plan.columns ?? []) drawColumn(ctx, transform, column, {});
   for (const beam of plan.beams ?? []) drawBeam(ctx, transform, beam, {});
   for (const point of plan.technical?.points ?? []) drawTechnical(ctx, transform, point, {});
   for (const point of options.electrical ?? []) drawElectrical(ctx, transform, point, {});
   if (options.furniture) {
-    for (const item of options.items ?? []) drawFurniture(ctx, transform, item, '', {});
+    for (const item of options.items ?? []) drawFurniture(ctx, transform, item, options.itemLabel?.(item) ?? '', { ui: SCALE });
   }
+  // The room names over everything, on a white plate, at print size.
+  for (const room of plan.rooms) drawRoomLabel(ctx, transform, room, { unitM2: options.unitM2, ui: SCALE, halo: true });
+  // The flat's sizes, chained along each side outside the walls.
+  const chains = outerDimensionChains(plan);
+  if (chains) drawOuterDimensions(ctx, transform, chains, unitM, { gap: DIMENSIONS_GAP, ui: SCALE });
 
   const jpeg = await canvasJpeg(canvas);
   return pdfOfImage(jpeg, canvas.width, canvas.height, pageW, pageH);
@@ -106,21 +140,31 @@ export async function downloadPlanPdf(plan: FloorPlan, filename: string, options
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * The title block: the heading large enough to be the first thing on the sheet, what the
+ * sheet is about under it, and the flat's figures on the right of the same line.
+ */
 function drawTitleBlock(ctx: CanvasRenderingContext2D, options: PlanPdfOptions, pageW: number): void {
   const x = MARGIN_PT * SCALE;
+  const right = (pageW - MARGIN_PT) * SCALE;
   ctx.save();
   ctx.fillStyle = '#161513';
   ctx.textBaseline = 'alphabetic';
-  ctx.font = `600 ${Math.round(17 * SCALE)}px system-ui, sans-serif`;
-  ctx.fillText(options.title, x, Math.round(48 * SCALE));
+  ctx.textAlign = 'left';
+  ctx.font = `700 ${Math.round(24 * SCALE)}px system-ui, sans-serif`;
+  ctx.fillText(options.title, x, Math.round(56 * SCALE));
   ctx.fillStyle = '#6F6A63';
-  ctx.font = `400 ${Math.round(10 * SCALE)}px system-ui, sans-serif`;
-  ctx.fillText(`${options.areaLabel} · ${options.roomsLabel}`, x, Math.round(64 * SCALE));
-  ctx.strokeStyle = '#E4DFD6';
-  ctx.lineWidth = Math.max(1, SCALE);
+  ctx.font = `400 ${Math.round(11 * SCALE)}px system-ui, sans-serif`;
+  if (options.subtitle) ctx.fillText(options.subtitle, x, Math.round(76 * SCALE));
+  ctx.textAlign = 'right';
+  ctx.font = `600 ${Math.round(11 * SCALE)}px system-ui, sans-serif`;
+  ctx.fillStyle = '#161513';
+  ctx.fillText(`${options.areaLabel} · ${options.roomsLabel}`, right, Math.round(76 * SCALE));
+  ctx.strokeStyle = '#161513';
+  ctx.lineWidth = Math.max(1, 1.5 * SCALE);
   ctx.beginPath();
-  ctx.moveTo(x, Math.round(74 * SCALE));
-  ctx.lineTo((pageW - MARGIN_PT) * SCALE, Math.round(74 * SCALE));
+  ctx.moveTo(x, Math.round(88 * SCALE));
+  ctx.lineTo(right, Math.round(88 * SCALE));
   ctx.stroke();
   ctx.restore();
 }

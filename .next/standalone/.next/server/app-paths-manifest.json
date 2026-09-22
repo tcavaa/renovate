@@ -10,6 +10,7 @@
   "/(main)/calculator/furniture/page": "app/(main)/calculator/furniture/page.js",
   "/(main)/calculator/materials/page": "app/(main)/calculator/materials/page.js",
   "/(main)/calculator/page": "app/(main)/calculator/page.js",
+  "/(main)/calculator/placement/page": "app/(main)/calculator/placement/page.js",
   "/(main)/calculator/summary/page": "app/(main)/calculator/summary/page.js",
   "/(main)/catalog/[slug]/page": "app/(main)/catalog/[slug]/page.js",
   "/(main)/catalog/page": "app/(main)/catalog/page.js",

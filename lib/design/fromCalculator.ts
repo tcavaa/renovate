@@ -10,7 +10,9 @@
  */
 
 import type { SelectedProduct } from '@/lib/calculator/types';
+import { isCartKey } from '@/lib/calculator/quantities';
 import { placeAdditional } from './autoLayout';
+import { isBaseFinish } from './zones';
 import { getArchetype } from './catalog';
 import type { CatalogProduct } from './matcher';
 import { quantityFor, toSceneProduct } from './matcher';
@@ -24,19 +26,27 @@ export interface CalculatorPicks {
   productIds: number[];
   /** Finishes chosen for one room each on /calculator/catalog. */
   roomProducts?: Array<{ roomId: string; productId: number }>;
+  /**
+   * What was laid on the rooms by hand on /calculator/placement — whole floors and walls,
+   * tiles, strips — exactly as laid, with the product on each. These go where they were put;
+   * the cart picks they came from are not spread over the flat by wetness as well.
+   */
+  finishes?: SurfaceFinish[];
 }
 
 export function picksFromCalculator(
   selectedProducts: Record<string, SelectedProduct>,
-  selectedFurniture: Record<string, SelectedProduct[]>
+  selectedFurniture: Record<string, SelectedProduct[]>,
+  finishes: SurfaceFinish[] = []
 ): CalculatorPicks {
-  const products = Object.values(selectedProducts);
+  const entries = Object.entries(selectedProducts);
   return {
     furniture: Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
       list.map((p) => ({ roomId, productId: p.productId }))
     ),
-    productIds: products.filter((p) => !p.roomId).map((p) => p.productId),
-    roomProducts: products.filter((p) => !!p.roomId).map((p) => ({ roomId: p.roomId!, productId: p.productId })),
+    productIds: entries.filter(([key, p]) => !p.roomId && !isCartKey(key)).map(([, p]) => p.productId),
+    roomProducts: entries.filter(([, p]) => !!p.roomId).map(([, p]) => ({ roomId: p.roomId!, productId: p.productId })),
+    finishes: finishes.filter((f) => !!f.product && (f.surface === 'floor' || f.surface === 'wall')),
   };
 }
 
@@ -157,6 +167,22 @@ export function applyFinishPicks(
         if (perRoom.has(`${room.id}:${surface}`)) continue;
         apply(room, surface, product);
       }
+    }
+  }
+  // What was laid by hand on the placement step goes exactly where it was laid — a whole
+  // floor in place of the room's base, a tile or a strip on top of it — unless the studio
+  // has since chosen something for that surface, which was chosen later, by eye.
+  const laid = picks.finishes ?? [];
+  if (laid.length > 0) {
+    const touched = new Set(laid.map((f) => `${f.roomId}:${f.surface}`));
+    // Laid once: an earlier laying of the same rooms goes before this one is put down.
+    next = next.filter((f) => !(f.origin === 'calculator' && touched.has(`${f.roomId}:${f.surface}`)));
+    for (const finish of laid) {
+      const room = plan.rooms.find((r) => r.id === finish.roomId);
+      if (!room) continue;
+      if (next.some((f) => f.roomId === room.id && f.surface === finish.surface && f.origin === 'studio')) continue;
+      if (isBaseFinish(finish)) next = next.filter((f) => !(f.roomId === room.id && f.surface === finish.surface && isBaseFinish(f)));
+      next.push({ ...finish, origin: 'calculator' });
     }
   }
   return next;

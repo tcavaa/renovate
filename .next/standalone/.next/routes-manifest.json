@@ -618,6 +618,12 @@
       "namedRegex": "^/calculator/materials(?:/)?$"
     },
     {
+      "page": "/calculator/placement",
+      "regex": "^/calculator/placement(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/calculator/placement(?:/)?$"
+    },
+    {
       "page": "/calculator/summary",
       "regex": "^/calculator/summary(?:/)?$",
       "routeKeys": {},

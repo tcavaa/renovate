@@ -20,8 +20,7 @@ import {
   wallForEdge,
   wallsForRectangle,
   wallsFromRooms,
-  wallThicknessForEdge,
-} from '@/lib/design/walls';
+  wallThicknessForEdge, offsetWallAlone, moveWallEnd, wallNormal } from '@/lib/design/walls';
 import { addOpening } from '@/lib/design/openings';
 import { polygonAreaM2, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlanRoom, Vec2, Wall } from '@/lib/design/types';
@@ -176,6 +175,32 @@ describe('editing walls', () => {
     const left = moved.find((w) => w.id === 'a-left')!;
     expect(Math.min(left.a.z, left.b.z)).toBeCloseTo(-0.4, 3);
     expect(roomsFromWalls(moved)).toHaveLength(2);
+  });
+
+  it('moves one wall alone when asked — the Shift drag — and leaves what met it where it was', () => {
+    const plan = threeRooms();
+    const walls = plan.walls!;
+    const partition = walls.find((w) => Math.abs(w.a.x - 4) < 0.01 && Math.abs(w.b.x - 4) < 0.01 && Math.max(w.a.z, w.b.z) <= 3.01)!;
+    const before = walls.filter((w) => w.id !== partition.id);
+    const moved = offsetWallAlone(walls, partition.id, 0.5);
+    const after = moved.find((w) => w.id === partition.id)!;
+    // Sideways along the wall's own normal, the way the board measures the drag.
+    const expected = 4 + wallNormal(partition).x * 0.5;
+    expect(after.a.x).toBeCloseTo(expected, 3);
+    expect(after.b.x).toBeCloseTo(expected, 3);
+    // Nobody else moved: the corners came apart, on purpose.
+    for (const w of before) expect(moved.find((m) => m.id === w.id)).toEqual(w);
+  });
+
+  it('moves one end of one wall alone, so a wall can be shortened without its corner', () => {
+    const plan = threeRooms();
+    const walls = plan.walls!;
+    const top = walls.find((w) => Math.abs(w.a.z) < 0.01 && Math.abs(w.b.z) < 0.01 && Math.min(w.a.x, w.b.x) < 0.01)!;
+    const end = top.a.x > top.b.x ? top.a : top.b;
+    const moved = moveWallEnd(walls, top.id, end, { x: end.x - 1, z: end.z });
+    const after = moved.find((w) => w.id === top.id)!;
+    expect(Math.max(after.a.x, after.b.x)).toBeCloseTo(end.x - 1, 3);
+    for (const w of walls) if (w.id !== top.id) expect(moved.find((m) => m.id === w.id)).toEqual(w);
   });
 
   it('moves a junction with every wall that ends there', () => {

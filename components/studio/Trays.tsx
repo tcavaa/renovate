@@ -282,21 +282,22 @@ const SURFACE_TABS: Array<{ id: FinishSurface; icon: LucideIcon }> = [
  * selected, or a metre-wide strip at a time. In the two painting scopes a swatch is the
  * *brush*: picking one paints nothing until the floor or a wall is clicked.
  */
-export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void }) {
+export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const trim = surface === 'skirting' || surface === 'cornice';
   // Short names on the tabs — "იატაკის პლინტუსი" does not fit a 90 px tab and truncating it
   // leaves two tabs that read the same.
   const surfaceLabel: Record<FinishSurface, string> = { floor: t.design.finishFloor, wall: t.design.finishWall, skirting: t.design.finishSkirtingShort, cornice: t.design.finishCorniceShort };
-  const chips: Array<{ id: FinishScope; label: string; icon: LucideIcon; disabled?: boolean }> = trim
+  const chips: Array<{ id: FinishScope; label: string; icon: LucideIcon; disabled?: boolean; /** Why it is disabled, when it is. */ title?: string }> = trim
     ? [{ id: 'room', label: t.build.applyRoom, icon: LayoutGrid }]
     : surface === 'wall'
       ? [
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
           { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
           { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
-          { id: 'patch', label: t.build.applyPatch, icon: Grid2x2 },
+          // A square metre of wall needs the height of the click, which the board has not.
+          { id: 'patch', label: t.build.applyPatch, icon: Grid2x2, disabled: flat, title: flat ? t.build.patchIn3d : undefined },
         ]
       : [
           { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
@@ -321,7 +322,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             {chips.map((c) => {
               const Icon = c.icon;
               return (
-                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
                   <Icon className="h-3 w-3 shrink-0" />
                   {c.label}
                 </button>
