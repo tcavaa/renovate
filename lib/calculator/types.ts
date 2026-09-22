@@ -61,6 +61,18 @@ export interface SelectedProduct {
   /** Set when the product was chosen for one room (a finish), not for the whole flat. */
   roomId?: string;
   /**
+   * A floor or wall material put in the cart to be laid on the rooms on the placement step:
+   * which surface it is for, and what the board needs to show and price it — the texture,
+   * the colour, the coverage of one unit and the surface specs — carried from the catalogue
+   * row so the placement works from the browser's own store, catalogue or no catalogue.
+   */
+  surface?: 'floor' | 'wall';
+  slug?: string;
+  textureUrl?: string | null;
+  colorHex?: string | null;
+  coveragePerUnit?: number | null;
+  specs?: unknown;
+  /**
    * Ticked off the order on the summary: still part of the estimate — it is what the work
    * costs — but not something the person is buying through the platform. The budget, the
    * baskets and the checkout all leave it out.
@@ -68,12 +80,15 @@ export interface SelectedProduct {
   excluded?: boolean;
 }
 
+/** The calculator's steps: the plan, the materials, the cart, the placement of finishes, the furniture, the summary. */
+export type CalculatorStepNumber = 1 | 2 | 3 | 4 | 5 | 6;
+
 export interface CalculatorState {
   homeState: HomeState | null;
   rooms: Room[];
   selectedProducts: Record<string, SelectedProduct>;
   selectedFurniture: Record<string, SelectedProduct[]>;
-  step: 1 | 2 | 3 | 4 | 5;
+  step: CalculatorStepNumber;
 }
 
 export interface WorkerCost {

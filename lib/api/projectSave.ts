@@ -1,5 +1,5 @@
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
-import { categorySlugFromKey, roomIdFromKey, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, isCartKey, roomIdFromKey, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -38,7 +38,11 @@ export async function repriceCalculatorPicks(
     const roomId = roomIdFromKey(key);
     const room = roomId ? rooms.find((r) => r.id === roomId) : null;
     if (roomId && !room) continue;
-    const qty = room ? suggestedQuantityForRoom(categorySlug, room) : suggestedQuantity(categorySlug, totals);
+    // A material laid on the rooms by hand (the placement step) is bought at the area it
+    // was laid on — the person's own choice of where it goes, like a quantity changed on
+    // the sheet — held within what the flat could possibly take; everything else is
+    // quantified from the rooms alone.
+    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : room ? suggestedQuantityForRoom(categorySlug, room) : suggestedQuantity(categorySlug, totals);
     const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, qty);
     if (!repriced) return { unknownProductId: snapshot.productId };
     selectedProducts[key] = room ? { ...repriced, roomId: room.id } : repriced;
@@ -55,6 +59,12 @@ export async function repriceCalculatorPicks(
     selectedFurniture[roomId] = repricedList;
   }
   return { selectedProducts, selectedFurniture };
+}
+
+/** A laid area, as the client counted it, kept within a few times the flat's whole surface. */
+function cartQuantity(sent: number, totals: ReturnType<typeof aggregateRoomTotals>): number {
+  const ceiling = (totals.totalFloorM2 + totals.totalWallM2) * 3 + 10;
+  return Number.isFinite(sent) && sent > 0 ? Math.min(Math.round(sent * 100) / 100, ceiling) : 0;
 }
 
 export function isUnknownProduct(result: RepricedPicks | { unknownProductId: number }): result is { unknownProductId: number } {

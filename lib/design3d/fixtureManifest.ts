@@ -296,6 +296,7 @@ export const FIXTURE_MODELS: FixtureModel[] = [
       "frame",
       "leaf"
     ],
+    "role": "door",
     "license": "CC0",
     "author": "Quaternius"
   },

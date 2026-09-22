@@ -22,11 +22,16 @@ export function ProductCard({
   href,
   storeName,
   priority,
+  actionLabel,
+  selectedLabel,
 }: {
   product: Product;
   selected?: boolean;
   onAction?: () => void;
   qtyHint?: string;
+  /** What the select button says, and what it says once selected ("add to cart" / "in the cart"). */
+  actionLabel?: string;
+  selectedLabel?: string;
   href?: string;
   /** Partner name to print under the product; falls back to the brand. */
   storeName?: string | null;
@@ -94,11 +99,11 @@ export function ProductCard({
           <Button type="button" variant={selected ? 'ink' : 'outline'} className="w-full" onClick={onAction}>
             {selected ? (
               <>
-                <Check className="h-4 w-4" /> {t.calculator.selected}
+                <Check className="h-4 w-4" /> {selectedLabel ?? t.calculator.selected}
               </>
             ) : (
               <>
-                <Plus className="h-4 w-4" /> {t.calculator.selectProduct}
+                <Plus className="h-4 w-4" /> {actionLabel ?? t.calculator.selectProduct}
               </>
             )}
           </Button>

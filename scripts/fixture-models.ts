@@ -263,7 +263,10 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'door',
     source: { type: 'polypizza', id: 'LI93WgnjyS', url: `${PP}/df219d1d-2583-4082-b150-f7529527a63a.glb`, title: 'Door', author: 'Quaternius', license: 'CC0' },
     keepAxes: true,
-    leaf: { box: { x: [0.04, 0.96], y: [0, 0.985] } },
+    // The box starts above the threshold (a strip the frame's full width, 2.5 cm high, whose
+    // triangles' centres are all in the bottom 1.2 %): sorted into the leaf, it swung with it
+    // and put the hinge at the frame's outer edge, 3 cm off the leaf's own.
+    leaf: { box: { x: [0.04, 0.96], y: [0.012, 0.985] } },
     mirror: true,
     sizeCm: { width: 96, height: 212 },
     product: { kind: 'door', categorySlug: 'doors', priceGel: 540, storeSlug: 'domus-interior', nameKa: 'შიდა კარი „Nordic“ — თეთრი, ფილენკებით', nameEn: 'Interior door "Nordic" — white, panelled', nameRu: 'Межкомнатная дверь «Nordic» — белая, филёнчатая', styles: ['scandinavian', 'modern'] },
@@ -275,7 +278,7 @@ const FIXTURES: FixtureEntry[] = [
     role: 'door',
     source: { type: 'polypizza', id: 'KGt4ztcKrM', url: `${PP}/4b6e7e8c-d973-4a0c-b0ea-edc7ed04eca9.glb`, title: 'Door', author: 'Quaternius', license: 'CC0' },
     keepAxes: true,
-    leaf: { box: { x: [0.035, 0.965], y: [0, 0.985] } },
+    leaf: { box: { x: [0.035, 0.965], y: [0.012, 0.985] } },
     mirror: true,
     sizeCm: { width: 96, height: 212 },
     product: { kind: 'door', categorySlug: 'doors', priceGel: 460, storeSlug: 'domus-interior', nameKa: 'შიდა კარი „Flat“ — თეთრი, გლუვი', nameEn: 'Interior door "Flat" — white, flush', nameRu: 'Межкомнатная дверь «Flat» — белая, гладкая', styles: ['modern'] },
@@ -306,7 +309,7 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'door',
     source: { type: 'polypizza', id: 'xuFNaNLzfE', url: `${PP}/d1d3f4a8-487b-4108-a708-2306af98ea61.glb`, title: 'Door', author: 'Quaternius', license: 'CC0' },
     keepAxes: true,
-    leaf: { box: { x: [0.04, 0.96], y: [0, 0.985] } },
+    leaf: { box: { x: [0.04, 0.96], y: [0.012, 0.985] } },
     mirror: true,
     sizeCm: { width: 100, height: 215 },
     product: { kind: 'entrance_door', categorySlug: 'doors', priceGel: 1350, storeSlug: 'domus-interior', nameKa: 'შესასვლელი კარი „Classic“ — მუქი ხე', nameEn: 'Entrance door "Classic" — dark wood', nameRu: 'Входная дверь «Classic» — тёмное дерево', styles: ['vintage', 'industrial'] },

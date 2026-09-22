@@ -4,16 +4,20 @@ import { useEffect } from 'react';
 import { StepStrip } from '@/components/flow/StepStrip';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useT } from '@/lib/i18n/client';
+import type { CalculatorStepNumber } from '@/lib/calculator/types';
 
-export type CalculatorStep = 1 | 2 | 3 | 4 | 5;
+export type CalculatorStep = CalculatorStepNumber;
 
 export const CALCULATOR_STEP_HREFS: Record<CalculatorStep, string> = {
   1: '/calculator',
   2: '/calculator/materials',
   3: '/calculator/catalog',
-  4: '/calculator/furniture',
-  5: '/calculator/summary',
+  4: '/calculator/placement',
+  5: '/calculator/furniture',
+  6: '/calculator/summary',
 };
+
+export const CALCULATOR_STEPS = 6;
 
 /**
  * The calculator's strip, which also remembers how far the journey got so coming back picks
@@ -41,7 +45,7 @@ export function StepIndicator({ current }: { current: CalculatorStep }) {
     if (ready && current > stored) setStep(current);
   }, [ready, stored, current, setStep]);
 
-  const labels = [t.calculator.step1, t.calculator.step2, t.calculator.step3, t.calculator.step4, t.calculator.step5];
+  const labels = [t.calculator.step1, t.calculator.step2, t.calculator.step3, t.calculator.stepPlacement, t.calculator.step4, t.calculator.step5];
   return (
     <StepStrip
       current={current}

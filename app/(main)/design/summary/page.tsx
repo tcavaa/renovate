@@ -13,7 +13,8 @@ import { Figure } from '@/components/calculator/MaterialsTable';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { basketLabels, localizedName } from '@/lib/i18n/labels';
+import { basketLabels, localizedName, styleLabel } from '@/lib/i18n/labels';
+import { archetypeLabel } from '@/lib/design/catalog';
 import { budgetSummary, priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
@@ -125,12 +126,16 @@ export default function BudgetPage() {
     try {
       await downloadPlanPdf(plan, `${t.design.title}-${new Date().toISOString().slice(0, 10)}`, {
         title: t.design.title,
+        subtitle: `${styleLabel(t, styleId)} · ${new Date().toLocaleDateString('ka-GE')}`,
         areaLabel: formatM2(areaM2),
         roomsLabel: fill(t.build.roomCount, { n: plan.rooms.length }),
         unitM2: t.units.m2,
+        unitM: t.units.m,
         items,
         electrical,
+        finishes,
         furniture: true,
+        itemLabel: (item) => archetypeLabel(item.kind, locale),
       });
     } catch (e) {
       setError((e as Error).message);

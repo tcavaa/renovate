@@ -107,8 +107,8 @@ app/
   (auth)/login, register, register/store, register/worker   ⟵ partners register themselves
   (main)/
     page.tsx                       landing
-    calculator/                    step 1 (home state + rooms)
-      materials/ catalog/ furniture/ summary/     steps 2–5
+    calculator/                    step 1 (the plan + home state)
+      materials/ catalog/ placement/ furniture/ summary/     steps 2–6 (catalog = the cart, placement = where the finishes go)
     design/                        ⟵ Design Studio, eight steps (DesignSteps / lib/design/steps)
       page.tsx                     1 plan: upload / blank sheet / calculator rooms, wall defaults, mode
       plan/                        2 the existing house on the 2D board (walls, doors, windows, columns, beams)
@@ -139,7 +139,8 @@ components/
                PlanToolbar (Sims-style tool tiles, thickness, kinds, layers) · ElementInspector
                RoomsPanel · draw.ts (canvas routines) · palette.ts (room tints, origin and system colours)
                icons.ts (one icon per technical system and electrical kind)
-  studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray (rooms → kinds, colours) · archetypeIcons (a room and a kind each)
+  studio/      BuildBar (CategoryRail on the left + Tray along the bottom) · FurnitureTray (rooms → kinds, colours) · CatalogBrowser (the whole
+               catalogue as a modal: search, filters, details, "place" folds it to a chip) · archetypeIcons (a room and a kind each)
                Trays (build / electric / finishes / budget) · FixturePanel (a fitting's card) · OpeningPanel (a door
                or window's card) · dragImage
                StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
@@ -162,6 +163,7 @@ lib/
                catalog.ts (archetypes + room programs + the shelf's rooms) · colors.ts (colour families) · planParser.ts
                planGeometry.ts · planImage.ts (browser) · planPdf.ts (browser) · autoLayout.ts · matcher.ts
                pricing.ts (budget lines) · openings.ts · manipulate.ts · clearance.ts · surfaces.ts · fromCalculator.ts
+               catalogBrowser.ts (the catalogue modal's search, filters, counts and sort — pure)
                walls.ts (walls ⇄ rooms) · drawing.ts (snapping, hit tests) · technical.ts · electrical.ts
                styleQuiz.ts · zones.ts (per-wall and floor-zone finishes) · history.ts (undo) · trades.ts
                technicalRates.ts (estimates) · saveDesign.ts (client) · aiPlan.ts · planSolver.ts · measure.ts
@@ -264,6 +266,11 @@ the calculator never recorded a shop for asks `usePickStores` → `GET /api/prod
   lifted into `excluded` when a stored calculator is rehydrated (`liftFlags`).
 - The sheet rounds each line and adds the lines up, so what is read down the page comes to
   the figure under it; the engine rounds the sum once. They can differ by a few tetri.
+- **Every product line shows its product**: the photo from the snapshot beside the name, and
+  the name (with `ProductPageLink`) as the way to `/catalog/<slug>` in a new tab, where the
+  real photos are. The same link stands on the selected piece's card in the studio and on
+  the fitting's and the door's. A snapshot from before the slug travelled with the product
+  gets the name and no link.
 
 ### Managing the catalogue
 
@@ -628,6 +635,51 @@ the studio's 2D view and the calculator's first step (`useCalculatorPlan` keeps 
 calculator's `rooms` read off the plan) all use it. The transform is exposed on the canvas
 as `data-scale` / `data-offset-x/y` for tests.
 
+**The board carries too.** A tile clicked or dragged off the studio's shelf goes on the
+pointer on the 2D board exactly as in 3D (`PlanEditor.carryingItemId`, wired by
+`PlanWorkspace` from the store): the footprint follows the pointer from room to room, dashed
+green where it fits and red where it does not, a click sets it down (`onMoveItem`, then
+`onCarryPlaced` → `finishCarry`), R turns it (`PlanEditorApi.carryPose`), and Escape is the
+page's `cancelCarry`. It used to be stood in the room by itself wherever the layout found a
+spot, which read as the shelf placing furniture on its own. Only the walk-through gives a
+carry up, since it has no pointer to carry on. **Escape puts every tool down**: the studio's
+Escape disarms a fitting or a technical point whatever the view, and the board hands the rest
+on through `PlanEditor.onEscape`, which fires only when the board had nothing of its own to
+end — a wall or beam run in progress is ended by the first Escape, and the second one drops
+the tool (`putToolsDown` in the studio: the build tool back to select, the brush put down).
+
+**Shift drags a wall alone** (`offsetWallAlone`, `moveWallEnd`). A wall dragged sideways
+takes the walls that meet it along (`offsetWall`), and a junction dragged takes every wall
+end on it (`moveNode`) — so a wall could not be shortened without its corner, and the whole
+room, coming with it. With Shift held at the drop the board asks for the wall alone: the
+sideways drag moves only that wall (`onOffsetWall(id, distance, alone)`), the handle drag
+only that wall's end (`onMoveNode(from, to, onlyWallId)`), and whatever met it stays where it
+was. The corners come apart on purpose; the room they closed is open until the wall is put
+back or the neighbours are dragged after it, and Ctrl+Z is the way back. Shift also keeps
+its old meanings (the 1 cm grid, the free angle) — it is the board's "precisely, and only
+this" key.
+
+**Corners close on the board** (`wallEndExtensions`). A wall is drawn as a stroked
+centreline with butt ends, and two such strokes meeting at an L-corner each stopped at the
+node — a square of half a thickness a side was left empty at the outer corner and a hairline
+of paper ran between the inner faces. Now every end at which another wall meets at an angle
+runs on by half of *that* wall's thickness (to its far face at a corner, harmlessly inside
+it at a T); walls in line butt against each other; a free end stays put. The PDF draws the
+same.
+
+**The flat's sizes stand outside the plan** (`outerDimensionChains`, `drawOuterDimensions`,
+under the `dimensions` layer). Every exterior wall — one with a room on one side and nothing
+on the other — contributes its ends to the chain on the side it faces, so a side reads
+"3.12 · 5.31" wall by wall with arrowheads and extension lines, and the outer faces of the
+walls give the overall width under the bottom chain and the overall depth beside the right
+one; a wall with rooms on both sides is interior and in no chain. The board fits the plan
+with a hundred pixels of margin when the layer is on, and a blank sheet opens two and a half
+metres in from the corner so the first room's chain is not under the totals plate. The room's
+own edge lengths stay inside, as before. **What the rooms wear is on the board too**
+(`drawBaseFinishes`): a room's base floor finish as a fill in its product's colour, its base
+wall finish as a band along every edge, under the strips, squares and zones — only finishes
+that carry a product; the style's default is the room's ordinary paper.
+
 Three things the board does *not* do, each a correction from the architect's review: it
 never recentres itself after an edit (the view refits only when a different plan arrives —
 `designStore.planSerial`, bumped by `setPlan`, `openSaved`, `startFromCalculator`, `reset`
@@ -830,10 +882,25 @@ charge for the van; the budget now says so.
 **The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
 draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
 drawing at 200 dpi on an A4 sheet with a title block, and the PDF around it is written by
-hand: a vector page would have meant embedding and subsetting a font for the Georgian room
-names, while a JPEG goes into a PDF as it is (`/DCTDecode`). The cross-reference table is
-the only fiddly part and `tests/unit/design/planPdfExport.test.ts` parses the result back
-with pdf.js.
+hand. The sheet carries a heading large enough to be read first with a subtitle under it
+(the style and the date, or the home's condition), the dimension chains outside the walls
+with room reserved for them, every door and window with its width × height
+(`drawOpeningSize` — an interior door once, on the half that draws the leaf, not on each of
+its twins), the furniture footprints with the kind of each piece (`itemLabel`), and what
+each room wears (`finishes`). Everything written on the sheet is written at print scale
+(`ui: SCALE` on the routines that take it — the room labels, the furniture, the openings'
+sizes, the chains): the board's 9–14 px type is a smudge at 200 dpi. The room names go on
+last, on a white plate (`drawRoomLabel`, split out of `drawRoom` for that), because a name
+drawn first vanished under the bed standing on it; the edge lengths the board writes inside
+each room (`dimensions`) are left off the sheet, since the chains carry every size and the
+small figures at the walls' middles only collided with the radiators there. A furniture
+label is shortened until it fits its piece — turned along a piece deeper than wide — or
+left off, on the sheet and on the board alike: a name spilling past the edge read as the
+neighbour's. The calculator's summary exports its own board the same way (its plan and the
+laid finishes, no furniture): a vector page would have meant embedding and subsetting a font
+for the Georgian room names, while a JPEG goes into a PDF as it is (`/DCTDecode`). The
+cross-reference table is the only fiddly part and `tests/unit/design/planPdfExport.test.ts`
+parses the result back with pdf.js.
 
 `priceScene` returns `lines` — one `BudgetLine` per product, finish (m²), door or
 window (its product, else an estimate — `OPENING_ESTIMATE_GEL`; a pair of interior door halves counted once),
@@ -1050,8 +1117,11 @@ finish with a list of grid `cells`, all the patches of one product on one wall *
 finish with a list of cells read as [column, row], neighbouring strips of one product on
 one wall **one** finish with one `span` — so undo, versions, autosave and the budget get
 them for free, and a painted flat is a handful of rows rather than hundreds. A wall patch
-needs the height of the click, so it is painted in 3D; the 2D board, which has no height,
-paints the metre at the foot of the wall and draws a patch as a band. `WallFaceSpan` carries
+needs the height of the click, so it is painted in 3D only: on the 2D board the square-metre
+chip stands disabled with the reason in its tooltip (`FinishesTray.flat`), the brush falls
+back to the metre-wide strip while the board is the view (`finishScope` is derived from the
+stored scope and the view in the studio page), and the board draws a patch painted in 3D as
+a band along the wall. `WallFaceSpan` carries
 an optional `bottom`/`top` for it, and `buildWallGeometry` cuts the wall's face horizontally
 as well as vertically. The grid is the room's own (counted from its bounding
 box, each tile clipped to the outline, so the last column is a part tile), and a strip
@@ -1158,17 +1228,36 @@ chosen finishes; switching style resets them.
 Room names follow their type on the plan page: a generated name ("მისაღები ოთახი 1") is
 replaced when the type changes ("საძინებელი 2"); a name the user typed is kept.
 
-**Finishes are chosen per room in the calculator too** (`/calculator/catalog`). For a
-category whose `calculationType` is `per_m2_floor` or `per_m2_wall` the step shows a scope
-row: "the same in every room" or one chip per room — the kitchen, bathroom and toilet are
-rooms like any other there, so they are always a separate choice. Within one category the
-two are exclusive (`calculatorStore.selectFinish`: a whole-flat pick drops the room picks,
-a room pick drops the whole-flat one) so a floor is never counted twice. A room pick is
-quantified from that room alone (`suggestedQuantityForRoom`), also on the server
-(`repriceCalculatorPicks` reads the room off the key; a pick for a room that no longer
-exists is dropped). In the studio `applyFinishPicks` puts room picks on their room first and
-lets whole-flat picks fill the rest by wetness. The step's "next" asks whether furniture is
-wanted at all — no goes straight to the summary; it can still be chosen in 3D later.
+**The calculator's catalogue is a cart, and its finishes are laid, not counted**
+(`/calculator/catalog` → `/calculator/placement`, September 2026). A product is picked by
+kind with no quantity in sight: a floor or wall material (a category whose
+`calculationType` is `per_m2_floor` / `per_m2_wall`) goes into the cart under a key of its
+own — `<slug>_item:<productId>` (`cartKey`), so a tile for the bathroom and a laminate for
+the rest can both be in — with the texture, colour, coverage and specs of its row carried on
+the pick (`SelectedProduct.surface|slug|textureUrl|colorHex|coveragePerUnit|specs`), at a
+quantity of nothing. Everything else — sockets, lights, sanitary ware, doors, windows — is
+one product per kind under `<slug>_global`, quantified from the rooms as before
+(`suggestedQuantity`). The old per-room scope (`<slug>_room:<id>`, `selectFinish`) is gone
+from the page and still read. Nothing is required: an empty cart is the renovation cost
+alone, and the furniture question is asked by whichever step is last before the summary
+(`AskFurnitureDialog`). **The placement step** lays the cart's finishes on the calculator's
+own board (`useCalculatorPlanStore`, the same `setFinish` / `paintSurface` the studio uses):
+a whole floor or all of a room's walls from the table beside the plan, a square metre or a
+metre-wide strip with the brush on it; the board draws every room in its material's colour
+(`drawBaseFinishes`, `finishSwatchColor` — a stand-in from a small palette when the product
+has no colour or a white one), and the legend says how much. What is laid is what is bought:
+`finishAreasByProduct` sums each product's area off the board's finishes (`product.qty` on
+every `SurfaceFinish` is its area), `finishPickQuantity` turns it into the product's units
+(m² plus a tenth of cutting waste for tiles and boards, tins by a paint's own coverage), and
+`calculatorStore.syncFinishAreas` writes it into the cart's picks — the placement page and
+the summary both do this, so every page downstream (the sheet, the checkout, the save) reads
+the picks as always. The server takes a cart pick's quantity from the client, within a few
+times the flat's whole surface (`cartQuantity`), the way a quantity changed on the sheet is
+taken; everything else is still recomputed from the rooms. The laid finishes also travel into
+3D: `startFromCalculator` takes the board's `finishes`, `picksFromCalculator` keeps them off
+the whole-flat list, and `applyFinishPicks` lays them where they were laid, under anything
+the studio has chosen since. The laying itself is only in the browser's own store — a
+reopened project gets its picks back with their quantities, not the painting.
 
 Clicking a floor or a wall in the 3D view selects that surface (`onSelectSurface`): the
 right panel shows the finish picker for that room with the clicked surface first, and a
@@ -1251,7 +1340,16 @@ kept as one piece: a source that keeps its parts apart is split by node name, a 
 by the triangles whose centre lies in an inner box (`leaf: { box }`), a bare leaf (Kenney's
 doors) is `leaf: 'all'` and gets the default casing around it at runtime, sized to the
 inside of the jambs, and a leaf that hangs from the right in the file is mirrored
-(`mirror: true`). The studio re-hangs the leaf on a pivot at its jamb (the scale on the
+(`mirror: true`). **A box rule has to start above the threshold.** The three Quaternius
+doors (`door-nordic`, `door-flat`, `entrance-door-classic`) are one welded mesh whose
+threshold — a strip the frame's full width, 2.5 cm high — lay inside a box that began at
+`y: 0`, so it was sorted into the leaf: the leaf's bounds became the frame's, the runtime
+hinge (x min of the leaf) stood at the frame's outer edge 3 cm off the leaf's own, and the
+open door showed a gap at its jamb with the threshold swinging out with it. The boxes start
+at 1.2 % of the height now (`scripts/inspect` the result: the leaf's x extent must be inside
+the frame's). What remains is the models' own low-poly shape — the casing is a flat trim on
+the wall faces rather than a lined reveal, and the leaf is nearly as deep as a wall — which
+only another model fixes. The studio re-hangs the leaf on a pivot at its jamb (the scale on the
 leaf itself, under the pivot, so turning it does not shear it), turns it by the open
 angle, and mirrors the whole model for a right-hinged door. Of an interior door's two
 halves only the one that draws the leaf places the model, of an archway's the room that
@@ -1276,6 +1374,32 @@ head of the line as the way back and stays put while the kinds scroll; the shelf
 room the studio has in focus and follows it; a kind no program has a slot for is under
 "other" (`unroomedKinds`, pinned empty by `tests/unit/design/shelfRooms.test.ts`); a room or a
 kind nothing is sold for is not offered.
+
+**The whole catalogue is a page, one button away** (`components/studio/CatalogBrowser.tsx`,
+`lib/design/catalogBrowser.ts`). The shelf is fine for fifty tiles; a catalogue of thousands
+wants search, filters and names. The "კატალოგი" button on the shelf's line opens a modal: a
+search box across names, brands, shops and kinds in any language; the rooms and their kinds,
+the styles, the colour swatches, a price band and the shop down the left, every one with a
+count; the products as cards with their names; the open product's photo, size, shop and page
+link on the right, with the one button that matters. `browseCatalog` is pure and tested
+(`tests/unit/design/catalogBrowser.test.ts`): the filters apply from the outside in and each
+control's counts are read off the list *before* that control narrows it, so a control says
+what choosing it would leave; a room, a shop or a colour that the rest of the filters have
+emptied stands aside rather than emptying the list. **"Place" puts the product on the
+pointer and folds the modal to a chip** — `placeFromCatalog` is `pickProduct` (the same
+`beginAdd` a tile off the shelf uses, in 3D or on the board; the walk-through has no pointer
+to carry on, so the button is off there) and then `catalogBrowser: 'minimized'`: the room is
+in view to set the piece down in, a click sets it down, Escape gives it up, and the chip at
+the top of the canvas opens the modal again with the search, the filters and the open product
+exactly as they were, because the modal's state (`CatalogBrowserState`) lives in the studio
+page and not in the modal (Radix unmounts a closed dialog). While the modal is open the
+studio's own keys are off (`if (catalogBrowser === 'open') return` in the key handler — a
+Delete there must not take the selected piece out of the room behind it), and its Escape is
+its own: `onEscapeKeyDown` stops the event while `open` is true, and only then, because Radix
+keeps the layer for the beat of its closing animation and an Escape in that beat has to reach
+the studio to give up the piece just placed. `isFurnitureProduct` is the one rule for what
+is furniture (a model, and neither a fitting, a door or window, nor a radiator); the shelf
+uses it too.
 
 **The colour filter is swatches of what is on the shelf.** `lib/design/colors.ts` sorts any
 hex into twelve families a person would name (hue, lightness and *chroma* — HSL saturation
@@ -1395,6 +1519,13 @@ registry is plain data filled by the viewer, so `lib/design` stays free of three
 model has loaded, and everywhere else (`placeFitting`, `placeAdditional`, `tightSpots`), a
 piece is its box, which only ever errs on the side of keeping things apart.
 `tests/unit/design3d/footprintFromModel.test.ts` runs the real Kenney corner sofa through it.
+
+**Any angle.** The card's angle row (`SwapPanel.onRotateTo`: a slider and a number, degrees
+clockwise from facing +Z) turns the selected piece to an exact angle in place —
+`rotateSelectedTo` in the studio is `placeItem` with the new rotation, and the outline goes
+red when the turned piece no longer fits (`isPlacementValid`), exactly as the 45° buttons
+do. A later drag still squares a rotation that is within 14° of a wall; one further off
+stays as set.
 
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
 the nearest wall would instantly undo every rotation of anything already sitting flush. It

@@ -27,6 +27,7 @@ import type { BudgetLine, BudgetSection } from '@/lib/design/pricing';
 import type { SceneStore } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
 import { budgetLineName } from './lineName';
+import { ProductPageLink } from '@/components/design/ProductPageLink';
 
 export const SECTION_ORDER: BudgetSection[] = ['finishes', 'products', 'openings', 'furniture', 'lighting', 'electrical', 'plumbing', 'heating', 'climate', 'materials', 'labour', 'delivery'];
 export const SECTION_KEY: Record<BudgetSection, keyof Dictionary['build']> = {
@@ -210,19 +211,40 @@ function Row({ line, actions, showItem }: { line: BudgetLine; actions?: SheetAct
   const off = !!line.excluded;
   const name = budgetLineName(t, line);
   const under = [showItem ? line.item : null, line.roomName].filter(Boolean).join(' · ');
+  // A product line shows the product: its photo, and its name as the way to its own page
+  // (a new tab, so the sheet stays as it was) — the real photos are there. Snapshots from
+  // before the slug travelled with the product get the name and no link.
+  const photo = line.product?.imageUrl || null;
+  const slug = line.product?.slug || null;
   return (
     <tr className={cn('border-t border-line/70', off && 'text-ink-faint')}>
       <td className="px-4 py-2">
-        <p className={cn('flex items-start gap-2 font-medium', off ? 'line-through' : 'text-ink')}>
+        <div className="flex items-start gap-2">
           {actions && line.tick != null && (
             <input type="checkbox" checked={!off} onChange={() => actions.toggle(line)} aria-label={`${t.build.includeInOrder} — ${name}`} className="no-print mt-0.5 accent-ink" />
           )}
-          {name}
-        </p>
-        <p className={cn('text-xs', !off && 'text-ink-muted')}>
-          {under}
-          {line.estimated && <span className="ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted">{t.build.estimated}</span>}
-        </p>
+          {photo && (
+            <span className={cn('relative block h-8 w-8 shrink-0 overflow-hidden rounded-[4px] border border-line bg-bg-base', off && 'opacity-50')}>
+              <Image src={photo} alt={name} fill sizes="32px" className="object-cover" />
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className={cn('flex items-center gap-1 font-medium', off ? 'line-through' : 'text-ink')}>
+              {slug ? (
+                <a href={`/catalog/${slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                  {name}
+                </a>
+              ) : (
+                <span>{name}</span>
+              )}
+              {slug && <ProductPageLink slug={slug} size="inline" />}
+            </p>
+            <p className={cn('text-xs', !off && 'text-ink-muted')}>
+              {under}
+              {line.estimated && <span className="ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted">{t.build.estimated}</span>}
+            </p>
+          </div>
+        </div>
       </td>
       <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', !off && 'text-ink-soft')}>
         <QuantityCell line={line} onChange={actions && line.tick != null && !off ? (qty) => actions.setQuantity(line, qty) : undefined} />

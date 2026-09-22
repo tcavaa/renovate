@@ -15,6 +15,13 @@ const selectedProductSchema = z.object({
   roomId: z.string().max(64).optional(),
   /** Ticked off the order on the summary; still part of the estimate. */
   excluded: z.boolean().optional(),
+  /** A finish in the cart: which surface it is laid on, and what the board shows it with (see `SelectedProduct`). */
+  surface: z.enum(['floor', 'wall']).optional(),
+  slug: z.string().max(255).optional(),
+  textureUrl: z.string().max(1024).nullable().optional(),
+  colorHex: z.string().max(16).nullable().optional(),
+  coveragePerUnit: z.number().nullable().optional(),
+  specs: z.unknown().optional(),
 });
 
 /**

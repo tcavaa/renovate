@@ -21,6 +21,7 @@ import { openingEstimate } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { Opening, OpeningKind, PlanRoom, StyleId } from '@/lib/design/types';
 import { Chip, Field, IconAction, MaterialField, NumberField, OriginRow, RangeField } from '@/components/plan/ElementInspector';
+import { ProductPageLink } from '@/components/design/ProductPageLink';
 
 export type OpeningPatch = Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>;
 
@@ -77,6 +78,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
                 {formatGEL(estimate.total)}
               </p>
             ) : null}
+            {product?.slug && <ProductPageLink slug={product.slug} size="inline" />}
           </div>
         </div>
 

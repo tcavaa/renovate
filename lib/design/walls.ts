@@ -1001,7 +1001,35 @@ export function offsetWall(walls: Wall[], id: string, distance: number): Wall[] 
   });
 }
 
-/** Moves a junction: every wall end within a junction's tolerance of `from` goes to `to`. */
+/**
+ * Slides one wall sideways and nothing else — the Shift drag. The walls that met it stay
+ * where they were, so a corner comes apart and the room it closed is open until the wall is
+ * put back or the neighbours are dragged after it. That is the point: a wall that is not
+ * where it should be can be moved without the whole room going with it.
+ */
+export function offsetWallAlone(walls: Wall[], id: string, distance: number): Wall[] {
+  const wall = walls.find((w) => w.id === id);
+  if (!wall) return walls;
+  const shift = scale(leftNormal(wallDirection(wall)), distance);
+  return walls.map((w) => (w.id === id ? { ...w, a: roundVec(add(w.a, shift)), b: roundVec(add(w.b, shift)) } : w));
+}
+
+/**
+ * Moves one end of one wall — the Shift drag on a handle — leaving every other wall that
+ * met it at that junction where it was. Dragging the end back along the wall's own line is
+ * how a wall is shortened without pulling the corner, and the room, after it.
+ */
+export function moveWallEnd(walls: Wall[], id: string, from: Vec2, to: Vec2): Wall[] {
+  const target = roundVec(to);
+  return walls.map((w) => {
+    if (w.id !== id) return w;
+    const atA = dist(w.a, from) <= NODE_TOL_M;
+    const atB = !atA && dist(w.b, from) <= NODE_TOL_M;
+    if (!atA && !atB) return w;
+    return { ...w, a: atA ? target : w.a, b: atB ? target : w.b };
+  });
+}
+
 /**
  * Stretches a wall to `lengthM`, keeping the end it starts from and its direction. Whatever
  * meets its far end comes along, exactly as dragging that end by hand does — typing 4.20
@@ -1016,6 +1044,7 @@ export function resizeWall(walls: Wall[], id: string, lengthM: number): Wall[] {
   return moveNode(walls, wall.b, roundVec(add(wall.a, scale(wallDirection(wall), wanted))));
 }
 
+/** Moves a junction: every wall end within a junction's tolerance of `from` goes to `to`. */
 export function moveNode(walls: Wall[], from: Vec2, to: Vec2): Wall[] {
   const target = roundVec(to);
   return walls.map((w) => ({

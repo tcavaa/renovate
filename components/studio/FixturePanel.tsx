@@ -24,6 +24,7 @@ import type { Dictionary } from '@/lib/i18n';
 import { electricalLabel } from '@/components/plan/PlanToolbar';
 import { ELECTRICAL_ICON } from '@/components/plan/icons';
 import { IconAction, NumberField } from '@/components/plan/ElementInspector';
+import { ProductPageLink } from '@/components/design/ProductPageLink';
 
 const LIGHT_CATEGORY_KEY: Record<LightCategory, keyof Dictionary['build']> = { primary: 'lcPrimary', secondary: 'lcSecondary', furniture: 'lcFurniture', bedside: 'lcBedside', indirect: 'lcIndirect', decorative: 'lcDecorative' };
 /** The heights fitters actually work to, from a floor socket to a high wall light. */
@@ -101,6 +102,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
                 {formatGEL(estimate)}
               </p>
             )}
+            {product?.slug && <ProductPageLink slug={product.slug} size="inline" />}
           </div>
         </div>
 
