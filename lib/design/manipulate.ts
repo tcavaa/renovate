@@ -31,6 +31,8 @@ export interface Footprint {
 export interface Placement {
   position: Vec2;
   rotation: number;
+  /** For a piece hung on a wall: the height of its base. Absent when a move leaves the height alone. */
+  elevationM?: number;
 }
 
 export interface SnapResult extends Placement {
@@ -204,6 +206,47 @@ export function snapPlacement(
   const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
 
   return { position, rotation: finalRotation, valid, snappedToWall };
+}
+
+/** How far a hung piece's centre stood from the pointer when it was grabbed: along its wall and up it, metres. */
+export interface HangGrab {
+  along: number;
+  up: number;
+}
+
+/** A piece that hangs on a wall — a mirror, a picture, a clock — rather than standing on the floor. */
+export function isWallHung(item: Pick<PlacedItem, 'kind'>): boolean {
+  return getArchetype(item.kind)?.placement.type === 'wall-mounted';
+}
+
+/**
+ * Hangs a wall-hung piece on one wall of a room where the pointer touched it: flat against
+ * that wall, centred under the pointer along it and kept off the wall's ends, at the height
+ * the pointer met the face — between the floor and the top of the room.
+ *
+ * The wall is *named*, never guessed. `snapPlacement` finds the nearest wall to a point on
+ * the floor, and in 3D the pointer on a wall face has no point on the floor: the ray met the
+ * plane of the piece's height behind the wall when the pointer was above that height and
+ * short of it when below, so a clock pushed up a wall jumped to the wall opposite. The
+ * pointer is on a face; the face says which wall.
+ */
+export function hangOnWall(room: PlanRoom, item: PlacedItem, wallIndex: number, at: Vec2, y: number, others: PlacedItem[], grab?: HangGrab): SnapResult | null {
+  const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
+  if (!edge) return null;
+  const half = item.size.width / 2;
+  // Grabbed off its centre, the piece keeps that offset from the pointer along the wall and up it.
+  const raw = (at.x - edge.a.x) * edge.dir.x + (at.z - edge.a.z) * edge.dir.z + (grab?.along ?? 0);
+  y += grab?.up ?? 0;
+  // A piece wider than its wall is centred on it.
+  const along = edge.length <= item.size.width ? edge.length / 2 : clamp(snapToGrid(raw), half, edge.length - half);
+  const back = item.size.depth / 2 + 0.01;
+  const position = { x: edge.a.x + edge.dir.x * along + edge.inward.x * back, z: edge.a.z + edge.dir.z * along + edge.inward.z * back };
+  const rotation = edge.facing;
+  const elevationM = clamp(Math.round((y - item.size.height / 2) * 100) / 100, 0, Math.max(0, room.heightM - item.size.height));
+  const footprint = footprintOf(position, item.size, rotation);
+  const cover = itemFootprints(item, { position, rotation });
+  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  return { position, rotation, elevationM, valid, snappedToWall: true };
 }
 
 /** Squares a rotation up to the nearest wall direction when it is already close to one. */

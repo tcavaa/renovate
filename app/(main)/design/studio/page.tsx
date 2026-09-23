@@ -316,7 +316,7 @@ export default function StudioPage() {
     },
     [store]
   );
-  const onPlaceItem = useCallback((itemId: string, position: Vec2, rotation: number, roomId: string) => store.placeItem(itemId, position, rotation, roomId), [store]);
+  const onPlaceItem = useCallback((itemId: string, position: Vec2, rotation: number, roomId: string, elevationM?: number) => store.placeItem(itemId, position, rotation, roomId, elevationM), [store]);
   const onApi = useCallback((api: ViewerApi | null) => setViewerApi(api), []);
   const onCarryPlaced = useCallback(
     (itemId: string) => {
@@ -357,7 +357,7 @@ export default function StudioPage() {
       if (!selected || !plan || selected.locked) return;
       if (carryingItemId && selected.id === carryingItemId) {
         const pose = view === '2d' ? planApi?.carryPose() : viewerApi?.carryPose();
-        store.placeItem(selected.id, pose?.position ?? selected.position, selected.rotation + steps * ROTATE_STEP_RAD, pose?.roomId ?? selected.roomId);
+        store.placeItem(selected.id, pose?.position ?? selected.position, selected.rotation + steps * ROTATE_STEP_RAD, pose?.roomId ?? selected.roomId, pose?.elevationM);
         setRotateBlocked(false);
         return;
       }

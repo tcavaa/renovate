@@ -975,6 +975,17 @@ opens what a step points at (`onStep`). `NavHelp` keeps the controls on screen: 
 slides, 1 / 2 / 3 switch views, R turns, M mirrors, Ctrl+C / V / D copy, paste and
 duplicate, Delete deletes, Esc clears.
 
+**The top bar is one row at any width** (`StudioTopBar`, `.studio-bar` in `app/globals.css`).
+It is a CSS size container (Tailwind 3 has no container-query plugin here, so the rules are
+plain `@container` blocks), and as it narrows the blocks give up what they can instead of
+wrapping: below 1520 px of bar the words beside icons go (`.bar-text` — the lock, the
+versions, the save state, which reads "შენახულია" and no more), below 1240 the
+walk-through's word, the gaps and the view switch's padding (`.bar-text-2`, `.bar-gap`,
+`.bar-pad`), below 1060 the next step's word and the room's name is clipped tighter
+(`.bar-text-3`, `.bar-next`, `.bar-room`). Every button keeps its tooltip. Measured: one
+row from 820 px up, the labels back from 1553 px of viewport. Before this the bar was
+`flex-wrap`, and at 1500 px the right block fell onto a second row over the canvas.
+
 **The floating chrome must not eat the canvas.** The trays are nearly opaque (`bg-white/[0.97]`),
 not frosted: small print over a furnished room could not be read. Tiles are 52 px — a price
 and a picture, the name in the tooltip. The hint and the tight-passage warning *float above*
@@ -1526,6 +1537,24 @@ clockwise from facing +Z) turns the selected piece to an exact angle in place �
 red when the turned piece no longer fits (`isPlacementValid`), exactly as the 45° buttons
 do. A later drag still squares a rotation that is within 14° of a wall; one further off
 stays as set.
+
+**A wall-hung piece goes on the wall face under the pointer, at the pointer's height**
+(`hangOnWall` in `lib/design/manipulate.ts`, `hangTargetAt` in the viewer). A mirror, a
+picture or a clock (`placement.type === 'wall-mounted'`) carried or dragged in 3D used to
+follow the ray's meeting point with the horizontal plane of its own base like everything
+else, and a pointer on a wall face has no such point: above the piece's height the ray met
+the plane *behind* the wall, below it *short* of the wall, and `snapPlacement`'s nearest
+wall to that point was the wall opposite, or the neighbour's room. Now the ray is cast at
+the room shell first: a wall face under the pointer names the wall — its own side, or the
+room behind a far face, through `wallSideOf` — and the piece hangs flat on that wall,
+centred under the pointer along it and kept off its ends, at the height the pointer met the
+face (its base between the floor and the top of the room). That height travels as
+`elevationM` on the placement (`Placement.elevationM`, `onPlaceItem`'s fifth argument,
+`placeItem`'s fifth) and is the one way to set a hung piece's height: the card has no field
+for it. A grab off the piece's centre keeps its offset along the wall and up it while the
+drag stays on that wall (`DragState.hang`). Over the floor a hung piece still snaps to the
+nearest wall from the floor point, as before; on the 2D board nothing changes, since a plan
+has no faces and no heights.
 
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
 the nearest wall would instantly undo every rotation of anything already sitting flush. It

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { fitSwapped, isPlacementValid, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
+import { fitSwapped, hangOnWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
 import { clearFootprintMasks, maskFromGrid, registerFootprintMask } from '@/lib/design/footprintMasks';
-import { refreshRoom } from '@/lib/design/planGeometry';
+import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { PlacedItem, PlanRoom } from '@/lib/design/types';
 
 const room: PlanRoom = refreshRoom({
@@ -201,5 +201,58 @@ describe('fitSwapped — where a piece stands once its product is another size',
   it('says so when there is no room for it here, and never goes looking across the room', () => {
     const table = item('t', 2, 1.45, 1.2, 0.8);
     expect(fitSwapped(room, item('sofa', 2, 0.47, 3.2, 1.6), [table])).toBeNull();
+  });
+});
+
+describe('hangOnWall', () => {
+  /** A wall clock: 32 cm square, 5 cm deep, hung with its centre at 1.55 m by the layout. */
+  const clock = (): PlacedItem => ({ id: 'clock', roomId: 'r1', slot: 'artwork', kind: 'artwork', position: { x: 2, z: 1.5 }, elevationM: 1.39, rotation: 0, size: { width: 0.32, depth: 0.05, height: 0.32 }, product: null });
+  const edges = roomEdges(room.polygon);
+  const south = edges[0]; // (0,0) → (4,0)
+
+  it('knows which pieces hang', () => {
+    expect(isWallHung(clock())).toBe(true);
+    expect(isWallHung(item('sofa', 2, 1.5, 2, 0.9))).toBe(false);
+  });
+
+  it('hangs the piece flat on the named wall, under the pointer, at the height the pointer met the face', () => {
+    const hung = hangOnWall(room, clock(), 0, { x: 1.5, z: 0 }, 1.7, [])!;
+    expect(hung.valid).toBe(true);
+    expect(hung.rotation).toBe(south.facing);
+    // Centred under the pointer along the wall, its back 1 cm off the plaster.
+    expect(hung.position.x).toBeCloseTo(1.5, 6);
+    expect(hung.position.z).toBeCloseTo(south.inward.z * (0.025 + 0.01), 6);
+    // The pointer's height is the centre of the piece; the base is half its height lower.
+    expect(hung.elevationM).toBeCloseTo(1.54, 6);
+  });
+
+  it('takes the wall it is told, not the nearest one to the point', () => {
+    // A point a hand from the west wall, but the pointer was on the south wall's face.
+    const hung = hangOnWall(room, clock(), 0, { x: 0.05, z: 0.02 }, 1.5, [])!;
+    expect(hung.rotation).toBe(south.facing);
+    expect(hung.position.z).toBeCloseTo(0.035, 6);
+    // Kept off the wall's end by half its width.
+    expect(hung.position.x).toBeCloseTo(0.16, 6);
+  });
+
+  it("keeps the piece between the floor and the ceiling and off the wall's ends", () => {
+    const high = hangOnWall(room, clock(), 0, { x: 3.99, z: 0 }, 9, [])!;
+    expect(high.position.x).toBeCloseTo(3.84, 6);
+    expect(high.elevationM).toBeCloseTo(2.8 - 0.32, 6);
+    const low = hangOnWall(room, clock(), 0, { x: 2, z: 0 }, -1, [])!;
+    expect(low.elevationM).toBe(0);
+  });
+
+  it('keeps the offset a piece was grabbed at, along the wall and up it', () => {
+    // Grabbed 8 cm left of its centre and 10 cm below it: the centre stays that far from the pointer.
+    const hung = hangOnWall(room, clock(), 0, { x: 1.5, z: 0 }, 1.5, [], { along: 0.08, up: 0.1 })!;
+    expect(hung.position.x).toBeCloseTo(1.6, 6);
+    expect(hung.elevationM).toBeCloseTo(1.6 - 0.16, 6);
+  });
+
+  it('centres a piece wider than its wall, and answers null for a wall the room has not got', () => {
+    const wide = { ...clock(), size: { width: 5, depth: 0.05, height: 0.7 } };
+    expect(hangOnWall(room, wide, 0, { x: 3.5, z: 0 }, 1.5, [])!.position.x).toBeCloseTo(2, 6);
+    expect(hangOnWall(room, clock(), 7, { x: 1, z: 0 }, 1.5, [])).toBeNull();
   });
 });
