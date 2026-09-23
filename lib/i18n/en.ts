@@ -1523,7 +1523,7 @@ export const en: Dictionary = {
     photoError: 'Could not save the photo',
     dropHereHint: 'Drag an item from the list into the flat',
     dragToPlace: 'Drag into the flat',
-    autosaved: 'Saved automatically',
+    autosaved: 'Saved',
     finishChange: 'Change',
     finishCurrent: 'Now',
     openingsTitle: 'Doors & windows',

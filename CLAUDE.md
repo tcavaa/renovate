@@ -975,6 +975,17 @@ opens what a step points at (`onStep`). `NavHelp` keeps the controls on screen: 
 slides, 1 / 2 / 3 switch views, R turns, M mirrors, Ctrl+C / V / D copy, paste and
 duplicate, Delete deletes, Esc clears.
 
+**The top bar is one row at any width** (`StudioTopBar`, `.studio-bar` in `app/globals.css`).
+It is a CSS size container (Tailwind 3 has no container-query plugin here, so the rules are
+plain `@container` blocks), and as it narrows the blocks give up what they can instead of
+wrapping: below 1520 px of bar the words beside icons go (`.bar-text` — the lock, the
+versions, the save state, which reads "შენახულია" and no more), below 1240 the
+walk-through's word, the gaps and the view switch's padding (`.bar-text-2`, `.bar-gap`,
+`.bar-pad`), below 1060 the next step's word and the room's name is clipped tighter
+(`.bar-text-3`, `.bar-next`, `.bar-room`). Every button keeps its tooltip. Measured: one
+row from 820 px up, the labels back from 1553 px of viewport. Before this the bar was
+`flex-wrap`, and at 1500 px the right block fell onto a second row over the canvas.
+
 **The floating chrome must not eat the canvas.** The trays are nearly opaque (`bg-white/[0.97]`),
 not frosted: small print over a furnished room could not be read. Tiles are 52 px — a price
 and a picture, the name in the tooltip. The hint and the tight-passage warning *float above*

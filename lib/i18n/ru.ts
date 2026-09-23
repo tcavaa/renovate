@@ -1521,7 +1521,7 @@ export const ru: Dictionary = {
     photoError: 'Не удалось сохранить фото',
     dropHereHint: 'Перетащите предмет из списка в квартиру',
     dragToPlace: 'Перетащите в квартиру',
-    autosaved: 'Сохранено автоматически',
+    autosaved: 'Сохранено',
     finishChange: 'Изменить',
     finishCurrent: 'Сейчас',
     openingsTitle: 'Двери и окна',

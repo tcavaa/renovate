@@ -1523,7 +1523,7 @@ export const ka = {
     photoError: 'ფოტოს შენახვა ვერ მოხერხდა',
     dropHereHint: 'გადმოათრიე ნივთი სიიდან ბინაში',
     dragToPlace: 'გადაათრიე ბინაში',
-    autosaved: 'შენახულია ავტომატურად',
+    autosaved: 'შენახულია',
     finishChange: 'შეცვლა',
     finishCurrent: 'ამჟამად',
     openingsTitle: 'კარები და ფანჯრები',

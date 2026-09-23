@@ -47,7 +47,7 @@ export function ViewSwitch({
     night: t.design.daylightNight,
   };
   return (
-    <div className="flex items-center gap-2">
+    <div className="bar-gap flex items-center gap-2">
       <div className="glass flex p-1" role="tablist">
         {options.map((o) => (
           <button
@@ -55,14 +55,16 @@ export function ViewSwitch({
             type="button"
             role="tab"
             aria-selected={view === o.id}
+            title={o.label}
             onClick={() => onView(o.id)}
             className={cn(
-              'flex h-9 items-center gap-1.5 px-4 text-sm font-medium transition-colors',
+              'bar-pad flex h-9 items-center gap-1.5 px-4 text-sm font-medium transition-colors',
               view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink'
             )}
           >
-            {o.id === 'walk' && <Eye className="h-3.5 w-3.5" />}
-            {o.label}
+            {o.id === 'walk' && <Eye className="h-3.5 w-3.5 shrink-0" />}
+            {/* The walk-through's word goes when the studio's top bar gets tight; its eye stays. */}
+            <span className={o.id === 'walk' ? 'bar-text-2' : undefined}>{o.label}</span>
           </button>
         ))}
       </div>
