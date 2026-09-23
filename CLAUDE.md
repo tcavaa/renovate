@@ -1527,6 +1527,24 @@ red when the turned piece no longer fits (`isPlacementValid`), exactly as the 45
 do. A later drag still squares a rotation that is within 14° of a wall; one further off
 stays as set.
 
+**A wall-hung piece goes on the wall face under the pointer, at the pointer's height**
+(`hangOnWall` in `lib/design/manipulate.ts`, `hangTargetAt` in the viewer). A mirror, a
+picture or a clock (`placement.type === 'wall-mounted'`) carried or dragged in 3D used to
+follow the ray's meeting point with the horizontal plane of its own base like everything
+else, and a pointer on a wall face has no such point: above the piece's height the ray met
+the plane *behind* the wall, below it *short* of the wall, and `snapPlacement`'s nearest
+wall to that point was the wall opposite, or the neighbour's room. Now the ray is cast at
+the room shell first: a wall face under the pointer names the wall — its own side, or the
+room behind a far face, through `wallSideOf` — and the piece hangs flat on that wall,
+centred under the pointer along it and kept off its ends, at the height the pointer met the
+face (its base between the floor and the top of the room). That height travels as
+`elevationM` on the placement (`Placement.elevationM`, `onPlaceItem`'s fifth argument,
+`placeItem`'s fifth) and is the one way to set a hung piece's height: the card has no field
+for it. A grab off the piece's centre keeps its offset along the wall and up it while the
+drag stays on that wall (`DragState.hang`). Over the floor a hung piece still snaps to the
+nearest wall from the floor point, as before; on the 2D board nothing changes, since a plan
+has no faces and no heights.
+
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
 the nearest wall would instantly undo every rotation of anything already sitting flush. It
 also never refuses: when the turned piece fits nowhere near where it stands, it turns anyway

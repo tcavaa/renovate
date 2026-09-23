@@ -360,7 +360,8 @@ interface DesignActions {
   setOpeningWall: (roomId: string, openingId: string, wallIndex: number) => void;
   removeOpening: (roomId: string, openingId: string) => void;
   /** Commits a drag. The room may change if the item was dragged into a neighbour. */
-  placeItem: (itemId: string, position: Vec2, rotation: number, roomId?: string) => void;
+  /** Moves a piece; `roomId` when it changed rooms, `elevationM` when a wall-hung piece was hung at a height. */
+  placeItem: (itemId: string, position: Vec2, rotation: number, roomId?: string, elevationM?: number) => void;
   removeItem: (itemId: string) => void;
   /** Flips a piece across its own facing axis. */
   mirrorItem: (itemId: string) => void;
@@ -1290,9 +1291,9 @@ function createDesignStore(storageName: string) {
           return 'carrying';
         },
 
-        placeItem: (itemId, position, rotation, roomId) => {
+        placeItem: (itemId, position, rotation, roomId, elevationM) => {
           const place = (s: DesignState): Partial<DesignState> => ({
-            items: s.items.map((item) => (item.id === itemId ? { ...item, position, rotation, roomId: roomId ?? item.roomId } : item)),
+            items: s.items.map((item) => (item.id === itemId ? { ...item, position, rotation, roomId: roomId ?? item.roomId, elevationM: elevationM ?? item.elevationM } : item)),
           });
           // The piece on the pointer is turned and moved without a word to the history: the
           // whole carry is one step, recorded when it is set down (`finishCarry`).

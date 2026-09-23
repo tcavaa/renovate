@@ -44,7 +44,7 @@ import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outlin
 import { tightSpotsByItem } from '@/lib/design/clearance';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { getStyle } from '@/lib/design/styles';
-import { isPlacementValid, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
+import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -64,8 +64,8 @@ export interface ViewerApi {
   zoom: (factor: number) => void;
   /** Frames the whole flat (or the focused room) again. */
   reset: () => void;
-  /** Where the item riding on the pointer would land right now, or null when nothing is carried. */
-  carryPose: () => { position: Vec2; rotation: number; roomId: string } | null;
+  /** Where the item riding on the pointer would land right now, or null when nothing is carried. A wall-hung piece says its height too. */
+  carryPose: () => { position: Vec2; rotation: number; roomId: string; elevationM?: number } | null;
   /** The floor point under a screen position and the room it is in, or null off the plane. */
   floorPointAt: (clientX: number, clientY: number) => { position: Vec2; roomId: string | null } | null;
   /**
@@ -137,8 +137,8 @@ export interface Viewer3DProps {
    */
   paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
-  /** Commits a drag. `roomId` is set when the item was dragged into a different room. */
-  onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string) => void;
+  /** Commits a drag. `roomId` is set when the item was dragged into a different room; `elevationM` when a wall-hung piece was hung at a height. */
+  onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string, elevationM?: number) => void;
   /**
    * When this changes the camera frames the flat again. It is the *plan's identity*
    * (`designStore.planSerial`), not the plan object: a door slid along its wall, a wall
@@ -238,6 +238,8 @@ interface DragState {
   wrapper: THREE.Object3D;
   /** Offset from the pointer's floor position to the item's origin, so it doesn't jump. */
   grab: Vec2;
+  /** A wall-hung piece grabbed off its centre: how far its centre stands from the pointer along its wall and up it, so it does not jump into the hand. */
+  hang?: { roomId: string; wallIndex: number; along: number; up: number };
   startX: number;
   startY: number;
   moved: boolean;
@@ -567,16 +569,16 @@ function SceneContent({
     [camera, gl]
   );
 
-  /** The room surface — floor or wall — under a screen position, with the point hit. */
+  /** The room surface — floor or wall — under a screen position, with the point hit and the face's normal. */
   const surfaceAt = useCallback(
-    (clientX: number, clientY: number): { data: SceneUserData; point: THREE.Vector3 } | null => {
+    (clientX: number, clientY: number): { data: SceneUserData; point: THREE.Vector3; normal: THREE.Vector3 | null } | null => {
       const rect = gl.domElement.getBoundingClientRect();
       dragNdc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
       dragRaycaster.setFromCamera(dragNdc, camera);
       // The cut-away walls live on the hidden layer, which the raycaster does not test.
       for (const hit of dragRaycaster.intersectObject(shell, true)) {
         const data = hit.object.userData as SceneUserData | undefined;
-        if (data?.pickKind === 'surface' && data.roomId && (data.surface === 'wall' || data.surface === 'floor')) return { data, point: hit.point };
+        if (data?.pickKind === 'surface' && data.roomId && (data.surface === 'wall' || data.surface === 'floor')) return { data, point: hit.point, normal: hit.face?.normal ?? null };
       }
       return null;
     },
@@ -644,6 +646,23 @@ function SceneContent({
     const behind = frame.behind.find((b) => s >= b.from - 1e-3 && s <= b.to + 1e-3);
     return behind ? { roomId: behind.roomId, wallIndex: behind.wallIndex } : own;
   }, []);
+
+  /**
+   * The wall face under a screen position, for hanging a piece on: the room it belongs to
+   * (its own side, or the room behind a far face — `wallSideOf`), the wall, the spot and the
+   * height the pointer met it at. Null over the floor, the furniture or nothing at all.
+   */
+  const hangTargetAt = useCallback(
+    (clientX: number, clientY: number): { room: PlanRoom; wallIndex: number; at: Vec2; y: number } | null => {
+      const hit = surfaceAt(clientX, clientY);
+      if (!hit || hit.data.surface !== 'wall') return null;
+      const side = wallSideOf(hit.data, hit.point, hit.normal);
+      const room = plan.rooms.find((r) => r.id === side.roomId);
+      if (!room || side.wallIndex == null) return null;
+      return { room, wallIndex: side.wallIndex, at: { x: hit.point.x, z: hit.point.z }, y: hit.point.y };
+    },
+    [surfaceAt, wallSideOf, plan.rooms]
+  );
 
   /** The floor tile or wall strip a screen position would paint, for the scope in hand. */
   const paintTargetAt = useCallback(
@@ -812,7 +831,7 @@ function SceneContent({
       },
       carryPose: () => {
         const carry = carryRef.current;
-        return carry?.result ? { position: carry.result.position, rotation: carry.result.rotation, roomId: carry.room.id } : null;
+        return carry?.result ? { position: carry.result.position, rotation: carry.result.rotation, roomId: carry.room.id, elevationM: carry.result.elevationM } : null;
       },
       floorPointAt: (clientX, clientY) => {
         const point = floorPoint(clientX, clientY, 0);
@@ -824,7 +843,7 @@ function SceneContent({
         if (!carry) return false;
         carryUpdateRef.current?.(clientX, clientY);
         if (!carry.result?.valid) return false;
-        callbacks.current.onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id);
+        callbacks.current.onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id, carry.result.elevationM);
         callbacks.current.onCarryPlaced?.(carry.itemId);
         return true;
       },
@@ -1148,12 +1167,24 @@ function SceneContent({
     }
 
     const ground = floorPoint(event.clientX, event.clientY, item.elevationM);
+    // A wall-hung piece is grabbed where the pointer is on it; behind that spot is its wall,
+    // and the piece keeps its distance from the pointer along that wall and up it.
+    let hang: DragState['hang'];
+    if (isWallHung(item)) {
+      const target = hangTargetAt(event.clientX, event.clientY);
+      const edge = target && target.room.id === item.roomId ? roomEdges(target.room.polygon).find((e) => e.index === target.wallIndex) : null;
+      if (target && edge) {
+        const along = (item.position.x - target.at.x) * edge.dir.x + (item.position.z - target.at.z) * edge.dir.z;
+        hang = { roomId: target.room.id, wallIndex: target.wallIndex, along, up: item.elevationM + item.size.height / 2 - target.y };
+      }
+    }
     dragRef.current = {
       itemId,
       item,
       wrapper,
       room,
       grab: ground ? { x: item.position.x - ground.x, z: item.position.z - ground.z } : { x: 0, z: 0 },
+      hang,
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
@@ -1177,16 +1208,26 @@ function SceneContent({
       const item = scene.items.find((i) => i.id === carry.itemId);
       const wrapper = itemsGroup.getObjectByName(`item-${carry.itemId}`);
       if (!item || !wrapper) return;
-      const ground = floorPoint(clientX, clientY, item.elevationM);
-      if (!ground) return;
-      // Carrying into a neighbouring room re-homes the item there, like a drag does.
-      const room = roomAtPoint(plan.rooms, ground) ?? carry.room;
+      const hung = isWallHung(item);
+      // A wall-hung piece goes on the wall face under the pointer, at the height the pointer
+      // is at; over the floor it snaps to the nearest wall from the floor point like anything
+      // else. Everything else follows the plane of its own base.
+      const target = hung ? hangTargetAt(clientX, clientY) : null;
+      let room = target?.room ?? carry.room;
+      let result = target ? hangOnWall(target.room, item, target.wallIndex, target.at, target.y, scene.items) : null;
+      if (!result) {
+        const ground = floorPoint(clientX, clientY, hung ? 0 : item.elevationM);
+        if (!ground) return;
+        // Carrying into a neighbouring room re-homes the item there, like a drag does.
+        room = roomAtPoint(plan.rooms, ground) ?? carry.room;
+        result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items);
+      }
       carry.room = room;
-      const result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items);
       carry.result = result;
-      wrapper.position.set(result.position.x, item.elevationM, result.position.z);
+      const elevationM = result.elevationM ?? item.elevationM;
+      wrapper.position.set(result.position.x, elevationM, result.position.z);
       wrapper.rotation.y = result.rotation;
-      applyOutline(outlines.active, { ...item, position: result.position, rotation: result.rotation }, result.valid ? 0x22c55e : 0xef4444);
+      applyOutline(outlines.active, { ...item, position: result.position, rotation: result.rotation, elevationM }, result.valid ? 0x22c55e : 0xef4444);
       outlines.hover.visible = false;
     };
 
@@ -1290,23 +1331,35 @@ function SceneContent({
         callbacks.current.onHoverItem?.(null, null);
       }
 
-      const ground = floorPoint(event.clientX, event.clientY, drag.item.elevationM);
-      if (!ground) return;
-
-      const desired = { x: ground.x + drag.grab.x, z: ground.z + drag.grab.z };
-      // Dragging into a neighbouring room re-homes the item there.
-      const room = roomAtPoint(plan.rooms, desired) ?? drag.room;
+      const hung = isWallHung(drag.item);
+      // A wall-hung piece is dragged along the wall face under the pointer, up and down it
+      // and onto another wall, keeping the offset it was grabbed at while it stays on its own
+      // wall; see the carry above.
+      const target = hung ? hangTargetAt(event.clientX, event.clientY) : null;
+      let room = target?.room ?? drag.room;
+      let result: SnapResult | null = null;
+      if (target) {
+        const held = drag.hang && drag.hang.roomId === target.room.id && drag.hang.wallIndex === target.wallIndex ? drag.hang : undefined;
+        result = hangOnWall(target.room, drag.item, target.wallIndex, target.at, target.y, scene.items, held);
+      }
+      if (!result) {
+        const ground = floorPoint(event.clientX, event.clientY, hung ? 0 : drag.item.elevationM);
+        if (!ground) return;
+        const desired = hung ? ground : { x: ground.x + drag.grab.x, z: ground.z + drag.grab.z };
+        // Dragging into a neighbouring room re-homes the item there.
+        room = roomAtPoint(plan.rooms, desired) ?? drag.room;
+        result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items);
+      }
       drag.room = room;
-
-      const result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items);
       drag.result = result;
 
-      drag.wrapper.position.set(result.position.x, drag.item.elevationM, result.position.z);
+      const elevationM = result.elevationM ?? drag.item.elevationM;
+      drag.wrapper.position.set(result.position.x, elevationM, result.position.z);
       drag.wrapper.rotation.y = result.rotation;
 
       applyOutline(
         outlines.active,
-        { ...drag.item, position: result.position, rotation: result.rotation },
+        { ...drag.item, position: result.position, rotation: result.rotation, elevationM },
         result.valid ? 0x22c55e : 0xef4444
       );
       outlines.hover.visible = false;
@@ -1351,7 +1404,7 @@ function SceneContent({
         carry.pressY = undefined;
         // Only a tap sets the item down, and only where it fits; anywhere else it stays on the pointer.
         if (tapped && carry.result?.valid) {
-          onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id);
+          onPlaceItem?.(carry.itemId, carry.result.position, carry.result.rotation, carry.room.id, carry.result.elevationM);
           onCarryPlaced?.(carry.itemId);
         }
         return;
@@ -1393,7 +1446,7 @@ function SceneContent({
       setDragging(false);
 
       if (drag.result?.valid) {
-        onPlaceItem?.(drag.itemId, drag.result.position, drag.result.rotation, drag.room.id);
+        onPlaceItem?.(drag.itemId, drag.result.position, drag.result.rotation, drag.room.id, drag.result.elevationM);
         onSelectItem?.(drag.itemId);
       } else {
         // Refused: put it back where it came from rather than leave it overlapping.
@@ -1413,7 +1466,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow]);
+  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {

@@ -153,7 +153,8 @@ export interface PlanEditorApi {
   /** Sets the carried piece down at a point (client coordinates); false when it does not fit there, and then it stays on the pointer. */
   dropCarriedAt: (clientX: number, clientY: number) => boolean;
   /** Where the carried piece stands right now, for the page to turn it there. */
-  carryPose: () => { position: Vec2; rotation: number; roomId: string } | null;
+  /** The board has no height: a wall-hung piece keeps the height it had (`elevationM` is never set here; the 3D view's pose has it). */
+  carryPose: () => { position: Vec2; rotation: number; roomId: string; elevationM?: number } | null;
 }
 
 /** Where the carried piece would stand with the pointer at a point, and whether it fits there. */
