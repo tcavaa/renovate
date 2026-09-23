@@ -30,7 +30,7 @@ export default function MaterialsPage() {
   if (!ready) {
     return (
       <>
-        <StepIndicator current={2} />
+        <StepIndicator current={3} />
         <EmptyStep message={homeState ? t.calculator.needRoomsFirst : t.calculator.needHomeStateFirst} back={t.common.back} />
       </>
     );
@@ -38,10 +38,10 @@ export default function MaterialsPage() {
 
   return (
     <>
-      <StepIndicator current={2} />
+      <StepIndicator current={3} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={2}
+          step={3}
           total={CALCULATOR_STEPS}
           title={t.calculator.step2}
           subtitle={t.calculator.materialsSubtitle.replace('{m2}', totals ? formatM2L(t, totals.totalFloorM2) : '')}
@@ -62,7 +62,7 @@ export default function MaterialsPage() {
         </div>
       </div>
 
-      <StepNav back={{ href: '/calculator', label: t.calculator.backButton }} next={{ href: '/calculator/catalog', label: t.calculator.nextButton }} />
+      <StepNav back={{ href: '/calculator/plan', label: t.calculator.backButton }} next={{ href: '/calculator/catalog', label: t.calculator.nextButton }} />
     </>
   );
 }

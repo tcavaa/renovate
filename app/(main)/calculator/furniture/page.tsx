@@ -47,7 +47,7 @@ export default function FurnitureStepPage() {
   if (rooms.length === 0) {
     return (
       <>
-        <StepIndicator current={5} />
+        <StepIndicator current={6} />
         <EmptyStep message={t.calculator.needRoomsFirst} back={t.common.back} />
       </>
     );
@@ -75,9 +75,9 @@ export default function FurnitureStepPage() {
 
   return (
     <>
-      <StepIndicator current={5} />
+      <StepIndicator current={6} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={5} total={CALCULATOR_STEPS} title={t.furniture.title} subtitle={t.furniture.subtitle} />
+        <StepHeader step={6} total={CALCULATOR_STEPS} title={t.furniture.title} subtitle={t.furniture.subtitle} />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-8 lg:sticky lg:top-24 lg:self-start">

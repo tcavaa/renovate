@@ -12,7 +12,7 @@
  */
 
 import type { Beam, Column, ElectricalPoint, TechnicalPoint, Vec2, Wall } from './types';
-import { closestOnSegment, nearestWallTo, wallNodes, NODE_TOL_M, WALL_CLEARANCE_M } from './walls';
+import { closestOnSegment, nearestWallTo, wallNodes, wallNormal, NODE_TOL_M, WALL_CLEARANCE_M } from './walls';
 import { clipPolygon } from './zones';
 import { polygonAreaM2, pointInPolygon } from './planGeometry';
 
@@ -174,13 +174,13 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
     wall: Wall;
     /** Length the wall runs alongside the rectangle's side; negative when it only comes near. */
     overlap: number;
-    /** True for a wall that runs alongside, not one that just touches at a corner. */
-    beside: boolean;
+    /** 0 alongside, 1 end to end, 2 merely in line across the sheet. */
+    rank: 0 | 1 | 2;
   }
   const better = (p: Candidate, q: Candidate | null): boolean => {
     if (!q) return true;
-    if (p.beside !== q.beside) return p.beside;
-    if (p.beside && Math.abs(p.overlap - q.overlap) > 1e-6) return p.overlap > q.overlap;
+    if (p.rank !== q.rank) return p.rank < q.rank;
+    if (p.rank === 0 && Math.abs(p.overlap - q.overlap) > 1e-6) return p.overlap > q.overlap;
     return Math.abs(p.delta) < Math.abs(q.delta);
   };
   /** The best wall for one side of the rectangle: `line` is that side's wall centreline, `from`–`to` its extent. */
@@ -191,17 +191,27 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
       const lo = axis === 'x' ? Math.min(wall.a.z, wall.b.z) : Math.min(wall.a.x, wall.b.x);
       const hi = axis === 'x' ? Math.max(wall.a.z, wall.b.z) : Math.max(wall.a.x, wall.b.x);
       const overlap = Math.min(hi, to) - Math.max(lo, from);
-      if (overlap < -tolM) continue;
       const delta = at - line;
-      const beside = overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5);
+      // A wall alongside, one continuing the side end to end, or one merely on the same
+      // line somewhere else on the sheet — the last is how two rooms get walls on one line
+      // and the same width, and the board draws the line they share right across the sheet.
+      const rank: 0 | 1 | 2 = overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5) ? 0 : overlap >= -tolM ? 1 : 2;
       // Within the pointer's reach — or, for a wall alongside, close enough that the two
       // walls' bodies would overlap.
-      const reach = beside ? Math.max(tolM, (thicknessM + wall.thicknessM) / 2) : tolM;
+      const reach = rank === 0 ? Math.max(tolM, (thicknessM + wall.thicknessM) / 2) : tolM;
       if (Math.abs(delta) > reach) continue;
-      const candidate = { delta, wall, overlap, beside };
+      const candidate: Candidate = { delta, wall, overlap, rank };
       if (better(candidate, best)) best = candidate;
     }
     return best;
+  };
+  /** The guides for a side that snapped: the wall itself when it is there beside or in line, and the line the two share, right across the sheet. */
+  const guidesFor = (hit: Candidate, axis: 'x' | 'z', from: number, to: number): void => {
+    if (hit.rank <= 1) guides.push({ kind: 'wall', a: hit.wall.a, b: hit.wall.b });
+    const at = axis === 'x' ? hit.wall.a.x : hit.wall.a.z;
+    const mid = (from + to) / 2;
+    const a = axis === 'x' ? { x: at, z: mid } : { x: mid, z: at };
+    guides.push({ kind: 'align', a, b: axis === 'x' ? { x: at, z: mid + 1 } : { x: mid + 1, z: at } });
   };
   /** Start and size along one axis after snapping its two sides. */
   const snapAxis = (candidates: Wall[], axis: 'x' | 'z', start: number, size: number, from: number, to: number): { start: number; size: number } => {
@@ -211,13 +221,14 @@ export function snapRectangle(rect: Rect, walls: Wall[], thicknessM: number, tol
       const snappedStart = start + low.delta;
       const snappedSize = start + size + high.delta - snappedStart;
       if (snappedSize >= MIN_SNAPPED_SIZE_M) {
-        guides.push({ kind: 'wall', a: low.wall.a, b: low.wall.b }, { kind: 'wall', a: high.wall.a, b: high.wall.b });
+        guidesFor(low, axis, from, to);
+        guidesFor(high, axis, from, to);
         return { start: snappedStart, size: snappedSize };
       }
     }
     const one = low && high ? (better(low, high) ? low : high) : (low ?? high);
     if (!one) return { start, size };
-    guides.push({ kind: 'wall', a: one.wall.a, b: one.wall.b });
+    guidesFor(one, axis, from, to);
     return { start: start + one.delta, size };
   };
 
@@ -311,6 +322,45 @@ export function snapRoomMove(moving: Wall[], staying: Wall[], raw: Vec2, options
 
 /** A wall alongside is worth reaching further for than a line to square up with. */
 const BESIDE_REACH = 1.6;
+
+/**
+ * Where a wall dragged sideways should land: its travel along its normal, pulled onto the
+ * line of a parallel wall it comes close to — one continuing it end to end, or one merely in
+ * line somewhere else on the sheet — so two rooms end up with their walls on one line, and
+ * the board draws that line right across the sheet while the wall is in hand. A wall that
+ * runs *alongside* is left alone: landing on its line would put one wall inside another,
+ * and the drop is what says no to that.
+ */
+export function snapWallOffset(wall: Wall, others: Wall[], distance: number, tolM: number): { distance: number; guides: SnapGuide[] } {
+  const isVertical = (w: Pick<Wall, 'a' | 'b'>) => Math.abs(w.a.x - w.b.x) < 1e-6;
+  const isHorizontal = (w: Pick<Wall, 'a' | 'b'>) => Math.abs(w.a.z - w.b.z) < 1e-6;
+  if (!isVertical(wall) && !isHorizontal(wall)) return { distance, guides: [] };
+  const axis: 'x' | 'z' = isVertical(wall) ? 'x' : 'z';
+  const n = wallNormal(wall);
+  const sign = axis === 'x' ? n.x : n.z;
+  const line = (w: Wall) => (axis === 'x' ? w.a.x : w.a.z);
+  const span = (w: Wall): [number, number] => (axis === 'x' ? [Math.min(w.a.z, w.b.z), Math.max(w.a.z, w.b.z)] : [Math.min(w.a.x, w.b.x), Math.max(w.a.x, w.b.x)]);
+  const [from, to] = span(wall);
+  const moved = line(wall) + sign * distance;
+  let best: { delta: number; wall: Wall; rank: 1 | 2; overlap: number } | null = null;
+  for (const other of others) {
+    if (other.id === wall.id || !(axis === 'x' ? isVertical(other) : isHorizontal(other))) continue;
+    const [lo, hi] = span(other);
+    const overlap = Math.min(hi, to) - Math.max(lo, from);
+    if (overlap >= Math.min(MIN_BESIDE_M, (to - from) * 0.5)) continue;
+    const rank: 1 | 2 = overlap >= -tolM ? 1 : 2;
+    const delta = line(other) - moved;
+    if (Math.abs(delta) > tolM) continue;
+    if (!best || rank < best.rank || (rank === best.rank && (Math.abs(delta) < Math.abs(best.delta) - 1e-6 || (Math.abs(Math.abs(delta) - Math.abs(best.delta)) <= 1e-6 && overlap > best.overlap)))) best = { delta, wall: other, rank, overlap };
+  }
+  if (!best) return { distance, guides: [] };
+  const at = line(best.wall);
+  const mid = (from + to) / 2;
+  const guides: SnapGuide[] = [];
+  if (best.rank === 1) guides.push({ kind: 'wall', a: best.wall.a, b: best.wall.b });
+  guides.push({ kind: 'align', a: axis === 'x' ? { x: at, z: mid } : { x: mid, z: at }, b: axis === 'x' ? { x: at, z: mid + 1 } : { x: mid + 1, z: at } });
+  return { distance: round3(distance + sign * best.delta), guides };
+}
 
 /**
  * How much of an existing room a new rectangle may cover before it is refused. A rectangle

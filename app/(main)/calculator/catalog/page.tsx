@@ -51,7 +51,7 @@ export default function CatalogStepPage() {
   if (rooms.length === 0 || !homeState) {
     return (
       <>
-        <StepIndicator current={3} />
+        <StepIndicator current={4} />
         <EmptyStep message={t.calculator.needRoomsFirst} back={t.common.back} />
       </>
     );
@@ -111,9 +111,9 @@ export default function CatalogStepPage() {
 
   return (
     <>
-      <StepIndicator current={3} />
+      <StepIndicator current={4} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={3} total={CALCULATOR_STEPS} title={t.calculator.step3} subtitle={t.calculator.cartHint} />
+        <StepHeader step={4} total={CALCULATOR_STEPS} title={t.calculator.step3} subtitle={t.calculator.cartHint} />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_300px]">
           <aside className="lg:sticky lg:top-24 lg:self-start">

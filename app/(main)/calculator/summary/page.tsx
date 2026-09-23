@@ -259,7 +259,7 @@ export default function SummaryPage() {
   if (!ready || !summary || !sheet) {
     return (
       <>
-        <StepIndicator current={6} />
+        <StepIndicator current={7} />
         <EmptyStep message={ka.calculator.needRoomsFirst} back={ka.common.back} />
       </>
     );
@@ -269,10 +269,10 @@ export default function SummaryPage() {
 
   return (
     <>
-      <StepIndicator current={6} />
+      <StepIndicator current={7} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={6}
+          step={7}
           total={CALCULATOR_STEPS}
           title={ka.summary.title}
           subtitle={ka.summary.subtitle}

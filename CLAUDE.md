@@ -107,8 +107,8 @@ app/
   (auth)/login, register, register/store, register/worker   ⟵ partners register themselves
   (main)/
     page.tsx                       landing
-    calculator/                    step 1 (the plan + home state)
-      materials/ catalog/ placement/ furniture/ summary/     steps 2–6 (catalog = the cart, placement = where the finishes go)
+    calculator/                    step 1 (the way in: upload or draw, and the home state)
+      plan/ materials/ catalog/ placement/ furniture/ summary/     steps 2–7 (plan = the board, catalog = the cart, placement = where the finishes go)
     design/                        ⟵ Design Studio, eight steps (DesignSteps / lib/design/steps)
       page.tsx                     1 plan: upload / blank sheet / calculator rooms, wall defaults, mode
       plan/                        2 the existing house on the 2D board (walls, doors, windows, columns, beams)
@@ -658,6 +658,16 @@ was. The corners come apart on purpose; the room they closed is open until the w
 back or the neighbours are dragged after it, and Ctrl+Z is the way back. Shift also keeps
 its old meanings (the 1 cm grid, the free angle) — it is the board's "precisely, and only
 this" key.
+
+**Walls line up across the sheet** (`snapRectangle`, `snapWallOffset`). A rectangle being
+drawn and a wall being dragged sideways both pull onto the line of a parallel wall they come
+close to — a wall alongside first, then one continuing them end to end, then one merely in
+line somewhere else on the sheet — and draw the line the two now share right across the
+sheet (`align` guide), the way a dragged room does. That is how two rooms one above the
+other get walls on one line and the same width: both sides of the new rectangle land on the
+lines of the room above. A dragged wall does not snap onto a wall that runs *alongside* it
+(that would stand one wall inside another; the drop refuses it), and Shift's "alone" drag
+snaps like any other.
 
 **Corners close on the board** (`wallEndExtensions`). A wall is drawn as a stroked
 centreline with butt ends, and two such strokes meeting at an L-corner each stopped at the
@@ -1656,7 +1666,20 @@ and a calculator that starts over lets go of the project id so its next save is 
 - `mode: 'design_only'` — the home is finished; only furniture and decor are costed.
 - `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine.
 
-### Step 1: three ways to a plan (`app/(main)/calculator/page.tsx`)
+### Steps 1 and 2: the way in, then the board (`app/(main)/calculator/page.tsx`, `plan/page.tsx`)
+
+**The plan is a step of its own** (September 2026). Step 1 is the way in and the home's
+condition: upload a plan (the `PlanUploadCard` with `showContinue={false}`, so it has no
+button of its own — it hands the plan to page state as soon as the area makes sense, and
+nothing is kept until the one "გაგრძელება" at the bottom) or say you will draw one, and the
+home state below. Step 2 (`/calculator/plan`) is the board — the uploaded plan to check, or
+a blank sheet to draw on, with the inspector and the rooms panel beside it — and that is
+where "გამოთვლის დაწყება" is pressed, once there are rooms. It sets `calculated`, which
+shuts both steps (`lockedBefore={3}`; the `CalculatorFlowGuard` on either sends a return
+onward). Until then the two are open to each other: step 1 only bounces when the journey is
+past the board. The persisted step is version 3 (`migratePersisted` shifts a version 2
+journey's materials and everything after by one; a version 1 journey gets both shifts).
+Seven steps: way in · plan · materials · catalog · placement · furniture · summary.
 
 Room sizes are exact: the form and the room list take any value to the centimetre
 (`step 0.01`; the list's `SizeInput` commits on blur so "3." is not rewritten under the
