@@ -71,6 +71,13 @@
       "when": 1790016086174,
       "tag": "0009_calculator_edits",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1790170264528,
+      "tag": "0010_own_products",
+      "breakpoints": true
     }
   ]
 }

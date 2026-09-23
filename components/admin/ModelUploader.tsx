@@ -51,7 +51,7 @@ interface Props {
 const MAX_MB = 40;
 const HEAVY_TRIANGLES = 400_000;
 
-type PreviewHandle = {
+export type PreviewHandle = {
   dispose: () => void;
   snapshot: () => Promise<Blob | null>;
 };
@@ -283,7 +283,8 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
 // Preview: plain three.js, loaded on demand so the admin bundle stays light
 // ---------------------------------------------------------------------------
 
-async function mountPreview(host: HTMLElement, url: string): Promise<{ handle: PreviewHandle; measurement: ModelMeasurement }> {
+/** The turntable with its grid and front arrow, and the model measured — shared with the studio's own-model dialog. */
+export async function mountPreview(host: HTMLElement, url: string): Promise<{ handle: PreviewHandle; measurement: ModelMeasurement }> {
   const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),

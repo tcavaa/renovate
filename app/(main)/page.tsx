@@ -48,8 +48,9 @@ export default async function HomePage() {
           .where(
             and(
               eq(products.isActive, true),
-              // Only approved partners' products on the wall.
+              // Only approved partners' products on the wall — and nobody's own uploads.
               or(isNull(products.storeId), eq(stores.isActive, true)),
+              isNull(products.ownerUserId),
               isNotNull(products.imageUrl),
               isNotNull(products.model3dUrl),
               inArray(products.categoryId, designCategories.map((c) => c.id)),

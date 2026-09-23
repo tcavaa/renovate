@@ -51,7 +51,7 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
 
   // A product is public when it is active and its store (if any) is — a store that registered
   // itself is inactive until admin approves it, and its shelf stays out of sight until then.
-  const publicProduct = and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)))!;
+  const publicProduct = and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId))!;
 
   const [visibleCategories, activeStores, countRows] = await Promise.all([
     db.select().from(categories).where(eq(categories.isVisible, true)).orderBy(asc(categories.phase), asc(categories.sortOrder)),

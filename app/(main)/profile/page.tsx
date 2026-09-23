@@ -3,7 +3,8 @@ import { desc, eq } from 'drizzle-orm';
 import { ArrowUpRight, Calculator, Plus } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { projects, users } from '@/lib/db/schema';
+import { products, projects, users } from '@/lib/db/schema';
+import { MyModels } from '@/components/profile/MyModels';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
 import { projectKind, savedProjectInput } from '@/lib/projects/saved';
@@ -34,6 +35,11 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
   const needsVerification = !!account && !account.emailVerifiedAt && !!account.hasPassword;
 
   const rows = await db.select().from(projects).where(eq(projects.userId, userId)).orderBy(desc(projects.createdAt));
+  const ownModels = await db
+    .select({ id: products.id, name: products.nameKa, kind: products.model3dKind, imageUrl: products.imageUrl, status: products.model3dStatus })
+    .from(products)
+    .where(eq(products.ownerUserId, userId))
+    .orderBy(desc(products.id));
   const totalSpent = rows.reduce((s, p) => s + (p.totalCost ? Number(p.totalCost) : 0), 0);
   const totalM2 = rows.reduce((s, p) => s + Number(p.totalM2), 0);
   const draftIds = rows.filter((p) => p.status === 'draft').map((p) => p.id);
@@ -123,6 +129,8 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
           </ul>
         )}
       </section>
+
+      <MyModels models={ownModels} />
     </div>
   );
 }

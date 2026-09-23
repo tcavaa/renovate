@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { auth } from '@/auth';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
@@ -52,6 +53,11 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
     .limit(1);
   const row = rows[0];
   if (!row) notFound();
+  // A person's own upload has a page for its owner alone.
+  if (row.product.ownerUserId != null) {
+    const session = await auth();
+    if (!session?.user?.id || Number(session.user.id) !== row.product.ownerUserId) notFound();
+  }
   const { product, category, store } = row;
 
   const name = localizedName(locale, product);
@@ -70,7 +76,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
     .select({ product: products, store: stores })
     .from(products)
     .leftJoin(stores, eq(products.storeId, stores.id))
-    .where(and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
+    .where(and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
     .orderBy(desc(products.isFeatured), desc(products.id))
     .limit(4);
   const related = relatedRows.map((r) => r.product);

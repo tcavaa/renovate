@@ -39,17 +39,19 @@ export interface CatalogBrowserState {
   priceMax: number | null;
   storeId: number | null;
   sort: CatalogSort;
+  /** Only the person's own uploads. */
+  mine: boolean;
   /** The product whose details are open. */
   selectedId: number | null;
 }
 
 export function initialCatalogBrowserState(): CatalogBrowserState {
-  return { query: '', room: undefined, kind: '', styles: [], colors: [], priceMin: null, priceMax: null, storeId: null, sort: 'priceAsc', selectedId: null };
+  return { query: '', room: undefined, kind: '', styles: [], colors: [], priceMin: null, priceMax: null, storeId: null, sort: 'priceAsc', mine: false, selectedId: null };
 }
 
 /** Whether anything narrows the list — what the "clear filters" button undoes. */
 export function hasCatalogFilters(state: CatalogBrowserState): boolean {
-  return state.query.trim() !== '' || state.room !== undefined || state.kind !== '' || state.styles.length > 0 || state.colors.length > 0 || state.priceMin != null || state.priceMax != null || state.storeId != null;
+  return state.query.trim() !== '' || state.room !== undefined || state.kind !== '' || state.styles.length > 0 || state.colors.length > 0 || state.priceMin != null || state.priceMax != null || state.storeId != null || state.mine;
 }
 
 /**
@@ -69,6 +71,8 @@ export interface CatalogBrowse {
   results: CatalogProduct[];
   /** Every piece of furniture on sale, before any filter. */
   total: number;
+  /** How many of them are the person's own uploads. */
+  ownCount: number;
   /** How many products every room together holds after every filter but the room and the kind — the "all rooms" count. */
   all: number;
   /** The rooms of the shelf with something in them after every filter but the room and the kind. A kind can belong to several rooms, so these do not add up to `all`. */
@@ -100,7 +104,11 @@ export interface CatalogBrowse {
  * open.
  */
 export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserState, opts: { focusRoom: RoomType | null; locale: Locale }): CatalogBrowse {
-  const furniture = catalog.filter(isFurnitureProduct);
+  // A person's own photo waiting for its model is listed too — it is theirs and they will
+  // look for it — though it cannot be placed until the model is there.
+  const everything = catalog.filter((p) => isFurnitureProduct(p) || (p.own && p.pending && p.model3dKind));
+  const ownCount = everything.filter((p) => p.own).length;
+  const furniture = state.mine ? everything.filter((p) => p.own) : everything;
   const q = state.query.trim().toLowerCase();
   const matchesQuery = (p: CatalogProduct): boolean => {
     if (!q) return true;
@@ -111,7 +119,8 @@ export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserSt
       .toLowerCase()
       .includes(q);
   };
-  const matchesStyles = (p: CatalogProduct): boolean => state.styles.length === 0 || productStyles(p).some((s) => state.styles.includes(s));
+  // A piece of the person's own has no style tag and is theirs in any style.
+  const matchesStyles = (p: CatalogProduct): boolean => !!p.own || state.styles.length === 0 || productStyles(p).some((s) => state.styles.includes(s));
   const matchesPrice = (p: CatalogProduct): boolean => (state.priceMin == null || p.pricePerUnit >= state.priceMin) && (state.priceMax == null || p.pricePerUnit <= state.priceMax);
   const broad = furniture.filter((p) => matchesQuery(p) && matchesStyles(p) && matchesPrice(p));
 
@@ -163,7 +172,8 @@ export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserSt
 
   return {
     results: sortProducts(filtered, state.sort, opts.locale),
-    total: furniture.length,
+    total: everything.length,
+    ownCount,
     all: base.length,
     rooms: roomEntries.map(({ id, count }) => ({ id, count })),
     openRoom,

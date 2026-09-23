@@ -1161,6 +1161,12 @@ one, so the column leaves the strip and goes on wearing its product as squares, 
 the erased one (`erasePatchFromStrip`), priced as what is left. The 2D board draws the same
 order — whole wall, strips, squares — whatever order the finishes are stored in.
 
+**The brush opens on the smallest piece.** The scope chips run smallest first — a square
+metre, a metre-wide strip, one wall, the whole room; on a floor a square metre, then the
+room — and the first chip is what the tray opens on and what a surface tab or a tap on a
+floor switches to (a tap on a wall picks *that wall*). "The whole room", the one that
+erases, comes last.
+
 **"The whole room" is the whole room.** A swatch picked in the room scope (`setFinish`) takes
 everything off that surface in those rooms before it lays the new base: a wall's own finish,
 the strips, the square metres; on a floor the painted tiles and the drawn zones (a zone that
@@ -1421,6 +1427,26 @@ keeps the layer for the beat of its closing animation and an Escape in that beat
 the studio to give up the piece just placed. `isFurnitureProduct` is the one rule for what
 is furniture (a model, and neither a fitting, a door or window, nor a radiator); the shelf
 uses it too.
+
+**A person's own furniture** (`products.ownerUserId`, `POST /api/design/models`,
+`components/studio/OwnModelDialog.tsx`). The wardrobe they are keeping, the table they
+already have: the "+" on the furniture shelf (and in the catalogue modal) takes a GLB or a
+photo and makes a *product* of it — a real row, so the layout, the carry, the budget and
+the saves all work unchanged — owned by that person (`ownerUserId`), priced at nothing,
+sold by nobody, in the archetype's category (`ARCHETYPES[kind].categorySlug`). A GLB is
+inspected like a partner's (`sniffModel`, `inspectGlb`, no Draco/Basis), shown on the
+admin uploader's turntable (`mountPreview`, exported from `ModelUploader`) so its size is
+read off it and a photo rendered for the tile, and is placeable at once — the studio puts
+it on the pointer. A photo goes in with `model3dStatus: 'pending'`: listed under "my
+items" with a badge, not placeable, waiting for the conversion that is not built yet (AI,
+last stage). **Theirs alone**: the cached design catalogue leaves owned products out and the
+route adds the caller's own fresh (`loadOwnProducts`, `own` / `pending` on
+`CatalogProduct`); every public product query has `isNull(products.ownerUserId)` (the
+`publicProductCondition`, the catalogue page, the landing wall, related products) and the
+product page 404s for anyone but the owner; `pnpm models:seed` never removes or switches
+off an owned product. The profile lists them (`MyModels`, `DELETE /api/design/models/[id]`
+removes the row and its files). `refreshDesignCatalog()` in `hooks/useDesignCatalog.ts`
+refetches for every mounted hook after one is added.
 
 **The colour filter is swatches of what is on the shelf.** `lib/design/colors.ts` sorts any
 hex into twelve families a person would name (hue, lightness and *chroma* — HSL saturation

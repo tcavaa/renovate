@@ -35,11 +35,26 @@ interface CatalogState {
  */
 let cache: { products: CatalogProduct[]; stores: PartnerStore[] } | null = null;
 let inflight: Promise<{ products: CatalogProduct[]; stores: PartnerStore[] }> | null = null;
+/** Every mounted hook, told when the catalogue is fetched again. */
+const listeners = new Set<(data: { products: CatalogProduct[]; stores: PartnerStore[] }) => void>();
+
+/**
+ * Fetches the catalogue again and hands it to every component holding it — after a person
+ * adds a piece of their own, which the server lists for them alone.
+ */
+export async function refreshDesignCatalog(): Promise<void> {
+  cache = null;
+  const data = await fetchCatalog();
+  for (const listener of listeners) listener(data);
+}
 
 async function fetchCatalog() {
   if (cache) return cache;
   if (!inflight) {
-    inflight = fetch('/api/design/catalog')
+    // Never the browser's copy: the route answers with a minute of `max-age`, and a piece of
+    // the person's own added a moment ago would be missing from it for that minute. The
+    // server's own cache (`getDesignCatalog`) is what saves the work; this fetch is cheap.
+    inflight = fetch('/api/design/catalog', { cache: 'no-store' })
       .then(async (res) => {
         const json = (await res.json()) as {
           data: { products: CatalogProduct[]; stores: PartnerStore[] } | null;
@@ -65,21 +80,22 @@ export function useDesignCatalog(): CatalogState {
   }));
 
   useEffect(() => {
-    if (cache) return;
     let cancelled = false;
-
-    fetchCatalog()
-      .then((data) => {
-        if (cancelled) return;
-        setState({ products: data.products, stores: data.stores, loading: false, error: null });
-      })
-      .catch((e: Error) => {
-        if (cancelled) return;
-        setState({ products: [], stores: [], loading: false, error: e.message });
-      });
-
+    const onData = (data: { products: CatalogProduct[]; stores: PartnerStore[] }) => {
+      if (!cancelled) setState({ products: data.products, stores: data.stores, loading: false, error: null });
+    };
+    listeners.add(onData);
+    if (!cache) {
+      fetchCatalog()
+        .then(onData)
+        .catch((e: Error) => {
+          if (cancelled) return;
+          setState({ products: [], stores: [], loading: false, error: e.message });
+        });
+    }
     return () => {
       cancelled = true;
+      listeners.delete(onData);
     };
   }, []);
 

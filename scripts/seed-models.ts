@@ -289,7 +289,8 @@ async function main() {
   // that has no partner model behind it.
   // Only the manifest's own products are the seed's to remove. A model admin uploaded through
   // the product form lives under /uploads/models (or on the object store) and stays.
-  const manifestManaged = or(isNull(products.model3dUrl), like(products.model3dUrl, '/models/%'));
+  // …and a person's own uploads are nobody's to remove or switch off.
+  const manifestManaged = and(isNull(products.ownerUserId), or(isNull(products.model3dUrl), like(products.model3dUrl, '/models/%')));
   const stale = await db
     .select({ id: products.id, slug: products.slug })
     .from(products)
@@ -317,7 +318,7 @@ async function main() {
     const rows = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(inArray(products.categoryId, modelCategoryIds), isNull(products.model3dUrl), eq(products.isActive, true)));
+      .where(and(inArray(products.categoryId, modelCategoryIds), isNull(products.model3dUrl), isNull(products.ownerUserId), eq(products.isActive, true)));
     if (rows.length) await db.update(products).set({ isActive: false }).where(inArray(products.id, rows.map((r) => r.id)));
     hidden += rows.length;
   }
@@ -325,7 +326,7 @@ async function main() {
     const rows = await db
       .select({ id: products.id })
       .from(products)
-      .where(and(inArray(products.categoryId, surfaceCategoryIds), isNull(products.textureUrl), eq(products.isActive, true)));
+      .where(and(inArray(products.categoryId, surfaceCategoryIds), isNull(products.textureUrl), isNull(products.ownerUserId), eq(products.isActive, true)));
     if (rows.length) await db.update(products).set({ isActive: false }).where(inArray(products.id, rows.map((r) => r.id)));
     hidden += rows.length;
   }

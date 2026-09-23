@@ -4,19 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Printer,
-  Save,
-  CheckCircle2,
-  RotateCcw,
-  LogIn,
-  UserPlus,
-  Lock,
-  ArrowRight,
-  ShoppingBag,
-  FileDown,
-} from 'lucide-react';
+import { AlertTriangle, ArrowRight, CheckCircle2, FileDown, Loader2, Lock, LogIn, Printer, RotateCcw, Save, ShoppingBag, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { saveDesign } from '@/lib/design/saveDesign';
 import {
   Dialog,
   DialogContent,
@@ -75,6 +65,11 @@ export default function SummaryPage() {
   const startFromCalculator = useDesignStore((s) => s.startFromCalculator);
   const designProjectId = useDesignStore((s) => s.projectId);
   const designHasItems = useDesignStore((s) => s.items.length > 0 && s.plan != null);
+  // A design that was never saved — a guest's, or one the autosave has not yet written — is
+  // what "view in 3D" would overwrite; a row on the server survives the studio being reused.
+  const designUnsaved = useDesignStore((s) => s.generated && s.plan != null && s.plan.rooms.length > 0 && s.projectId == null);
+  const [unsavedDesignOpen, setUnsavedDesignOpen] = useState(false);
+  const [savingDesign, setSavingDesign] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
@@ -93,13 +88,41 @@ export default function SummaryPage() {
    */
   const currentProjectId = savedId ?? projectId;
   const designExists = designHasItems && currentProjectId != null && designProjectId === currentProjectId;
-  const viewIn3d = () => {
+  const continueTo3d = () => {
     if (!homeState) return;
     // The drawing the calculator was working on crosses into the studio here and nowhere
     // else — the two boards are separate until the person asks for this.
     const board = useCalculatorPlanStore.getState();
     const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: board.finishes });
     router.push(landing === 'studio' ? '/design/studio' : '/design/style');
+  };
+  /** The studio holds a design of another flat that was never saved: ask before it is replaced. */
+  const viewIn3d = () => {
+    if (!homeState) return;
+    if (designUnsaved && !designExists) {
+      setUnsavedDesignOpen(true);
+      return;
+    }
+    continueTo3d();
+  };
+  /** Saves that design first (a guest is sent to sign in), then goes on. */
+  const saveDesignThenView = async () => {
+    if (status !== 'authenticated') {
+      setUnsavedDesignOpen(false);
+      setAuthModalOpen(true);
+      return;
+    }
+    setSavingDesign(true);
+    try {
+      await saveDesign({ draft: false, nameKa: `${ka.design.title} — ${new Date().toLocaleDateString('ka-GE')}` });
+      setUnsavedDesignOpen(false);
+      continueTo3d();
+    } catch (e) {
+      console.error(e);
+      setError(ka.calculator.saveError);
+    } finally {
+      setSavingDesign(false);
+    }
   };
 
   const ready = !!homeState && rooms.length > 0;
@@ -396,6 +419,34 @@ export default function SummaryPage() {
             <ArrowRight className="h-4 w-4" />
             {ka.calculator.goToProjects}
           </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={unsavedDesignOpen} onOpenChange={setUnsavedDesignOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-warning/15 text-warning">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center">{ka.calculator.unsavedDesignTitle}</DialogTitle>
+            <DialogDescription className="text-center">{ka.calculator.unsavedDesignDesc}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button variant="ink" onClick={saveDesignThenView} disabled={savingDesign}>
+              {savingDesign ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {status === 'authenticated' ? ka.calculator.unsavedDesignSave : ka.calculator.unsavedDesignSignIn}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnsavedDesignOpen(false);
+                continueTo3d();
+              }}
+              disabled={savingDesign}
+            >
+              {ka.calculator.unsavedDesignContinue}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
