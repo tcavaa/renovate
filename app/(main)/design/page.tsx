@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Home, Info, PenLine, Plug, Receipt, Sofa, Upload } from 'lucide-react';
+import { AlertCircle, Check, Home, Info, PenLine, Plug, Receipt, Sofa, SquareDashed, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { DesignFlowGuard } from '@/components/flow/FlowGuard';
@@ -32,7 +32,7 @@ type PlanMode = 'upload' | 'scratch';
 export default function DesignStartPage() {
   const t = useT();
   const router = useRouter();
-  const { mode, modeChosen, setMode, setPlan, homeState, setHomeState, startFromCalculator, setProjectId, plan, setPlanDefaults } = useDesignStore();
+  const { mode, modeChosen, emptyStart, setMode, chooseEmptyStart, startEmpty, setPlan, homeState, setHomeState, startFromCalculator, setProjectId, plan, setPlanDefaults } = useDesignStore();
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
   const [planMode, setPlanMode] = useState<PlanMode>('upload');
   /** A plan read from an upload (or borrowed from the calculator), waiting for "continue". */
@@ -82,6 +82,13 @@ export default function DesignStartPage() {
       setPlan({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: thickness, wallHeightM: heightM, walls: [] }, null);
     }
     setPlanDefaults({ wallThicknessM: thickness, wallHeightM: heightM });
+    // The empty start goes straight to the studio, on the rooms it has; a blank sheet has
+    // none yet, so its walls are drawn on the next step, which then hands on to the studio.
+    if (emptyStart && (useDesignStore.getState().plan?.rooms.length ?? 0) > 0) {
+      startEmpty();
+      router.push('/design/studio');
+      return;
+    }
     router.push('/design/plan');
   };
 
@@ -166,9 +173,9 @@ export default function DesignStartPage() {
         */}
         <section id="mode-section" className="mt-14 space-y-5">
           <SectionHead index="02" title={t.design.modeTitle} subtitle={t.design.modeSubtitle} />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <ModeCard
-              active={modeChosen && mode === 'design_only'}
+              active={modeChosen && !emptyStart && mode === 'design_only'}
               onClick={() => setMode('design_only')}
               icon={<Sofa className="h-5 w-5" />}
               label={t.design.modeDesignOnlyLabel}
@@ -177,7 +184,7 @@ export default function DesignStartPage() {
               covers={t.design.modeDesignOnlyCovers}
             />
             <ModeCard
-              active={modeChosen && mode === 'full'}
+              active={modeChosen && !emptyStart && mode === 'full'}
               onClick={() => setMode('full')}
               icon={<Home className="h-5 w-5" />}
               label={t.design.modeFullLabel}
@@ -185,11 +192,22 @@ export default function DesignStartPage() {
               coversLabel={t.design.modeCoversLabel}
               covers={t.design.modeFullCovers}
             />
+            {/* The third way in: nothing laid out, nothing asked — the studio, empty, at once. */}
+            <ModeCard
+              active={modeChosen && emptyStart}
+              onClick={chooseEmptyStart}
+              icon={<SquareDashed className="h-5 w-5" />}
+              label={t.design.modeEmptyLabel}
+              description={t.design.modeEmptyDesc}
+              coversLabel={t.design.modeCoversLabel}
+              covers={t.design.modeEmptyCovers}
+            />
           </div>
 
-          {modeChosen && mode === 'design_only' && <ModeNote>{t.design.modeDesignOnlyExcept}</ModeNote>}
+          {modeChosen && emptyStart && <ModeNote>{t.design.modeEmptyExcept}</ModeNote>}
+          {modeChosen && !emptyStart && mode === 'design_only' && <ModeNote>{t.design.modeDesignOnlyExcept}</ModeNote>}
 
-          {modeChosen && mode === 'full' && (
+          {modeChosen && !emptyStart && mode === 'full' && (
             <div className="space-y-3 pt-2">
               <ModeNote>{t.design.modeFullExcept}</ModeNote>
               <div>

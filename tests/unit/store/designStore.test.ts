@@ -189,3 +189,39 @@ describe('painting the whole room', () => {
     expect(useDesignStore.getState().selectedElement).toBeNull();
   });
 });
+
+describe('the empty start', () => {
+  it('opens the studio on the flat as drawn with nothing in it, and closes the steps before it', () => {
+    useDesignStore.getState().setMode('full');
+    useDesignStore.getState().chooseEmptyStart();
+    let state = useDesignStore.getState();
+    expect(state.emptyStart).toBe(true);
+    expect(state.modeChosen).toBe(true);
+    expect(state.mode).toBe('design_only');
+
+    // Whatever an earlier layout left behind goes; the rooms stay as drawn.
+    useDesignStore.setState({ items: [placed('sofa', 2, 0.47, 2, 0.9)] });
+    useDesignStore.getState().saveVersion('01');
+    expect(useDesignStore.getState().versions).toHaveLength(1);
+    useDesignStore.getState().startEmpty();
+    state = useDesignStore.getState();
+    expect(state.items).toEqual([]);
+    expect(state.electrical).toEqual([]);
+    expect(state.finishes.every((f) => !f.product)).toBe(true);
+    expect(state.plan?.rooms).toHaveLength(1);
+    expect(state.generated).toBe(true);
+    expect(state.step).toBe(5);
+    expect(state.versions).toEqual([]);
+    expect(state.history.past).toHaveLength(0);
+  });
+
+  it('is put down by the other two cards', () => {
+    useDesignStore.getState().chooseEmptyStart();
+    useDesignStore.getState().setMode('design_only');
+    expect(useDesignStore.getState().emptyStart).toBe(false);
+    useDesignStore.getState().chooseEmptyStart();
+    useDesignStore.getState().setMode('full');
+    expect(useDesignStore.getState().emptyStart).toBe(false);
+    expect(useDesignStore.getState().mode).toBe('full');
+  });
+});

@@ -1646,6 +1646,16 @@ export const en: Dictionary = {
       'The trades to contact, with their prices',
     ],
     modeFullExcept: 'Say below what state the home is in — that is what decides which work is counted and which is already done.',
+    modeEmptyLabel: 'Start from scratch',
+    modeEmptyDesc: 'Empty rooms and no style chosen — straight into the 3D studio, where you arrange everything yourself.',
+    modeEmptyCovers: [
+      'The flat in 3D as you drew it — with no furniture in it',
+      'No style test and no technical step — straight to the studio',
+      'You pick every piece, finish and light from the catalogue',
+      'The budget counts only what you add',
+    ] as string[],
+    modeEmptyExcept: 'The technical step and the style test are skipped — the studio opens with everything empty. Labour is not counted, as in "design only".',
+    continueToStudio: 'To the 3D studio',
 
     modeCoverTitle: 'What this means for you',
     modeCoverDone: 'Already done',

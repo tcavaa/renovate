@@ -1728,6 +1728,19 @@ The design page's mode block defaults to design only; choosing renovation + desi
 the calculator's four home states (old renovation first), and the studio prices against the
 chosen one.
 
+**The third way in is an empty start** (`designStore.emptyStart`, `chooseEmptyStart`,
+`startEmpty`). The card beside "design only" and "renovation + design" on step 1 opens the
+studio on the flat as drawn with every room empty: no layout, no furniture, no fittings, the
+style's ordinary finishes, no style test and no technical step — the person furnishes it
+from the catalogue. It is priced as `design_only` (the flag is the studio's way in, not a
+kind of project; the row's `mode` stays what the database knows). With rooms to open on
+(an uploaded plan, the calculator's rooms) step 1's continue goes to the studio at once; a
+blank sheet is drawn on step 2 first, whose continue then reads "to the 3D studio" and hands
+on. `startEmpty` is the journey's hinge like `generate` — `generated`, step 5, no versions,
+an empty history — so the steps before the studio close behind it, and version 01 (taken by
+`ensureExistingVersion` on the studio's first open) is the empty flat. Choosing either of
+the other two cards, a saved project and a calculation coming in all put the flag down.
+
 **Each mode says what it covers, and each home state says what that means.** "Design only"
 sounded like it might still include the wiring and "renovation + design" like it might not
 include the sofa, so both cards carry a list (`modeDesignOnlyCovers` / `modeFullCovers`)
