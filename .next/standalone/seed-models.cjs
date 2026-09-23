@@ -25772,6 +25772,12 @@ var products = mysqlTable("products", {
   id: int("id").primaryKey().autoincrement(),
   categoryId: int("category_id").notNull().references(() => categories.id),
   storeId: int("store_id").references(() => stores.id),
+  /**
+   * A piece of furniture a person uploaded for their own flats — a model of their own, or a
+   * photo waiting to be made into one. Theirs alone: every public query leaves owned
+   * products out, the design catalogue adds the caller's own, and the seeds never touch them.
+   */
+  ownerUserId: int("owner_user_id").references(() => users.id, { onDelete: "cascade" }),
   nameKa: varchar("name_ka", { length: 500 }).notNull(),
   // Translations fall back through en → ka on the client (see `localizedName`).
   nameEn: varchar("name_en", { length: 500 }),
@@ -25813,7 +25819,8 @@ var products = mysqlTable("products", {
   // The public catalogue lists active products by category, featured first; the studio
   // pulls every active product in the design categories. Both filter on these columns.
   activeCategoryIdx: index("products_active_category_idx").on(t.isActive, t.categoryId, t.isFeatured),
-  kindIdx: index("products_model3d_kind_idx").on(t.model3dKind)
+  kindIdx: index("products_model3d_kind_idx").on(t.model3dKind),
+  ownerIdx: index("products_owner_idx").on(t.ownerUserId)
 }));
 var rates = mysqlTable("rates", {
   id: int("id").autoincrement().primaryKey(),
@@ -31004,7 +31011,7 @@ async function main() {
     }
   }
   console.log(`  \u2713 ${TRIM_PRODUCTS.length} skirting boards and cornices`);
-  const manifestManaged = or(isNull(products.model3dUrl), like(products.model3dUrl, "/models/%"));
+  const manifestManaged = and(isNull(products.ownerUserId), or(isNull(products.model3dUrl), like(products.model3dUrl, "/models/%")));
   const stale = await db.select({ id: products.id, slug: products.slug }).from(products).where(
     keepSlugs.length ? and(isNotNull(products.model3dKind), notInArray(products.slug, keepSlugs), manifestManaged) : and(isNotNull(products.model3dKind), manifestManaged)
   );
@@ -31016,12 +31023,12 @@ async function main() {
   const surfaceCategoryIds = threeD.filter((c) => ["laminate", "floor-tiles", "wall-tiles", "paint"].includes(c.slug)).map((c) => c.id);
   let hidden = 0;
   if (modelCategoryIds.length) {
-    const rows = await db.select({ id: products.id }).from(products).where(and(inArray(products.categoryId, modelCategoryIds), isNull(products.model3dUrl), eq(products.isActive, true)));
+    const rows = await db.select({ id: products.id }).from(products).where(and(inArray(products.categoryId, modelCategoryIds), isNull(products.model3dUrl), isNull(products.ownerUserId), eq(products.isActive, true)));
     if (rows.length) await db.update(products).set({ isActive: false }).where(inArray(products.id, rows.map((r) => r.id)));
     hidden += rows.length;
   }
   if (surfaceCategoryIds.length) {
-    const rows = await db.select({ id: products.id }).from(products).where(and(inArray(products.categoryId, surfaceCategoryIds), isNull(products.textureUrl), eq(products.isActive, true)));
+    const rows = await db.select({ id: products.id }).from(products).where(and(inArray(products.categoryId, surfaceCategoryIds), isNull(products.textureUrl), isNull(products.ownerUserId), eq(products.isActive, true)));
     if (rows.length) await db.update(products).set({ isActive: false }).where(inArray(products.id, rows.map((r) => r.id)));
     hidden += rows.length;
   }

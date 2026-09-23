@@ -16,7 +16,7 @@
 
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, LayoutGrid, MousePointerClick, Package, Search, X } from 'lucide-react';
+import { ExternalLink, LayoutGrid, MousePointerClick, Package, Plus, Search, UserRound, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, styleLabel } from '@/lib/i18n/labels';
@@ -45,6 +45,7 @@ export function CatalogBrowser({
   onState,
   placeMode,
   onPlace,
+  onAddOwn,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,6 +60,8 @@ export function CatalogBrowser({
   placeMode: CatalogPlaceMode;
   /** Puts the product on the pointer; false when there is no room for it. */
   onPlace: (product: CatalogProduct) => boolean;
+  /** Opens the dialog for a piece of the person's own. */
+  onAddOwn?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -151,6 +154,20 @@ export function CatalogBrowser({
         <div className="flex min-h-0 flex-1">
           {/* ---- left: the filters ---- */}
           <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-line bg-sand-light/40 p-3">
+            {/* The person's own pieces: theirs to filter to, and the way to add one. */}
+            <p className={sectionTitle}>{t.design.ownMine}</p>
+            <button type="button" aria-pressed={state.mine} onClick={() => patch({ mine: !state.mine })} className={filterRow(state.mine)}>
+              <UserRound className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate">{t.design.ownMine}</span>
+              <span className="tabular-nums opacity-70">{browse.ownCount}</span>
+            </button>
+            {onAddOwn && (
+              <button type="button" onClick={onAddOwn} className="mt-1 flex h-8 w-full items-center gap-2 rounded-[8px] border border-dashed border-ink/30 px-2 text-left text-xs font-semibold text-ink hover:border-ink hover:bg-white">
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{t.design.ownAdd}</span>
+              </button>
+            )}
+
             <p className={sectionTitle}>{t.design.shelfRooms}</p>
             <button type="button" onClick={() => patch({ room: null, kind: '' })} className={filterRow(browse.openRoom === null)}>
               <span className="flex-1 truncate">{t.design.shelfAllRooms}</span>
@@ -325,13 +342,13 @@ export function CatalogBrowser({
                       </span>
                       <span className="flex flex-1 flex-col gap-0.5 px-2.5 py-2">
                         <span className="line-clamp-2 text-xs font-medium leading-snug text-ink">{name}</span>
-                        <span className="truncate text-[10px] text-ink-muted">{seller}</span>
+                        <span className="truncate text-[10px] text-ink-muted">{p.own ? (p.pending ? t.design.ownPending : t.design.ownBadge) : seller}</span>
                         <span className="mt-auto flex items-center justify-between gap-2 pt-1">
-                          <span className="text-sm font-semibold tabular-nums text-ink">{formatGEL(p.pricePerUnit)}</span>
+                          <span className={cn('text-sm font-semibold tabular-nums', p.own ? 'text-ink-muted' : 'text-ink')}>{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</span>
                           <button
                             type="button"
-                            disabled={!canPlace}
-                            title={canPlace ? placeLabel : t.design.catalogPlaceWalk}
+                            disabled={!canPlace || !!p.pending}
+                            title={p.pending ? t.design.ownPendingHint : canPlace ? placeLabel : t.design.catalogPlaceWalk}
                             aria-label={placeLabel}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -378,7 +395,9 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
       </div>
       <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{archetypeLabel(p.model3dKind!, locale)}</p>
       <h3 className="mt-0.5 font-serif text-base font-semibold leading-snug text-ink">{name}</h3>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{formatGEL(p.pricePerUnit)}</p>
+      <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</p>
+      {p.own && <p className={cn('mt-1 inline-block rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold', p.pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{p.pending ? t.design.ownPending : t.design.ownBadge}</p>}
+      {p.pending && <p className="mt-2 text-xs leading-relaxed text-ink-muted">{t.design.ownPendingHint}</p>}
 
       <dl className="mt-3 space-y-1.5 text-xs">
         {p.store && (
@@ -433,7 +452,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
 
       <div className="mt-auto pt-4">
         <p className="mb-1.5 truncate text-[11px] text-ink-muted">{fill(t.design.catalogPlaceInto, { room: roomLabel })}</p>
-        <button type="button" disabled={!canPlace} onClick={onPlace} className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!canPlace || !!p.pending} onClick={onPlace} className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
           <MousePointerClick className="h-4 w-4" />
           {placeLabel}
         </button>

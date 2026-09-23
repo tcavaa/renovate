@@ -42,6 +42,10 @@ export interface CatalogProduct {
   /** m² one unit covers — how a tin of paint becomes a price per square metre. */
   coveragePerUnit: number | null;
   store: SceneProduct['store'];
+  /** Uploaded by the person themself, for their own flats; nobody else sees it and it costs nothing. */
+  own?: boolean;
+  /** An own photo waiting to be made into a model: listed under "my items", not placeable yet. */
+  pending?: boolean;
 }
 
 export type BudgetLevel = 'value' | 'balanced' | 'premium';

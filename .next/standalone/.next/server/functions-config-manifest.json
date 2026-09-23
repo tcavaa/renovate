@@ -37,6 +37,8 @@
     "/api/categories/[id]": {},
     "/api/checkout": {},
     "/api/design/catalog": {},
+    "/api/design/models": {},
+    "/api/design/models/[id]": {},
     "/api/design/parse-plan": {},
     "/api/design/projects": {},
     "/api/design/renders": {},

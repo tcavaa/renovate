@@ -49,7 +49,12 @@ export function DesignFlowGuard({ step }: { step: StudioStep }) {
   return null;
 }
 
-/** On the calculator's first step: resume where it was left. */
+/**
+ * On the calculator's first two steps: resume where it was left, and keep both shut once
+ * the estimate exists. Step 1 (the way in and the home state) and step 2 (the plan) are
+ * open to each other until "start the calculation" is pressed; from then on either hands
+ * on to wherever the journey got to.
+ */
 export function CalculatorFlowGuard({ step }: { step: CalculatorStep }) {
   const router = useRouter();
   const rooms = useCalculatorStore((s) => s.rooms.length);
@@ -58,9 +63,10 @@ export function CalculatorFlowGuard({ step }: { step: CalculatorStep }) {
   const calculated = useCalculatorStore((s) => s.calculated);
 
   useEffect(() => {
-    if (step !== 1 || rooms === 0 || !homeState) return;
-    // Once the estimate exists, step 1 is shut: it hands on to wherever the journey got to.
-    if (calculated || stored > 1) router.replace(CALCULATOR_STEP_HREFS[Math.max(stored, calculated ? 2 : 1) as CalculatorStep]);
+    if (step > 2 || rooms === 0 || !homeState) return;
+    const onward = Math.max(stored, 3) as CalculatorStep;
+    if (calculated) router.replace(CALCULATOR_STEP_HREFS[onward]);
+    else if (step === 1 && stored >= 3) router.replace(CALCULATOR_STEP_HREFS[onward]);
   }, [step, rooms, stored, homeState, calculated, router]);
 
   return null;

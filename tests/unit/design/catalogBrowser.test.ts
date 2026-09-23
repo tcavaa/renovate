@@ -128,3 +128,21 @@ describe('the catalogue browser', () => {
     expect(hasCatalogFilters(state({ priceMax: 500 }))).toBe(true);
   });
 });
+
+describe('a person’s own pieces', () => {
+  const withOwn: CatalogProduct[] = [
+    ...CATALOG,
+    product(20, { nameEn: 'My dresser', model3dKind: 'dresser', pricePerUnit: 0, store: null, own: true, pending: false }),
+    product(21, { nameEn: 'My armchair (photo)', model3dKind: 'armchair', pricePerUnit: 0, store: null, model3dUrl: null, own: true, pending: true }),
+  ];
+
+  it('lists them with the rest, a photo waiting for its model included, and can narrow to them alone', () => {
+    const all = browseCatalog(withOwn, state(), { focusRoom: null, locale: 'ka' });
+    expect(all.total).toBe(7);
+    expect(all.ownCount).toBe(2);
+    expect(ids(all.results)).toContain(21);
+    const mine = browseCatalog(withOwn, state({ mine: true }), { focusRoom: null, locale: 'ka' });
+    expect(ids(mine.results).sort()).toEqual([20, 21]);
+    expect(hasCatalogFilters(state({ mine: true }))).toBe(true);
+  });
+});

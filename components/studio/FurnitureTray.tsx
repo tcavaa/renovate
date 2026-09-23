@@ -22,7 +22,7 @@
 
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, LayoutGrid, Package, Palette, Search, X } from 'lucide-react';
+import { ChevronLeft, LayoutGrid, Package, Palette, Plus, Search, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, styleLabel } from '@/lib/i18n/labels';
 import { SHELF_ROOMS, archetypeLabel, kindsForRoom, unroomedKinds } from '@/lib/design/catalog';
@@ -50,6 +50,7 @@ export function FurnitureTray({
   onPick,
   onDragProduct,
   onOpenCatalog,
+  onAddOwn,
 }: {
   catalog: CatalogProduct[];
   styleId: StyleId;
@@ -61,6 +62,8 @@ export function FurnitureTray({
   onDragProduct?: (product: CatalogProduct | null) => void;
   /** Opens the whole catalogue as a page (`CatalogBrowser`): search, filters, details. */
   onOpenCatalog?: () => void;
+  /** Opens the dialog for a piece of the person's own — a model or a photo of theirs. */
+  onAddOwn?: () => void;
 }) {
   const t = useT();
   const locale = useLocale();
@@ -122,7 +125,8 @@ export function FurnitureTray({
     const inRoom = openRoom ? new Set(roomKinds) : null;
     return placeable
       .filter((p) => (openKind ? p.model3dKind === openKind : !inRoom || inRoom.has(p.model3dKind!)))
-      .filter((p) => styles.size === 0 || (Array.isArray(p.styleTags) ? (p.styleTags as string[]) : []).some((s) => styles.has(s as StyleId)))
+      // A piece of the person's own has no style tag and is theirs in any style.
+      .filter((p) => p.own || styles.size === 0 || (Array.isArray(p.styleTags) ? (p.styleTags as string[]) : []).some((s) => styles.has(s as StyleId)))
       .filter((p) => {
         if (!q) return true;
         return [p.nameKa, p.nameEn, p.nameRu, p.brand, p.store?.nameKa, p.store?.nameEn].filter(Boolean).join(' ').toLowerCase().includes(q);
@@ -280,6 +284,12 @@ export function FurnitureTray({
             </div>
           )}
 
+          {/* A piece of the person's own: their model, or a photo waiting to become one. */}
+          {onAddOwn && (
+            <button type="button" onClick={onAddOwn} title={t.design.ownAdd} aria-label={t.design.ownAdd} data-tour="own-add" className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-dashed border-ink/40 text-ink transition-colors hover:border-ink hover:bg-sand-light">
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
           {/* The whole catalogue as a page — search, filters, details — for when the shelf is not enough. */}
           {onOpenCatalog && (
             <button type="button" onClick={onOpenCatalog} title={t.design.catalogOpenHint} data-tour="catalog" className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">

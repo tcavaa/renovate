@@ -77,7 +77,7 @@ export default function PlacementStepPage() {
   if (rooms.length === 0 || !homeState) {
     return (
       <>
-        <StepIndicator current={4} />
+        <StepIndicator current={5} />
         <EmptyStep message={t.calculator.needRoomsFirst} back={t.common.back} />
       </>
     );
@@ -93,9 +93,9 @@ export default function PlacementStepPage() {
 
   return (
     <>
-      <StepIndicator current={4} />
+      <StepIndicator current={5} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={4} total={CALCULATOR_STEPS} title={t.calculator.placementTitle} subtitle={t.calculator.placementSubtitle} />
+        <StepHeader step={5} total={CALCULATOR_STEPS} title={t.calculator.placementTitle} subtitle={t.calculator.placementSubtitle} />
 
         {picks.length === 0 || !plan ? (
           <div className="mt-8 border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.calculator.placementNothing}</div>

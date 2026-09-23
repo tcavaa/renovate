@@ -19,6 +19,7 @@ import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
 import { CatalogBrowser } from '@/components/studio/CatalogBrowser';
+import { OwnModelDialog } from '@/components/studio/OwnModelDialog';
 import { initialCatalogBrowserState, type CatalogBrowserState } from '@/lib/design/catalogBrowser';
 import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
@@ -29,7 +30,7 @@ import { FixturePanel } from '@/components/studio/FixturePanel';
 import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { useDesignStore } from '@/store/designStore';
-import { useDesignCatalog } from '@/hooks/useDesignCatalog';
+import { useDesignCatalog, refreshDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
@@ -159,7 +160,8 @@ export default function StudioPage() {
   const [electricalArmed, setElectricalArmed] = useState(false);
   const [technicalKind, setTechnicalKind] = useState<TechnicalKind>('water_supply');
   const [technicalArmed, setTechnicalArmed] = useState(false);
-  const [finishScopeState, setFinishScope] = useState<FinishScope>('room');
+  // The first chip of each surface is the smallest piece — a square metre — and that is what the brush opens on.
+  const [finishScopeState, setFinishScope] = useState<FinishScope>('cell');
   const [finishSurface, setFinishSurface] = useState<FinishSurface>('floor');
   // A square metre of wall needs the height of the click, which the board has not: while
   // the board is the view the brush is the metre-wide strip (the chip stands disabled and
@@ -191,6 +193,8 @@ export default function StudioPage() {
   const [catalogBrowser, setCatalogBrowser] = useState<'closed' | 'open' | 'minimized'>('closed');
   const [catalogState, setCatalogState] = useState<CatalogBrowserState>(initialCatalogBrowserState);
   const [catalogLast, setCatalogLast] = useState<CatalogProduct | null>(null);
+  /** The dialog for a piece of the person's own. */
+  const [ownDialogOpen, setOwnDialogOpen] = useState(false);
   const hoverCard = useRef<HoverCardHandle>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   /** The 2D board's controls while it is the view: the carried piece follows a drag through it. */
@@ -295,7 +299,7 @@ export default function StudioPage() {
         store.selectItem(null);
         store.selectElement(null);
         setFinishSurface(sel.surface);
-        setFinishScope(sel.surface === 'wall' && sel.wallIndex != null ? 'wall' : 'room');
+        setFinishScope(sel.surface === 'wall' ? (sel.wallIndex != null ? 'wall' : 'patch') : 'cell');
         setTrayOpen(true);
       }
     },
@@ -1060,6 +1064,7 @@ export default function StudioPage() {
                     onPick={pickProduct}
                     onDragProduct={onDragProduct}
                     onOpenCatalog={() => setCatalogBrowser('open')}
+                    onAddOwn={() => setOwnDialogOpen(true)}
                   />
                 )}
                 {category === 'electric' && (
@@ -1098,7 +1103,8 @@ export default function StudioPage() {
                     onSurface={(surface) => {
                       setFinishSurface(surface);
                       // The brush goes with the surface: a floor laminate does not paint a wall.
-                      setFinishScope(painting && surface === 'wall' ? (finishScope === 'patch' ? 'patch' : 'strip') : painting && surface === 'floor' ? 'cell' : 'room');
+                      // Each surface opens on its first chip, the smallest piece; a trim has only the room.
+                      setFinishScope(surface === 'wall' ? (painting && finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
                       setBrush(undefined);
                     }}
                     scope={finishScope}
@@ -1174,6 +1180,17 @@ export default function StudioPage() {
         onState={setCatalogState}
         placeMode={view}
         onPlace={placeFromCatalog}
+        onAddOwn={() => setOwnDialogOpen(true)}
+      />
+
+      <OwnModelDialog
+        open={ownDialogOpen}
+        onOpenChange={setOwnDialogOpen}
+        onCreated={(product) => {
+          // The catalogue now lists it for this person; a model goes straight on the pointer.
+          void refreshDesignCatalog();
+          if (product.model3dUrl && view !== 'walk') store.beginAdd(product, focusRoomId);
+        }}
       />
 
       <PhotoDialog shot={shot} open={photoOpen} onOpenChange={setPhotoOpen} ensureSaved={ensureSaved} />

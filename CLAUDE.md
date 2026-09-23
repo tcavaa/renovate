@@ -107,8 +107,8 @@ app/
   (auth)/login, register, register/store, register/worker   ⟵ partners register themselves
   (main)/
     page.tsx                       landing
-    calculator/                    step 1 (the plan + home state)
-      materials/ catalog/ placement/ furniture/ summary/     steps 2–6 (catalog = the cart, placement = where the finishes go)
+    calculator/                    step 1 (the way in: upload or draw, and the home state)
+      plan/ materials/ catalog/ placement/ furniture/ summary/     steps 2–7 (plan = the board, catalog = the cart, placement = where the finishes go)
     design/                        ⟵ Design Studio, eight steps (DesignSteps / lib/design/steps)
       page.tsx                     1 plan: upload / blank sheet / calculator rooms, wall defaults, mode
       plan/                        2 the existing house on the 2D board (walls, doors, windows, columns, beams)
@@ -659,6 +659,16 @@ back or the neighbours are dragged after it, and Ctrl+Z is the way back. Shift a
 its old meanings (the 1 cm grid, the free angle) — it is the board's "precisely, and only
 this" key.
 
+**Walls line up across the sheet** (`snapRectangle`, `snapWallOffset`). A rectangle being
+drawn and a wall being dragged sideways both pull onto the line of a parallel wall they come
+close to — a wall alongside first, then one continuing them end to end, then one merely in
+line somewhere else on the sheet — and draw the line the two now share right across the
+sheet (`align` guide), the way a dragged room does. That is how two rooms one above the
+other get walls on one line and the same width: both sides of the new rectangle land on the
+lines of the room above. A dragged wall does not snap onto a wall that runs *alongside* it
+(that would stand one wall inside another; the drop refuses it), and Shift's "alone" drag
+snaps like any other.
+
 **Corners close on the board** (`wallEndExtensions`). A wall is drawn as a stroked
 centreline with butt ends, and two such strokes meeting at an L-corner each stopped at the
 node — a square of half a thickness a side was left empty at the outer corner and a hairline
@@ -1151,6 +1161,12 @@ one, so the column leaves the strip and goes on wearing its product as squares, 
 the erased one (`erasePatchFromStrip`), priced as what is left. The 2D board draws the same
 order — whole wall, strips, squares — whatever order the finishes are stored in.
 
+**The brush opens on the smallest piece.** The scope chips run smallest first — a square
+metre, a metre-wide strip, one wall, the whole room; on a floor a square metre, then the
+room — and the first chip is what the tray opens on and what a surface tab or a tap on a
+floor switches to (a tap on a wall picks *that wall*). "The whole room", the one that
+erases, comes last.
+
 **"The whole room" is the whole room.** A swatch picked in the room scope (`setFinish`) takes
 everything off that surface in those rooms before it lays the new base: a wall's own finish,
 the strips, the square metres; on a floor the painted tiles and the drawn zones (a zone that
@@ -1412,6 +1428,26 @@ the studio to give up the piece just placed. `isFurnitureProduct` is the one rul
 is furniture (a model, and neither a fitting, a door or window, nor a radiator); the shelf
 uses it too.
 
+**A person's own furniture** (`products.ownerUserId`, `POST /api/design/models`,
+`components/studio/OwnModelDialog.tsx`). The wardrobe they are keeping, the table they
+already have: the "+" on the furniture shelf (and in the catalogue modal) takes a GLB or a
+photo and makes a *product* of it — a real row, so the layout, the carry, the budget and
+the saves all work unchanged — owned by that person (`ownerUserId`), priced at nothing,
+sold by nobody, in the archetype's category (`ARCHETYPES[kind].categorySlug`). A GLB is
+inspected like a partner's (`sniffModel`, `inspectGlb`, no Draco/Basis), shown on the
+admin uploader's turntable (`mountPreview`, exported from `ModelUploader`) so its size is
+read off it and a photo rendered for the tile, and is placeable at once — the studio puts
+it on the pointer. A photo goes in with `model3dStatus: 'pending'`: listed under "my
+items" with a badge, not placeable, waiting for the conversion that is not built yet (AI,
+last stage). **Theirs alone**: the cached design catalogue leaves owned products out and the
+route adds the caller's own fresh (`loadOwnProducts`, `own` / `pending` on
+`CatalogProduct`); every public product query has `isNull(products.ownerUserId)` (the
+`publicProductCondition`, the catalogue page, the landing wall, related products) and the
+product page 404s for anyone but the owner; `pnpm models:seed` never removes or switches
+off an owned product. The profile lists them (`MyModels`, `DELETE /api/design/models/[id]`
+removes the row and its files). `refreshDesignCatalog()` in `hooks/useDesignCatalog.ts`
+refetches for every mounted hook after one is added.
+
 **The colour filter is swatches of what is on the shelf.** `lib/design/colors.ts` sorts any
 hex into twelve families a person would name (hue, lightness and *chroma* — HSL saturation
 races to 1 near white, and a pale peach wood read as vivid orange), and the tray shows one
@@ -1656,7 +1692,20 @@ and a calculator that starts over lets go of the project id so its next save is 
 - `mode: 'design_only'` — the home is finished; only furniture and decor are costed.
 - `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine.
 
-### Step 1: three ways to a plan (`app/(main)/calculator/page.tsx`)
+### Steps 1 and 2: the way in, then the board (`app/(main)/calculator/page.tsx`, `plan/page.tsx`)
+
+**The plan is a step of its own** (September 2026). Step 1 is the way in and the home's
+condition: upload a plan (the `PlanUploadCard` with `showContinue={false}`, so it has no
+button of its own — it hands the plan to page state as soon as the area makes sense, and
+nothing is kept until the one "გაგრძელება" at the bottom) or say you will draw one, and the
+home state below. Step 2 (`/calculator/plan`) is the board — the uploaded plan to check, or
+a blank sheet to draw on, with the inspector and the rooms panel beside it — and that is
+where "გამოთვლის დაწყება" is pressed, once there are rooms. It sets `calculated`, which
+shuts both steps (`lockedBefore={3}`; the `CalculatorFlowGuard` on either sends a return
+onward). Until then the two are open to each other: step 1 only bounces when the journey is
+past the board. The persisted step is version 3 (`migratePersisted` shifts a version 2
+journey's materials and everything after by one; a version 1 journey gets both shifts).
+Seven steps: way in · plan · materials · catalog · placement · furniture · summary.
 
 Room sizes are exact: the form and the room list take any value to the centimetre
 (`step 0.01`; the list's `SizeInput` commits on blur so "3." is not rewritten under the
@@ -1727,6 +1776,19 @@ signing in; that is the "log in to save" path.
 The design page's mode block defaults to design only; choosing renovation + design reveals
 the calculator's four home states (old renovation first), and the studio prices against the
 chosen one.
+
+**The third way in is an empty start** (`designStore.emptyStart`, `chooseEmptyStart`,
+`startEmpty`). The card beside "design only" and "renovation + design" on step 1 opens the
+studio on the flat as drawn with every room empty: no layout, no furniture, no fittings, the
+style's ordinary finishes, no style test and no technical step — the person furnishes it
+from the catalogue. It is priced as `design_only` (the flag is the studio's way in, not a
+kind of project; the row's `mode` stays what the database knows). With rooms to open on
+(an uploaded plan, the calculator's rooms) step 1's continue goes to the studio at once; a
+blank sheet is drawn on step 2 first, whose continue then reads "to the 3D studio" and hands
+on. `startEmpty` is the journey's hinge like `generate` — `generated`, step 5, no versions,
+an empty history — so the steps before the studio close behind it, and version 01 (taken by
+`ensureExistingVersion` on the studio's first open) is the empty flat. Choosing either of
+the other two cards, a saved project and a calculation coming in all put the flag down.
 
 **Each mode says what it covers, and each home state says what that means.** "Design only"
 sounded like it might still include the wiring and "renovation + design" like it might not

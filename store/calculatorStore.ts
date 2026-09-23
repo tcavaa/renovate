@@ -97,7 +97,7 @@ interface CalculatorStore extends CalculatorState {
 }
 
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
-const PERSIST_VERSION = 2;
+const PERSIST_VERSION = 3;
 
 type Persisted = CalculatorState & { projectId: number | null; calculated: boolean; excluded: Tick[]; quantities: Quantities };
 
@@ -312,7 +312,7 @@ const persistedSchema = z.object({
   rooms: calculatorRequestSchema.shape.rooms.element.array(),
   selectedProducts: z.record(selectedProductSchema),
   selectedFurniture: z.record(z.array(selectedProductSchema)),
-  step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]),
+  step: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)]),
   projectId: z.number().int().positive().nullable().optional(),
   calculated: z.boolean().optional(),
   excluded: z.array(z.union([z.string(), z.number()])).optional(),
@@ -321,11 +321,16 @@ const persistedSchema = z.object({
 
 function migratePersisted(persisted: unknown, version: number): Persisted {
   // Version 1 had five steps; the placement step went in as the fourth, so a journey that
-  // had reached the furniture (4) or the summary (5) is one further on now.
-  if (version === 1 && persisted && typeof persisted === 'object') {
-    const old = persisted as { step?: number };
-    persisted = { ...old, step: typeof old.step === 'number' && old.step >= 4 ? old.step + 1 : old.step };
-  } else if (version !== PERSIST_VERSION) return { ...initial };
+  // had reached the furniture (4) or the summary (5) is one further on now (version 2).
+  // Version 3 put the plan on a step of its own, the second, so everything from the
+  // materials on is one further on again.
+  if (!persisted || typeof persisted !== 'object') return { ...initial };
+  const old = persisted as { step?: number };
+  let step = typeof old.step === 'number' ? old.step : 1;
+  if (version === 1) step = step >= 4 ? step + 1 : step;
+  if (version === 1 || version === 2) step = step >= 2 ? step + 1 : step;
+  else if (version !== PERSIST_VERSION) return { ...initial };
+  persisted = { ...old, step };
   const parsed = persistedSchema.safeParse(persisted);
   if (!parsed.success) return { ...initial };
   return {

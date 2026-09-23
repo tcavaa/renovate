@@ -182,6 +182,14 @@
       "namedRegex": "^/api/categories/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/design/models/[id]",
+      "regex": "^/api/design/models/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/design/models/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/design/renders/[id]",
       "regex": "^/api/design/renders/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -516,6 +524,12 @@
       "namedRegex": "^/api/design/catalog(?:/)?$"
     },
     {
+      "page": "/api/design/models",
+      "regex": "^/api/design/models(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/design/models(?:/)?$"
+    },
+    {
       "page": "/api/design/parse-plan",
       "regex": "^/api/design/parse\\-plan(?:/)?$",
       "routeKeys": {},
@@ -622,6 +636,12 @@
       "regex": "^/calculator/placement(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/calculator/placement(?:/)?$"
+    },
+    {
+      "page": "/calculator/plan",
+      "regex": "^/calculator/plan(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/calculator/plan(?:/)?$"
     },
     {
       "page": "/calculator/summary",

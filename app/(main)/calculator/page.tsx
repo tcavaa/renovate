@@ -9,9 +9,6 @@ import { CalculatorFlowGuard } from '@/components/flow/FlowGuard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';
 import { PlanUploadCard } from '@/components/design/PlanUploadCard';
 import { PlanSketch } from '@/components/projects/PlanSketch';
-import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
-import { RoomsPanel } from '@/components/plan/RoomsPanel';
-import { ElementInspector } from '@/components/plan/ElementInspector';
 import { Button } from '@/components/ui/button';
 import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -20,77 +17,69 @@ import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorRoomsFromPlan } from '@/lib/design/planGeometry';
+import type { FloorPlan } from '@/lib/design/types';
 import { cn } from '@/lib/utils';
 
 type PlanMode = 'upload' | 'draw';
 
 /**
- * Step 1 of the calculator: the plan — uploaded, or drawn on the same board the studio uses
- * (walls as lines, rooms as rectangles, doors and windows) — and the home's condition. The
- * plan lives in the calculator's *own* board (`useCalculatorPlanStore`), separate from the
- * studio's; the calculator's rooms are read off it after every edit. The drawing crosses
- * into 3D only when the summary's "see it in 3D" is pressed.
+ * Step 1 of the calculator: the way in and the home's condition. Upload a plan (the card
+ * hands it over as soon as its area makes sense; nothing is kept until "continue") or say
+ * you will draw one, and pick the home state below. The drawing itself — checking an
+ * uploaded plan, or drawing on a blank sheet — is the next step, on the same board the
+ * studio uses; "start the calculation" is pressed there, once the rooms exist.
+ *
+ * The plan lives in the calculator's *own* board (`useCalculatorPlanStore`), separate from
+ * the studio's; the calculator's rooms are read off it after every edit.
  */
 export default function CalculatorStep1Page() {
   const router = useRouter();
   const t = useT();
-  const { homeState, rooms, setHomeState, replaceRooms, setCalculated } = useCalculatorStore();
+  const { homeState, rooms, setHomeState, replaceRooms } = useCalculatorStore();
   const plan = useCalculatorPlan();
   const setPlan = useCalculatorPlanStore((s) => s.setPlan);
   const floorPlanUrl = useCalculatorPlanStore((s) => s.floorPlanUrl);
-  const selection = useCalculatorPlanStore((s) => s.selectedElement);
-  const focusRoomId = useCalculatorPlanStore((s) => s.focusRoomId);
-  const electrical = useCalculatorPlanStore((s) => s.electrical);
-  const actions = useCalculatorPlanStore();
-  const [replacingPlan, setReplacingPlan] = useState(false);
   const planOnFile = !!plan && rooms.length > 0 && plan.rooms.length === rooms.length && plan.rooms.every((r) => rooms.some((room) => room.id === r.id));
-  const [mode, setMode] = useState<PlanMode>(() => (plan && plan.rooms.length > 0 ? 'draw' : 'upload'));
+  const [mode, setMode] = useState<PlanMode>(() => (plan && plan.rooms.length === 0 && plan.source === 'manual' ? 'draw' : 'upload'));
+  const [replacingPlan, setReplacingPlan] = useState(false);
+  /** A plan read from an upload, waiting for "continue"; taken back when its area is cleared. */
+  const [uploaded, setUploaded] = useState<{ plan: FloorPlan; imageUrl: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [planNotice, setPlanNotice] = useState<number | null>(null);
-  // A drop the board refused — a room over a room, a wall half inside another — says so for a
-  // moment; refused in silence it looked like the drag had simply not worked.
-  const [refused, setRefused] = useState<string | null>(null);
+
+  const planReady = mode === 'draw' || (planOnFile && !replacingPlan) || !!uploaded;
   useEffect(() => {
-    if (!refused) return;
-    const handle = window.setTimeout(() => setRefused(null), 2600);
-    return () => window.clearTimeout(handle);
-  }, [refused]);
+    if (error && planReady && homeState) setError(null);
+  }, [error, planReady, homeState]);
 
-  const canContinue = !!homeState && rooms.length > 0;
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  useEffect(() => {
-    if (canContinue && error) setError(null);
-  }, [canContinue, error]);
-
-  const handleStart = () => {
-    if (rooms.length === 0) {
-      setError(t.calculator.needRoomsFirst);
-      document.getElementById('plan-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /** On to the board: with the uploaded plan, with the plan already on file, or with a blank sheet. */
+  const continueToPlan = () => {
+    if (!planReady) {
+      setError(t.design.needPlanFirst);
+      scrollTo('plan-section');
       return;
     }
     if (!homeState) {
       setError(t.calculator.needHomeStateFirst);
-      document.getElementById('home-state-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollTo('home-state-section');
       return;
     }
-    // From here the flat and its condition are settled: everything after is quantified from
-    // them, so step 1 closes behind us.
-    setCalculated();
-    router.push('/calculator/materials');
-  };
-
-  /** A blank sheet to draw on: a new flat, a new project. */
-  const startDrawing = () => {
-    if (!plan || plan.rooms.length === 0) {
+    if (uploaded && (mode === 'upload' || !planOnFile)) {
+      // A different plan is a different flat: rooms, products and furniture all start over.
+      replaceRooms(calculatorRoomsFromPlan(uploaded.plan));
+      setPlan(uploaded.plan, uploaded.imageUrl);
+    } else if (!plan || (plan.rooms.length === 0 && (plan.walls?.length ?? 0) === 0)) {
+      // A blank sheet: the walls are drawn on the next step.
       setPlan({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, null);
       replaceRooms([]);
     }
-    setMode('draw');
+    router.push('/calculator/plan');
   };
 
-  const options: Array<{ id: PlanMode; icon: React.ReactNode; label: string; desc: string; onPick: () => void }> = [
-    { id: 'upload', icon: <Upload className="h-5 w-5" />, label: t.calculator.optionUpload, desc: t.calculator.optionUploadDesc, onPick: () => setMode('upload') },
-    { id: 'draw', icon: <PenLine className="h-5 w-5" />, label: t.calculator.optionDraw, desc: t.build.optionScratchDesc, onPick: startDrawing },
+  const options: Array<{ id: PlanMode; icon: React.ReactNode; label: string; desc: string }> = [
+    { id: 'upload', icon: <Upload className="h-5 w-5" />, label: t.calculator.optionUpload, desc: t.calculator.optionUploadDesc },
+    { id: 'draw', icon: <PenLine className="h-5 w-5" />, label: t.calculator.optionDraw, desc: t.build.optionScratchDesc },
   ];
 
   return (
@@ -101,7 +90,7 @@ export default function CalculatorStep1Page() {
         <StepHeader step={1} total={CALCULATOR_STEPS} title={t.calculator.title} subtitle={t.calculator.startSubtitle} />
 
         <section id="plan-section" className="mt-10 space-y-5">
-          <SectionHead index="01" title={t.calculator.planTitle} subtitle={t.calculator.planSubtitle} />
+          <SectionHead index="01" title={t.calculator.planTitle} subtitle={t.calculator.wayInHint} />
 
           {/* The two ways in, side by side; the chosen one opens below. */}
           <div className="grid gap-3 sm:grid-cols-2" role="tablist">
@@ -113,7 +102,7 @@ export default function CalculatorStep1Page() {
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={o.onPick}
+                  onClick={() => setMode(o.id)}
                   className={cn('group flex items-start gap-4 rounded-[16px] border p-5 text-left transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
                 >
                   <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
@@ -127,7 +116,7 @@ export default function CalculatorStep1Page() {
             })}
           </div>
 
-          {mode === 'upload' && planOnFile && !replacingPlan && plan && (
+          {planOnFile && !replacingPlan && plan && (
             <div className="grid items-center gap-5 rounded-[16px] border border-line bg-bg-surface p-5 sm:grid-cols-[220px_minmax(0,1fr)]">
               <div className="rounded-[12px] border border-line bg-white p-2">
                 {floorPlanUrl ? (
@@ -140,11 +129,16 @@ export default function CalculatorStep1Page() {
                 <p className="font-medium text-success">{t.calculator.planAlreadyUploaded.replace('{n}', String(rooms.length))}</p>
                 <p className="mt-1 text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setReplacingPlan(true)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setReplacingPlan(true);
+                      setMode('upload');
+                    }}
+                  >
                     {t.calculator.replacePlan}
-                  </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setMode('draw')}>
-                    {t.calculator.optionDraw}
                   </Button>
                 </div>
               </div>
@@ -155,82 +149,10 @@ export default function CalculatorStep1Page() {
             <div className="rounded-[16px] border border-line bg-bg-surface p-5">
               <p className="text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
               <div className="mt-4">
-                <PlanUploadCard
-                  showSample
-                  onPlan={(uploaded, imageUrl) => {
-                    // A different plan is a different flat: rooms, products and furniture all start over.
-                    const fromPlan = calculatorRoomsFromPlan(uploaded);
-                    replaceRooms(fromPlan);
-                    setPlan(uploaded, imageUrl);
-                    setPlanNotice(fromPlan.length);
-                    setReplacingPlan(false);
-                    setMode('draw');
-                    document.getElementById('rooms-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }}
-                />
+                {/* No button of its own: the plan waits here, and the one continue below takes it. */}
+                <PlanUploadCard showSample showContinue={false} onPlan={(read, imageUrl) => setUploaded({ plan: read, imageUrl })} onReset={() => setUploaded(null)} />
               </div>
-              {planNotice != null && <p className="mt-3 text-sm font-medium text-success">{t.calculator.planRoomsApplied.replace('{n}', String(planNotice))}</p>}
-            </div>
-          )}
-
-          {mode === 'draw' && plan && (
-            <div id="rooms-list" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="relative min-w-0">
-                <PlanWorkspace
-                  store={useCalculatorPlanStore}
-                  tools={['select', 'pan', 'wall', 'room', 'door', 'window']}
-                  layerKeys={['walls', 'openings', 'dimensions']}
-                  height={560}
-                  onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
-                />
-                {refused && (
-                  <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
-                    {refused}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-                <ElementInspector
-                  plan={plan}
-                  electrical={electrical}
-                  selection={selection && selection.kind !== 'room' ? selection : null}
-                  actions={{
-                    updateWall: actions.updateWall,
-                    resizeWall: actions.resizeWall,
-                    removeWall: actions.removeWall,
-                    updateOpening: actions.updateOpening,
-                    removeOpening: actions.removeOpening,
-                    addOpening: (roomId, kind, wallIndex) => {
-                      const id = actions.addOpening(roomId, kind, wallIndex);
-                      if (id) actions.selectElement({ kind: 'opening', id, roomId });
-                    },
-                    updateColumn: actions.updateColumn,
-                    removeColumn: actions.removeColumn,
-                    updateBeam: actions.updateBeam,
-                    removeBeam: actions.removeBeam,
-                    updateTechnical: actions.updateTechnicalPoint,
-                    removeTechnical: actions.removeTechnicalPoint,
-                    updateElectrical: actions.updateElectricalPoint,
-                    removeElectrical: actions.removeElectricalPoint,
-                    updateRoom: actions.updateRoom,
-                    resizeRoom: actions.resizeRoom,
-                    removeRoom: actions.removeRoom,
-                  }}
-                />
-                <RoomsPanel
-                  plan={plan}
-                  selectedId={focusRoomId}
-                  onSelect={(id) => {
-                    actions.setFocusRoom(id);
-                    actions.selectElement(id ? { kind: 'room', id } : null);
-                  }}
-                  actions={{ updateRoom: actions.updateRoom, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
-                  onAddRectangle={(rect, type) => {
-                    const id = actions.addRectangleRoom(rect, type);
-                    if (id) actions.setFocusRoom(id);
-                  }}
-                />
-              </div>
+              {uploaded && <p className="mt-3 text-sm font-medium text-success">{t.calculator.planRoomsApplied.replace('{n}', String(uploaded.plan.rooms.length))}</p>}
             </div>
           )}
         </section>
@@ -241,7 +163,7 @@ export default function CalculatorStep1Page() {
         </section>
       </div>
 
-      <StepNav next={{ label: t.calculator.startButton, onClick: handleStart }}>
+      <StepNav next={{ label: t.design.continueButton, onClick: continueToPlan }}>
         {error && (
           <p role="alert" aria-live="polite" className="flex items-center gap-2 text-sm font-medium text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />

@@ -110,6 +110,12 @@ export const products = mysqlTable('products', {
   id: int('id').primaryKey().autoincrement(),
   categoryId: int('category_id').notNull().references(() => categories.id),
   storeId: int('store_id').references(() => stores.id),
+  /**
+   * A piece of furniture a person uploaded for their own flats — a model of their own, or a
+   * photo waiting to be made into one. Theirs alone: every public query leaves owned
+   * products out, the design catalogue adds the caller's own, and the seeds never touch them.
+   */
+  ownerUserId: int('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
   nameKa: varchar('name_ka', { length: 500 }).notNull(),
   // Translations fall back through en → ka on the client (see `localizedName`).
   nameEn: varchar('name_en', { length: 500 }),
@@ -154,6 +160,7 @@ export const products = mysqlTable('products', {
   // pulls every active product in the design categories. Both filter on these columns.
   activeCategoryIdx: index('products_active_category_idx').on(t.isActive, t.categoryId, t.isFeatured),
   kindIdx: index('products_model3d_kind_idx').on(t.model3dKind),
+  ownerIdx: index('products_owner_idx').on(t.ownerUserId),
 }));
 
 /**

@@ -81,7 +81,7 @@ export interface SelectedProduct {
 }
 
 /** The calculator's steps: the plan, the materials, the cart, the placement of finishes, the furniture, the summary. */
-export type CalculatorStepNumber = 1 | 2 | 3 | 4 | 5 | 6;
+export type CalculatorStepNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface CalculatorState {
   homeState: HomeState | null;

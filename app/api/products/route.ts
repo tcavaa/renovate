@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * that registered itself is inactive until admin approves it, and so are its products —
  * whatever their own flag says.
  */
-export const publicProductCondition = () => and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)));
+export const publicProductCondition = () => and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId));
 
 export const GET = handle('GET /api/products', 'Failed to load products', async (req) => {
   const { searchParams } = new URL(req.url);

@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -1108,10 +1108,14 @@ export function PlanEditor(props: PlanEditorProps) {
         case 'wall-drag': {
           const n = wallNormal(gesture.wall);
           const raw = (world.x - gesture.startWorld.x) * n.x + (world.z - gesture.startWorld.z) * n.z;
-          gesture.distance = Math.round(raw * 100) / 100;
+          // Pulled onto the line of a parallel wall it comes close to, with the line the
+          // two would share drawn across the sheet — the same lines a room drag shows.
+          const snap = snapWallOffset(gesture.wall, walls, raw, SNAP_PX * perPx());
+          gesture.distance = Math.round(snap.distance * 100) / 100;
           gesture.moved = gesture.moved || Math.abs(raw) * transformRef.current.scale > DRAG_THRESHOLD_PX;
           // Shift can be pressed or let go in the middle of the drag: what counts is where it is at the drop.
           gesture.alone = shiftHeld.current;
+          setGuides(snap.guides);
           setGestureVersion((v) => v + 1);
           return;
         }

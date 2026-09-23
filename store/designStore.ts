@@ -127,6 +127,12 @@ interface DesignState {
    * the choice between "design only" and "renovation too" is theirs to make.
    */
   modeChosen: boolean;
+  /**
+   * The third way in on step 1: no layout, no style test, no technical step — the studio
+   * opens on the flat as drawn with every room empty and nothing painted, and the person
+   * furnishes it from the catalogue themselves. Priced as `design_only`.
+   */
+  emptyStart: boolean;
   /** Set when the journey started in the calculator; the summary prices against it. */
   homeState: HomeState | null;
   /** The saved project this design belongs to, so saving writes into the same row as the calculation. */
@@ -198,6 +204,14 @@ interface DesignState {
 interface DesignActions {
   setSaveState: (state: DesignState['saveState']) => void;
   setMode: (mode: DesignMode) => void;
+  /** Chooses the empty start (see `emptyStart`): design only, and the studio opened on empty rooms. */
+  chooseEmptyStart: () => void;
+  /**
+   * Opens the studio on the flat as drawn with nothing in it: no furniture, no fittings, the
+   * style's ordinary finishes, no versions and an empty history — the journey's hinge, like
+   * `generate`, so the steps before the studio close behind it.
+   */
+  startEmpty: () => void;
   setHomeState: (homeState: HomeState) => void;
   setProjectId: (id: number | null) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
@@ -399,6 +413,7 @@ const PERSIST_VERSION = 2;
 const initial: DesignState = {
   mode: 'design_only',
   modeChosen: false,
+  emptyStart: false,
   homeState: null,
   projectId: null,
   calculatorPicks: null,
@@ -490,7 +505,25 @@ function createDesignStore(storageName: string) {
         setSaveState: (saveState) => set({ saveState }),
 
         // Renovation needs a starting state to price from; white frame is the common case.
-        setMode: (mode) => set((s) => ({ mode, modeChosen: true, homeState: mode === 'full' ? (s.homeState ?? 'white_frame') : s.homeState })),
+        setMode: (mode) => set((s) => ({ mode, modeChosen: true, emptyStart: false, homeState: mode === 'full' ? (s.homeState ?? 'white_frame') : s.homeState })),
+        chooseEmptyStart: () => set({ mode: 'design_only', modeChosen: true, emptyStart: true }),
+        startEmpty: () =>
+          set((s) => ({
+            items: [],
+            electrical: [],
+            finishes: defaultFinishes(s.plan, s.styleId),
+            calculatorPicks: null,
+            pendingPicks: false,
+            focusRoomId: null,
+            selectedItemId: null,
+            selectedElement: null,
+            carryingItemId: null,
+            carryRestore: null,
+            generated: true,
+            step: 5,
+            versions: [],
+            history: emptyHistory(),
+          })),
         setHomeState: (homeState) => set({ homeState }),
         setProjectId: (projectId) => set({ projectId }),
 
@@ -574,6 +607,7 @@ function createDesignStore(storageName: string) {
             homeState,
             mode: scene.mode,
             modeChosen: true,
+            emptyStart: false,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
             excluded: scene.excluded ?? [],
@@ -1001,7 +1035,7 @@ function createDesignStore(storageName: string) {
             const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;
             if (keepDesign) {
               landing = 'studio';
-              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, generated: true, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
+              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, emptyStart: false, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, generated: true, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
             }
             return {
               plan,
@@ -1010,6 +1044,7 @@ function createDesignStore(storageName: string) {
               projectId,
               mode: 'full',
               modeChosen: true,
+              emptyStart: false,
               homeState,
               calculatorPicks,
               pendingPicks: false,
@@ -1424,6 +1459,7 @@ function createDesignStore(storageName: string) {
       partialize: (s) => ({
         mode: s.mode,
         modeChosen: s.modeChosen,
+        emptyStart: s.emptyStart,
         homeState: s.homeState,
         projectId: s.projectId,
         calculatorPicks: s.calculatorPicks,

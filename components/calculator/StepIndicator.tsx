@@ -10,14 +10,15 @@ export type CalculatorStep = CalculatorStepNumber;
 
 export const CALCULATOR_STEP_HREFS: Record<CalculatorStep, string> = {
   1: '/calculator',
-  2: '/calculator/materials',
-  3: '/calculator/catalog',
-  4: '/calculator/placement',
-  5: '/calculator/furniture',
-  6: '/calculator/summary',
+  2: '/calculator/plan',
+  3: '/calculator/materials',
+  4: '/calculator/catalog',
+  5: '/calculator/placement',
+  6: '/calculator/furniture',
+  7: '/calculator/summary',
 };
 
-export const CALCULATOR_STEPS = 6;
+export const CALCULATOR_STEPS = 7;
 
 /**
  * The calculator's strip, which also remembers how far the journey got so coming back picks
@@ -31,8 +32,9 @@ export const CALCULATOR_STEPS = 6;
  *    step 1 — which the guard bounces off the moment it loads — must not rewrite a 5 to a 1
  *    on its way out. The design flow records on its "next" buttons for the same reason.
  *
- * Step 1 is shut once the estimate has been worked out — redrawing the rooms or changing the
- * home state would pull the ground out from under every quantity and every pick made since.
+ * Steps 1 and 2 are shut once the estimate has been worked out — changing the home state or
+ * redrawing the rooms would pull the ground out from under every quantity and every pick
+ * made since.
  */
 export function StepIndicator({ current }: { current: CalculatorStep }) {
   const t = useT();
@@ -45,12 +47,12 @@ export function StepIndicator({ current }: { current: CalculatorStep }) {
     if (ready && current > stored) setStep(current);
   }, [ready, stored, current, setStep]);
 
-  const labels = [t.calculator.step1, t.calculator.step2, t.calculator.step3, t.calculator.stepPlacement, t.calculator.step4, t.calculator.step5];
+  const labels = [t.calculator.step1, t.calculator.stepPlan, t.calculator.step2, t.calculator.step3, t.calculator.stepPlacement, t.calculator.step4, t.calculator.step5];
   return (
     <StepStrip
       current={current}
       steps={labels.map((label, i) => ({ num: i + 1, label, href: CALCULATOR_STEP_HREFS[(i + 1) as CalculatorStep] }))}
-      lockedBefore={calculated ? 2 : 0}
+      lockedBefore={calculated ? 3 : 0}
       lockedTitle={t.flow.lockedStepCalculator}
       kind="calculator"
     />

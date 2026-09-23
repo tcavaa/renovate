@@ -1,5 +1,5 @@
 import { revalidateTag, unstable_cache } from 'next/cache';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
@@ -53,6 +53,8 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
         // A store that registered itself is inactive until admin approves it; its products
         // stay out of the studio until then, whatever their own flag says.
         or(isNull(products.storeId), eq(stores.isActive, true)),
+        // A person's own uploads are theirs alone: `loadOwnProducts` adds them for their owner.
+        isNull(products.ownerUserId),
         inArray(
           products.categoryId,
           designCategories.map((c) => c.id)
@@ -60,7 +62,37 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
       )
     );
 
-  const items: CatalogProduct[] = rows.map(({ product, store }) => ({
+  const items: CatalogProduct[] = rows.map(({ product, store }) => mapProduct(product, store, categorySlugById));
+
+  const partnerStores = await db.select().from(stores).where(eq(stores.isActive, true));
+
+  return {
+    products: items,
+    stores: partnerStores.map((s) => ({
+      id: s.id,
+      nameKa: s.nameKa,
+      nameEn: s.nameEn,
+      nameRu: s.nameRu,
+      descriptionKa: s.descriptionKa,
+      logoUrl: s.logoUrl,
+      websiteUrl: s.websiteUrl,
+      phone: s.phone,
+      address: s.address,
+      city: s.city,
+      rating: s.rating != null ? Number(s.rating) : null,
+      reviewCount: s.reviewCount,
+      deliveryDays: s.deliveryDays,
+      deliveryFeeGel: s.deliveryFeeGel != null ? Number(s.deliveryFeeGel) : null,
+    })),
+  };
+}
+
+type ProductRow = typeof products.$inferSelect;
+type StoreRow = typeof stores.$inferSelect;
+
+/** A product row as the studio reads it. */
+function mapProduct(product: ProductRow, store: StoreRow | null, categorySlugById: Map<number, string>): CatalogProduct {
+  return {
     id: product.id,
     nameKa: product.nameKa,
     nameEn: product.nameEn,
@@ -99,27 +131,21 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
           deliveryFeeGel: store.deliveryFeeGel != null ? Number(store.deliveryFeeGel) : null,
         }
       : null,
-  }));
-
-  const partnerStores = await db.select().from(stores).where(eq(stores.isActive, true));
-
-  return {
-    products: items,
-    stores: partnerStores.map((s) => ({
-      id: s.id,
-      nameKa: s.nameKa,
-      nameEn: s.nameEn,
-      nameRu: s.nameRu,
-      descriptionKa: s.descriptionKa,
-      logoUrl: s.logoUrl,
-      websiteUrl: s.websiteUrl,
-      phone: s.phone,
-      address: s.address,
-      city: s.city,
-      rating: s.rating != null ? Number(s.rating) : null,
-      reviewCount: s.reviewCount,
-      deliveryDays: s.deliveryDays,
-      deliveryFeeGel: s.deliveryFeeGel != null ? Number(s.deliveryFeeGel) : null,
-    })),
+    ...(product.ownerUserId != null ? { own: true, pending: product.model3dStatus !== 'ready' } : {}),
   };
+}
+
+/**
+ * A person's own uploads — a model of their own, or a photo waiting to become one — read
+ * fresh every time (they are one person's, so nothing to share in a cache). The studio's
+ * catalogue is the shared list plus these.
+ */
+export async function loadOwnProducts(userId: number): Promise<CatalogProduct[]> {
+  const rows = await db
+    .select({ product: products, category: categories })
+    .from(products)
+    .innerJoin(categories, eq(products.categoryId, categories.id))
+    .where(and(eq(products.ownerUserId, userId), eq(products.isActive, true)))
+    .orderBy(desc(products.id));
+  return rows.map(({ product, category }) => mapProduct(product, null, new Map([[category.id, category.slug]])));
 }

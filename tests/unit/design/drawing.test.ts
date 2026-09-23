@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, snapRoomMove, wallAt } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt } from '@/lib/design/drawing';
 import { addWalls, roomsFromWalls, wallsClash, wallsForRectangle } from '@/lib/design/walls';
 import type { Beam, Column, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
@@ -54,7 +54,8 @@ describe('snapRectangle', () => {
     const { rect, guides } = snapRectangle({ x: 4.1, z: 0.2, width: 3, depth: 2.5 }, square, 0.12, 0.2);
     expect(rect.x).toBeCloseTo(4.06, 6);
     expect(rect.z).toBeCloseTo(0.06, 6); // the top face snapped to the top wall too
-    expect(guides).toHaveLength(2);
+    // Each snapped side: the wall it landed on, and the line the two share across the sheet.
+    expect(guides).toHaveLength(4);
   });
 
   it('snaps onto the wall that runs alongside, not the one that only meets the corner', () => {
@@ -91,7 +92,7 @@ describe('snapRectangle', () => {
     expect(rect.width).toBeCloseTo(2.54, 6);
     expect(rect.z).toBeCloseTo(1.95, 6);
     expect(rect.depth).toBeCloseTo(5.75, 6);
-    expect(guides).toHaveLength(3);
+    expect(guides.filter((g) => g.kind === 'wall')).toHaveLength(3);
 
     // One wall between rooms 1 and 4, one between 4 and 3: four plain rooms, no jogs.
     const walls = addWalls(flat, wallsForRectangle(rect, 0.12, 'user', 'r4'));
@@ -223,5 +224,45 @@ describe('rooms may not sit on top of each other', () => {
     expect(polygonsOverlap(ell, box(1, 1, 2, 2))).toBe(true);
     // Wholly inside, with no edge crossing at all.
     expect(polygonsOverlap(box(0, 0, 8, 8), box(2, 2, 2, 2))).toBe(true);
+  });
+});
+
+describe('lining up with a room elsewhere on the sheet', () => {
+  it('pulls a rectangle side onto the line of a wall it is in line with, and draws that line', () => {
+    // A room drawn well below the square, a hand off its right wall's line: the side lands on
+    // x = 4 exactly, and the guide is the full-sheet line the two walls now share.
+    const { rect, guides } = snapRectangle({ x: 0.5, z: 6, width: 3.45, depth: 2 }, square, 0.12, 0.2);
+    expect(rect.x + rect.width + 0.06).toBeCloseTo(4, 6);
+    const line = guides.find((g) => g.kind === 'align');
+    expect(line?.a.x).toBeCloseTo(4, 6);
+    // Nothing runs alongside down there, so the wall itself is not a guide — only the line.
+    expect(guides.some((g) => g.kind === 'wall' && g.a.x === 4)).toBe(false);
+  });
+
+  it('gives two rooms the same width when both sides line up', () => {
+    const { rect } = snapRectangle({ x: 0.1, z: 6, width: 3.75, depth: 2 }, square, 0.12, 0.2);
+    expect(rect.x - 0.06).toBeCloseTo(0, 6);
+    expect(rect.x + rect.width + 0.06).toBeCloseTo(4, 6);
+  });
+});
+
+describe('snapWallOffset', () => {
+  // A second room below the square, its right wall a hand short of the square's.
+  const lower = [wall('l-t', P(0, 4), P(3.85, 4)), wall('l-r', P(3.85, 4), P(3.85, 7)), wall('l-b', P(3.85, 7), P(0, 7)), wall('l-l', P(0, 7), P(0, 4))];
+  const all = [...square, ...lower];
+
+  it('pulls a wall dragged sideways onto the line of a wall in line with it', () => {
+    const dragged = lower[1];
+    // The right wall's normal points into the room (−x): a negative travel moves it right.
+    const { distance, guides } = snapWallOffset(dragged, all, -0.1, 0.2);
+    expect(3.85 - distance).toBeCloseTo(4, 6);
+    expect(guides.find((g) => g.kind === 'align')?.a.x).toBeCloseTo(4, 6);
+  });
+
+  it('leaves a wall alone that runs alongside, and one out of reach', () => {
+    // The square's bottom wall and the lower room's top wall run alongside on the same line:
+    // dragging the top wall up towards it must not land on it.
+    expect(snapWallOffset(lower[0], all, 0.05, 0.2).distance).toBe(0.05);
+    expect(snapWallOffset(lower[1], all, -0.5, 0.2).distance).toBe(-0.5);
   });
 });

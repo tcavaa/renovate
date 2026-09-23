@@ -292,16 +292,18 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
   const chips: Array<{ id: FinishScope; label: string; icon: LucideIcon; disabled?: boolean; /** Why it is disabled, when it is. */ title?: string }> = trim
     ? [{ id: 'room', label: t.build.applyRoom, icon: LayoutGrid }]
     : surface === 'wall'
-      ? [
-          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
-          { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
-          { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
+      ? // Smallest first — a square metre, a strip, one wall — the whole room last: painting a
+        // piece at a time is what the tray is for, and "the whole room" is the one that erases.
+        [
           // A square metre of wall needs the height of the click, which the board has not.
           { id: 'patch', label: t.build.applyPatch, icon: Grid2x2, disabled: flat, title: flat ? t.build.patchIn3d : undefined },
+          { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
+          { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
+          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
         ]
       : [
-          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
           { id: 'cell', label: t.build.applyCell, icon: Paintbrush },
+          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
         ];
   const painting = isPaintScope(scope);
   return (

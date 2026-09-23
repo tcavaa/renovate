@@ -34,6 +34,7 @@ export default function ExistingHousePage() {
   const electrical = useDesignStore((s) => s.electrical);
   const homeState = useDesignStore((s) => s.homeState);
   const mode = useDesignStore((s) => s.mode);
+  const emptyStart = useDesignStore((s) => s.emptyStart);
   const actions = useDesignStore();
   const [refused, setRefused] = useState<string | null>(null);
 
@@ -78,6 +79,13 @@ export default function ExistingHousePage() {
   // technical setup next, a renovation designs first and plans the pipes afterwards.
   const after = nextStep(2, homeState, mode) ?? 3;
   const continueNext = () => {
+    // An empty start skips the technical step and the style test: the studio opens on
+    // these rooms, empty, and the person furnishes them from the catalogue.
+    if (emptyStart) {
+      actions.startEmpty();
+      router.push('/design/studio');
+      return;
+    }
     // The baseline version is the studio's to take, once it has something to keep: taken
     // here it would be an empty flat, and restoring it would throw the furniture away.
     actions.setStep(after);
@@ -171,7 +179,7 @@ export default function ExistingHousePage() {
         </div>
       </div>
 
-      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: after === 3 ? t.build.continueToTechnical : t.build.continueToStyle, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
+      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: emptyStart ? t.design.continueToStudio : after === 3 ? t.build.continueToTechnical : t.build.continueToStyle, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
     </>
   );
 }
