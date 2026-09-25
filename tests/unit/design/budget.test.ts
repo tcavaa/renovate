@@ -40,7 +40,7 @@ describe('budget lines', () => {
     const sockets = added.lines.find((l) => l.key === 'electrical_socket_double')!;
     expect(sockets.qty).toBe(1);
     expect(sockets.section).toBe('electrical');
-    expect(added.lines.some((l) => l.section === 'labour' && l.key === 'electrical_point')).toBe(true);
+    expect(added.lines.some((l) => l.section === 'labour' && l.key === 'electric_point')).toBe(true);
   });
 
   it('prices a door that is a real product at its price, once for both halves', () => {
@@ -67,15 +67,14 @@ describe('budget lines', () => {
     expect(line.total).toBe(120);
     expect(cost.lines.some((l) => l.key === 'electrical_socket_double')).toBe(false);
     // The electrician's work is per point whether the socket is bought or estimated.
-    expect(cost.lines.find((l) => l.section === 'labour' && l.key === 'electrical_point')!.qty).toBe(2);
+    expect(cost.lines.find((l) => l.section === 'labour' && l.key === 'electric_point')!.qty).toBe(2);
   });
 
   it('counts every point, pipe and opening in a renovation whose works include them', () => {
-    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'doors_windows', 'tiling'] });
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'doors', 'bathroom_tiling', 'heating'] });
     const sections = budgetSections(cost);
     expect(sections.electrical).toBeGreaterThan(0);
     expect(sections.lighting).toBeGreaterThan(0);
-    expect(sections.plumbing).toBeGreaterThan(0);
     expect(sections.heating).toBeGreaterThan(0);
     // One interior door (counted once, not per room) and one window by area.
     const doors = cost.lines.filter((l) => l.key === 'door');
@@ -84,12 +83,72 @@ describe('budget lines', () => {
     expect(window.qty).toBeCloseTo(1.4 * 1.4, 2);
     expect(cost.openingsTotal).toBe(Math.round((doors[0].total + window.total) * 100) / 100);
     // Only the ticked works are in the materials and labour.
-    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'tiling')).toBe(true);
-    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'painting')).toBe(false);
+    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'bath_tiling')).toBe(true);
+    expect(cost.lines.some((l) => l.section === 'labour' && l.key === 'paint_walls')).toBe(false);
     const summary = budgetSummary(cost);
     expect(summary.total).toBe(cost.grandTotal);
     expect(summary.products).toBe(0);
     expect(summary.labour + summary.materials).toBeCloseTo(summary.total, 6);
+  });
+
+  it('prices each point once: the phases count the points the plan holds, and the points add no labour of their own', () => {
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'doors', 'heating'] });
+    const labour = cost.lines.filter((l) => l.section === 'labour');
+    const keys = labour.map((l) => l.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const line = (key: string) => cost.lines.find((l) => l.key === key)!;
+    // The double socket and the ceiling light: two of the electrician's points, and the white frame's plaster chased for each.
+    expect(line('electric_point')).toMatchObject({ qty: 2, unitPrice: 35, total: 70 });
+    expect(line('wall_chasing')).toMatchObject({ qty: 2, unitPrice: 5, total: 10 });
+    // The sewer: one plumber's point, its pipes bought by the plumbing phase — not a second time as the point's own estimate.
+    expect(line('plumbing_install')).toMatchObject({ qty: 1, unitPrice: 80 });
+    expect(line('plumbing_pipes')).toMatchObject({ qty: 1, unitPrice: 32.5 });
+    expect(cost.lines.some((l) => l.key === 'technical_sewer')).toBe(false);
+    // The radiator: hung and piped once, 25 m of pipe; the radiator itself is still its own line.
+    expect(line('radiator_mount')).toMatchObject({ qty: 1, unitPrice: 50 });
+    expect(line('heating_piping')).toMatchObject({ qty: 1, unitPrice: 50 });
+    expect(line('heating_pipe')).toMatchObject({ qty: 25, unitPrice: 3.6 });
+    expect(line('technical_radiator').qty).toBe(1);
+    // The one interior door, hung once.
+    expect(line('door_install')).toMatchObject({ qty: 1, unitPrice: 150 });
+  });
+
+  it('prices a point on its own when its phase is not being done, at the team’s rates', () => {
+    // A green frame that says it has no wiring: the socket the person added is new work, the electrical phase is not.
+    const p = plan();
+    const cost = priceScene({ ...p, technical: { ...p.technical!, existing: [] } }, scene('full', [socket('s1', 'user')]), { homeState: 'green_frame' });
+    expect(cost.lines.find((l) => l.key === 'electric_point')).toMatchObject({ qty: 1, unitPrice: 35 });
+    expect(cost.lines.some((l) => l.key === 'electric_cable')).toBe(false);
+    // With the green frame's own defaults the flat is already wired, and the socket costs no labour.
+    expect(priceScene(plan(), scene('full', [socket('s1', 'user')]), { homeState: 'green_frame' }).lines.some((l) => l.key === 'electric_point')).toBe(false);
+    expect(cost.lines.some((l) => l.key === 'wall_chasing')).toBe(false);
+  });
+
+  it('leaves out the phase that would redo what the flat already has', () => {
+    const p = plan();
+    const had = priceScene({ ...p, technical: { ...p.technical!, existing: ['electrical', 'plumbing', 'heating', 'openings'] } }, scene('full', [socket('s1', 'generated')]), { homeState: 'black_frame' });
+    const keys = had.lines.map((l) => l.key);
+    for (const key of ['electric_point', 'electric_cable', 'plumbing_install', 'plumbing_pipes', 'heating_piping', 'radiator_mount', 'door_install']) expect(keys).not.toContain(key);
+    expect(keys).toContain('plaster_walls');
+  });
+
+  it('measures the partitions off the plan’s walls', () => {
+    const p = plan();
+    const cost = priceScene({ ...p, walls: [
+      { id: 'w1', a: P(0, 0), b: P(4, 0), thicknessM: 0.12, origin: 'existing' },
+      { id: 'w2', a: P(4, -2), b: P(4, 2), thicknessM: 0.12, origin: 'user', heightM: 3 },
+    ] }, scene('full', []), { homeState: 'black_frame', works: ['walls'] });
+    // Neither wall bounds a room of this plan, so both stand free: 4 m × 2.7 m and 4 m × 3 m.
+    expect(cost.lines.find((l) => l.key === 'wall_build')!.qty).toBeCloseTo(4 * 2.7 + 4 * 3, 2);
+  });
+
+  it('prices parquet and a stretch ceiling when the plan chose them', () => {
+    const p = plan();
+    const cost = priceScene({ ...p, technical: { ...p.technical!, choices: { floor: 'parquet', ceiling: 'barisol' } } }, scene('full', []), { homeState: 'green_frame' });
+    const keys = cost.lines.map((l) => l.key);
+    expect(keys).toContain('parquet_laying');
+    expect(keys).toContain('ceiling_barisol');
+    for (const key of ['laminate_laying', 'ceiling_gypsum', 'ceiling_finish', 'ceiling_board']) expect(keys).not.toContain(key);
   });
 
   it('leaves plumbing out when the plumbing works are not ticked', () => {
@@ -114,18 +173,16 @@ describe('budget lines', () => {
   });
 
   it('strips an old renovation out: the lines are in the budget and find their trades', () => {
-    const STRIP_OUT = ['strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'remove_doors_windows', 'remove_sanitary', 'debris_removal'];
+    const STRIP_OUT = ['demolish_floor', 'demolish_walls', 'demolish_tiles', 'debris_old'];
     // Only the strip-out ticked, so every labour line in the budget is one of its own.
     const cost = priceScene(plan(), scene('full', []), { homeState: 'old_renovation', works: ['strip_out'] });
     const labour = cost.lines.filter((l) => l.section === 'labour').map((l) => l.key);
     expect(labour).toEqual(STRIP_OUT);
-    expect(cost.lines.filter((l) => l.section === 'materials').map((l) => l.key)).toEqual(['debris_bags', 'waste_container']);
+    expect(cost.lines.filter((l) => l.section === 'materials')).toEqual([]);
 
     const trades = tradesNeeded(cost);
-    const keysOf = (slug: string) => trades.find((t) => t.slug === slug)?.lines.map((l) => l.key) ?? [];
-    expect(keysOf('carpentry')).toEqual(['remove_doors_windows']);
-    expect(keysOf('plumbing')).toEqual(['remove_sanitary']);
-    expect(keysOf('plastering')).toEqual(['strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'debris_removal']);
+    expect(trades.map((t) => t.slug)).toEqual(['plastering']);
+    expect(trades[0].lines.map((l) => l.key)).toEqual(STRIP_OUT);
 
     // The home state alone pre-ticks it; a black frame never has it.
     const byState = (homeState: 'old_renovation' | 'black_frame') =>

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useDesignStore } from '@/store/designStore';
 import { useCalculatorStore } from '@/store/calculatorStore';
+import { useWorkspace } from '@/store/workspace';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { useT } from '@/lib/i18n/client';
 
@@ -30,10 +31,15 @@ export function DesignAutosave() {
   const projectId = useDesignStore((s) => s.projectId);
   const setSaveState = useDesignStore((s) => s.setSaveState);
   const calculatorRooms = useCalculatorStore((s) => s.rooms);
+  const loadSerial = useDesignStore((s) => s.loadSerial);
+  // How far the journey got is saved with it, so a draft reopens where it was left.
+  const step = useDesignStore((s) => s.step);
+  const generated = useDesignStore((s) => s.generated);
+  const workspace = useWorkspace((w) => w.kind);
 
   const signature = useMemo(
-    () => JSON.stringify({ plan, items, finishes, electrical, versions: versions.map((v) => v.id), styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calc: calculatorPicks ? calculatorRooms : null }),
-    [plan, items, finishes, electrical, versions, styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calculatorRooms]
+    () => JSON.stringify({ plan, items, finishes, electrical, versions: versions.map((v) => v.id), styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calc: calculatorPicks ? calculatorRooms : null, step, generated }),
+    [plan, items, finishes, electrical, versions, styleProfile, styleId, mode, budgetGel, homeState, floorPlanUrl, calculatorPicks, projectId, calculatorRooms, step, generated]
   );
 
   useAutosave({
@@ -41,6 +47,8 @@ export function DesignAutosave() {
     signature,
     save: () => saveDesign({ draft: true, nameKa: `${t.design.title} — ${new Date().toLocaleDateString('ka-GE')}` }),
     onState: setSaveState,
+    // A design just opened from the profile, or the other workspace just switched to, is not written back until it is changed.
+    baselineKey: `${workspace}:${loadSerial}`,
   });
   return null;
 }

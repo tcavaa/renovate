@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { calculatorPicksPayloadSchema } from './project.schema';
-import { homeStateEnum } from './room.schema';
+import { homeStateEnum, roomSplitSchema, roomTypeEnum } from './room.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
 
@@ -117,22 +117,12 @@ export const technicalSetupSchema = z.object({
   points: z.array(technicalPointSchema).max(200),
   works: z.array(z.string().max(40)).max(40).optional(),
   existing: z.array(z.string().max(24)).max(24).optional(),
+  choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
 });
 
 export const planRoomSchema = z.object({
   id: z.string().min(1).max(64),
-  type: z.enum([
-    'living_room',
-    'bedroom',
-    'kitchen',
-    'bathroom',
-    'toilet',
-    'hallway',
-    'balcony',
-    'storage',
-    'office',
-    'closet',
-  ]),
+  type: roomTypeEnum,
   name: z.string().max(120),
   polygon: z.array(vec2).min(3).max(64),
   heightM: z.number().min(1.8).max(6),
@@ -142,6 +132,7 @@ export const planRoomSchema = z.object({
   lowConfidence: z.boolean().optional(),
   wallIds: z.array(z.string().max(64)).max(64).optional(),
   origin: elementOriginSchema.optional(),
+  split: roomSplitSchema.optional(),
 });
 
 export const floorPlanSchema = z.object({
@@ -254,6 +245,7 @@ export const designSceneSchema = z.object({
   excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
   /** Quantities the person set themselves on the budget, by line key. */
   quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
+  progress: z.object({ step: z.number().int().min(1).max(8), generated: z.boolean(), planFromCalculator: z.boolean().optional() }).optional(),
 });
 
 /** A kept version of the flat: the plan and scene as they were, with a name. */

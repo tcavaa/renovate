@@ -314,6 +314,8 @@ export function roomsFromWalls(walls: Wall[], options: RoomsFromWallsOptions = {
       wallIds: inner.wallIds,
       ...(match?.lowConfidence ? { lowConfidence: true } : {}),
       ...(match?.origin ? { origin: match.origin } : {}),
+      // A studio's line is a fraction of the room's extent, so it follows the room wherever it went.
+      ...(match?.split ? { split: match.split } : {}),
     };
     room.openings = match ? reprojectOpenings(match, room) : [];
     rooms.push(room);

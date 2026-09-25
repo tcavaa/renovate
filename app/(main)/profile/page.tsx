@@ -40,7 +40,15 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
     .from(products)
     .where(eq(products.ownerUserId, userId))
     .orderBy(desc(products.id));
-  const totalSpent = rows.reduce((s, p) => s + (p.totalCost ? Number(p.totalCost) : 0), 0);
+  // A project with nothing finished yet — a calculation left before it was calculated, a
+  // design before it was generated — has no figure worth showing or adding up.
+  const unfinished = (p: (typeof rows)[number]) => {
+    const kind = projectKind(p);
+    const calculatorDone = p.selectedProducts != null && !kind.calculatorPending;
+    const designDone = kind.hasDesign && !kind.designPending;
+    return !calculatorDone && !designDone && (kind.calculatorPending || kind.designPending);
+  };
+  const totalSpent = rows.reduce((s, p) => s + (p.totalCost && !unfinished(p) ? Number(p.totalCost) : 0), 0);
   const totalM2 = rows.reduce((s, p) => s + Number(p.totalM2), 0);
   const draftIds = rows.filter((p) => p.status === 'draft').map((p) => p.id);
 
@@ -116,7 +124,11 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
-                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</span>
+                    {unfinished(p) ? (
+                      <span className="text-sm text-ink-muted">{t.profile.pendingShort}</span>
+                    ) : (
+                      <span className="font-serif text-xl font-semibold tabular-nums text-ink">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</span>
+                    )}
                     <div className="flex flex-wrap items-center gap-2">
                       <CalculateCostsButton project={savedProjectInput(p)} size="sm" />
                       <OpenIn3dButton project={savedProjectInput(p)} size="sm" />

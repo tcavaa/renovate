@@ -9,7 +9,7 @@
  * The plan lives in the XZ ground plane (x = east, z = south), Y is up — same as Three.js.
  */
 
-import type { RoomType } from '@/lib/calculator/types';
+import type { RoomSplit, RoomType, WorkChoices } from '@/lib/calculator/types';
 
 export type DesignMode = 'full' | 'design_only';
 
@@ -166,6 +166,8 @@ export interface TechnicalSetup {
    * Absent until the person ticks something: the home state then decides.
    */
   existing?: string[];
+  /** Laminate or parquet, plasterboard or a stretch ceiling (`WorkChoices`); the defaults when absent. */
+  choices?: Partial<WorkChoices>;
 }
 
 export interface PlanRoom {
@@ -188,6 +190,8 @@ export interface PlanRoom {
   /** For a plan built from walls: the wall each polygon edge lies on, same order as `polygon`. */
   wallIds?: string[];
   origin?: ElementOrigin;
+  /** A studio's dividing line (`lib/design/studio`); only read when `type` is `studio`. */
+  split?: RoomSplit;
 }
 
 export interface FloorPlan {
@@ -472,6 +476,20 @@ export interface DesignScene {
    * counted, put in the baskets and ordered instead.
    */
   quantities?: Record<string, number>;
+  /**
+   * How far the journey got, so a draft reopened from "my projects" lands where it was left
+   * rather than in a studio that was never generated. Absent on scenes saved before it existed:
+   * those were read as laid out, which is what they almost always were.
+   */
+  progress?: DesignProgress;
+}
+
+export interface DesignProgress {
+  /** The step number (not its position) the journey had reached. */
+  step: number;
+  generated: boolean;
+  /** The flat was drawn in the calculator: its plan steps stay shut. */
+  planFromCalculator?: boolean;
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */

@@ -15,13 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
-import { PHASE_NAMES } from '@/lib/calculator/constants';
+import { MATERIAL_BASES, PHASE_NAMES } from '@/lib/calculator/constants';
 import { invalidateRateBook } from '@/hooks/useRateBook';
 import type { RateRow } from '@/lib/calculator/rates';
 import { cn } from '@/lib/utils';
 
 const UNITS = ['m2', 'linear_m', 'piece', 'liter', 'kg', 'm3'] as const;
-const BASES = ['floor', 'wall', 'ceiling', 'wet_floor', 'perimeter'] as const;
+const BASES = MATERIAL_BASES;
 
 type Draft = {
   labelKa: string;
@@ -55,7 +55,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
   );
   const [saving, setSaving] = useState<Record<number, 'saving' | 'saved' | 'error'>>({});
   const [adding, setAdding] = useState(false);
-  const [newRate, setNewRate] = useState({ key: '', labelKa: '', phase: '11', unit: 'm2', basis: 'floor', qtyPerM2: '1', wasteFactorPct: '10', pricePerUnit: '0' });
+  const [newRate, setNewRate] = useState({ key: '', labelKa: '', phase: '4', unit: 'm2', basis: 'floor', qtyPerM2: '1', wasteFactorPct: '10', pricePerUnit: '0' });
   const [addError, setAddError] = useState<string | null>(null);
   const [filterQ, setFilterQ] = useState('');
   const [filterPhase, setFilterPhase] = useState('');
@@ -144,7 +144,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
       const created = json.data as RateRow;
       setRows((all) => [...all, created]);
       setDrafts((d) => ({ ...d, [created.id]: toDraft(created) }));
-      setNewRate({ key: '', labelKa: '', phase: '11', unit: 'm2', basis: 'floor', qtyPerM2: '1', wasteFactorPct: '10', pricePerUnit: '0' });
+      setNewRate({ key: '', labelKa: '', phase: '4', unit: 'm2', basis: 'floor', qtyPerM2: '1', wasteFactorPct: '10', pricePerUnit: '0' });
       invalidateRateBook();
     } catch (e) {
       setAddError(e instanceof Error ? e.message : t.admin.rateSaveError);

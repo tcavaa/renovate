@@ -33,6 +33,8 @@ const selectedProductSchema = z.object({
 export const calculatorEditsSchema = z.object({
   excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
   quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
+  choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
+  progress: z.object({ step: z.number().int().min(1).max(7), calculated: z.boolean() }).optional(),
 });
 
 export const saveProjectSchema = calculatorRequestSchema.extend({

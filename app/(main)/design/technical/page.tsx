@@ -14,9 +14,11 @@ import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useDesignStore } from '@/store/designStore';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel, phaseLabel } from '@/lib/i18n/labels';
+import { CEILING_PHASE, FLOOR_PHASE } from '@/lib/calculator/constants';
+import { WorkChoicesPicker } from '@/components/calculator/WorkChoicesPicker';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
-import { defaultWorksForHomeState, technicalSuggestions, TECHNICAL_KIND_LIST, WORK_STAGES, worksForStage, type WorkStage } from '@/lib/design/technical';
+import { defaultWorksForHomeState, normalizeWorks, phasesForWorks, technicalSuggestions, TECHNICAL_KIND_LIST, WORK_STAGES, worksForStage, type WorkStage } from '@/lib/design/technical';
 import { designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
 import { EXISTING_KEYS, effectiveExisting, type ExistingKey } from '@/lib/design/existing';
 import { archetypeLabel } from '@/lib/design/catalog';
@@ -90,7 +92,13 @@ export default function TechnicalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, radiatorSignature]);
 
-  const works = useMemo(() => plan?.technical?.works ?? defaultWorksForHomeState(homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame')), [plan?.technical?.works, homeState, mode]);
+  // A list saved under the works of the old rate book reads in today's keys.
+  const storedWorks = plan?.technical?.works;
+  const works = useMemo(() => {
+    const stored = storedWorks ? normalizeWorks(storedWorks) : [];
+    return stored.length > 0 ? stored : defaultWorksForHomeState(homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame'));
+  }, [storedWorks, homeState, mode]);
+  const workPhases = useMemo(() => new Set(phasesForWorks(works)), [works]);
   // What the flat already has, so the budget does not charge for it again. A green frame
   // starts with everything ticked, because that is what a green frame is.
   const existing = useMemo(() => effectiveExisting(plan, homeState), [plan, homeState]);
@@ -267,6 +275,7 @@ export default function TechnicalPage() {
           <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:self-start lg:pr-1">
             {selection?.kind === 'technical' && (
               <ElementInspector
+              roomPart={actions.selectedRoomPart}
                 plan={plan}
                 electrical={electrical}
                 selection={selection}
@@ -286,6 +295,7 @@ export default function TechnicalPage() {
                   updateElectrical: actions.updateElectricalPoint,
                   removeElectrical: actions.removeElectricalPoint,
                   updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart,
                   removeRoom: actions.removeRoom,
                   setRadiatorProduct: actions.setRadiatorProduct,
                 }}
@@ -344,6 +354,13 @@ export default function TechnicalPage() {
                 })}
               </div>
             </section>
+
+            {mode === 'full' && (workPhases.has(FLOOR_PHASE) || workPhases.has(CEILING_PHASE)) && (
+              <section className="rounded-[14px] border border-line bg-white p-3">
+                <p className="mb-2 text-sm font-semibold text-ink">{t.calculator.choicesTitle}</p>
+                <WorkChoicesPicker compact value={plan.technical?.choices} onChange={actions.setWorkChoices} floor={workPhases.has(FLOOR_PHASE)} ceiling={workPhases.has(CEILING_PHASE)} />
+              </section>
+            )}
 
             {mode === 'full' && (
               <section className="rounded-[14px] border border-line bg-white p-3">

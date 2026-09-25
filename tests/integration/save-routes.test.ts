@@ -68,6 +68,19 @@ beforeEach(() => {
 describe('POST /api/projects', () => {
   const load = async () => (await import('@/app/api/projects/route')).POST;
 
+  it('stores no totals for a calculation autosaved before it was calculated', async () => {
+    const POST = await load();
+    const save = (calculated: boolean) =>
+      POST(post('http://localhost/api/projects', { homeState: 'black_frame', rooms: [room], selectedProducts: {}, selectedFurniture: {}, edits: { progress: { step: calculated ? 3 : 2, calculated } }, draft: true }), { params: Promise.resolve({}) });
+    expect((await save(false)).status).toBe(200);
+    const pending = insertValues.mock.calls[0][0] as Record<string, unknown>;
+    expect(pending).toMatchObject({ totalCost: null, totalMaterialsCost: null, totalWorkersCost: null });
+    // The progress is kept, so the draft reopens on the plan step.
+    expect(pending.calculatorEdits).toMatchObject({ progress: { step: 2, calculated: false } });
+    expect((await save(true)).status).toBe(200);
+    expect(Number((insertValues.mock.calls[1][0] as Record<string, unknown>).totalCost)).toBeGreaterThan(0);
+  });
+
   it('reprices products from the catalogue and recomputes quantities from the rooms', async () => {
     const POST = await load();
     const res = await POST(
@@ -130,13 +143,14 @@ describe('POST /api/projects', () => {
     const old = insertValues.mock.calls[0][0] as Record<string, unknown>;
     expect(old.homeState).toBe('old_renovation');
     const keys = ((await res.json()).data.summary.workerCosts as Array<{ key: string }>).map((w) => w.key);
-    expect(keys.slice(0, 3)).toEqual(['strip_floor', 'strip_walls', 'strip_ceiling']);
+    // A dry room has no tiles to break out.
+    expect(keys.slice(0, 3)).toEqual(['demolish_floor', 'demolish_walls', 'debris_old']);
 
-    // The same flat as a black frame costs less labour: no floors, walls, ceilings, door,
-    // window or debris to take out first (a dry room has no tiles or sanitary ware).
+    // The same flat as a black frame: no floor or walls to break up and a new build's rubbish
+    // (5 ₾/m²) instead of an old renovation's (40 ₾/m²).
     await save('black_frame');
     const black = insertValues.mock.calls[1][0] as Record<string, unknown>;
-    const stripOut = 20 * 6 + 48.6 * 5 + 20 * 5 + 2 * 35 + 20 * 7;
+    const stripOut = 20 * 15 + 48.6 * 20 + 20 * 40 - 20 * 5;
     expect(Number(old.totalWorkersCost) - Number(black.totalWorkersCost)).toBeCloseTo(stripOut, 2);
   });
 
@@ -195,6 +209,17 @@ describe('POST /api/design/projects', () => {
     model3dUrl: '/models/x.glb',
     categorySlug: 'sofas',
     store: null,
+  });
+
+  it('stores no totals for a design autosaved before it was generated', async () => {
+    const POST = await load();
+    const scene = (generated: boolean) => ({ styleId: 'scandinavian', mode: 'full', budgetGel: null, items: [], finishes: [], progress: { step: 4, generated } });
+    const save = (generated: boolean) => POST(post('http://localhost/api/design/projects', { plan, homeState: 'black_frame', scene: scene(generated), draft: true }), { params: Promise.resolve({}) });
+    expect((await save(false)).status).toBe(200);
+    expect(insertValues.mock.calls[0][0]).toMatchObject({ totalCost: null, totalMaterialsCost: null });
+    // A renovation priced before generation would be the works alone; once generated it is the budget.
+    expect((await save(true)).status).toBe(200);
+    expect(Number((insertValues.mock.calls[1][0] as Record<string, unknown>).totalCost)).toBeGreaterThan(0);
   });
 
   it('reprices furniture per slot and finishes per square metre of the room', async () => {

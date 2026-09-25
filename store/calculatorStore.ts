@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { workspaceStore } from './workspace';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
 import { cartKey, categorySlugFromKey, finishPickQuantity, isCartKey, roomIdFromKey, selectionKey } from '@/lib/calculator/quantities';
@@ -13,6 +14,7 @@ import type {
   HomeState,
   Room,
   SelectedProduct,
+  WorkChoices,
 } from '@/lib/calculator/types';
 
 interface CalculatorStore extends CalculatorState {
@@ -46,6 +48,18 @@ interface CalculatorStore extends CalculatorState {
   setQuantity: (tick: string, qty: number | null, original?: number) => void;
   /** Every tick and every quantity back to what was worked out. */
   clearEdits: () => void;
+  /** Laminate or parquet, plasterboard or a stretch ceiling — which labour the estimate prices. */
+  choices: Partial<WorkChoices>;
+  setChoices: (choices: Partial<WorkChoices>) => void;
+  /**
+   * The project this journey was saved or ordered as. The work stays on screen until the
+   * person leaves; entering the calculator again from outside its steps then starts afresh
+   * (`enterFreshWorkspace`). Only meaningful while `projectId` is still this id.
+   */
+  closedProjectId: number | null;
+  markClosed: (projectId: number) => void;
+  /** Counts the loads of a saved project into this store; the autosave does not write back what was just loaded (`useAutosave`). Not persisted. */
+  loadSerial: number;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   setSaveState: (state: CalculatorStore['saveState']) => void;
@@ -56,7 +70,9 @@ interface CalculatorStore extends CalculatorState {
     homeState: HomeState | null;
     selectedProducts: Record<string, SelectedProduct>;
     selectedFurniture: Record<string, SelectedProduct[]>;
-    edits?: { excluded?: Tick[]; quantities?: Quantities } | null;
+    edits?: { excluded?: Tick[]; quantities?: Quantities; choices?: Partial<WorkChoices> } | null;
+    /** How far the journey got when it was saved; absent on projects saved before it was recorded, which were finished. */
+    progress?: { step: number; calculated: boolean } | null;
   }) => void;
   setHomeState: (state: HomeState) => void;
   addRoom: (room: Room) => void;
@@ -99,7 +115,7 @@ interface CalculatorStore extends CalculatorState {
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
 const PERSIST_VERSION = 3;
 
-type Persisted = CalculatorState & { projectId: number | null; calculated: boolean; excluded: Tick[]; quantities: Quantities };
+type Persisted = CalculatorState & { projectId: number | null; calculated: boolean; excluded: Tick[]; quantities: Quantities; choices: Partial<WorkChoices>; closedProjectId: number | null };
 
 const initial: Persisted = {
   homeState: null,
@@ -111,6 +127,8 @@ const initial: Persisted = {
   calculated: false,
   excluded: [],
   quantities: {},
+  choices: {},
+  closedProjectId: null,
 };
 
 /**
@@ -129,11 +147,13 @@ function liftFlags<T extends Pick<Persisted, 'selectedProducts' | 'selectedFurni
   };
 }
 
-export const useCalculatorStore = create<CalculatorStore>()(
+function createCalculatorStore(storageName: string) {
+  return create<CalculatorStore>()(
   persist(
     (set) => ({
       ...initial,
       saveState: 'idle',
+      loadSerial: 0,
       setSaveState: (saveState) => set({ saveState }),
       setProjectId: (projectId) => set({ projectId }),
       setCalculated: () => set({ calculated: true }),
@@ -149,8 +169,10 @@ export const useCalculatorStore = create<CalculatorStore>()(
         }),
       setQuantity: (tick, qty, original) => set((s) => ({ quantities: withQuantity(s.quantities, tick, qty, original) })),
       clearEdits: () => set({ excluded: [], quantities: {} }),
-      openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture, edits }) =>
-        set(liftFlags({ projectId, rooms, homeState, selectedProducts, selectedFurniture, excluded: edits?.excluded ?? [], quantities: edits?.quantities ?? {}, step: 1 as const })),
+      markClosed: (closedProjectId) => set({ closedProjectId }),
+      setChoices: (choices) => set((s) => ({ choices: { ...s.choices, ...choices } })),
+      openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture, edits, progress }) =>
+        set((s) => ({ ...liftFlags({ projectId, rooms, homeState, selectedProducts, selectedFurniture, excluded: edits?.excluded ?? [], quantities: edits?.quantities ?? {}, choices: edits?.choices ?? {}, closedProjectId: null, ...(!homeState ? { calculated: false, step: 1 as const } : progress ? { calculated: progress.calculated, step: Math.min(7, Math.max(1, progress.step)) as CalculatorStepNumber } : { calculated: true, step: 7 as const }) }), loadSerial: s.loadSerial + 1 })),
       setHomeState: (homeState) => set({ homeState }),
       addRoom: (room) => set((s) => ({ rooms: [...s.rooms, room] })),
       setRooms: (rooms) =>
@@ -259,7 +281,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
       reset: () => set({ ...initial }),
     }),
     {
-      name: 'renovate-calculator',
+      name: storageName,
       storage: createJSONStorage(() => localStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
@@ -275,10 +297,19 @@ export const useCalculatorStore = create<CalculatorStore>()(
         calculated: s.calculated,
         excluded: s.excluded,
         quantities: s.quantities,
+        choices: s.choices,
+        closedProjectId: s.closedProjectId,
       }),
     }
   )
-);
+  );
+}
+
+/**
+ * The calculator, twice (`store/workspace`): the person's own journey, and a saved or ordered
+ * project opened from "my projects". The pages read whichever the workspace points at.
+ */
+export const useCalculatorStore = workspaceStore(createCalculatorStore('renovate-calculator'), createCalculatorStore('renovate-project-calculator'));
 
 // ---------------------------------------------------------------------------
 // Persistence
@@ -317,6 +348,8 @@ const persistedSchema = z.object({
   calculated: z.boolean().optional(),
   excluded: z.array(z.union([z.string(), z.number()])).optional(),
   quantities: z.record(z.number()).optional(),
+  choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
+  closedProjectId: z.number().int().positive().nullable().optional(),
 });
 
 function migratePersisted(persisted: unknown, version: number): Persisted {
@@ -340,6 +373,8 @@ function migratePersisted(persisted: unknown, version: number): Persisted {
     calculated: parsed.data.calculated ?? false,
     excluded: parsed.data.excluded ?? [],
     quantities: parsed.data.quantities ?? {},
+    choices: parsed.data.choices ?? {},
+    closedProjectId: parsed.data.closedProjectId ?? null,
     rooms: parsed.data.rooms as Room[],
     selectedProducts: parsed.data.selectedProducts as Record<string, SelectedProduct>,
     selectedFurniture: parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,

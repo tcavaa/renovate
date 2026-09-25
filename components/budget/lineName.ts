@@ -10,8 +10,8 @@ import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
  * plaster, an hour of plastering, "12 × socket", a door nobody has chosen yet.
  */
 export function budgetLineName(t: Dictionary, line: Pick<BudgetLine, 'key' | 'section' | 'name'>): string {
-  // The kind of line first, the shape of its key second: `electrical_rough` and
-  // `electrical_point` are the electrician's labour, not a kind of fitting, and read by their
+  // The kind of line first, the shape of its key second: `electric_point` and
+  // `plumbing_install` are labour, not a kind of fitting or pipe, and read by their
   // prefix they came out as a row with no name at all.
   if (line.section === 'labour') return workTypeLabel(t, line.key);
   if (line.section === 'materials') return materialLabel(t, line.key);

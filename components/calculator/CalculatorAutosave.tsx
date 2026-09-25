@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useCalculatorStore } from '@/store/calculatorStore';
+import { useWorkspace } from '@/store/workspace';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { useT } from '@/lib/i18n/client';
 
@@ -20,11 +21,17 @@ export function CalculatorAutosave() {
   // A line ticked off the summary, or a quantity changed on it, is work like any other.
   const excluded = useCalculatorStore((s) => s.excluded);
   const quantities = useCalculatorStore((s) => s.quantities);
+  const choices = useCalculatorStore((s) => s.choices);
   const setSaveState = useCalculatorStore((s) => s.setSaveState);
+  const loadSerial = useCalculatorStore((s) => s.loadSerial);
+  // How far the journey got is saved with it, so a draft reopens where it was left.
+  const step = useCalculatorStore((s) => s.step);
+  const calculated = useCalculatorStore((s) => s.calculated);
+  const workspace = useWorkspace((w) => w.kind);
 
   const signature = useMemo(
-    () => JSON.stringify({ rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities }),
-    [rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities]
+    () => JSON.stringify({ rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities, choices, step, calculated }),
+    [rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities, choices, step, calculated]
   );
 
   useAutosave({
@@ -32,6 +39,8 @@ export function CalculatorAutosave() {
     signature,
     save: () => saveCalculatorProject({ draft: true, nameKa: t.calculator.projectName }),
     onState: setSaveState,
+    // A project just opened from the profile, or the other workspace just switched to, is not written back until it is changed.
+    baselineKey: `${workspace}:${loadSerial}`,
   });
   return null;
 }

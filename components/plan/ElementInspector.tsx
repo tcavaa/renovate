@@ -8,13 +8,14 @@
  * store through the actions it is given.
  */
 
-import { ChevronLeft, ChevronRight, Lock, LockOpen, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { cn, formatGEL, formatM2 } from '@/lib/utils';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
-import type { RoomType } from '@/lib/calculator/types';
+import type { RoomSplit, RoomType } from '@/lib/calculator/types';
+import { isPartType, studioParts, swapped, turned, withFirstArea, withPartType } from '@/lib/design/studio';
 import { roomEdges } from '@/lib/design/planGeometry';
 import { WALL_THICKNESS_OPTIONS_M, wallLength } from '@/lib/design/walls';
 import { AC_CEILING_GAP_M, TECHNICAL_KIND_LIST, technicalElevation } from '@/lib/design/technical';
@@ -31,7 +32,7 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import { electricalLabel, technicalLabel } from './PlanToolbar';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
-import { TECHNICAL_COLOR } from './palette';
+import { ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
 
 export const MATERIALS: BuildMaterial[] = ['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass'];
 const MATERIAL_KEY: Record<BuildMaterial, keyof Dictionary['build']> = {
@@ -71,12 +72,14 @@ export interface InspectorActions {
   updateRoom: (id: string, patch: Partial<PlanRoom>) => void;
   resizeRoom?: (id: string, widthM: number, depthM: number) => void;
   removeRoom: (id: string) => void;
+  /** Picks out one half of a studio (the board does the same on a click). */
+  selectRoomPart?: (roomId: string, part: 0 | 1 | null) => void;
   removeZone?: (roomId: string, zoneId: string) => void;
   /** The catalogue product a radiator is (null: back to the estimate). */
   setRadiatorProduct?: (id: string, product: CatalogProduct | null) => void;
 }
 
-export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian' }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId }) {
+export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian', roomPart }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId; /** The half of a studio picked out on the board. */ roomPart?: RoomPartPick }) {
   const t = useT();
   const locale = useLocale();
   if (!selection) {
@@ -364,7 +367,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     if (!room) return null;
     return (
       <Section title={t.build.inspectorRoom} onDelete={locked ? undefined : () => actions.removeRoom(room.id)} className={className}>
-        <RoomFields room={room} plan={plan} actions={actions} locked={locked} />
+        <RoomFields room={room} plan={plan} actions={actions} locked={locked} roomPart={roomPart} />
         {roomExtras?.(room)}
       </Section>
     );
@@ -373,7 +376,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
 }
 
 /** Name, type, height and size of a room — shared by the inspector and the rooms panel. */
-export function RoomFields({ room, plan, actions, locked, compact }: { room: PlanRoom; plan: FloorPlan; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom'>; locked?: boolean; compact?: boolean }) {
+export function RoomFields({ room, plan, actions, locked, compact, roomPart }: { room: PlanRoom; plan: FloorPlan; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'selectRoomPart'>; locked?: boolean; compact?: boolean; roomPart?: RoomPartPick }) {
   const t = useT();
   const xs = room.polygon.map((p) => p.x);
   const zs = room.polygon.map((p) => p.z);
@@ -416,7 +419,71 @@ export function RoomFields({ room, plan, actions, locked, compact }: { room: Pla
         <span className="mx-1.5 text-ink-faint">·</span>
         {t.design.openingsTitle}: {room.openings.length}
       </p>
+      {room.type === 'studio' && <StudioSplitFields room={room} actions={actions} active={roomPart?.roomId === room.id ? roomPart.part : null} />}
     </>
+  );
+}
+
+/** Which half of which studio is picked out on the board. */
+export type RoomPartPick = { roomId: string; part: 0 | 1 } | null;
+
+/**
+ * A studio's two parts: what each is and how big, the line turned the other way, and the two
+ * swapped across it. The line itself is dragged on the plan; the area typed here moves it too.
+ */
+function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions: Pick<InspectorActions, 'updateRoom' | 'selectRoomPart'>; active: 0 | 1 | null }) {
+  const t = useT();
+  const parts = studioParts(room);
+  if (!parts) return null;
+  const types = (Object.keys(ROOM_TYPES) as RoomType[]).filter(isPartType);
+  const setSplit = (split: RoomSplit) => actions.updateRoom(room.id, { split });
+  return (
+    <div className="space-y-2 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-ink">{t.design.studioSplitTitle}</p>
+        <div className="flex gap-1">
+          <button type="button" onClick={() => setSplit(turned(room))} title={t.design.studioTurn} aria-label={t.design.studioTurn} className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink">
+            <RotateCw className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => setSplit(swapped(room))} title={t.design.studioSwap} aria-label={t.design.studioSwap} className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink">
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      {parts.map((part) => (
+        <div
+          key={part.index}
+          onClick={() => actions.selectRoomPart?.(room.id, part.index)}
+          className={cn('grid grid-cols-[auto_1fr_6.5rem] items-end gap-2 rounded-[8px] p-1.5 transition-colors', active === part.index ? 'bg-white ring-1 ring-brand/40' : '')}
+        >
+          <span className="mb-2 h-4 w-4 rounded-[4px] border border-line" style={{ backgroundColor: ROOM_TINT_STRONG[part.type] }} aria-hidden />
+          <Field label={`${part.index + 1}`}>
+            <select
+              value={part.type}
+              onChange={(e) => setSplit(withPartType(room, part.index, e.target.value as RoomType))}
+              onFocus={() => actions.selectRoomPart?.(room.id, part.index)}
+              className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm"
+              aria-label={t.design.roomTypeLabel}
+            >
+              {types.map((type) => (
+                <option key={type} value={type}>
+                  {roomTypeLabel(t, type)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <NumberField
+            label={`${t.design.studioPartArea}, ${t.units.m2}`}
+            value={part.areaM2}
+            min={0.5}
+            max={Math.max(0.5, room.areaM2)}
+            step={0.1}
+            onCommit={(v) => setSplit(withFirstArea(room, part.index === 0 ? v : room.areaM2 - v))}
+          />
+        </div>
+      ))}
+      <p className="text-[11px] leading-snug text-ink-muted">{t.design.studioSplitHint}</p>
+    </div>
   );
 }
 

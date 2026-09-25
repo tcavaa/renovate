@@ -17,7 +17,40 @@ export type RoomType =
   | 'balcony'
   | 'storage'
   | 'office'
-  | 'closet';
+  | 'closet'
+  /** An open-plan room — most often a kitchen and a living room — divided by a line into two parts (`RoomSplit`). */
+  | 'studio';
+
+/**
+ * How a studio is divided: a straight line across the room, at right angles to `axis` — `x`
+ * is a line running up the plan at an x, `z` one running across it at a z — placed at the
+ * fraction `t` of the room's extent along that axis, so it moves and stretches with the room.
+ * `parts[0]` is what lies on the lower side of the line, `parts[1]` the higher. Only read
+ * when the room's type is `studio`.
+ */
+export interface RoomSplit {
+  axis: 'x' | 'z';
+  t: number;
+  parts: [RoomType, RoomType];
+}
+
+/** One part of a divided studio, measured: what the estimate prices it as. */
+export interface RoomPart {
+  type: RoomType;
+  floorM2: number;
+  /** Its share of the room's walls — the dividing line is not a wall. */
+  wallM2: number;
+  perimeterM: number;
+}
+
+/**
+ * The two works that come in two kinds: the floor laid as laminate or parquet, the ceiling as
+ * plasterboard (filled and painted) or a stretch ceiling. See `lib/calculator/constants`.
+ */
+export interface WorkChoices {
+  floor: 'laminate' | 'parquet';
+  ceiling: 'gypsum' | 'barisol';
+}
 
 export type UnitType = 'm2' | 'linear_m' | 'piece' | 'liter' | 'kg' | 'm3' | 'pack' | 'set';
 
@@ -36,6 +69,10 @@ export interface Room {
   /** Top-left corner on the flat's plan, metres. Set by the plan or the layout editor. */
   x?: number;
   z?: number;
+  /** A studio's dividing line, as drawn on the plan. */
+  split?: RoomSplit;
+  /** A studio's two parts, measured off the plan; the estimate prices each as its own type. */
+  parts?: RoomPart[];
 }
 
 export interface MaterialItem {

@@ -1,8 +1,8 @@
 /**
  * Which trades a project needs, from the labour lines of its budget.
  *
- * The budget's labour keys are the calculator's phases (`plastering`, `tiling`…) plus the
- * per-point work the studio counts (`electrical_point`, `plumbing_point`…); the workers'
+ * The budget's labour keys are the renovation team's works (`plaster_walls`, `bath_tiling`…),
+ * the per-point ones included (`electric_point`, `plumbing_install`…); the workers'
  * directory knows six specialties. This is the map between the two, so the last step of the
  * journey can say "you need a tiler, an electrician and a plumber" and show them.
  */
@@ -14,34 +14,32 @@ export type TradeSlug = 'tiling' | 'painting' | 'plumbing' | 'electrical' | 'car
 export const TRADE_SLUGS: TradeSlug[] = ['plastering', 'tiling', 'plumbing', 'electrical', 'carpentry', 'painting'];
 
 const LABOUR_TRADE: Record<string, TradeSlug> = {
-  // Stripping out an old renovation (phase 0): the rough crew, a carpenter for the old
-  // doors and windows, a plumber for the old sanitary ware.
-  strip_floor: 'plastering',
-  strip_walls: 'plastering',
-  strip_ceiling: 'plastering',
-  strip_tiles: 'plastering',
-  remove_doors_windows: 'carpentry',
-  remove_sanitary: 'plumbing',
-  debris_removal: 'plastering',
-  demolition: 'plastering',
-  plumbing_rough: 'plumbing',
-  electrical_rough: 'electrical',
-  insulation: 'plastering',
-  screed: 'plastering',
-  plastering: 'plastering',
-  waterproofing: 'tiling',
-  tiling: 'tiling',
-  windows: 'carpentry',
-  doors: 'carpentry',
-  flooring: 'carpentry',
-  ceiling: 'plastering',
-  painting: 'painting',
-  electrical_finish: 'electrical',
-  plumbing_finish: 'plumbing',
-  electrical_point: 'electrical',
-  lighting_point: 'electrical',
-  plumbing_point: 'plumbing',
-  radiator_install: 'plumbing',
+  // Stripping out an old renovation (phase 0) and carrying the rubbish out: the rough crew.
+  demolish_floor: 'plastering',
+  demolish_walls: 'plastering',
+  demolish_tiles: 'plastering',
+  debris_old: 'plastering',
+  debris_new: 'plastering',
+  wall_build: 'plastering',
+  heating_piping: 'plumbing',
+  radiator_mount: 'plumbing',
+  floor_screed: 'plastering',
+  electric_point: 'electrical',
+  wall_chasing: 'electrical',
+  plaster_walls: 'plastering',
+  paint_walls: 'painting',
+  plumbing_install: 'plumbing',
+  bath_screed: 'tiling',
+  bath_wall_prep: 'tiling',
+  bath_tiling: 'tiling',
+  kitchen_tiling: 'tiling',
+  laminate_laying: 'carpentry',
+  parquet_laying: 'carpentry',
+  ceiling_gypsum: 'plastering',
+  ceiling_finish: 'painting',
+  ceiling_barisol: 'plastering',
+  door_install: 'carpentry',
+  trim_install: 'carpentry',
   ac_install: 'electrical',
   extractor_install: 'electrical',
 };

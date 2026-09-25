@@ -1,6 +1,7 @@
-import { asc } from 'drizzle-orm';
+import { asc, notInArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { rates } from '@/lib/db/schema';
+import { RETIRED_RATE_KEYS } from '@/lib/calculator/constants';
 import { RatesTable } from '@/components/admin/RatesTable';
 import { getT } from '@/lib/i18n/server';
 
@@ -12,7 +13,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AdminRatesPage() {
   const ka = await getT();
-  const rows = await db.select().from(rates).orderBy(asc(rates.phase), asc(rates.sortOrder), asc(rates.id));
+  // Rows of the book the team's rates replaced are never read; they are not shown either.
+  const rows = await db.select().from(rates).where(notInArray(rates.key, [...RETIRED_RATE_KEYS])).orderBy(asc(rates.phase), asc(rates.sortOrder), asc(rates.id));
 
   return (
     <div className="space-y-6">

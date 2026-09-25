@@ -29,7 +29,7 @@ export async function Footer() {
   ];
 
   return (
-    <footer className="relative mt-32 overflow-hidden border-t border-line bg-bg-base">
+    <footer data-site-nav className="relative mt-32 overflow-hidden border-t border-line bg-bg-base">
       <div className="container pb-10 pt-16">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="space-y-5">

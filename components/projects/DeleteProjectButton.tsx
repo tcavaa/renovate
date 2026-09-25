@@ -18,9 +18,11 @@ async function deleteProject(id: number): Promise<string | null> {
 
 /** Forgets the deleted row in the browser too, or the next autosave would write into a project that is gone. */
 function forgetLocally(ids: number[]) {
-  const calc = useCalculatorStore.getState();
-  if (calc.projectId != null && ids.includes(calc.projectId)) calc.setProjectId(null);
-  for (const board of [useCalculatorPlanStore.getState(), useDesignStore.getState()]) {
+  // In both workspaces: the person's own journeys and a project opened from the profile.
+  for (const calc of [useCalculatorStore.fresh.getState(), useCalculatorStore.project.getState()]) {
+    if (calc.projectId != null && ids.includes(calc.projectId)) calc.setProjectId(null);
+  }
+  for (const board of [useCalculatorPlanStore.fresh, useCalculatorPlanStore.project, useDesignStore.fresh, useDesignStore.project].map((s) => s.getState())) {
     if (board.projectId != null && ids.includes(board.projectId)) board.setProjectId(null);
   }
 }

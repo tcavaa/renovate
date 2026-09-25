@@ -121,7 +121,7 @@ describe('priceScene — full mode', () => {
     materials: {
       lam: { labelKa: 'l', qtyPerM2: 1, unit: 'm2', wasteFactorPct: 0, phase: 11, basis: 'floor', estimatedPriceGEL: 10 },
     },
-    labour: { flooring: { labelKa: 'f', unit: 'm2', price: 5 } },
+    labour: { debris_new: { labelKa: 'f', unit: 'm2', price: 5 } },
   };
 
   it('prices materials and labour with the rate book it is given', () => {
