@@ -47,6 +47,7 @@ import { getStyle } from '@/lib/design/styles';
 import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
+import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { Headlamp, WalkControls } from './WalkControls';
 
@@ -172,14 +173,22 @@ export function Viewer3D(props: Viewer3DProps) {
           props.onSelectSurface?.(null);
         }}
       >
-        <color attach="background" args={[daylight.background]} />
-        <fog attach="fog" args={[daylight.background, 34, 90]} />
+        {/* The flat stands on a ruled ground under the hour's sky; the fog is the horizon's haze. */}
+        <SkyBackground top={daylight.skyTop} horizon={daylight.skyHorizon} />
+        <fog attach="fog" args={[daylight.background, FOG_NEAR_M, FOG_FAR_M]} />
         <Suspense fallback={null}>
           <SceneContent {...props} daylight={daylight} />
         </Suspense>
       </Canvas>
     </div>
   );
+}
+
+/** The sky behind everything (`lib/design3d/environment`), remade when the hour changes its colours. */
+function SkyBackground({ top, horizon }: { top: string; horizon: string }) {
+  const texture = useMemo(() => skyTexture(top, horizon), [top, horizon]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return <primitive attach="background" object={texture} />;
 }
 
 // Physical keys, so W is W on a Georgian layout too (it types წ there).
@@ -286,6 +295,24 @@ function SceneContent({
   const [dragging, setDragging] = useState(false);
 
   const walking = viewMode === 'walk';
+
+  // The ground the flat stands on, centred under it (its grid is ruled in world coordinates,
+  // so it lines up with the plan wherever the plane is). Scenery: nothing can pick it.
+  const ground = useMemo(() => buildGround(), []);
+  useEffect(
+    () => () => {
+      ground.geometry.dispose();
+      (ground.material as THREE.Material).dispose();
+    },
+    [ground]
+  );
+  const groundCentre = useMemo(() => {
+    const points = plan.rooms.flatMap((room) => room.polygon);
+    if (points.length === 0) return { x: 0, z: 0 };
+    const xs = points.map((p) => p.x);
+    const zs = points.map((p) => p.z);
+    return { x: (Math.min(...xs) + Math.max(...xs)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 };
+  }, [plan.rooms]);
 
   // Exposure follows the hour: a touch over 1 by day, well under at night.
   useEffect(() => {
@@ -1526,6 +1553,7 @@ function SceneContent({
         <pointLight key={light.id} position={light.position} intensity={light.intensity * (daylight.interiorLightsOn ? Math.max(0.6, daylight.interiorIntensity) : 0.3)} distance={light.distance} decay={1.5} color={style.lighting.lamp} />
       ))}
 
+      <primitive object={ground} position={[groundCentre.x, ground.position.y, groundCentre.z]} />
       <primitive object={warnings} />
       <primitive object={paintGlow} />
       <primitive object={outlines.active} />

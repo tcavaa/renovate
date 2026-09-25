@@ -28,7 +28,10 @@ const CATEGORIES: Array<{ id: StudioCategory; icon: LucideIcon; key: keyof Dicti
 export function CategoryRail({ category, trayOpen, onCategory, badge, className }: { category: StudioCategory; trayOpen: boolean; onCategory: (category: StudioCategory) => void; /** A small figure under a category (the budget total). */ badge?: Partial<Record<StudioCategory, string>>; className?: string }) {
   const t = useT();
   return (
-    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-[16px] border border-white/70 bg-white/92 p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
+    // `bg-white/[0.92]`, not `bg-white/92`: 92 is off Tailwind's opacity scale, so that class was
+    // never generated and the rail had no background at all — by day the light scene showed
+    // through its blur, at night the dark one did, and its grey labels vanished into it.
+    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-[16px] border border-white/70 bg-white/[0.92] p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
       {CATEGORIES.map(({ id, icon: Icon, key }) => {
         const active = category === id && trayOpen;
         return (
