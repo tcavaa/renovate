@@ -11,6 +11,7 @@ import { ElementInspector } from '@/components/plan/ElementInspector';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
+import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
@@ -21,6 +22,9 @@ import { useT } from '@/lib/i18n/client';
  * walls, doors, windows, the rooms' types and sizes — and a blank sheet is drawn on, with
  * the same tools the studio has. "Start the calculation" leaves from here, once there are
  * rooms to calculate, and shuts this step and the one before it behind it.
+ *
+ * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
+ * tools floating down its left, the selection and the rooms in a panel down its right.
  */
 export default function CalculatorPlanPage() {
   const router = useRouter();
@@ -68,25 +72,31 @@ export default function CalculatorPlanPage() {
     <>
       <CalculatorFlowGuard step={2} />
       <StepIndicator current={2} />
-      <div className="container py-10 md:py-14">
-        <StepHeader step={2} total={CALCULATOR_STEPS} title={t.calculator.planStepTitle} subtitle={t.calculator.planStepSubtitle} />
+      <FlowWorkspace>
+        <FlowBar
+          step={2}
+          total={CALCULATOR_STEPS}
+          title={t.calculator.planStepTitle}
+          subtitle={t.calculator.planStepSubtitle}
+          back={{ href: '/calculator', label: t.calculator.backButton }}
+          next={{ label: t.calculator.startButton, onClick: handleStart }}
+          notice={error}
+        />
 
-        <div id="rooms-list" className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="relative min-w-0">
-            <PlanWorkspace
-              store={useCalculatorPlanStore}
-              tools={['select', 'pan', 'wall', 'room', 'door', 'window']}
-              layerKeys={['walls', 'openings', 'dimensions']}
-              height={560}
-              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
-            />
-            {refused && (
-              <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
-                {refused}
-              </p>
-            )}
-          </div>
-          <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+        {/* Below `lg` the step reads as every other step does: its head, then the board. */}
+        <div className="container py-10 md:py-14 lg:hidden">
+          <StepHeader step={2} total={CALCULATOR_STEPS} title={t.calculator.planStepTitle} subtitle={t.calculator.planStepSubtitle} />
+        </div>
+
+        <div id="rooms-list" className="container pb-10 lg:contents">
+          <PlanWorkspace
+            store={useCalculatorPlanStore}
+            tools={['select', 'pan', 'wall', 'room', 'door', 'window']}
+            layerKeys={['walls', 'openings', 'dimensions']}
+            bleed={FLOW_BOARD_BLEED}
+            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+          />
+          <FlowPanel className="mt-6 lg:mt-0">
             <ElementInspector
               roomPart={actions.selectedRoomPart}
               plan={plan}
@@ -130,11 +140,13 @@ export default function CalculatorPlanPage() {
                 if (id) actions.setFocusRoom(id);
               }}
             />
-          </div>
+          </FlowPanel>
         </div>
-      </div>
 
-      <StepNav back={{ href: '/calculator', label: t.calculator.backButton }} next={{ label: t.calculator.startButton, onClick: handleStart }}>
+        {refused && <FlowAlert>{refused}</FlowAlert>}
+      </FlowWorkspace>
+
+      <StepNav className="lg:hidden" back={{ href: '/calculator', label: t.calculator.backButton }} next={{ label: t.calculator.startButton, onClick: handleStart }}>
         {error && (
           <p role="alert" aria-live="polite" className="flex items-center gap-2 text-sm font-medium text-danger">
             <AlertCircle className="h-4 w-4 shrink-0" />

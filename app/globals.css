@@ -70,6 +70,21 @@ p {
   .studio-bar .bar-room { max-width: 104px; }
 }
 
+/*
+ * A step that is a workspace — the 2D board, the 3D studio — is the whole window from `lg`
+ * up: the header and the step strip stand at the top and never move, the workspace
+ * (`FlowWorkspace`, or anything marked `data-flow-workspace`) takes every pixel under them,
+ * and there is no page to scroll and no footer to scroll to. Decided here, from what the page
+ * renders, so the first paint is already right, and a step showing its "finish the previous
+ * step first" card (no workspace) stays an ordinary page. Below `lg` nothing changes.
+ */
+@media (min-width: 1024px) {
+  html:has([data-flow-workspace]) { overflow: hidden; }
+  .site-shell:has([data-flow-workspace]) { height: 100dvh; min-height: 0; overflow: hidden; }
+  .site-shell:has([data-flow-workspace]) > main { display: flex; min-height: 0; flex-direction: column; }
+  .site-shell:has([data-flow-workspace]) > footer { display: none; }
+}
+
 @layer components {
   /* Translucent panel used over imagery and the 3D canvas. */
   .glass {

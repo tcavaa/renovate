@@ -11,6 +11,7 @@ import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
+import { FLOW_BOARD_BLEED, FlowBar, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useDesignStore } from '@/store/designStore';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { homeStateLabel, phaseLabel } from '@/lib/i18n/labels';
@@ -63,6 +64,10 @@ const STAGE_DESC = {
  * The kinds are a grid of tiles that is always on screen: a tile arms the point tool with
  * that kind, the tool stays armed until the tile is clicked again (or Esc), and a click on a
  * point already placed picks it up instead of stacking another.
+ *
+ * From `lg` up the step is the whole window (`FlowWorkspace`): the plan edge to edge, the
+ * kinds along its bottom, the automatic placement, the heating and the works in a panel down
+ * its right.
  */
 export default function TechnicalPage() {
   const t = useT();
@@ -157,46 +162,114 @@ export default function TechnicalPage() {
     }
   };
 
+  // The kinds, always in view: a tile arms the point tool with that kind. Along the bottom of
+  // the full-screen board, above the board below `lg`.
+  const kindsTray = (
+    <section className="rounded-[16px] border border-line bg-white p-3 lg:w-[min(46rem,100%)] lg:border-line/70 lg:bg-white/[0.97] lg:shadow-float lg:backdrop-blur-xl" aria-label={t.build.technicalPointsTitle}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-semibold text-ink">{t.build.technicalPointsTitle}</p>
+        <p className="text-[11px] text-ink-muted">{tool === 'technical' ? fill(t.build.kindArmedHint, { kind: technicalLabel(t, kind) }) : t.build.technicalPointsHint}</p>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup" aria-label={t.build.toolTechnical}>
+        {TECHNICAL_KIND_LIST.map((k) => {
+          const Icon = TECHNICAL_ICON[k];
+          const active = tool === 'technical' && kind === k;
+          const n = countOf(k);
+          return (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => pickKind(k)}
+              title={technicalLabel(t, k)}
+              className={cn('relative flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[14px] border text-[11px] font-semibold leading-tight transition-all lg:h-[60px] lg:gap-1', active ? 'border-ink bg-ink text-white shadow-card' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full text-white lg:h-7 lg:w-7" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="max-w-full truncate px-1">{technicalLabel(t, k)}</span>
+              {n > 0 && <span className={cn('absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[10px] tabular-nums', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+
+  const nextLabel = nextStep(3, homeState, mode) === 4 ? t.build.continueToStyle : t.build.budgetTitle;
+  const goNext = () => {
+    if (!plan.technical?.works) actions.setWorks(works);
+    actions.setStep(nextStep(3, homeState, mode) ?? 4);
+    router.push(nextStepHref(3, homeState, mode));
+  };
+
   return (
     <>
       <DesignFlowGuard step={3} />
       <DesignSteps current={3} />
-      <div className="container py-8 md:py-12">
-        <StepHeader step={designStepPosition(3, homeState, mode)} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
-        <StageBrief step={3} className="mt-6" />
+      <FlowWorkspace>
+        <FlowBar
+          step={designStepPosition(3, homeState, mode)}
+          total={8}
+          title={t.build.technicalTitle}
+          subtitle={t.build.technicalSubtitle}
+          brief={3}
+          back={{ href: previousStepHref(3, homeState, mode), label: t.calculator.backButton }}
+          next={{ label: nextLabel, onClick: goNext }}
+        />
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="min-w-0 space-y-3">
-            {/* The kinds, always in view: a tile arms the point tool with that kind. */}
-            <section className="rounded-[16px] border border-line bg-white p-3" aria-label={t.build.technicalPointsTitle}>
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-semibold text-ink">{t.build.technicalPointsTitle}</p>
-                <p className="text-[11px] text-ink-muted">{tool === 'technical' ? fill(t.build.kindArmedHint, { kind: technicalLabel(t, kind) }) : t.build.technicalPointsHint}</p>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup" aria-label={t.build.toolTechnical}>
-                {TECHNICAL_KIND_LIST.map((k) => {
-                  const Icon = TECHNICAL_ICON[k];
-                  const active = tool === 'technical' && kind === k;
-                  const n = countOf(k);
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      onClick={() => pickKind(k)}
-                      className={cn('relative flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[14px] border text-[11px] font-semibold leading-tight transition-all', active ? 'border-ink bg-ink text-white shadow-card' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
-                    >
-                      <span className="grid h-8 w-8 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
-                        <Icon className="h-4 w-4" />
-                      </span>
-                      <span className="max-w-full truncate px-1">{technicalLabel(t, k)}</span>
-                      {n > 0 && <span className={cn('absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[10px] tabular-nums', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+        {/* Below `lg` the step reads as every other step does: its head, then the board. */}
+        <div className="container py-8 md:py-12 lg:hidden">
+          <StepHeader step={designStepPosition(3, homeState, mode)} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
+          <StageBrief step={3} className="mt-6" />
+        </div>
+
+        <div className="container pb-10 lg:contents">
+          <PlanWorkspace
+            tools={['select', 'pan', 'technical']}
+            tool={tool}
+            onTool={setTool}
+            technicalKind={kind}
+            onTechnicalKind={setKind}
+            layers={{ dimensions: false }}
+            layerKeys={['walls', 'openings', 'structure', 'technical', 'dimensions']}
+            locked
+            bleed={FLOW_BOARD_BLEED}
+            dock={kindsTray}
+          />
+
+          <FlowPanel className="mt-6 lg:mt-0">
+            {selection?.kind === 'technical' && (
+              <ElementInspector
+              roomPart={actions.selectedRoomPart}
+                plan={plan}
+                electrical={electrical}
+                selection={selection}
+                locked
+                actions={{
+                  updateWall: actions.updateWall,
+                  resizeWall: actions.resizeWall,
+                  removeWall: actions.removeWall,
+                  updateOpening: actions.updateOpening,
+                  removeOpening: actions.removeOpening,
+                  updateColumn: actions.updateColumn,
+                  removeColumn: actions.removeColumn,
+                  updateBeam: actions.updateBeam,
+                  removeBeam: actions.removeBeam,
+                  updateTechnical: actions.updateTechnicalPoint,
+                  removeTechnical: actions.removeTechnicalPoint,
+                  updateElectrical: actions.updateElectricalPoint,
+                  removeElectrical: actions.removeElectricalPoint,
+                  updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart,
+                  removeRoom: actions.removeRoom,
+                  setRadiatorProduct: actions.setRadiatorProduct,
+                }}
+                catalog={products}
+                styleId={styleId}
+              />
+            )}
 
             {/*
               The step people skip. Marking water, waste, drains, gas, the panel, the
@@ -239,7 +312,7 @@ export default function TechnicalPage() {
                 </button>
               </div>
               {radiatorsHung != null && <p className="mt-2 text-[11px] font-medium text-success">{radiatorsHung > 0 ? fill(t.build.radiatorsAdded, { n: radiatorsHung }) : t.build.radiatorsNone}</p>}
-              <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+              <ul className="mt-3 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
                 {plan.rooms.filter(isHeatedRoom).map((room) => {
                   const here = radiatorPoints(plan).filter((p) => radiatorRoom(plan, p)?.id === room.id);
                   const hung = here.reduce((sum, p) => sum + radiatorSections(plan, p), 0);
@@ -257,52 +330,6 @@ export default function TechnicalPage() {
                 })}
               </ul>
             </section>
-
-            <PlanWorkspace
-              tools={['select', 'pan', 'technical']}
-              tool={tool}
-              onTool={setTool}
-              technicalKind={kind}
-              onTechnicalKind={setKind}
-              layers={{ dimensions: false }}
-              layerKeys={['walls', 'openings', 'structure', 'technical', 'dimensions']}
-              locked
-              height="calc(100vh - 380px)"
-            />
-            <p className="text-xs text-ink-muted">{t.build.electricalOnStudio}</p>
-          </div>
-
-          <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:self-start lg:pr-1">
-            {selection?.kind === 'technical' && (
-              <ElementInspector
-              roomPart={actions.selectedRoomPart}
-                plan={plan}
-                electrical={electrical}
-                selection={selection}
-                locked
-                actions={{
-                  updateWall: actions.updateWall,
-                  resizeWall: actions.resizeWall,
-                  removeWall: actions.removeWall,
-                  updateOpening: actions.updateOpening,
-                  removeOpening: actions.removeOpening,
-                  updateColumn: actions.updateColumn,
-                  removeColumn: actions.removeColumn,
-                  updateBeam: actions.updateBeam,
-                  removeBeam: actions.removeBeam,
-                  updateTechnical: actions.updateTechnicalPoint,
-                  removeTechnical: actions.removeTechnicalPoint,
-                  updateElectrical: actions.updateElectricalPoint,
-                  removeElectrical: actions.removeElectricalPoint,
-                  updateRoom: actions.updateRoom,
-                selectRoomPart: actions.selectRoomPart,
-                  removeRoom: actions.removeRoom,
-                  setRadiatorProduct: actions.setRadiatorProduct,
-                }}
-                catalog={products}
-                styleId={styleId}
-              />
-            )}
 
             <section className="rounded-[14px] border border-line bg-white p-3">
               <p className="text-sm font-semibold text-ink">{t.build.worksTitle}</p>
@@ -411,21 +438,13 @@ export default function TechnicalPage() {
                 </ul>
               )}
             </section>
-          </div>
-        </div>
-      </div>
 
-      <StepNav
-        back={{ href: previousStepHref(3, homeState, mode), label: t.calculator.backButton }}
-        next={{
-          label: nextStep(3, homeState, mode) === 4 ? t.build.continueToStyle : t.build.budgetTitle,
-          onClick: () => {
-            if (!plan.technical?.works) actions.setWorks(works);
-            actions.setStep(nextStep(3, homeState, mode) ?? 4);
-            router.push(nextStepHref(3, homeState, mode));
-          },
-        }}
-      />
+            <p className="text-xs text-ink-muted">{t.build.electricalOnStudio}</p>
+          </FlowPanel>
+        </div>
+      </FlowWorkspace>
+
+      <StepNav className="lg:hidden" back={{ href: previousStepHref(3, homeState, mode), label: t.calculator.backButton }} next={{ label: nextLabel, onClick: goNext }} />
     </>
   );
 }

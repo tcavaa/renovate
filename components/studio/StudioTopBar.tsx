@@ -24,7 +24,7 @@ import type { DaylightPreset } from '@/lib/design3d/daylight';
 export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, showWalls, onToggleWalls, onClear, daylight, onDaylight, onPhoto, canUndo, canRedo, onUndo, onRedo, locked, onToggleLock, versionsOpen, onVersions, onHelp, nextHref, nextLabel }: { roomLabel: string; itemCount: number; saveState: 'idle' | 'saving' | 'saved' | 'error'; view: StudioView; onView: (view: StudioView) => void; showWalls: boolean; onToggleWalls: () => void; onClear: () => void; daylight: DaylightPreset; onDaylight: (preset: DaylightPreset) => void; onPhoto?: () => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; locked: boolean; onToggleLock: () => void; versionsOpen: boolean; onVersions: () => void; onHelp: () => void; nextHref: string; nextLabel: string }) {
   const t = useT();
   return (
-    <div className="studio-bar pointer-events-none absolute inset-x-4 top-4 z-20 flex flex-nowrap items-start justify-between gap-3">
+    <div data-board-edge="top" className="studio-bar pointer-events-none absolute inset-x-4 top-4 z-20 flex flex-nowrap items-start justify-between gap-3">
       <div className="bar-gap pointer-events-auto flex min-w-0 shrink items-center gap-2 rounded-[14px] bg-white/85 py-1.5 pl-4 pr-2 shadow-glass backdrop-blur-xl">
         <span className="bar-room max-w-[240px] truncate text-sm font-medium" title={roomLabel}>
           {roomLabel}

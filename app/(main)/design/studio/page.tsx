@@ -24,6 +24,7 @@ import { OwnModelDialog } from '@/components/studio/OwnModelDialog';
 import { initialCatalogBrowserState, type CatalogBrowserState } from '@/lib/design/catalogBrowser';
 import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
+import { toolHint } from '@/components/plan/PlanToolbar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
 import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
@@ -779,6 +780,10 @@ export default function StudioPage() {
   const finishOptions = trimSurface ? trimOptions(products, trimSurface, styleId) : surfaceOptions(products, finishSurface === 'wall' ? 'wall' : 'floor', finishRoom, styleId);
   const baseFinishId = (roomId: string) => (trimSurface ? trimFor(finishes, roomId, trimSurface) : finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f)))?.product?.productId ?? null;
   const painting = isPaintScope(finishScope);
+  // The tool in hand on the 2D board, from the open category: the build tool, an armed fitting
+  // or technical point, the brush — else the pointer. Its hint floats above the tray.
+  const boardTool: EditorTool = category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'technical' ? (technicalArmed ? 'technical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select';
+  const boardHint = view === '2d' ? toolHint(t, boardTool, structureLocked) : null;
   const currentFinishId: number | null | 'mixed' | undefined = (() => {
     // While painting, the shelf shows what is in the brush.
     if (painting) return brush === undefined ? undefined : (brush?.id ?? null);
@@ -808,9 +813,15 @@ export default function StudioPage() {
     <>
       <DesignSteps current={currentStep} />
 
+      {/*
+        From `lg` up the studio is the whole window under the header and the step strip
+        (`data-flow-workspace`, app/globals.css): it takes exactly the height they leave, and the
+        page has nothing to scroll.
+      */}
       <div
         ref={setWorkspace}
-        className={cn('relative w-full overflow-hidden bg-sand-light', fullscreen ? 'h-screen' : 'h-[calc(100vh-72px-48px)] min-h-[600px]')}
+        data-flow-workspace
+        className={cn('relative w-full overflow-hidden bg-sand-light', fullscreen ? 'h-screen' : 'h-[calc(100vh-72px-48px)] min-h-[600px] lg:h-auto lg:min-h-0 lg:flex-1')}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
@@ -833,34 +844,36 @@ export default function StudioPage() {
         {/* ---- canvas ---- */}
         <div ref={canvasLayer} className="absolute inset-0">
           {view === '2d' ? (
-            <div className={cn('h-full w-full px-4 pt-20 transition-[padding] duration-300 md:pl-[19.5rem]', trayShown ? 'pb-[9.5rem]' : 'pb-16')}>
-              <PlanWorkspace
-                tools={CATEGORY_TOOLS[category]}
-                tool={category === 'build' ? buildTool : category === 'electric' ? (electricalArmed ? 'electrical' : 'select') : category === 'technical' ? (technicalArmed ? 'technical' : 'select') : category === 'finishes' && painting ? 'paint' : 'select'}
-                onTool={(tool) => {
-                  if (category === 'build') setBuildTool(tool);
-                  if (category === 'electric') setElectricalArmed(tool === 'electrical');
-                  if (category === 'technical') setTechnicalArmed(tool === 'technical');
-                  if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
-                }}
-                paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
-                onPaint={onPaint}
-                roomsOnly={category === 'finishes'}
-                hideToolbar
-                keyboardUndo={false}
-                showTotals={false}
-                furniture
-                locked={structureLocked}
-                electricalKind={electricalKind}
-                technicalKind={technicalKind}
-                layers={{ furniture: true, dimensions: category === 'build' }}
-                height="100%"
-                className="h-full"
-                onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
-                onEscape={putToolsDown}
-                onApi={setPlanApi}
-              />
-            </div>
+            // The sheet runs under everything, the way the scene does in 3D: the bars, the rail
+            // and the tray float over it, and a plan is framed in what they leave of it.
+            <PlanWorkspace
+              tools={CATEGORY_TOOLS[category]}
+              tool={boardTool}
+              onTool={(tool) => {
+                if (category === 'build') setBuildTool(tool);
+                if (category === 'electric') setElectricalArmed(tool === 'electrical');
+                if (category === 'technical') setTechnicalArmed(tool === 'technical');
+                if (category === 'finishes') setFinishScope(tool === 'paint' ? (finishSurface === 'wall' ? 'strip' : 'cell') : 'room');
+              }}
+              paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
+              onPaint={onPaint}
+              roomsOnly={category === 'finishes'}
+              hideToolbar
+              keyboardUndo={false}
+              showTotals={false}
+              hint={false}
+              frameless
+              furniture
+              locked={structureLocked}
+              electricalKind={electricalKind}
+              technicalKind={technicalKind}
+              layers={{ furniture: true, dimensions: category === 'build' }}
+              height="100%"
+              className="h-full"
+              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+              onEscape={putToolsDown}
+              onApi={setPlanApi}
+            />
           ) : (
             <Viewer3D
               plan={plan}
@@ -937,7 +950,7 @@ export default function StudioPage() {
         )}
 
         {/* ---- left: the categories, the rooms beside them ---- */}
-        <div className="pointer-events-auto absolute left-4 top-20 z-20 hidden items-start gap-2 md:flex">
+        <div data-board-edge="left" className="pointer-events-auto absolute left-4 top-20 z-20 hidden items-start gap-2 md:flex">
           <CategoryRail category={category} trayOpen={trayShown} onCategory={pickCategory} badge={cost ? { budget: formatGEL(cost.grandTotal) } : undefined} />
           <div className="flex w-[188px] flex-col gap-1 rounded-[14px] bg-white/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
             <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.roomsInPlan}</p>
@@ -956,7 +969,7 @@ export default function StudioPage() {
 
         {/* ---- right panel: an overlay the full height of the studio; nothing under it moves ---- */}
         {showRightPanel && (
-          <div className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
+          <div data-board-edge="right" className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
             {versionsOpen ? (
               <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
@@ -1038,17 +1051,20 @@ export default function StudioPage() {
 
         {/* ---- bottom: the open category's tray, centred on the canvas ---- */}
         <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20 flex flex-col items-center gap-2">
-          {trayShown && (
-            <div className="pointer-events-auto relative w-full max-w-[880px]">
+          {(trayShown || boardHint) && (
+            <div data-board-edge="bottom" className="pointer-events-auto relative w-full max-w-[880px]">
               {/*
                 The hint and the tight-passage warning *float above* the tray rather than
                 stacking with it: in the column they pushed the tray down and ate a strip of
                 the canvas even when they said nothing new. Each tray carries its own hint
                 for the tool in hand, so this one only speaks for the states no tray can —
-                carrying a piece, walking, a fitting armed.
+                carrying a piece, walking, a fitting armed — and, in 2D, for the board: its
+                hint for the tool in hand stands here, over the sheet that runs under the tray,
+                folded or not.
               */}
               <div className="pointer-events-none absolute bottom-full left-0 right-0 mb-1.5 hidden flex-col items-center gap-1 md:flex">
                 {transientHint && <p className="max-w-full truncate rounded-[9px] bg-ink/80 px-2.5 py-1 text-[11px] text-white backdrop-blur">{transientHint}</p>}
+                {boardHint && <p className="max-w-full rounded-[9px] bg-ink/80 px-2.5 py-1 text-center text-[11px] leading-snug text-white backdrop-blur">{boardHint}</p>}
                 {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
                   <p className="flex max-w-full items-center gap-1.5 rounded-[9px] bg-warning/90 px-2.5 py-0.5 text-[10px] font-medium text-ink">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -1056,84 +1072,93 @@ export default function StudioPage() {
                   </p>
                 )}
               </div>
-              <Tray>
-                {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} />}
-                {category === 'furniture' && (
-                  <FurnitureTray
-                    catalog={products}
-                    styleId={styleId}
-                    roomLabel={focusRoom?.name ?? t.design.wholeFlat}
-                    roomType={focusShelfType}
-                    onPick={pickProduct}
-                    onDragProduct={onDragProduct}
-                    onOpenCatalog={() => setCatalogBrowser('open')}
-                    onAddOwn={() => setOwnDialogOpen(true)}
-                  />
-                )}
-                {category === 'electric' && (
-                  <ElectricTray
-                    kind={electricalKind}
-                    onKind={setElectricalKind}
-                    armed={electricalArmed}
-                    onArm={setElectricalArmed}
-                    onSuggest={() => store.suggestElectrical(products)}
-                    onClear={store.clearElectrical}
-                    lightsOn={lightsOn}
-                    onDragKind={(kind) => {
-                      setDraggingKind(kind);
-                      if (!kind) viewerApi?.clearElectricalPreview();
-                    }}
-                  />
-                )}
-                {category === 'technical' && (
-                  <TechnicalTray
-                    kind={technicalKind}
-                    onKind={setTechnicalKind}
-                    armed={technicalArmed}
-                    onArm={(armed: boolean) => {
-                      setTechnicalArmed(armed);
-                      if (armed && view !== '2d') setView('2d');
-                    }}
-                    counts={technicalCounts}
-                    onAuto={() => store.suggestTechnical()}
-                    onRadiators={() => store.suggestRadiators(products)}
-                    stepHref={DESIGN_STEP_HREFS[3]}
-                  />
-                )}
-                {category === 'finishes' && (
-                  <FinishesTray
-                    surface={finishSurface}
-                    onSurface={(surface) => {
-                      setFinishSurface(surface);
-                      // The brush goes with the surface: a floor laminate does not paint a wall.
-                      // Each surface opens on its first chip, the smallest piece; a trim has only the room.
-                      setFinishScope(surface === 'wall' ? (painting && finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
-                      setBrush(undefined);
-                    }}
-                    scope={finishScope}
-                    onScope={setFinishScope}
-                    hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null}
-                    roomName={finishRoom?.name ?? null}
-                    areaLabel={finishArea}
-                    options={finishOptions}
-                    currentId={currentFinishId}
-                    onPick={(product) => pickFinish(finishSurface, product)}
-                    canClear={canClearPartial}
-                    onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
-                    flat={view === '2d'}
-                  />
-                )}
-                {category === 'budget' && cost && <BudgetTray cost={cost} />}
-              </Tray>
+              {trayShown && (
+                <Tray>
+                  {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} />}
+                  {category === 'furniture' && (
+                    <FurnitureTray
+                      catalog={products}
+                      styleId={styleId}
+                      roomLabel={focusRoom?.name ?? t.design.wholeFlat}
+                      roomType={focusShelfType}
+                      onPick={pickProduct}
+                      onDragProduct={onDragProduct}
+                      onOpenCatalog={() => setCatalogBrowser('open')}
+                      onAddOwn={() => setOwnDialogOpen(true)}
+                    />
+                  )}
+                  {category === 'electric' && (
+                    <ElectricTray
+                      kind={electricalKind}
+                      onKind={setElectricalKind}
+                      armed={electricalArmed}
+                      onArm={setElectricalArmed}
+                      onSuggest={() => store.suggestElectrical(products)}
+                      onClear={store.clearElectrical}
+                      lightsOn={lightsOn}
+                      onDragKind={(kind) => {
+                        setDraggingKind(kind);
+                        if (!kind) viewerApi?.clearElectricalPreview();
+                      }}
+                    />
+                  )}
+                  {category === 'technical' && (
+                    <TechnicalTray
+                      kind={technicalKind}
+                      onKind={setTechnicalKind}
+                      armed={technicalArmed}
+                      onArm={(armed: boolean) => {
+                        setTechnicalArmed(armed);
+                        if (armed && view !== '2d') setView('2d');
+                      }}
+                      counts={technicalCounts}
+                      onAuto={() => store.suggestTechnical()}
+                      onRadiators={() => store.suggestRadiators(products)}
+                      stepHref={DESIGN_STEP_HREFS[3]}
+                    />
+                  )}
+                  {category === 'finishes' && (
+                    <FinishesTray
+                      surface={finishSurface}
+                      onSurface={(surface) => {
+                        setFinishSurface(surface);
+                        // The brush goes with the surface: a floor laminate does not paint a wall.
+                        // Each surface opens on its first chip, the smallest piece; a trim has only the room.
+                        setFinishScope(surface === 'wall' ? (painting && finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
+                        setBrush(undefined);
+                      }}
+                      scope={finishScope}
+                      onScope={setFinishScope}
+                      hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null}
+                      roomName={finishRoom?.name ?? null}
+                      areaLabel={finishArea}
+                      options={finishOptions}
+                      currentId={currentFinishId}
+                      onPick={(product) => pickFinish(finishSurface, product)}
+                      canClear={canClearPartial}
+                      onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
+                      flat={view === '2d'}
+                    />
+                  )}
+                  {category === 'budget' && cost && <BudgetTray cost={cost} />}
+                </Tray>
+              )}
             </div>
           )}
         </div>
 
         {/* ---- help and zoom ---- */}
         {/* Open, the card is what the person is reading, so it goes above the right panel. */}
-        <div className={cn('pointer-events-auto absolute right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
+        <div data-board-edge="right" className={cn('pointer-events-auto absolute right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
-          <ZoomControls onZoom={(f) => viewerApi?.zoom(f)} onReset={() => viewerApi?.reset()} onFullscreen={toggleFullscreen} fullscreen={fullscreen} disabled={view !== '3d' || !viewerApi} />
+          {/* The same buttons zoom the 2D sheet (its scale goes the other way from the camera's distance). */}
+          <ZoomControls
+            onZoom={(f) => (view === '2d' ? planApi?.zoom(1 / f) : viewerApi?.zoom(f))}
+            onReset={() => (view === '2d' ? planApi?.fit() : viewerApi?.reset())}
+            onFullscreen={toggleFullscreen}
+            fullscreen={fullscreen}
+            disabled={view === '2d' ? !planApi : view !== '3d' || !viewerApi}
+          />
         </div>
 
         <HoverCard ref={hoverCard} />

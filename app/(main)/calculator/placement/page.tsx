@@ -8,6 +8,7 @@ import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
+import { FLOW_BOARD_BLEED, FlowBar, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { finishSwatchColor } from '@/components/plan/draw';
 import { useCalculatorStore } from '@/store/calculatorStore';
@@ -32,6 +33,9 @@ type Surface = 'floor' | 'wall';
  * table beside the plan, a square metre or a metre-wide strip at a time with the brush on it
  * — and the area laid is what each one is bought at. The board shows every room in the
  * colour of what it wears, so the plan says what is where; the legend says how much.
+ *
+ * From `lg` up the step is the whole window (`FlowWorkspace`): the plan edge to edge, the
+ * brush along its bottom, the rooms and the legend in a panel down its right.
  */
 export default function PlacementStepPage() {
   const t = useT();
@@ -91,64 +95,86 @@ export default function PlacementStepPage() {
   };
   const swatchOf = (pick: SelectedProduct): string => finishSwatchColor({ colorHex: pick.colorHex ?? '#FFFFFF', product: { productId: pick.productId, colorHex: pick.colorHex ?? null } as never });
 
+  const cartTotal = picks.reduce((s, p) => s + p.pick.totalPrice, 0);
+  // The brush — which surface, which material, or the eraser: along the bottom of the
+  // full-screen board, above the board below `lg`.
+  const brushBar = (
+    <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-line bg-bg-surface p-3 lg:max-w-[46rem] lg:border-line/70 lg:bg-white/[0.97] lg:shadow-float lg:backdrop-blur-xl">
+      <div className="flex gap-1" role="tablist" aria-label={t.calculator.placementBrush}>
+        {(['floor', 'wall'] as const).map((s) => (
+          <button key={s} type="button" role="tab" aria-selected={surface === s} onClick={() => { setSurface(s); setBrush(undefined); }} className={cn('h-8 rounded-[8px] px-3 text-xs font-semibold', surface === s ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+            {s === 'floor' ? t.calculator.summaryFloor : t.calculator.summaryWalls}
+          </button>
+        ))}
+      </div>
+      <span className="text-xs text-ink-muted">{t.calculator.placementBrush}:</span>
+      <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.calculator.placementBrush}>
+        {forSurface(surface).map(({ key, pick, product }) => {
+          const active = brush != null && brush.id === product.id;
+          return (
+            <button key={key} type="button" role="radio" aria-checked={active} onClick={() => setBrush(active ? undefined : product)} title={localizedName(locale, pick)} className={cn('flex h-8 items-center gap-1.5 rounded-[8px] border pl-1 pr-2 text-xs font-medium', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink hover:border-ink')}>
+              <span className="relative block h-6 w-6 overflow-hidden rounded-[5px]" style={{ backgroundColor: swatchOf(pick) }}>
+                {(pick.textureUrl ?? pick.imageUrl) && <Image src={pick.textureUrl ?? pick.imageUrl!} alt="" fill sizes="24px" className="object-cover" />}
+              </span>
+              <span className="max-w-[140px] truncate">{localizedName(locale, pick)}</span>
+            </button>
+          );
+        })}
+        <button type="button" role="radio" aria-checked={brush === null} onClick={() => setBrush(brush === null ? undefined : null)} className={cn('flex h-8 items-center gap-1.5 rounded-[8px] border px-2 text-xs font-medium', brush === null ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-danger hover:text-danger')}>
+          <Eraser className="h-3.5 w-3.5" />
+          {t.calculator.placementEraser}
+        </button>
+      </div>
+      <p className="w-full text-[11px] leading-snug text-ink-muted">{t.calculator.placementBrushHint}</p>
+    </div>
+  );
+
   return (
     <>
       <StepIndicator current={5} />
-      <div className="container py-10 md:py-14">
-        <StepHeader step={5} total={CALCULATOR_STEPS} title={t.calculator.placementTitle} subtitle={t.calculator.placementSubtitle} />
+      <FlowWorkspace>
+        <FlowBar
+          step={5}
+          total={CALCULATOR_STEPS}
+          title={t.calculator.placementTitle}
+          subtitle={t.calculator.placementSubtitle}
+          back={{ href: '/calculator/catalog', label: t.calculator.backButton }}
+          actions={
+            <p className="flex h-11 items-center gap-1.5 rounded-[12px] bg-white/90 px-3 text-sm text-ink-muted shadow-glass backdrop-blur-xl">
+              {t.calculator.cartTitle} {picks.length} · <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatGEL(cartTotal)}</span>
+            </p>
+          }
+          next={{ label: t.calculator.nextButton, onClick: () => setAskFurniture(true) }}
+        />
+
+        {/* Below `lg` the step reads as every other step does: its head, then the board. */}
+        <div className="container py-10 md:py-14 lg:hidden">
+          <StepHeader step={5} total={CALCULATOR_STEPS} title={t.calculator.placementTitle} subtitle={t.calculator.placementSubtitle} />
+        </div>
 
         {picks.length === 0 || !plan ? (
-          <div className="mt-8 border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.calculator.placementNothing}</div>
+          <div className="container pb-10 lg:absolute lg:inset-0 lg:flex lg:max-w-none lg:items-center lg:justify-center lg:p-0">
+            <div className="border border-dashed border-line p-10 text-center text-sm text-ink-muted lg:max-w-md lg:rounded-[16px] lg:bg-white/90 lg:shadow-glass">{t.calculator.placementNothing}</div>
+          </div>
         ) : (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0 space-y-3">
-              {/* The brush: which surface, which material, or the eraser. */}
-              <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-line bg-bg-surface p-3">
-                <div className="flex gap-1" role="tablist" aria-label={t.calculator.placementBrush}>
-                  {(['floor', 'wall'] as const).map((s) => (
-                    <button key={s} type="button" role="tab" aria-selected={surface === s} onClick={() => { setSurface(s); setBrush(undefined); }} className={cn('h-8 rounded-[8px] px-3 text-xs font-semibold', surface === s ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
-                      {s === 'floor' ? t.calculator.summaryFloor : t.calculator.summaryWalls}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-xs text-ink-muted">{t.calculator.placementBrush}:</span>
-                <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.calculator.placementBrush}>
-                  {forSurface(surface).map(({ key, pick, product }) => {
-                    const active = brush != null && brush.id === product.id;
-                    return (
-                      <button key={key} type="button" role="radio" aria-checked={active} onClick={() => setBrush(active ? undefined : product)} title={localizedName(locale, pick)} className={cn('flex h-8 items-center gap-1.5 rounded-[8px] border pl-1 pr-2 text-xs font-medium', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink hover:border-ink')}>
-                        <span className="relative block h-6 w-6 overflow-hidden rounded-[5px]" style={{ backgroundColor: swatchOf(pick) }}>
-                          {(pick.textureUrl ?? pick.imageUrl) && <Image src={pick.textureUrl ?? pick.imageUrl!} alt="" fill sizes="24px" className="object-cover" />}
-                        </span>
-                        <span className="max-w-[140px] truncate">{localizedName(locale, pick)}</span>
-                      </button>
-                    );
-                  })}
-                  <button type="button" role="radio" aria-checked={brush === null} onClick={() => setBrush(brush === null ? undefined : null)} className={cn('flex h-8 items-center gap-1.5 rounded-[8px] border px-2 text-xs font-medium', brush === null ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-danger hover:text-danger')}>
-                    <Eraser className="h-3.5 w-3.5" />
-                    {t.calculator.placementEraser}
-                  </button>
-                </div>
-                <p className="w-full text-[11px] leading-snug text-ink-muted">{t.calculator.placementBrushHint}</p>
-              </div>
+          <div className="container pb-10 lg:contents">
+            <PlanWorkspace
+              store={useCalculatorPlanStore}
+              tools={['select', 'pan', 'paint']}
+              tool={brush === undefined ? 'select' : 'paint'}
+              onTool={(tool) => {
+                if (tool !== 'paint') setBrush(undefined);
+              }}
+              paintScope={surface === 'floor' ? 'cell' : 'strip'}
+              onPaint={onPaint}
+              roomsOnly
+              hideToolbar
+              layers={{ furniture: false, electrical: false, technical: false, dimensions: true }}
+              bleed={FLOW_BOARD_BLEED}
+              dock={brushBar}
+            />
 
-              <PlanWorkspace
-                store={useCalculatorPlanStore}
-                tools={['select', 'pan', 'paint']}
-                tool={brush === undefined ? 'select' : 'paint'}
-                onTool={(tool) => {
-                  if (tool !== 'paint') setBrush(undefined);
-                }}
-                paintScope={surface === 'floor' ? 'cell' : 'strip'}
-                onPaint={onPaint}
-                roomsOnly
-                hideToolbar
-                layers={{ furniture: false, electrical: false, technical: false, dimensions: true }}
-                height={540}
-              />
-            </div>
-
-            <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <FlowPanel className="mt-6 lg:mt-0">
               {/* Whole rooms: a material for the floor and one for the walls of each. */}
               <div className="rounded-[14px] border border-line bg-bg-surface">
                 <div className="border-b border-line px-4 py-3">
@@ -220,14 +246,14 @@ export default function PlacementStepPage() {
                   })}
                 </ul>
               </div>
-            </div>
+            </FlowPanel>
           </div>
         )}
-      </div>
+      </FlowWorkspace>
 
-      <StepNav back={{ href: '/calculator/catalog', label: t.calculator.backButton }} next={{ label: t.calculator.nextButton, onClick: () => setAskFurniture(true) }}>
+      <StepNav className="lg:hidden" back={{ href: '/calculator/catalog', label: t.calculator.backButton }} next={{ label: t.calculator.nextButton, onClick: () => setAskFurniture(true) }}>
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.calculator.cartTitle} {picks.length} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(picks.reduce((s, p) => s + p.pick.totalPrice, 0))}</span>
+          {t.calculator.cartTitle} {picks.length} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cartTotal)}</span>
         </p>
       </StepNav>
 

@@ -12,6 +12,7 @@ import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
+import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowBarButton, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useDesignStore } from '@/store/designStore';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -24,6 +25,10 @@ import { formatM2 } from '@/lib/utils';
  * rooms as rectangles, doors, windows, columns, beams — the rooms as cards on the right,
  * and the selected element's parameters under them. Leaving keeps version 01, the existing
  * house, so it can always be returned to.
+ *
+ * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
+ * tools floating down its left, the cards in a panel down its right, the title and the way
+ * on along its top.
  */
 export default function ExistingHousePage() {
   const t = useT();
@@ -93,43 +98,56 @@ export default function ExistingHousePage() {
   };
 
   const roomCount = fill(t.build.roomCount, { n: plan.rooms.length });
+  const nextLabel = emptyStart ? t.design.continueToStudio : after === 3 ? t.build.continueToTechnical : t.build.continueToStyle;
 
   return (
     <>
       <DesignFlowGuard step={2} />
       <DesignSteps current={2} />
-      <div className="container py-8 md:py-12">
-        <StepHeader
+      <FlowWorkspace>
+        <FlowBar
           step={designStepPosition(2, homeState, mode)}
           total={8}
           title={t.build.s2Title}
           subtitle={t.build.s2Subtitle}
-          meta={
-            <>
-              <span>{roomCount}</span>
-              <span className="text-ink-faint">·</span>
-              <span>{formatM2(totalFloorAreaM2(plan))}</span>
-            </>
-          }
-          actions={
-            <button type="button" onClick={suggestOpenings} title={t.build.autoOpeningsHint} className="flex h-10 items-center gap-2 rounded-[12px] border border-line bg-white px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
-              <Wand2 className="h-4 w-4" />
-              {t.build.autoOpenings}
-            </button>
-          }
+          brief={2}
+          back={{ href: '/design', label: t.calculator.backButton }}
+          actions={<FlowBarButton icon={<Wand2 className="h-4 w-4" />} label={t.build.autoOpenings} title={t.build.autoOpeningsHint} onClick={suggestOpenings} />}
+          next={{ label: nextLabel, onClick: continueNext, disabled: plan.rooms.length === 0 }}
         />
-        <StageBrief step={2} className="mt-6" />
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="relative min-w-0">
-            <PlanWorkspace tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']} layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']} height="calc(100vh - 260px)" onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)} />
-            {refused && (
-              <p role="alert" className="absolute left-4 top-24 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger">
-                {refused}
-              </p>
-            )}
-          </div>
-          <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:self-start lg:pr-1">
+        {/* Below `lg` the step reads as every other step does: its head, then the board. */}
+        <div className="container py-8 md:py-12 lg:hidden">
+          <StepHeader
+            step={designStepPosition(2, homeState, mode)}
+            total={8}
+            title={t.build.s2Title}
+            subtitle={t.build.s2Subtitle}
+            meta={
+              <>
+                <span>{roomCount}</span>
+                <span className="text-ink-faint">·</span>
+                <span>{formatM2(totalFloorAreaM2(plan))}</span>
+              </>
+            }
+            actions={
+              <button type="button" onClick={suggestOpenings} title={t.build.autoOpeningsHint} className="flex h-10 items-center gap-2 rounded-[12px] border border-line bg-white px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
+                <Wand2 className="h-4 w-4" />
+                {t.build.autoOpenings}
+              </button>
+            }
+          />
+          <StageBrief step={2} className="mt-6" />
+        </div>
+
+        <div className="container pb-10 lg:contents">
+          <PlanWorkspace
+            tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']}
+            layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']}
+            bleed={FLOW_BOARD_BLEED}
+            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+          />
+          <FlowPanel className="mt-6 lg:mt-0">
             <ElementInspector
               roomPart={actions.selectedRoomPart}
               plan={plan}
@@ -178,11 +196,13 @@ export default function ExistingHousePage() {
               <DoorOpen className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {t.design.planOpeningsHint}
             </p>
-          </div>
+          </FlowPanel>
         </div>
-      </div>
 
-      <StepNav back={{ href: '/design', label: t.calculator.backButton }} next={{ label: emptyStart ? t.design.continueToStudio : after === 3 ? t.build.continueToTechnical : t.build.continueToStyle, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
+        {refused && <FlowAlert>{refused}</FlowAlert>}
+      </FlowWorkspace>
+
+      <StepNav className="lg:hidden" back={{ href: '/design', label: t.calculator.backButton }} next={{ label: nextLabel, onClick: continueNext, disabled: plan.rooms.length === 0 }} />
     </>
   );
 }
