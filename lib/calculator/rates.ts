@@ -7,7 +7,9 @@
  * table means the defaults, and a row overrides its key. Isomorphic: no database access here.
  */
 
-import { MATERIAL_RATES_PER_M2, WORKER_RATES, type MaterialRate } from './constants';
+import { MATERIAL_RATES_PER_M2, RETIRED_RATE_KEYS, WORKER_RATES, type MaterialRate } from './constants';
+
+const RETIRED = new Set(RETIRED_RATE_KEYS);
 
 export interface LabourRate {
   labelKa: string;
@@ -87,34 +89,34 @@ export function defaultRateRows(): Array<Omit<RateRow, 'id'>> {
 
 /** Which renovation phase each labour line belongs to — mirrors `calculateWorkerCosts`. */
 export const LABOUR_PHASE: Record<string, number> = {
-  strip_floor: 0,
-  strip_walls: 0,
-  strip_ceiling: 0,
-  strip_tiles: 0,
-  remove_doors_windows: 0,
-  remove_sanitary: 0,
-  debris_removal: 0,
-  demolition: 1,
-  plumbing_rough: 2,
-  electrical_rough: 3,
-  insulation: 5,
-  screed: 6,
-  plastering: 7,
-  waterproofing: 8,
-  tiling: 9,
-  windows: 10,
-  doors: 10,
-  flooring: 11,
-  ceiling: 12,
-  painting: 13,
-  electrical_finish: 14,
-  plumbing_finish: 15,
-  electrical_point: 14,
-  lighting_point: 14,
-  plumbing_point: 15,
-  radiator_install: 15,
-  ac_install: 14,
-  extractor_install: 14,
+  demolish_floor: 0,
+  demolish_walls: 0,
+  demolish_tiles: 0,
+  debris_old: 0,
+  wall_build: 1,
+  heating_piping: 2,
+  radiator_mount: 2,
+  floor_screed: 3,
+  electric_point: 4,
+  wall_chasing: 4,
+  plaster_walls: 5,
+  paint_walls: 6,
+  plumbing_install: 7,
+  bath_screed: 8,
+  bath_wall_prep: 8,
+  bath_tiling: 9,
+  kitchen_tiling: 10,
+  laminate_laying: 11,
+  parquet_laying: 11,
+  ceiling_gypsum: 12,
+  ceiling_finish: 12,
+  ceiling_barisol: 12,
+  door_install: 13,
+  debris_new: 14,
+  // Not a phase of the estimate: studio-only work, listed with the works they follow.
+  ac_install: 4,
+  extractor_install: 4,
+  trim_install: 11,
 };
 
 /**
@@ -122,10 +124,13 @@ export const LABOUR_PHASE: Record<string, number> = {
  * "nobody has seeded it yet" and yields the defaults. Otherwise a row overrides its key, and
  * a row that is switched off stays off — but a default the table has never heard of still
  * counts, at the rate it shipped with. Such a key is a line the app gained after this
- * database was seeded (the strip-out works of phase 0 were the first); without the fallback
- * it would silently price at nothing until someone ran `pnpm db:seed:rates`.
+ * database was seeded (the whole of the renovation team's book, September 2026); without the
+ * fallback it would silently price at nothing until someone ran `pnpm db:seed:rates`. Rows
+ * under a retired key (`RETIRED_RATE_KEYS`, the book before it) are ignored outright.
  */
 export function rateBookFromRows(rows: RateRow[]): RateBook {
+  // A row under a key of the book the team's rates replaced is dead: never read, whatever it says.
+  rows = rows.filter((r) => !RETIRED.has(r.key));
   if (rows.length === 0) return DEFAULT_RATE_BOOK;
   const materials: Record<string, MaterialRate> = {};
   const labour: Record<string, LabourRate> = {};

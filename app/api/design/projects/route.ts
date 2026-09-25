@@ -1,4 +1,5 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { isDesignPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { auth } from '@/auth';
@@ -140,11 +141,17 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     // Versions are snapshots the person keeps to come back to; they are stored as sent (the
     // live scene above is the one that is repriced).
     ...(versions ? { versions } : {}),
+  };
+  // Autosaved before it was generated: the flat and the choices so far are kept, but its
+  // budget is not the project's total yet (in a renovation it would be the works alone).
+  const pending = isDesignPending(scene);
+  const costColumns = {
     totalMaterialsCost: String(cost.materialsTotal + cost.finishesTotal + cost.technicalTotal + cost.openingsTotal),
     totalFurnitureCost: String(cost.furnitureTotal),
     totalWorkersCost: String(cost.labourTotal),
     totalCost: String(cost.grandTotal),
   };
+  const noCosts = { totalMaterialsCost: null, totalFurnitureCost: null, totalWorkersCost: null, totalCost: null };
 
   // Writing into the caller's own project keeps whatever calculator half it already has.
   const existing = await ownProject(projectId, userId);
@@ -153,6 +160,8 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
       .update(projects)
       .set({
         ...designColumns,
+        // A pending design leaves a finished calculation's totals where they are.
+        ...(pending ? (existing.selectedProducts != null && !projectKind(existing).calculatorPending ? {} : noCosts) : costColumns),
         ...(calculatorColumns ?? {}),
         // An explicit save confirms a draft; an autosave leaves the status as it is.
         ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
@@ -166,6 +175,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     sessionId: null,
     nameKa,
     ...designColumns,
+    ...(pending ? noCosts : costColumns),
     selectedProducts: calculatorColumns?.selectedProducts ?? null,
     selectedFurniture: calculatorColumns?.selectedFurniture ?? null,
     calculatorEdits: calculatorColumns?.calculatorEdits ?? null,

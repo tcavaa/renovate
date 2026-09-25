@@ -89,7 +89,7 @@ export function MaterialsTable({ materials, workerCosts }: { materials: Material
                   <td className={`${TD} pr-3 text-right tabular-nums text-ink-soft`}>
                     {formatNumber(w.qty)} {unitLabel(t, w.qtyUnit)}
                   </td>
-                  <td className={`${TD} pr-3 text-right tabular-nums text-ink-muted`}>{formatGEL(w.pricePerQty)}</td>
+                  <td className={`${TD} pr-3 text-right tabular-nums text-ink-muted`}>{formatGEL(w.pricePerQty, !Number.isInteger(w.pricePerQty))}</td>
                   <td className={`${TD} text-right font-medium tabular-nums`}>{formatGEL(w.totalGEL)}</td>
                 </tr>
               ))}

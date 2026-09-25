@@ -1,15 +1,14 @@
 /**
  * What the home already has, and so must not be paid for again.
  *
- * A green frame is a flat that is finished: the floor is laid, the walls are painted, the
- * doors are hung and the sockets are in. Pricing it from the scene charged for all of it
- * anyway, because the scene describes the *whole* flat and has no way of knowing which
- * parts of it were already standing when the person arrived.
+ * A green frame is a flat whose wiring, pipes, heating and doors are in. Pricing it from the
+ * scene charged for all of it anyway, because the scene describes the *whole* flat and has no
+ * way of knowing which parts of it were already standing when the person arrived.
  *
  * So the technical step asks. Each tick is one thing the flat already has, and the budget
- * leaves it out — the lines, the baskets and the totals alike. A green frame starts with
- * everything ticked, because that is what a green frame means; every other condition starts
- * with nothing ticked and the phases decide as before. The list is stored on the plan
+ * leaves it out — the lines, the baskets and the totals alike, and the phase that would redo
+ * it. A green frame starts with those four ticked, because that is what a green frame means;
+ * every other condition starts with nothing ticked and the phases decide as before. The list is stored on the plan
  * (`plan.technical.existing`) so it travels with the project and is saved with it.
  */
 
@@ -27,9 +26,13 @@ const SURFACES: Partial<Record<ExistingKey, Array<SurfaceFinish['surface']>>> = 
   trim: ['skirting', 'cornice'],
 };
 
-/** What a flat in this condition already has, before the person says otherwise. */
+/**
+ * What a flat in this condition already has, before the person says otherwise. A green frame,
+ * as the renovation team defines it, is wired, plumbed and heated and has its doors — and
+ * still needs its walls painted, its floors laid, its tiles and its ceiling.
+ */
 export function defaultExistingForHomeState(homeState: HomeState | null | undefined): ExistingKey[] {
-  return homeState === 'green_frame' ? [...EXISTING_KEYS] : [];
+  return homeState === 'green_frame' ? ['openings', 'electrical', 'plumbing', 'heating'] : [];
 }
 
 /** The ticks in force: the person's own list when they have made one, the default otherwise. */

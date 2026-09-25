@@ -178,13 +178,17 @@ export async function createCheckoutForProject(project: Project, customer: Custo
   const kind = projectKind(project);
   const state = await projectOrderState(project.id);
 
-  const [calculatorLines, designLines] = await Promise.all([calculatorLinesOf(project), sceneLinesOf(project)]);
+  // A half left before it was calculated or generated is neither charged for nor ordered: its
+  // figures are not an estimate the customer has seen (`projectKind`).
+  const calculatorReady = kind.hasCalculator && !kind.calculatorPending;
+  const designReady = kind.hasDesign && !kind.designPending;
+  const [calculatorLines, designLines] = await Promise.all([calculatorReady ? calculatorLinesOf(project) : null, designReady ? sceneLinesOf(project) : null]);
   const lines = mergeLines(designLines, calculatorLines, state.orderedQty);
 
   const totalM2 = Number(project.totalM2) || 0;
   const feeKinds: CheckoutKind[] = [];
-  if (kind.hasCalculator && !state.orderedKinds.includes('calculator')) feeKinds.push('calculator');
-  if (kind.hasDesign && !state.orderedKinds.includes('design')) feeKinds.push('design');
+  if (calculatorReady && !state.orderedKinds.includes('calculator')) feeKinds.push('calculator');
+  if (designReady && !state.orderedKinds.includes('design')) feeKinds.push('design');
   const hasLines = lines.groups.size > 0;
   if (feeKinds.length === 0 && !hasLines) throw new NothingToOrder();
 
@@ -321,15 +325,22 @@ const workTypeNames = (key: string) => ({
  */
 async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
   const book = await loadRateBook();
+  const kind = projectKind(project);
   let labour: BudgetLine[];
-  if (project.plan && project.scene) {
+  // Only work that was worked out: a design never generated, a calculation never started, has
+  // no labour anybody has seen (`projectKind`). The design's budget when it was generated, else
+  // the calculator's sheet when it was calculated, else nothing.
+  const designReady = project.plan != null && project.scene != null && !kind.designPending;
+  const calculatorReady = !kind.calculatorPending && (project.selectedProducts != null || project.plan == null);
+  if (!designReady && !calculatorReady) return [];
+  if (designReady) {
     const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState as HomeState, book });
     labour = sheetLabour(cost.lines);
   } else {
     const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
     const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
     const rooms = (project.rooms ?? []) as Room[];
-    const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book);
+    const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
     labour = sheetLabour(calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines);
   }
   return labour.map((line) => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MATERIAL_BASES, RETIRED_RATE_KEYS } from '@/lib/calculator/constants';
 
 /** A row of the calculator's rate book, as admin edits it. */
 export const rateSchema = z.object({
@@ -7,11 +8,13 @@ export const rateSchema = z.object({
     .string()
     .min(2)
     .max(100)
-    .regex(/^[a-z0-9_]+$/, 'Lowercase letters, digits and underscores only'),
+    .regex(/^[a-z0-9_]+$/, 'Lowercase letters, digits and underscores only')
+    // A retired key is never read (`rateBookFromRows`), so a row under one would do nothing.
+    .refine((key) => !RETIRED_RATE_KEYS.includes(key), 'This key belongs to the retired rate book'),
   labelKa: z.string().min(1).max(255),
   phase: z.coerce.number().int().min(0).max(20),
   unit: z.enum(['m2', 'linear_m', 'piece', 'liter', 'kg', 'm3', 'unit']),
-  basis: z.enum(['floor', 'wall', 'ceiling', 'wet_floor', 'perimeter']).optional().nullable(),
+  basis: z.enum(MATERIAL_BASES).optional().nullable(),
   qtyPerM2: z.coerce.number().min(0).max(10000).optional().nullable(),
   wasteFactorPct: z.coerce.number().min(0).max(100).optional().nullable(),
   pricePerUnit: z.coerce.number().min(0).max(1_000_000),

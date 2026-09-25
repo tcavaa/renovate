@@ -26,8 +26,9 @@ export function OrderProjectButton({ project, size = 'lg', className }: { projec
 
   const parts = useMemo<CheckoutPart[]>(() => {
     const list: CheckoutPart[] = [];
-    if (project.hasCalculator) list.push(calculatorCheckoutPart(project.rooms, project.selectedProducts, project.selectedFurniture, fees.calculatorFeePerM2, locale, project.calculatorEdits));
-    if (project.hasDesign && project.plan && project.scene) {
+    // A half left before it was calculated or generated is not something to order (`projectKind`).
+    if (project.hasCalculator && !project.calculatorPending) list.push(calculatorCheckoutPart(project.rooms, project.selectedProducts, project.selectedFurniture, fees.calculatorFeePerM2, locale, project.calculatorEdits));
+    if (project.hasDesign && !project.designPending && project.plan && project.scene) {
       // The row as saved, priced as the server will price it — its scene, its ticks, its
       // home state — so the dialogue lists the product lines the stores will be sent.
       const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState, locale }), fees.designFeePerM2, locale);

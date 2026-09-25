@@ -19,6 +19,7 @@
 
 import { pointOnEdge, roomEdges, type PlanEdge } from './planGeometry';
 import { TECHNICAL_KINDS, technicalElevation } from './technical';
+import { dividerSegments, studioParts } from './studio';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
@@ -32,14 +33,16 @@ const BY_ROOM: Partial<Record<PlanRoom['type'], TechnicalKind[]>> = {
   toilet: ['water_supply', 'sewer', 'extractor'],
   kitchen: ['water_supply', 'sewer', 'gas', 'extractor'],
   living_room: ['ac_unit'],
+  // A studio is serviced part by part (`servicedAreas`); this is only its fallback.
+  studio: ['water_supply', 'sewer', 'gas', 'extractor', 'ac_unit'],
   bedroom: ['ac_unit'],
   office: ['ac_unit'],
 };
 
 /** One per flat, in the first room of this list that the flat has. */
 const ONE_PER_FLAT: Array<{ kind: TechnicalKind; rooms: Array<PlanRoom['type']> }> = [
-  { kind: 'electrical_panel', rooms: ['hallway', 'living_room', 'kitchen'] },
-  { kind: 'boiler', rooms: ['bathroom', 'kitchen', 'balcony'] },
+  { kind: 'electrical_panel', rooms: ['hallway', 'living_room', 'studio', 'kitchen'] },
+  { kind: 'boiler', rooms: ['bathroom', 'kitchen', 'studio', 'balcony'] },
 ];
 
 export interface AutoTechnicalResult {
@@ -59,9 +62,9 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   const has = (kind: TechnicalKind, roomId?: string) =>
     [...existing, ...points].some((p) => p.kind === kind && (roomId === undefined || p.roomId === roomId));
 
-  const place = (room: PlanRoom, kind: TechnicalKind) => {
+  const place = (room: PlanRoom, kind: TechnicalKind, notOn: Array<[Vec2, Vec2]> = []) => {
     if (has(kind, room.id)) return;
-    const position = spotFor(plan, room, kind, items);
+    const position = spotFor(plan, room, kind, items, notOn);
     if (!position) return;
     points.push({ id: nextId(), kind, roomId: room.id, position, elevationM: technicalElevation(kind, room), origin: 'user' });
     counts[kind] = (counts[kind] ?? 0) + 1;
@@ -69,6 +72,16 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
 
   for (const room of plan.rooms) {
     if (room.areaM2 < MIN_ROOM_M2) continue;
+    // A studio's kitchen half gets the kitchen's water and gas, its living half the living
+    // room's air conditioner — each on a wall of its own half, never on the line between them.
+    const parts = studioParts(room);
+    if (parts) {
+      for (const part of parts) {
+        const area: PlanRoom = { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined };
+        for (const kind of BY_ROOM[part.type] ?? []) place(area, kind, dividerSegments(room));
+      }
+      continue;
+    }
     for (const kind of BY_ROOM[room.type] ?? []) place(room, kind);
   }
 
@@ -87,9 +100,10 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
  * otherwise on the wall a fitter would choose — the longest one with no door in it, so the
  * pipe or the duct has a clear run.
  */
-function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[]): Vec2 | null {
+function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = []): Vec2 | null {
   const info = TECHNICAL_KINDS[kind];
-  const edges = roomEdges(room.polygon);
+  // A studio's dividing line is not a wall: nothing is fixed to it.
+  const edges = roomEdges(room.polygon).filter((edge) => !notOn.some(([a, b]) => onSegment(pointOnEdge(edge, 0.5), a, b)));
   if (edges.length === 0) return null;
 
   // The fixture this kind serves, biggest first — a bath before a basin.
@@ -119,6 +133,14 @@ function bestWall(room: PlanRoom, edges: PlanEdge[], kind: TechnicalKind): PlanE
   const outside = kind === 'extractor' || kind === 'ac_unit';
   const score = (edge: PlanEdge) => edge.length + (doored.has(edge.index) ? -20 : 0) + (outside && windowed.has(edge.index) ? 6 : 0);
   return [...edges].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
+function onSegment(p: Vec2, a: Vec2, b: Vec2): boolean {
+  const length = Math.hypot(b.x - a.x, b.z - a.z);
+  if (length < 1e-9) return false;
+  const s = ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / length;
+  const d = Math.abs((p.x - a.x) * (b.z - a.z) - (p.z - a.z) * (b.x - a.x)) / length;
+  return d < 0.01 && s >= -0.01 && s <= length + 0.01;
 }
 
 function nearestEdge(edges: PlanEdge[], point: Vec2): PlanEdge | null {

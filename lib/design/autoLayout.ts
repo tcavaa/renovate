@@ -13,6 +13,7 @@
  * Pure: no THREE, no React, no randomness beyond a seeded shuffle.
  */
 
+import { studioParts } from './studio';
 import type { RoomType } from '@/lib/calculator/types';
 import {
   ARCHETYPES,
@@ -69,6 +70,27 @@ export function layoutPlan(rooms: PlanRoom[], options: LayoutOptions = {}): Plac
 }
 
 export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedItem[] {
+  // A studio is furnished part by part: the kitchen's program in the kitchen half, the living
+  // room's in the other, each half a room of its own for the engine. The doors belong to the
+  // whole room, so their clear approach is kept free in both halves; the line between them is
+  // not a wall, but furniture standing along it (a sofa's back to the kitchen) is what an open
+  // plan looks like anyway.
+  const parts = studioParts(room);
+  if (parts) {
+    const keepouts = options.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
+    const obstacles = [...(options.obstacles?.[room.id] ?? []), ...keepouts];
+    return parts.flatMap((part) =>
+      layoutArea(
+        { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined },
+        { ...options, respectDoorSwing: false, obstacles: { ...options.obstacles, [room.id]: obstacles } },
+        `p${part.index}-`
+      )
+    );
+  }
+  return layoutArea(room, options, '');
+}
+
+function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string): PlacedItem[] {
   const program = ROOM_PROGRAMS[room.type] ?? [];
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return [];
@@ -85,7 +107,7 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
   const anchors = options.anchors?.[room.id];
 
   let counter = 0;
-  const nextId = (kind: string) => `${room.id}-${kind}-${counter++}`;
+  const nextId = (kind: string) => `${room.id}-${idPrefix}${kind}-${counter++}`;
 
   for (const entry of program) {
     const kind = resolveVariant(entry, room.areaM2);

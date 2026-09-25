@@ -4,8 +4,9 @@
  * point's pipe and fittings, a radiator, an air conditioner, a door, a window.
  *
  * They are what the word says — estimates for the Georgian market, in GEL, marked as such in
- * the budget — and the labour for each comes from the rate book (`WORKER_RATES`, editable in
- * admin). A real product chosen in the catalogue always replaces the estimate.
+ * the budget — and the labour for each comes from the rate book (`WORKER_RATES`, the renovation
+ * team's prices, editable in admin). A real product chosen in the catalogue always replaces the
+ * estimate.
  */
 
 import type { BuildMaterial, ElectricalKind, OpeningKind, TechnicalKind } from './types';
@@ -27,44 +28,64 @@ export const ELECTRICAL_MATERIAL_GEL: Record<ElectricalKind, number> = {
   light_furniture: 22,
 };
 
-/** Which labour line of the rate book each electrical kind is installed under, and how many units it counts. */
-export const ELECTRICAL_LABOUR: Record<ElectricalKind, { key: 'electrical_point' | 'lighting_point'; perUnit: number }> = {
-  socket: { key: 'electrical_point', perUnit: 1 },
-  socket_double: { key: 'electrical_point', perUnit: 1 },
-  socket_high: { key: 'electrical_point', perUnit: 1 },
-  socket_kitchen: { key: 'electrical_point', perUnit: 1 },
-  switch: { key: 'electrical_point', perUnit: 1 },
-  tv: { key: 'electrical_point', perUnit: 1 },
-  internet: { key: 'electrical_point', perUnit: 1 },
-  light_ceiling: { key: 'lighting_point', perUnit: 1 },
-  light_wall: { key: 'lighting_point', perUnit: 1 },
-  light_spot: { key: 'lighting_point', perUnit: 1 },
-  /** Strips are priced per metre; one point of labour per two metres. */
-  light_strip: { key: 'lighting_point', perUnit: 0.5 },
-  light_furniture: { key: 'lighting_point', perUnit: 0.5 },
+/**
+ * Which labour line of the rate book each electrical kind is installed under, and how many
+ * points it counts. Every fitting is one of the electrician's points (`electric_point`); a
+ * strip is priced per metre and counts one point per two metres.
+ */
+export const ELECTRICAL_LABOUR: Record<ElectricalKind, { key: 'electric_point'; perUnit: number }> = {
+  socket: { key: 'electric_point', perUnit: 1 },
+  socket_double: { key: 'electric_point', perUnit: 1 },
+  socket_high: { key: 'electric_point', perUnit: 1 },
+  socket_kitchen: { key: 'electric_point', perUnit: 1 },
+  switch: { key: 'electric_point', perUnit: 1 },
+  tv: { key: 'electric_point', perUnit: 1 },
+  internet: { key: 'electric_point', perUnit: 1 },
+  light_ceiling: { key: 'electric_point', perUnit: 1 },
+  light_wall: { key: 'electric_point', perUnit: 1 },
+  light_spot: { key: 'electric_point', perUnit: 1 },
+  light_strip: { key: 'electric_point', perUnit: 0.5 },
+  light_furniture: { key: 'electric_point', perUnit: 0.5 },
 };
 
-export type TechnicalLabourKey = 'plumbing_point' | 'radiator_install' | 'ac_install' | 'extractor_install' | 'electrical_point';
+export type TechnicalLabourKey = 'plumbing_install' | 'radiator_mount' | 'heating_piping' | 'ac_install' | 'extractor_install' | 'electric_point';
 
-export const TECHNICAL_RATES: Record<TechnicalKind, { materialGel: number; labour: TechnicalLabourKey; labourUnits: number; section: 'plumbing' | 'heating' | 'climate' | 'electrical' }> = {
-  water_supply: { materialGel: 60, labour: 'plumbing_point', labourUnits: 1, section: 'plumbing' },
-  sewer: { materialGel: 75, labour: 'plumbing_point', labourUnits: 1, section: 'plumbing' },
-  floor_drain: { materialGel: 85, labour: 'plumbing_point', labourUnits: 1, section: 'plumbing' },
-  electrical_panel: { materialGel: 260, labour: 'electrical_point', labourUnits: 4, section: 'electrical' },
-  gas: { materialGel: 150, labour: 'plumbing_point', labourUnits: 1, section: 'plumbing' },
-  radiator: { materialGel: 340, labour: 'radiator_install', labourUnits: 1, section: 'heating' },
+/**
+ * What each technical point costs when the estimate has not already counted it. The
+ * renovation's own phases (`lib/calculator`) price the wiring, the plumbing points and the
+ * radiators' pipework and hanging from the points the plan holds; these rates are for the
+ * point on its own — one somebody added to a flat whose phase is not being done — and for
+ * the equipment itself (the radiator, the panel, the boiler, the air conditioner), which the
+ * phases never price.
+ *
+ * `pipes`: the material is the plumbing point's pipes (`plumbing_pipes`, 30–35 ₾ a point),
+ * which the plumbing phase already buys for every point it counts. `covered`: the whole point
+ * is the heating phase's pipework, counted per radiator — a heating pipe marked on the plan
+ * adds nothing to it.
+ */
+export const TECHNICAL_RATES: Record<
+  TechnicalKind,
+  { materialGel: number; labour: TechnicalLabourKey; labourUnits: number; section: 'plumbing' | 'heating' | 'climate' | 'electrical'; pipes?: boolean; covered?: boolean }
+> = {
+  water_supply: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
+  sewer: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
+  floor_drain: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
+  gas: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
+  electrical_panel: { materialGel: 260, labour: 'electric_point', labourUnits: 4, section: 'electrical' },
+  radiator: { materialGel: 340, labour: 'radiator_mount', labourUnits: 1, section: 'heating' },
   ac_unit: { materialGel: 1250, labour: 'ac_install', labourUnits: 1, section: 'climate' },
   extractor: { materialGel: 120, labour: 'extractor_install', labourUnits: 1, section: 'climate' },
-  boiler: { materialGel: 950, labour: 'plumbing_point', labourUnits: 2, section: 'heating' },
-  heating_pipe: { materialGel: 70, labour: 'plumbing_point', labourUnits: 1, section: 'heating' },
+  boiler: { materialGel: 950, labour: 'plumbing_install', labourUnits: 2, section: 'heating' },
+  /** 25 m of pipe at 3.60 ₾ and the fitter's 50 ₾ — the team's per-radiator pipework. */
+  heating_pipe: { materialGel: 90, labour: 'heating_piping', labourUnits: 1, section: 'heating', covered: true },
 };
 
 /** The default labour price per unit when the rate book has no row for a key. */
-export const TECHNICAL_LABOUR_DEFAULT_GEL: Record<TechnicalLabourKey | 'lighting_point', number> = {
-  electrical_point: 25,
-  lighting_point: 35,
-  plumbing_point: 90,
-  radiator_install: 120,
+export const TECHNICAL_LABOUR_DEFAULT_GEL: Record<TechnicalLabourKey, number> = {
+  electric_point: 35,
+  plumbing_install: 80,
+  radiator_mount: 50,
+  heating_piping: 50,
   ac_install: 180,
   extractor_install: 60,
 };

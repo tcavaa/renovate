@@ -53,7 +53,7 @@ export default function DesignStartPage() {
     if (calc.rooms.length === 0) return;
     // The calculation and this design are one project: carry its home state, picks and id.
     if (calc.homeState) {
-      startFromCalculator({ rooms: calc.rooms, homeState: calc.homeState, selectedProducts: calc.selectedProducts, selectedFurniture: calc.selectedFurniture, projectId: calc.projectId });
+      startFromCalculator({ rooms: calc.rooms, homeState: calc.homeState, selectedProducts: calc.selectedProducts, selectedFurniture: calc.selectedFurniture, projectId: calc.projectId, choices: calc.choices });
       router.push('/design/plan');
       return;
     }

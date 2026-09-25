@@ -51,7 +51,7 @@ export default function SummaryPage() {
   const searchParams = useSearchParams();
   const { status } = useSession();
 
-  const { rooms, homeState, selectedProducts, selectedFurniture, reset, projectId, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearEdits, syncFinishAreas } =
+  const { rooms, homeState, selectedProducts, selectedFurniture, projectId, excluded, quantities, choices, toggleExcluded, setLinesExcluded, setQuantity, clearEdits, syncFinishAreas } =
     useCalculatorStore();
   // The calculator's own board: what was laid on it is what the cart's finishes are bought at.
   const boardPlan = useCalculatorPlanStore((s) => s.plan);
@@ -93,7 +93,7 @@ export default function SummaryPage() {
     // The drawing the calculator was working on crosses into the studio here and nowhere
     // else — the two boards are separate until the person asks for this.
     const board = useCalculatorPlanStore.getState();
-    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: board.finishes });
+    const landing = startFromCalculator({ rooms, homeState, selectedProducts, selectedFurniture, projectId: currentProjectId, plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: board.finishes, choices });
     router.push(landing === 'studio' ? '/design/studio' : '/design/style');
   };
   /** The studio holds a design of another flat that was never saved: ask before it is replaced. */
@@ -131,8 +131,8 @@ export default function SummaryPage() {
     if (!ready) return null;
     const products = Object.values(selectedProducts);
     const furniture = Object.values(selectedFurniture).flat();
-    return buildProjectSummary(rooms, homeState, products, furniture, book);
-  }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book]);
+    return buildProjectSummary(rooms, homeState, products, furniture, book, { choices });
+  }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book, choices]);
 
   // The estimate as one sheet: every line with its tick and its quantity, the picks under the
   // shop that sells them. The engine's figures are the original; the person's edits — lines
@@ -240,9 +240,11 @@ export default function SummaryPage() {
   };
 
   const goToProfile = useCallback(() => {
-    reset();
+    // The calculator *and its drawing board*: the calculator reads its rooms off the board,
+    // so a board left behind brought the saved flat straight back into the next estimate.
+    resetFlow('calculator');
     router.push('/profile');
-  }, [reset, router]);
+  }, [router]);
 
   /**
    * "Start over" empties the calculator — its rooms and picks, and the plan on its own

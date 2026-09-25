@@ -1,4 +1,5 @@
 import { inArray } from 'drizzle-orm';
+import { projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { products, stores, type Project } from '@/lib/db/schema';
 import { buildProjectSummary } from '@/lib/calculator/materials';
@@ -34,6 +35,9 @@ export interface DesignSheet {
 export interface ProjectSheets {
   calculator: CalculatorSheet | null;
   design: DesignSheet | null;
+  /** A half that was left before it was done (`projectKind`): it has no sheet, and says so. */
+  calculatorPending: boolean;
+  designPending: boolean;
 }
 
 /** The shops that sell these products, as the snapshots a sheet line carries. */
@@ -62,22 +66,24 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
   const rooms = (project.rooms ?? []) as Room[];
   const homeState = project.homeState as HomeState;
   const hasDesign = project.plan != null && project.scene != null;
+  // A half left before it was calculated or generated has no figures to show.
+  const kind = projectKind(project);
 
   // The calculator's half: only when the calculator itself was used. A renovation designed
   // first also "has a calculation" (it priced works against a home state), but its materials
   // and labour are the design sheet's — shown there, not twice.
   let calculator: CalculatorSheet | null = null;
-  if (project.selectedProducts != null || !hasDesign) {
+  if ((project.selectedProducts != null || !hasDesign) && !kind.calculatorPending) {
     const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
     const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
     const picks = [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()];
     const shops = await storesOf(picks.map((p) => p.productId));
-    const summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book);
+    const summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
     calculator = calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null, storeOf: (id) => shops.get(id) ?? null });
   }
 
   let design: DesignSheet | null = null;
-  if (hasDesign) {
+  if (hasDesign && !kind.designPending) {
     const plan = project.plan as FloorPlan;
     const scene = project.scene as DesignScene;
     const options = { homeState, book, locale, ...basketLabels(t) };
@@ -91,5 +97,5 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
       changedCount: cost.lines.filter((l) => l.originalQty != null && !l.excluded).length,
     };
   }
-  return { calculator, design };
+  return { calculator, design, calculatorPending: kind.calculatorPending, designPending: kind.designPending };
 }

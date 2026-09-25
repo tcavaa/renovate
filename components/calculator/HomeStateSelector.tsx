@@ -6,10 +6,10 @@ import { useT } from '@/lib/i18n/client';
 import type { HomeState } from '@/lib/calculator/types';
 
 const OPTIONS: Array<{ value: HomeState; phases: string }> = [
-  { value: 'old_renovation', phases: '00 – 18' },
-  { value: 'black_frame', phases: '01 – 18' },
-  { value: 'white_frame', phases: '09 – 17' },
-  { value: 'green_frame', phases: '17' },
+  { value: 'old_renovation', phases: '00, 02 – 13' },
+  { value: 'black_frame', phases: '01 – 14' },
+  { value: 'white_frame', phases: '02, 04, 06 – 14' },
+  { value: 'green_frame', phases: '06, 09 – 12, 14' },
 ];
 
 /**

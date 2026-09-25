@@ -591,7 +591,11 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'mirror', count: 1 },
     { kind: 'pendant', count: 1 },
   ],
+  // Never laid out as one room: a studio is furnished part by part, each part by its own
+  // type's program (`layoutRoom`). This list is what the shelf offers under "studio".
+  studio: [],
 };
+ROOM_PROGRAMS.studio = [...ROOM_PROGRAMS.kitchen, ...ROOM_PROGRAMS.living_room.filter((e) => !ROOM_PROGRAMS.kitchen.some((k) => k.kind === e.kind))];
 
 /** Chooses the better variant when a program entry has a size-gated upgrade. */
 export function resolveVariant(entry: ProgramEntry, roomAreaM2: number): string {

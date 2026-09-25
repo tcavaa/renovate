@@ -9,23 +9,26 @@ import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { calculateMaterials, calculateWorkerCosts, aggregateRoomTotals } from '@/lib/calculator/materials';
+import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
+import { WorkChoicesPicker } from '@/components/calculator/WorkChoicesPicker';
 import { useT } from '@/lib/i18n/client';
 import { formatM2L, homeStateLabel } from '@/lib/i18n/labels';
 
 export default function MaterialsPage() {
   const t = useT();
-  const { rooms, homeState } = useCalculatorStore();
+  const { rooms, homeState, choices, setChoices } = useCalculatorStore();
   const { book } = useRateBook();
   const ready = !!homeState && rooms.length > 0;
 
   const { materials, workerCosts, totals } = useMemo(() => {
     if (!ready) return { materials: [], workerCosts: [], totals: null };
     return {
-      materials: calculateMaterials(rooms, homeState, book),
-      workerCosts: calculateWorkerCosts(rooms, homeState, book),
+      materials: calculateMaterials(rooms, homeState, book, { choices }),
+      workerCosts: calculateWorkerCosts(rooms, homeState, book, { choices }),
       totals: aggregateRoomTotals(rooms),
     };
-  }, [rooms, homeState, ready, book]);
+  }, [rooms, homeState, ready, book, choices]);
+  const phases = homeState ? HOME_STATES[homeState].includedPhases : [];
 
   if (!ready) {
     return (
@@ -55,6 +58,13 @@ export default function MaterialsPage() {
             <Figure label={t.calculator.summaryWetRooms} value={formatM2L(t, totals.totalWetRoomM2)} />
             <Figure label={t.calculator.summaryRooms} value={String(rooms.length)} />
           </div>
+        )}
+
+        {(phases.includes(FLOOR_PHASE) || phases.includes(CEILING_PHASE)) && (
+          <section className="mt-10 border-t border-line pt-6">
+            <h2 className="eyebrow mb-4">{t.calculator.choicesTitle}</h2>
+            <WorkChoicesPicker value={choices} onChange={setChoices} floor={phases.includes(FLOOR_PHASE)} ceiling={phases.includes(CEILING_PHASE)} />
+          </section>
         )}
 
         <div className="mt-12">

@@ -35,7 +35,7 @@ export function sameCalculatorRooms(a: Room[], b: Room[]): boolean {
     a.length === b.length &&
     a.every((r, i) => {
       const c = b[i];
-      return !!c && c.id === r.id && c.width === r.width && c.length === r.length && c.height === r.height && c.type === r.type && c.nameKa === r.nameKa && c.x === r.x && c.z === r.z;
+      return !!c && c.id === r.id && c.width === r.width && c.length === r.length && c.height === r.height && c.type === r.type && c.nameKa === r.nameKa && c.x === r.x && c.z === r.z && JSON.stringify(c.split ?? null) === JSON.stringify(r.split ?? null) && JSON.stringify(c.parts ?? null) === JSON.stringify(r.parts ?? null);
     })
   );
 }

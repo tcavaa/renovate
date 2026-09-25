@@ -223,10 +223,10 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     }
 
     // Living rooms and bedrooms: a general socket on each long free wall, at 45 cm.
-    if (['living_room', 'bedroom', 'office', 'hallway', 'kitchen'].includes(room.type)) {
+    if (['living_room', 'bedroom', 'office', 'hallway', 'kitchen', 'studio'].includes(room.type)) {
       const used = new Set(b.points.filter((p) => p.roomId === room.id && p.wallIndex != null).map((p) => p.wallIndex));
       const free = edges.filter((e) => e.length >= 1.6 && !used.has(e.index)).sort((p, q) => q.length - p.length);
-      const wanted = room.type === 'living_room' ? 2 : 1;
+      const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
       for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
     }
   }
