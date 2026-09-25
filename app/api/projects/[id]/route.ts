@@ -22,7 +22,7 @@ export const GET = handle('GET /api/projects/[id]', 'Failed to load project', as
  * they no longer want. An ordered project is history that partners are working from and
  * stays. Admin may delete anyone's. The photos' files go with the row (the rows cascade).
  */
-export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete project', async (_req, { params }) => {
+export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete project', async (req, { params }) => {
   const { session, response } = await requireSession();
   if (response) return response;
   const { id, response: bad } = parseId(params.id);
@@ -37,6 +37,9 @@ export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete proj
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
   if (project.status === 'submitted' && !isAdmin) return fail(API_ERRORS.PROJECT_HAS_ORDERS, 409);
+  // The browser letting go of a draft it replaced (`lib/flow/workspace`): only ever a draft,
+  // and only the caller's own — a saved or ordered project is left exactly as it is.
+  if (new URL(req.url).searchParams.get('onlyDraft') === '1' && (project.status !== 'draft' || project.userId !== Number(session.user.id))) return ok({ id, deleted: false });
 
   const renders = await db.select({ sourceUrl: projectRenders.sourceUrl, renderUrl: projectRenders.renderUrl }).from(projectRenders).where(eq(projectRenders.projectId, id));
   for (const render of renders) {

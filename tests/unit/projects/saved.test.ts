@@ -21,9 +21,11 @@ const product = (id: number, categorySlug: string | null, qty = 1): SceneProduct
 
 describe('projectKind', () => {
   it('counts a renovation + design project as a calculation even without calculator picks', () => {
-    expect(projectKind({ plan: {}, selectedProducts: null, mode: 'full' })).toEqual({ hasCalculator: true, hasDesign: true });
-    expect(projectKind({ plan: {}, selectedProducts: null, mode: 'design_only' })).toEqual({ hasCalculator: false, hasDesign: true });
-    expect(projectKind({ plan: null, selectedProducts: {}, mode: 'full' })).toEqual({ hasCalculator: true, hasDesign: false });
+    expect(projectKind({ plan: {}, selectedProducts: null, mode: 'full' })).toMatchObject({ hasCalculator: true, hasDesign: true });
+    expect(projectKind({ plan: {}, selectedProducts: null, mode: 'design_only' })).toMatchObject({ hasCalculator: false, hasDesign: true });
+    // Nothing recorded about their progress: both done.
+    expect(projectKind({ plan: {}, selectedProducts: {}, mode: 'full' })).toMatchObject({ calculatorPending: false, designPending: false });
+    expect(projectKind({ plan: null, selectedProducts: {}, mode: 'full' })).toMatchObject({ hasCalculator: true, hasDesign: false });
   });
 });
 

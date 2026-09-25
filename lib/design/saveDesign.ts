@@ -11,11 +11,17 @@
 
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
+import { closeAfterSave } from '@/lib/flow/workspace';
 
 export async function saveDesign(options: { draft: boolean; nameKa: string }): Promise<number> {
   const s = useDesignStore.getState();
   const calculator = useCalculatorStore.getState();
   if (!s.plan || s.plan.rooms.length === 0) throw new Error('no-plan');
+  // The calculator's half travels with the design only when it is the same flat: the design
+  // grew out of this very calculation (both unsaved, or both the same project). The calculator
+  // may hold another flat altogether — a design opened from "my projects" sits beside the
+  // person's own estimate — and that must neither be written into this row nor lose its own.
+  const sameFlat = !!s.calculatorPicks && calculator.projectId === s.projectId;
 
   const res = await fetch('/api/design/projects', {
     method: 'POST',
@@ -30,8 +36,8 @@ export async function saveDesign(options: { draft: boolean; nameKa: string }): P
       // never saved, its picks travel along so the row has both halves anyway.
       projectId: s.projectId ?? undefined,
       calculator:
-        s.calculatorPicks && calculator.rooms.length > 0 && calculator.homeState
-          ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture, edits: { excluded: calculator.excluded, quantities: calculator.quantities } }
+        sameFlat && calculator.rooms.length > 0 && calculator.homeState
+          ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture, edits: { excluded: calculator.excluded, quantities: calculator.quantities, choices: calculator.choices, progress: { step: calculator.step, calculated: calculator.calculated } } }
           : undefined,
       draft: options.draft,
       versions: s.versions,
@@ -41,6 +47,7 @@ export async function saveDesign(options: { draft: boolean; nameKa: string }): P
   if (!res.ok || json.error || !json.data) throw new Error(json.error ?? 'save-failed');
 
   useDesignStore.getState().setProjectId(json.data.id);
-  if (s.calculatorPicks) useCalculatorStore.getState().setProjectId(json.data.id);
+  if (sameFlat) useCalculatorStore.getState().setProjectId(json.data.id);
+  if (!options.draft) closeAfterSave('design', json.data.id);
   return json.data.id;
 }

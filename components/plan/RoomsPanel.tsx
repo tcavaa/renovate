@@ -16,9 +16,9 @@ import type { RoomType } from '@/lib/calculator/types';
 import { findFreeSpot } from '@/lib/calculator/layout';
 import type { FloorPlan, PlanRoom } from '@/lib/design/types';
 import { ROOM_TINT_STRONG } from './palette';
-import { Field, RoomFields, type InspectorActions } from './ElementInspector';
+import { Field, RoomFields, type InspectorActions, type RoomPartPick } from './ElementInspector';
 
-export function RoomsPanel({ plan, selectedId, onSelect, actions, onAddRectangle, locked, className }: { plan: FloorPlan; selectedId: string | null; onSelect: (id: string | null) => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom'>; onAddRectangle: (rect: { x: number; z: number; width: number; depth: number }, type: RoomType, name?: string) => void; locked?: boolean; className?: string }) {
+export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAddRectangle, locked, className }: { plan: FloorPlan; selectedId: string | null; onSelect: (id: string | null) => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart'>; roomPart?: RoomPartPick; onAddRectangle: (rect: { x: number; z: number; width: number; depth: number }, type: RoomType, name?: string) => void; locked?: boolean; className?: string }) {
   const t = useT();
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState<RoomType>('bedroom');
@@ -50,7 +50,7 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, onAddRectangle
       {plan.rooms.length === 0 && <p className="rounded-[12px] border border-dashed border-line p-4 text-center text-xs text-ink-muted">{t.build.noRoomsYet}</p>}
       <ul className="space-y-2">
         {plan.rooms.map((room) => (
-          <RoomCard key={room.id} room={room} plan={plan} active={room.id === selectedId} onSelect={() => onSelect(room.id)} actions={actions} locked={locked} />
+          <RoomCard key={room.id} room={room} plan={plan} active={room.id === selectedId} onSelect={() => onSelect(room.id)} actions={actions} locked={locked} roomPart={roomPart} />
         ))}
       </ul>
       {adding ? (
@@ -92,7 +92,7 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, onAddRectangle
   );
 }
 
-function RoomCard({ room, plan, active, onSelect, actions, locked }: { room: PlanRoom; plan: FloorPlan; active: boolean; onSelect: () => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom'>; locked?: boolean }) {
+function RoomCard({ room, plan, active, onSelect, actions, locked, roomPart }: { room: PlanRoom; plan: FloorPlan; active: boolean; onSelect: () => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart'>; locked?: boolean; roomPart?: RoomPartPick }) {
   const t = useT();
   return (
     <li id={`plan-room-${room.id}`} className={cn('rounded-[14px] border bg-white transition-colors', active ? 'border-ink' : 'border-line hover:border-ink/40')}>
@@ -127,7 +127,7 @@ function RoomCard({ room, plan, active, onSelect, actions, locked }: { room: Pla
       </button>
       {active && (
         <div className="space-y-2 border-t border-line p-3">
-          <RoomFields room={room} plan={plan} actions={actions} locked={locked} compact />
+          <RoomFields room={room} plan={plan} actions={actions} locked={locked} compact roomPart={roomPart} />
         </div>
       )}
     </li>

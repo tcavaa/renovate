@@ -48,6 +48,7 @@ export function Header() {
 
   return (
     <header
+      data-site-nav
       className={cn(
         'sticky top-0 z-50 w-full transition-[background-color,border-color,box-shadow] duration-500',
         frosted ? 'border-b border-line/70 bg-bg-base/80 shadow-[0_1px_0_rgba(255,255,255,0.5)_inset] backdrop-blur-xl' : 'border-b border-transparent bg-transparent'

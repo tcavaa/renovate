@@ -131,6 +131,7 @@ export default function ExistingHousePage() {
           </div>
           <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:self-start lg:pr-1">
             <ElementInspector
+              roomPart={actions.selectedRoomPart}
               plan={plan}
               electrical={electrical}
               selection={selection && selection.kind !== 'room' ? selection : null}
@@ -154,6 +155,7 @@ export default function ExistingHousePage() {
                 updateElectrical: actions.updateElectricalPoint,
                 removeElectrical: actions.removeElectricalPoint,
                 updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart,
                 resizeRoom: actions.resizeRoom,
                 removeRoom: actions.removeRoom,
               }}
@@ -165,7 +167,8 @@ export default function ExistingHousePage() {
                 actions.setFocusRoom(id);
                 actions.selectElement(id ? { kind: 'room', id } : null);
               }}
-              actions={{ updateRoom: actions.updateRoom, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
+              actions={{ updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
               onAddRectangle={(rect, type) => {
                 const id = actions.addRectangleRoom(rect, type);
                 if (id) actions.setFocusRoom(id);

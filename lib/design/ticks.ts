@@ -35,7 +35,7 @@ export const tickFor = {
   estimate: (key: string): string => `estimate:${key}`,
   /** A bulk material of the rate book: `cement`, `plaster`… */
   material: (key: string): string => `material:${key}`,
-  /** A labour line: `plastering`, `electrical_point`, `trim_install`… */
+  /** A labour line: `plaster_walls`, `electric_point`, `trim_install`… */
   labour: (key: string): string => `labour:${key}`,
   /** A product picked in the calculator, by its selection key (`lib/calculator/quantities`). */
   pick: (selectionKey: string): string => `pick:${selectionKey}`,

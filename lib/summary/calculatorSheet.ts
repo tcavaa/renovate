@@ -14,7 +14,7 @@
  */
 
 import { CONTINGENCY_PCT } from '@/lib/calculator/constants';
-import type { ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
+import type { ProjectSummary, Room, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { withEdits, type BudgetLine } from '@/lib/design/pricing';
 import { tickFor, tickedOff, type Quantities, type Tick } from '@/lib/design/ticks';
 import type { SceneProduct, SceneStore } from '@/lib/design/types';
@@ -23,6 +23,10 @@ import type { SceneProduct, SceneStore } from '@/lib/design/types';
 export interface CalculatorEdits {
   excluded?: Tick[];
   quantities?: Quantities;
+  /** Laminate or parquet, plasterboard or a stretch ceiling: which labour the estimate prices. */
+  choices?: Partial<WorkChoices>;
+  /** How far the journey got — so a draft reopened from "my projects" lands where it was left. */
+  progress?: { step: number; calculated: boolean };
 }
 
 export interface CalculatorPicks {

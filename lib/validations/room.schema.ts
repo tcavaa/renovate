@@ -12,7 +12,22 @@ export const roomTypeEnum = z.enum([
   'storage',
   'office',
   'closet',
+  'studio',
 ]);
+
+/** A studio's dividing line and its two parts (`RoomSplit`). */
+export const roomSplitSchema = z.object({
+  axis: z.enum(['x', 'z']),
+  t: z.number().min(0).max(1),
+  parts: z.tuple([roomTypeEnum, roomTypeEnum]),
+});
+
+export const roomPartSchema = z.object({
+  type: roomTypeEnum,
+  floorM2: z.number().min(0),
+  wallM2: z.number().min(0),
+  perimeterM: z.number().min(0),
+});
 
 export const roomInputSchema = z.object({
   type: roomTypeEnum,
@@ -44,6 +59,8 @@ export const calculatorRequestSchema = z.object({
         isWetRoom: z.boolean(),
         x: z.number().optional(),
         z: z.number().optional(),
+        split: roomSplitSchema.optional(),
+        parts: z.array(roomPartSchema).max(2).optional(),
       })
     )
     .min(1),

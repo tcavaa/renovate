@@ -107,6 +107,13 @@ export function ProjectDetail({
         ))}
       </dl>
 
+      {(sheets.calculatorPending || sheets.designPending) && (
+        <div className="mt-6 space-y-1 border border-dashed border-line bg-bg-surface px-4 py-3 text-sm text-ink-muted">
+          {sheets.calculatorPending && <p>{t.profile.calculatorPendingNote}</p>}
+          {sheets.designPending && <p>{t.profile.designPendingNote}</p>}
+        </div>
+      )}
+
       <div className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
         {calculator ? (
           <>
@@ -186,6 +193,8 @@ export function ProjectDetail({
 
         {orders}
 
+        {/* Nothing worked out yet (a draft left before it was calculated or generated): no breakdown to give. */}
+        {(calculator || design) && (
         <Section title={t.summary.breakdown} className="pt-8">
           <div className="grid gap-6 lg:grid-cols-2">
             {calculator && (
@@ -219,6 +228,7 @@ export function ProjectDetail({
             )}
           </div>
         </Section>
+        )}
       </div>
     </div>
   );

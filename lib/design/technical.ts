@@ -29,16 +29,16 @@ export interface TechnicalKindInfo {
 }
 
 export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
-  water_supply: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: ['sink', 'shower', 'bathtub', 'washer', 'kitchen_run', 'kitchen_island'] },
-  sewer: { placement: 'any', defaultElevationM: 0, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'kitchen_run'] },
+  water_supply: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['sink', 'shower', 'bathtub', 'washer', 'kitchen_run', 'kitchen_island'] },
+  sewer: { placement: 'any', defaultElevationM: 0, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'kitchen_run'] },
   floor_drain: { placement: 'floor', defaultElevationM: 0, rooms: ['bathroom', 'toilet'], attracts: ['shower', 'bathtub', 'washer'] },
   electrical_panel: { placement: 'wall', defaultElevationM: 1.4, rooms: ['hallway'], attracts: [] },
-  gas: { placement: 'wall', defaultElevationM: 1.0, rooms: ['kitchen'], attracts: ['kitchen_run'] },
-  radiator: { placement: 'wall', defaultElevationM: 0.15, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway'], attracts: [] },
-  ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office'], attracts: [] },
-  extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen'], attracts: [] },
-  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['kitchen', 'bathroom', 'balcony'], attracts: [] },
-  heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway'], attracts: [] },
+  gas: { placement: 'wall', defaultElevationM: 1.0, rooms: ['kitchen', 'studio'], attracts: ['kitchen_run'] },
+  radiator: { placement: 'wall', defaultElevationM: 0.15, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway', 'studio'], attracts: [] },
+  ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office', 'studio'], attracts: [] },
+  extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: [] },
+  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['kitchen', 'bathroom', 'balcony', 'studio'], attracts: [] },
+  heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway', 'studio'], attracts: [] },
 };
 
 export const TECHNICAL_KIND_LIST = Object.keys(TECHNICAL_KINDS) as TechnicalKind[];
@@ -82,50 +82,77 @@ export interface WorkItem {
   phase: number;
 }
 
+/** One work per phase of the renovation team's book (`lib/calculator/constants`), in the team's order. */
 export const WORK_ITEMS: WorkItem[] = [
   { key: 'strip_out', phase: 0 },
-  { key: 'demolition', phase: 1 },
-  { key: 'plumbing', phase: 2 },
-  { key: 'electrical', phase: 3 },
-  { key: 'insulation', phase: 5 },
-  { key: 'screed', phase: 6 },
-  { key: 'plastering', phase: 7 },
-  { key: 'waterproofing', phase: 8 },
-  { key: 'tiling', phase: 9 },
-  { key: 'doors_windows', phase: 10 },
+  { key: 'walls', phase: 1 },
+  { key: 'heating', phase: 2 },
+  { key: 'screed', phase: 3 },
+  { key: 'electrical', phase: 4 },
+  { key: 'plastering', phase: 5 },
+  { key: 'painting', phase: 6 },
+  { key: 'plumbing', phase: 7 },
+  { key: 'bathroom_prep', phase: 8 },
+  { key: 'bathroom_tiling', phase: 9 },
+  { key: 'kitchen_tiling', phase: 10 },
   { key: 'flooring', phase: 11 },
   { key: 'ceiling', phase: 12 },
-  { key: 'painting', phase: 13 },
-  { key: 'electrical_finish', phase: 14 },
-  { key: 'plumbing_finish', phase: 15 },
-  { key: 'sanitary', phase: 16 },
-  { key: 'furniture', phase: 17 },
-  { key: 'cleaning', phase: 18 },
+  { key: 'doors', phase: 13 },
+  { key: 'debris', phase: 14 },
 ];
 
 /**
- * The works grouped by the stage of the house they take it through: from an old renovation
- * back to a black frame (the strip-out), from a black frame to a white one (the rough
- * works), from white to green (the finishing), and from green to moving in. The checklist
- * offers each stage as its own group so the person ticks what their renovation needs by
+ * The works of the book before the team's, as a saved plan may still carry them, and what
+ * each became. Works that no longer exist (insulation, the furniture "phase") map to nothing.
+ */
+const LEGACY_WORKS: Record<string, string[]> = {
+  demolition: [],
+  insulation: [],
+  waterproofing: ['bathroom_prep'],
+  tiling: ['bathroom_tiling', 'kitchen_tiling'],
+  doors_windows: ['doors'],
+  electrical_finish: ['electrical'],
+  plumbing_finish: ['plumbing'],
+  sanitary: ['plumbing'],
+  furniture: [],
+  cleaning: ['debris'],
+};
+
+/** A stored works list in today's keys: old keys translated, unknown ones dropped, no repeats. */
+export function normalizeWorks(works: readonly string[]): string[] {
+  const known = new Set(WORK_ITEMS.map((w) => w.key));
+  const out = new Set<string>();
+  for (const key of works) {
+    for (const next of LEGACY_WORKS[key] ?? [key]) if (known.has(next)) out.add(next);
+  }
+  return WORK_ITEMS.filter((w) => out.has(w.key)).map((w) => w.key);
+}
+
+/**
+ * The works grouped by the stage of the house they take it through — the team's own lists
+ * set side by side: from an old renovation back to bare walls (the strip-out), what a black
+ * frame needs that a white one does not (the walls, the screed, the plaster), what a white
+ * frame needs that a green one does not (heating, wiring, plumbing, the bathroom's floor and
+ * walls, the doors), and what every one of them still needs to be finished. The checklist
+ * offers each stage as its own group, so the person ticks what their renovation needs by
  * where their home stands today.
  */
 export interface WorkStage {
   /** The home state the stage starts from — its name is the group's title. */
   homeState: HomeState;
-  phases: [number, number];
+  phases: number[];
 }
 
 export const WORK_STAGES: WorkStage[] = [
-  { homeState: 'old_renovation', phases: [0, 0] },
-  { homeState: 'black_frame', phases: [1, 8] },
-  { homeState: 'white_frame', phases: [9, 16] },
-  { homeState: 'green_frame', phases: [17, 18] },
+  { homeState: 'old_renovation', phases: [0] },
+  { homeState: 'black_frame', phases: [1, 3, 5] },
+  { homeState: 'white_frame', phases: [2, 4, 7, 8, 13] },
+  { homeState: 'green_frame', phases: [6, 9, 10, 11, 12, 14] },
 ];
 
 /** The works of one stage, in the order they happen. */
 export function worksForStage(stage: WorkStage): WorkItem[] {
-  return WORK_ITEMS.filter((w) => w.phase >= stage.phases[0] && w.phase <= stage.phases[1]);
+  return WORK_ITEMS.filter((w) => stage.phases.includes(w.phase));
 }
 
 /** The works a home state implies — the starting point of the checklist. */
@@ -136,14 +163,18 @@ export function defaultWorksForHomeState(homeState: HomeState): string[] {
 
 /** The calculator's phase numbers for a list of works. */
 export function phasesForWorks(works: string[]): number[] {
-  const wanted = new Set(works);
+  const wanted = new Set(normalizeWorks(works));
   return WORK_ITEMS.filter((w) => wanted.has(w.key)).map((w) => w.phase);
 }
 
-/** The phases an estimate should run: the ticked works when there are any, the home state otherwise. */
+/**
+ * The phases an estimate should run: the ticked works when there are any, the home state
+ * otherwise — and the home state too when a stored list names nothing that still exists, so
+ * every part of the budget works from the same phases.
+ */
 export function effectivePhases(homeState: HomeState, works?: string[] | null): number[] {
-  if (works && works.length > 0) return phasesForWorks(works);
-  return HOME_STATES[homeState].includedPhases;
+  const ticked = works && works.length > 0 ? phasesForWorks(works) : [];
+  return ticked.length > 0 ? ticked : HOME_STATES[homeState].includedPhases;
 }
 
 // ---------------------------------------------------------------------------

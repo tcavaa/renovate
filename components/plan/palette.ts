@@ -21,6 +21,7 @@ export const ROOM_TINT: Record<RoomType, string> = {
   storage: '#E9E4DC',
   office: '#E8E3F3',
   closet: '#EFE6DA',
+  studio: '#F6E6CD',
 };
 
 export const ROOM_TINT_STRONG: Record<RoomType, string> = {
@@ -33,6 +34,7 @@ export const ROOM_TINT_STRONG: Record<RoomType, string> = {
   balcony: '#BCDBA8',
   storage: '#D2C8B8',
   office: '#C6BAE6',
+  studio: '#EBC690',
   closet: '#DCC9AF',
 };
 

@@ -30635,6 +30635,90 @@ var ARCHETYPES = {
 function getArchetype(kind) {
   return ARCHETYPES[kind] ?? null;
 }
+var ROOM_PROGRAMS = {
+  bedroom: [
+    { kind: "bed_double", count: 1 },
+    { kind: "nightstand", count: 2 },
+    { kind: "wardrobe", count: 1, minAreaM2: 8 },
+    { kind: "dresser", count: 1, minAreaM2: 13 },
+    { kind: "rug_bed", count: 1 },
+    { kind: "pendant", count: 1 },
+    { kind: "artwork", count: 1 },
+    { kind: "curtain", count: 1 },
+    { kind: "plant", count: 1, minAreaM2: 12 }
+  ],
+  living_room: [
+    { kind: "sofa_3seat", count: 1, preferAboveM2: 22 },
+    { kind: "coffee_table", count: 1 },
+    { kind: "tv_unit", count: 1 },
+    { kind: "armchair", count: 1, minAreaM2: 16 },
+    { kind: "bookshelf", count: 1, minAreaM2: 15 },
+    { kind: "rug", count: 1 },
+    { kind: "floor_lamp", count: 1, minAreaM2: 11 },
+    { kind: "pendant", count: 1 },
+    { kind: "artwork", count: 1 },
+    { kind: "plant", count: 1, minAreaM2: 12 },
+    { kind: "curtain", count: 1 },
+    { kind: "dining_table", count: 1, minAreaM2: 26 },
+    { kind: "dining_chair", count: "fill", minAreaM2: 26 }
+  ],
+  kitchen: [
+    { kind: "kitchen_run", count: 1 },
+    { kind: "fridge", count: 1 },
+    { kind: "kitchen_island", count: 1, minAreaM2: 17 },
+    { kind: "dining_table", count: 1, minAreaM2: 10 },
+    { kind: "dining_chair", count: "fill", minAreaM2: 10 },
+    { kind: "pendant", count: 1 },
+    { kind: "curtain", count: 1 }
+  ],
+  bathroom: [
+    { kind: "toilet", count: 1 },
+    { kind: "sink", count: 1 },
+    { kind: "shower", count: 1 },
+    { kind: "bathtub", count: 1, minAreaM2: 7.5 },
+    { kind: "washer", count: 1, minAreaM2: 4.5 },
+    { kind: "mirror", count: 1 }
+  ],
+  toilet: [
+    { kind: "toilet", count: 1 },
+    { kind: "sink", count: 1 },
+    { kind: "mirror", count: 1 }
+  ],
+  hallway: [
+    { kind: "console_table", count: 1 },
+    { kind: "shoe_cabinet", count: 1 },
+    { kind: "mirror", count: 1 },
+    { kind: "pendant", count: 1 },
+    { kind: "plant", count: 1, minAreaM2: 8 }
+  ],
+  office: [
+    { kind: "desk", count: 1 },
+    { kind: "office_chair", count: 1 },
+    { kind: "bookshelf", count: 1 },
+    { kind: "armchair", count: 1, minAreaM2: 14 },
+    { kind: "rug", count: 1 },
+    { kind: "pendant", count: 1 },
+    { kind: "artwork", count: 1 },
+    { kind: "curtain", count: 1 }
+  ],
+  storage: [
+    { kind: "storage_shelf", count: 2 },
+    { kind: "pendant", count: 1 }
+  ],
+  balcony: [
+    { kind: "armchair", count: 1, minAreaM2: 4 },
+    { kind: "plant", count: 2 }
+  ],
+  closet: [
+    { kind: "wardrobe", count: 2 },
+    { kind: "mirror", count: 1 },
+    { kind: "pendant", count: 1 }
+  ],
+  // Never laid out as one room: a studio is furnished part by part, each part by its own
+  // type's program (`layoutRoom`). This list is what the shelf offers under "studio".
+  studio: []
+};
+ROOM_PROGRAMS.studio = [...ROOM_PROGRAMS.kitchen, ...ROOM_PROGRAMS.living_room.filter((e) => !ROOM_PROGRAMS.kitchen.some((k) => k.kind === e.kind))];
 var FIXTURE_CATEGORY_SLUGS = ["sockets-switches", "lighting"];
 var OPENING_CATEGORY_SLUGS = ["doors", "windows"];
 var RADIATOR_CATEGORY_SLUGS = ["radiators"];

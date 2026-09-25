@@ -10,7 +10,7 @@
  * told apart at a glance. Kinds added later fall back to a plain package.
  */
 
-import { Armchair, Bath, BedDouble, BedSingle, Blinds, BriefcaseBusiness, CookingPot, DoorOpen, Flower2, Footprints, Image as ImageIcon, LampCeiling, LampFloor, LibraryBig, Package, Refrigerator, Rows3, Shirt, ShowerHead, Sofa, Sun, Toilet, Tv, UtensilsCrossed, Warehouse, WashingMachine, createLucideIcon, type LucideIcon } from 'lucide-react';
+import { Armchair, Bath, BedDouble, BedSingle, Blinds, BriefcaseBusiness, CookingPot, DoorOpen, Flower2, Footprints, Image as ImageIcon, LampCeiling, LampFloor, LibraryBig, Package, Refrigerator, Rows3, Shirt, ShowerHead, Sofa, Sun, Toilet, Tv, UtensilsCrossed, Warehouse, WashingMachine, createLucideIcon, type LucideIcon, Columns2 } from 'lucide-react';
 import type { RoomType } from '@/lib/calculator/types';
 
 type Node = [string, Record<string, string>];
@@ -87,6 +87,7 @@ const ROOM_ICONS: Record<RoomType, LucideIcon> = {
   closet: Shirt,
   balcony: Sun,
   storage: Warehouse,
+  studio: Columns2,
 };
 
 export function roomIcon(type: RoomType): LucideIcon {

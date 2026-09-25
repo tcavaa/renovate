@@ -1,5 +1,6 @@
 'use client';
 
+import { effectiveSplit } from '@/lib/design/studio';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -526,6 +527,8 @@ export default function StudioPage() {
   }
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;
+  // The shelf opens on a studio as the half picked out on the board, the living half otherwise.
+  const focusShelfType = focusRoom?.type === 'studio' ? (effectiveSplit(focusRoom).parts[store.selectedRoomPart?.roomId === focusRoom.id ? store.selectedRoomPart.part : 1]) : (focusRoom?.type ?? null);
   const visibleItems = focusRoom ? items.filter((i) => i.roomId === focusRoom.id) : items;
   const tightSpots: Map<string, TightSpot> = tightSpotsByItem(plan.rooms, items);
   const roomNameOf = (id: string) => plan.rooms.find((r) => r.id === id)?.name ?? '';
@@ -1060,7 +1063,7 @@ export default function StudioPage() {
                     catalog={products}
                     styleId={styleId}
                     roomLabel={focusRoom?.name ?? t.design.wholeFlat}
-                    roomType={focusRoom?.type ?? null}
+                    roomType={focusShelfType}
                     onPick={pickProduct}
                     onDragProduct={onDragProduct}
                     onOpenCatalog={() => setCatalogBrowser('open')}

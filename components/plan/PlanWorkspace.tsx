@@ -83,6 +83,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   const focusRoomId = useStore((s) => s.focusRoomId);
   const selectedRoomIds = useStore((s) => s.selectedRoomIds);
   const carryingItemId = useStore((s) => s.carryingItemId);
+  const selectedRoomPart = useStore((s) => s.selectedRoomPart);
   const actions = useStore();
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
@@ -228,6 +229,10 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onMoveTechnical={(id, position) => actions.updateTechnicalPoint(id, { position, roomId: plan.rooms.find((r) => r.polygon && pointIn(position, r.polygon))?.id ?? null })}
           onAddElectrical={(kind, position, roomId) => actions.addElectricalPoint(kind, position, roomId)}
           onMoveElectrical={actions.moveElectricalPoint}
+          // A studio's line is where the kitchen stops, not structure: the lock does not hold it.
+          onSplitRoom={roomsOnly ? undefined : actions.splitRoom}
+          onSelectRoomPart={actions.selectRoomPart}
+          selectedRoomPart={selectedRoomPart && selectedRoomPart.roomId === focusRoomId ? selectedRoomPart.part : null}
           onMoveItem={furniture ? actions.placeItem : undefined}
           // The piece on the pointer (the studio's shelf): set down through `placeItem`, then
           // the carry becomes one step of history and the piece is the selection.

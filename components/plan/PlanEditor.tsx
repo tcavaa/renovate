@@ -30,6 +30,9 @@ import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/des
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
 import { wallNormal, wallsClash, wallsForMove } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
+import { roomTypeLabel } from '@/lib/i18n/labels';
+import { clampT, dividerSegments, effectiveSplit, isStudio, partAt, tAtCoordinate } from '@/lib/design/studio';
+import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
@@ -79,6 +82,15 @@ export interface PlanEditorProps {
   /** Rooms dragged bodily across the sheet; without it rooms are picked but never moved. */
   onMoveRooms?: (roomIds: string[], delta: Vec2) => void;
   onSelectItem?: (itemId: string | null) => void;
+  /**
+   * A studio's dividing line dragged to a new place (`lib/design/studio`). Without it the line
+   * is drawn but cannot be picked up.
+   */
+  onSplitRoom?: (roomId: string, split: RoomSplit) => void;
+  /** Which part of a studio a click landed in (null for any other room), so the inspector can offer that part's type. */
+  onSelectRoomPart?: (roomId: string, part: 0 | 1 | null) => void;
+  /** The studio part picked out on the board. */
+  selectedRoomPart?: 0 | 1 | null;
   onAddWall?: (a: Vec2, b: Vec2) => void;
   onAddRectangle?: (rect: { x: number; z: number; width: number; depth: number }) => void;
   /** A wall dragged sideways; `alone` (Shift held) asks for the wall and nothing that meets it. */
@@ -206,6 +218,7 @@ type Gesture =
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
   | { kind: 'paint'; last: string }
   | { kind: 'marquee'; start: Vec2; current: Vec2; additive: boolean }
+  | { kind: 'divider-drag'; room: PlanRoom; split: RoomSplit; moved: boolean }
   | {
       kind: 'room-drag';
       /** The rooms that travel: the ones grabbed and every room joined to them (`roomCluster`). */
@@ -221,7 +234,7 @@ type Gesture =
     };
 
 interface Hover {
-  kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | null;
+  kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | 'divider' | null;
   id?: string;
   roomId?: string;
 }
@@ -241,6 +254,7 @@ export function PlanEditor(props: PlanEditorProps) {
     selectedRoomId = null,
     selectedRoomIds = EMPTY_IDS,
     selectedItemId = null,
+    selectedRoomPart = null,
     paintScope = null,
     roomsOnly = false,
     carryingItemId = null,
@@ -530,13 +544,18 @@ export function PlanEditor(props: PlanEditorProps) {
 
     // Rooms.
     if (layers.rooms) {
-      for (const room of plan.rooms) {
+      for (const planRoom of plan.rooms) {
+        // A studio whose line is being dragged is drawn where the line is now, areas and all.
+        const room = gesture?.kind === 'divider-drag' && gesture.room.id === planRoom.id ? { ...planRoom, split: gesture.split } : planRoom;
+        const selected = room.id === selectedRoomId || selectedRoomIds.includes(room.id) || (selection?.kind === 'room' && selection.id === room.id);
         drawRoom(ctx, tr, room, {
-          selected: room.id === selectedRoomId || selectedRoomIds.includes(room.id) || (selection?.kind === 'room' && selection.id === room.id),
-          hovered: hover.kind === 'room' && hover.id === room.id,
+          selected,
+          hovered: (hover.kind === 'room' || hover.kind === 'divider') && hover.id === room.id,
           labels: layers.labels,
           dimensions: layers.dimensions,
           unitM2: t.units.m2,
+          activePart: selected ? selectedRoomPart : null,
+          typeLabel: (type) => roomTypeLabel(t, type),
         });
       }
     }
@@ -843,6 +862,12 @@ export function PlanEditor(props: PlanEditorProps) {
       const w = wallAt(walls, world, slack);
       if (w) return { kind: 'wall', id: w.wall.id };
     }
+    // A studio's dividing line comes before the furniture standing on it: it is the thing
+    // a person reaches for there.
+    if (callbacks.current.onSplitRoom && layers.rooms) {
+      const room = plan.rooms.find((r) => isStudio(r) && dividerSegments(r).some(([a, b]) => distanceToSegment(world, a, b) <= slack));
+      if (room) return { kind: 'divider', id: room.id };
+    }
     if (layers.furniture) {
       const item = itemAt(world);
       if (item) return { kind: 'item', id: item.id };
@@ -1040,6 +1065,13 @@ export function PlanEditor(props: PlanEditorProps) {
           }
         } else if (hit.kind === 'zone') {
           callbacks.current.onSelect({ kind: 'zone', id: hit.id!, roomId: hit.roomId! });
+        } else if (hit.kind === 'divider') {
+          const room = plan.rooms.find((r) => r.id === hit.id)!;
+          callbacks.current.onSelectRooms?.([room.id]);
+          callbacks.current.onSelect({ kind: 'room', id: room.id });
+          callbacks.current.onSelectRoom?.(room.id);
+          callbacks.current.onSelectRoomPart?.(room.id, null);
+          gestureRef.current = { kind: 'divider-drag', room, split: effectiveSplit(room), moved: false };
         } else if (hit.kind === 'room') {
           const id = hit.id!;
           // Shift adds to or takes out of the selection, like a desktop; a plain click on a
@@ -1054,6 +1086,9 @@ export function PlanEditor(props: PlanEditorProps) {
           callbacks.current.onSelectRooms?.(group);
           callbacks.current.onSelect({ kind: 'room', id });
           callbacks.current.onSelectRoom?.(id);
+          // A click in one half of a studio picks that half out, for its type.
+          const clicked = plan.rooms.find((r) => r.id === id);
+          callbacks.current.onSelectRoomPart?.(id, clicked && isStudio(clicked) ? partAt(clicked, world) : null);
           if (!locked && !roomsOnly && callbacks.current.onMoveRooms && group.includes(id)) {
             // Rooms with a wall in common are one body: the drag takes every room joined to
             // the ones grabbed, and nothing is ever pulled apart. The selection stays what
@@ -1163,6 +1198,19 @@ export function PlanEditor(props: PlanEditorProps) {
           if (target && key !== gesture.last) callbacks.current.onPaint?.(target);
           gesture.last = key;
           if (paintKey(paintHover) !== key) setPaintHover(target);
+          return;
+        }
+        case 'divider-drag': {
+          // The line follows the pointer across the room, on the 5 cm grid (1 cm with Shift),
+          // and stops where either part would get too small.
+          const step = shiftHeld.current ? 0.01 : 0.05;
+          const coordinate = Math.round((gesture.split.axis === 'x' ? world.x : world.z) / step) * step;
+          const next = clampT(gesture.room, gesture.split.axis, tAtCoordinate(gesture.room, gesture.split.axis, coordinate));
+          if (next !== gesture.split.t) {
+            gesture.split = { ...gesture.split, t: next };
+            gesture.moved = true;
+            setGestureVersion((v) => v + 1);
+          }
           return;
         }
         case 'marquee': {
@@ -1298,6 +1346,9 @@ export function PlanEditor(props: PlanEditorProps) {
         callbacks.current.onSelectRooms?.(gesture.additive ? [...new Set([...selectedRoomIds, ...inside])] : inside);
         break;
       }
+      case 'divider-drag':
+        if (gesture.moved) callbacks.current.onSplitRoom?.(gesture.room.id, gesture.split);
+        break;
       case 'room-drag':
         if (gesture.moved && (Math.abs(gesture.delta.x) >= MOVE_STEP_M || Math.abs(gesture.delta.z) >= MOVE_STEP_M)) {
           // Rooms do not lie on top of each other, however they got there.
@@ -1320,8 +1371,10 @@ export function PlanEditor(props: PlanEditorProps) {
     }
   };
 
+  const dividerRoom = hover.kind === 'divider' ? plan.rooms.find((r) => r.id === hover.id) : undefined;
+  const dividerAxis = dividerRoom ? effectiveSplit(dividerRoom).axis : null;
   const cursor =
-    carried ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical' ? (locked && (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'column') ? 'pointer' : 'move') : hover.kind === 'node' ? 'crosshair' : 'default') : 'crosshair';
+    gestureRef.current?.kind === 'divider-drag' ? (gestureRef.current.split.axis === 'x' ? 'col-resize' : 'row-resize') : dividerAxis ? (dividerAxis === 'x' ? 'col-resize' : 'row-resize') : carried ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical' ? (locked && (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'column') ? 'pointer' : 'move') : hover.kind === 'node' ? 'crosshair' : 'default') : 'crosshair';
 
   return (
     <canvas

@@ -28,12 +28,15 @@ import {
   calculateMaterials,
   calculateWorkerCosts,
   estimateMaterialsCost,
+  type EstimateCounts,
+  type EstimateOptions,
 } from '@/lib/calculator/materials';
-import type { HomeState, Room } from '@/lib/calculator/types';
+import type { HomeState, Room, WorkChoices } from '@/lib/calculator/types';
+import { wallLength, wallsBoundingRoom } from './walls';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
-import { alreadyHave, defaultExistingForHomeState, HAVE_NOTHING, type AlreadyHave } from './existing';
-import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL } from './technicalRates';
+import { alreadyHave, defaultExistingForHomeState, EXISTING_KEYS, HAVE_NOTHING, type AlreadyHave, type ExistingKey } from './existing';
+import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL, type TechnicalLabourKey } from './technicalRates';
 import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
 import { measureKitchens } from './kitchen';
@@ -72,6 +75,8 @@ export interface PriceOptions {
    * so a green frame is not billed for the floor it is standing on.
    */
   existing?: readonly string[] | null;
+  /** Laminate or parquet, plasterboard or a stretch ceiling; the plan's own when omitted. */
+  choices?: Partial<WorkChoices> | null;
 }
 
 export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling' | 'skirting' | 'cornice', string>;
@@ -309,23 +314,33 @@ export function priceScene(
   }
 
   // --- renovation work, when this is not a design-only project ---
+  // The phases the estimate runs: the ticked works (or the home state), less whatever the
+  // flat already has — a flat that is already wired is not wired again.
   const full = scene.mode === 'full';
   const homeState = options.homeState ?? 'white_frame';
-  const phases = full ? effectivePhases(homeState, options.works ?? plan.technical?.works ?? null) : [];
-  if (full) {
+  const phases = full ? withoutExisting(effectivePhases(homeState, options.works ?? plan.technical?.works ?? null), have) : [];
+  const productLabels: ProductLabels = { ...DEFAULT_PRODUCT_LABELS, ...options.productLabels };
+  // The points the plan holds are what the phases count: the electrician's points, the
+  // plumber's, the radiators — so the estimate's lines and the points' own are one and the same.
+  const technical = technicalWork(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels);
+  if (full && phases.length > 0) {
     const rooms: Room[] = planToCalculatorRooms(plan);
-    for (const m of calculateMaterials(rooms, homeState, options.book, phases)) {
+    const estimate: EstimateOptions = {
+      phases,
+      choices: options.choices ?? plan.technical?.choices ?? null,
+      counts: { ...technical.counts, doors: countDoors(plan), ...partitionArea(plan) },
+    };
+    for (const m of calculateMaterials(rooms, homeState, options.book, estimate)) {
       raw.push({ section: 'materials', bucket: 'materials', key: m.key, tick: tickFor.material(m.key), name: m.labelKa, qty: m.qty, unit: m.unit, unitPrice: m.estimatedPriceGEL ?? 0, total: round2(m.qty * (m.estimatedPriceGEL ?? 0)), estimated: true });
     }
-    for (const w of calculateWorkerCosts(rooms, homeState, options.book, phases)) {
+    for (const w of calculateWorkerCosts(rooms, homeState, options.book, estimate)) {
       raw.push({ section: 'labour', bucket: 'labour', key: w.key, tick: tickFor.labour(w.key), name: w.labelKa, qty: w.qty, unit: w.qtyUnit, unitPrice: w.pricePerQty, total: w.totalGEL, estimated: true });
     }
   }
 
   // --- doors and windows, sockets, lights, pipes ---
-  const productLabels: ProductLabels = { ...DEFAULT_PRODUCT_LABELS, ...options.productLabels };
   if (!have.has('openings')) raw.push(...priceOpenings(plan, full, phases, roomName, locale, productLabels));
-  raw.push(...priceTechnical(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels));
+  raw.push(...technical.lines);
 
   // --- the person's edits, and everything that is counted, counted off the result ---
   const isOut = tickedOff(scene.excluded);
@@ -428,7 +443,7 @@ function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: s
  * the ones the person added themselves are priced — the rest are already in the wall.
  */
 export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', labels: ProductLabels = DEFAULT_PRODUCT_LABELS): BudgetLine[] {
-  const all = full && phases.includes(10);
+  const all = full && phases.includes(DOORS_PHASE);
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
   const byProduct = new Map<number, { product: SceneProduct; label: ProductLabelKey; qty: number; total: number; rooms: Set<string> }>();
@@ -486,17 +501,106 @@ function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
   return { section: 'openings', bucket: 'openings', key, tick: tickFor.openingEstimate(opening.id), roomName, ...estimate, estimated: true };
 }
 
+/** The phases of the estimate (`lib/calculator/constants`) the studio's own lines key on. */
+const HEATING_PHASE = 2;
+const ELECTRICAL_PHASE = 4;
+const PLUMBING_PHASE = 7;
+const DOORS_PHASE = 13;
+
+/** Which labour lines the renovation's phases price from the plan's points, by the phase that does. */
+const PHASE_OF_LABOUR: Partial<Record<TechnicalLabourKey, number>> = {
+  electric_point: ELECTRICAL_PHASE,
+  plumbing_install: PLUMBING_PHASE,
+  radiator_mount: HEATING_PHASE,
+  heating_piping: HEATING_PHASE,
+};
+
+/** The phases that would redo what the flat already has (`lib/design/existing`). */
+const PHASES_ALREADY_DONE: Partial<Record<ExistingKey, number[]>> = {
+  electrical: [ELECTRICAL_PHASE],
+  plumbing: [PLUMBING_PHASE],
+  heating: [HEATING_PHASE],
+  openings: [DOORS_PHASE],
+  floor: [10, 11],
+  wall: [6],
+  ceiling: [12],
+};
+
+function withoutExisting(phases: number[], have: AlreadyHave): number[] {
+  const done = new Set(EXISTING_KEYS.flatMap((key) => (have.has(key) ? PHASES_ALREADY_DONE[key] ?? [] : [])));
+  return phases.filter((phase) => !done.has(phase));
+}
+
+/** The flat's doors, an interior door's two halves once: what the doors phase hangs. */
+export function countDoors(plan: FloorPlan): number {
+  const seen = new Set<string>();
+  let doors = 0;
+  for (const room of plan.rooms) {
+    const ordinal = new Map<string, number>();
+    for (const opening of room.openings) {
+      if (opening.kind !== 'door') continue;
+      if (opening.connectsToRoomId) {
+        const pairKey = [room.id, opening.connectsToRoomId].sort().join('|');
+        const n = ordinal.get(pairKey) ?? 0;
+        ordinal.set(pairKey, n + 1);
+        if (seen.has(`${pairKey}|${n}`)) continue;
+        seen.add(`${pairKey}|${n}`);
+      }
+      doors += 1;
+    }
+  }
+  return doors;
+}
+
+/**
+ * The partition walls, in m²: every wall with a room on both sides, and every wall standing
+ * free, at its own height. Nothing when the plan has no walls — the estimate then works it out
+ * from the rooms, like the calculator does.
+ */
+export function partitionArea(plan: FloorPlan): { partitionM2?: number } {
+  const walls = plan.walls ?? [];
+  if (walls.length === 0) return {};
+  const bounding = plan.rooms.map((room) => wallsBoundingRoom(walls, room));
+  const fallbackHeight = plan.wallHeightM ?? (plan.rooms.length > 0 ? plan.rooms.reduce((s, r) => s + r.heightM, 0) / plan.rooms.length : 2.7);
+  let area = 0;
+  for (const wall of walls) {
+    const sides = bounding.filter((set) => set.has(wall.id)).length;
+    if (sides === 1) continue;
+    area += wallLength(wall) * (wall.heightM ?? fallbackHeight);
+  }
+  return { partitionM2: round2(area) };
+}
+
 /**
  * Every socket, switch, light, pipe, radiator and air conditioner: an estimated material
  * price plus the rate book's labour per point. In a renovation the relevant phases decide
- * (electrical points need the electrical phases, pipes the plumbing ones); in a finished
- * home only what the person added themselves is new work.
+ * (electrical points need the electrical phase, pipes the plumbing one, radiators the
+ * heating one); in a finished home only what the person added themselves is new work.
  */
 export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, labels: ProductLabels = DEFAULT_PRODUCT_LABELS): BudgetLine[] {
+  return technicalWork(plan, electrical, full, phases, book, roomName, locale, have, labels).lines;
+}
+
+/**
+ * The points' own lines, and the points the renovation's phases count instead. A point's
+ * labour — and the pipes of a plumbing point — belong to exactly one of the two: to the phase
+ * when that phase is being done (it prices every point the plan holds, `counts`), to the
+ * point's own line when it is not (a socket added to a flat nobody is rewiring). The fitting
+ * or the equipment itself (the socket plate, the radiator, the boiler) is always the point's.
+ */
+function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru', have: AlreadyHave, labels: ProductLabels): { lines: BudgetLine[]; counts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'> } {
   const lines: BudgetLine[] = [];
-  const labourPrice = (key: keyof typeof TECHNICAL_LABOUR_DEFAULT_GEL): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
-  const electricalOn = full && (phases.includes(3) || phases.includes(14));
-  const plumbingOn = full && (phases.includes(2) || phases.includes(15));
+  const counts = { electricPoints: 0, plumbingPoints: 0, radiators: 0 };
+  const labourPrice = (key: TechnicalLabourKey): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
+  const electricalOn = full && phases.includes(ELECTRICAL_PHASE);
+  const plumbingOn = full && phases.includes(PLUMBING_PHASE);
+  const heatingOn = full && phases.includes(HEATING_PHASE);
+  const owned = (key: TechnicalLabourKey): boolean => full && PHASE_OF_LABOUR[key] != null && phases.includes(PHASE_OF_LABOUR[key]!);
+  const count = (key: TechnicalLabourKey, units: number) => {
+    if (key === 'electric_point') counts.electricPoints = round2(counts.electricPoints + units);
+    else if (key === 'plumbing_install') counts.plumbingPoints = round2(counts.plumbingPoints + units);
+    else if (key === 'radiator_mount') counts.radiators = round2(counts.radiators + units);
+  };
 
   // Electrical points. A point that is a real product is a product line at its price — the
   // same product across points folds into one row — and the rest are estimates grouped by
@@ -520,7 +624,8 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     } else {
       entry.units = round2(entry.units + units);
     }
-    entry.labourUnits = round2(entry.labourUnits + labour.perUnit * units);
+    if (owned(labour.key)) count(labour.key, labour.perUnit * units);
+    else entry.labourUnits = round2(entry.labourUnits + labour.perUnit * units);
     byKind.set(point.kind, entry);
   }
   for (const bought of byProduct.values()) {
@@ -531,6 +636,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
     const perMetre = kind === 'light_strip' || kind === 'light_furniture';
     const isLight = kind.startsWith('light_');
     if (entry.units > 0) lines.push({ section: isLight ? 'lighting' : 'electrical', bucket: 'technical', key: `electrical_${kind}`, tick: tickFor.estimate(`electrical_${kind}`), qty: entry.units, unit: perMetre ? 'm' : 'piece', unitPrice: material, total: round2(entry.units * material), estimated: true });
+    if (entry.labourUnits <= 0) continue;
     const labour = ELECTRICAL_LABOUR[kind as ElectricalPoint['kind']];
     const price = labourPrice(labour.key);
     lines.push({ section: 'labour', bucket: 'technical', key: labour.key, tick: tickFor.labour(labour.key), qty: entry.labourUnits, unit: 'unit', unitPrice: price, total: round2(entry.labourUnits * price), estimated: true });
@@ -543,17 +649,22 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   const radiatorsBought = new Map<number, { product: SceneProduct; sections: number; rooms: Set<string> }>();
   for (const point of plan.technical?.points ?? []) {
     const rate = TECHNICAL_RATES[point.kind];
-    const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : plumbingOn;
+    const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : rate.section === 'heating' ? heatingOn : plumbingOn;
     if (!(on || point.origin === 'user')) continue;
     if (have.has(rate.section === 'heating' ? 'heating' : rate.section === 'climate' ? 'climate' : rate.section === 'electrical' ? 'electrical' : 'plumbing')) continue;
+    const phaseOwns = owned(rate.labour);
+    // A heating pipe is the heating phase's pipework, which it counts per radiator.
+    if (rate.covered && phaseOwns) continue;
     const entry = techByKind.get(point.kind) ?? { units: 0, labourUnits: 0, rooms: new Set<string>() };
-    entry.labourUnits += 1;
+    if (phaseOwns) count(rate.labour, rate.labourUnits);
+    else entry.labourUnits += rate.labourUnits;
     if (point.kind === 'radiator' && point.product) {
       const bought = radiatorsBought.get(point.product.productId) ?? { product: point.product, sections: 0, rooms: new Set<string>() };
       bought.sections += radiatorSections(plan, point);
       if (point.roomId) bought.rooms.add(point.roomId);
       radiatorsBought.set(point.product.productId, bought);
-    } else {
+    } else if (!(rate.pipes && phaseOwns)) {
+      // A plumbing point's material is its pipes, which the plumbing phase buys for every point.
       entry.units += 1;
       if (point.roomId) entry.rooms.add(point.roomId);
     }
@@ -566,9 +677,9 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];
     if (entry.units > 0) lines.push({ section: rate.section, bucket: 'technical', key: `technical_${kind}`, tick: tickFor.estimate(`technical_${kind}`), roomName: [...entry.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: entry.units, unit: 'piece', unitPrice: rate.materialGel, total: round2(entry.units * rate.materialGel), estimated: true });
+    if (entry.labourUnits <= 0) continue;
     const price = labourPrice(rate.labour);
-    const labourUnits = entry.labourUnits * rate.labourUnits;
-    lines.push({ section: 'labour', bucket: 'technical', key: rate.labour, tick: tickFor.labour(rate.labour), qty: labourUnits, unit: 'unit', unitPrice: price, total: round2(labourUnits * price), estimated: true });
+    lines.push({ section: 'labour', bucket: 'technical', key: rate.labour, tick: tickFor.labour(rate.labour), qty: entry.labourUnits, unit: 'unit', unitPrice: price, total: round2(entry.labourUnits * price), estimated: true });
   }
 
   // Labour rows of the same key merge into one.
@@ -580,7 +691,7 @@ export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], f
       twin.total = round2(twin.total + line.total);
     } else merged.push({ ...line });
   }
-  return merged;
+  return { lines: merged, counts };
 }
 
 /**
@@ -658,7 +769,7 @@ export function fullProjectSummary(
       categorySlug: p.categorySlug ?? undefined,
     }));
 
-  return buildProjectSummary(rooms, homeState, finishes, furniture, book, effectivePhases(homeState, plan.technical?.works ?? null));
+  return buildProjectSummary(rooms, homeState, finishes, furniture, book, { phases: effectivePhases(homeState, plan.technical?.works ?? null), choices: plan.technical?.choices ?? null });
 }
 
 function round2(n: number): number {

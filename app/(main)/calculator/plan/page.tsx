@@ -88,6 +88,7 @@ export default function CalculatorPlanPage() {
           </div>
           <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
             <ElementInspector
+              roomPart={actions.selectedRoomPart}
               plan={plan}
               electrical={electrical}
               selection={selection && selection.kind !== 'room' ? selection : null}
@@ -110,6 +111,7 @@ export default function CalculatorPlanPage() {
                 updateElectrical: actions.updateElectricalPoint,
                 removeElectrical: actions.removeElectricalPoint,
                 updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart,
                 resizeRoom: actions.resizeRoom,
                 removeRoom: actions.removeRoom,
               }}
@@ -121,7 +123,8 @@ export default function CalculatorPlanPage() {
                 actions.setFocusRoom(id);
                 actions.selectElement(id ? { kind: 'room', id } : null);
               }}
-              actions={{ updateRoom: actions.updateRoom, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
+              actions={{ updateRoom: actions.updateRoom,
+                selectRoomPart: actions.selectRoomPart, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
               onAddRectangle={(rect, type) => {
                 const id = actions.addRectangleRoom(rect, type);
                 if (id) actions.setFocusRoom(id);

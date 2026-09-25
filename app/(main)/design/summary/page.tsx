@@ -101,7 +101,8 @@ export default function BudgetPage() {
   // above that are still ticked — doors, fittings and radiators with the rest.
   const designPart = designCheckoutPart(plan, cost, fees.designFeePerM2, locale);
   const checkoutParts: CheckoutPart[] = [
-    ...(calculatorPicks && calculator.rooms.length > 0 ? [calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale)] : []),
+    // The calculator's half only when it is this same flat (`saveDesign` sends it on the same condition).
+    ...(calculatorPicks && calculator.rooms.length > 0 && calculator.projectId === projectId ? [calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale)] : []),
     ...(designPart ? [designPart] : []),
   ];
   const summary = budgetSummary(cost);

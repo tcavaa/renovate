@@ -11,6 +11,7 @@
 import type { Room, RoomType } from '@/lib/calculator/types';
 import { ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { computeRoomAreas } from '@/lib/calculator/materials';
+import { effectiveSplit, roomPartsFor } from './studio';
 import type {
   FloorPlan,
   Opening,
@@ -374,8 +375,9 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
     }
   }
 
-  const circulation = (r: PlanRoom) => r.type === 'hallway' || r.type === 'living_room' || r.type === 'kitchen';
-  const rank = (r: PlanRoom) => (r.type === 'hallway' ? 0 : r.type === 'living_room' ? 1 : r.type === 'kitchen' ? 2 : 3);
+  // A studio is its living room and kitchen in one: circulation, ranked with the living room.
+  const circulation = (r: PlanRoom) => r.type === 'hallway' || r.type === 'living_room' || r.type === 'studio' || r.type === 'kitchen';
+  const rank = (r: PlanRoom) => (r.type === 'hallway' ? 0 : r.type === 'living_room' || r.type === 'studio' ? 1 : r.type === 'kitchen' ? 2 : 3);
   const neighbours = (r: PlanRoom) => rooms.filter((o) => o !== r && runOf(r, o));
 
   const pairs = new Set<string>();
@@ -508,7 +510,7 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
   // flat is not entered through its smallest bedroom ---
   const entry =
     rooms.find((r) => r.type === 'hallway') ??
-    rooms.find((r) => r.type === 'living_room') ??
+    rooms.find((r) => r.type === 'living_room' || r.type === 'studio') ??
     rooms.find((r) => r.type === 'kitchen') ??
     rooms.slice().sort((a, b) => a.areaM2 - b.areaM2)[0];
 
@@ -645,8 +647,15 @@ export function planToCalculatorRooms(plan: FloorPlan): Room[] {
       // drawn rather than a strip of rectangles.
       x: round2(b.minX),
       z: round2(b.minZ),
+      ...studioFields(r),
     };
   });
+}
+
+/** A studio's line and its two parts as measured on the plan, for the calculator's room. */
+function studioFields(room: PlanRoom): Pick<Room, 'split' | 'parts'> {
+  if (room.type !== 'studio') return {};
+  return { split: effectiveSplit(room), parts: roomPartsFor(room) };
 }
 
 /** Builds a plan from rooms already entered in the calculator, laid out in a simple strip. */
@@ -674,6 +683,7 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
       }),
       x: round2(Math.min(...xs)),
       z: round2(Math.min(...zs)),
+      ...studioFields(room),
     };
   });
 }
@@ -719,6 +729,7 @@ export function planFromCalculatorRooms(rooms: Room[]): FloorPlan {
       areaM2: round2(polygonAreaM2(polygon)),
       perimeterM: round2(polygonPerimeterM(polygon)),
       openings: [],
+      ...(room.type === 'studio' && room.split ? { split: room.split } : {}),
     });
     if (!placed) {
       cursorX += w;

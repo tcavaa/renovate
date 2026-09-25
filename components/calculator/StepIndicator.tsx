@@ -51,6 +51,7 @@ export function StepIndicator({ current }: { current: CalculatorStep }) {
   return (
     <StepStrip
       current={current}
+      reached={ready ? stored : 0}
       steps={labels.map((label, i) => ({ num: i + 1, label, href: CALCULATOR_STEP_HREFS[(i + 1) as CalculatorStep] }))}
       lockedBefore={calculated ? 3 : 0}
       lockedTitle={t.flow.lockedStepCalculator}

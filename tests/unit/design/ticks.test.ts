@@ -258,7 +258,7 @@ describe('every line can be taken out, and any quantity changed', () => {
   it('takes a bulk material and a labour phase out like any product', () => {
     const full = priceScene(plan, base(), options);
     const material = full.lines.find((l) => l.section === 'materials' && l.total > 0)!;
-    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plastering')!;
+    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plaster_walls')!;
     const out = priceScene(plan, base({ excluded: [material.tick!, labour.tick!] }), options);
     expect(out.materialsTotal).toBeCloseTo(full.materialsTotal - material.total, 2);
     expect(out.labourTotal).toBeCloseTo(full.labourTotal - labour.total, 2);
@@ -283,7 +283,7 @@ describe('every line can be taken out, and any quantity changed', () => {
 
   it('changes a labour quantity, and the trades and the totals follow', () => {
     const full = priceScene(plan, base(), options);
-    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plastering')!;
+    const labour = full.lines.find((l) => l.section === 'labour' && l.key === 'plaster_walls')!;
     const half = priceScene(plan, base({ quantities: { [labour.tick!]: labour.qty / 2 } }), options);
     expect(half.labourTotal).toBeCloseTo(full.labourTotal - labour.total / 2, 1);
     expect(half.lines.find((l) => l.tick === labour.tick)?.originalQty).toBe(labour.qty);

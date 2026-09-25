@@ -3,7 +3,8 @@ import { ARCHETYPES, ROOM_PROGRAMS, SHELF_ROOMS, kindsForRoom, unroomedKinds } f
 
 describe('the furniture shelf’s rooms', () => {
   it('lists every room type that has a program, once', () => {
-    expect([...SHELF_ROOMS].sort()).toEqual(Object.keys(ROOM_PROGRAMS).sort());
+    // A studio is not a room of its own on the shelf: its parts are (the kitchen, the living room).
+    expect([...SHELF_ROOMS].sort()).toEqual(Object.keys(ROOM_PROGRAMS).filter((type) => type !== 'studio').sort());
     expect(new Set(SHELF_ROOMS).size).toBe(SHELF_ROOMS.length);
   });
 

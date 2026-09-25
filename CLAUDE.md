@@ -444,15 +444,39 @@ app gained after a database was seeded (the phase 0 strip-out was the first) wou
 price at nothing until someone ran the seed; a row that exists but is switched off stays off,
 and an empty table is still simply the defaults (`rateBookFromRows`).
 
-Home states gate phases: `old_renovation` = 0–18, `black_frame` = 1–18, `white_frame` = 9–17,
-`green_frame` = 17 only — offered in that order, the most work first (`HOME_STATE_VALUES` in
-`lib/calculator/types.ts` feeds the Zod enums and the admin filter; the MySQL enum is migration
-0007). **Phase 0 is the strip-out of an old renovation** (`ძველი რემონტი`): labour lines
-`strip_floor`, `strip_walls`, `strip_ceiling` (per m² of each), `strip_tiles` (wet floor × 1.5,
-the tiler's convention), `remove_doors_windows` (doors + windows), `remove_sanitary` (one per
-wet room) and `debris_removal`, plus the materials `debris_bags` and `waste_container`; phase 1's
-`demolition` stays what it was. In the studio it is the work `strip_out` and the first stage of
-the works checklist (`WORK_STAGES`), so unticking it takes phase 0 out of the estimate.
+**The rate book is the renovation team's (September 2026).** Every work they price is one
+phase, and a home state is the set of phases it still needs — so a work common to several
+states (the laminate, the ceiling, the bathroom tiles) is one line whichever state is chosen,
+never one per state (`tests/unit/calculator/materials.test.ts` pins that a lighter state's lines
+are the *same* lines in a heavier one). Phases: 0 strip-out (floor 15, walls 20, tiles 12 ₾/m²,
+old rubbish 40 ₾/m²) · 1 partition walls (45 + 45 ₾/m²) · 2 heating (25 m of pipe at 3.60 ₾,
+piping 50 and hanging 50 per radiator) · 3 screed (35 ₾/m², material included, not the
+bathroom) · 4 electrics (cable 12 ₾/m² of floor, 35 per point, +5 chasing per point when the
+walls are already plastered — i.e. phase 5 is not running) · 5 plaster (12 + 16.5 ₾/m², not the
+bathroom walls) · 6 painting (5 + 35 ₾/m², walls only, not the bathroom) · 7 plumbing (32.5 + 80
+per point) · 8 bathroom floor (40 + 80) and walls (12 + 80) · 9 bathroom tiles (60, floor +
+walls) · 10 kitchen/balcony floor tiles (60) · 11 laminate 15 **or** parquet 80 · 12 plasterboard
+(12 + 30) and its painting (35) **or** a stretch ceiling 35 · 13 doors 150 each · 14 new-build
+rubbish 5 ₾/m² (never with phase 0). Home states: `black_frame` 1–14; `white_frame` 2, 4, 6–14
+(walls built and plastered, floor screeded); `green_frame` 6, 9–12, 14 (wired, plumbed, heated,
+doors hung); `old_renovation` 0, 2–13 (the walls stand; its own removal carries the rubbish).
+Where the team gave a range the middle is used. **"Bathroom" is `bathroom` + `toilet`**
+(`BATH_ROOM_TYPES`); the kitchen and balcony floors are tiled (`TILED_FLOOR_ROOM_TYPES`).
+Laminate/parquet and plasterboard/stretch ceiling are `WorkChoices` — the calculator's store
+(`choices`, saved in `calculatorEdits.choices`) and the plan (`plan.technical.choices`), picked
+on the materials step and the technical step (`WorkChoicesPicker`). The counts the phases
+multiply by (`EstimateCounts`: points, radiators, doors, partition m²) come from the room types
+in the calculator (`ROOM_POINTS`, `estimateCounts`) and from the plan in the studio: the points
+placed, `countDoors`, `partitionArea` (walls with a room on both sides or none). **A point's
+labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the phase when that
+phase runs (it counts every point the plan holds), to the point's own line when it does not —
+never both. The book before the team's is `RETIRED_RATE_KEYS`: `rateBookFromRows` never reads a
+row under one, the admin list and `GET /api/calculator/rates` hide them, the schema refuses
+them, and `pnpm db:seed:rates` deletes them. No new key may reuse a retired one.
+The studio's works checklist (`WORK_ITEMS`, one per phase) keeps a legacy map
+(`normalizeWorks`) for plans saved with the old work keys. A green frame's default "already
+has" is openings, electrical, plumbing and heating (not the finishes), and every "already has"
+tick drops the phase that would redo it (`withoutExisting`).
 Wet rooms = bathroom, toilet, kitchen. **The Design Studio reuses this engine unchanged** —
 it only feeds it rooms that came from a parsed floor plan instead of a manual form.
 
@@ -502,13 +526,14 @@ number. `StageBrief` keys on the step, not the position.
 
 ### What the flat already has (`lib/design/existing.ts`)
 
-A green frame is floored, painted, tiled and wired, and pricing it from the scene charged
+A green frame is wired, plumbed, heated and has its doors, and pricing it from the scene charged
 for all of it — the scene describes the whole flat and cannot know what was already
 standing. So the technical step asks, with ten ticks (`EXISTING_KEYS`: floor, wall, ceiling,
 trim, openings, electrical, lighting, plumbing, heating, climate) stored on the plan as
-`plan.technical.existing`. A green frame starts with everything ticked (that is what a green
-frame means), everything else with nothing. `priceScene` leaves each ticked one out of the
-lines, the baskets and the totals; the checklist shows for any `mode: 'full'` project,
+`plan.technical.existing`. A green frame starts with openings, electrical, plumbing and
+heating ticked (the team's definition: it still needs its paint, tiles, floors and ceiling),
+everything else with nothing. `priceScene` leaves each ticked one out of the lines, the
+baskets and the totals, and drops the phase that would redo it; the checklist shows for any `mode: 'full'` project,
 because the person always knows better than the phase defaults.
 
 ### Walls are lines; rooms are what they enclose (`lib/design/walls.ts`)
@@ -587,6 +612,30 @@ also re-homes furniture whose room merged away and re-projects the electrical po
 `orphanWallSegments` are the pieces of wall that bound no room; the 3D view draws them as
 free-standing walls. Tested in `tests/unit/design/walls.test.ts`; touching rooms from an
 old calculator layout lose half a thickness on the shared wall, by design.
+
+### A studio is one room in two parts (`lib/design/studio.ts`)
+
+`studio` (სტუდიო) is a room type for an open plan — most often a kitchen and a living room.
+It is one room (one outline, one set of walls and doors) with a straight dividing line across
+it: `room.split = { axis, t, parts }`, the line at right angles to `axis` at the fraction `t`
+of the room's extent, `parts[0]` the lower side. Stored as a fraction so it travels with the
+room when it is moved or resized; `roomsFromWalls` keeps it. Giving a room the type sets the
+default (`withStudioSplit` in the store: across the longer side, the kitchen ~35 %); a studio
+without one reads `effectiveSplit` the same way. `studioParts` clips the outline into the two
+parts and measures each one's floor and **its share of the room's walls** (the line is not a
+wall). On the board the line is dashed and can be dragged (`divider-drag`, 5 cm grid, 1 cm
+with Shift, neither part under 1.5 m², `onSplitRoom`); each half is drawn in its own type's
+tint and labelled with its type and m²; a click on a half picks it out
+(`designStore.selectedRoomPart`). The inspector's `StudioSplitFields` sets each part's type
+and area, turns the line and swaps the parts. The estimate prices the parts
+(`Room.parts`, filled by `calculatorRoomsFromPlan` / `planToCalculatorRooms`; `expandStudios`
+in the engine, a default third/two-thirds for a studio saved without them): the kitchen
+half's floor tiled, the living half's laid, points and radiators by each part's type, the
+doors and the partitions by the room. The layout furnishes each part with its own type's
+program (`layoutRoom`), the automatic technical points go on the walls of the part they serve,
+and the furniture shelf opens a studio as the half picked out. Not done: the 3D view draws
+no line on the floor, and the kitchen half's default floor is the room's (as any kitchen's).
+`tests/unit/design/studio.test.ts`.
 
 ### The 2D board (`components/plan/PlanEditor.tsx`)
 
@@ -1650,6 +1699,75 @@ started. Drafts (and saved projects) are deletable from the profile: `DELETE
 `PROJECT_HAS_ORDERS`), removes the renders' files, and `DeleteProjectButton` /
 `DeleteDraftsButton` also forget the id in the browser so the next autosave does not write
 into a row that is gone.
+
+### Two workspaces: your own work, and a project opened from "my projects" (`store/workspace.ts`, `lib/flow/workspace.ts`)
+
+Every store the pages use — `useCalculatorStore`, `useCalculatorPlanStore`, `useDesignStore` —
+exists **twice**, in separate localStorage keys (`renovate-calculator` / `renovate-project-calculator`,
+and so on), behind one hook (`workspaceStore`): `fresh` is the person's own journey, `project` a
+saved or ordered project opened from the profile. The switch (`useWorkspace`, sessionStorage, so
+a reload stays and a new tab starts fresh) decides which copy every `useXStore(...)` and
+`useXStore.getState()` reaches; `.fresh` / `.project` address one by name. Captured action
+functions keep pointing at the copy they came from, so code that switches first must call through
+`getState()` afterwards (the profile buttons do).
+
+- **Entering fresh.** A click on a link into `/calculator` or `/design` from the site's header or
+  footer (`data-site-nav`), wherever the person is, or from any page outside the steps, switches to
+  fresh *in the capture phase*, before the page renders (`WorkspaceGuard` in the root layout,
+  `enterFreshWorkspace`). A journey that was saved or ordered since (`closedProjectId ===
+  projectId`) is emptied on the way in; one pointing at a project that is no longer a draft on the
+  server is emptied too (legacy state, other tabs). Links inside the steps keep the workspace.
+- **Closing.** An explicit save and an order (which saves first) close the journey they came
+  from, and the other one when it holds the same project (`closeAfterSave`, called by
+  `saveCalculatorProject` / `saveDesign` with `draft: false`). The work stays on screen until
+  the person leaves; an opened project is never closed.
+- **One draft of each.** When a *fresh* journey lets go of the project it was writing into (start
+  over, a new flat, another draft opened in its place), `watchFreshDrafts` asks the server to delete
+  it — `DELETE /api/projects/[id]?onlyDraft=1`, which only ever deletes the caller's *draft* — unless
+  the other fresh journey still holds the same row (a calculation carried into 3D and then started
+  over keeps the row for the design).
+- **Opening from the profile** (`useOpenProject`, used by `CalculateCostsButton` and
+  `OpenIn3dButton`): a draft opens in the fresh workspace — resumed as it is when fresh already
+  holds it, and after a dialogue ("opening this deletes your other draft") when a different
+  unsaved draft is in progress there; a saved or ordered project opens in the project workspace,
+  emptied first when it held another project. The step strip then shows a chip with the project's
+  name and status linking back to it, in place of "start over" (not offered in an opened project).
+  A calculation opens with steps 1–2 shut (`calculated`) and every later step reached. A
+  calculation carried into 3D ("create in 3D", or "see it in 3D" on the calculator's summary)
+  shuts the design's steps 1–2 as well — the flat was drawn in the calculator
+  (`designStore.planFromCalculator`, set by `startFromCalculator`, cleared by a new plan;
+  `DesignSteps` padlocks them with `flow.lockedStepPlan`, `DesignFlowGuard` sends a typed URL on).
+- **A draft reopens where it was left.** Progress is saved with the project: the calculator's
+  `{ step, calculated }` in `calculatorEdits.progress`, the design's `{ step, generated,
+  planFromCalculator }` in `scene.progress`. `openSavedProject` / `openSaved` restore it, and the
+  profile buttons land on that step (a calculation saved on the plan step is not calculated; a
+  design never generated goes back to its step, not the studio). A project saved before this was
+  recorded is read as finished.
+- **A half that is not done has no figures** (`projectKind` → `calculatorPending` /
+  `designPending`, from `calculatorProgress` / `designProgress` in `lib/projects/saved.ts`). A
+  calculation autosaved before "start the calculation", a design autosaved before it was
+  generated: the save routes store no totals for it (and keep the other half's, when that one is
+  done), the calculator's save does not turn a design into a renovation for it, the project page
+  shows a note instead of its sheet, figures and breakdown, the profile list says "not calculated
+  yet" and leaves it out of the planned total, and the checkout, the order button and a brigade
+  booking leave it out. Before progress was recorded a *draft* was ambiguous: it counts as
+  calculated only when products were picked (they come after the calculation) and as generated
+  only when furnished; a saved or ordered project is done.
+- **The header resumes.** An entry from outside the steps (`enterFreshWorkspace` →
+  `takeFreshEntry`, used once) lets the calculator's step 1 hand on to the plan step it was on;
+  the step strip's own link back to step 1 still opens step 1.
+- **Opening is not editing.** `useAutosave` takes a `baselineKey` (`${workspace}:${loadSerial}`):
+  after a load from the server, a workspace switch, or a page load inside an opened project, the
+  first settled signature is recorded as already saved and not written — the plan is re-derived
+  and the estimate repriced on the way in, and that used to rewrite a project somebody only
+  looked at. The first real change is saved as before.
+- **Steps reached are links.** `StepStrip` takes `reached`: every step up to the furthest the
+  journey got to is clickable, ahead of the open page as well as behind it (the calculator's
+  `step`; the design's `step`, or every step once `generated`).
+- A design save carries the calculator's half, and hands it its project id, only when the two
+  are the same flat (`calculator.projectId === design.projectId`) — with two workspaces the
+  calculator beside an opened design is often another flat. Tested in
+  `tests/unit/store/workspace.test.ts`.
 
 ### The flow: resume, lock, start again (`components/flow/FlowGuard.tsx`, `lib/flow/reset.ts`)
 

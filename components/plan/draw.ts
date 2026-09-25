@@ -7,6 +7,9 @@ import { pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges,
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { isBaseFinish } from '@/lib/design/zones';
+import { dividerSegments, studioParts } from '@/lib/design/studio';
+import { ROOM_TYPES } from '@/lib/calculator/constants';
+import type { RoomType } from '@/lib/calculator/types';
 import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 import type { SnapGuide } from '@/lib/design/drawing';
 import { EDITOR, ELECTRICAL_COLOR, ORIGIN_COLOR, ROOM_TINT, ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
@@ -59,6 +62,10 @@ export interface RoomDrawOptions {
   wetLabel?: string;
   /** Print scale: the labels' type and offsets are multiplied by it (the PDF draws at 200 dpi). */
   ui?: number;
+  /** A studio's part picked out on the board: drawn in its type's stronger tint. */
+  activePart?: 0 | 1 | null;
+  /** What a room type is called, in the reader's language — a studio's parts are labelled by type. */
+  typeLabel?: (type: RoomType) => string;
 }
 
 /** What `drawRoomLabel` needs: the unit, the print scale, and whether to stand the label on a white plate. */
@@ -67,6 +74,7 @@ export interface RoomLabelOptions {
   ui?: number;
   /** A translucent white plate under the two lines, so the label reads over whatever stands in the room. */
   halo?: boolean;
+  typeLabel?: (type: RoomType) => string;
 }
 
 export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, options: RoomDrawOptions): void {
@@ -77,8 +85,22 @@ export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: Plan
     else ctx.lineTo(s.x, s.y);
   });
   ctx.closePath();
-  ctx.fillStyle = options.selected ? ROOM_TINT_STRONG[room.type] : options.hovered ? blend(ROOM_TINT[room.type], ROOM_TINT_STRONG[room.type]) : ROOM_TINT[room.type];
-  ctx.fill();
+  const parts = studioParts(room);
+  if (parts) {
+    // A studio: each part in its own type's tint, the one picked out stronger, then the line.
+    for (const part of parts) {
+      const strong = options.activePart === part.index || (options.selected && options.activePart == null);
+      tracePolygon(ctx, t, part.polygon);
+      ctx.fillStyle = strong ? ROOM_TINT_STRONG[part.type] : options.hovered ? blend(ROOM_TINT[part.type], ROOM_TINT_STRONG[part.type]) : ROOM_TINT[part.type];
+      ctx.fill();
+    }
+    drawDivider(ctx, t, room, options.ui ?? 1);
+    // The outline again, for the selection's dashes below.
+    tracePolygon(ctx, t, room.polygon);
+  } else {
+    ctx.fillStyle = options.selected ? ROOM_TINT_STRONG[room.type] : options.hovered ? blend(ROOM_TINT[room.type], ROOM_TINT_STRONG[room.type]) : ROOM_TINT[room.type];
+    ctx.fill();
+  }
   if (options.selected) {
     ctx.strokeStyle = EDITOR.selected;
     ctx.lineWidth = 2;
@@ -87,7 +109,7 @@ export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: Plan
     ctx.setLineDash([]);
   }
 
-  if (options.labels) drawRoomLabel(ctx, t, room, { unitM2: options.unitM2, ui: options.ui });
+  if (options.labels) drawRoomLabel(ctx, t, room, { unitM2: options.unitM2, ui: options.ui, typeLabel: options.typeLabel });
   if (options.dimensions && t.scale >= 22) {
     for (const edge of roomEdges(room.polygon)) {
       if (edge.length < 0.6) continue;
@@ -102,15 +124,26 @@ export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: Plan
  * on it — and larger, at print scale.
  */
 export function drawRoomLabel(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, options: RoomLabelOptions): void {
+  // A studio is labelled part by part: what each part is and how big.
+  const parts = studioParts(room);
+  if (parts) {
+    const label = options.typeLabel ?? ((type: RoomType) => ROOM_TYPES[type]?.labelKa ?? type);
+    for (const part of parts) writeLabel(ctx, t, part.polygon, label(part.type), part.areaM2, options);
+    return;
+  }
+  writeLabel(ctx, t, room.polygon, room.name, room.areaM2, options);
+}
+
+function writeLabel(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], title: string, areaM2: number, options: RoomLabelOptions): void {
   const ui = options.ui ?? 1;
-  const centre = toScreen(t, polygonCentroid(room.polygon));
-  const bounds = polygonBounds(room.polygon);
+  const centre = toScreen(t, polygonCentroid(polygon));
+  const bounds = polygonBounds(polygon);
   const fits = bounds.width * t.scale > 70 * ui && bounds.depth * t.scale > 40 * ui;
   if (!fits) return;
   const namePx = Math.round(Math.max(11, Math.min(14, (t.scale / ui) * 0.32)) * ui);
   const areaPx = Math.round(Math.max(10, Math.min(12, (t.scale / ui) * 0.28)) * ui);
-  const name = truncate(room.name, 22);
-  const area = `${room.areaM2.toFixed(1)} ${options.unitM2}`;
+  const name = truncate(title, 22);
+  const area = `${areaM2.toFixed(1)} ${options.unitM2}`;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -130,6 +163,33 @@ export function drawRoomLabel(ctx: CanvasRenderingContext2D, t: Transform, room:
   ctx.fillStyle = EDITOR.labelMuted;
   ctx.font = `${areaPx}px system-ui, sans-serif`;
   ctx.fillText(area, centre.x, centre.y + 8 * ui);
+  ctx.restore();
+}
+
+function tracePolygon(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[]): void {
+  ctx.beginPath();
+  polygon.forEach((p, i) => {
+    const s = toScreen(t, p);
+    if (i === 0) ctx.moveTo(s.x, s.y);
+    else ctx.lineTo(s.x, s.y);
+  });
+  ctx.closePath();
+}
+
+/** A studio's dividing line: dashed, so it reads as a line on the floor and not as a wall. */
+export function drawDivider(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, ui = 1): void {
+  ctx.save();
+  ctx.strokeStyle = EDITOR.label;
+  ctx.lineWidth = 1.5 * ui;
+  ctx.setLineDash([7 * ui, 5 * ui]);
+  ctx.beginPath();
+  for (const [a, b] of dividerSegments(room)) {
+    const sa = toScreen(t, a);
+    const sb = toScreen(t, b);
+    ctx.moveTo(sa.x, sa.y);
+    ctx.lineTo(sb.x, sb.y);
+  }
+  ctx.stroke();
   ctx.restore();
 }
 

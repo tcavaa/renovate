@@ -6,6 +6,7 @@
  */
 
 import { useCalculatorStore } from '@/store/calculatorStore';
+import { closeAfterSave } from '@/lib/flow/workspace';
 
 export async function saveCalculatorProject(options: { draft: boolean; nameKa: string }): Promise<number> {
   const s = useCalculatorStore.getState();
@@ -22,7 +23,7 @@ export async function saveCalculatorProject(options: { draft: boolean; nameKa: s
       selectedFurniture: s.selectedFurniture,
       // What was ticked off the summary and the quantities changed on it. The estimate is
       // worked out again on the server; these are laid over it there as they are here.
-      edits: { excluded: s.excluded, quantities: s.quantities },
+      edits: { excluded: s.excluded, quantities: s.quantities, choices: s.choices, progress: { step: s.step, calculated: s.calculated } },
       // A project opened from the profile, or one this session already saved, is written
       // into rather than duplicated.
       projectId: s.projectId ?? undefined,
@@ -32,5 +33,8 @@ export async function saveCalculatorProject(options: { draft: boolean; nameKa: s
   const json = (await res.json()) as { data: { id: number } | null; error: string | null };
   if (!res.ok || json.error || !json.data) throw new Error(json.error ?? 'save-failed');
   useCalculatorStore.getState().setProjectId(json.data.id);
+  // Saved on purpose (or ordered, which saves first): the journey is done, and the next
+  // visit from the header starts again.
+  if (!options.draft) closeAfterSave('calculator', json.data.id);
   return json.data.id;
 }

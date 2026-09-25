@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
+import { useWorkspace } from '@/store/workspace';
 
 const OWNER_KEY = 'renovate-owner';
 
@@ -28,9 +29,12 @@ export function StoreOwnerGuard() {
       return;
     }
     if (previous && previous !== owner && previous !== 'guest') {
-      useCalculatorStore.getState().reset();
-      useCalculatorPlanStore.getState().reset();
-      useDesignStore.getState().reset();
+      // Both workspaces: the person's own work and a project opened from their profile.
+      for (const store of [useCalculatorStore, useCalculatorPlanStore, useDesignStore]) {
+        store.fresh.getState().reset();
+        store.project.getState().reset();
+      }
+      useWorkspace.getState().enterFresh();
     }
     try {
       localStorage.setItem(OWNER_KEY, owner);

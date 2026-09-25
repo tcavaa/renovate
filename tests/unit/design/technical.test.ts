@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
+import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, normalizeWorks, phasesForWorks, technicalAnchors, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
+import { HOME_STATES } from '@/lib/calculator/constants';
+import { HOME_STATE_VALUES } from '@/lib/calculator/types';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
@@ -26,34 +28,48 @@ const point = (id: string, kind: TechnicalPoint['kind'], x: number, z: number, r
 describe('works and phases', () => {
   it('pre-ticks the works a home state implies and maps them back to phases', () => {
     const white = defaultWorksForHomeState('white_frame');
-    expect(white).toContain('tiling');
-    expect(white).not.toContain('demolition');
-    expect(phasesForWorks(['plumbing', 'tiling'])).toEqual([2, 9]);
-    expect(effectivePhases('green_frame')).toEqual([17]);
-    expect(effectivePhases('green_frame', ['screed', 'painting'])).toEqual([6, 13]);
+    expect(white).toContain('bathroom_tiling');
+    expect(white).not.toContain('walls');
+    expect(white).not.toContain('plastering');
+    expect(phasesForWorks(['plumbing', 'bathroom_tiling'])).toEqual([7, 9]);
+    expect(effectivePhases('green_frame')).toEqual([6, 9, 10, 11, 12, 14]);
+    expect(effectivePhases('green_frame', ['screed', 'painting'])).toEqual([3, 6]);
     expect(new Set(WORK_ITEMS.map((w) => w.key)).size).toBe(WORK_ITEMS.length);
+    for (const state of HOME_STATE_VALUES) expect(phasesForWorks(defaultWorksForHomeState(state))).toEqual(HOME_STATES[state].includedPhases);
+  });
+
+  it('reads a list saved under the old works in today’s keys', () => {
+    expect(normalizeWorks(['tiling', 'doors_windows', 'electrical_finish', 'electrical', 'insulation', 'furniture'])).toEqual(['electrical', 'bathroom_tiling', 'kitchen_tiling', 'doors']);
+    // A list that names nothing that still exists is the home state's.
+    expect(effectivePhases('green_frame', ['furniture'])).toEqual(HOME_STATES.green_frame.includedPhases);
   });
 
   it('starts an old renovation with the strip-out, and no other home state with it', () => {
     const old = defaultWorksForHomeState('old_renovation');
     expect(old[0]).toBe('strip_out');
-    // Everything a black frame needs comes after it.
-    expect(old.slice(1)).toEqual(defaultWorksForHomeState('black_frame'));
+    // Everything a black frame needs comes after it, but building the walls and the new build's rubbish.
+    expect(old.slice(1)).toEqual(defaultWorksForHomeState('black_frame').filter((w) => w !== 'walls' && w !== 'debris'));
     for (const state of ['black_frame', 'white_frame', 'green_frame'] as const) {
       expect(defaultWorksForHomeState(state)).not.toContain('strip_out');
     }
     expect(phasesForWorks(['strip_out'])).toEqual([0]);
     expect(effectivePhases('old_renovation')[0]).toBe(0);
     // Unticking the strip-out on the checklist takes phase 0 out of the estimate.
-    expect(effectivePhases('old_renovation', ['demolition', 'painting'])).toEqual([1, 13]);
-    expect(effectivePhases('white_frame', ['strip_out', 'painting'])).toEqual([0, 13]);
+    expect(effectivePhases('old_renovation', ['walls', 'painting'])).toEqual([1, 6]);
+    expect(effectivePhases('white_frame', ['strip_out', 'painting'])).toEqual([0, 6]);
   });
 
   it('offers the strip-out as the first stage of the checklist, and every work in exactly one stage', () => {
     expect(WORK_STAGES.map((s) => s.homeState)).toEqual(['old_renovation', 'black_frame', 'white_frame', 'green_frame']);
     expect(worksForStage(WORK_STAGES[0]).map((w) => w.key)).toEqual(['strip_out']);
     const staged = WORK_STAGES.flatMap((s) => worksForStage(s).map((w) => w.key));
-    expect(staged).toEqual(WORK_ITEMS.map((w) => w.key));
+    expect([...staged].sort()).toEqual(WORK_ITEMS.map((w) => w.key).sort());
+    expect(new Set(staged).size).toBe(staged.length);
+    // Each stage is what one home state needs and the next one does not.
+    const needs = (state: (typeof HOME_STATE_VALUES)[number]) => new Set(defaultWorksForHomeState(state));
+    expect(worksForStage(WORK_STAGES[3]).map((w) => w.key)).toEqual([...needs('green_frame')]);
+    expect(worksForStage(WORK_STAGES[2]).map((w) => w.key)).toEqual([...needs('white_frame')].filter((w) => !needs('green_frame').has(w)));
+    expect(worksForStage(WORK_STAGES[1]).map((w) => w.key)).toEqual([...needs('black_frame')].filter((w) => !needs('white_frame').has(w)));
   });
 });
 

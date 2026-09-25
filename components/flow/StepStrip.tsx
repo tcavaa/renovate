@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, Lock } from 'lucide-react';
+import { Check, FolderOpen, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { StartOverButton } from '@/components/flow/StartOverButton';
 import type { FlowKind } from '@/lib/flow/reset';
 import { cn } from '@/lib/utils';
+import { useWorkspace } from '@/store/workspace';
 
 export interface FlowStep {
   num: number;
@@ -23,19 +24,23 @@ export interface FlowStep {
  * Shared by the calculator and the design studio, which shut a step for different reasons —
  * hence `lockedTitle`; the default says it was the 3D design.
  */
-export function StepStrip({ steps, current, lockedBefore = 0, kind, lockedTitle }: { steps: FlowStep[]; current: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Which journey "start again" empties. */ kind?: FlowKind; /** Why those steps are shut. */ lockedTitle?: string }) {
+export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, kind, lockedTitle }: { steps: FlowStep[]; current: number; /** The furthest step the journey has got to: every step up to it is a link, ahead of the page as well as behind it. */ reached?: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Which journey "start again" empties. */ kind?: FlowKind; /** Why those steps are shut. */ lockedTitle?: string }) {
   const t = useT();
+  // An opened project is not started over: the header's calculator and design are the fresh start.
+  const inProject = useWorkspace((w) => w.kind === 'project' && w.project != null);
+  const furthest = Math.max(current, reached);
   return (
     <nav aria-label="steps" className="border-b border-line bg-bg-base">
       <div className="container flex items-stretch gap-2">
       <ol className="grid flex-1 auto-cols-fr grid-flow-col">
         {steps.map((step) => {
           const locked = step.num < lockedBefore;
-          const status = locked ? 'locked' : step.num < current ? 'done' : step.num === current ? 'current' : 'upcoming';
-          const reachable = !locked && step.num <= current;
+          // A step the journey has been to is done whichever side of the open page it is on.
+          const status = locked ? 'locked' : step.num === current ? 'current' : step.num <= furthest ? 'done' : 'upcoming';
+          const reachable = !locked && step.num <= furthest;
           const inner = (
             <>
-              <span className="flex items-center gap-2">
+              <span className="flex min-w-0 items-center gap-2">
                 <span
                   className={cn(
                     'grid h-5 w-5 shrink-0 place-items-center text-[10px] font-semibold tabular-nums',
@@ -66,7 +71,7 @@ export function StepStrip({ steps, current, lockedBefore = 0, kind, lockedTitle 
             </>
           );
           const cell = cn(
-            'relative flex h-12 items-center justify-center px-2 sm:justify-start sm:px-4',
+            'relative flex h-12 min-w-0 items-center justify-center overflow-hidden px-2 sm:justify-start sm:px-4',
             'border-l border-line first:border-l-0',
             reachable && status !== 'current' && 'transition-colors hover:bg-white'
           );
@@ -85,8 +90,32 @@ export function StepStrip({ steps, current, lockedBefore = 0, kind, lockedTitle 
           );
         })}
       </ol>
-      {kind && <StartOverButton kind={kind} className="self-center" />}
+      {kind && !inProject && <StartOverButton kind={kind} className="self-center" />}
+      {inProject && <OpenedProjectChip />}
       </div>
     </nav>
+  );
+}
+
+/**
+ * Says that the steps are showing a project opened from "my projects" — which is why the
+ * header's calculator and design show the person's own work instead — and leads back to it.
+ */
+function OpenedProjectChip() {
+  const t = useT();
+  const project = useWorkspace((w) => w.project);
+  if (!project) return null;
+  const status = project.status === 'submitted' ? t.status.submitted : project.status === 'saved' ? t.status.saved : t.status.draft;
+  return (
+    <Link
+      href={`/profile/projects/${project.id}`}
+      title={t.profile.workspaceBarBack}
+      className="flex min-w-0 max-w-[26%] shrink-0 items-center gap-2 self-center border border-line bg-white px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:border-ink hover:text-ink"
+    >
+      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+      <span className="hidden shrink-0 text-ink-muted 2xl:inline">{t.profile.workspaceBar}</span>
+      <span className="hidden truncate font-semibold text-ink md:inline">{project.name || `#${project.id}`}</span>
+      <span className="shrink-0 bg-sand px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{status}</span>
+    </Link>
   );
 }
