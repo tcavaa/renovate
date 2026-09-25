@@ -23,18 +23,20 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   await page.getByRole('button', { name: /მხოლოდ დიზაინი/ }).click();
   await nav.getByRole('button', { name: /^გაგრძელება$/ }).click();
 
-  // Step 2: the existing house on the drawing board, with the build tools and the rooms.
+  // Step 2: the existing house on the drawing board, with the build tools and the rooms. On a
+  // desktop the board steps are the whole window: the way on is in the bar over the sheet, and
+  // the page's bottom bar (and its narrow-screen head) are hidden.
   await expect(page).toHaveURL(/\/design\/plan/);
   await expect(page.getByRole('toolbar')).toBeVisible();
   await expect(page.getByRole('button', { name: /^კედელი$/ })).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.getByText(/მ²/).first()).toBeVisible();
-  await nav.getByRole('button', { name: /ტექნიკური პირობები/ }).click();
+  await expect(page.getByText(/მ²/).filter({ visible: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: /ტექნიკური პირობები/ }).click();
 
   // Step 3: the technical setup, with the works checklist.
   await expect(page).toHaveURL(/\/design\/technical/);
   await expect(page.getByText(/რა სამუშაოებია საჭირო/)).toBeVisible();
-  await nav.getByRole('button', { name: /სტილის ტესტი/ }).click();
+  await page.getByRole('button', { name: /სტილის ტესტი/ }).click();
 
   // Step 4: the style test; five answers give a style, then generate.
   await expect(page).toHaveURL(/\/design\/style/);

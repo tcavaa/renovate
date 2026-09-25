@@ -10,7 +10,7 @@
  * dropping a room never recentres the sheet under the person's hands.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatM2 } from '@/lib/utils';
@@ -18,8 +18,8 @@ import { useDesignStore, type DesignStoreHook } from '@/store/designStore';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
-import { ALL_LAYERS, PlanEditor, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
-import { PlanToolbar, toolHint } from './PlanToolbar';
+import { ALL_LAYERS, PlanEditor, type BoardInsets, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
+import { PlanToolbar, PlanToolOptions, PlanToolTiles, PlanViewControls, toolHint } from './PlanToolbar';
 
 export interface PlanWorkspaceProps {
   tools: EditorTool[];
@@ -66,9 +66,32 @@ export interface PlanWorkspaceProps {
    * (`useCalculatorPlanStore`) so the two flats never meet.
    */
   store?: DesignStoreHook;
+  /**
+   * The board of a full-screen step (`FlowWorkspace`). From `lg` up it fills the step edge to
+   * edge — no frame, the sheet under everything — and its toolbar floats over it the way a
+   * design app's does: the tools down the left from `top`, what the tool in hand can be told
+   * along the bottom with the hint over it, the area in the bottom-left corner, the layers and
+   * the zoom in a column at the bottom right, `right` px in from the edge (clear of the page's
+   * panel). A plan is framed in whatever the floating parts leave of the sheet. Below `lg` it is
+   * the ordinary board with its toolbar row.
+   */
+  bleed?: { top: number; right: number };
+  /**
+   * A tray of the page's own that belongs with the board — the kinds of point, the brush:
+   * along the bottom of a full-screen board, under the hint; above the board otherwise.
+   */
+  dock?: React.ReactNode;
+  /**
+   * The sheet fills its container at every size, with no frame — the studio's 2D view, which
+   * runs under the studio's own floating bars the way its 3D view does. A plan is framed in
+   * what those bars (`data-board-edge`) leave of it.
+   */
+  frameless?: boolean;
+  /** The tool's hint on the board; off where the page shows it itself (the studio floats it above its tray). */
+  hint?: boolean;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore, bleed, dock, frameless = false, hint: showHint = true }: PlanWorkspaceProps) {
   const t = useT();
   // The hook comes in as a prop, but it is a module constant either way — the same store for
   // the life of the component, so the rules of hooks hold.
@@ -160,41 +183,96 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   const undo = useCallback(() => useStore.getState().undo(), [useStore]);
   const redo = useCallback(() => useStore.getState().redo(), [useStore]);
 
+  // What floats over a full-screen board, edge by edge, measured whenever the view is fitted:
+  // the page's bar and panel, the rail of tools, the band along the bottom — whatever carries
+  // `data-board-edge` and actually lies over the sheet. Below `lg` nothing does (the panel
+  // stacks under the board), and the sheet is the whole canvas again.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const coveredEdges = useCallback((): BoardInsets | null => {
+    const root = rootRef.current;
+    const canvas = root?.querySelector('canvas');
+    if (!root || !canvas) return null;
+    const box = canvas.getBoundingClientRect();
+    const cover: BoardInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+    const scope = root.closest('[data-flow-workspace]') ?? root;
+    scope.querySelectorAll<HTMLElement>('[data-board-edge]').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0 || r.right <= box.left || r.left >= box.right || r.bottom <= box.top || r.top >= box.bottom) return;
+      const edge = el.dataset.boardEdge;
+      if (edge === 'top') cover.top = Math.max(cover.top, r.bottom - box.top);
+      else if (edge === 'bottom') cover.bottom = Math.max(cover.bottom, box.bottom - r.top);
+      else if (edge === 'left') cover.left = Math.max(cover.left, r.right - box.left);
+      else if (edge === 'right') cover.right = Math.max(cover.right, box.right - r.left);
+    });
+    return cover;
+  }, []);
+
   if (!plan) return null;
 
   const totalM2 = totalFloorAreaM2(plan);
+  const hint = toolHint(t, tool, locked);
+  const totals = (
+    <>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
+      <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2(totalM2)}</span>
+      <span className="text-ink-muted">· {fill(t.build.roomCount, { n: plan.rooms.length })}</span>
+    </>
+  );
+  const optionProps = {
+    tools,
+    tool,
+    onTool: setTool,
+    thicknessM,
+    onThickness: (m: number) => {
+      setThicknessM(m);
+      actions.setPlanDefaults({ wallThicknessM: m });
+    },
+    technicalKind,
+    onTechnicalKind: (kind: TechnicalKind) => {
+      setInnerTechnical(kind);
+      onTechnicalKind?.(kind);
+    },
+    kindPicker: !onTechnicalKind,
+    electricalKind,
+    onElectricalKind: (kind: ElectricalKind) => {
+      setInnerElectrical(kind);
+      onElectricalKind?.(kind);
+    },
+  };
+  const viewProps = { layers, onLayers: setLayers, layerKeys, onFit: () => api?.fit(), onZoom: (f: number) => api?.zoom(f) };
 
   return (
-    <div className={cn('flex flex-col gap-3', className)}>
-      {!hideToolbar && (
-        <PlanToolbar
-          tools={tools}
-          tool={tool}
-          onTool={setTool}
-          thicknessM={thicknessM}
-          onThickness={(m) => {
-            setThicknessM(m);
-            actions.setPlanDefaults({ wallThicknessM: m });
-          }}
-          technicalKind={technicalKind}
-          onTechnicalKind={(kind) => {
-            setInnerTechnical(kind);
-            onTechnicalKind?.(kind);
-          }}
-          kindPicker={!onTechnicalKind}
-          electricalKind={electricalKind}
-          onElectricalKind={(kind) => {
-            setInnerElectrical(kind);
-            onElectricalKind?.(kind);
-          }}
-          layers={layers}
-          onLayers={setLayers}
-          layerKeys={layerKeys}
-          onFit={() => api?.fit()}
-          onZoom={(f) => api?.zoom(f)}
-        />
+    <div ref={rootRef} className={cn('flex flex-col gap-3', bleed && 'lg:absolute lg:inset-0 lg:block', className)}>
+      {!hideToolbar && <PlanToolbar {...optionProps} {...viewProps} className={bleed ? 'lg:hidden' : undefined} />}
+      {bleed && !hideToolbar && <PlanToolTiles tools={tools} tool={tool} onTool={setTool} vertical edge="left" className="absolute left-4 z-10 hidden lg:flex" style={{ top: bleed.top }} />}
+      {bleed ? (
+        // The band along the bottom of a full-screen board: the area in the corner, the hint and
+        // the tool's options (and the page's tray) in the middle, the view in a column at the end.
+        // Below `lg` only the page's tray is left of it, in its place above the board.
+        <div className="contents lg:pointer-events-none lg:absolute lg:bottom-4 lg:left-4 lg:z-10 lg:flex lg:items-end lg:gap-3" style={{ right: bleed.right }}>
+          {showTotals && (
+            <p data-board-edge="bottom" className="hidden shrink-0 items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur lg:flex" aria-live="polite">
+              {totals}
+            </p>
+          )}
+          <div data-board-edge="bottom" className={cn('min-w-0 flex-1 flex-col gap-2 lg:flex lg:items-center', dock ? 'flex' : 'hidden')}>
+            {showHint && <p className="hidden max-w-[40rem] rounded-[10px] bg-ink/80 px-3 py-1.5 text-center text-[11px] leading-snug text-white backdrop-blur lg:block">{hint}</p>}
+            {!hideToolbar && (
+              <div className="hidden flex-wrap items-center justify-center gap-2 empty:hidden lg:pointer-events-auto lg:flex">
+                <PlanToolOptions {...optionProps} />
+              </div>
+            )}
+            {dock && <div className="lg:pointer-events-auto lg:max-w-full">{dock}</div>}
+          </div>
+          {!hideToolbar && <PlanViewControls {...viewProps} vertical edge="right" className="hidden shrink-0 lg:pointer-events-auto lg:flex" />}
+        </div>
+      ) : (
+        dock
       )}
-      <div className="relative overflow-hidden rounded-[18px] border border-line bg-[#FBFAF7]" style={{ height: height ?? 560 }}>
+      <div
+        className={cn('relative overflow-hidden rounded-[18px] border border-line bg-[#FBFAF7]', bleed && 'h-[62vh] min-h-[420px] lg:absolute lg:inset-0 lg:h-auto lg:min-h-0 lg:rounded-none lg:border-0', frameless && 'rounded-none border-0')}
+        style={bleed ? undefined : { height: height ?? 560 }}
+      >
         <PlanEditor
           plan={plan}
           items={layers.furniture ? items : []}
@@ -254,16 +332,15 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
             if (!controlledTool) setTool('select');
           }}
           fitKey={fitKey}
+          fitInsets={bleed || frameless ? coveredEdges : undefined}
           onApi={onApi}
         />
         {showTotals && (
-          <p className="pointer-events-none absolute left-3 top-3 flex items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
-            <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2(totalM2)}</span>
-            <span className="text-ink-muted">· {fill(t.build.roomCount, { n: plan.rooms.length })}</span>
+          <p className={cn('pointer-events-none absolute left-3 top-3 flex items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur', bleed && 'lg:hidden')} aria-live="polite">
+            {totals}
           </p>
         )}
-        <p className="pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-[10px] bg-ink/80 px-3 py-1.5 text-[11px] leading-snug text-white backdrop-blur">{toolHint(t, tool, locked)}</p>
+        {showHint && <p className={cn('pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-[10px] bg-ink/80 px-3 py-1.5 text-[11px] leading-snug text-white backdrop-blur', bleed && 'lg:hidden')}>{hint}</p>}
       </div>
     </div>
   );

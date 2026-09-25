@@ -145,6 +145,7 @@ components/
                or window's card) · dragImage
                StudioTopBar · TutorialOverlay (spotlight tour) · NavHelp · VersionsPanel
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief (what / why / need / change / next)
+               FlowWorkspace (the full-screen frame of the board steps: FlowBar along the top, FlowPanel down the right)
   budget/      BudgetSheet (the one sheet both summaries and the saved project are read on: shop
                cards with a select-all box, a tick and a quantity per line, leftovers by kind) · lineName
   design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D ItemCard SwapPanel
@@ -638,6 +639,9 @@ no line on the floor, and the kitchen half's default floor is the room's (as any
 `tests/unit/design/studio.test.ts`.
 
 ### The 2D board (`components/plan/PlanEditor.tsx`)
+
+(On the full-screen steps the board runs under everything, its toolbar floating over it —
+see "The board steps are the whole window" in the design-system notes.)
 
 One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with two shapes, a line
 and a square** (`room` is the square: a rectangle whose inside is exactly what was drawn,
@@ -2587,6 +2591,39 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
   the "finish the previous step first" card. `Figure` (in `MaterialsTable`) is the large
   number-in-a-cell used for stats and subtotals.
+- **The board steps are the whole window** (`components/flow/FlowWorkspace.tsx`, September
+  2026). The steps where the 2D board or the 3D scene is open — the calculator's plan (2) and
+  placement (5), the design's existing house (2), technical setup (3) and the studio (5 · 6) —
+  are, from `lg` up, a design app rather than a page, after a reference floor-planner (a grid
+  under everything, the tools floating over it; its features were not copied): the header and
+  the step strip stand at the top and never move, the workspace takes every pixel under them,
+  and there is no page to scroll and no footer. That is CSS, not JavaScript: a step renders
+  `FlowWorkspace` (`data-flow-workspace`; the studio puts the attribute on its own workspace)
+  and `.site-shell:has([data-flow-workspace])` in `app/globals.css` gives the shell the
+  window's height and hides the footer — so the first paint is right, and a step that is
+  showing its `EmptyStep` stays an ordinary page. Inside, the sheet runs edge to edge
+  (`PlanWorkspace` with `bleed`: no frame, the grid under everything) and the step's parts
+  float over it where the reference puts them: `FlowBar` along the top — the way back as an
+  arrow, the step's number and title (a click opens its subtitle and, on the design's steps,
+  the five `StageBrief` lines), the step's own actions, the way on; the board's tools down the
+  left (`PlanToolTiles`, vertical); what the tool in hand can be told (the wall's shape and
+  thickness) along the bottom with the hint over it, next to any tray of the page's own
+  (`dock`: the technical kinds, the placement brush); the area in the bottom-left corner; the
+  layers and the zoom in a column at the bottom right (`PlanViewControls`); the step's cards
+  in `FlowPanel` down the right, scrolling inside itself. `PlanToolbar` is those three parts
+  in one row, as before, for everything else. **Whatever floats over the sheet says which edge
+  it covers** (`data-board-edge="top|right|bottom|left"`), and `PlanWorkspace` measures them
+  whenever the view is fitted (`PlanEditor.fitInsets`): a plan is framed in what the floating
+  parts leave, and the zoom buttons zoom about its middle — a plan centred on the canvas sat
+  half under the panel. Below `lg` the page renders its ordinary head (`StepHeader`,
+  `StageBrief`), the framed board, the cards under it and `StepNav` (`lg:hidden`), and the
+  bar is hidden: the markup is one, the classes decide (`lg:contents` lets the stacked
+  column's children float). The studio needed only the frame for its 3D view; its 2D view is
+  the sheet run under the studio's own bars at every size (`PlanWorkspace` `frameless`, the top
+  bar, the rail, the right panel, the tray and the help column tagged with `data-board-edge`),
+  its hint for the tool in hand floating above the tray with the studio's other hints
+  (`hint={false}` on the board; it stays when the tray is folded), and the zoom column
+  zooming and fitting the sheet as it does the camera.
 - **Product page** (`/catalog/[slug]`): no "add to project" button any more — the calculator
   and the studio are where products are chosen. "See in 3D" (`ProductModelDrawer`) opens a
   drawer on the same page with the product's own GLB on a turntable (`lib/design3d/modelPreview.ts`,
