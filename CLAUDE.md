@@ -1672,6 +1672,21 @@ under the ceiling, sized to the room, plus the shared window glass material turn
 emissive so the windows glow from outside. The style still tints the sun and the lamps.
 Tested in `tests/unit/design/daylight.test.ts`.
 
+**The flat stands in a world** (`lib/design3d/environment.ts`, September 2026, after a
+reference floor-planner): a sky behind everything — the hour's colour overhead
+(`Daylight.skyTop`: a clear blue at noon, a paler warm morning, an evening glowing orange low
+down, a near-black night) paling to a haze at the horizon (`skyHorizon`) — as an
+equirectangular `DataTexture` on `scene.background`, and a ground under it: one large lit plane
+a centimetre below the floors (and pushed back with `polygonOffset`, since from far off a
+centimetre is below the depth buffer's resolution), ruled like the 2D board's sheet — half-metre
+cells, a darker line every 2.5 m — in its own shader (`onBeforeCompile`, lines anti-aliased
+with `fwidth` and let go before they turn to moiré), centred under the flat, taking its shadow
+and darkening at night like everything else. Its `raycast` is a no-op: a click on the ground is
+a click on nothing. **The fog is the horizon colour** (`Daylight.background === skyHorizon`,
+60 → 190 m against a 200 m far plane), and that is what makes the ground meet the sky without a
+seam: three mixes fog in *after* tone mapping and the output conversion, and an sRGB background
+is not tone-mapped, so one hex colour comes out the same on both.
+
 **Photos.** The camera button (`ViewerApi.screenshot`: render, then `toDataURL` — the
 canvas does not keep its buffer between frames) opens `PhotoDialog` with the shot and asks
 whether to make a realistic photo of it. Yes saves the design if it is not saved yet (a
@@ -2224,6 +2239,7 @@ Each of these cost real debugging time. Don't undo them.
     the loaded nodes: every leaf stood half in the floor and every window was a third taller
     than its hole. Each part now sits inside a `Group` of its own that carries the stretch and
     the hinge offset. `stretchTo` and `reframe` are fine because they scale the model's root.
+
 ## Partner models (`scripts/convert-models.ts`)
 
 Every piece of furniture the studio can place is one of these. The asset drop's OBJ exports

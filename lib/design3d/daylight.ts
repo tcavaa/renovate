@@ -33,7 +33,13 @@ export interface Daylight {
   hemisphereIntensity: number;
   /** Flat fill so nothing goes pitch black indoors. */
   ambientIntensity: number;
-  /** What the canvas clears to, and the fog colour. */
+  /** The visible sky: its colour straight overhead, and at the horizon (`lib/design3d/environment`). */
+  skyTop: string;
+  skyHorizon: string;
+  /**
+   * The fog colour — the sky at the horizon, so the ground runs out into the haze and meets
+   * the sky without a seam.
+   */
   background: string;
   /** Renderer exposure: a little over 1 by day, well under at night. */
   exposure: number;
@@ -46,6 +52,18 @@ export interface Daylight {
 
 const SUNRISE = 6;
 const SUNSET = 20;
+
+/**
+ * The sky the flat stands under, overhead and at the horizon: a clear blue paling to a haze by
+ * day, a lighter, warmer morning, an evening that glows orange low down and deepens overhead.
+ * The same for every style — it is the weather, not the interior.
+ */
+const SKY = {
+  day: { top: '#4F90EC', horizon: '#DCE8F5' },
+  morning: { top: '#8DB5E8', horizon: '#F4E2CE' },
+  evening: { top: '#4A6AAE', horizon: '#F1B48D' },
+  night: { top: '#060A14', horizon: '#161D2D' },
+} as const;
 
 /** Hex → [r,g,b] in 0..1. */
 function rgb(hex: string): [number, number, number] {
@@ -101,7 +119,9 @@ export function lightingForHour(hour: number, style: StyleDefinition): Daylight 
       groundColor: '#0D1119',
       hemisphereIntensity: 0.28,
       ambientIntensity: 0.16,
-      background: '#0F1520',
+      skyTop: SKY.night.top,
+      skyHorizon: SKY.night.horizon,
+      background: SKY.night.horizon,
       exposure: 0.85,
       interiorLightsOn: true,
       interiorIntensity: 1,
@@ -118,6 +138,11 @@ export function lightingForHour(hour: number, style: StyleDefinition): Daylight 
   const skyColor = mixHex(skyLow, skyDay, Math.min(1, elevation * 1.4));
   // Evenings dim faster than mornings brighten: the lamps come on before the sun is gone.
   const dusk = h >= 17 && elevation < 0.45;
+  // The visible sky: the low sun's colours near sunrise and sunset, the day's blue as it climbs.
+  const low = h < 13 ? SKY.morning : SKY.evening;
+  const daylit = Math.min(1, elevation * 1.4);
+  const skyTop = mixHex(mixHex(low.top, '#2B3A66', dusk ? 0.35 : 0), SKY.day.top, daylit);
+  const skyHorizon = mixHex(low.horizon, SKY.day.horizon, daylit);
   return {
     sunPosition,
     sunColor,
@@ -126,7 +151,9 @@ export function lightingForHour(hour: number, style: StyleDefinition): Daylight 
     groundColor: '#8A8078',
     hemisphereIntensity: style.lighting.ambientIntensity * (0.55 + 0.45 * elevation),
     ambientIntensity: 0.05 + 0.1 * (1 - elevation),
-    background: mixHex(mixHex(skyLow, '#3A3F52', dusk ? 0.35 : 0), skyDay, Math.min(1, elevation * 1.4)),
+    skyTop,
+    skyHorizon,
+    background: skyHorizon,
     exposure: 0.95 + 0.12 * elevation,
     interiorLightsOn: dusk,
     interiorIntensity: dusk ? 0.6 : 0,
