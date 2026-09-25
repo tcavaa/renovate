@@ -151,14 +151,31 @@ export interface PlanEditorProps {
   className?: string;
   /** When this changes, the view refits to the plan. */
   fitKey?: unknown;
+  /**
+   * How much of each edge of the canvas is under the page's floating chrome, in px — asked
+   * whenever the view is fitted or zoomed from a button, so a plan is framed in the part of
+   * the sheet that can be seen rather than under a panel (a full-screen step's board runs
+   * under everything). No insets when absent.
+   */
+  fitInsets?: () => BoardInsets | null;
   /** Receives the view controls once mounted; `null` on unmount. */
   onApi?: (api: PlanEditorApi | null) => void;
 }
 
+/** The part of each edge of the canvas that something floating over it covers, in px. */
+export interface BoardInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+const NO_INSETS: BoardInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
 /** Fit and zoom, for a page's own buttons — and the carried piece, for a drag from a tray. */
 export interface PlanEditorApi {
   fit: () => void;
-  /** Multiplies the scale about the centre of the canvas; > 1 zooms in. */
+  /** Multiplies the scale about the centre of the canvas (of what `fitInsets` leaves of it); > 1 zooms in. */
   zoom: (factor: number) => void;
   /** The carried piece follows a drag from a tray (client coordinates). */
   moveCarriedTo: (clientX: number, clientY: number) => void;
@@ -350,8 +367,10 @@ export function PlanEditor(props: PlanEditorProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const points = [...plan.rooms.flatMap((r) => r.polygon), ...walls.flatMap((w) => [w.a, w.b])];
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    // What floats over the sheet is taken off it first: the plan is framed in what is left.
+    const cover = callbacks.current.fitInsets?.() ?? NO_INSETS;
+    const width = Math.max(1, canvas.clientWidth - cover.left - cover.right);
+    const height = Math.max(1, canvas.clientHeight - cover.top - cover.bottom);
     if (points.length === 0) {
       // A blank sheet shows room for a flat of about a hundred square metres — sixteen by
       // ten metres at most — with the origin a metre in from the top left corner, where the
@@ -360,7 +379,7 @@ export function PlanEditor(props: PlanEditorProps) {
       // Two and a half metres in from the corner rather than one: the first room's dimension
       // chain runs above and to the left of it, and the totals plate sits in that corner.
       const inset = layers.dimensions ? scale * 2.5 : scale;
-      transformRef.current = { scale, offsetX: inset, offsetY: inset };
+      transformRef.current = { scale, offsetX: cover.left + inset, offsetY: cover.top + inset };
       redraw();
       return;
     }
@@ -373,8 +392,8 @@ export function PlanEditor(props: PlanEditorProps) {
     const scale = Math.max(8, Math.min(120, Math.min((width - margin * 2) / Math.max(1, maxX - minX), (height - margin * 2) / Math.max(1, maxZ - minZ))));
     transformRef.current = {
       scale,
-      offsetX: margin + (width - margin * 2 - (maxX - minX) * scale) / 2 - minX * scale,
-      offsetY: margin + (height - margin * 2 - (maxZ - minZ) * scale) / 2 - minZ * scale,
+      offsetX: cover.left + margin + (width - margin * 2 - (maxX - minX) * scale) / 2 - minX * scale,
+      offsetY: cover.top + margin + (height - margin * 2 - (maxZ - minZ) * scale) / 2 - minZ * scale,
     };
     redraw();
   }, [plan.rooms, walls, redraw, layers.dimensions]);
@@ -394,8 +413,11 @@ export function PlanEditor(props: PlanEditorProps) {
       zoom: (factor) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const cx = canvas.clientWidth / 2;
-        const cy = canvas.clientHeight / 2;
+        // About the middle of what can be seen, which is not the middle of a canvas that runs
+        // under the page's panels.
+        const cover = callbacks.current.fitInsets?.() ?? NO_INSETS;
+        const cx = cover.left + (canvas.clientWidth - cover.left - cover.right) / 2;
+        const cy = cover.top + (canvas.clientHeight - cover.top - cover.bottom) / 2;
         const tr = transformRef.current;
         const scale = Math.max(6, Math.min(240, tr.scale * factor));
         const k = scale / tr.scale;
@@ -763,6 +785,13 @@ export function PlanEditor(props: PlanEditorProps) {
       const size = { width: canvas.clientWidth, height: canvas.clientHeight };
       const previous = lastSize.current;
       lastSize.current = size;
+      // Observing again (the tool changed, and with it `draw`) reports the size it already had:
+      // that is no resize, and refitting on it would move the plan the moment a tool is picked
+      // — a full-screen board's floating bars change what they cover as the tool changes.
+      if (previous && previous.width === size.width && previous.height === size.height) {
+        draw();
+        return;
+      }
       if (userAdjusted.current || edited.current) {
         if (previous) {
           const tr = transformRef.current;
