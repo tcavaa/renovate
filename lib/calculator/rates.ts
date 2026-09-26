@@ -162,3 +162,20 @@ export function rateBookFromRows(rows: RateRow[]): RateBook {
   }
   return { materials, labour };
 }
+
+/**
+ * What admin edits: every rate the estimate actually uses. The table's own rows, and the
+ * shipped defaults it has no row for yet — each with a negative id, which is how the rates
+ * page knows that saving it creates the row rather than updating one. So a book shipped after
+ * the database was seeded (the renovation team's, September 2026) can be read and repriced on
+ * any host without running anything there: `pnpm db:seed:rates` is only a local tidy-up.
+ * Rows under a retired key are left out, as the engine leaves them out.
+ */
+export function ratesForAdmin(rows: RateRow[]): RateRow[] {
+  const live = rows.filter((r) => !RETIRED.has(r.key));
+  const known = new Set(live.map((r) => `${r.kind}:${r.key}`));
+  const defaults = defaultRateRows()
+    .filter((r) => !known.has(`${r.kind}:${r.key}`))
+    .map((r, i) => ({ ...r, id: -(i + 1) }));
+  return [...live, ...defaults].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder || a.id - b.id);
+}

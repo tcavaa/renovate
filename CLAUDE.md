@@ -61,7 +61,7 @@ pnpm db:studio
 pnpm db:indexes         # idempotent secondary indexes
 pnpm db:seed            # categories, stores, products, workers, admin
 pnpm db:seed:design     # partner stores + design categories (no furniture — see models:seed)
-pnpm db:seed:rates      # the rates table with the default rate book
+pnpm db:seed:rates      # local tidy-up: writes the default rate book in, deletes retired rows (never needed in production)
 pnpm db:seed:workers    # worker profiles, portfolios, reviews; recomputes their ratings
 pnpm db:seed:partners   # portal logins per active store/worker (PARTNER_PASSWORD or printed once);
                         # also creates the platform_settings row
