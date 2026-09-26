@@ -1,12 +1,14 @@
+import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
 import { Box, ChevronRight, ExternalLink, MapPin, Phone, Truck } from 'lucide-react';
-import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
+import { canViewProductPage, isPublicProduct, productViewer, publicProductCondition, visibilityOf } from '@/lib/api/productAccess';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
 import { ProductModelDrawer } from '@/components/catalog/ProductModelDrawer';
 import { Button } from '@/components/ui/button';
@@ -17,15 +19,35 @@ import { formatGEL } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The product behind a slug, with its category and store — when this visitor may see it
+ * (`canViewProductPage`): a public product to everybody, a person's own furniture to that
+ * person only. An inactive product or one of a store not approved yet is not found. The page
+ * and its metadata ask through this one read (cached for the request), so a hidden product's
+ * name never reaches the page's title either.
+ */
+const loadVisibleProduct = cache(async (slug: string) => {
+  const rows = await db
+    .select({ product: products, category: categories, store: stores })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .leftJoin(stores, eq(products.storeId, stores.id))
+    .where(eq(products.slug, slug))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  const visibility = visibilityOf(row.product, row.store?.isActive);
+  if (isPublicProduct(visibility)) return row;
+  // Only a product the public may not see needs to know who is looking.
+  const session = await auth();
+  return canViewProductPage(visibility, productViewer(session?.user)) ? row : null;
+});
+
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const params = await props.params;
-  const rows = await db
-    .select({ nameKa: products.nameKa, nameEn: products.nameEn, nameRu: products.nameRu, descriptionKa: products.descriptionKa, descriptionEn: products.descriptionEn, descriptionRu: products.descriptionRu, imageUrl: products.imageUrl })
-    .from(products)
-    .where(eq(products.slug, params.slug))
-    .limit(1);
-  const product = rows[0];
-  if (!product) return {};
+  const row = await loadVisibleProduct(params.slug);
+  if (!row) return {};
+  const { product } = row;
   const locale = await getLocale();
   return {
     title: localizedName(locale, product),
@@ -44,20 +66,8 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
   const t = await getT();
   const locale = await getLocale();
 
-  const rows = await db
-    .select({ product: products, category: categories, store: stores })
-    .from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .leftJoin(stores, eq(products.storeId, stores.id))
-    .where(eq(products.slug, params.slug))
-    .limit(1);
-  const row = rows[0];
+  const row = await loadVisibleProduct(params.slug);
   if (!row) notFound();
-  // A person's own upload has a page for its owner alone.
-  if (row.product.ownerUserId != null) {
-    const session = await auth();
-    if (!session?.user?.id || Number(session.user.id) !== row.product.ownerUserId) notFound();
-  }
   const { product, category, store } = row;
 
   const name = localizedName(locale, product);
@@ -76,7 +86,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
     .select({ product: products, store: stores })
     .from(products)
     .leftJoin(stores, eq(products.storeId, stores.id))
-    .where(and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
+    .where(and(publicProductCondition(), eq(products.categoryId, product.categoryId), ne(products.id, product.id)))
     .orderBy(desc(products.isFeatured), desc(products.id))
     .limit(4);
   const related = relatedRows.map((r) => r.product);
