@@ -13,7 +13,8 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 
 | File | Responsibility |
 |---|---|
-| `auth.ts` | NextAuth v5 (beta) setup: Credentials provider (bcrypt, lockout), Google and Facebook providers added only when their keys are set, the `signIn` callback that creates a row for a social account |
+| `auth.ts` | NextAuth v5 (beta) setup, exported as `authOptions` and handed to `NextAuth()`: Credentials provider (bcrypt, lockout), Google and Facebook providers added only when their keys are set, the `signIn` callback that creates a row for a social account, and the `jwt` callback that puts that row's claims on a social session |
+| `lib/auth/accountClaims.ts` | server only: `accountClaimsByEmail`, `sessionTokenAfterSignIn` — a social sign-in's token gets its `users` row's id, role and partner link |
 | `auth.config.ts` | the edge-safe half: JWT/session callbacks (role and partner link on the token), `authorized` — the route gate the proxy runs |
 | `proxy.ts` | Next 16 proxy (formerly middleware): runs the NextAuth gate, redirects old step URLs and the switched-off workers directory |
 | `lib/auth/roles.ts` | `UserRole`, `STAFF_ROLES`, `PARTNER_ROLES`, `AdminSection`, `canAdmin(role, section)`, `canOpenAdmin`, `canOpenPartnerPortal` |
@@ -31,9 +32,22 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 ## Sign-in
 
 - **Credentials** (email + bcrypt password hash) and, when configured, **Google** and
-  **Facebook** (`auth.ts`). Sessions are JWT; the role and the partner link
-  (`storeId` / `workerId` / `teamId`) travel on the token, so the proxy can gate `/admin` and
-  `/partner` without a database round trip.
+  **Facebook** (`auth.ts`). Sessions are JWT with no adapter; the account's id (`users.id`, as a
+  string), role and partner link (`storeId` / `workerId` / `teamId`) travel on the token, so the
+  proxy can gate `/admin` and `/partner` without a database round trip, and every route reads
+  `Number(session.user.id)`.
+- **How the token gets them.** For the password form, `authorize` returns our `users` row and
+  `authConfig`'s `jwt` callback copies it. A social sign-in is different: with no adapter,
+  `@auth/core` hands the callbacks the provider's profile with an id of its own making
+  (`crypto.randomUUID()`) and no role. So the `signIn` callback finds the account by e-mail —
+  creating it (role `user`, e-mail verified) on the first visit, refusing a Facebook login
+  that withholds the address — and `auth.ts`'s `jwt` callback then looks the row up by that
+  e-mail (`sessionTokenAfterSignIn`) and puts its claims, and `sub`, on the token in place of
+  the provider's; with no row there is no token (the sign-in fails) rather than a session for
+  nobody. Only the sign-in itself queries the database — a later read of the session does
+  not — and the lookup lives in `auth.ts`, never in `auth.config.ts`, which the edge proxy runs.
+  A person who has a password account and signs in with Google on the same e-mail is the same
+  account, admin role included.
 - **Lockout**: five wrong passwords within fifteen minutes lock the account for fifteen minutes
   (`lib/auth/lockout.ts`, in memory like the rate limiter — per process, per instance on
   Vercel).
@@ -89,6 +103,9 @@ Where accounts come from: `/register` (a `user`), `/register/store` and `/regist
 
 ## Tests
 
+`tests/unit/api/accountClaims.test.ts` (a Google or Facebook sign-in ends with its account's id,
+role and partner link — driven through `authOptions.callbacks` with the database mocked and
+NextAuth stubbed; a password sign-in and a plain session read make no lookup),
 `tests/unit/api/lockout.test.ts` (lockout), `tests/unit/api/helpers.test.ts` (the response
 envelope, `parseId`, `requireAdmin`, `handle`, the rate limiter, `safeCallbackUrl`,
 `repriceSnapshot`), `tests/unit/api/productAccess.test.ts` and
@@ -98,12 +115,8 @@ are in the coverage gate ([testing.md](testing.md)).
 
 ## Known gaps
 
-- **Social sign-in and the token (unverified — read, not run).** The `jwt` callback in
-  `auth.config.ts` copies `user.id` and `user.role` from whatever the provider returned; the
-  `signIn` callback in `auth.ts` creates the database row for a new Google/Facebook account but
-  never puts that row's id or role on the token. With no adapter configured, a social session's
-  `user.id` is then likely the provider's id rather than `users.id`, and a social-login admin
-  would read as `user`. Check before relying on social logins.
+- Social sign-in has been checked against `@auth/core` 0.41's source and the callbacks' tests,
+  not against a live Google or Facebook app (no keys in development).
 - No team self-registration; the admin user form has no team link, so an account switched to
   `team` there is left unlinked.
 - Lockout and rate limits are in memory: per process on the VPS, per instance on Vercel.

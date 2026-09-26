@@ -120,7 +120,7 @@ lib/
   teams/       brigade queries
   api/         route helpers (handle, guards), rate limiting, repricing, who sees a product
                (productAccess), design catalogue, rate book
-  auth/        roles, lockout, tokens, safe callback URLs, social providers
+  auth/        roles, lockout, tokens, safe callback URLs, social providers, account claims
   admin/       admin page guard, URL list state
   partner/     partner portal context
   db/          schema.ts, index.ts (pool + drizzle), json.ts, migrations/
