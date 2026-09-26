@@ -25,11 +25,15 @@ and `pnpm test:solver` after touching `lib/design/planSolver.ts`, `measure.ts` o
 
 ## What CI runs (`.github/workflows/ci.yml`)
 
-On every push to `main` and every pull request, one job: install (`--frozen-lockfile`) →
+On every push to `main` and every pull request — and, through `on: workflow_call`, as the
+`verify` job of the tag deploy (`deploy.yml`) — one job: install (`--frozen-lockfile`) →
 `pnpm type-check` → `pnpm lint` → `pnpm test -- --coverage` (coverage gate) → `pnpm test:parser`
-→ `pnpm test:solver` → `pnpm build`. The job sets placeholder environment variables so
-`lib/env.ts` validates without a database. **e2e is not run in CI** (it needs the database):
-run it before a release tag, or against staging with `PLAYWRIGHT_BASE_URL`.
+→ `pnpm test:solver` → `pnpm build`. pnpm 9 drops the `--` and runs `vitest run --coverage`, so
+the gate is enforced there exactly as by `pnpm test:coverage` (a threshold forced above the
+current figure fails the run). The job sets placeholder environment variables so `lib/env.ts`
+validates without a database. **e2e is not run in CI** (it needs the database): run it before a
+release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow change with
+`actionlint` before pushing it — it catches what GitHub would only report when the event fires.
 
 ## Vitest (`vitest.config.mts`)
 

@@ -19,8 +19,6 @@ runtime yet.
   `users` row's — [auth-and-roles.md](auth-and-roles.md#known-gaps).
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
-- The `Deploy` workflow cannot run (`ci.yml` is not callable) and the CI coverage gate is
-  probably not applied — [operations.md](operations.md#known-gaps).
 - Brigade orders are missing from the revenue report, the CSV and the customer's order list —
   [marketplace.md](marketplace.md#known-gaps).
 - Studio: Shift does not speed up keyboard panning; the walk-through's hint never shows; the

@@ -115,8 +115,10 @@ Everything the app needs to run unattended, and where each piece lives.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
-  GitHub Actions `Deploy` workflow is meant to run it over SSH for every `v*` tag after CI
-  passes (currently it cannot start — Known gaps);
+  GitHub Actions `Deploy` workflow (`.github/workflows/deploy.yml`) runs it over SSH for every
+  `v*` tag, after its `verify` job has re-run the CI checks on the tag — it calls `ci.yml`,
+  which is why `ci.yml` declares `on: workflow_call` (`actionlint` refuses the call without
+  it). No tag has been deployed this way yet;
   `ecosystem.config.cjs` is the PM2 definition and `deploy/nginx.conf` the site config.
 - **Uploads** go through `lib/storage` (`STORAGE_DRIVER=local|s3`). Keys look like
   `plans/<file>`; the local driver writes under `public/uploads`, the S3 driver to any
@@ -138,13 +140,6 @@ Everything the app needs to run unattended, and where each piece lives.
   photo above that is refused with 413 before the route runs. The fix is a direct upload
   into the bucket (a presigned PUT handed out by `/api/upload/*`, the byte sniff and the
   record afterwards); not built.
-- **The `Deploy` workflow cannot start its checks as written**: `.github/workflows/deploy.yml`
-  calls `ci.yml` as a reusable workflow, but `ci.yml` has no `workflow_call` trigger, so the
-  verify job fails and the deploy never runs. (Found by reading the workflows; not run.)
-- **The coverage gate is probably not enforced in CI**: `ci.yml` runs `pnpm test -- --coverage`,
-  which passes a literal `--` to `vitest run`; the flag after it is most likely ignored, and
-  `coverage.enabled` is not set in `vitest.config.mts`. `pnpm test:coverage` is the reliable
-  command. (Reasoned from the tools' argument handling; not run — `node_modules` was absent.)
 - `lib/log.ts` reads `LOG_FILE`, `LOG_STDOUT` and `LOG_LEVEL` straight from `process.env`
   (not through `env`), and a few other places do too (`lib/design/aiPlan.ts` for
   `ANTHROPIC_API_KEY`, the health route for `APP_VERSION`, `lib/auth/social.ts`,
