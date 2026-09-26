@@ -110,8 +110,9 @@ export async function requirePartner() {
 }
 
 /**
- * Admin, or a store account: the people who may write products. A store may only touch its
- * own products — the routes check the product's `storeId` against `session.user.storeId`.
+ * The people who may write products: staff whose job covers them (admin, catalogue agents) and
+ * a store account linked to its store. A store may only touch its own products — the routes
+ * decide per product with `canEditProduct` (`lib/api/productAccess`).
  */
 export async function requireCatalogEditor() {
   const session = await auth();

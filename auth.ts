@@ -1,4 +1,4 @@
-import NextAuth from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Facebook from 'next-auth/providers/facebook';
 import Google from 'next-auth/providers/google';
@@ -11,6 +11,7 @@ import { authConfig } from '@/auth.config';
 import { env } from '@/lib/env';
 import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
 import { SOCIAL_NO_EMAIL } from '@/lib/auth/social';
+import { sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
 import { log } from '@/lib/log';
 import type { UserRole } from '@/lib/auth/roles';
 
@@ -19,7 +20,12 @@ const credentialsSchema = z.object({
   password: z.string().min(1),
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+/**
+ * The whole auth setup on the server: `authConfig` (what the edge proxy runs too) plus the
+ * providers and the callbacks that need the database. Exported so the tests can run the
+ * callbacks exactly as NextAuth is given them.
+ */
+export const authOptions = {
   ...authConfig,
   secret: env.AUTH_SECRET,
   providers: [
@@ -85,6 +91,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
+    // `authConfig`'s copy of the signed-in user is the whole story for a password sign-in. A
+    // Google or Facebook one hands over the provider's profile — a random id, no role — so the
+    // account's own claims are looked up by e-mail and put on the token instead
+    // (`lib/auth/accountClaims`). Server only: the proxy runs `authConfig` as it is.
+    async jwt(params) {
+      const token = await sessionTokenAfterSignIn(await authConfig.callbacks.jwt(params), params);
+      if (token === null) log.error('social sign-in refused: no account behind the e-mail', { provider: params.account?.provider });
+      return token;
+    },
     async signIn({ user, account }) {
       // Every social login lands here: the first sign-in creates the account, later ones
       // find it by e-mail. Facebook is allowed to withhold the address (the person can
@@ -114,7 +129,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
   },
-});
+} satisfies NextAuthConfig;
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authOptions);
 
 declare module 'next-auth' {
   interface Session {

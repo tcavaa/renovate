@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { budgetSections, budgetSummary, priceScene } from '@/lib/design/pricing';
+import { budgetSections, budgetSummary, priceScene, type BudgetLine } from '@/lib/design/pricing';
 import { pruneTicks, tickFor, tickedOff, toggleTick } from '@/lib/design/ticks';
 import { designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { sceneLinesByStore } from '@/lib/finance/money';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
-import type { DesignScene, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SceneProduct, SceneStore, SurfaceFinish, Vec2 } from '@/lib/design/types';
+import type { DesignCost, DesignScene, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SceneProduct, SceneStore, SurfaceFinish, Vec2 } from '@/lib/design/types';
 
 const P = (x: number, z: number): Vec2 => ({ x, z });
 const rect = (id: string, x: number): PlanRoom =>
@@ -19,6 +19,26 @@ const rooms = ['b1', 'b2', 'b3', 'b5'].map((id, i) => rect(id, i * 4.12));
 const plan: FloorPlan = { rooms, metresPerPixel: null, bounds: { width: 17, depth: 3 }, source: 'manual', wallThicknessM: 0.12 };
 const beds = rooms.map((r) => bed(`bed-${r.id}`, r.id));
 const scene = (extra: Partial<DesignScene> = {}): DesignScene => ({ styleId: 'modern', mode: 'design_only', budgetGel: null, items: beds, finishes: [], ...extra });
+
+/**
+ * The labour line of a rate-book key, which must be there: looked up by a key that no longer
+ * exists, a comparison of two missing lines passes without testing anything — which is what
+ * these checks did for as long as they asked for the retired `radiator_install` and
+ * `electrical_point`.
+ */
+const labourLine = (cost: DesignCost, key: string): BudgetLine => {
+  const line = cost.lines.find((l) => l.section === 'labour' && l.key === key);
+  expect(line, `labour line "${key}"`).toBeDefined();
+  return line!;
+};
+
+/** The work of fitting something is its own line: ticking the thing off leaves it whole. */
+const expectLabourKept = (out: DesignCost, full: DesignCost, key: string) => {
+  const kept = labourLine(out, key);
+  expect(kept.excluded).toBeFalsy();
+  expect(kept.total).toBeGreaterThan(0);
+  expect(kept.total).toBe(labourLine(full, key).total);
+};
 
 describe('ticks are per line', () => {
   it('unticks one bed of four, not the product — the other three stay in the order', () => {
@@ -79,7 +99,7 @@ describe('every kind of product line honours its tick', () => {
     expect(out.deliveryTotal).toBe(0);
     expect(out.grandTotal).toBeCloseTo(full.grandTotal - line.total - 40, 2);
     // Hanging it is still work somebody does.
-    expect(out.lines.find((l) => l.key === 'radiator_install')?.total).toBe(full.lines.find((l) => l.key === 'radiator_install')?.total);
+    expectLabourKept(out, full, 'radiator_mount');
   });
 
   it('takes a fitting and a finish out by their own lines, and leaves the labour', () => {
@@ -91,7 +111,8 @@ describe('every kind of product line honours its tick', () => {
     expect(out.coverage).toHaveLength(0);
     // The socket, the paint, and the 40 ₾ their store would have charged to bring the two.
     expect(full.grandTotal - out.grandTotal).toBeCloseTo(30 + 360 + 40, 2);
-    expect(out.lines.find((l) => l.key === 'electrical_point')?.total).toBe(full.lines.find((l) => l.key === 'electrical_point')?.total);
+    // A socket somebody already owns still has to be wired: the electrician's point stays.
+    expectLabourKept(out, full, 'electric_point');
   });
 
   it('says what the ticks came to: the products, and the delivery of a store left with nothing', () => {
@@ -188,7 +209,7 @@ describe('a door, a fitting and a radiator are bought like a sofa is', () => {
     expect(full.grandTotal - cost.grandTotal).toBeCloseTo(1100 + 330 + 90 + 120, 2);
     expect(designCheckoutPart(fitted, cost, 12, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
     expect([...sceneLinesByStore(fitted, furnished(ticks)).groups.keys()]).toEqual([1]);
-    for (const key of ['electrical_point', 'radiator_install']) expect(cost.lines.find((l) => l.key === key)?.total).toBe(full.lines.find((l) => l.key === key)?.total);
+    for (const key of ['electric_point', 'radiator_mount']) expectLabourKept(cost, full, key);
   });
 
   it('orders only what is new work: what the flat came with is on nobody’s order', () => {

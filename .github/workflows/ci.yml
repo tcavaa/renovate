@@ -4,7 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Deploy (deploy.yml) re-runs these checks on the tag before it ships it. A workflow can only
+  # be called with `uses:` when it declares this trigger; without it the deploy's verify job
+  # was refused and no tag could ever deploy.
+  workflow_call:
 
+# Called from Deploy, `github.ref` is the tag being deployed, so this group is that tag's own
+# and never the caller's (`deploy`): a called workflow in its caller's group would wait for the
+# caller for ever. Keep `github.workflow` out of the name — when called, it is the caller's.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

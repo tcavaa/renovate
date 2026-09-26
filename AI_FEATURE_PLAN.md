@@ -1,6 +1,8 @@
 # AI 2D→3D Renovation Feature — Feasibility & Step-by-Step Plan
 
-> Companion to CODEBASE.md. Written 2026-07-29. No code written yet — this is the plan.
+> Historical research, written 2026-07-29 before any of it was built. What shipped differs (see
+> `CLAUDE.md` and `docs/design-studio/overview.md`): the scene is procedural, and the only AI
+> call is the optional Claude plan reader.
 
 ## The core insight: AI is only needed in 3 places, not everywhere
 

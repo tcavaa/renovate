@@ -5,9 +5,10 @@ calculator and the 3D design studio — and how the two halves of one project st
 Read this before touching anything under `lib/flow/`, `store/projectScope.ts`, the hubs,
 `components/projects/ProjectGate.tsx`, the save routes or the step URLs.
 
-Written 26 September 2026, after the "projects first" rework (25–26 September) and the changes
-the day after it (no "start over", no placement step, a floor and a wall per room). Linked from
-`CLAUDE.md`; the rest of the app is described there.
+Written after the "projects first" rework of September 2026 (named projects, per-project
+stores, revisions; then no "start over", no placement step, a floor and a wall per room).
+Listed in the index in `CLAUDE.md`; the calculator's own steps are [calculator.md](calculator.md),
+the design's are [design-studio/overview.md](design-studio/overview.md).
 
 ---
 
@@ -50,7 +51,8 @@ action anywhere can write one project's work over another's.**
 ## 3. Routes, sign-in and the proxy
 
 - **The hubs** (`app/(main)/calculator/page.tsx`, `app/(main)/design/page.tsx`) are public. A
-  guest sees the explanation, the tiles and "sign in / create an account"; nothing else.
+  guest sees the explanation, how the product works and "sign in / create an account"; no tiles,
+  no projects.
 - **The steps are signed in only.** `auth.config.ts` gates `/^\/(calculator|design)\/\d+(\/|$)/`
   (numeric ids only), and `proxy.ts` matches `/calculator/:path+` and `/design/:path+` — one
   segment or more, never the hubs themselves.
@@ -60,7 +62,7 @@ action anywhere can write one project's work over another's.**
   a 404. The calculator journey never receives the design's versions (they can be megabytes).
 - **Old URLs.** A step URL from before projects (`/calculator/plan`, `/design/studio`) is sent to
   the hub by the proxy with a real 307. `/calculator/<id>/placement` (the step that went into the
-  catalogue, §13) is sent to `/calculator/<id>/catalog`.
+  catalogue — [calculator.md](calculator.md#the-six-steps)) is sent to `/calculator/<id>/catalog`.
 - **Step URLs are never written by hand**: `calculatorStepHref(id, step)` /
   `calculatorEntryHref(id)` (`lib/calculator/steps.ts`), `designStepHref(id, step)` /
   `designEntryHref(id, from?)` (`lib/design/steps.ts`). `calculatorStepFromPath` /
@@ -70,24 +72,29 @@ action anywhere can write one project's work over another's.**
 
 ## 4. The hubs (`components/projects/hub/`)
 
-`ProjectHub` is one server component for both products (`journey` prop):
+`ProjectHub` is one server component for both products (`journey` prop). From the top:
 
-1. **What it does and how it works** — the steps in a sentence each (`hub.calculatorSteps`, six;
-   `hub.designSteps`, eight).
-2. **How to draw a plan the calculator can count on** — the explanation the user asked for.
+1. **What it does** — the introduction.
+2. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
 3. **Tiles** (`HubTiles`, client). Calculator: *draw the plan* (`?way=draw`), *upload a plan*
    (`?way=upload`), *from a 3D design*. Design: *upload a plan*, *blank sheet*, *from a
    calculation*. The first two of each ask for a name, create the row and open step 1 on that
    way in (`?way=` preselects it only when the project has no drawing yet). The third lists the
-   person's projects that have the *other* half and opens this product's half of one.
+   person's projects that have the *other* half and not this one yet (calculator hub: a design
+   with rooms and no calculation; design hub: a calculation that is started and ready, with no
+   design) and opens this product's half of one.
 4. **The person's projects** as a grid of cards, most recently changed first
    (`lib/projects/hub.ts`: `updatedAt desc, id desc`; a small serialisable `HubProject`, the scene
    read for its progress only, versions never). A card: a `PlanSketch` thumbnail
    (`labels={false}`), the name, the status, where it stands (`whereItStands`: "not calculated
-   yet · step n of 6 · <label>", "not generated yet", or the figure) and a "…" menu
-   (`ProjectCardMenu`): open, carry into the other product, the project page, rename, delete.
-5. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
-6. `HubCachePrune` — drops this browser's caches of projects that no longer exist (§9).
+   yet · step n of 6 · <label>", "not generated yet · step n of 8 · <label>" with n the walking
+   position, "not calculated yet" alone for a design-first project in the calculator hub, or the
+   figure) and a "…" menu (`ProjectCardMenu`): open, rename, carry into the other product, the
+   project page, delete (hidden for an ordered project).
+5. **How it works** (`HubGuide`) — the steps in a sentence each (`hub.calculatorSteps`, six;
+   `hub.designSteps`, eight) and how to draw a plan the calculator can count on.
+6. `HubCachePrune` (renders nothing) — drops this browser's caches of projects that no longer
+   exist (§9).
 
 **Which hub lists a project** is the same predicate everywhere (`projectKind`,
 `lib/projects/saved.ts`): a calculation is `selectedProducts IS NOT NULL OR mode = 'full'`, a
@@ -133,7 +140,7 @@ leave it out.
 saved or ordered project was finished; a draft counts as calculated only when products were
 picked, and as generated only when furnished. **Calculator progress recorded before 26
 September 2026 is in seven steps** (it had a placement step): it has no `steps: 6`, and
-`calculatorProgress` maps it with `fromSevenSteps` (§13).
+`calculatorProgress` maps it with `fromSevenSteps` ([calculator.md](calculator.md#the-six-steps)).
 
 ## 7. Opening a project (`ProjectGate`)
 
@@ -141,18 +148,21 @@ The server layout hands the owner's row (`savedProjectInput`, `lib/projects/save
 `ProjectGate` (client; nothing under it renders until it is done):
 
 1. **`claimBrowser(userId)`** (`lib/flow/owner.ts`): another account's caches are wiped
-   (`forgetAllProjects`, the legacy keys too); then the old keys are migrated once (§16).
-   `releaseBrowser()` — signing out — forgets nothing.
+   (`forgetAllProjects`, the legacy keys too — a previous owner of `'guest'` keeps them); then
+   the old keys are migrated (§16; it runs on every claim and is idempotent).
+   `releaseBrowser()` — signing out — forgets nothing. `components/providers/StoreOwnerGuard.tsx`
+   (mounted in the root layout) claims or releases the browser on every session change.
 2. **`openProjectStores(journey, project)`** (`lib/flow/openProject.ts`):
    - the calculator journey loads **the calculation only** — it never opens the design's store.
      What its summary says about the design, and orders of it, it reads off the row
      (`useProjectMeta().snapshot`), so a design being edited in another tab is never written over
      by a calculator merely looking at it;
-   - the design journey loads **the calculation first** (when the project has one — the handoff
-     and the budget's order read it), **then the design**, then makes the design's home state the
+   - the design journey loads **the calculation first** (when the calculator has written its
+     half — `calculatorStarted`; the handoff and the budget's order read it), **then the
+     design**, then — when the studio has a plan — makes the design's home state the
      calculation's (the calculation owns it, §15).
-3. **`setActiveProject(id)`** — the hooks now reach this project's stores (§8).
-4. **`pruneCaches(openId, knownIds)`** — keeps this browser's cache small (§9).
+3. **`useActiveProject.getState().setId(id)`** — the hooks now reach this project's stores (§8).
+4. **`pruneCaches(id)`** — trims the clean caches beyond the four used last (§9).
 
 It then provides `useProjectId()`, `useProjectMeta()` (`{ id, name, status, journey, setStatus,
 snapshot }`) and `useOptionalProjectMeta()`, mounts `StepRecorder` (records `at` from the URL on
@@ -186,8 +196,8 @@ every page — the calculator's step, the design's step with `?tool=finishes` as
 `designRev`, and the store's `projectId` is this one), else `openSaved(row)` (plan, scene,
 versions, progress: `at`, `modeChosen ?? true`, `emptyStart ?? false`) and `baseRev` =
 `designRev`. A design carried in from the calculation gets its `calculatorPicks` read off the
-calculation again on either path — they are not stored, and the calculation may have changed
-since the copy was made.
+calculation again on either path — they are cached in the browser's design store but never
+saved to the row, and the calculation may have changed since the copy was made.
 
 ## 8. One set of stores per project (`store/projectScope.ts`)
 
@@ -203,8 +213,10 @@ project id**, persisted to its own localStorage key — `renovate-calculator:<id
   person moved to another project writes into the right one.
 - Outside a project (the hubs, the profile, tests) the hooks reach an in-memory store that
   nothing persists.
-- Persisted with each store's content: `projectId`, `baseRev`, `pendingSaveId`, `at`, and the
-  calculator's `step` (persist version 4, §13).
+- Persisted with each store's content: `projectId`, `baseRev`, `pendingSaveId`, `at`; the
+  calculator's `step` (the calculator store is at persist version 4 — the seven-to-six migration,
+  [calculator.md](calculator.md)); the design and board stores (version 2) also keep `step`,
+  `generated`, `planFromCalculator`, `calculatorPicks` and `pendingPicks`.
 
 **Two boards.** The design store is a factory over its storage key, so every project has two
 instances of it: `useDesignStore` (the studio) and `useCalculatorPlanStore` (the calculator's
@@ -236,8 +248,10 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 - `safeLocalStorage` evicts the clean caches used longest ago when a write hits the quota. It
   never evicts a dirty one, nor the project being written. If the write still does not fit,
   it drops the stale key rather than leave an older copy under a key that claims to be current.
-- `pruneCaches(openId, knownIds)` (the gate, and `HubCachePrune`) drops the caches of projects
-  that are gone and keeps the four clean caches used last, the open one, and every dirty one.
+- `pruneCaches(openId, knownIds?)`: the gate calls it with the open project only, which trims
+  the clean caches beyond the four used last (never the open one or a dirty one);
+  `HubCachePrune` passes the hub's full list, which also drops the caches of projects that are
+  gone — unsaved work included, since the row it belonged to no longer exists.
 - **It never drops an id above the newest listed**: a hub restored by Back holds a list older
   than a project made since.
 - `forgetProject(id)` removes a project whole (`DeleteProjectButton`).
@@ -293,8 +307,12 @@ first too.
 ### The save routes (`POST /api/projects` — the calculation, `POST /api/design/projects` — the design)
 
 **Checks, in order.**
-1. Signed in (401), the caller's own project (404).
-2. **The conflict rule.** The save is refused with 409 when `!force`, `baseRev < row rev`, and it
+1. The rate limit (`RATE_RULES.autosave` for drafts, `RATE_RULES.saveProject` otherwise), then
+   the body's schema (400; the calculator's refuses a calculated save with no home state or no
+   rooms — `lib/validations/calculatorSave.schema.ts`; the design's is
+   `lib/validations/design.schema.ts`).
+2. Signed in (401), the caller's own project (404).
+3. **The conflict rule** (only when the body carries a `baseRev`). The save is refused with 409 when `!force`, `baseRev < row rev`, and it
    is not *this browser's own unconfirmed write*. It is its own when `prevSaveId === row's save
    id` and `baseRev === row rev − 1` — exactly one write since this copy, and it was this
    copy's save whose answer never arrived.
@@ -320,6 +338,24 @@ first too.
   `DeleteProjectButton` also forgets the browser's caches of it.
 - The profile, the project page (`ProjectDetail`) and the hubs open a project with plain links
   to its entry. `OpenIn3dButton` and `CalculateCostsButton` are links now, not store operations.
+- `GET /api/projects`, `GET /api/projects/[id]` and `GET /api/design/projects` read projects
+  back (the caller's own).
+
+### The project page (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
+
+`/profile/projects/[id]` and `/admin/projects/[id]` share `ProjectDetail`: the title on its
+own line with the action buttons under it (side by side, the buttons squeezed the name into a
+column of words), then the blocks in a fixed order — layout · rooms, the calculator's sheet,
+the 3D design's budget (each the read-only `BudgetSheet` of that journey as it was left, with
+every edit showing what was there before it — `loadProjectSheets`; a renovation designed first
+has no calculator sheet of its own, its materials and labour are the design's), photos &
+renders (the `renders` slot), orders (the `orders` slot), and last the breakdown. Each block is
+a `FoldSection` (client; the title row toggles, + / − in the corner, open by default): the
+layout is always open, a sheet with no lines is not rendered, the design's sheet starts folded
+when there is a calculator sheet above it, and the renders and orders fold when empty.
+`ProjectRenders` and `ProjectOrders` render their own `FoldSection`, so a page passes them in
+whole. `PlanSketch` draws a saved layout as static SVG — the plan's outlines when there are any,
+otherwise the rooms at their `x`/`z` (`labels={false}` for the hub cards' thumbnails).
 
 ## 11. Where a project opens (`lib/flow/resume.ts`, pure, `tests/unit/flow/resume.test.ts`)
 
@@ -331,7 +367,8 @@ looking back before forward in the project's own order.
   only (the plan when there is a board). Calculated: steps 1–2 are shut, so 3 at least, and never
   beyond how far the journey got (`step`).
 - **`designResumeStep`** — works in the design's walking order (`designStepOrder`: a renovation
-  walks `1, 2, 4, 5, 6, 3, 7, 8`, a finished home `1…8`). Generated (with rooms): the studio or
+  walks `1, 2, 4, 5, 6, 3, 7, 8`; a green frame, a design-only project or one with no home state
+  yet walks `1…8`). Generated (with rooms): the studio or
   after. Not generated: never the studio or past it; nothing after step 1 before step 1 is
   answered (`modeChosen`); a flat drawn in the calculator has 1–2 shut; the technical step and
   the style test need rooms. A flat laid out and then emptied of every room counts as not laid
@@ -351,13 +388,16 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 - **Design.** Once `generated` (and the flat has rooms), every step before the studio is shut; in
   the renovation order the technical step comes after the studio and stays open. A flat drawn
   in the calculator (`planFromCalculator`) has its steps 1–2 shut (`flow.lockedStepPlan`).
-  Nothing after step 1 opens before step 1 is answered.
+  Nothing after step 1 opens before step 1 is answered, and once the flat has rooms and the
+  journey is past step 1, `DesignFlowGuard` sends step 1 on to the recorded step
+  (`components/flow/FlowGuard.tsx`).
 - **There is no "start over" (removed 26 September 2026).** The strip had a "თავიდან დაწყება"
   that emptied this half of this project. It lost worked-out calculations and designs to one
   click, and a person who wants to start again can simply make a new project — every project
   is kept. Removed with it: `StartOverButton`, the calculator's `startOver()` and `startedOver`
   flag, the design's "kept" versions (`DesignVersion.kept`) and their strings. What remains:
-  - before the hinge, the steps are open to each other (redraw, re-upload, change the answers);
+  - before the hinge, the steps are open to each other (redraw, re-upload, change the answers)
+    — in the design, within the limits of `DesignFlowGuard` above;
   - the studio's **versions** — version 01 is the flat as the studio first found it, and
     restoring one keeps the present as a version first;
   - the studio's eraser button, now labelled **"ოთახების დაცლა" / "Empty the rooms"**
@@ -367,127 +407,29 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 
 ## 13. The calculator's six steps
 
-| # | Path | What |
-|---|---|---|
-| 1 | `start` | the way in (upload a plan or say you will draw one; a hub tile's `?way=` preselects it when there is no plan on file) and the home's condition |
-| 2 | `plan` | the board — the uploaded plan to check, or a blank sheet to draw on; **"გამოთვლის დაწყება"** here (needs rooms) sets `calculated` |
-| 3 | `materials` | the engine's materials and labour; laminate/parquet and ceiling choices |
-| 4 | `catalog` | **each room's floor and walls**, and the products for the whole flat |
-| 5 | `furniture` | optional, room by room (`AskFurnitureDialog` asks on leaving the catalogue) |
-| 6 | `summary` | the sheet, the PDF of the plan, save, order, "see it in 3D" |
-
-### Steps 1–2 in detail
-
-- **Nothing leaves step 1 until its continue.** `PlanUploadCard` with `showContinue={false}`
-  hands the plan to page state as soon as the area makes sense. Until the journey is past the
-  board, steps 1 and 2 are open to each other.
-- **The board** (`PlanWorkspace` with the calculator's own store) reads the calculator's rooms
-  off the plan after every edit (`calculatorRoomsFromPlan`: width and depth from the outline,
-  `x`/`z` from its corner).
-- **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free
-  spot (`findFreeSpot`). Sizes are exact to the centimetre, and dragged rooms snap onto their
-  neighbours' edges (`snapToNeighbours`, `lib/calculator/layout.ts`).
-- **A re-uploaded plan** is a new plan in the same project: `replaceRooms` drops every pick
-  with the rooms, and the id stays. `setRooms` prunes the furniture of rooms that vanished
-  and re-counts or drops their floors and walls.
-
-### Step 4: a floor and a wall for every room (`lib/calculator/roomFinishes.ts`)
-
-Until 26 September the catalogue was a **cart**: floor and wall materials went in under
-`<slug>_item:<productId>` with no quantity, and a fifth step, **placement**, had the person lay
-them on the rooms of the board by hand (whole floors, walls, square metres, strips). The area laid
-was the quantity. It was an extra step and a confusing one: everything it asked for is known from
-the rooms. So:
-
-**The page.**
-- The catalogue lists the rooms (`SideList` "rooms — floors and walls", with how many of the
-  two are chosen), and a room shows two slots, **floor** and **walls**.
-- A slot is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
-  `per_m2_wall`). The usual one is offered first (`usualFinishCategory`: floor tiles for a
-  bathroom, toilet, kitchen or balcony floor, laminate for the rest; wall tiles for bathroom and
-  toilet walls, paint for the rest), and a wet room sees its wet products first.
-- "Other products" (sockets, lights, sanitary ware, doors, windows…) are one product for the
-  whole flat, as before (`<slug>_global`, `suggestedQuantity`).
-
-**One pick per room and surface.**
-- Stored under the room's own key, `<slug>_room:<roomId>` (`selectionKey`), with `roomId` and
-  `surface` on the pick.
-- `setRoomFinish(roomIds, surface, product | null)` → `withRoomFinish`: whatever that room had
-  for that surface goes, whatever category it was from; null clears it.
-- **"The same in N more rooms like this"** copies a room's choice to the rooms of the same kind
-  of work that have nothing chosen (`roomsLike` / `finishGroup`: tiled floor, laid floor,
-  tiled wall, painted wall). It never overwrites.
-
-**The quantity is the room's** (`roomFinishQuantity` in `lib/calculator/quantities.ts`).
-- The room's floor m² or its wall m² — the estimate's own figures, perimeter × height, doors and
-  windows not taken off — in the product's units (`finishPickQuantity`): m² plus a tenth of
-  cutting waste for laminate and tiles, tins of paint by the product's coverage (8 m²/L when the
-  row says nothing), one unit per m² otherwise.
-- The server uses **the same function** with the catalogue's own unit and coverage
-  (`lib/api/projectSave.ts`): the figure the person saw is the figure saved. The surface comes
-  from `SURFACE_OF_SLUG` for the seeded categories, or the pick's own for one made in admin.
-- A resized room re-counts its picks and a deleted one drops them (`withRoomFinishQuantities`,
-  run by `setRooms`, `updateRoom`, `removeRoom` and on every open). A flat with no rooms at all
-  is left alone — that is a flat not read yet.
-
-**Where the finishes go.**
-- **The board wears them without being told** (`boardFinishesFromPicks`): each room in its
-  chosen floor and walls. The summary's PDF draws them, and the save stores them as the board's
-  finishes. Nothing is laid by hand any more.
-- **Into 3D.** Per-room picks travel as `roomProducts` with their surface
-  (`picksFromCalculator`), and `applyFinishPicks` puts each on that surface only. A wall tile
-  that could also be laid on a floor used to land on the floor too.
-- **Studios** (kitchen + living room in one room) take one floor for the whole room — a known
-  gap.
-
-**Picks from before** are moved onto the rooms when the project opens (`migrateFinishPicks`,
-run by the loader, written back once).
-- A cart pick goes to the rooms whose floor or walls the board had in that product. A whole-room
-  finish counts; a tile or a strip does not. Laid nowhere, it is dropped.
-- A whole-flat finish (`<slug>_global` of a finish category — the first catalogue, and projects
-  designed first) goes to every room its kind of work suits.
-- Never over a room's own pick. `picksFromScene` (a project designed first) now makes per-room
-  picks from each room's whole-room finish too.
-
-**Six steps, and the seven before them.**
-- The placement step's page, `lib/calculator/placement.ts` and their strings are gone. Steps
-  renumber: old 1–4 stay, old 5 (placement) → 4, 6 → 5, 7 → 6 (`fromSevenSteps`,
-  `lib/calculator/steps.ts`).
-- The browser's copy migrates with the store's persist version (3 → 4, `migratePersisted`).
-- The row's progress is recorded with `steps: 6` from now on, and `calculatorProgress` maps any
-  progress without it. The schema still accepts a step up to 7, so a tab left open from before
-  can save, and its progress is read as the seven steps it is.
-- The proxy sends `/calculator/<id>/placement` to the catalogue.
+Moved to [calculator.md](calculator.md#the-six-steps): the steps and their paths, steps 1–2,
+step 4's floor and wall for every room (`lib/calculator/roomFinishes.ts`), per-room quantities
+on both sides, where the finishes go, old picks moved onto the rooms, and the seven steps
+before the six (`fromSevenSteps`).
 
 ## 14. The design's ways in (step 1)
 
-- **What do you need** is not preselected: *design only* or *renovation + design* (which reveals
-  the home states, old renovation first) — `designStore.modeChosen`; the continue button refuses
-  until a plan and a mode exist. Each card lists what it covers (`modeDesignOnlyCovers` /
-  `modeFullCovers`), and a chosen home state shows three columns — what is standing, what the
-  estimate charges for, **what happens to the technical points** (a green frame records its
-  sockets and pipes rather than pricing them). Keep that third column truthful if the phase
-  gating changes.
-- **The third card is an empty start** (`emptyStart`, `chooseEmptyStart`, `startEmpty`): the
-  studio on the flat as drawn with every room empty — no layout, no furniture, the style's
-  ordinary finishes, no style test, no technical step. Priced as `design_only`; `startEmpty` is
-  the hinge like `generate` (`generated`, step 5, no versions, an empty history), and version 01
-  is the empty flat. With rooms to open on, step 1 goes straight to the studio; a blank sheet is
-  drawn on step 2 first.
-- `?way=upload|draw` from a hub tile applies only while the project has no drawing.
+Moved to [design-studio/overview.md](design-studio/overview.md#step-1-the-ways-in-appmaindesignidstartpagetsx):
+the mode (not preselected), the home state's three columns, the empty start, `?way=`.
 
 ## 15. One project, both halves
 
 A calculation and a 3D design of the same flat are one row — the project, made before either
 was started. Each half is saved by its own journey only (the design save no longer carries the
-calculator's picks); ordering does not fork a project either (see "Marketplace" in `CLAUDE.md`:
+calculator's picks); ordering does not fork a project either ([marketplace.md](marketplace.md):
 each half's fee is charged once, `mergeLines` unites the halves).
 
 **Each half owns its shared columns.** Once the calculation exists it owns `homeState`, `rooms`
-and `totalM2`; the design writes them only in a project designed first, and writes `mode` only
-while the calculation is pending. The calculator's save turns the design into a renovation in
-place (`mode` and `scene.mode` → `full`, with `JSON_SET`), counted as a write to the design
-(`designRev + 1`). A calculation still on its first step (no home state, no rooms) never blanks
+and `totalM2`; the design writes them only in a project designed first, and writes `mode` unless
+the calculation is worked out (so also when there is none) — when it is, the design's save
+forces `scene.mode` to `full`. Every non-pending calculator save writes `mode: 'full'`, and when
+the row has a design it turns that design into a renovation in place (`scene.mode` → `full`,
+with `JSON_SET`), counted as a write to the design (`designRev + 1`). A calculation still on its first step (no home state, no rooms) never blanks
 a design's home state or rooms. The studio prices against the calculation's home state
 (synced whenever it opens).
 
@@ -501,12 +443,16 @@ room, each room's floor and walls per room) so nothing is chosen twice.
 
 **Create / open in 3D** (the calculator summary's "ნახე ბინა 3D-ში" / "ნახე 3D-ში", a hub card,
 `OpenIn3dButton`, the design hub's "from a calculation" tile) all go to the design's entry
-(`/design/<id>`, the summary with `?from=calculator`), which calls `handOffToDesign` →
-`designStore.startFromCalculator`:
+(`/design/<id>`). The entry calls `handOffToDesign` → `designStore.startFromCalculator` only when
+the link says `?from=calculator` (the calculator's summary is the one that does) or the row has
+no design plan yet; a hub card or `OpenIn3dButton` on a project that already has a design
+simply resumes it, carrying no picks. The handoff:
 
 - **A design the project already has is kept**, whatever has happened to it — its plan and
-  walls, rooms added or split in the studio, furniture, fittings, finishes, versions. Only the
-  calculator's picks are put into it: applied by the studio once the catalogue is in
+  walls, rooms added or split in the studio, furniture, fittings, finishes, versions. It becomes
+  a renovation (`mode: 'full'`, `modeChosen: true`, `emptyStart: false`) with the calculation's
+  home state and floor/ceiling choices (merged into `plan.technical.choices`), lands where it
+  was when it was not generated yet, and the calculator's picks are put into it: applied by the studio once the catalogue is in
   (`pendingPicks` → `applyPendingPicks`) when it is laid out, by the generation when it is not.
   A pick the room already holds is not placed twice (`applyFurniturePicks` counts per room and
   product).
@@ -560,16 +506,20 @@ opened from the profile (`renovate-project-…`) — and a journey could exist w
 - **Handoff** (`tests/unit/design/fromCalculator.test.ts`): a room's finish lands on its surface
   only.
 - **Rows** (`tests/unit/projects/saved.test.ts`): `projectKind`, `calculatorProgress` (seven-step
-  progress), `picksFromScene`.
+  progress), `picksFromScene`; `tests/unit/projects/checkoutParts.test.ts` for the checkout's
+  summary of each half.
+- **Design store** (`tests/unit/store/designStore.test.ts`): the empty start (§14), carry,
+  swap and paint.
 - **Integration** (`tests/integration/save-routes.test.ts`): sign-in and ownership, conflicts,
   own-unconfirmed saves, the racing write, column ownership, per-room quantities on the server,
   create and rename.
-- **e2e** (`e2e/design-studio.spec.ts`): registers an account and makes a project from the hub
-  (needs the DB; not in CI).
+- **e2e** (`e2e/design-studio.spec.ts`): registers an account, makes a project from the hub and
+  checks it reopens where it was left (needs the DB; not in CI).
 
 **By hand** (the user's own `pnpm dev` on :3000 can serve stale API routes after a long pause —
-verify on a second server, `sh -c "NEXT_DIST_DIR=.next-build pnpm exec next dev -p 3100"` in
-`.claude/launch.json`, and remove `.next-build` afterwards; never build over :3000):
+verify on a second server, `NEXT_DIST_DIR=.next-build pnpm exec next dev -p 3100` (the user
+keeps this as a launch configuration in `.claude/launch.json`, which is git-ignored and not in
+the repository), and remove `.next-build` afterwards; never build over :3000):
 
 - *A conflict*: `UPDATE projects SET calculator_rev = calculator_rev + 1 WHERE id = …` in MySQL,
   then edit in the browser — the banner appears; "keep mine" writes at the next revision, "load
@@ -599,7 +549,8 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
    ever, and the cache wins over newer work from another tab.
 8. **Eviction respects work**: never a dirty cache, never the project being written, and a write
    that still does not fit drops the stale key.
-9. **`calculatorPicks` are derived, not stored** — the cache path must re-derive them too.
+9. **`calculatorPicks` are derived, not saved to the row** — the browser's cache keeps a copy,
+   so the cache path must re-derive them too.
 10. **The calculation's own never-generated copy is rebuilt**, the person's design is kept — or
     rooms added in the calculator never reach 3D (its plan steps are shut).
 11. **A project designed first, opened in the calculator, writes nothing** — and counts as a
@@ -621,21 +572,7 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
 - Projects saved before September 2026 by the old autosave ("one draft per flat") are still in
   the profiles and hubs, named after the date or "my project"; they are deleted one by one.
 - A project made on a hub and never touched stays until deleted.
-- A studio room (kitchen + living room) takes one floor for the whole room in the calculator; the
-  engine prices its parts separately, the picks do not.
-- Floors and walls are chosen for whole rooms only in the calculator; a feature wall or a tiled
-  splashback is the studio's job (per wall, strips, square metres).
-- The calculator's wall area is gross (doors and windows not taken off) — the engine's figure,
-  and the only one the server has; the studio's is net.
+- The calculator's own gaps (studio rooms taking one floor, whole-room finishes only, gross wall
+  areas) are in [calculator.md](calculator.md#known-gaps).
 - The design's version 01 and "empty the rooms" are the only ways back inside a project; there is
   no project-level undo across sessions beyond the versions.
-
-## 20. Changes, September 2026
-
-- **25 September** — projects first: hubs, named projects, per-project stores, revisions (0012),
-  the calculator's board saved (0011), resume by `at`, legacy migration.
-- **25–26 September** — a review found 24 problems; all fixed (§18 1–14), including save ids
-  (0013).
-- **26 September** — "start over" removed; the studio's eraser renamed "empty the rooms"; the
-  calculator's placement step removed and the catalogue made per room (a floor and a wall each,
-  counted from the room, laid on the board and carried into 3D by themselves); six steps.

@@ -1,19 +1,13 @@
-import { and, eq, desc, asc, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, desc, asc, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { fail, handle, ok, requireCatalogEditor } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
+import { publicProductCondition } from '@/lib/api/productAccess';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-/**
- * Public products: active, and either without a store or from an active store. A store
- * that registered itself is inactive until admin approves it, and so are its products —
- * whatever their own flag says.
- */
-export const publicProductCondition = () => and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId));
 
 export const GET = handle('GET /api/products', 'Failed to load products', async (req) => {
   const { searchParams } = new URL(req.url);
