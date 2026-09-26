@@ -20,7 +20,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { safeLocalStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import { defaultFinish, finishFromProduct } from '@/lib/design/surfaces';
+import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
+import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
@@ -369,8 +370,12 @@ interface DesignActions {
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
   openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null; versions?: DesignVersion[] }) => void;
-  /** Gives rooms a floor or wall finish, a skirting board or a cornice; null returns them to the style's default. */
-  setFinish: (roomIds: string[], surface: 'floor' | 'wall' | 'skirting' | 'cornice', product: CatalogProduct | null) => void;
+  /**
+   * Gives rooms a floor or wall finish, a skirting board or a cornice; null returns them to
+   * the style's own — for a floor or walls the product the style's look is, when `catalog`
+   * has it (`styleFinish`).
+   */
+  setFinish: (roomIds: string[], surface: 'floor' | 'wall' | 'skirting' | 'cornice', product: CatalogProduct | null, catalog?: CatalogProduct[]) => void;
   /** Paints one floor tile or one strip of one wall (`lib/design/paint`); null is the eraser. */
   paintSurface: (target: PaintTarget, product: CatalogProduct | null) => void;
   /** Takes everything painted on part of a surface off again — single walls, strips, zones, tiles — so the room's base shows. */
@@ -414,6 +419,12 @@ interface DesignActions {
   setOpeningProduct: (roomId: string, openingId: string, product: CatalogProduct | null) => void;
   /** Gives every door and window without a product the catalogue's best one — no history entry; the studio calls it once the catalogue is in. */
   ensureOpeningProducts: (catalog: CatalogProduct[]) => void;
+  /**
+   * Every room's floor and walls as the products the studio shows, where the catalogue has
+   * them (`withStyleFinishes`): a design laid out before the style's finishes were products,
+   * a room drawn or retyped since, the empty start. Not a step of the history.
+   */
+  ensureFinishProducts: (catalog: CatalogProduct[]) => void;
   setOpeningWall: (roomId: string, openingId: string, wallIndex: number) => void;
   removeOpening: (roomId: string, openingId: string) => void;
   /** Commits a drag. The room may change if the item was dragged into a neighbour. */
@@ -595,7 +606,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
 
         setStyle: (styleId, catalog) => {
           const { plan, items, budgetGel } = get();
-          set({ styleId, finishes: defaultFinishes(plan, styleId) });
+          set({ styleId, finishes: defaultFinishes(plan, styleId, catalog) });
           if (items.length === 0 || catalog.length === 0) return;
           // Keep the layout, re-pick the products: switching style should redress the room,
           // not rearrange it.
@@ -1036,8 +1047,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           // carry on into the walls that were drawn there.
           set((s) => {
             let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms }));
-            // Re-laying out the furniture is not a reason to lose the tiles someone picked.
-            let finishes = keepChosen(defaultFinishes(plan, styleId), s.finishes);
+            // Every floor and wall is the style's product for its room — tiles in the bathroom,
+            // laminate and paint elsewhere — so the budget buys what the flat is shown in. Re-laying
+            // out the furniture is not a reason to lose the tiles someone picked.
+            let finishes = keepChosen(defaultFinishes(plan, styleId, catalog), s.finishes);
             if (calculatorPicks) {
               items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
@@ -1168,7 +1181,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           });
         },
 
-        setFinish: (roomIds, surface, product) =>
+        setFinish: (roomIds, surface, product, catalog = []) =>
           commit((s) => {
             if (!s.plan) return null;
             const rooms = s.plan.rooms.filter((r) => roomIds.includes(r.id));
@@ -1180,7 +1193,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const next = s.finishes.filter((f) => !(f.surface === surface && roomIds.includes(f.roomId)));
             for (const room of rooms) {
               if (isTrimSurface(surface)) next.push(product ? trimFromProduct(room, surface, product) : defaultTrim(room, surface, s.styleId));
-              else next.push(product ? finishFromProduct(room, surface, product) : defaultFinish(room, surface, s.styleId));
+              else next.push(product ? finishFromProduct(room, surface, product) : styleFinish(room, surface, s.styleId, catalog));
             }
             // A zone that was selected may be one of those just painted over.
             const zoneGone = s.selectedElement?.kind === 'zone' && !next.some((f) => f.zone?.id === s.selectedElement?.id);
@@ -1386,6 +1399,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (!plan || catalog.length === 0) return;
           const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
           if (rooms !== plan.rooms) set({ plan: { ...plan, rooms } });
+        },
+        ensureFinishProducts: (catalog) => {
+          const { plan, styleId, finishes } = get();
+          if (!plan || catalog.length === 0) return;
+          const next = withStyleFinishes(finishes, plan.rooms, styleId, catalog);
+          if (next !== finishes) set({ finishes: next });
         },
         setOpeningWall: (roomId, openingId, wallIndex) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, rooms: setOpeningWallIn(s.plan.rooms, roomId, openingId, wallIndex, s.plan.wallThicknessM) } } : null)),
@@ -1642,29 +1661,41 @@ function withStudioSplit(room: PlanRoom): PlanRoom {
   return rest;
 }
 
-function defaultFinishes(plan: FloorPlan | null, styleId: StyleId): SurfaceFinish[] {
+/**
+ * Every room's finishes as the style lays them: its floor and walls as the partner products
+ * they are when the catalogue is to hand (`styleFinish`), its ceiling and mouldings as the
+ * style's look. Without a catalogue the floor and walls are the look alone, until one comes
+ * (`ensureFinishProducts`).
+ */
+function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = []): SurfaceFinish[] {
   if (!plan) return [];
   const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => defaultFinish(room, surface, styleId)), defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)]);
+  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => styleFinish(room, surface, styleId, catalog)), defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)]);
 }
 
 /**
  * What was painted on part of a room has to still be on the room after its walls moved: a
  * strip past the end of a wall that got shorter, a wall the outline no longer has, a floor
  * tile the room no longer reaches are dropped rather than priced and drawn in thin air.
+ *
+ * And every finish left is measured again on its room as the room now stands, by the rule
+ * the save route measures it with (`finishQuantity`): a room made bigger used to keep its
+ * old floor area in the budget — a 12 m² floor on a 20 m² room — until the page was loaded
+ * again from what the server had saved.
  */
 function fitToPlan(finishes: SurfaceFinish[], plan: FloorPlan): SurfaceFinish[] {
   const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
   return finishes.flatMap((finish) => {
     const room = rooms.get(finish.roomId);
     if (!room) return [];
+    let fitted = finish;
     if (finish.wallIndex != null) {
       const edge = roomEdges(room.polygon).find((e) => e.index === finish.wallIndex);
       if (!edge) return [];
       if (finish.span) {
         const to = Math.min(finish.span.to, edge.length);
         if (to - finish.span.from < 0.05) return [];
-        if (to !== finish.span.to) return [{ ...finish, span: { from: finish.span.from, to } }];
+        if (to !== finish.span.to) fitted = { ...finish, span: { from: finish.span.from, to } };
       }
     }
     if (finish.cells) {
@@ -1675,17 +1706,31 @@ function fitToPlan(finishes: SurfaceFinish[], plan: FloorPlan): SurfaceFinish[] 
           ? finish.cells.filter((cell) => patchInRange(room, finish.wallIndex!, cell))
           : finish.cells.filter((cell) => cellPolygon(room, cell).length > 0);
       if (kept.length === 0) return [];
-      if (kept.length !== finish.cells.length) return [{ ...finish, cells: kept }];
+      if (kept.length !== finish.cells.length) fitted = { ...fitted, cells: kept };
     }
-    return [finish];
+    return [measured(room, fitted)];
   });
 }
 
-/** Defaults, except where a room already has a finish somebody chose; single walls and zones ride along. */
+/** A finish's product counted over what the finish covers on its room now (`finishQuantity`). */
+function measured(room: PlanRoom, finish: SurfaceFinish): SurfaceFinish {
+  if (!finish.product) return finish;
+  const qty = finishQuantity(room, finish);
+  if (Math.abs(qty - finish.product.qty) < 1e-9) return finish;
+  return { ...finish, product: { ...finish.product, qty, totalPrice: round2(finish.product.pricePerUnit * qty) } };
+}
+
+/**
+ * Defaults, except where a room already has a finish somebody chose; single walls and zones
+ * ride along. The style's own product is kept too, unless the defaults could look the style
+ * up again — a new layout, with the catalogue to hand, lays the style's product for each room
+ * as it is now; an edit to the plan has no catalogue, and keeps what the style had laid.
+ */
 function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): SurfaceFinish[] {
-  const base = defaults.map(
-    (d) => current.find((c) => c.roomId === d.roomId && c.surface === d.surface && isBaseFinish(c) && c.product) ?? d
-  );
+  const base = defaults.map((d) => {
+    const kept = current.find((c) => c.roomId === d.roomId && c.surface === d.surface && isBaseFinish(c) && c.product);
+    return !kept || (isStyleFinish(kept) && d.product) ? d : kept;
+  });
   const extras = current.filter((c) => !isBaseFinish(c) && defaults.some((d) => d.roomId === c.roomId));
   return [...base, ...extras];
 }

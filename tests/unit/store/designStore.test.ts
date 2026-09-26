@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshRoom } from '@/lib/design/planGeometry';
+import { getStyle } from '@/lib/design/styles';
+import { priceScene } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { FloorPlan, PlacedItem, SlotKind } from '@/lib/design/types';
 import type { DesignStoreHook } from '@/store/designStore';
@@ -223,5 +225,68 @@ describe('the empty start', () => {
     useDesignStore.getState().setMode('full');
     expect(useDesignStore.getState().emptyStart).toBe(false);
     expect(useDesignStore.getState().mode).toBe('full');
+  });
+});
+
+describe('the style’s floors and walls', () => {
+  // The modern style's own laminate, plaster and tiles: the products its look is made of.
+  const look = getStyle('modern').surfaces;
+  const finish = (id: number, textureUrl: string | undefined, surfaces: Array<'floor' | 'wall'>, wet = false): CatalogProduct =>
+    ({ ...paint(id), textureUrl: textureUrl ?? null, pricePerUnit: 10 + id, specs: { surfaces, wet } }) as CatalogProduct;
+  const catalog = [
+    finish(21, look.floor.textureUrl, ['floor']),
+    finish(22, look.wall.textureUrl, ['wall']),
+    finish(23, look.wetFloor.textureUrl, ['floor'], true),
+    finish(24, look.wetWall.textureUrl, ['wall'], true),
+  ];
+  const onRoom = (surface: 'floor' | 'wall') => useDesignStore.getState().finishes.find((f) => f.roomId === 'r1' && f.surface === surface && f.wallIndex == null && !f.cells);
+
+  it('lays them as the products they are when the flat is generated, and keeps a floor somebody chose', () => {
+    useDesignStore.getState().setStyle('modern', catalog);
+    expect(onRoom('floor')?.product?.productId).toBe(21);
+    expect(onRoom('wall')).toMatchObject({ origin: 'style', product: { productId: 22, qty: 39.2 } });
+
+    useDesignStore.getState().setFinish(['r1'], 'floor', paint(9));
+    useDesignStore.getState().generate(catalog);
+    expect(onRoom('floor')?.product?.productId).toBe(9);
+    expect(onRoom('wall')?.product?.productId).toBe(22);
+    // …and so they are in the budget of a renovation: 12 m² of floor, 39.2 m² of wall.
+    const state = useDesignStore.getState();
+    const cost = priceScene(state.plan!, { ...state.scene(), mode: 'full' }, { homeState: 'black_frame' });
+    expect(cost.lines.filter((l) => l.section === 'finishes').map((l) => [l.product?.productId, l.qty])).toEqual([
+      [22, 39.2],
+      [9, 12],
+    ]);
+  });
+
+  it('puts the style’s product back for “the style’s own”', () => {
+    useDesignStore.getState().setFinish(['r1'], 'wall', paint(9));
+    useDesignStore.getState().setFinish(['r1'], 'wall', null, catalog);
+    expect(onRoom('wall')).toMatchObject({ origin: 'style', product: { productId: 22 } });
+  });
+
+  it('counts a finish again when its room is made bigger', () => {
+    useDesignStore.getState().setFinish(['r1'], 'floor', paint(9));
+    expect(onRoom('floor')?.product?.qty).toBe(12);
+    useDesignStore.getState().resizeRoom('r1', 5, 4);
+    expect(onRoom('floor')?.product).toMatchObject({ qty: 20, totalPrice: 240 });
+  });
+
+  it('gives the empty start its products once the catalogue is here, as no step of the history', () => {
+    useDesignStore.getState().startEmpty();
+    expect(onRoom('floor')?.product ?? null).toBeNull();
+    const past = useDesignStore.getState().history.past.length;
+    useDesignStore.getState().ensureFinishProducts(catalog);
+    expect(onRoom('floor')?.product?.productId).toBe(21);
+    expect(onRoom('wall')?.product?.productId).toBe(22);
+    expect(useDesignStore.getState().history.past).toHaveLength(past);
+  });
+
+  it('tiles a room retyped as a bathroom', () => {
+    useDesignStore.getState().setStyle('modern', catalog);
+    useDesignStore.getState().updateRoom('r1', { type: 'bathroom' });
+    useDesignStore.getState().ensureFinishProducts(catalog);
+    expect(onRoom('floor')?.product?.productId).toBe(23);
+    expect(onRoom('wall')?.product?.productId).toBe(24);
   });
 });

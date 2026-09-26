@@ -52,7 +52,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 |---|---|---|
 | `tests/unit/calculator/` | the engine and rate book (`materials`, `rates`), selection keys and quantities, per-room finishes, the layout editor, plan sync | [calculator.md](calculator.md) |
 | `tests/unit/summary/` | `calculatorSheet`, the quantity dropdown | [budget.md](budget.md) |
-| `tests/unit/design/` | walls, drawing, plan drawing, studio rooms, openings, technical, auto technical, electrical, radiators, paint, zones, trims, pricing, budget, ticks, kitchen, matcher, manipulate, clearance, catalogue browser, shelf rooms, colours, style quiz, history, daylight, plan PDF export, AI plan reading, from-calculator handoff | [design-studio/](design-studio/overview.md) |
+| `tests/unit/design/` | walls, drawing, plan drawing, studio rooms, openings, technical, auto technical, electrical, radiators, paint, zones, visible finishes, the style's finish products, trims, pricing, budget, ticks, kitchen, matcher, manipulate, clearance, catalogue browser, shelf rooms, colours, style quiz, history, daylight, plan PDF export, AI plan reading, from-calculator handoff | [design-studio/](design-studio/overview.md) |
 | `tests/unit/design3d/` | wall geometry, whose wall a hit is, cornices, the environment, footprints read from a model | [design-studio/3d-engine.md](design-studio/3d-engine.md) |
 | `tests/unit/flow/` | resume, sync lines and pruning, opening a project, save helpers, legacy migration | [project-flow.md](project-flow.md) |
 | `tests/unit/projects/` | row helpers (`projectKind`, progress, `picksFromScene`), checkout parts | [project-flow.md](project-flow.md), [marketplace.md](marketplace.md) |

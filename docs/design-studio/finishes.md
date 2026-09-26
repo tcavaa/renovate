@@ -1,8 +1,9 @@
 # Finishes: floors, walls, paint, zones and mouldings
 
 What floors and walls wear in the studio (step 6, the finishes category): finish products and
-their textures, defaults from the style, whole rooms, single walls, the paint brush (metre-wide
-strips and square metres), floor zones, skirting boards and cornices — and how each is priced.
+their textures, the style's own finishes (products too), whole rooms, single walls, the paint
+brush (metre-wide strips and square metres), floor zones, skirting boards and cornices — and
+how each is priced: only where it shows.
 Read this before touching `lib/design/surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`,
 `finishQuantity.ts`, `components/design/FinishPanel.tsx`, the `FinishesTray`, or the finish
 actions of `store/designStore.ts`.
@@ -18,15 +19,16 @@ per-room floor and wall picks, carried into 3D).
 
 | File | Responsibility |
 |---|---|
-| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), defaults per style and wetness (`isWetRoom`), `pricePerM2` |
+| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), the style's look per wetness (`defaultFinish`, `isWetRoom`) and the product it is (`styleFinishProduct`, `styleFinish`, `isStyleFinish`, `withStyleFinishes`), `pricePerM2` |
 | `lib/design/zones.ts` | finishes on part of a surface: one wall (`wallIndex`), floor zones (`halfZone`, `wallStripZone`, `zoneFromRect`, clipped to the room), `wallFinishFor`, `finishCoverage`, `isBaseFinish` |
 | `lib/design/paint.ts` | the brush: floor cells, wall strips (`span`) and wall patches (`cells` as [column, row]) — `paintCell`, `paintSpan`, `paintPatch`, `patchAt`, `patchSpans`, `patchSpansOnWall`, `erasePatchFromStrip`, `patchesAreaM2` |
 | `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
-| `lib/design/finishQuantity.ts` | `finishQuantity` / `finishUnit` — shared by the store and the save route |
+| `lib/design/finishQuantity.ts` | `finishQuantity` / `finishUnit` — what a finish covers, shared by the store and the save route; `visibleFinishes` — what of it shows, which is what the budget buys |
 | `lib/design3d/wallGeometry.ts` | spans on a wall face (`buildWallGeometry`), `buildMouldingGeometry` |
 | `components/studio/Trays.tsx` → `FinishesTray` | surfaces (floor · walls · skirting · cornice), scopes, swatches |
 | `components/design/FinishPanel.tsx` | the picker shown under the inspector for a selected floor zone |
-| `store/designStore.ts` | `setFinish`, `setWallFinish`, `paintSurface`, `clearPartialFinishes`, zone actions, `fitToPlan` |
+| `store/designStore.ts` | `setFinish`, `setWallFinish`, `paintSurface`, `clearPartialFinishes`, zone actions, `ensureFinishProducts`, `defaultFinishes` / `keepChosen`, `fitToPlan` (refits and re-measures) |
+| `components/design/DesignFinishProducts.tsx` | in the design layout: keeps a generated design's floors and walls the style's products (`ensureFinishProducts`) |
 | `scripts/stock-textures.ts`, `scripts/lib/trimProducts.ts` | the finish products and the moulding range |
 
 ## What the studio offers
@@ -51,11 +53,46 @@ and roughness maps. `pnpm textures:stock` writes ~35 of them: the partner drop's
 plasters and bricks, plus Poly Haven parquets, tiles, a plaster, a paint and slate, and
 ambientCG tiles, a microcement floor and paints (all CC0), written straight to the database. Paint is sold by the litre, so `pricePerM2` divides by `coveragePerUnit`.
 
-Defaults come from the style, and bathrooms and toilets take the style's `wetFloor` /
-`wetWall` (tiles) rather than its parquet and plaster. A chosen finish carries its own maps
-and scale into `StyleMaterials.surface`, replacing the style's — a marble tile with the
-oak floor's normal map underneath was the first bug here. Re-laying out the furniture keeps
-chosen finishes; switching style resets them. **No wall wears the style's `featureWall` by
+The style's look comes first: bathrooms and toilets take the style's `wetFloor` / `wetWall`
+(tiles) rather than its parquet and plaster (`defaultFinish`). A finish with a product carries
+its own maps and scale into `StyleMaterials.surface`, replacing the style's — a marble tile with
+the oak floor's normal map underneath was the first bug here. Re-laying out the furniture keeps
+chosen finishes; switching style resets them.
+
+**The style's own floors and walls are partner products, and the budget buys them.** The
+textures the styles lay are the textures of `textures:stock` products (modern's bathroom walls
+are *wall-tile-textured-grey*, its bedroom floor *laminate-grey-10mm*, scandinavian's walls
+*paint-marshall-eco-5l*…), so `styleFinishProduct` finds, for each room and surface, the
+catalogue finish whose texture is the style's look (compared by path, whatever host or query
+the URL carries); a catalogue without it gives the best-ranked finish of the same wetness
+(`surfaceOptions` — never a laminate in a bathroom), one without any leaves the look alone,
+unpriced. `styleFinish` lays that product over the whole surface as `origin: 'style'` — nobody
+chose it — in the style's colour when the product has none of its own (what shows until the
+texture loads). The flat was generated in the style's look with nothing behind it, so a person
+had to paint every wall and tile every bathroom again before any of it reached the summary.
+Where the style's products are laid:
+- `generate` and `setStyle` (they have the catalogue): every room's floor and walls, through
+  `defaultFinishes(plan, styleId, catalog)`. `keepChosen` keeps what somebody chose (`studio`,
+  `calculator`) and replaces the style's own with the fresh defaults — a new style, a retyped
+  room. A plan edit (`reconcile`) has no catalogue: it keeps the style's product the room had.
+- **"The style's own"** in the tray (`setFinish(ids, surface, null, catalog)`) lays the style's
+  product, and that swatch — not the product's own — is the active one while a room wears it
+  (`isStyleFinish` in the studio page and `FinishPanel`).
+- `DesignFinishProducts` (in the design layout, on every step of a generated design) runs
+  `ensureFinishProducts` → `withStyleFinishes` whenever the plan, the style or the finishes
+  change: a design generated before the style's finishes were products, a room drawn or split
+  since, a room retyped (a bedroom made a bathroom is tiled), the empty start, a version brought
+  back. What somebody chose is never touched; it is not a step of the history; a design saved
+  before gets its products the next time any of its steps is opened.
+- Both modes buy them: a renovation whatever the home state, a design-only project as much —
+  the design shows the flat in partner products, and those are what it buys. A floor or wall
+  the person means to keep is ticked off on the summary (or, in a renovation, ticked as already
+  there on the technical step) ([../budget.md](../budget.md)).
+- The 2D sheet still leaves the style's own as the room's paper (`drawBaseFinishes` skips
+  `isStyleFinish`), so a generated flat is not tinted room by room; ceilings stay the style's
+  colour (the ceiling is the engine's phase 12, not a product).
+
+**No wall wears the style's `featureWall` by
 itself** (removed 26 September 2026): it drew industrial's brick on the longest clear wall of
 every dry room with no product behind it — unpriced, not on the 2D board, and impossible to
 erase, since "the style's default" fell back to it — and people took it for paint gone astray.
@@ -76,9 +113,22 @@ material on the whole wall the first time the 1 m² brush touched it.
 A finish is still `SurfaceFinish`, with `wallIndex` (one wall) or `zone` (a floor
 patch, a polygon clipped to the room by Sutherland–Hodgman — half a room, a strip along a
 wall, or a rectangle drawn in 2D with the zone tool). `wallFinishFor` resolves a wall to
-its own finish or the room's base; `finishCoverage` is the "m² per material" list; the
-budget prices each wall and zone by its own area. `findFinish` in the builder only ever
-returns the *base* finish.
+its own finish or the room's base; `finishCoverage` is the "m² per material" list.
+`findFinish` in the builder only ever returns the *base* finish.
+
+**What is bought is what shows** (`visibleFinishes`, run by `priceScene` before anything is
+priced). Each finish's product keeps what the finish *covers* (`finishQuantity` — the save route
+stores that), and the budget counts only the part nothing lies on: the room's walls less every
+wall with a finish of its own and every strip and square metre on a bare wall; a wall's own
+finish less the strips and squares on it; a strip less the squares painted on it (a square lies
+on the strip that holds the middle of its column); on the floor, the room's floor less the zones
+and painted tiles, and a zone less the tiles over it (a tile's square clips the zone exactly).
+Tile the lower metre of a painted wall and the paint under the tiles is not bought; repaint a
+strip and only the colour on top is. A finish wholly covered — every wall papered on its own,
+a floor painted edge to edge — leaves the budget (less than 0.1 m² showing counts as none). A
+layer with no product (an old zone still waiting for its tile) hides nothing, and of two
+finishes claiming a whole surface only the first, the one drawn, is bought. The overlaps are
+worked out from the geometry; the areas themselves are the finishes' own quantities.
 
 ## Painting a piece at a time (`lib/design/paint.ts`)
 
@@ -105,7 +155,9 @@ box, each tile clipped to the outline, so the last column is a part tile), and a
 shorter than 25 cm at the end of a wall joins the strip before it. `fitToPlan` in the store
 shortens a strip to a wall that got shorter (dropping it when less than 5 cm is left), and drops
 wall patches out of range, finishes on walls that no longer exist and tiles a room no longer
-reaches.
+reaches — and measures every finish left again on its room (`finishQuantity`, the save route's
+rule): a room made bigger used to keep its old floor area in the budget until the page was
+loaded again from the server.
 
 **The layers of a wall lie like paint: base, this wall's own finish, strips, square metres.**
 `buildWallGeometry` gives each spot the *last* span that covers it, and `buildScene` lists the
@@ -130,7 +182,8 @@ everything off that surface in those rooms before it lays the new base: a wall's
 the strips, the square metres; on a floor the painted tiles and the drawn zones (a zone that
 was selected is let go of). It used to replace the base only, so a room painted white kept
 its old stripes on top and nothing said why — the accents are one Ctrl+Z away, or painted
-again over the new colour. The style default in that scope is therefore the room's eraser.
+again over the new colour. The style's own in that scope is therefore the room's eraser — back
+to the style's product, with nothing on it.
 `finishQuantity` reads `cells` on a *wall* as square metres of that wall (`patchesAreaM2`);
 it read them as floor tiles once, and a patch near the ceiling was priced at nothing.
 
@@ -174,16 +227,32 @@ off by a wall that stops short), and so does the brush's glow.
 ## Tests
 
 `tests/unit/design/paint.test.ts`, `zones.test.ts`, `trims.test.ts`, `pricing.test.ts`
-(finishes), `tests/unit/design3d/wallGeometry.test.ts` (the last span on top, the moulding
-mitre), `cornice.test.ts`, `wallSide.test.ts` (the accent wall is gone; whose side a hit is),
-`tests/unit/store/designStore.test.ts` (paint).
+(finishes; the style's bought in a renovation for every home state and in a design-only
+project, a line ticked off not),
+`visibleFinishes.test.ts` (what shows is what is bought, strips painted twice),
+`styleFinishes.test.ts` (the style's product, the fallbacks, `withStyleFinishes`),
+`planDrawing.test.ts` (the sheet leaves the style's own as paper),
+`tests/unit/design3d/wallGeometry.test.ts` (the last span on top, the moulding mitre),
+`cornice.test.ts`, `wallSide.test.ts` (the accent wall is gone; whose side a hit is),
+`tests/unit/store/designStore.test.ts` (paint; the style's products on generation, "the style's
+own", re-measuring after a resize, `ensureFinishProducts`),
+`tests/integration/save-routes.test.ts` (a strip over the style's paint, bought once).
 
 ## Known gaps
 
 - Surface finishes are per room: the studio's right panel offers every catalogue product with
-  a `textureUrl` for the focused room's floor and walls (or all rooms at once), priced by the
-  room's area. `pnpm textures:stock` is what gives products textures; a product without one
-  never appears there. Ceilings stay on the style default.
+  a `textureUrl` for the focused room's floor and walls (or all rooms at once), priced by what
+  of it shows. `pnpm textures:stock` is what gives products textures; a product without one
+  never appears there, and a catalogue without the style's own texture products gives the
+  generated flat stand-ins of the same wetness (or leaves the look unpriced). Ceilings stay the
+  style's colour.
+- **The style's skirting boards and cornices are still only its look**: drawn in 3D, not
+  products, not in the budget (`defaultTrim`, product null). The same treatment as the floors
+  and walls would need a trim product per style profile.
+- A design saved before the style's finishes were products has none in its stored budget (the
+  project page, an order placed from the list) until one of its steps is opened again.
+- `visibleFinishes` takes floor zones not to overlap one another; two that do are both bought
+  where they overlap (nothing in the UI draws zones any more).
 - **Floor zones cannot be created any more.** `PlanEditor` still has a `zone` tool and the store
   an `addFinishZone`, but no page lists the tool (`CATEGORY_TOOLS` in the studio, the plan and
   technical steps) and nothing calls `addFinishZone`; zones in older saves still show and price.

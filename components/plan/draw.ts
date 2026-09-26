@@ -7,6 +7,7 @@ import { pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges,
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { isBaseFinish } from '@/lib/design/zones';
+import { isStyleFinish } from '@/lib/design/surfaces';
 import { dividerSegments, studioParts } from '@/lib/design/studio';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
@@ -871,13 +872,14 @@ export function finishSwatchColor(finish: Pick<SurfaceFinish, 'colorHex' | 'prod
 
 /**
  * The finishes chosen for whole rooms, on the plan: a room's floor in its product's colour,
- * its walls as a band in theirs along every edge. Only finishes that carry a product are
- * drawn — a style's default is the room's ordinary paper. Strips, squares and zones are
+ * its walls as a band in theirs along every edge. Only finishes somebody chose are drawn —
+ * the style's own is the room's ordinary paper, though it is a product too (`styleFinish`):
+ * coloured, it would tint every room of a generated flat. Strips, squares and zones are
  * drawn by the board on top of these.
  */
 export function drawBaseFinishes(ctx: CanvasRenderingContext2D, t: Transform, plan: Pick<FloorPlan, 'rooms'>, finishes: SurfaceFinish[]): void {
   for (const finish of finishes) {
-    if (!finish.product || !isBaseFinish(finish) || (finish.surface !== 'floor' && finish.surface !== 'wall')) continue;
+    if (!finish.product || isStyleFinish(finish) || !isBaseFinish(finish) || (finish.surface !== 'floor' && finish.surface !== 'wall')) continue;
     const room = plan.rooms.find((r) => r.id === finish.roomId);
     if (!room) continue;
     const color = finishSwatchColor(finish);
