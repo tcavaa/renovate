@@ -54,17 +54,22 @@ export function cellAt(room: PlanRoom, point: Vec2): Cell | null {
   return [Math.max(0, Math.floor((point.x - b.minX) / PAINT_CELL_M)), Math.max(0, Math.floor((point.z - b.minZ) / PAINT_CELL_M))];
 }
 
-/** A tile's outline, clipped to the room; empty when the tile misses the room altogether. */
-export function cellPolygon(room: PlanRoom, cell: Cell): Vec2[] {
+/** A tile's whole square on the room's grid, before the room's outline cuts it. */
+export function cellSquare(room: PlanRoom, cell: Cell): Vec2[] {
   const b = polygonBounds(room.polygon);
   const x = b.minX + cell[0] * PAINT_CELL_M;
   const z = b.minZ + cell[1] * PAINT_CELL_M;
-  const clipped = clipPolygon(room.polygon, [
+  return [
     { x, z },
     { x: x + PAINT_CELL_M, z },
     { x: x + PAINT_CELL_M, z: z + PAINT_CELL_M },
     { x, z: z + PAINT_CELL_M },
-  ]);
+  ];
+}
+
+/** A tile's outline, clipped to the room; empty when the tile misses the room altogether. */
+export function cellPolygon(room: PlanRoom, cell: Cell): Vec2[] {
+  const clipped = clipPolygon(room.polygon, cellSquare(room, cell));
   return clipped.length >= 3 && polygonAreaM2(clipped) > 1e-4 ? clipped : [];
 }
 

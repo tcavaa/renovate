@@ -81,10 +81,13 @@ materials, UI); the names and blurbs are dictionary keys (`lib/i18n/ka.ts` and t
 
 ## Two modes
 
-- `mode: 'design_only'` — the home is finished: the furniture and decor, the finishes chosen,
-  delivery, and anything the person added (`origin: 'user'` sockets, doors, radiators…) are
-  costed.
-- `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine.
+- `mode: 'design_only'` — the home is finished and only designed: the furniture and decor,
+  every floor and wall the flat is shown in (the style's own products as much as chosen ones —
+  a surface the person keeps is ticked off on the summary), delivery, and anything the person
+  added (`origin: 'user'` sockets, doors, radiators…) are costed.
+- `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine;
+  the floors and walls are bought whatever the home state ([finishes.md](finishes.md),
+  [../budget.md](../budget.md)).
 
 ## Two products, two boards (`store/designStore.ts`, `hooks/useCalculatorPlan.ts`)
 
@@ -164,6 +167,9 @@ studio used to undo the whole layout and leave every room bare — and, coming f
 calculator, carry on into the walls drawn there, because `startFromCalculator` kept the
 versions of whatever was in the studio before and the baseline only ran when none existed.
 The new layout becomes version 01, with its furniture, when the studio next opens (below).
+Generation also lays every room's floor and walls in the style's own partner products (tiles in
+the bathrooms, the style's laminate and paint elsewhere — `styleFinish`), keeping the finishes
+somebody chose, so the budget buys what the flat is shown in ([finishes.md](finishes.md)).
 
 **The studio's baseline is where undo stops.** `ensureExistingVersion` is called whenever the
 studio mounts (and when the room count changes) and does something only while no baseline

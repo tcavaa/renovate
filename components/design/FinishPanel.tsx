@@ -13,7 +13,7 @@ import { Check, ChevronRight } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { cn, formatGEL } from '@/lib/utils';
-import { pricePerM2, surfaceOptions, type Surface } from '@/lib/design/surfaces';
+import { isStyleFinish, pricePerM2, surfaceOptions, type Surface } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { PlanRoom, StyleId, SurfaceFinish } from '@/lib/design/types';
 
@@ -42,12 +42,13 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
     room ? finishes.find((f) => f.roomId === room.id && f.surface === s)?.origin ?? null : null;
   const surfaceLabel = (s: Surface) => (s === 'floor' ? t.design.finishFloor : t.design.finishWall);
 
-  // The product every target room currently has on a surface, or null when they differ or
-  // when it is the style default.
+  // The product every target room currently has on a surface, or null when it is the style's
+  // own (a product too, the one the style's look is), or 'mixed' when the rooms differ.
   const currentFor = (surface: Surface): number | null | 'mixed' => {
-    const ids = targets.map(
-      (r) => finishes.find((f) => f.roomId === r.id && f.surface === surface)?.product?.productId ?? null
-    );
+    const ids = targets.map((r) => {
+      const finish = finishes.find((f) => f.roomId === r.id && f.surface === surface);
+      return finish && !isStyleFinish(finish) ? (finish.product?.productId ?? null) : null;
+    });
     return ids.every((id) => id === ids[0]) ? ids[0] : 'mixed';
   };
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { FREE_DELIVERY_THRESHOLD_GEL, priceScene } from '@/lib/design/pricing';
+import { tickFor } from '@/lib/design/ticks';
 import type { RateBook } from '@/lib/calculator/rates';
-import type { DesignScene, FloorPlan, PlacedItem, SceneProduct, SceneStore } from '@/lib/design/types';
+import { HOME_STATE_VALUES } from '@/lib/calculator/types';
+import type { DesignScene, FloorPlan, PlacedItem, SceneProduct, SceneStore, SurfaceFinish } from '@/lib/design/types';
 
 function rect(id: string, w: number, d: number, type: FloorPlan['rooms'][number]['type'] = 'living_room') {
   return {
@@ -156,5 +158,46 @@ describe('priceScene — finishes', () => {
     expect(cost.finishesTotal).toBe(140);
     expect(cost.baskets[0].lines[0].item).toBe('Floor covering');
     expect(cost.perRoom[0].total).toBe(140);
+  });
+});
+
+describe('priceScene — the floors and walls the flat is shown in', () => {
+  // What generation lays: the style's own laminate in the living room and its tiles on the
+  // bathroom's walls — products, marked as the style's (`styleFinish`).
+  const laid = (roomId: string, surface: 'floor' | 'wall', p: SceneProduct, origin: SurfaceFinish['origin'] = 'style'): SurfaceFinish => ({ roomId, surface, colorHex: '#fff', textureUrl: '/t.jpg', textureScaleM: 1, product: { ...p, unit: 'm2' }, origin });
+  const laminate = laid('living', 'floor', product(11, 25, storeA, 20));
+  const tiles = laid('bath', 'wall', product(12, 40, storeB, 21.6));
+  const finishLines = (cost: ReturnType<typeof priceScene>) => cost.lines.filter((l) => l.section === 'finishes').map((l) => [l.product?.productId, l.qty, l.total]);
+
+  it('buys the style’s own in a renovation, whatever condition the home is in', () => {
+    for (const homeState of HOME_STATE_VALUES) {
+      const cost = priceScene(plan, { ...scene([], 'full'), finishes: [laminate, tiles] }, { homeState });
+      expect(finishLines(cost)).toEqual([
+        [12, 21.6, 864],
+        [11, 20, 500],
+      ]);
+      expect(cost.finishesTotal).toBe(1364);
+      expect(cost.baskets.map((b) => b.store?.id).sort()).toEqual([1, 2]);
+    }
+  });
+
+  it('buys them in a design-only project too, and not a line ticked off on the summary', () => {
+    const chosen = laid('bath', 'floor', product(13, 30, storeA, 4), 'studio');
+    const designOnly: DesignScene = { ...scene([]), finishes: [laminate, tiles, chosen] };
+    expect(finishLines(priceScene(plan, designOnly))).toEqual([
+      [12, 21.6, 864],
+      [11, 20, 500],
+      [13, 4, 120],
+    ]);
+    // The person keeps the living room's floor: its line is ticked off, and nobody is sent it.
+    const kept = priceScene(plan, { ...designOnly, excluded: [tickFor.finish(11)] });
+    expect(kept.finishesTotal).toBe(984);
+    expect(kept.baskets.flatMap((b) => b.lines.map((l) => l.product.productId)).sort()).toEqual([12, 13]);
+  });
+
+  it('leaves out a surface the flat already has', () => {
+    const withFloors: FloorPlan = { ...plan, technical: { points: [], existing: ['floor'] } };
+    const cost = priceScene(withFloors, { ...scene([], 'full'), finishes: [laminate, tiles] }, { homeState: 'old_renovation' });
+    expect(finishLines(cost)).toEqual([[12, 21.6, 864]]);
   });
 });

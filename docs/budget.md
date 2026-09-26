@@ -22,7 +22,7 @@ lines) · [project-flow.md](project-flow.md) (the project page that re-reads bot
 | `lib/design/ticks.ts` | line keys (`tickFor`), `toggleTick`, `pruneTicks` / `pruneQuantities`, `withEdits` |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys for fittings, technical points, openings and trims (`ELECTRICAL_LABOUR`, `TECHNICAL_RATES`, `OPENING_ESTIMATE_GEL`, …) |
 | `lib/design/kitchen.ts` | measured kitchens (`KITCHEN_RATES`) |
-| `lib/design/finishQuantity.ts` | how much of its product a finish needs — shared by the store and the save route |
+| `lib/design/finishQuantity.ts` | how much of its product a finish covers (`finishQuantity`, shared by the store and the save route) and how much of it shows (`visibleFinishes`) — what the budget buys |
 | `lib/design/trades.ts` | `tradesNeeded` — the labour keys of a budget → the six worker specialties (step 8) |
 | `lib/summary/calculatorSheet.ts` | the calculator's estimate and picks as `BudgetLine`s with its edits; `orderedPickLines` |
 | `lib/summary/quantity.ts` | `quantityOptions` — what the quantity dropdown offers |
@@ -167,6 +167,21 @@ when its phase is not running (`technicalWork`, [calculator.md](calculator.md)) 
 and labour line — plus `openingsTotal`,
 `technicalTotal`, `lightingTotal` and `coverage`. In `design_only` mode only what the person
 added (`origin: 'user'`) is new work; in `full` mode the ticked phases decide.
+
+**Finishes: every floor and wall the flat is shown in, bought where it shows.** Generation
+lays each room's floor and walls in the style's own partner products — the bathroom's tiles,
+the bedroom's laminate and paint ([design-studio/finishes.md](design-studio/finishes.md),
+`styleFinish`) — so they are finish lines like any tile somebody picked, in either mode and
+whatever the home state: the design shows the flat in partner products, and those are what it
+buys. A floor or wall the person means to keep is ticked off on the summary like any line.
+Before any line is made, `visibleFinishes` cuts every finish down to the part
+of it nothing lies on: the paint under a tiled strip, the room's walls under a wall papered on
+its own, the laminate under painted floor tiles, the first colour of a strip painted twice are
+not bought as well, and a finish wholly covered is not a line at all. The line, its basket,
+the room's share (`perRoom`) and the "m² per material" list (`coverage`) all count the visible
+area; the scene's own finishes keep what they cover. What the flat already has (`existing`:
+floor, wall… — the technical step's checklist, offered in a renovation) drops the surface
+whatever laid it.
 `budgetSummary` folds the lines into materials + products + labour; `budgetSections`
 into the sections the budget page lists. `tradesNeeded` maps the labour keys to the six
 worker specialties for step 8.
@@ -194,7 +209,11 @@ line again.
   helper that fails when the line is missing, so a renamed labour key breaks the test instead
   of comparing two missing lines.
 - `tests/unit/design/pricing.test.ts` — baskets, the delivery threshold, per-room totals, full
-  mode with and without a rate book, finishes.
+  mode with and without a rate book, finishes (the style's bought in a renovation for every
+  home state and in a design-only project, not once ticked off, none on a surface the flat
+  has).
+- `tests/unit/design/visibleFinishes.test.ts` — what shows is what is bought: strips, squares,
+  walls of their own, zones and tiles; a strip painted twice bought once, through `priceScene`.
 - `tests/unit/design/budget.test.ts` — technical points, doors and fittings, what the flat
   already has, partitions, work choices, `tradesNeeded`.
 - `tests/unit/design/kitchen.test.ts` — measured runs and islands, `custom: false`.
@@ -215,9 +234,6 @@ line again.
   `room.heightM`; a wall raised in the inspector costs what it cost before. The room's
   "ceiling height" is the field that moves walls, cornice and quantities together. Ceiling
   lights and pendants hang from `room.heightM` too.
-- Each finish is priced by its own area: a base wall finish is charged for the whole room's
-  walls even where one wall, a strip or a square metre of another product lies over it, so
-  overlaid finishes over-count the base by the area they cover.
 - The calculator's sheet links no product line to its page: `snapshot()` in
   `lib/summary/calculatorSheet.ts` sets `slug: ''` although the picks carry one. The design's
   sheet links as described above.

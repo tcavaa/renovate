@@ -409,6 +409,44 @@ describe('POST /api/design/projects (the design)', () => {
     expect(set.scene.finishes[0].product).toMatchObject({ unit: 'm2', qty: 20 });
   });
 
+  it('buys the style’s walls in a renovation only where the strip painted over them does not lie', async () => {
+    signedIn();
+    const POST = await load();
+    const wall = { roomId: 'living', surface: 'wall', colorHex: '#ffffff', textureUrl: null, textureScaleM: 1 };
+    const res = await POST(
+      post('http://localhost/api/design/projects', {
+        projectId: 42,
+        plan,
+        homeState: 'white_frame',
+        scene: {
+          styleId: 'scandinavian',
+          mode: 'full',
+          budgetGel: null,
+          items: [],
+          progress: { step: 5, generated: true },
+          // The style's own paint on every wall, and a metre-wide strip of something else over one.
+          finishes: [
+            { ...wall, product: snapshot(3, 1), origin: 'style' },
+            { ...wall, wallIndex: 0, span: { from: 0, to: 1 }, product: snapshot(1, 1), origin: 'studio' },
+          ],
+        },
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const { cost } = (await res.json()).data;
+    // 48.6 m² of wall: 2.7 m² under the strip at 100 GEL, the other 45.9 m² in paint at 5 GEL (50 GEL a litre, 10 m² a litre).
+    const finishLines = cost.lines.filter((l: { section: string }) => l.section === 'finishes').map((l: { key: string; qty: number; total: number }) => [l.key, l.qty, l.total]);
+    expect(finishLines).toEqual([
+      ['product-3', 45.9, 229.5],
+      ['product-1', 2.7, 270],
+    ]);
+    expect(cost.finishesTotal).toBe(499.5);
+    // What is stored is what each finish covers; the budget is what shows.
+    const set = lastUpdate() as { scene: { finishes: Array<{ product: { qty: number } }> } };
+    expect(set.scene.finishes.map((f) => f.product.qty)).toEqual([48.6, 2.7]);
+  });
+
   // A door, a socket and a radiator are order lines a store is sent, exactly as a sofa is —
   // so their snapshots are no more to be trusted than a sofa's.
   const fittedPlan = (doorId: number) => ({
