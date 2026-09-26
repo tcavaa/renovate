@@ -181,7 +181,9 @@ export default function CatalogStepPage() {
                     const pick = entry?.[1];
                     const like = pick ? roomsLike(rooms, room, s).filter((r) => !roomFinishEntry(selectedProducts, r.id, s)) : [];
                     return (
-                      <div key={s} className={cn('border bg-bg-surface text-left transition-colors', surface === s ? 'border-ink' : 'border-line hover:border-ink/40')}>
+                      // The whole card chooses its surface, the row under the line included; the
+                      // button at its head is what the keyboard reaches.
+                      <div key={s} onClick={() => setSurface(s)} className={cn('cursor-pointer border bg-bg-surface text-left transition-colors', surface === s ? 'border-ink' : 'border-line hover:border-ink/40')}>
                         <button type="button" onClick={() => setSurface(s)} className="flex w-full items-center gap-3 px-4 py-3 text-left" aria-pressed={surface === s}>
                           <span className="relative block h-10 w-10 shrink-0 overflow-hidden border border-line bg-bg-base">
                             {pick?.imageUrl ? <Image src={pick.imageUrl} alt="" fill sizes="40px" className="object-cover" /> : pick?.colorHex ? <span className="block h-full w-full" style={{ backgroundColor: pick.colorHex }} /> : null}
