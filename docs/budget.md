@@ -189,7 +189,10 @@ line again.
 
 - `tests/unit/design/ticks.test.ts` — per-line ticks, legacy bare ids, pruning, and that the
   totals card, sections and header figures each come to the grand total; that basket,
-  dialogue and order agree line for line.
+  dialogue and order agree line for line; and that ticking off a radiator or a socket leaves
+  its fitting labour (`radiator_mount`, `electric_point`) whole — found by key through a
+  helper that fails when the line is missing, so a renamed labour key breaks the test instead
+  of comparing two missing lines.
 - `tests/unit/design/pricing.test.ts` — baskets, the delivery threshold, per-room totals, full
   mode with and without a rate book, finishes.
 - `tests/unit/design/budget.test.ts` — technical points, doors and fittings, what the flat
@@ -218,9 +221,5 @@ line again.
 - The calculator's sheet links no product line to its page: `snapshot()` in
   `lib/summary/calculatorSheet.ts` sets `slug: ''` although the picks carry one. The design's
   sheet links as described above.
-- Three assertions in `tests/unit/design/ticks.test.ts` (around lines 82, 94 and 191) look up
-  lines by the retired keys `radiator_install` / `electrical_point`; no such lines exist any
-  more, so they compare `undefined` with `undefined` and pass without testing anything. They
-  should use `radiator_mount` / `electric_point`.
 - A made-to-measure kitchen can be turned into a stock product only by the data flag
   `custom: false` on the item; the studio has no control for it yet.

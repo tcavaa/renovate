@@ -23,8 +23,6 @@ runtime yet.
   probably not applied — [operations.md](operations.md#known-gaps).
 - Brigade orders are missing from the revenue report, the CSV and the customer's order list —
   [marketplace.md](marketplace.md#known-gaps).
-- Three assertions in `tests/unit/design/ticks.test.ts` test retired keys and pass vacuously —
-  [budget.md](budget.md#known-gaps).
 - Studio: Shift does not speed up keyboard panning; the walk-through's hint never shows; the
   hover card's phone line never renders — [design-studio/studio.md](design-studio/studio.md#known-gaps).
 - Floor zones can no longer be created from the UI — [design-studio/finishes.md](design-studio/finishes.md#known-gaps).
