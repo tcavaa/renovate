@@ -16,7 +16,8 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 
 | File | Responsibility |
 |---|---|
-| `app/api/products/route.ts`, `[id]/route.ts` | product list (`publicProductCondition`) and CRUD (`requireCatalogEditor`; a store only its own) |
+| `lib/api/productAccess.ts` | who may see and who may change a product: `publicProductCondition` (for queries), `isPublicProduct`, `canViewProductPage`, `canReadProduct`, `canEditProduct` |
+| `app/api/products/route.ts`, `[id]/route.ts` | product list (public products only) and one product (`canReadProduct`), create / update / delete (`requireCatalogEditor`, then `canEditProduct`) |
 | `app/api/categories/**`, `app/api/stores/**` | category and store CRUD (staff), store approval |
 | `lib/api/designCatalog.ts` + `app/api/design/catalog/route.ts` | the whole design catalogue in one cached response (`invalidateDesignCatalog` on admin writes); a signed-in person's own products added fresh (`loadOwnProducts`) |
 | `hooks/useDesignCatalog.ts` | the client cache of that catalogue (`refreshDesignCatalog`) |
@@ -104,11 +105,38 @@ items" with a badge, not placeable, waiting for the conversion that is not built
 last stage). **Theirs alone**: the cached design catalogue leaves owned products out and the
 route adds the caller's own fresh (`loadOwnProducts`, `own` / `pending` on
 `CatalogProduct`); every public product query has `isNull(products.ownerUserId)` (the
-`publicProductCondition`, the catalogue page, the landing wall, related products) and the
-product page 404s for anyone but the owner — though `GET /api/products/[id]` does not filter
-yet (Known gaps); `pnpm models:seed` never removes or switches off an owned product. The profile lists them (`MyModels`, `DELETE /api/design/models/[id]`
+`publicProductCondition`, the catalogue page, the landing wall, related products), and the
+product page and `GET /api/products/[id]` answer 404 to anyone but the owner (and, for the API,
+staff) — see "Who sees a product" below; `pnpm models:seed` never removes or switches off an
+owned product. The profile lists them (`MyModels`, `DELETE /api/design/models/[id]`
 removes the row and its files). `refreshDesignCatalog()` in `hooks/useDesignCatalog.ts`
 refetches for every mounted hook after one is added.
+
+## Who sees a product (`lib/api/productAccess.ts`)
+
+One module holds the rules, and every read and write of a product goes through it:
+
+- **Public** — active, sold by no store or by an active one (a store that registered itself stays
+  inactive until approved, and so do its products, whatever their own flag says), and nobody's
+  own furniture. A query says it with `publicProductCondition()` (with `stores` left-joined on
+  `products.storeId`); a row already read, with `isPublicProduct()`. The catalogue list, the
+  landing wall, `GET /api/products`, related products and the design catalogue show public
+  products only (the catalogue page, the landing wall and the design catalogue still write the
+  same three conditions inline).
+- **The product page** (`/catalog/<slug>`, `canViewProductPage`) shows a public product to
+  everybody and a person's own furniture to that person; anything else is a 404 — staff
+  included, since nothing in the admin links to it. The page and its `generateMetadata` read
+  through one request-cached lookup (`loadVisibleProduct`), so a hidden product's name never
+  reaches the title either. A link to a product that has since been switched off (from a saved
+  budget, say) lands on the 404.
+- **`GET /api/products/[id]`** (`canReadProduct`) answers a public product to anybody without
+  looking at the session; any other only to its owner, to staff with the products section
+  (admin, catalogue agents) and to the product's own store — everyone else gets a 404, as if it
+  did not exist. Nothing in the app calls it today; `ProductForm` uses the route for PUT and
+  DELETE.
+- **Changing a product** (`PUT` / `DELETE`, `canEditProduct` after `requireCatalogEditor`): staff
+  with the products section may change any product; a store only its own, and it can neither
+  move a product to another store nor feature it.
 
 ## Public pages
 
@@ -131,11 +159,16 @@ refetches for every mounted hook after one is added.
 
 ## Tests
 
+`tests/unit/api/productAccess.test.ts` (who sees and who changes a product),
+`tests/integration/product-routes.test.ts` (`/api/products/[id]` with the database and session
+mocked: hidden products 404 to the public, staff and a product's store read them, a catalogue
+agent may change a store's product, a store only its own),
 `tests/unit/api/sniff.test.ts` (image and GLB sniffing, Draco/Basis refusal),
 `tests/unit/design/matcher.test.ts` (only products with a model are placed),
 `tests/unit/design/colors.test.ts`, `tests/unit/design/catalogBrowser.test.ts` (own and pending
 items), `e2e/public.spec.ts` (catalogue filters through the URL). Nothing tests the own-furniture
-routes or the owner-privacy rules.
+routes (`/api/design/models`), and the product page itself is covered only through
+`canViewProductPage`.
 
 ## Known gaps
 
@@ -143,9 +176,5 @@ routes or the owner-privacy rules.
   archive drop is still an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
-- **Two reads skip the public conditions.** The product page's lookup by slug
-  (`app/(main)/catalog/[slug]/page.tsx`) checks ownership only, so a product of a pending store
-  or an inactive product is reachable by its URL; `GET /api/products/[id]` has no filter and no
-  auth, so any product — including a person's own furniture — can be read by id.
 - The product form offers no `radiator` kind, so a radiator product's kind shows as unknown
   (`?`) in the select.

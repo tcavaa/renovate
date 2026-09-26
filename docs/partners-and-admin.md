@@ -54,9 +54,11 @@ of a pending store are the new case: every public product query — `/catalog`, 
 wall, `GET /api/products`, `lib/api/designCatalog.ts`, the related products on a product
 page — joins `stores` and requires `products.storeId IS NULL OR stores.isActive` (with
 `products.isActive` and `ownerUserId IS NULL`; `publicProductCondition` in
-`app/api/products/route.ts`), so a pending store can add products without them showing. Do the
-same in any new public product query. Two reads do not yet: the product page's lookup by slug
-and `GET /api/products/[id]` ([catalog.md](catalog.md#known-gaps)).
+`lib/api/productAccess.ts`), so a pending store can add products without them showing; the
+product page and `GET /api/products/[id]` answer 404 for them to the public, while the store
+itself (through the API) and staff can still read them
+([catalog.md](catalog.md#who-sees-a-product-libapiproductaccessts)). Do the same in any new
+public product query.
 
 Admin decides on the store / worker edit page (`PartnerApproval`, `POST
 /api/stores/[id]/approval` — admin or `agent_catalog` — and `/api/workers/[id]/approval` —

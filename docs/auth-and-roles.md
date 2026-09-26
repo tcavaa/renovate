@@ -83,22 +83,21 @@ Where accounts come from: `/register` (a `user`), `/register/store` and `/regist
    - `requirePartner` — admin, `agent_orders` or a linked partner; order ownership is checked with
      `partnerOwnsOrder` (`lib/finance/orders.ts`);
    - `requireCatalogEditor` — admin, `agent_catalog` or a linked store: the product routes and
-     `POST /api/upload/model`;
+     `POST /api/upload/model`; per product, `canEditProduct` (`lib/api/productAccess.ts`) then
+     lets staff change any product and a store only its own;
    - `requireUploader` — admin, `agent_catalog` or any linked partner: `POST /api/upload`.
 
 ## Tests
 
 `tests/unit/api/lockout.test.ts` (lockout), `tests/unit/api/helpers.test.ts` (the response
 envelope, `parseId`, `requireAdmin`, `handle`, the rate limiter, `safeCallbackUrl`,
-`repriceSnapshot`), `e2e/public.spec.ts` (auth pages, callback URL safety). `lib/auth/**` and `lib/api/**`
+`repriceSnapshot`), `tests/unit/api/productAccess.test.ts` and
+`tests/integration/product-routes.test.ts` (who reads and who changes a product),
+`e2e/public.spec.ts` (auth pages, callback URL safety). `lib/auth/**` and `lib/api/**`
 are in the coverage gate ([testing.md](testing.md)).
 
 ## Known gaps
 
-- **Agents cannot edit a store's product.** `editable()` in `app/api/products/[id]/route.ts`
-  lets only `role === 'admin'` past the store check, so `agent_catalog` (who has no `storeId`)
-  gets 403 on PUT / DELETE of any product that belongs to a store, although
-  `requireCatalogEditor` admitted them. (Found by reading the code.)
 - **Social sign-in and the token (unverified — read, not run).** The `jwt` callback in
   `auth.config.ts` copies `user.id` and `user.role` from whatever the provider returned; the
   `signIn` callback in `auth.ts` creates the database row for a new Google/Facebook account but

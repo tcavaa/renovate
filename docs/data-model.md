@@ -95,9 +95,9 @@ be both.
   in `lib/design/types.ts` and `lib/calculator/types.ts` and the Zod schemas that validate them.
 - **Public product queries** must require `products.isActive`, `storeId IS NULL OR
   stores.isActive` (a pending store is inactive) and `ownerUserId IS NULL` (people's own
-  furniture). `publicProductCondition` in `app/api/products/route.ts` is the reference; the
-  catalogue page, the landing wall, related products and the design catalogue apply the same
-  conditions in their own queries ([catalog.md](catalog.md)).
+  furniture). `publicProductCondition` in `lib/api/productAccess.ts` is the reference, with the
+  per-row checks beside it; the catalogue page, the landing wall and the design catalogue still
+  write the same conditions inline ([catalog.md](catalog.md#who-sees-a-product-libapiproductaccessts)).
 - **Server code never trusts a client's prices**: saves and checkouts reprice from the catalogue
   ([project-flow.md §10](project-flow.md), [marketplace.md](marketplace.md)).
 

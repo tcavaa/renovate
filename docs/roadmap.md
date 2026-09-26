@@ -15,12 +15,8 @@ what is *not* done; what *is* done lives in the topic documents; history lives i
 Found by reading the code while the docs were verified; none has been fixed or reproduced at
 runtime yet.
 
-- Catalogue agents get 403 editing a store's product (`editable()` in
-  `app/api/products/[id]/route.ts` exempts only `admin`) — [auth-and-roles.md](auth-and-roles.md#known-gaps).
 - Social (Google/Facebook) sessions probably carry the provider's id and no role instead of the
   `users` row's — [auth-and-roles.md](auth-and-roles.md#known-gaps).
-- The product page by slug and `GET /api/products/[id]` skip the public-product conditions
-  (pending stores, inactive products, people's own furniture) — [catalog.md](catalog.md#known-gaps).
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
 - The `Deploy` workflow cannot run (`ci.yml` is not callable) and the CI coverage gate is

@@ -54,9 +54,10 @@ run it before a release tag, or against staging with `PLAYWRIGHT_BASE_URL`.
 | `tests/unit/projects/` | row helpers (`projectKind`, progress, `picksFromScene`), checkout parts | [project-flow.md](project-flow.md), [marketplace.md](marketplace.md) |
 | `tests/unit/store/` | `calculatorStore`, `designStore` | [calculator.md](calculator.md), [design-studio/studio.md](design-studio/studio.md) |
 | `tests/unit/finance/money.test.ts` | fees, commissions, grouping by store, delivery, order lines from the budget | [marketplace.md](marketplace.md) |
-| `tests/unit/api/` | route helpers (envelope, `parseId`, `requireAdmin`, `handle`, rate limiting, `safeCallbackUrl`, repricing), login lockout, upload byte sniffing | [auth-and-roles.md](auth-and-roles.md), [operations.md](operations.md) |
+| `tests/unit/api/` | route helpers (envelope, `parseId`, `requireAdmin`, `handle`, rate limiting, `safeCallbackUrl`, repricing), who sees and changes a product (`productAccess`), login lockout, upload byte sniffing | [auth-and-roles.md](auth-and-roles.md), [operations.md](operations.md) |
 | `tests/unit/i18n-scripts.test.ts` | no Cyrillic inside Georgian words in `ka.ts` | [architecture.md](architecture.md#i18n) |
 | `tests/integration/save-routes.test.ts` | both save routes and project create/rename, with the DB and session mocked: ownership, forged prices, unknown products, revision conflicts, own unconfirmed saves, racing writes, column ownership, per-room quantities, rate limiting | [project-flow.md](project-flow.md) |
+| `tests/integration/product-routes.test.ts` | `/api/products/[id]` with the DB and session mocked: who may read a hidden product, who may change one | [catalog.md](catalog.md) |
 | `e2e/public.spec.ts` | landing, health, catalogue filters via URL, workers directory redirect, 404, security headers, auth pages, callback URL safety | — |
 | `e2e/design-studio.spec.ts` | registers an account, makes a project from the design hub, then the bundled sample plan through upload → mode → board → technical → style → a furnished studio with a price → summary, and the project reopening where it was left (the brigade step is not visited; the account and project stay in the database) | [design-studio/overview.md](design-studio/overview.md) |
 

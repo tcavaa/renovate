@@ -1,28 +1,51 @@
 import { eq } from 'drizzle-orm';
+import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { products } from '@/lib/db/schema';
+import { products, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireCatalogEditor } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
+import { canEditProduct, canReadProduct, isPublicProduct, productViewer, visibilityOf } from '@/lib/api/productAccess';
+import type { UserRole } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * One product. A public one (`lib/api/productAccess`) to anybody; an inactive one, one of a
+ * store not approved yet, or a person's own furniture only to whoever may see it — staff, the
+ * product's store, the owner — and a 404 to everyone else, as if it did not exist.
+ */
 export const GET = handle('GET /api/products/[id]', 'Failed to load product', async (_req, { params }) => {
   const { id, response } = parseId(params.id);
   if (response) return response;
 
-  const rows = await db.select().from(products).where(eq(products.id, id)).limit(1);
-  if (rows.length === 0) return fail(API_ERRORS.NOT_FOUND, 404);
-  return ok(rows[0]);
+  const rows = await db
+    .select({ product: products, storeActive: stores.isActive })
+    .from(products)
+    .leftJoin(stores, eq(products.storeId, stores.id))
+    .where(eq(products.id, id))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return fail(API_ERRORS.NOT_FOUND, 404);
+  const visibility = visibilityOf(row.product, row.storeActive);
+  // Only a product the public may not see needs to know who is asking.
+  if (!isPublicProduct(visibility)) {
+    const session = await auth();
+    if (!canReadProduct(visibility, productViewer(session?.user))) return fail(API_ERRORS.NOT_FOUND, 404);
+  }
+  return ok(row.product);
 });
 
-/** The product, when the caller may edit it: admin may edit any, a store only its own. */
-async function editable(id: number, user: { role: string; storeId: number | null }) {
+/**
+ * The product, when the caller may change it (`canEditProduct`): staff whose job covers the
+ * products — admin and catalogue agents — any product, a store only its own.
+ */
+async function editable(id: number, user: { role: UserRole; storeId: number | null }) {
   const rows = await db.select({ id: products.id, storeId: products.storeId }).from(products).where(eq(products.id, id)).limit(1);
   const product = rows[0];
   if (!product) return { product: null, response: fail(API_ERRORS.NOT_FOUND, 404) };
-  if (user.role !== 'admin' && product.storeId !== user.storeId) return { product: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
+  if (!canEditProduct(product, user)) return { product: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
   return { product, response: null };
 }
 

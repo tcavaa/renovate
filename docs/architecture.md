@@ -118,7 +118,8 @@ lib/
   projects/    row ↔ client shapes, hub query, owner check, sheets, checkout parts
   finance/     marketplace money, orders, notifications, revenue report, settings
   teams/       brigade queries
-  api/         route helpers (handle, guards), rate limiting, repricing, design catalogue, rate book
+  api/         route helpers (handle, guards), rate limiting, repricing, who sees a product
+               (productAccess), design catalogue, rate book
   auth/        roles, lockout, tokens, safe callback URLs, social providers
   admin/       admin page guard, URL list state
   partner/     partner portal context
