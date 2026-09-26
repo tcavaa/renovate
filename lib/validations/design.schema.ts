@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { calculatorPicksPayloadSchema } from './project.schema';
 import { homeStateEnum, roomSplitSchema, roomTypeEnum } from './room.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
@@ -245,8 +244,24 @@ export const designSceneSchema = z.object({
   excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
   /** Quantities the person set themselves on the budget, by line key. */
   quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
-  progress: z.object({ step: z.number().int().min(1).max(8), generated: z.boolean(), planFromCalculator: z.boolean().optional() }).optional(),
+  progress: z
+    .object({
+      step: z.number().int().min(1).max(8),
+      generated: z.boolean(),
+      planFromCalculator: z.boolean().optional(),
+      at: z.number().int().min(1).max(8).nullable().optional(),
+      modeChosen: z.boolean().optional(),
+      emptyStart: z.boolean().optional(),
+    })
+    .optional(),
 });
+
+/**
+ * A plan as a project holds it while it is being drawn: a blank sheet, or walls that do not
+ * enclose a room yet, are a plan too. Versions and the checks on a finished design keep
+ * asking for rooms (`floorPlanSchema`).
+ */
+export const draftPlanSchema = floorPlanSchema.extend({ rooms: z.array(planRoomSchema).max(40) });
 
 /** A kept version of the flat: the plan and scene as they were, with a name. */
 export const designVersionSchema = z.object({
@@ -261,15 +276,21 @@ export const designVersionSchema = z.object({
 export const MAX_VERSIONS = 12;
 
 export const saveDesignSchema = z.object({
-  nameKa: z.string().min(1).max(255).default('ჩემი დიზაინი'),
-  homeState: homeStateEnum.default('green_frame'),
-  plan: floorPlanSchema,
+  /** What the studio chose itself — null for a design-only project; the calculation owns it when there is one. */
+  homeState: homeStateEnum.nullable().optional(),
+  /** A blank sheet or a plan still being drawn is saved too: the project keeps its step. */
+  plan: draftPlanSchema,
   scene: designSceneSchema,
   floorPlanUrl: z.string().max(500).nullable().optional(),
-  /** An existing project of the caller's to write into, so a calculation and a design share one row. */
-  projectId: z.number().int().positive().optional(),
-  /** The calculator's picks when the design came out of a calculation that was never saved. */
-  calculator: calculatorPicksPayloadSchema.optional(),
+  /** The caller's project this design is written into — made before its first step. */
+  projectId: z.number().int().positive(),
+  /** The design's revision this save was made from; an older one than the row's is refused (409). */
+  baseRev: z.number().int().min(0).optional(),
+  /** The person chose to keep this copy over one saved elsewhere since. */
+  force: z.boolean().optional(),
+  /** This save's id, and the previous one's when its answer never came back (`projects.design_save_id`). */
+  saveId: z.string().min(1).max(64).optional(),
+  prevSaveId: z.string().min(1).max(64).nullable().optional(),
   /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
   draft: z.boolean().optional(),
   /** The kept versions of the flat, oldest first. */

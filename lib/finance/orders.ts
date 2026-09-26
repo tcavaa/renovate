@@ -142,7 +142,7 @@ async function calculatorLinesOf(project: Project): Promise<LinesByStore | null>
  */
 async function sceneLinesOf(project: Project): Promise<LinesByStore | null> {
   if (!project.plan || !project.scene) return null;
-  const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState as HomeState });
+  const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState ?? undefined });
   return costLinesByStore(cost, await storeLookup(orderedLines(cost).map((line) => line.product.productId)));
 }
 
@@ -331,10 +331,11 @@ async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
   // no labour anybody has seen (`projectKind`). The design's budget when it was generated, else
   // the calculator's sheet when it was calculated, else nothing.
   const designReady = project.plan != null && project.scene != null && !kind.designPending;
-  const calculatorReady = !kind.calculatorPending && (project.selectedProducts != null || project.plan == null);
+  // A calculation needs its home state; a project still on its first step has none.
+  const calculatorReady = !kind.calculatorPending && project.homeState != null && (project.selectedProducts != null || project.plan == null);
   if (!designReady && !calculatorReady) return [];
   if (designReady) {
-    const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState as HomeState, book });
+    const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState ?? undefined, book });
     labour = sheetLabour(cost.lines);
   } else {
     const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;

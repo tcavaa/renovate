@@ -12,6 +12,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Box, Camera, Loader2, LogIn, Upload } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -45,6 +46,8 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
   const t = useT();
   const locale = useLocale();
   const { status } = useSession();
+  // Back to the page the dialogue was opened on (the studio of this project) once signed in.
+  const pathname = usePathname();
   const [mode, setMode] = useState<'model' | 'photo'>('model');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -161,7 +164,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
           <div className="rounded-[12px] border border-line bg-bg-base p-5 text-center">
             <p className="text-sm text-ink-muted">{t.design.ownSignIn}</p>
             <Button asChild variant="ink" className="mt-4">
-              <Link href="/login?callbackUrl=%2Fdesign%2Fstudio">
+              <Link href={`/login?callbackUrl=${encodeURIComponent(pathname)}`}>
                 <LogIn className="h-4 w-4" />
                 {t.nav.login}
               </Link>

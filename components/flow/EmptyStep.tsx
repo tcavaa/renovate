@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-/** Shown when a step is opened before the one before it was completed. */
-export function EmptyStep({ message, back, href = '/calculator' }: { message: string; back: string; href?: string }) {
+/** Shown when a step is opened before the one before it was completed; `href` is the step to go back to. */
+export function EmptyStep({ message, back, href }: { message: string; back: string; href: string }) {
   return (
     <div className="container py-24">
       <div className="mx-auto max-w-md border border-line bg-bg-surface p-10 text-center">

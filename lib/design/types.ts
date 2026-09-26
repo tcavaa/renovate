@@ -490,6 +490,12 @@ export interface DesignProgress {
   generated: boolean;
   /** The flat was drawn in the calculator: its plan steps stay shut. */
   planFromCalculator?: boolean;
+  /** The step whose page was open last — where the project reopens (`lib/flow/resume`). */
+  at?: number | null;
+  /** Step 1's "what do you need" was answered; absent on scenes from before it was saved, which had answered it. */
+  modeChosen?: boolean;
+  /** The third way in on step 1 (`designStore.emptyStart`). */
+  emptyStart?: boolean;
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */
@@ -555,7 +561,10 @@ export interface StyleDefinition {
   surfaces: {
     floor: StyleSurface;
     wall: StyleSurface;
-    /** Applied to one wall per living space, for a feature wall. */
+    /**
+     * The style's accent (industrial's brick), shown on its cards. No wall wears it by itself: a
+     * wall wears what was chosen for it, or `wall` (see `wallMaterialFor` in buildScene).
+     */
     featureWall: StyleSurface;
     ceiling: StyleSurface;
     wetFloor: StyleSurface;

@@ -1,24 +1,17 @@
 'use client';
 
 import { useEffect } from 'react';
+import { calculatorStepLabels } from '@/lib/i18n/labels';
 import { StepStrip } from '@/components/flow/StepStrip';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useT } from '@/lib/i18n/client';
 import type { CalculatorStepNumber } from '@/lib/calculator/types';
+import { CALCULATOR_STEPS, calculatorStepHref } from '@/lib/calculator/steps';
+import { useProjectId } from '@/components/projects/ProjectGate';
 
 export type CalculatorStep = CalculatorStepNumber;
 
-export const CALCULATOR_STEP_HREFS: Record<CalculatorStep, string> = {
-  1: '/calculator',
-  2: '/calculator/plan',
-  3: '/calculator/materials',
-  4: '/calculator/catalog',
-  5: '/calculator/placement',
-  6: '/calculator/furniture',
-  7: '/calculator/summary',
-};
-
-export const CALCULATOR_STEPS = 7;
+export { CALCULATOR_STEPS };
 
 /**
  * The calculator's strip, which also remembers how far the journey got so coming back picks
@@ -38,6 +31,7 @@ export const CALCULATOR_STEPS = 7;
  */
 export function StepIndicator({ current }: { current: CalculatorStep }) {
   const t = useT();
+  const projectId = useProjectId();
   const ready = useCalculatorStore((s) => s.rooms.length > 0 && s.homeState != null);
   const stored = useCalculatorStore((s) => s.step);
   const calculated = useCalculatorStore((s) => s.calculated);
@@ -47,15 +41,14 @@ export function StepIndicator({ current }: { current: CalculatorStep }) {
     if (ready && current > stored) setStep(current);
   }, [ready, stored, current, setStep]);
 
-  const labels = [t.calculator.step1, t.calculator.stepPlan, t.calculator.step2, t.calculator.step3, t.calculator.stepPlacement, t.calculator.step4, t.calculator.step5];
+  const labels = calculatorStepLabels(t);
   return (
     <StepStrip
       current={current}
       reached={ready ? stored : 0}
-      steps={labels.map((label, i) => ({ num: i + 1, label, href: CALCULATOR_STEP_HREFS[(i + 1) as CalculatorStep] }))}
+      steps={labels.map((label, i) => ({ num: i + 1, label, href: calculatorStepHref(projectId, (i + 1) as CalculatorStep) }))}
       lockedBefore={calculated ? 3 : 0}
       lockedTitle={t.flow.lockedStepCalculator}
-      kind="calculator"
     />
   );
 }

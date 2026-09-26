@@ -1,53 +1,62 @@
 'use client';
 
 /**
- * Writes the studio's current state to the server — the one place the design save is
- * assembled, so the summary's button, the autosave and a photo request all send the same
- * thing and all land in the same project row.
+ * Writes a project's 3D design to its row — the one place the design save is assembled, so the
+ * summary's button, the autosave, a photo request and the brigade booking all send the same
+ * thing into the same project. The row exists before the first step; the calculation, when the
+ * project has one, is saved by the calculator into the same row.
  *
- * Returns the project id and records it in both stores: the calculator's too, when the
- * design grew out of a calculation, so that a later calculator save updates the same row.
+ * Saves of a half go out one at a time (`enqueueSave`), each naming the revision its copy was
+ * made from (`baseRev`, kept with the content); the server refuses one made from an older
+ * revision with `ProjectChangedError`, unless `force` says the person chose to keep this copy.
+ * Each save also carries an id, and names the previous one if its answer never came back.
  */
 
-import { useCalculatorStore } from '@/store/calculatorStore';
 import { useDesignStore } from '@/store/designStore';
-import { closeAfterSave } from '@/lib/flow/workspace';
+import { activeProjectId } from '@/store/projectScope';
+import { markClean } from '@/lib/flow/projectSync';
+import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
+import type { SavedRow } from '@/lib/calculator/saveProject';
 
-export async function saveDesign(options: { draft: boolean; nameKa: string }): Promise<number> {
-  const s = useDesignStore.getState();
-  const calculator = useCalculatorStore.getState();
-  if (!s.plan || s.plan.rooms.length === 0) throw new Error('no-plan');
-  // The calculator's half travels with the design only when it is the same flat: the design
-  // grew out of this very calculation (both unsaved, or both the same project). The calculator
-  // may hold another flat altogether — a design opened from "my projects" sits beside the
-  // person's own estimate — and that must neither be written into this row nor lose its own.
-  const sameFlat = !!s.calculatorPicks && calculator.projectId === s.projectId;
-
-  const res = await fetch('/api/design/projects', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nameKa: options.nameKa,
-      homeState: s.homeState ?? (s.mode === 'full' ? 'white_frame' : 'green_frame'),
-      plan: s.plan,
-      scene: s.scene(),
-      floorPlanUrl: s.floorPlanUrl,
-      // The calculation this design grew out of is written into the same row; when it was
-      // never saved, its picks travel along so the row has both halves anyway.
-      projectId: s.projectId ?? undefined,
-      calculator:
-        sameFlat && calculator.rooms.length > 0 && calculator.homeState
-          ? { rooms: calculator.rooms, homeState: calculator.homeState, selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture, edits: { excluded: calculator.excluded, quantities: calculator.quantities, choices: calculator.choices, progress: { step: calculator.step, calculated: calculator.calculated } } }
-          : undefined,
-      draft: options.draft,
-      versions: s.versions,
-    }),
+export function saveDesign(options: { draft: boolean; projectId?: number; force?: boolean }): Promise<SavedRow> {
+  const id = options.projectId ?? activeProjectId();
+  if (id == null) return Promise.reject(new Error('no-project'));
+  // Taken now: a store let go of in the meantime (a pruned cache) still holds what is to be written.
+  const store = useDesignStore.for(id);
+  return enqueueSave('design', id, async () => {
+    const prevSaveId = store.getState().pendingSaveId;
+    const saveId = newSaveId();
+    store.setState({ pendingSaveId: saveId });
+    const s = store.getState();
+    if (s.projectId !== id) throw new Error('no-project');
+    if (!s.plan) throw new Error('no-plan');
+    const res = await fetch('/api/design/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        projectId: id,
+        baseRev: s.baseRev ?? 0,
+        saveId,
+        prevSaveId,
+        force: options.force === true,
+        // Only what the studio itself chose: the calculation owns the home state when the
+        // project has one, and a design-only project has none.
+        homeState: s.homeState,
+        plan: s.plan,
+        scene: s.scene(),
+        floorPlanUrl: s.floorPlanUrl,
+        draft: options.draft,
+        versions: s.versions,
+      }),
+    });
+    const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
+    if (res.status === 409 && json?.error === 'PROJECT_CHANGED') throw new ProjectChangedError();
+    if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');
+    // Nothing touched the design while this was being written: the server has all of it.
+    const unchanged = store.getState() === s;
+    store.setState({ baseRev: json.data.rev, pendingSaveId: null });
+    useSaveProblems.getState().report('design', id, null);
+    if (unchanged) markClean('design', id);
+    return { id: json.data.id, rev: json.data.rev };
   });
-  const json = (await res.json()) as { data: { id: number } | null; error: string | null };
-  if (!res.ok || json.error || !json.data) throw new Error(json.error ?? 'save-failed');
-
-  useDesignStore.getState().setProjectId(json.data.id);
-  if (sameFlat) useCalculatorStore.getState().setProjectId(json.data.id);
-  if (!options.draft) closeAfterSave('design', json.data.id);
-  return json.data.id;
 }

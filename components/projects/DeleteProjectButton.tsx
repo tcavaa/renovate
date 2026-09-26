@@ -6,25 +6,18 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
-import { fill } from '@/lib/admin/list';
-import { useCalculatorStore } from '@/store/calculatorStore';
-import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
+import { forgetProject } from '@/lib/flow/projectSync';
 
-async function deleteProject(id: number): Promise<string | null> {
+/**
+ * Deletes one of the caller's projects. `null` when it went, else the API's error code.
+ * The browser's caches of it go with it (`forgetProject`): they have nowhere to be saved to.
+ */
+export async function deleteProject(id: number): Promise<string | null> {
   const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-  const json = (await res.json()) as { error: string | null };
-  return res.ok ? null : json.error ?? 'UNKNOWN';
-}
-
-/** Forgets the deleted row in the browser too, or the next autosave would write into a project that is gone. */
-function forgetLocally(ids: number[]) {
-  // In both workspaces: the person's own journeys and a project opened from the profile.
-  for (const calc of [useCalculatorStore.fresh.getState(), useCalculatorStore.project.getState()]) {
-    if (calc.projectId != null && ids.includes(calc.projectId)) calc.setProjectId(null);
-  }
-  for (const board of [useCalculatorPlanStore.fresh, useCalculatorPlanStore.project, useDesignStore.fresh, useDesignStore.project].map((s) => s.getState())) {
-    if (board.projectId != null && ids.includes(board.projectId)) board.setProjectId(null);
-  }
+  const json = (await res.json().catch(() => null)) as { error: string | null } | null;
+  if (!res.ok) return json?.error ?? 'UNKNOWN';
+  forgetProject(id);
+  return null;
 }
 
 /** Deletes one project after a confirmation; the page refreshes itself. */
@@ -44,7 +37,6 @@ export function DeleteProjectButton({ projectId, size = 'sm', afterHref }: { pro
       setError(apiErrorMessage(t, failed));
       return;
     }
-    forgetLocally([projectId]);
     if (afterHref) router.push(afterHref);
     router.refresh();
   };
@@ -57,29 +49,5 @@ export function DeleteProjectButton({ projectId, size = 'sm', afterHref }: { pro
       </Button>
       {error && <span className="text-xs text-danger">{error}</span>}
     </span>
-  );
-}
-
-/** Deletes every draft in one go — what the autosave leaves behind when a visit went nowhere. */
-export function DeleteDraftsButton({ ids }: { ids: number[] }) {
-  const router = useRouter();
-  const t = useT();
-  const [busy, setBusy] = useState(false);
-  if (ids.length === 0) return null;
-
-  const remove = async () => {
-    if (!confirm(fill(t.profile.deleteDraftsConfirm, { n: ids.length }))) return;
-    setBusy(true);
-    for (const id of ids) await deleteProject(id);
-    forgetLocally(ids);
-    setBusy(false);
-    router.refresh();
-  };
-
-  return (
-    <Button type="button" variant="outline" size="lg" onClick={remove} disabled={busy}>
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-      {t.profile.deleteDrafts} ({ids.length})
-    </Button>
   );
 }

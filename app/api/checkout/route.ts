@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Places the order for a saved project: the platform fee is recorded and every store whose
- * products are in it gets an order. Guests may order a guest project; a project that
- * belongs to an account can only be ordered by that account. A project can be ordered in
- * two sittings (the calculation, then the design); each half is charged once and nothing is
- * sent to a store twice.
+ * products are in it gets an order. A project belongs to an account (it is made, named, before
+ * its first step) and only that account orders it. A project can be ordered in two sittings
+ * (the calculation, then the design); each half is charged once and nothing is sent to a
+ * store twice.
  */
 export const POST = handle('POST /api/checkout', 'Failed to place order', async (req) => {
   const limited = rateLimited(req, RATE_RULES.checkout);
@@ -26,14 +26,15 @@ export const POST = handle('POST /api/checkout', 'Failed to place order', async 
 
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
+  if (!userId) return fail(API_ERRORS.UNAUTHORIZED, 401);
 
   const rows = await db.select().from(projects).where(eq(projects.id, parsed.data.projectId)).limit(1);
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
-  if (project.userId != null && project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
+  if (project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
 
   try {
-    const result = await createCheckoutForProject(project, normaliseCustomer(parsed.data.customer), userId ?? project.userId);
+    const result = await createCheckoutForProject(project, normaliseCustomer(parsed.data.customer), userId);
     return ok(result);
   } catch (e) {
     if (e instanceof NothingToOrder) return fail(API_ERRORS.PROJECT_ALREADY_ORDERED, 409);
@@ -53,6 +54,6 @@ export const GET = handle('GET /api/checkout', 'Failed to load order state', asy
   const rows = await db.select({ userId: projects.userId }).from(projects).where(eq(projects.id, projectId)).limit(1);
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
-  if (project.userId != null && project.userId !== userId && session?.user?.role !== 'admin') return fail(API_ERRORS.FORBIDDEN, 403);
+  if (project.userId !== userId && session?.user?.role !== 'admin') return fail(API_ERRORS.FORBIDDEN, 403);
   return ok(await projectOrderState(projectId));
 });

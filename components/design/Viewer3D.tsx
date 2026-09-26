@@ -43,6 +43,7 @@ import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { tightSpotsByItem } from '@/lib/design/clearance';
 import { StyleMaterials } from '@/lib/design3d/materials';
+import { wallSideAt, type WallSide } from '@/lib/design3d/wallSide';
 import { getStyle } from '@/lib/design/styles';
 import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
@@ -659,20 +660,11 @@ function SceneContent({
   );
 
   /**
-   * Whose wall a hit on a wall is. Its room face is the room's own. Its far face — which
-   * the camera only meets from the other side — belongs to the room standing behind that
-   * stretch of it (`wallFrame.behind`), so the wall that gets painted is always the one
-   * that was looked at.
+   * Whose wall a hit on a wall is (`lib/design3d/wallSide`): the room face is the room's own,
+   * a far face the room's behind it, and the outside of the flat nobody's (null) — a brush
+   * there paints nothing, where it used to paint the room inside.
    */
-  const wallSideOf = useCallback((data: SceneUserData, point: THREE.Vector3, normal: THREE.Vector3 | null): { roomId: string; wallIndex: number | undefined } => {
-    const own = { roomId: data.roomId, wallIndex: data.wallIndex };
-    const frame = data.wallFrame;
-    if (!frame || !data.outward || !normal) return own;
-    if (normal.x * data.outward.x + normal.z * data.outward.z < 0.5) return own;
-    const s = (point.x - frame.a.x) * frame.dir.x + (point.z - frame.a.z) * frame.dir.z;
-    const behind = frame.behind.find((b) => s >= b.from - 1e-3 && s <= b.to + 1e-3);
-    return behind ? { roomId: behind.roomId, wallIndex: behind.wallIndex } : own;
-  }, []);
+  const wallSideOf = useCallback((data: SceneUserData, point: THREE.Vector3, normal: THREE.Vector3 | null): WallSide | null => wallSideAt(data, point, normal), []);
 
   /**
    * The wall face under a screen position, for hanging a piece on: the room it belongs to
@@ -684,8 +676,8 @@ function SceneContent({
       const hit = surfaceAt(clientX, clientY);
       if (!hit || hit.data.surface !== 'wall') return null;
       const side = wallSideOf(hit.data, hit.point, hit.normal);
-      const room = plan.rooms.find((r) => r.id === side.roomId);
-      if (!room || side.wallIndex == null) return null;
+      const room = side ? plan.rooms.find((r) => r.id === side.roomId) : undefined;
+      if (!side || !room || side.wallIndex == null) return null;
       return { room, wallIndex: side.wallIndex, at: { x: hit.point.x, z: hit.point.z }, y: hit.point.y };
     },
     [surfaceAt, wallSideOf, plan.rooms]
@@ -708,8 +700,8 @@ function SceneContent({
       }
       if (hit.data.surface !== 'wall') return null;
       const side = wallSideOf(hit.data, hit.point, hit.normal);
-      const room = plan.rooms.find((r) => r.id === side.roomId);
-      const edge = room && side.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === side.wallIndex) : null;
+      const room = side ? plan.rooms.find((r) => r.id === side.roomId) : undefined;
+      const edge = side && room && side.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === side.wallIndex) : null;
       if (!room || !edge) return null;
       const s = Math.max(0, Math.min(edge.length, (spot.x - edge.a.x) * edge.dir.x + (spot.z - edge.a.z) * edge.dir.z));
       const span = stripAt(edge, s);
@@ -1079,6 +1071,8 @@ function SceneContent({
       }
       if (hit.data.surface !== 'floor' && hit.data.surface !== 'wall') return;
       const side = hit.data.surface === 'wall' ? wallSideOf(hit.data, hit.point, hit.normal) : { roomId: hit.data.roomId, wallIndex: undefined };
+      // The outside of the flat is nobody's wall: nothing to choose there.
+      if (!side) return;
       surfacePressRef.current = { roomId: side.roomId, surface: hit.data.surface, wallIndex: side.wallIndex, x: event.clientX, y: event.clientY, paint };
       return;
     }

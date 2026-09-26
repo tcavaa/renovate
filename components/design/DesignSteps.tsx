@@ -3,9 +3,8 @@
 import { StepStrip } from '@/components/flow/StepStrip';
 import { useT } from '@/lib/i18n/client';
 import { useDesignStore, type StudioStep } from '@/store/designStore';
-import { DESIGN_STEP_HREFS, designStepOrder } from '@/lib/design/steps';
-
-export { DESIGN_STEP_HREFS };
+import { designStepHref, designStepOrder } from '@/lib/design/steps';
+import { useProjectId } from '@/components/projects/ProjectGate';
 
 /**
  * The eight-step journey; done steps are links back. The order is the project's own — a
@@ -15,9 +14,11 @@ export { DESIGN_STEP_HREFS };
  */
 export function DesignSteps({ current }: { current: StudioStep }) {
   const t = useT();
+  const projectId = useProjectId();
   const homeState = useDesignStore((s) => s.homeState);
   const mode = useDesignStore((s) => s.mode);
-  const generated = useDesignStore((s) => s.generated);
+  // Laid out and still with rooms: one emptied of every room is drawn again (`FlowGuard`).
+  const generated = useDesignStore((s) => s.generated && (s.plan?.rooms.length ?? 0) > 0);
   const stored = useDesignStore((s) => s.step);
   const planFromCalculator = useDesignStore((s) => s.planFromCalculator);
   const labels: Record<StudioStep, string> = {
@@ -39,5 +40,5 @@ export function DesignSteps({ current }: { current: StudioStep }) {
   // Once the flat is laid out every step after the studio exists and is open; before that, as
   // far as the journey got.
   const reached = generated ? order.length : order.indexOf(stored) + 1;
-  return <StepStrip current={order.indexOf(current) + 1} reached={reached} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: DESIGN_STEP_HREFS[step] }))} lockedBefore={lockedBefore} lockedTitle={generated ? undefined : t.flow.lockedStepPlan} kind="design" />;
+  return <StepStrip current={order.indexOf(current) + 1} reached={reached} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: designStepHref(projectId, step) }))} lockedBefore={lockedBefore} lockedTitle={generated ? undefined : t.flow.lockedStepPlan} />;
 }

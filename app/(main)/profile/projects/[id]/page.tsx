@@ -37,6 +37,9 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
   // Both journeys' sheets, priced with the current rate book so this page agrees with the
   // summaries — as they were left, and as they were worked out before anything was edited.
   const sheets = await loadProjectSheets(project, await loadRateBook(), ka, locale);
+  const input = savedProjectInput(project);
+  // The two "open" buttons are links into the project's steps and need only these.
+  const link = { id: input.id, rooms: input.rooms, hasCalculator: input.hasCalculator, hasDesign: input.hasDesign };
 
   return (
     <ProjectDetail
@@ -48,9 +51,10 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
       backLabel={ka.profile.backToProjects}
       actions={
         <>
-          <CalculateCostsButton project={savedProjectInput(project)} size="lg" />
-          <OpenIn3dButton project={savedProjectInput(project)} size="lg" />
-          <OrderProjectButton project={savedProjectInput(project)} />
+          <CalculateCostsButton project={link} size="lg" />
+          <OpenIn3dButton project={link} size="lg" />
+          {/* The kept versions play no part in an order and are the heaviest thing in the row. */}
+          <OrderProjectButton project={{ ...input, versions: [] }} />
           {project.status !== 'submitted' && <DeleteProjectButton projectId={project.id} size="default" afterHref="/profile" />}
         </>
       }

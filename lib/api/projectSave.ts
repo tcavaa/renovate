@@ -1,5 +1,5 @@
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
-import { categorySlugFromKey, isCartKey, roomIdFromKey, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, isCartKey, roomFinishQuantity, roomIdFromKey, SURFACE_OF_SLUG, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -11,8 +11,7 @@ import { loadProductPrices, repriceSnapshot } from '@/lib/api/productPrices';
  *
  * The client's prices and quantities are a preview. Every snapshot is repriced and its
  * quantity recomputed from the rooms, so nothing edited in devtools reaches the database.
- * Shared by the calculator save and the design save (a design that came out of the
- * calculator stores the calculator's picks in the same row).
+ * Used by the calculator's save.
  */
 export interface RepricedPicks {
   selectedProducts: Record<string, SelectedProduct>;
@@ -33,19 +32,34 @@ export async function repriceCalculatorPicks(
   const selectedProducts: Record<string, SelectedProduct> = {};
   for (const [key, snapshot] of Object.entries(incomingProducts)) {
     const categorySlug = snapshot.categorySlug ?? categorySlugFromKey(key);
-    // A finish chosen for one room is quantified from that room's own areas; a room that no
-    // longer exists (deleted after the pick) is dropped rather than priced for the whole flat.
+    // A room's floor or walls are counted from that room — the same function the catalogue
+    // step shows the figure with (`roomFinishQuantity`), in the catalogue's own unit and
+    // coverage for the product; a room that no longer exists (deleted after the pick) is
+    // dropped rather than priced for the whole flat.
     const roomId = roomIdFromKey(key);
     const room = roomId ? rooms.find((r) => r.id === roomId) : null;
     if (roomId && !room) continue;
-    // A material laid on the rooms by hand (the placement step) is bought at the area it
-    // was laid on — the person's own choice of where it goes, like a quantity changed on
-    // the sheet — held within what the flat could possibly take; everything else is
-    // quantified from the rooms alone.
-    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : room ? suggestedQuantityForRoom(categorySlug, room) : suggestedQuantity(categorySlug, totals);
+    const catalogue = known.get(snapshot.productId);
+    if (!catalogue) return { unknownProductId: snapshot.productId };
+    if (room) {
+      // The seeds' finish categories say which surface they are for; a category made in admin
+      // is taken at the surface the pick was made for.
+      const surface = SURFACE_OF_SLUG[categorySlug] ?? snapshot.surface ?? null;
+      const unit = catalogue.unit as SelectedProduct['unit'];
+      const qty = surface ? roomFinishQuantity({ unit, categorySlug, coveragePerUnit: catalogue.coveragePerUnit }, surface, room) : suggestedQuantityForRoom(categorySlug, room);
+      const repriced = repriceSnapshot({ ...snapshot, categorySlug, unit }, known, qty);
+      if (!repriced) return { unknownProductId: snapshot.productId };
+      selectedProducts[key] = { ...repriced, roomId: room.id, ...(surface ? { surface } : {}) };
+      continue;
+    }
+    // A material from the cart, laid on the rooms by hand on the placement step before every
+    // room took its own (no longer made; a tab left open from before can still send one), is
+    // bought at the area it was laid on, held within what the flat could possibly take;
+    // everything else is quantified from the rooms alone.
+    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : suggestedQuantity(categorySlug, totals);
     const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, qty);
     if (!repriced) return { unknownProductId: snapshot.productId };
-    selectedProducts[key] = room ? { ...repriced, roomId: room.id } : repriced;
+    selectedProducts[key] = repriced;
   }
   const selectedFurniture: Record<string, SelectedProduct[]> = {};
   for (const [roomId, list] of Object.entries(incomingFurniture)) {

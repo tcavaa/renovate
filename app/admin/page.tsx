@@ -212,7 +212,7 @@ export default async function AdminDashboardPage() {
                     <td className="px-4 py-2.5">
                       <Badge variant={r.isDesign ? 'secondary' : 'outline'}>{r.isDesign ? ka.admin.filters.designKind : ka.admin.filters.calculatorKind}</Badge>
                     </td>
-                    <td className="px-4 py-2.5 text-ink-muted">{homeStateShortLabel(ka, r.homeState)}</td>
+                    <td className="px-4 py-2.5 text-ink-muted">{r.homeState ? homeStateShortLabel(ka, r.homeState) : '—'}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{formatM2L(ka, Number(r.totalM2))}</td>
                     <td className="px-4 py-2.5 text-right tabular-nums font-medium">{r.totalCost ? formatGEL(Number(r.totalCost)) : '—'}</td>
                     <td className="px-4 py-2.5">

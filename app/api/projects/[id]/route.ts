@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { projectRenders, projects } from '@/lib/db/schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireSession } from '@/lib/api/route';
 import { storage } from '@/lib/storage';
+import { renameProjectSchema } from '@/lib/validations/project.schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,12 +18,26 @@ export const GET = handle('GET /api/projects/[id]', 'Failed to load project', as
   return ok(rows[0]);
 });
 
+/** Renames one of the caller's projects. */
+export const PATCH = handle('PATCH /api/projects/[id]', 'Failed to rename project', async (req, { params }) => {
+  const { session, response } = await requireSession();
+  if (response) return response;
+  const { id, response: bad } = parseId(params.id);
+  if (bad) return bad;
+  const parsed = renameProjectSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return fail(parsed.error.message, 400);
+  const own = and(eq(projects.id, id), eq(projects.userId, Number(session.user.id)));
+  const rows = await db.select({ id: projects.id }).from(projects).where(own).limit(1);
+  if (rows.length === 0) return fail(API_ERRORS.NOT_FOUND, 404);
+  await db.update(projects).set({ nameKa: parsed.data.name }).where(own);
+  return ok({ id, name: parsed.data.name });
+});
+
 /**
- * Deletes one of the caller's projects — a draft the autosave left behind, or a saved one
- * they no longer want. An ordered project is history that partners are working from and
+ * Deletes one of the caller's projects — one they no longer want. An ordered project is history that partners are working from and
  * stays. Admin may delete anyone's. The photos' files go with the row (the rows cascade).
  */
-export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete project', async (req, { params }) => {
+export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete project', async (_req, { params }) => {
   const { session, response } = await requireSession();
   if (response) return response;
   const { id, response: bad } = parseId(params.id);
@@ -37,9 +52,6 @@ export const DELETE = handle('DELETE /api/projects/[id]', 'Failed to delete proj
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
   if (project.status === 'submitted' && !isAdmin) return fail(API_ERRORS.PROJECT_HAS_ORDERS, 409);
-  // The browser letting go of a draft it replaced (`lib/flow/workspace`): only ever a draft,
-  // and only the caller's own — a saved or ordered project is left exactly as it is.
-  if (new URL(req.url).searchParams.get('onlyDraft') === '1' && (project.status !== 'draft' || project.userId !== Number(session.user.id))) return ok({ id, deleted: false });
 
   const renders = await db.select({ sourceUrl: projectRenders.sourceUrl, renderUrl: projectRenders.renderUrl }).from(projectRenders).where(eq(projectRenders.projectId, id));
   for (const render of renders) {

@@ -28,7 +28,9 @@ export function roomTypeLabel(t: Dictionary, type: string): string {
   return (t.rooms as unknown as AnyMap)[type] ?? type;
 }
 
-export function homeStateLabel(t: Dictionary, state: string): string {
+export function homeStateLabel(t: Dictionary, state: string | null): string {
+  // A project on its first step has not chosen one yet.
+  if (!state) return '—';
   const node = (t.homeState as unknown as Record<string, { label: string } | string>)[state];
   if (node && typeof node === 'object' && 'label' in node) return node.label;
   return state;
@@ -56,6 +58,11 @@ export function orderStatusLabel(t: Dictionary, status: string): string {
 
 export function styleLabel(t: Dictionary, styleId: string): string {
   return (t.styleNames as unknown as AnyMap)[styleId] ?? styleId;
+}
+
+/** The calculator's six steps by number, as the step strip and the hubs name them. */
+export function calculatorStepLabels(t: Dictionary): string[] {
+  return [t.calculator.step1, t.calculator.stepPlan, t.calculator.step2, t.calculator.step3, t.calculator.step4, t.calculator.step5];
 }
 
 /**

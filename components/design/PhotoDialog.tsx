@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Camera, CheckCircle2, Loader2, Lock, LogIn, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ export function PhotoDialog({
 }) {
   const t = useT();
   const { status } = useSession();
+  const pathname = usePathname();
   const [phase, setPhase] = useState<Phase>('ask');
   const [projectId, setProjectId] = useState<number | null>(null);
 
@@ -82,7 +84,8 @@ export function PhotoDialog({
     }
   };
 
-  const callback = encodeURIComponent('/design/studio');
+  // Back to this very page — the studio of this project — once signed in.
+  const callback = encodeURIComponent(pathname);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

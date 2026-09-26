@@ -25,8 +25,8 @@ export interface CalculatorEdits {
   quantities?: Quantities;
   /** Laminate or parquet, plasterboard or a stretch ceiling: which labour the estimate prices. */
   choices?: Partial<WorkChoices>;
-  /** How far the journey got — so a draft reopened from "my projects" lands where it was left. */
-  progress?: { step: number; calculated: boolean };
+  /** How far the journey got and the page last open — so it reopens where it was left (`lib/flow/resume`). */
+  progress?: { step: number; calculated: boolean; at?: number | null; steps?: number };
 }
 
 export interface CalculatorPicks {

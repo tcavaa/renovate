@@ -14,9 +14,10 @@
  * records the present before applying the change, so Ctrl+Z always has somewhere to go.
  */
 
-import { workspaceStore } from './workspace';
-import { create } from 'zustand';
+import { projectScopedStore } from './projectScope';
+import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { safeLocalStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
 import { defaultFinish, finishFromProduct } from '@/lib/design/surfaces';
@@ -137,10 +138,17 @@ interface DesignState {
   emptyStart: boolean;
   /** Set when the journey started in the calculator; the summary prices against it. */
   homeState: HomeState | null;
-  /** The saved project this design belongs to, so saving writes into the same row as the calculation. */
+  /** The project this design belongs to — the row its autosave writes into, shared with the calculation. */
   projectId: number | null;
-  /** The project this design was saved or ordered as; entering the studio again from outside its steps starts afresh (`enterFreshWorkspace`). */
-  closedProjectId: number | null;
+  /**
+   * The design's revision on the server this copy was made from (`projects.design_rev`): what a
+   * save names, so one made from an older copy than the row's is refused. It lives with the
+   * content — a tab, a reload, another tab writing the same cache all carry the revision their
+   * own copy was made from (`lib/flow/projectSync`).
+   */
+  baseRev: number | null;
+  /** A save sent and not yet confirmed: if it landed, the next save is not a conflict with itself. */
+  pendingSaveId: string | null;
   /** Counts the loads of a saved project into this store; the autosave does not write back what was just loaded (`useAutosave`). Not persisted. */
   loadSerial: number;
   /** What the user picked in the calculator, applied on top of every layout. */
@@ -202,6 +210,11 @@ interface DesignState {
    */
   planFromCalculator: boolean;
   step: StudioStep;
+  /**
+   * The step whose page was open last — where the project reopens (`lib/flow/resume`). `step`
+   * is how far the journey got; this is where the person was. Saved with the project.
+   */
+  at: StudioStep | null;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   /** Undo/redo. Not persisted. */
@@ -227,7 +240,15 @@ interface DesignActions {
   startEmpty: () => void;
   setHomeState: (homeState: HomeState) => void;
   setProjectId: (id: number | null) => void;
-  markClosed: (projectId: number) => void;
+  setAt: (step: StudioStep) => void;
+  /** The calculator's picks this design applies (re-derived from the project's calculation when it is loaded). */
+  setCalculatorPicks: (picks: CalculatorPicks | null) => void;
+  /**
+   * The calculator's drawing board as its project saved it (`projects.calculator_board`): the
+   * plan, the image it was read from, and the finishes laid on it. Only used on the board
+   * store; nothing else of a design is on a board.
+   */
+  openBoard: (input: { projectId: number; plan: FloorPlan | null; floorPlanUrl: string | null; finishes: SurfaceFinish[] }) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setStyleProfile: (profile: StyleProfile | null) => void;
   /** Puts one budget line in or out of the order; the budget and the checkout follow. */
@@ -322,24 +343,28 @@ interface DesignActions {
    */
   clearDesign: () => void;
   /**
-   * Continues a finished calculator into 3D: its rooms (the uploaded plan when there is one),
-   * its home state, and its product and furniture picks. Lands on the style step.
+   * Carries a project's calculation into its 3D design: its rooms (its drawing when it has
+   * one), its home state, and its product and furniture picks.
+   *
+   * A design the project already has is *kept* — its plan, its furniture, its fittings, its
+   * versions, however its rooms have been changed since — and the calculation's picks are put
+   * into it (`pendingPicks`, applied by the studio; a design not laid out yet applies them when
+   * it is generated). Only an empty design is laid out from the calculation, landing on the
+   * style step. Returns where to go: the studio, the style step, or wherever the design was left.
    */
   startFromCalculator: (input: {
     rooms: Room[];
     homeState: HomeState;
     selectedProducts: Record<string, SelectedProduct>;
     selectedFurniture: Record<string, SelectedProduct[]>;
-    /** The saved calculator project, so the design is written into the same row. */
-    projectId?: number | null;
+    /** The project, whose design this is. */
+    projectId: number;
     /** The calculator's own drawing, which is the one the person has just been editing. */
     plan?: FloorPlan | null;
     floorPlanUrl?: string | null;
-    /** What the calculator laid on that drawing's rooms — the floors and walls, as placed. */
-    finishes?: SurfaceFinish[];
     /** Laminate or parquet, plasterboard or a stretch ceiling, as the calculator priced them. */
     choices?: Partial<WorkChoices>;
-  }) => 'studio' | 'style';
+  }) => 'studio' | 'style' | 'resume';
   /** Puts pending calculator picks into the existing design without re-laying it out. */
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
@@ -418,6 +443,7 @@ interface DesignActions {
    * first found it, furniture and all, and the undo history starts from there.
    */
   ensureExistingVersion: (name: string) => void;
+  /** Keeps the flat as it is now, under a name. */
   saveVersion: (name: string, kind?: DesignVersion['kind']) => string;
   /** Goes back to a kept version; the present is kept as a version first so nothing is lost. */
   restoreVersion: (versionId: string, keepCurrentAs: string) => void;
@@ -437,7 +463,8 @@ const initial: DesignState = {
   emptyStart: false,
   homeState: null,
   projectId: null,
-  closedProjectId: null,
+  baseRev: null,
+  pendingSaveId: null,
   loadSerial: 0,
   calculatorPicks: null,
   styleId: 'scandinavian',
@@ -464,6 +491,7 @@ const initial: DesignState = {
   clipboard: null,
   pendingPicks: false,
   step: 1,
+  at: null,
   saveState: 'idle',
   history: emptyHistory(),
   planSerial: 0,
@@ -474,20 +502,20 @@ const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.floor
 export type DesignStore = DesignState & DesignActions;
 
 /**
- * One drawing board, made twice.
+ * One drawing board, made per project, twice.
  *
- * The Design Studio and the calculator each edit a plan, and they are not the same plan: a
- * flat someone is furnishing in 3D has nothing to do with the flat they are pricing a
- * renovation for, and finding the other one waiting was the single most confusing thing
- * about the two products sharing an engine. So the store is a factory over its localStorage
- * key, and there are two of them — `useDesignStore` for the studio, `useCalculatorPlanStore`
- * for the calculator's first step. Work crosses between them only when the person asks for
- * it: "see it in 3D" from the calculator's summary, "calculate the costs" from a design.
+ * The Design Studio and the calculator each edit a plan, and they are not the same plan: the
+ * calculator's board is the flat it prices, the studio's the flat being furnished, and work
+ * crosses between them only when the person asks for it — "see it in 3D" from the
+ * calculator's summary, "open in the calculator" from a design. So the store is a factory
+ * over its localStorage key, and each project has two of them (`store/projectScope`):
+ * `useDesignStore` for the studio, `useCalculatorPlanStore` for the calculator's board.
+ * `storageName` null makes one kept in memory only.
  */
-function createDesignStore(storageName: string) {
-  return create<DesignStore>()(
-  persist(
-    (set, get) => {
+type DesignStoreBound = UseBoundStore<StoreApi<DesignStore>>;
+
+function createDesignStore(storageName: string | null): DesignStoreBound {
+  const creator: StateCreator<DesignStore> = (set, get) => {
       /** Applies a change after recording the present, so it can be undone. */
       const commit = (recipe: (s: DesignState & DesignActions) => Partial<DesignState> | null) =>
         set((s) => {
@@ -551,7 +579,19 @@ function createDesignStore(storageName: string) {
           })),
         setHomeState: (homeState) => set({ homeState }),
         setProjectId: (projectId) => set({ projectId }),
-        markClosed: (closedProjectId) => set({ closedProjectId }),
+        setAt: (at) => set((s) => (s.at === at ? s : { at })),
+        setCalculatorPicks: (calculatorPicks) => set({ calculatorPicks }),
+        openBoard: ({ projectId, plan, floorPlanUrl, finishes }) =>
+          set((s) => ({
+            ...initial,
+            projectId,
+            plan: plan ? ensureWalls(plan) : null,
+            floorPlanUrl,
+            finishes,
+            loadSerial: s.loadSerial + 1,
+            planSerial: s.planSerial + 1,
+            history: emptyHistory(),
+          })),
 
         setStyle: (styleId, catalog) => {
           const { plan, items, budgetGel } = get();
@@ -612,8 +652,7 @@ function createDesignStore(storageName: string) {
               // A new flat has not been laid out, whatever the last one had.
               generated: false,
               planFromCalculator: false,
-              // …and a new project on the server: the next save gets its own row.
-              projectId: null,
+              // The project stays: a new plan inside a project is still that project.
               history: emptyHistory(),
               planSerial: s.planSerial + 1,
             };
@@ -627,7 +666,6 @@ function createDesignStore(storageName: string) {
         openSaved: ({ projectId = null, plan, scene, floorPlanUrl, homeState, versions = [] }) =>
           set((s) => ({
             loadSerial: s.loadSerial + 1,
-            closedProjectId: null,
             planSerial: s.planSerial + 1,
             projectId,
             pendingPicks: false,
@@ -635,8 +673,9 @@ function createDesignStore(storageName: string) {
             floorPlanUrl,
             homeState,
             mode: scene.mode,
-            modeChosen: true,
-            emptyStart: false,
+            // A scene from before these were saved had answered step 1 and had no empty start.
+            modeChosen: scene.progress?.modeChosen ?? true,
+            emptyStart: scene.progress?.emptyStart ?? false,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
             excluded: scene.excluded ?? [],
@@ -655,6 +694,7 @@ function createDesignStore(storageName: string) {
             generated: scene.progress?.generated ?? true,
             planFromCalculator: scene.progress?.planFromCalculator ?? false,
             step: (scene.progress?.step ?? 5) as StudioStep,
+            at: scene.progress?.at != null ? (Math.min(8, Math.max(1, Math.round(scene.progress.at))) as StudioStep) : null,
             history: emptyHistory(),
           })),
 
@@ -1034,13 +1074,18 @@ function createDesignStore(storageName: string) {
             carryRestore: null,
           })),
 
-        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId = null, plan: fromCalculator = null, floorPlanUrl = null, finishes: laid = [], choices }) => {
-          let landing: 'studio' | 'style' = 'style';
+        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId, plan: fromCalculator = null, floorPlanUrl = null, choices }) => {
+          let landing: 'studio' | 'style' | 'resume' = 'style';
           set((s) => {
             // A plan uploaded or drawn in the calculator keeps its real walls; rooms typed by
             // hand become a row of rectangles. Either way the calculator's types, names and
             // heights win.
             const ids = new Set(rooms.map((r) => r.id));
+            // A design the project already has is kept (below) — except the calculation's own copy,
+            // carried in and never laid out: it is rebuilt from the calculation as it is now (its
+            // plan steps are shut, so a room added in the calculator since could never reach it
+            // otherwise), keeping the technical setup made on it.
+            const onlyCalculatorCopy = s.planFromCalculator && !s.generated && s.items.length === 0;
             /** A drawing of this same flat — same rooms, drawn rather than derived. */
             const describesFlat = (p: FloorPlan | null | undefined): p is FloorPlan =>
               !!p && p.source !== 'calculator' && p.rooms.length === rooms.length && p.rooms.every((r) => ids.has(r.id));
@@ -1059,17 +1104,27 @@ function createDesignStore(storageName: string) {
             } else {
               plan = ensureWalls(planFromCalculatorRooms(rooms));
             }
+            // The technical setup made on the copy being rebuilt stays, in the rooms that stay.
+            if (onlyCalculatorCopy && s.plan?.technical) {
+              const kept = new Set(plan.rooms.map((r) => r.id));
+              plan = { ...plan, technical: { ...s.plan.technical, points: (s.plan.technical.points ?? []).filter((p) => p.roomId == null || kept.has(p.roomId)) } };
+            }
             // The calculator's floor and ceiling choices price the same works in the studio.
             if (choices && Object.keys(choices).length > 0) plan = { ...plan, technical: { ...plan.technical, points: plan.technical?.points ?? [], choices: { ...plan.technical?.choices, ...choices } } };
-            // The finishes laid on the calculator's board travel with its plan and nothing else's:
-            // laid on another drawing, their rooms would be somebody else's rooms.
-            const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture, describesFlat(fromCalculator) ? laid : []);
-            // The same project already has a design: keep it, and let the studio put the
-            // calculator's picks into it rather than laying the flat out again.
-            const keepDesign = projectId != null && s.projectId === projectId && describesFlat(s.plan) && s.items.length > 0;
-            if (keepDesign) {
-              landing = 'studio';
-              return { plan, planSerial: current === s.plan ? s.planSerial : s.planSerial + 1, projectId, mode: 'full', modeChosen: true, emptyStart: false, homeState, calculatorPicks, pendingPicks: true, focusRoomId: null, selectedItemId: null, generated: true, planFromCalculator: true, step: 5, ...(floorPlanUrl ? { floorPlanUrl } : {}) };
+            // Each room's floor and walls travel as that room's picks (`roomProducts`), with the
+            // surface each was chosen for.
+            const calculatorPicks = picksFromCalculator(selectedProducts, selectedFurniture);
+            // The project already has a design: keep it — its own plan, whatever the studio did
+            // to the walls and the rooms since, its furniture, fittings, finishes and versions —
+            // and let the calculator's picks into it rather than laying the flat out again. A
+            // design is there once it has been laid out, has rooms, or has anything in it.
+            const designExists = !onlyCalculatorCopy && s.projectId === projectId && !!s.plan && (s.generated || s.plan.rooms.length > 0 || (s.plan.walls?.length ?? 0) > 0 || s.items.length > 0);
+            if (designExists && s.plan) {
+              landing = s.generated ? 'studio' : 'resume';
+              const keptPlan = choices && Object.keys(choices).length > 0 ? { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical?.points ?? [], choices: { ...s.plan.technical?.choices, ...choices } } } : s.plan;
+              // Renovation + design now, priced against the calculation's home state; the picks
+              // wait for the studio's catalogue, or for the generation when there is none yet.
+              return { plan: keptPlan, mode: 'full', modeChosen: true, emptyStart: false, homeState, calculatorPicks, pendingPicks: s.generated };
             }
             return {
               plan,
@@ -1087,11 +1142,11 @@ function createDesignStore(storageName: string) {
               finishes: defaultFinishes(plan, s.styleId),
               focusRoomId: null,
               selectedItemId: null,
-              // A calculation carried into 3D has not been laid out yet, and the versions
-              // kept for whatever was in the studio before belong to another flat.
+              // A calculation carried into 3D has not been laid out yet. The versions stay: they
+              // are this project's (a design started over keeps what it replaced as one).
               generated: false,
               planFromCalculator: true,
-              versions: [],
+              versions: s.versions,
               step: 4,
               history: emptyHistory(),
             };
@@ -1473,19 +1528,22 @@ function createDesignStore(storageName: string) {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, finishes, electrical, styleProfile, excluded, quantities, step, generated, planFromCalculator } = get();
+          const { styleId, mode, budgetGel, finishes, electrical, styleProfile, excluded, quantities, step, generated, planFromCalculator, at, modeChosen, emptyStart } = get();
           // What rides on the pointer has not been put anywhere yet: the scene that is saved
           // and priced is the one Escape would leave.
           const items = withoutCarry(get());
           // An edit outlives nothing: one left by a piece since deleted is not saved.
           const ids = items.map((i) => i.id);
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator } };
+          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator, at, modeChosen, emptyStart } };
         },
       };
-    },
-    {
+    };
+  if (!storageName) return create<DesignStore>()(creator);
+  return create<DesignStore>()(
+    persist(creator, {
       name: storageName,
-      storage: createJSONStorage(() => localStorage),
+      // A full localStorage never breaks the page (`lib/flow/storage`).
+      storage: createJSONStorage(() => safeLocalStorage),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
       // `migrate` only runs when the version changed; a plan of the current version is
@@ -1503,8 +1561,11 @@ function createDesignStore(storageName: string) {
         emptyStart: s.emptyStart,
         homeState: s.homeState,
         projectId: s.projectId,
-        closedProjectId: s.closedProjectId,
+        baseRev: s.baseRev,
+        pendingSaveId: s.pendingSaveId,
         calculatorPicks: s.calculatorPicks,
+        // Picks waiting for the studio's catalogue survive a reload before it arrives.
+        pendingPicks: s.pendingPicks,
         styleId: s.styleId,
         styleProfile: s.styleProfile,
         excluded: s.excluded,
@@ -1521,21 +1582,21 @@ function createDesignStore(storageName: string) {
         step: s.step,
         generated: s.generated,
         planFromCalculator: s.planFromCalculator,
+        at: s.at,
       }),
-    }
-  )
-  );
+    })
+  ) as unknown as DesignStoreBound;
 }
 
-/** The Design Studio's board — the eight-step journey's plan, scene, versions and history. */
-export const useDesignStore = workspaceStore(createDesignStore('renovate-design'), createDesignStore('renovate-project-design'));
+/** The Design Studio's board — the eight-step journey's plan, scene, versions and history — one per project. */
+export const useDesignStore = projectScopedStore('renovate-design', createDesignStore);
 
 /**
- * The calculator's own board, in its own localStorage. Same machine, different flat: the
- * calculator's first step draws here and reads its rooms off it (`hooks/useCalculatorPlan`),
- * and nothing it does shows up in the studio.
+ * The calculator's own board, one per project, in its own localStorage. Same machine,
+ * different flat: the calculator's plan step draws here and reads its rooms off it
+ * (`hooks/useCalculatorPlan`), and nothing it does shows up in the studio.
  */
-export const useCalculatorPlanStore = workspaceStore(createDesignStore('renovate-calculator-plan'), createDesignStore('renovate-project-calculator-plan'));
+export const useCalculatorPlanStore = projectScopedStore('renovate-calculator-plan', createDesignStore);
 
 /** Either board, for a component that can be pointed at one (`PlanWorkspace`). */
 export type DesignStoreHook = typeof useDesignStore;
@@ -1706,7 +1767,7 @@ const persistedSchema = z.object({
     .object({
       furniture: z.array(z.object({ roomId: z.string(), productId: z.number().int() })),
       productIds: z.array(z.number().int()),
-      roomProducts: z.array(z.object({ roomId: z.string(), productId: z.number().int() })).optional(),
+      roomProducts: z.array(z.object({ roomId: z.string(), productId: z.number().int(), surface: z.enum(['floor', 'wall']).optional() })).optional(),
     })
     .nullable(),
   styleId: z.enum(['modern', 'scandinavian', 'industrial', 'vintage']),

@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { Box, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { DESIGN_HUB_HREF } from '@/lib/design/steps';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
@@ -57,7 +58,7 @@ export function MyModels({ models }: { models: OwnModelRow[] }) {
           {t.profile.myModels} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{models.length}</span>
         </h2>
         <Button asChild variant="outline" size="sm">
-          <Link href="/design/studio">
+          <Link href={DESIGN_HUB_HREF}>
             <Plus className="h-4 w-4" />
             {t.profile.addModel}
           </Link>

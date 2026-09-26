@@ -78,6 +78,27 @@
       "when": 1790170264528,
       "tag": "0010_own_products",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1790363286282,
+      "tag": "0011_projects_first",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1790364749151,
+      "tag": "0012_project_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1790379991775,
+      "tag": "0013_project_save_ids",
+      "breakpoints": true
     }
   ]
 }

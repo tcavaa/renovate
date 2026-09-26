@@ -3,7 +3,6 @@ import { Noto_Sans_Georgian, Noto_Serif_Georgian } from 'next/font/google';
 import './globals.css';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { StoreOwnerGuard } from '@/components/providers/StoreOwnerGuard';
-import { WorkspaceGuard } from '@/components/providers/WorkspaceGuard';
 import { LocaleProvider } from '@/lib/i18n/client';
 import { getLocale, getT } from '@/lib/i18n/server';
 
@@ -56,7 +55,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <LocaleProvider locale={locale} dictionary={dictionary}>
           <SessionProvider>
             <StoreOwnerGuard />
-            <WorkspaceGuard />
             {children}
           </SessionProvider>
         </LocaleProvider>
