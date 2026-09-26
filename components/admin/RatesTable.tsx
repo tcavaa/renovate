@@ -7,9 +7,13 @@
  * input, and each row saves on its own so a single price change is one click. Material rows
  * can be added (a new product line the market started selling); labour lines are fixed by
  * the engine and can only be repriced or switched off.
+ *
+ * A rate the table has no row for yet — a default shipped after the database was seeded —
+ * comes with a negative id (`ratesForAdmin`) and is marked as the default; saving it creates
+ * its row, so nothing has to be run on the server for a new rate book to be editable.
  */
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Check, Loader2, Plus, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,29 +95,32 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
   const save = async (row: RateRow) => {
     const draft = drafts[row.id];
     setSaving((s) => ({ ...s, [row.id]: 'saving' }));
+    const fields = {
+      labelKa: draft.labelKa,
+      phase: Number(draft.phase),
+      unit: draft.unit,
+      basis: row.kind === 'material' ? draft.basis : null,
+      qtyPerM2: row.kind === 'material' ? Number(draft.qtyPerM2 || 0) : null,
+      wasteFactorPct: row.kind === 'material' ? Number(draft.wasteFactorPct || 0) : null,
+      pricePerUnit: Number(draft.pricePerUnit || 0),
+      isActive: draft.isActive,
+    };
+    // A default with no row yet is created; anything else is updated in place.
+    const isDefault = row.id < 0;
     try {
-      const res = await fetch(`/api/calculator/rates/${row.id}`, {
-        method: 'PUT',
+      const res = await fetch(isDefault ? '/api/calculator/rates' : `/api/calculator/rates/${row.id}`, {
+        method: isDefault ? 'POST' : 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          labelKa: draft.labelKa,
-          phase: Number(draft.phase),
-          unit: draft.unit,
-          basis: row.kind === 'material' ? draft.basis : null,
-          qtyPerM2: row.kind === 'material' ? Number(draft.qtyPerM2 || 0) : null,
-          wasteFactorPct: row.kind === 'material' ? Number(draft.wasteFactorPct || 0) : null,
-          pricePerUnit: Number(draft.pricePerUnit || 0),
-          isActive: draft.isActive,
-        }),
+        body: JSON.stringify(isDefault ? { ...fields, kind: row.kind, key: row.key, linkedCategorySlug: row.linkedCategorySlug, sortOrder: row.sortOrder } : fields),
       });
       const json = await res.json();
       if (!res.ok || !json.data) throw new Error(json.error ?? 'save failed');
       const updated = json.data as RateRow;
       setRows((all) => all.map((r) => (r.id === row.id ? updated : r)));
-      setDrafts((d) => ({ ...d, [row.id]: toDraft(updated) }));
+      setDrafts((d) => ({ ...d, [updated.id]: toDraft(updated) }));
       invalidateRateBook();
-      setSaving((s) => ({ ...s, [row.id]: 'saved' }));
-      setTimeout(() => setSaving((s) => ({ ...s, [row.id]: undefined as never })), 1500);
+      setSaving((s) => ({ ...s, [updated.id]: 'saved' }));
+      setTimeout(() => setSaving((s) => ({ ...s, [updated.id]: undefined as never })), 1500);
     } catch {
       setSaving((s) => ({ ...s, [row.id]: 'error' }));
     }
@@ -178,8 +185,8 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
           </thead>
           <tbody>
             {phases.map(([phase, list]) => (
-              <>
-                <tr key={`p-${kind}-${phase}`} className="bg-bg-base/60">
+              <Fragment key={`p-${kind}-${phase}`}>
+                <tr className="bg-bg-base/60">
                   <td colSpan={10} className="px-3 py-1.5 text-xs font-semibold text-ink-muted">
                     {phase}. {phaseName(phase)}
                   </td>
@@ -192,7 +199,14 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                       <td className="px-3 py-1.5">
                         <Input value={d.labelKa} onChange={(e) => setField(row.id, 'labelKa', e.target.value)} className="h-8 min-w-[220px]" />
                       </td>
-                      <td className="px-3 py-1.5 font-mono text-xs text-ink-muted">{row.key}</td>
+                      <td className="px-3 py-1.5 font-mono text-xs text-ink-muted">
+                        {row.key}
+                        {row.id < 0 && (
+                          <span title={t.admin.rateDefaultTitle} className="ml-2 border border-line px-1 py-px font-sans text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                            {t.admin.rateDefaultBadge}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-3 py-1.5">
                         <Input type="number" min={0} max={20} value={d.phase} onChange={(e) => setField(row.id, 'phase', e.target.value)} className="h-8 w-16" />
                       </td>
@@ -241,7 +255,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                     </tr>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -251,7 +265,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
 
   return (
     <div className="space-y-6">
-      {rows.length === 0 && <p className="text-sm text-ink-muted">{t.admin.rateDefaultsHint}</p>}
+      {rows.some((r) => r.id < 0) && <p className="text-sm text-ink-muted">{t.admin.rateDefaultsHint}</p>}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg-surface p-3">
         <div className="relative w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RATE_BOOK, defaultRateRows, rateBookFromRows, type RateRow } from '@/lib/calculator/rates';
+import { DEFAULT_RATE_BOOK, defaultRateRows, rateBookFromRows, ratesForAdmin, type RateRow } from '@/lib/calculator/rates';
 import { MATERIAL_RATES_PER_M2, RETIRED_RATE_KEYS, WORKER_RATES } from '@/lib/calculator/constants';
 
 function row(overrides: Partial<RateRow>): RateRow {
@@ -117,5 +117,29 @@ describe('defaultRateRows', () => {
       expect(book.materials[key].qtyPerM2).toBe(rate.qtyPerM2);
       expect(book.materials[key].phase).toBe(rate.phase);
     }
+  });
+});
+
+describe('ratesForAdmin', () => {
+  it('lists every rate the estimate uses: the table’s rows, then the defaults it has no row for, never a retired one', () => {
+    const table = [
+      row({ id: 7, kind: 'labour', key: 'paint_walls', phase: 6, unit: 'm2', pricePerUnit: '36' }),
+      row({ id: 8, kind: 'labour', key: 'plastering', phase: 7, unit: 'm2', pricePerUnit: '18' }),
+    ];
+    const listed = ratesForAdmin(table);
+    // The table's own row, as it is.
+    expect(listed.find((r) => r.key === 'paint_walls')).toMatchObject({ id: 7, pricePerUnit: '36' });
+    // A retired row is not offered.
+    expect(listed.some((r) => r.key === 'plastering')).toBe(false);
+    // Every other rate of the book is there, as a default to be created on save.
+    const defaults = listed.filter((r) => r.id < 0);
+    expect(defaults).toHaveLength(defaultRateRows().length - 1);
+    expect(defaults.find((r) => r.key === 'door_install')).toMatchObject({ kind: 'labour', pricePerUnit: 150, isActive: true });
+    expect(new Set(listed.map((r) => r.id)).size).toBe(listed.length);
+    // In phase order, the strip-out first.
+    expect(listed[0].phase).toBe(0);
+    // And the book the engine reads from the table is the one admin sees.
+    const book = rateBookFromRows(table);
+    for (const rate of listed) expect(rate.kind === 'labour' ? book.labour[rate.key] : book.materials[rate.key]).toBeDefined();
   });
 });

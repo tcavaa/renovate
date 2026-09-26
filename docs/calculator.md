@@ -182,6 +182,12 @@ an error. Material lines can be added in admin (new key, phase, basis, quantity 
 labour lines are fixed keys the engine knows and can only be repriced or switched off (the
 admin UI creates material rows only; the API would accept a new labour key, which the engine
 then ignores).
+**Nothing has to be run on a server for a new rate book.** `/admin/rates` lists exactly the book
+the engine uses (`ratesForAdmin`): the table's rows, then every shipped default the table has no
+row for, marked "default" and carrying a negative id; saving one of those creates its row
+(`POST /api/calculator/rates`) instead of updating one. So a production database seeded with an
+older book is fine as it is — it prices with the new defaults at once, and admin reprices them
+there — and `pnpm db:seed:rates` is only a local tidy-up.
 **A default key the table has never heard of still counts, at its shipped rate** — a line the
 app gained after a database was seeded (the phase 0 strip-out was the first) would otherwise
 price at nothing until someone ran the seed; a row that exists but is switched off stays off,
@@ -215,7 +221,8 @@ labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the 
 phase runs (it counts every point the plan holds), to the point's own line when it does not —
 never both. The book before the team's is `RETIRED_RATE_KEYS`: `rateBookFromRows` never reads a
 row under one, the admin list and `GET /api/calculator/rates` hide them, the schema refuses
-them, and `pnpm db:seed:rates` deletes them. No new key may reuse a retired one.
+them, and `pnpm db:seed:rates` deletes them locally; left in a production table they are inert.
+No new key may reuse a retired one.
 The studio's works checklist (`WORK_ITEMS`, one per phase) keeps a legacy map
 (`normalizeWorks`) for plans saved with the old work keys. A green frame's default "already
 has" is openings, electrical, plumbing and heating (not the finishes), and every "already has"
