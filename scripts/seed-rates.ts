@@ -6,6 +6,10 @@
  *
  *   pnpm db:seed:rates
  *
+ * Optional, and never needed in production: the engine prices a default the table has no row
+ * for, and the admin rates page lists those defaults and creates a row when one is saved
+ * (`ratesForAdmin`). Retired rows are ignored wherever they are read.
+ *
  * `drizzle-kit push` is interactive and hangs in scripts, so the DDL is applied directly.
  */
 
