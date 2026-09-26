@@ -1,12 +1,13 @@
 /**
  * Costs a design scene.
  *
- * In `design_only` mode this is the furniture, the finishes the person chose and the delivery
- * charges — plus anything they added to a finished home themselves (a socket, a door). In
- * `full` mode it also folds in the calculator engine's bulk materials and labour, gated by
- * the works ticked on the technical step (or the home state when none were), and every
- * technical and electrical point the plan carries, so a user who arrived via the 3D studio
- * gets the same numbers a user who arrived via the calculator would.
+ * In `design_only` mode this is the furniture, every floor and wall the flat is shown in (the
+ * style's own products as much as the ones the person chose) and the delivery charges — plus
+ * anything they added to a finished home themselves (a socket, a door). In `full` mode it also
+ * folds in the calculator engine's bulk materials and labour, gated by the works ticked on the
+ * technical step (or the home state when none were), and every technical and electrical point
+ * the plan carries, so a user who arrived via the 3D studio gets the same numbers a user who
+ * arrived via the calculator would.
  *
  * Everything comes back twice: as totals per section for the cost bar, and as `lines` — one
  * row per material, product, point and work with its quantity, unit and price — for the
@@ -41,6 +42,7 @@ import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
 import { measureKitchens } from './kitchen';
 import { finishCoverage, type FinishCoverage } from './zones';
+import { visibleFinishes } from './finishQuantity';
 import { tickFor, tickedOff, validQuantity, type Quantities } from './ticks';
 import type {
   DesignCost,
@@ -274,11 +276,18 @@ export function priceScene(
   }
 
   // --- surface finishes ---
-  // A default finish carries no product and costs nothing; one the user picked is a real
-  // tile or paint with a price, in either mode — choosing it is asking for it.
-  // What the flat already has is left out of the budget altogether, line, basket and total.
-  const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(scene.mode === 'full' ? options.homeState : null));
-  const priced = scene.finishes.filter((f) => !have.surface(f.surface));
+  // Every floor and wall the flat is shown in is a product, in either mode and whatever
+  // condition the home is in: the style's own (`styleFinish` — the bathroom's tiles, the
+  // bedroom's laminate and paint) or one somebody chose. The design shows the flat in partner
+  // products, and those are what it buys; a surface the person means to keep is ticked off on
+  // the summary. Each is bought only where it shows: the paint under a tiled strip, the laminate
+  // under painted floor tiles, the first colour of a strip painted twice are not bought as well
+  // (`visibleFinishes`). A finish with no product (the style's look where the catalogue had
+  // nothing) costs nothing. What the flat already has is left out altogether, line, basket
+  // and total.
+  const full = scene.mode === 'full';
+  const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(full ? options.homeState : null));
+  const priced = visibleFinishes(scene.finishes, plan.rooms).filter((f) => !have.surface(f.surface));
   // Which surfaces each product lies on, for the basket's label: one tile on a bathroom's
   // floor and its walls is one line, and says both.
   const surfacesOf = new Map<number, SurfaceFinish['surface'][]>();
@@ -316,7 +325,6 @@ export function priceScene(
   // --- renovation work, when this is not a design-only project ---
   // The phases the estimate runs: the ticked works (or the home state), less whatever the
   // flat already has — a flat that is already wired is not wired again.
-  const full = scene.mode === 'full';
   const homeState = options.homeState ?? 'white_frame';
   const phases = full ? withoutExisting(effectivePhases(homeState, options.works ?? plan.technical?.works ?? null), have) : [];
   const productLabels: ProductLabels = { ...DEFAULT_PRODUCT_LABELS, ...options.productLabels };

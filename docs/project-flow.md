@@ -439,7 +439,9 @@ a design's home state or rooms. The studio prices against the calculation's home
 the same row. A renovation + design with rooms chose its home state in the studio: it opens
 calculated, on the materials step. A design-only project, or a renovation with no rooms yet,
 opens on step 1. The studio's products come along as picks (`picksFromScene`: furniture per
-room, each room's floor and walls per room) so nothing is chosen twice.
+room, each room's floor and walls per room — the style's own products the flat was generated in
+as much as chosen ones, so the estimate buys the floors and walls the design shows) so nothing
+is chosen twice.
 
 **Create / open in 3D** (the calculator summary's "ნახე ბინა 3D-ში" / "ნახე 3D-ში", a hub card,
 `OpenIn3dButton`, the design hub's "from a calculation" tile) all go to the design's entry

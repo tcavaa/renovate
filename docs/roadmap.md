@@ -45,9 +45,10 @@ runtime yet.
   ([3d-assets.md](3d-assets.md#known-gaps), [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).
 - **Editing**: draw walls and move rooms in 3D; walk-through collision is deliberately off
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
-- **Pricing accuracy**: wall heights of their own, overlaid finishes, net wall areas in the
-  calculator, a heat-loss calculation for radiators ([budget.md](budget.md#known-gaps),
-  [calculator.md](calculator.md#known-gaps)).
+- **Pricing accuracy**: wall heights of their own, net wall areas in the calculator, a
+  heat-loss calculation for radiators ([budget.md](budget.md#known-gaps),
+  [calculator.md](calculator.md#known-gaps)); the style's skirting boards and cornices as
+  products like its floors and walls ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Projects**: live updates between two tabs on one project
   ([project-flow.md §19](project-flow.md#19-known-gaps)).
 - No SMS notifications; admin has no bulk product import.

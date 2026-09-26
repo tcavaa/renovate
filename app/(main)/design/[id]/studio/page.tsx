@@ -46,7 +46,7 @@ import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
-import { surfaceOptions } from '@/lib/design/surfaces';
+import { isStyleFinish, surfaceOptions } from '@/lib/design/surfaces';
 import { isTrimSurface, trimFor, trimLengthM, trimOptions } from '@/lib/design/trims';
 import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
@@ -716,15 +716,16 @@ export default function StudioPage() {
     }
     const roomId = selectedSurface?.roomId ?? focusRoomId;
     const room = roomId ? plan.rooms.find((r) => r.id === roomId) : null;
+    // "The style's own" is a product too, where the catalogue has it: tiles in a bathroom.
     if (!room) {
-      store.setFinish(plan.rooms.map((r) => r.id), surface, product);
+      store.setFinish(plan.rooms.map((r) => r.id), surface, product, products);
       return;
     }
     if (surface === 'wall' && finishScope === 'wall' && selectedSurface?.wallIndex != null) {
       store.setWallFinish(room.id, selectedSurface.wallIndex, product);
       return;
     }
-    store.setFinish([room.id], surface, product);
+    store.setFinish([room.id], surface, product, products);
   };
 
   const inspectorActions = {
@@ -780,7 +781,11 @@ export default function StudioPage() {
   const finishRoom = plan.rooms.find((r) => r.id === (selectedSurface?.roomId ?? focusRoomId)) ?? null;
   const trimSurface = isTrimSurface(finishSurface) ? finishSurface : null;
   const finishOptions = trimSurface ? trimOptions(products, trimSurface, styleId) : surfaceOptions(products, finishSurface === 'wall' ? 'wall' : 'floor', finishRoom, styleId);
-  const baseFinishId = (roomId: string) => (trimSurface ? trimFor(finishes, roomId, trimSurface) : finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f)))?.product?.productId ?? null;
+  // The style's own finish — a product too, the one its look is — is the "style default" swatch.
+  const baseFinishId = (roomId: string) => {
+    const base = trimSurface ? trimFor(finishes, roomId, trimSurface) : finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f));
+    return base && !isStyleFinish(base) ? (base.product?.productId ?? null) : null;
+  };
   const painting = isPaintScope(finishScope);
   // The tool in hand on the 2D board, from the open category: the build tool, an armed fitting
   // or technical point, the brush — else the pointer. Its hint floats above the tray.

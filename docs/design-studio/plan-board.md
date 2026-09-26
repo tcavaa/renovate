@@ -102,8 +102,8 @@ a second wall inside the room's own.
 `moveWallNode`, `resizeWall` (a typed length; the far end and whatever meets it follow),
 `removeWall`, `updateWall` — ends in the store's `withWalls`: `rebuildRooms` (split the walls
 at every junction, re-derive the rooms, set the bounds), then the store's `reconcile`, which
-re-homes furniture whose room merged away, refits the finishes (`fitToPlan`) and re-projects
-the electrical points.
+re-homes furniture whose room merged away, refits the finishes and measures them again on
+the rooms as they now stand (`fitToPlan`, `keepChosen`) and re-projects the electrical points.
 `orphanWallSegments` are the pieces of wall that bound no room; the 3D view draws them as
 free-standing walls. Tested in `tests/unit/design/walls.test.ts`; touching rooms from an
 old calculator layout lose half a thickness on the shared wall, by design.
@@ -239,7 +239,8 @@ metres in from the corner so the first room's chain is not under the totals plat
 own edge lengths stay inside, as before. **What the rooms wear is on the board too**
 (`drawBaseFinishes`): a room's base floor finish as a fill in its product's colour, its base
 wall finish as a band along every edge, under the strips, squares and zones — only finishes
-that carry a product; the style's default is the room's ordinary paper.
+somebody chose; the style's own is the room's ordinary paper, although it is a product too
+(`isStyleFinish` — [finishes.md](finishes.md)), or a generated flat would be tinted room by room.
 
 Three things the board does *not* do, each a correction from the architect's review: it
 never recentres itself after an edit (the view refits only when a different plan arrives —

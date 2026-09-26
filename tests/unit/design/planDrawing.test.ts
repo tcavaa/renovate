@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { formatDimension, outerDimensionChains, wallEndExtensions } from '@/components/plan/draw';
+import { drawBaseFinishes, formatDimension, outerDimensionChains, wallEndExtensions } from '@/components/plan/draw';
 import { addWalls, rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
-import type { FloorPlan, Wall } from '@/lib/design/types';
+import type { FloorPlan, SceneProduct, SurfaceFinish, Wall } from '@/lib/design/types';
 
 const blankPlan = (): FloorPlan => ({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] });
 
@@ -69,5 +69,26 @@ describe('formatDimension', () => {
     expect(formatDimension(3, 'm')).toBe('3 m');
     expect(formatDimension(5.2, 'm')).toBe('5.2 m');
     expect(formatDimension(8.349, 'm')).toBe('8.35 m');
+  });
+});
+
+describe('drawBaseFinishes', () => {
+  /** A canvas that only counts what is filled. */
+  const canvas = () => {
+    const fills: string[] = [];
+    const ctx = { fillStyle: '', strokeStyle: '', globalAlpha: 1, lineWidth: 1, fill() { fills.push(String(this.fillStyle)); }, save() {}, restore() {}, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, stroke() {} };
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, fills };
+  };
+  const plan = twoRooms();
+  const product = { productId: 5, nameKa: 'ლამინატი', pricePerUnit: 20, unit: 'm2', qty: 14, totalPrice: 280, colorHex: '#6B4A32', categorySlug: 'laminate' } as SceneProduct;
+  const floor = (origin: SurfaceFinish['origin']): SurfaceFinish => ({ roomId: plan.rooms[0].id, surface: 'floor', colorHex: '#6B4A32', textureUrl: '/t.jpg', textureScaleM: 1, product, origin });
+
+  it('tints a floor somebody chose, and leaves the style’s own as the sheet’s paper though it is a product too', () => {
+    const chosen = canvas();
+    drawBaseFinishes(chosen.ctx, { scale: 50, offsetX: 0, offsetY: 0 }, plan, [floor('studio')]);
+    expect(chosen.fills).toEqual(['#6B4A32']);
+    const style = canvas();
+    drawBaseFinishes(style.ctx, { scale: 50, offsetX: 0, offsetY: 0 }, plan, [floor('style')]);
+    expect(style.fills).toEqual([]);
   });
 });
