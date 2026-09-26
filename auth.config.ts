@@ -43,7 +43,10 @@ export const authConfig = {
       const isAdminRoute = path.startsWith('/admin');
       const isPartnerRoute = path.startsWith('/partner');
       const isProfileRoute = path.startsWith('/profile');
-      if (!isAdminRoute && !isPartnerRoute && !isProfileRoute) return true;
+      // A project's steps (`/calculator/<id>/…`, `/design/<id>/…`); the hubs themselves are open,
+      // and an old step URL (`/calculator/plan`) is sent on to its hub by the proxy.
+      const isProjectRoute = /^\/(calculator|design)\/\d+(\/|$)/.test(path);
+      if (!isAdminRoute && !isPartnerRoute && !isProfileRoute && !isProjectRoute) return true;
 
       if (!auth?.user) {
         const loginUrl = new URL('/login', request.nextUrl);

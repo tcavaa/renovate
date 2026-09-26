@@ -1,20 +1,60 @@
 import type { Project } from '@/lib/db/schema';
+import { CALCULATOR_STEPS, fromSevenSteps } from '@/lib/calculator/steps';
+import { selectionKey } from '@/lib/calculator/quantities';
+import { isBaseFinish } from '@/lib/design/zones';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { DesignScene, DesignVersion, FloorPlan, SceneProduct } from '@/lib/design/types';
+import type { DesignProgress, DesignScene, DesignVersion, FloorPlan, SceneProduct, SurfaceFinish } from '@/lib/design/types';
 import type { CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import { DEFAULT_WALL_THICKNESS_M } from '@/lib/design/planGeometry';
+import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 
-/** The slice of a saved project the studio needs to reopen it. Serialisable, so a server page can pass it. */
+/**
+ * The calculator's own drawing board as a project keeps it (`projects.calculator_board`): the
+ * plan drawn or uploaded on its plan step, the image it was read from, and the finishes laid on
+ * its placement step. Not `plan` — that column is the 3D design's, and its presence is what
+ * says a project has one.
+ */
+export interface CalculatorBoard {
+  plan: FloorPlan | null;
+  floorPlanUrl: string | null;
+  finishes: SurfaceFinish[];
+}
+
+/** How far the calculator got, and the page last open (`lib/flow/resume`). */
+export interface CalculatorProgress {
+  step: number;
+  calculated: boolean;
+  at?: number | null;
+  /** Recorded in the six-step numbering (since 26 September 2026); without it the steps are the old seven (`fromSevenSteps`). */
+  steps?: number;
+}
+
+/**
+ * The whole of a project as the steps open it (`ProjectGate`) — both halves, whichever journey
+ * is being opened, because each reads the other: the calculator's summary offers the design,
+ * the design's budget orders the calculation with it. Serialisable, so a server layout can
+ * pass it.
+ */
 export interface SavedProjectInput {
   id: number;
   nameKa: string;
-  /** A draft opens in the person's own journeys; a saved or ordered project in a workspace of its own (`lib/flow/workspace`). */
   status: 'draft' | 'saved' | 'submitted';
+  /** The row's last write (ms). */
+  updatedAt: number;
+  /** Each half's revision: what a browser's cache of it is compared with, and what a save is made from (`lib/flow/projectSync`). */
+  calculatorRev: number;
+  designRev: number;
   rooms: Room[];
-  homeState: HomeState;
+  /** Null until the calculator's first step (or the design's "renovation + design") chose it. */
+  homeState: HomeState | null;
   selectedProducts: Record<string, SelectedProduct>;
   selectedFurniture: Record<string, SelectedProduct[]>;
   /** What was ticked off the calculator's summary and the quantities changed on it. */
   calculatorEdits: CalculatorEdits | null;
+  /** The calculator's drawing board, when it has saved one. */
+  calculatorBoard: CalculatorBoard | null;
+  /** The calculator has written its half (`selectedProducts IS NOT NULL`) — as opposed to a design-first project it has never opened. */
+  calculatorStarted: boolean;
   plan: FloorPlan | null;
   scene: DesignScene | null;
   floorPlanUrl: string | null;
@@ -27,20 +67,26 @@ export interface SavedProjectInput {
   /** Autosaved before it was generated. */
   designPending: boolean;
   /** Where each journey was left, for reopening it there (`calculatorProgress` / `designProgress`). */
-  calculatorProgress: { step: number; calculated: boolean };
-  designProgress: { step: number; generated: boolean; planFromCalculator?: boolean };
+  calculatorProgress: CalculatorProgress;
+  designProgress: DesignProgress;
 }
 
 export function savedProjectInput(p: Project): SavedProjectInput {
+  const board = p.calculatorBoard as Partial<CalculatorBoard> | null;
   return {
     id: p.id,
     nameKa: p.nameKa ?? '',
     status: (p.status ?? 'draft') as SavedProjectInput['status'],
+    updatedAt: new Date(p.updatedAt).getTime(),
+    calculatorRev: p.calculatorRev ?? 0,
+    designRev: p.designRev ?? 0,
     rooms: (p.rooms ?? []) as Room[],
-    homeState: p.homeState as HomeState,
+    homeState: (p.homeState as HomeState | null) ?? null,
     selectedProducts: (p.selectedProducts ?? {}) as Record<string, SelectedProduct>,
     selectedFurniture: (p.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>,
     calculatorEdits: (p.calculatorEdits as CalculatorEdits | null) ?? null,
+    calculatorBoard: board ? { plan: board.plan ?? null, floorPlanUrl: board.floorPlanUrl ?? null, finishes: board.finishes ?? [] } : null,
+    calculatorStarted: p.selectedProducts != null,
     plan: (p.plan as FloorPlan | null) ?? null,
     scene: (p.scene as DesignScene | null) ?? null,
     floorPlanUrl: p.floorPlanUrl ?? null,
@@ -91,12 +137,13 @@ export function projectKind(p: KindInput): ProjectKind {
  * are picked after the calculation), and otherwise goes back to the plan step: pressing
  * "start the calculation" again costs nothing, showing an estimate nobody asked for does.
  */
-export function calculatorProgress(p: Pick<KindInput, 'calculatorEdits' | 'status' | 'selectedProducts' | 'selectedFurniture'>): { step: number; calculated: boolean } {
+export function calculatorProgress(p: Pick<KindInput, 'calculatorEdits' | 'status' | 'selectedProducts' | 'selectedFurniture'>): CalculatorProgress {
   const recorded = (p.calculatorEdits as CalculatorEdits | null | undefined)?.progress;
-  if (recorded) return recorded;
-  if (p.status !== 'draft') return { step: 7, calculated: true };
+  // Recorded before the placement step went (seven steps, no `steps: 6`): read in today's six.
+  if (recorded) return recorded.steps === CALCULATOR_STEPS ? recorded : { ...recorded, step: fromSevenSteps(recorded.step), at: recorded.at != null ? fromSevenSteps(recorded.at) : recorded.at, steps: CALCULATOR_STEPS };
+  if (p.status !== 'draft') return { step: CALCULATOR_STEPS, calculated: true };
   const picked = Object.keys((p.selectedProducts as object | null) ?? {}).length > 0 || Object.values((p.selectedFurniture as Record<string, unknown[]> | null) ?? {}).some((list) => list.length > 0);
-  return picked ? { step: 7, calculated: true } : { step: 2, calculated: false };
+  return picked ? { step: CALCULATOR_STEPS, calculated: true } : { step: 2, calculated: false };
 }
 
 /**
@@ -104,7 +151,7 @@ export function calculatorProgress(p: Pick<KindInput, 'calculatorEdits' | 'statu
  * project was generated, and a draft was when it has furniture in it (the generation is what
  * furnishes it) — otherwise it goes back to the step before the studio.
  */
-export function designProgress(p: Pick<KindInput, 'scene' | 'status'>): { step: number; generated: boolean; planFromCalculator?: boolean } {
+export function designProgress(p: Pick<KindInput, 'scene' | 'status'>): DesignProgress {
   const scene = p.scene as DesignScene | null | undefined;
   if (scene?.progress) return scene.progress;
   if (p.status !== 'draft') return { step: 5, generated: true };
@@ -123,9 +170,11 @@ export function isDesignPending(scene: unknown): boolean {
 
 /**
  * The studio's products as the calculator's picks, for a project designed first: every placed
- * item becomes that room's furniture, the first finish of each category becomes the
- * category's material. The calculator can then adjust rather than choose again, and its
- * save writes the same products back into the row.
+ * item becomes that room's furniture, and each room's floor and walls (its whole-room finish,
+ * when it has a product) become that room's floor and wall picks — the catalogue step's own
+ * shape (`lib/calculator/roomFinishes`), counted from the room when the calculator opens it.
+ * The calculator can then adjust rather than choose again, and its save writes the same
+ * products back into the row.
  */
 export function picksFromScene(scene: DesignScene): { selectedProducts: Record<string, SelectedProduct>; selectedFurniture: Record<string, SelectedProduct[]> } {
   const toSelected = (p: SceneProduct): SelectedProduct => ({
@@ -145,15 +194,44 @@ export function picksFromScene(scene: DesignScene): { selectedProducts: Record<s
     if (!item.product) continue;
     (selectedFurniture[item.roomId] ??= []).push(toSelected(item.product));
   }
-  // The materials step keys a category's pick as `<slug>_global`; the same key here is what
-  // makes the studio's floor show as the chosen laminate there.
+  // A room's floor and walls are keyed by the room (`<slug>_room:<roomId>`), as the catalogue
+  // step keys them; tiles, strips and zones of a product say nothing about the whole room.
   const selectedProducts: Record<string, SelectedProduct> = {};
   for (const finish of scene.finishes) {
     const slug = finish.product?.categorySlug;
-    if (!finish.product || !slug) continue;
-    const key = `${slug}_global`;
-    if (selectedProducts[key]) continue;
-    selectedProducts[key] = toSelected(finish.product);
+    if (!finish.product || !slug || (finish.surface !== 'floor' && finish.surface !== 'wall') || !isBaseFinish(finish)) continue;
+    selectedProducts[selectionKey(slug, finish.roomId)] = {
+      ...toSelected(finish.product),
+      roomId: finish.roomId,
+      surface: finish.surface,
+      slug: finish.product.slug || undefined,
+      textureUrl: finish.textureUrl,
+      colorHex: finish.colorHex,
+    };
   }
   return { selectedProducts, selectedFurniture };
+}
+
+/**
+ * The blank sheet a new design project starts on (`POST /api/projects/create`): no rooms, no
+ * walls. `plan IS NOT NULL` is what lists a project in the design hub, so a design project has
+ * one from the moment it is named; step 1 replaces it with the uploaded plan or keeps it to
+ * draw on.
+ */
+export function emptyPlan(): FloorPlan {
+  return { rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', imageUrl: null, wallThicknessM: DEFAULT_WALL_THICKNESS_M, wallHeightM: DEFAULT_WALL_HEIGHT_M, walls: [] };
+}
+
+/** The scene of a design project that has not left its first step: nothing in it, nothing answered. */
+export function emptyScene(): DesignScene {
+  return {
+    styleId: 'scandinavian',
+    mode: 'design_only',
+    budgetGel: null,
+    items: [],
+    finishes: [],
+    electrical: [],
+    styleProfile: null,
+    progress: { step: 1, generated: false, planFromCalculator: false, at: 1, modeChosen: false, emptyStart: false },
+  };
 }

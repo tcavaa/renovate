@@ -3,10 +3,8 @@
 import Link from 'next/link';
 import { Check, FolderOpen, Lock } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import { StartOverButton } from '@/components/flow/StartOverButton';
-import type { FlowKind } from '@/lib/flow/reset';
 import { cn } from '@/lib/utils';
-import { useWorkspace } from '@/store/workspace';
+import { useOptionalProjectMeta } from '@/components/projects/ProjectGate';
 
 export interface FlowStep {
   num: number;
@@ -18,16 +16,14 @@ export interface FlowStep {
  * The journey as an editorial index: numbered cells under the header, hairline above and
  * below, the current one underscored in ink. Done steps are links back; upcoming ones are
  * faded and inert; steps before `lockedBefore` are shut with a padlock — the 3D design has
- * been made and the things that fed it cannot be changed under it any more. "Start again"
- * sits at the end, because closing a step has to leave a way out of it.
+ * been made and the things that fed it cannot be changed under it any more. The project the
+ * steps belong to sits at the end. There is no "start again": a new start is a new project.
  *
  * Shared by the calculator and the design studio, which shut a step for different reasons —
  * hence `lockedTitle`; the default says it was the 3D design.
  */
-export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, kind, lockedTitle }: { steps: FlowStep[]; current: number; /** The furthest step the journey has got to: every step up to it is a link, ahead of the page as well as behind it. */ reached?: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Which journey "start again" empties. */ kind?: FlowKind; /** Why those steps are shut. */ lockedTitle?: string }) {
+export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, lockedTitle }: { steps: FlowStep[]; current: number; /** The furthest step the journey has got to: every step up to it is a link, ahead of the page as well as behind it. */ reached?: number; /** Steps numbered below this are closed. */ lockedBefore?: number; /** Why those steps are shut. */ lockedTitle?: string }) {
   const t = useT();
-  // An opened project is not started over: the header's calculator and design are the fresh start.
-  const inProject = useWorkspace((w) => w.kind === 'project' && w.project != null);
   const furthest = Math.max(current, reached);
   return (
     <nav aria-label="steps" className="border-b border-line bg-bg-base">
@@ -90,20 +86,16 @@ export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, kind,
           );
         })}
       </ol>
-      {kind && !inProject && <StartOverButton kind={kind} className="self-center" />}
-      {inProject && <OpenedProjectChip />}
+      <OpenedProjectChip />
       </div>
     </nav>
   );
 }
 
-/**
- * Says that the steps are showing a project opened from "my projects" — which is why the
- * header's calculator and design show the person's own work instead — and leads back to it.
- */
+/** Names the project the steps belong to, with where it stands, and leads to its page. */
 function OpenedProjectChip() {
   const t = useT();
-  const project = useWorkspace((w) => w.project);
+  const project = useOptionalProjectMeta();
   if (!project) return null;
   const status = project.status === 'submitted' ? t.status.submitted : project.status === 'saved' ? t.status.saved : t.status.draft;
   return (

@@ -31,7 +31,7 @@ export function OrderProjectButton({ project, size = 'lg', className }: { projec
     if (project.hasDesign && !project.designPending && project.plan && project.scene) {
       // The row as saved, priced as the server will price it — its scene, its ticks, its
       // home state — so the dialogue lists the product lines the stores will be sent.
-      const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState, locale }), fees.designFeePerM2, locale);
+      const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState ?? undefined, locale }), fees.designFeePerM2, locale);
       if (design) list.push(design);
     }
     return list;

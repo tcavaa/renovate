@@ -270,12 +270,132 @@
       "namedRegex": "^/api/workers/(?<nxtPid>[^/]+?)/approval(?:/)?$"
     },
     {
+      "page": "/calculator/[id]",
+      "regex": "^/calculator/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/catalog",
+      "regex": "^/calculator/([^/]+?)/catalog(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/catalog(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/furniture",
+      "regex": "^/calculator/([^/]+?)/furniture(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/furniture(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/materials",
+      "regex": "^/calculator/([^/]+?)/materials(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/materials(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/plan",
+      "regex": "^/calculator/([^/]+?)/plan(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/plan(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/start",
+      "regex": "^/calculator/([^/]+?)/start(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/start(?:/)?$"
+    },
+    {
+      "page": "/calculator/[id]/summary",
+      "regex": "^/calculator/([^/]+?)/summary(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/calculator/(?<nxtPid>[^/]+?)/summary(?:/)?$"
+    },
+    {
       "page": "/catalog/[slug]",
       "regex": "^/catalog/([^/]+?)(?:/)?$",
       "routeKeys": {
         "nxtPslug": "nxtPslug"
       },
       "namedRegex": "^/catalog/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/design/[id]",
+      "regex": "^/design/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/plan",
+      "regex": "^/design/([^/]+?)/plan(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/plan(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/start",
+      "regex": "^/design/([^/]+?)/start(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/start(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/studio",
+      "regex": "^/design/([^/]+?)/studio(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/studio(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/style",
+      "regex": "^/design/([^/]+?)/style(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/style(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/summary",
+      "regex": "^/design/([^/]+?)/summary(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/summary(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/technical",
+      "regex": "^/design/([^/]+?)/technical(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/technical(?:/)?$"
+    },
+    {
+      "page": "/design/[id]/workers",
+      "regex": "^/design/([^/]+?)/workers(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/design/(?<nxtPid>[^/]+?)/workers(?:/)?$"
     },
     {
       "page": "/partner/orders/[id]",
@@ -572,6 +692,12 @@
       "namedRegex": "^/api/projects(?:/)?$"
     },
     {
+      "page": "/api/projects/create",
+      "regex": "^/api/projects/create(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/projects/create(?:/)?$"
+    },
+    {
       "page": "/api/settings",
       "regex": "^/api/settings(?:/)?$",
       "routeKeys": {},
@@ -614,42 +740,6 @@
       "namedRegex": "^/calculator(?:/)?$"
     },
     {
-      "page": "/calculator/catalog",
-      "regex": "^/calculator/catalog(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/catalog(?:/)?$"
-    },
-    {
-      "page": "/calculator/furniture",
-      "regex": "^/calculator/furniture(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/furniture(?:/)?$"
-    },
-    {
-      "page": "/calculator/materials",
-      "regex": "^/calculator/materials(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/materials(?:/)?$"
-    },
-    {
-      "page": "/calculator/placement",
-      "regex": "^/calculator/placement(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/placement(?:/)?$"
-    },
-    {
-      "page": "/calculator/plan",
-      "regex": "^/calculator/plan(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/plan(?:/)?$"
-    },
-    {
-      "page": "/calculator/summary",
-      "regex": "^/calculator/summary(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/calculator/summary(?:/)?$"
-    },
-    {
       "page": "/catalog",
       "regex": "^/catalog(?:/)?$",
       "routeKeys": {},
@@ -666,42 +756,6 @@
       "regex": "^/design(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/design(?:/)?$"
-    },
-    {
-      "page": "/design/plan",
-      "regex": "^/design/plan(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/plan(?:/)?$"
-    },
-    {
-      "page": "/design/studio",
-      "regex": "^/design/studio(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/studio(?:/)?$"
-    },
-    {
-      "page": "/design/style",
-      "regex": "^/design/style(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/style(?:/)?$"
-    },
-    {
-      "page": "/design/summary",
-      "regex": "^/design/summary(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/summary(?:/)?$"
-    },
-    {
-      "page": "/design/technical",
-      "regex": "^/design/technical(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/technical(?:/)?$"
-    },
-    {
-      "page": "/design/workers",
-      "regex": "^/design/workers(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/design/workers(?:/)?$"
     },
     {
       "page": "/forgot-password",

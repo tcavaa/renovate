@@ -95,13 +95,13 @@ export interface SelectedProduct {
   totalPrice: number;
   imageUrl: string | null;
   categorySlug?: string;
-  /** Set when the product was chosen for one room (a finish), not for the whole flat. */
+  /** Set when the product was chosen for one room (its floor or its walls), not for the whole flat. */
   roomId?: string;
   /**
-   * A floor or wall material put in the cart to be laid on the rooms on the placement step:
-   * which surface it is for, and what the board needs to show and price it — the texture,
-   * the colour, the coverage of one unit and the surface specs — carried from the catalogue
-   * row so the placement works from the browser's own store, catalogue or no catalogue.
+   * A floor or wall material (`lib/calculator/roomFinishes`): which surface of its room it
+   * covers, and what the drawing board and the 3D studio need to show it — the texture, the
+   * colour, the coverage of one unit and the surface specs — carried from the catalogue row,
+   * so neither has to fetch the catalogue to draw it.
    */
   surface?: 'floor' | 'wall';
   slug?: string;
@@ -117,8 +117,8 @@ export interface SelectedProduct {
   excluded?: boolean;
 }
 
-/** The calculator's steps: the plan, the materials, the cart, the placement of finishes, the furniture, the summary. */
-export type CalculatorStepNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+/** The calculator's steps: the way in, the plan, the materials, the catalogue (each room's floor and walls, and the rest), the furniture, the summary. */
+export type CalculatorStepNumber = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface CalculatorState {
   homeState: HomeState | null;

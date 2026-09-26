@@ -34,7 +34,7 @@ export const GET = handle('GET /api/bookings', 'Failed to load bookings', async 
 /**
  * Books a worker for one trade, or a brigade for the whole job. With a `projectId` the
  * booking carries that project's labour estimate as its lines (the project must be the
- * caller's, or a guest project); without one it is a request the partner prices.
+ * caller's own); without one it is a request the partner prices.
  */
 export const POST = handle('POST /api/bookings', 'Failed to book', async (req) => {
   const limited = rateLimited(req, RATE_RULES.checkout);
@@ -59,7 +59,7 @@ export const POST = handle('POST /api/bookings', 'Failed to book', async (req) =
     const rows = await db.select().from(projects).where(eq(projects.id, parsed.data.projectId)).limit(1);
     project = rows[0] ?? null;
     if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
-    if (project.userId != null && project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
+    if (!userId || project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
   }
 
   const customer = normaliseCustomer(parsed.data.customer);

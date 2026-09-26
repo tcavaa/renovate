@@ -216,9 +216,8 @@ function buildRoomShell(
 
   // --- walls ---
   if (options.showWalls !== false) {
-    // A feature wall on the longest run gives each room one moment of contrast, which is
-    // what the four styles are actually about.
-    const featureIndex = pickFeatureWall(room, edges);
+    // No wall is given an accent of its own: a brick wall nobody chose looked like paint gone
+    // astray, and was priced nowhere. A wall wears what was chosen for it, or the style's.
     const cut = materials.metreSurface({ colorHex: WALL_CUT_COLOR, roughness: 0.9 });
     const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
     // How high each side of the room stands: the wall's own height when it was given one in
@@ -239,7 +238,7 @@ function buildRoomShell(
       // One material slot per look: the wall's own finish, the cut, then whatever the far
       // faces and the painted strips need. See `lib/design3d/wallGeometry`.
       const slots: THREE.Material[] = [];
-      slots[WALL_SLOT_BASE] = wallMaterialFor(room, edge, featureIndex, finishes, style, materials);
+      slots[WALL_SLOT_BASE] = wallMaterialFor(room, edge, finishes, style, materials);
       slots[WALL_SLOT_CAP] = cut;
       const slotOf = (material: THREE.Material): number => {
         const found = slots.indexOf(material);
@@ -256,7 +255,7 @@ function buildRoomShell(
         const neighbourEdge = neighbour ? roomEdges(neighbour.polygon).find((e) => e.index === piece.neighbour!.wallIndex) : undefined;
         if (!neighbour || !neighbourEdge) return WALL_SLOT_CAP;
         behind.push({ from: piece.from, to: piece.to, roomId: neighbour.id, wallIndex: neighbourEdge.index });
-        return slotOf(wallMaterialFor(neighbour, neighbourEdge, pickFeatureWall(neighbour, roomEdges(neighbour.polygon)), finishes, style, materials));
+        return slotOf(wallMaterialFor(neighbour, neighbourEdge, finishes, style, materials));
       });
 
       // What somebody painted on this wall on their own: metre-wide strips floor to
@@ -325,19 +324,19 @@ function buildRoomShell(
 }
 
 /**
- * The finish a room's wall wears: a wet room's tiles, the feature wall's accent, the room's
- * paper — or the finish the person gave this one wall. Also the face a neighbour's half of
- * a shared wall shows into this room. Tiled by the metre, like every surface.
+ * The finish a room's wall wears: the finish the person gave this one wall, else the room's,
+ * else the style's — a wet room's tiles, everybody else's paper. Also the face a neighbour's
+ * half of a shared wall shows into this room. Tiled by the metre, like every surface.
+ *
+ * The style's `featureWall` (industrial's brick) is not put on any wall by itself any more: it
+ * stood on the longest clear wall of every dry room with no product behind it — drawn but not
+ * priced, not on the 2D board, and impossible to erase, since "the style's default" fell back
+ * to it — and people took it for paint that had gone astray. It stays on the style cards.
  */
-function wallMaterialFor(room: PlanRoom, edge: PlanEdge, featureIndex: number, finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Material {
+function wallMaterialFor(room: PlanRoom, edge: PlanEdge, finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Material {
   const isWet = WET_ROOM_TYPES.includes(room.type);
-  const wallFinish = findFinish(finishes, room.id, 'wall');
-  const isFeature = edge.index === featureIndex && !isWet;
-  // This wall's own finish, if the person gave it one; the room's otherwise.
-  const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? wallFinish;
-  const ownFinish = edgeFinish !== wallFinish;
-  const spec = isWet ? style.surfaces.wetWall : isFeature ? style.surfaces.featureWall : style.surfaces.wall;
-  return materials.metreSurface(spec, isFeature && !edgeFinish?.product && !ownFinish ? {} : finishOverrides(edgeFinish));
+  const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? findFinish(finishes, room.id, 'wall');
+  return materials.metreSurface(isWet ? style.surfaces.wetWall : style.surfaces.wall, finishOverrides(edgeFinish));
 }
 
 /**
@@ -557,16 +556,6 @@ function attachOpeningModel(group: THREE.Group, url: string, ctx: { edge: PlanEd
       }
     })
     .catch((error: unknown) => console.warn(`[studio] opening model failed to load: ${url}`, error));
-}
-
-/** The longest wall with no opening on it — or just the longest, if every wall has one. */
-function pickFeatureWall(room: PlanRoom, edges: PlanEdge[]): number {
-  const clear = edges.filter((e) => !room.openings.some((o) => o.wallIndex === e.index));
-  const pool = clear.length > 0 ? clear : edges;
-  return pool.reduce(
-    (best, e) => (e.length > (edges[best]?.length ?? 0) ? e.index : best),
-    pool[0]?.index ?? 0
-  );
 }
 
 /**

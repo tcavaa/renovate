@@ -22,10 +22,13 @@ async function main() {
   const maxAgeMs = Number(process.env.MAX_AGE_HOURS ?? 24) * 60 * 60_000;
   const cutoff = Date.now() - maxAgeMs;
 
-  const rows = await db.select({ floorPlanUrl: projects.floorPlanUrl, plan: projects.plan }).from(projects);
+  const rows = await db.select({ floorPlanUrl: projects.floorPlanUrl, plan: projects.plan, calculatorBoard: projects.calculatorBoard, versions: projects.versions }).from(projects);
   const referenced = new Set<string>();
   for (const row of rows) {
-    const urls = [row.floorPlanUrl, (row.plan as { imageUrl?: string | null } | null)?.imageUrl];
+    // The design's plan, the calculator's own board (its image and its plan's), and every kept version's plan.
+    const board = row.calculatorBoard as { floorPlanUrl?: string | null; plan?: { imageUrl?: string | null } | null } | null;
+    const versions = Array.isArray(row.versions) ? (row.versions as Array<{ plan?: { imageUrl?: string | null } | null }>) : [];
+    const urls = [row.floorPlanUrl, (row.plan as { imageUrl?: string | null } | null)?.imageUrl, board?.floorPlanUrl, board?.plan?.imageUrl, ...versions.map((v) => v.plan?.imageUrl)];
     for (const url of urls) {
       if (!url) continue;
       const key = storage.keyFor(url);

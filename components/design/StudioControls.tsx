@@ -77,7 +77,7 @@ export function ViewSwitch({
         second generation would sweep all of it away. Emptying the flat deliberately is what
         is left, and version 01 is always there to go back to.
       */}
-      <IconButton label={t.build.fromScratch} onClick={onClear}>
+      <IconButton label={t.build.emptyRooms} onClick={onClear}>
         <Eraser className="h-4 w-4" />
       </IconButton>
       <div className="glass flex p-1" role="radiogroup" aria-label={t.design.daylight}>

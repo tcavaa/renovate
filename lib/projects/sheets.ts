@@ -64,7 +64,8 @@ async function storesOf(productIds: number[]): Promise<Map<number, SceneStore>> 
 
 export async function loadProjectSheets(project: Project, book: RateBook, t: Dictionary, locale: Locale): Promise<ProjectSheets> {
   const rooms = (project.rooms ?? []) as Room[];
-  const homeState = project.homeState as HomeState;
+  // Null on a project still on its first step: no calculation to show, and a design prices without one.
+  const homeState = (project.homeState ?? undefined) as HomeState | undefined;
   const hasDesign = project.plan != null && project.scene != null;
   // A half left before it was calculated or generated has no figures to show.
   const kind = projectKind(project);
@@ -73,7 +74,7 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
   // first also "has a calculation" (it priced works against a home state), but its materials
   // and labour are the design sheet's — shown there, not twice.
   let calculator: CalculatorSheet | null = null;
-  if ((project.selectedProducts != null || !hasDesign) && !kind.calculatorPending) {
+  if ((project.selectedProducts != null || !hasDesign) && !kind.calculatorPending && homeState) {
     const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
     const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
     const picks = [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()];

@@ -1,7 +1,6 @@
 import { z } from 'zod';
-import { calculatorRequestSchema } from './room.schema';
 
-const selectedProductSchema = z.object({
+export const selectedProductSchema = z.object({
   productId: z.number().int(),
   nameKa: z.string(),
   nameEn: z.string().nullable().optional(),
@@ -34,27 +33,20 @@ export const calculatorEditsSchema = z.object({
   excluded: z.array(z.union([z.number().int().positive(), z.string().min(3).max(96)])).max(1200).optional(),
   quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
   choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
-  progress: z.object({ step: z.number().int().min(1).max(7), calculated: z.boolean() }).optional(),
+  progress: z
+    .object({ step: z.number().int().min(1).max(7), calculated: z.boolean(), at: z.number().int().min(1).max(7).nullable().optional(), steps: z.number().int().min(1).max(12).optional() })
+    .optional(),
 });
 
-export const saveProjectSchema = calculatorRequestSchema.extend({
-  nameKa: z.string().min(1).max(255).default('ჩემი პროექტი'),
-  selectedProducts: z.record(selectedProductSchema).default({}),
-  selectedFurniture: z.record(z.array(selectedProductSchema)).default({}),
-  edits: calculatorEditsSchema.optional(),
-  /** An existing project of the caller's to write into, so a calculation and a design share one row. */
-  projectId: z.number().int().positive().optional(),
-  /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
-  draft: z.boolean().optional(),
+/** A project's name, as the person typed it. */
+export const projectNameSchema = z.string().trim().min(1).max(120);
+
+/** "New project": a name, and which product it starts in (`POST /api/projects/create`). */
+export const createProjectSchema = z.object({
+  name: projectNameSchema,
+  journey: z.enum(['calculator', 'design']),
 });
 
-/** The calculator's half of a project, as a design save carries it along. */
-export const calculatorPicksPayloadSchema = calculatorRequestSchema.extend({
-  selectedProducts: z.record(selectedProductSchema).default({}),
-  selectedFurniture: z.record(z.array(selectedProductSchema)).default({}),
-  edits: calculatorEditsSchema.optional(),
-});
+export const renameProjectSchema = z.object({ name: projectNameSchema });
 
-export type CalculatorPicksPayload = z.infer<typeof calculatorPicksPayloadSchema>;
-
-export type SaveProjectInput = z.infer<typeof saveProjectSchema>;
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;

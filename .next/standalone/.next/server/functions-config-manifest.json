@@ -19,6 +19,14 @@
         {
           "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/workers(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))?(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
           "originalSource": "/workers/:path*"
+        },
+        {
+          "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/calculator(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
+          "originalSource": "/calculator/:path+"
+        },
+        {
+          "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?\\/design(?:\\/((?:[^\\/#\\?]+?)(?:\\/(?:[^\\/#\\?]+?))*))(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$",
+          "originalSource": "/design/:path+"
         }
       ]
     },
@@ -50,6 +58,7 @@
     "/api/products/[id]": {},
     "/api/projects": {},
     "/api/projects/[id]": {},
+    "/api/projects/create": {},
     "/api/settings": {},
     "/api/stores": {},
     "/api/stores/[id]": {},

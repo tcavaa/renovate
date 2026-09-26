@@ -42,43 +42,49 @@
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
       "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
     ],
-    "[project]/app/(main)/calculator/catalog/page": [
+    "[project]/app/(main)/calculator/[id]/catalog/page": [
       "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
       "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
       "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
     ],
-    "[project]/app/(main)/calculator/furniture/page": [
+    "[project]/app/(main)/calculator/[id]/furniture/page": [
       "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
       "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
       "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
     ],
-    "[project]/app/(main)/calculator/materials/page": [
+    "[project]/app/(main)/calculator/[id]/materials/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/calculator/[id]/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/calculator/[id]/plan/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/calculator/[id]/start/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/calculator/[id]/summary/page": [
       "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
       "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
       "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
     ],
     "[project]/app/(main)/calculator/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/calculator/placement/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/calculator/plan/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/calculator/summary/page": [
       "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
       "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
@@ -102,43 +108,55 @@
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
       "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
     ],
+    "[project]/app/(main)/design/[id]/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/plan/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/start/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/studio/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/style/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/summary/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/technical/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
+    "[project]/app/(main)/design/[id]/workers/page": [
+      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
+      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
+      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
+      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
+    ],
     "[project]/app/(main)/design/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/plan/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/studio/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/style/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/summary/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/technical/page": [
-      "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
-      "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
-      "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",
-      "static/media/734857d55e2089f8-s.p.3fr6qaig22drb.woff2"
-    ],
-    "[project]/app/(main)/design/workers/page": [
       "static/media/9a4536d8acff75fc-s.p.05m5z8ok51pb_.woff2",
       "static/media/3b5957ec9710f119-s.p.0yep9bdaefzzl.woff2",
       "static/media/3923fe54496565b7-s.p.05x-t6u6cm6_s.woff2",

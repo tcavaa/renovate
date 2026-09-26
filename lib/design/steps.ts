@@ -20,17 +20,56 @@ import type { HomeState } from '@/lib/calculator/types';
 import type { DesignMode } from '@/lib/design/types';
 import type { StudioStep } from '@/store/designStore';
 
-/** Where each step lives. Steps 5 and 6 are the same studio page with a different tool. */
-export const DESIGN_STEP_HREFS: Record<StudioStep, string> = {
-  1: '/design',
-  2: '/design/plan',
-  3: '/design/technical',
-  4: '/design/style',
-  5: '/design/studio',
-  6: '/design/studio?tool=finishes',
-  7: '/design/summary',
-  8: '/design/workers',
+/** The hub: the design's intro and the person's projects. */
+export const DESIGN_HUB_HREF = '/design';
+
+/** Where each step lives inside a project (`/design/<id>/<path>`). Steps 5 and 6 are the same studio page with a different tool. */
+export const DESIGN_STEP_PATHS: Record<StudioStep, string> = {
+  1: 'start',
+  2: 'plan',
+  3: 'technical',
+  4: 'style',
+  5: 'studio',
+  6: 'studio?tool=finishes',
+  7: 'summary',
+  8: 'workers',
 };
+
+export function designStepHref(projectId: number, step: StudioStep): string {
+  return `/design/${projectId}/${DESIGN_STEP_PATHS[step]}`;
+}
+
+/**
+ * The way into a project's design: it opens where the person left it (`lib/flow/resume`).
+ * `from=calculator` carries the calculator's latest picks into it (`startFromCalculator`).
+ */
+export function designEntryHref(projectId: number, from?: 'calculator'): string {
+  return from ? `/design/${projectId}?from=${from}` : `/design/${projectId}`;
+}
+
+/** Which step a design URL is, or null for anything else (the hub, the entry). */
+export function designStepFromPath(pathname: string, tool?: string | null): StudioStep | null {
+  const match = /^\/design\/\d+\/([a-z]+)\/?$/.exec(pathname);
+  if (!match) return null;
+  switch (match[1]) {
+    case 'start':
+      return 1;
+    case 'plan':
+      return 2;
+    case 'technical':
+      return 3;
+    case 'style':
+      return 4;
+    case 'studio':
+      return tool === 'finishes' ? 6 : 5;
+    case 'summary':
+      return 7;
+    case 'workers':
+      return 8;
+    default:
+      return null;
+  }
+}
 
 /** The technical setup is recorded, not planned: the home is already finished. */
 export function technicalComesFirst(homeState: HomeState | null | undefined, mode: DesignMode): boolean {
@@ -58,12 +97,12 @@ export function previousStep(step: StudioStep, homeState: HomeState | null | und
 }
 
 /** The href of the step after this one, or the budget when there is none left. */
-export function nextStepHref(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): string {
+export function nextStepHref(projectId: number, step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): string {
   const next = nextStep(step, homeState, mode);
-  return DESIGN_STEP_HREFS[next ?? 7];
+  return designStepHref(projectId, next ?? 7);
 }
 
-export function previousStepHref(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): string {
+export function previousStepHref(projectId: number, step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): string {
   const previous = previousStep(step, homeState, mode);
-  return DESIGN_STEP_HREFS[previous ?? 1];
+  return designStepHref(projectId, previous ?? 1);
 }

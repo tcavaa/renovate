@@ -144,7 +144,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
                 </span>
               </td>
               <td className="px-4 py-2.5">
-                <Badge>{homeStateShortLabel(ka, r.homeState)}</Badge>
+                {r.homeState ? <Badge>{homeStateShortLabel(ka, r.homeState)}</Badge> : <span className="text-ink-faint">—</span>}
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">{formatM2L(ka, Number(r.totalM2))}</td>
               <td className="px-4 py-2.5 text-right tabular-nums">{r.totalCost ? formatGEL(Number(r.totalCost)) : '—'}</td>

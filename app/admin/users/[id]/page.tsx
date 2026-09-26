@@ -180,7 +180,7 @@ export default async function AdminUserDetailPage(
                     </Link>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge>{homeStateShortLabel(ka, p.homeState)}</Badge>
+                    {p.homeState ? <Badge>{homeStateShortLabel(ka, p.homeState)}</Badge> : <span className="text-ink-faint">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {formatM2L(ka, Number(p.totalM2))}

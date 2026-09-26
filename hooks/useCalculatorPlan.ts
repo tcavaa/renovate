@@ -16,8 +16,10 @@
  * chase each other for ever when the flats differed (see `lib/calculator/planSync.ts`).
  *
  * The board here is the calculator's own (`useCalculatorPlanStore`), not the studio's: the
- * two products keep separate drawings and separate localStorage, and a plan crosses between
- * them only when the person presses "see it in 3D" or "calculate the costs".
+ * two halves of a project keep separate drawings (the calculator's is saved as the row's
+ * `calculator_board`), and a plan crosses between them only when the person asks — the
+ * summary's "see it in 3D" (the design's entry hands the board over), or a design opened in
+ * the calculator. Both stores are the open project's (`store/projectScope`).
  */
 
 import { useEffect } from 'react';

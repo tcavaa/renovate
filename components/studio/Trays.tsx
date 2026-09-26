@@ -25,6 +25,8 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
+import { designStepHref } from '@/lib/design/steps';
+import { useProjectId } from '@/components/projects/ProjectGate';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
@@ -408,6 +410,7 @@ const SECTION_KEY: Array<[keyof ReturnType<typeof budgetSections>, keyof Diction
  */
 export function BudgetTray({ cost }: { cost: DesignCost }) {
   const t = useT();
+  const projectId = useProjectId();
   const sections = budgetSections(cost);
   const shown = SECTION_KEY.filter(([k]) => sections[k] > 0);
   return (
@@ -427,7 +430,7 @@ export function BudgetTray({ cost }: { cost: DesignCost }) {
       <div className="flex shrink-0 flex-col items-end justify-between gap-1 border-l border-line pl-2.5">
         <span className="text-[9px] uppercase tracking-wide text-ink-muted">{t.build.budgetTotal}</span>
         <span className="font-serif text-xl font-semibold leading-none tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
-        <Link href="/design/summary" className="flex h-7 items-center gap-1 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+        <Link href={designStepHref(projectId, 7)} className="flex h-7 items-center gap-1 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
           {t.build.budgetTitle}
           <ArrowUpRight className="h-3 w-3" />
         </Link>

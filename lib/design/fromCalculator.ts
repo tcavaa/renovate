@@ -10,9 +10,8 @@
  */
 
 import type { SelectedProduct } from '@/lib/calculator/types';
-import { isCartKey } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, isCartKey, surfaceOfPick } from '@/lib/calculator/quantities';
 import { placeAdditional } from './autoLayout';
-import { isBaseFinish } from './zones';
 import { getArchetype } from './catalog';
 import type { CatalogProduct } from './matcher';
 import { quantityFor, toSceneProduct } from './matcher';
@@ -22,22 +21,19 @@ import type { FloorPlan, PlacedItem, SurfaceFinish } from './types';
 export interface CalculatorPicks {
   /** Furniture chosen per room on /calculator/furniture. */
   furniture: Array<{ roomId: string; productId: number }>;
-  /** Materials chosen for the whole flat on /calculator/catalog — the ones with a texture become finishes. */
+  /** Materials chosen for the whole flat on the catalogue step (a finish there is from before every room took its own). */
   productIds: number[];
-  /** Finishes chosen for one room each on /calculator/catalog. */
-  roomProducts?: Array<{ roomId: string; productId: number }>;
   /**
-   * What was laid on the rooms by hand on /calculator/placement — whole floors and walls,
-   * tiles, strips — exactly as laid, with the product on each. These go where they were put;
-   * the cart picks they came from are not spread over the flat by wetness as well.
+   * Each room's floor and walls from the catalogue step (`lib/calculator/roomFinishes`): the
+   * product and the surface it was chosen for. A pick from before it carried its surface goes
+   * on every surface its product suits.
    */
-  finishes?: SurfaceFinish[];
+  roomProducts?: Array<{ roomId: string; productId: number; surface?: 'floor' | 'wall' }>;
 }
 
 export function picksFromCalculator(
   selectedProducts: Record<string, SelectedProduct>,
-  selectedFurniture: Record<string, SelectedProduct[]>,
-  finishes: SurfaceFinish[] = []
+  selectedFurniture: Record<string, SelectedProduct[]>
 ): CalculatorPicks {
   const entries = Object.entries(selectedProducts);
   return {
@@ -45,8 +41,12 @@ export function picksFromCalculator(
       list.map((p) => ({ roomId, productId: p.productId }))
     ),
     productIds: entries.filter(([key, p]) => !p.roomId && !isCartKey(key)).map(([, p]) => p.productId),
-    roomProducts: entries.filter(([, p]) => !!p.roomId).map(([, p]) => ({ roomId: p.roomId!, productId: p.productId })),
-    finishes: finishes.filter((f) => !!f.product && (f.surface === 'floor' || f.surface === 'wall')),
+    roomProducts: entries
+      .filter(([, p]) => !!p.roomId)
+      .map(([key, p]) => {
+        const surface = surfaceOfPick({ surface: p.surface, categorySlug: p.categorySlug ?? categorySlugFromKey(key) });
+        return { roomId: p.roomId!, productId: p.productId, ...(surface ? { surface } : {}) };
+      }),
   };
 }
 
@@ -67,8 +67,22 @@ export function applyFurniturePicks(
   const byId = new Map(catalog.map((p) => [p.id, p]));
   const next = [...items];
   const taken = new Set<string>();
+  // What each room already has of each product. Picks are put into a design more than once —
+  // every "see it in 3D" from the calculator's summary brings them again — and a pick the room
+  // already holds (placed last time, or chosen in the studio) is satisfied, not placed twice.
+  const holds = new Map<string, number>();
+  for (const item of items) {
+    if (!item.product) continue;
+    const key = `${item.roomId}:${item.product.productId}`;
+    holds.set(key, (holds.get(key) ?? 0) + 1);
+  }
 
   for (const pick of picks.furniture) {
+    const held = holds.get(`${pick.roomId}:${pick.productId}`) ?? 0;
+    if (held > 0) {
+      holds.set(`${pick.roomId}:${pick.productId}`, held - 1);
+      continue;
+    }
     const product = byId.get(pick.productId);
     const kind = product?.model3dKind;
     if (!product || !kind || !product.model3dUrl) continue;
@@ -144,12 +158,14 @@ export function applyFinishPicks(
   };
 
   // Finishes chosen for one room go on that room, whatever kind of room it is: the person
-  // picked this tile for this bathroom and that paint for that bedroom on purpose.
+  // picked this tile for this bathroom and that paint for that bedroom on purpose — on the
+  // surface it was picked for, not on every one the product would suit (a wall tile that
+  // could be laid on a floor stays on the walls).
   for (const pick of picks.roomProducts ?? []) {
     const product = byId.get(pick.productId);
     const room = plan.rooms.find((r) => r.id === pick.roomId);
     if (!product || !room) continue;
-    for (const surface of ['floor', 'wall'] as const) {
+    for (const surface of pick.surface ? [pick.surface] : (['floor', 'wall'] as const)) {
       if (!isSurfaceProduct(product, surface)) continue;
       apply(room, surface, product);
       perRoom.add(`${room.id}:${surface}`);
@@ -167,22 +183,6 @@ export function applyFinishPicks(
         if (perRoom.has(`${room.id}:${surface}`)) continue;
         apply(room, surface, product);
       }
-    }
-  }
-  // What was laid by hand on the placement step goes exactly where it was laid — a whole
-  // floor in place of the room's base, a tile or a strip on top of it — unless the studio
-  // has since chosen something for that surface, which was chosen later, by eye.
-  const laid = picks.finishes ?? [];
-  if (laid.length > 0) {
-    const touched = new Set(laid.map((f) => `${f.roomId}:${f.surface}`));
-    // Laid once: an earlier laying of the same rooms goes before this one is put down.
-    next = next.filter((f) => !(f.origin === 'calculator' && touched.has(`${f.roomId}:${f.surface}`)));
-    for (const finish of laid) {
-      const room = plan.rooms.find((r) => r.id === finish.roomId);
-      if (!room) continue;
-      if (next.some((f) => f.roomId === room.id && f.surface === finish.surface && f.origin === 'studio')) continue;
-      if (isBaseFinish(finish)) next = next.filter((f) => !(f.roomId === room.id && f.surface === finish.surface && isBaseFinish(f)));
-      next.push({ ...finish, origin: 'calculator' });
     }
   }
   return next;

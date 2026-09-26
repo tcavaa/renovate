@@ -101,8 +101,10 @@ export const RATE_RULES = {
   uploadPlan: { key: 'upload-plan', limit: 10, windowMs: 60 * 60_000 },
   /** Each call spends Claude tokens. */
   parsePlan: { key: 'parse-plan', limit: 10, windowMs: 60 * 60_000 },
-  /** Guest project saves insert rows. */
+  /** A press of "save" (or an order, which saves first). */
   saveProject: { key: 'save-project', limit: 20, windowMs: 60 * 60_000 },
+  /** "New project": each one is a row. */
+  createProject: { key: 'create-project', limit: 30, windowMs: 60 * 60_000 },
   /** Autosave from a signed-in session: a debounced write per edit burst, so far more than a hand can click "save". */
   autosave: { key: 'autosave', limit: 400, windowMs: 60 * 60_000 },
   /** Studio photos: each one stores a screenshot. */

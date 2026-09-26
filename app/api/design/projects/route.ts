@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { isDesignPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
@@ -14,8 +14,7 @@ import { radiatorSections } from '@/lib/design/radiators';
 import type { DesignScene, FloorPlan, SceneProduct } from '@/lib/design/types';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { loadProductPrices, repriceFinishSnapshot, repriceSnapshot } from '@/lib/api/productPrices';
-import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
-import type { SelectedProduct } from '@/lib/calculator/types';
+import { ownProject } from '@/lib/api/projectSave';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
 
@@ -42,7 +41,24 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const { nameKa, homeState, floorPlanUrl, projectId, draft, versions } = parsed.data;
+  // A project's design is written into the project's row, made before its first step
+  // (`POST /api/projects/create`); a save never makes one, and only writes into the caller's.
+  const session = await auth();
+  const userId = session?.user?.id ? Number(session.user.id) : null;
+  if (!userId) return fail('Unauthorized', 401);
+  const existing = await ownProject(parsed.data.projectId, userId);
+  if (!existing) return fail('PROJECT_NOT_FOUND', 404);
+  const { floorPlanUrl, draft, versions, baseRev, force, saveId, prevSaveId } = parsed.data;
+  // Made from an older copy than the row has — another tab or computer saved since: refused,
+  // so the person chooses (`lib/flow/saveQueue`), rather than one copy silently replacing the
+  // other. Unless the write it follows is this browser's own, which landed with no answer.
+  const ownUnconfirmed = prevSaveId != null && existing.designSaveId === prevSaveId && baseRev === existing.designRev - 1;
+  if (!force && baseRev != null && baseRev < existing.designRev && !ownUnconfirmed) return fail('PROJECT_CHANGED', 409);
+  // The home's condition belongs to the calculation when the project has one; the studio's own
+  // choice counts only in a project designed first.
+  const calculatorOwns = existing.selectedProducts != null;
+  const calculatorDone = calculatorOwns && !projectKind(existing).calculatorPending;
+  const homeState = (calculatorOwns ? existing.homeState : parsed.data.homeState) ?? null;
   const submittedPlan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
   const roomsById = new Map(submittedPlan.rooms.map((r) => [r.id, r]));
@@ -108,34 +124,18 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   }
 
   // Same rate book the studio's cost bar used, so a `full`-mode save matches the preview.
-  const cost = priceScene(plan, scene, { homeState, book: await loadRateBook() });
+  const cost = priceScene(plan, scene, { homeState: homeState ?? undefined, book: await loadRateBook() });
   const rooms = planToCalculatorRooms(plan);
 
-  // A design that came straight out of the calculator carries the calculator's picks, so the
-  // one row has both halves from the start. They are repriced like the calculator save does.
-  let calculatorColumns: { selectedProducts: Record<string, SelectedProduct>; selectedFurniture: Record<string, SelectedProduct[]>; calculatorEdits: unknown } | null = null;
-  if (parsed.data.calculator) {
-    const repriced = await repriceCalculatorPicks(
-      parsed.data.calculator.rooms,
-      parsed.data.calculator.selectedProducts as Record<string, SelectedProduct>,
-      parsed.data.calculator.selectedFurniture as Record<string, SelectedProduct[]>
-    );
-    if (isUnknownProduct(repriced)) return fail(`Unknown product ${repriced.unknownProductId}`, 400);
-    // With whatever the person made of that estimate on the calculator's summary.
-    calculatorColumns = { ...repriced, calculatorEdits: parsed.data.calculator.edits ?? null };
-  }
-
-  const session = await auth();
-  const userId = session?.user?.id ? Number(session.user.id) : null;
-
   const designColumns = {
-    homeState,
-    mode: scene.mode,
+    // The columns the two halves share are the calculation's once it exists: its home state,
+    // its rooms and area, and — once it has been worked out — the renovation it makes of the
+    // project. The design writes them only for a project designed first.
+    ...(calculatorOwns ? {} : { homeState, totalM2: String(totalFloorAreaM2(plan)), rooms }),
+    ...(calculatorDone ? {} : { mode: scene.mode }),
     styleId: scene.styleId,
     budgetGel: scene.budgetGel != null ? String(scene.budgetGel) : null,
     floorPlanUrl: floorPlanUrl ?? plan.imageUrl ?? null,
-    totalM2: String(totalFloorAreaM2(plan)),
-    rooms,
     plan,
     scene,
     // Versions are snapshots the person keeps to come back to; they are stored as sent (the
@@ -153,35 +153,23 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   };
   const noCosts = { totalMaterialsCost: null, totalFurnitureCost: null, totalWorkersCost: null, totalCost: null };
 
-  // Writing into the caller's own project keeps whatever calculator half it already has.
-  const existing = await ownProject(projectId, userId);
-  if (existing) {
-    await db
-      .update(projects)
-      .set({
-        ...designColumns,
-        // A pending design leaves a finished calculation's totals where they are.
-        ...(pending ? (existing.selectedProducts != null && !projectKind(existing).calculatorPending ? {} : noCosts) : costColumns),
-        ...(calculatorColumns ?? {}),
-        // An explicit save confirms a draft; an autosave leaves the status as it is.
-        ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
-      })
-      .where(eq(projects.id, existing.id));
-    return ok({ id: existing.id, cost });
-  }
-
-  const inserted = await db.insert(projects).values({
-    userId,
-    sessionId: null,
-    nameKa,
-    ...designColumns,
-    ...(pending ? noCosts : costColumns),
-    selectedProducts: calculatorColumns?.selectedProducts ?? null,
-    selectedFurniture: calculatorColumns?.selectedFurniture ?? null,
-    calculatorEdits: calculatorColumns?.calculatorEdits ?? null,
-    status: userId && !draft ? 'saved' : 'draft',
-  });
-
-  return ok({ id: inserted[0].insertId, cost });
+  // Writing into the project keeps whatever calculator half it already has.
+  const [result] = await db
+    .update(projects)
+    .set({
+      ...designColumns,
+      // A calculation already worked out keeps the scene a renovation, whatever this copy says.
+      ...(calculatorDone && scene.mode !== 'full' ? { scene: { ...scene, mode: 'full' as const } } : {}),
+      // A pending design leaves a finished calculation's totals where they are.
+      ...(pending ? (calculatorDone ? {} : noCosts) : costColumns),
+      designRev: sql`${projects.designRev} + 1`,
+      designSaveId: saveId ?? null,
+      // An explicit save confirms a draft; an autosave leaves the status as it is.
+      ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
+    })
+    // The revision is checked again in the write itself, forced or not: two saves racing each
+    // other cannot both win, and the revision this one made is the one it names back.
+    .where(and(eq(projects.id, existing.id), eq(projects.designRev, existing.designRev)));
+  if ((result as { affectedRows?: number } | undefined)?.affectedRows === 0) return fail('PROJECT_CHANGED', 409);
+  return ok({ id: existing.id, cost, rev: existing.designRev + 1 });
 });
-

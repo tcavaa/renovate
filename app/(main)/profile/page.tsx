@@ -1,22 +1,25 @@
 import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
-import { ArrowUpRight, Calculator, Plus } from 'lucide-react';
+import { ArrowUpRight, Box, Calculator } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { products, projects, users } from '@/lib/db/schema';
 import { MyModels } from '@/components/profile/MyModels';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { OpenIn3dButton } from '@/components/projects/OpenIn3dButton';
-import { projectKind, savedProjectInput } from '@/lib/projects/saved';
+import { projectKind } from '@/lib/projects/saved';
 import { CalculateCostsButton } from '@/components/projects/CalculateCostsButton';
 import { ProjectKindTags } from '@/components/projects/ProjectKindTags';
-import { DeleteDraftsButton, DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
+import { DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
 import { Figure } from '@/components/calculator/MaterialsTable';
 import { Button } from '@/components/ui/button';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateLabel, statusLabel } from '@/lib/i18n/labels';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL, cn } from '@/lib/utils';
+import { CALCULATOR_HUB_HREF } from '@/lib/calculator/steps';
+import { DESIGN_HUB_HREF } from '@/lib/design/steps';
+import type { Room } from '@/lib/calculator/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +53,6 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
   };
   const totalSpent = rows.reduce((s, p) => s + (p.totalCost && !unfinished(p) ? Number(p.totalCost) : 0), 0);
   const totalM2 = rows.reduce((s, p) => s + Number(p.totalM2), 0);
-  const draftIds = rows.filter((p) => p.status === 'draft').map((p) => p.id);
 
   return (
     <div className="py-4 md:py-8">
@@ -63,16 +65,17 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
           <p className="mt-3 text-sm text-ink-muted">{session!.user.email}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Each product's hub: its projects, and the way to start a new one. */}
           <Button asChild variant="outline" size="lg">
-            <Link href="/calculator">
+            <Link href={CALCULATOR_HUB_HREF}>
               <Calculator className="h-4 w-4" />
               {t.nav.calculator}
             </Link>
           </Button>
           <Button asChild variant="ink" size="lg" className="group">
-            <Link href="/design">
-              <Plus className="h-4 w-4" />
-              {t.profile.newProject}
+            <Link href={DESIGN_HUB_HREF}>
+              <Box className="h-4 w-4" />
+              {t.design.title}
             </Link>
           </Button>
         </div>
@@ -89,25 +92,26 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
           <h2 className="font-serif text-2xl font-semibold text-ink">
             {t.nav.projects} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{rows.length}</span>
           </h2>
-          <DeleteDraftsButton ids={draftIds} />
         </div>
-        {draftIds.length > 0 && <p className="mt-3 text-xs text-ink-muted">{t.profile.draftHint}</p>}
 
         {rows.length === 0 ? (
           <div className="mt-6 border border-dashed border-line p-16 text-center">
             <p className="text-sm text-ink-muted">{t.profile.emptyText}</p>
             <Button asChild variant="ink" className="mt-5">
-              <Link href="/calculator">{t.profile.emptyCta}</Link>
+              <Link href={CALCULATOR_HUB_HREF}>{t.profile.emptyCta}</Link>
             </Button>
           </div>
         ) : (
           <ul className="mt-2">
             {rows.map((p) => {
+              const kind = projectKind(p);
+              // What the two buttons need of the row, and no more: they are links into it.
+              const link = { id: p.id, rooms: (p.rooms ?? []) as Room[], hasCalculator: kind.hasCalculator, hasDesign: kind.hasDesign };
               return (
                 <li key={p.id} className="grid items-center gap-x-6 gap-y-3 border-b border-line py-5 md:grid-cols-[minmax(0,1fr)_auto]">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <ProjectKindTags t={t} kind={projectKind(p)} />
+                      <ProjectKindTags t={t} kind={kind} />
                       <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', p.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, p.status ?? 'draft')}</span>
                       <span className="text-xs tabular-nums text-ink-faint">#{p.id}</span>
                     </div>
@@ -130,8 +134,8 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
                       <span className="font-serif text-xl font-semibold tabular-nums text-ink">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</span>
                     )}
                     <div className="flex flex-wrap items-center gap-2">
-                      <CalculateCostsButton project={savedProjectInput(p)} size="sm" />
-                      <OpenIn3dButton project={savedProjectInput(p)} size="sm" />
+                      <CalculateCostsButton project={link} size="sm" />
+                      <OpenIn3dButton project={link} size="sm" />
                       {p.status !== 'submitted' && <DeleteProjectButton projectId={p.id} />}
                     </div>
                   </div>

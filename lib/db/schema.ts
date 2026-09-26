@@ -322,7 +322,11 @@ export const projects = mysqlTable('projects', {
   userId: int('user_id').references(() => users.id),
   sessionId: varchar('session_id', { length: 255 }),
   nameKa: varchar('name_ka', { length: 255 }).default('ჩემი პროექტი'),
-  homeState: mysqlEnum('home_state', ['old_renovation', 'black_frame', 'white_frame', 'green_frame']).notNull(),
+  /**
+   * The home's condition. NULL until it is chosen: a project is created, named, before its
+   * first step (`POST /api/projects/create`), and the calculator asks for the condition there.
+   */
+  homeState: mysqlEnum('home_state', ['old_renovation', 'black_frame', 'white_frame', 'green_frame']),
   totalM2: decimal('total_m2', { precision: 8, scale: 2 }).notNull(),
   rooms: json('rooms').notNull(),
   selectedProducts: json('selected_products'),
@@ -334,6 +338,28 @@ export const projects = mysqlTable('projects', {
    * beside the edit. The design half keeps its own in `scene`.
    */
   calculatorEdits: json('calculator_edits'),
+  /**
+   * The calculator's own drawing board, `{ plan, floorPlanUrl, finishes }`: the walls, doors and
+   * windows drawn on its plan step and the finishes laid on its placement step. Not `plan` —
+   * `plan IS NOT NULL` is what says a project has a 3D design.
+   */
+  calculatorBoard: json('calculator_board'),
+  /**
+   * How many times each half has been written. A save names the revision it was made from
+   * and is refused (409) when the row has moved on — another tab, another computer — instead
+   * of writing an older copy over a newer one; the browser's cache of a half is current when
+   * it is at the row's revision (`lib/flow/projectSync`). A rename or an order is neither.
+   */
+  calculatorRev: int('calculator_rev').default(0).notNull(),
+  designRev: int('design_rev').default(0).notNull(),
+  /**
+   * The id of the last save of each half (made by the browser). A save whose answer never
+   * arrived — a dropped connection, a reload mid-write — still moved the revision on; the next
+   * save from that browser names it, and is recognised as following its own write rather than
+   * refused as a conflict with somebody else's.
+   */
+  calculatorSaveId: varchar('calculator_save_id', { length: 36 }),
+  designSaveId: varchar('design_save_id', { length: 36 }),
   totalMaterialsCost: decimal('total_materials_cost', { precision: 12, scale: 2 }),
   totalFurnitureCost: decimal('total_furniture_cost', { precision: 12, scale: 2 }),
   totalWorkersCost: decimal('total_workers_cost', { precision: 12, scale: 2 }),
