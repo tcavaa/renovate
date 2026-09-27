@@ -21,6 +21,7 @@ import { buildProjectSummary } from '@/lib/calculator/materials';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { orderedLines, priceScene } from '@/lib/design/pricing';
+import { boardPartitionCounts } from '@/lib/design/partitions';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ka } from '@/lib/i18n/ka';
 import { en } from '@/lib/i18n/en';
@@ -49,7 +50,7 @@ import {
 import { awaitsConfirmation, summariseEdit } from './orderFlow';
 import { notifyCustomerCheckout, notifyCustomerOrderUpdate, notifyPartnerNewOrder, type CustomerContact } from './notify';
 import { loadPlatformSettings } from './settings';
-import { projectKind } from '@/lib/projects/saved';
+import { calculatorBoardPlan, projectKind } from '@/lib/projects/saved';
 import { calculatorSheet, sheetLabour, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
 import type { BudgetLine } from '@/lib/design/pricing';
 
@@ -381,7 +382,7 @@ async function projectSheetLines(project: Project): Promise<BudgetLine[]> {
   const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
   const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
   const rooms = (project.rooms ?? []) as Room[];
-  const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
+  const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices, counts: boardPartitionCounts(calculatorBoardPlan(project)) });
   return calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines;
 }
 

@@ -151,6 +151,26 @@ export function roomEdges(polygon: Vec2[]): PlanEdge[] {
   return edges;
 }
 
+/**
+ * Whether a room's edge lies on a room separator (`PlanRoom.open`): open onto the next room,
+ * no wall there — nothing measured, finished, fitted or hung on it.
+ */
+export function isOpenEdge(room: Pick<PlanRoom, 'open'>, index: number): boolean {
+  return !!room.open?.includes(index);
+}
+
+/** A room's edges that are walls: all of them but the ones on a room separator. */
+export function wallEdges(room: Pick<PlanRoom, 'polygon' | 'open'>): PlanEdge[] {
+  const edges = roomEdges(room.polygon);
+  return room.open?.length ? edges.filter((e) => !room.open!.includes(e.index)) : edges;
+}
+
+/** Metres of a room's outline that are walls: its perimeter less the edges on a room separator. */
+export function wallPerimeterM(room: Pick<PlanRoom, 'polygon' | 'open' | 'perimeterM'>): number {
+  if (!room.open?.length) return room.perimeterM;
+  return round2(wallEdges(room).reduce((sum, e) => sum + e.length, 0));
+}
+
 export function pointOnEdge(edge: PlanEdge, t: number): Vec2 {
   return {
     x: edge.a.x + (edge.b.x - edge.a.x) * t,
@@ -360,12 +380,22 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
   // and no wall left for a bed.
   const shared = new Map<string, SharedRun>();
   const runOf = (a: PlanRoom, b: PlanRoom) => shared.get(`${a.id}|${b.id}`) ?? shared.get(`${b.id}|${a.id}`) ?? null;
+  // Rooms a room separator divides are open onto each other already: no door between them,
+  // and neither is sealed in while the other has a way out.
+  const open = new Set<string>();
+  const pairKey = (a: PlanRoom, b: PlanRoom) => [a.id, b.id].sort().join('|');
   for (let i = 0; i < rooms.length; i++) {
     for (let j = i + 1; j < rooms.length; j++) {
       const run = findSharedRun(rooms[i].polygon, rooms[j].polygon, tolerance);
-      if (run && run.length >= DOOR_WIDTH_M + 0.15) shared.set(`${rooms[i].id}|${rooms[j].id}`, run);
+      if (!run) continue;
+      if (isOpenEdge(rooms[i], run.edgeA) || isOpenEdge(rooms[j], run.edgeB)) {
+        open.add(pairKey(rooms[i], rooms[j]));
+        continue;
+      }
+      if (run.length >= DOOR_WIDTH_M + 0.15) shared.set(`${rooms[i].id}|${rooms[j].id}`, run);
     }
   }
+  const openTo = (r: PlanRoom) => [...open].some((k) => k.split('|').includes(r.id));
 
   // A studio is its living room and kitchen in one: circulation, ranked with the living room.
   const circulation = (r: PlanRoom) => r.type === 'hallway' || r.type === 'living_room' || r.type === 'studio' || r.type === 'kitchen';
@@ -378,6 +408,8 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
   for (const room of rooms) {
     const around = neighbours(room);
     if (around.length === 0) continue;
+    // A zone of an open space is reached through the space it opens onto.
+    if (openTo(room) && !circulation(room)) continue;
     if (circulation(room)) {
       // Circulation spaces open into each other.
       for (const other of around) if (circulation(other)) connect(room, other);
@@ -397,7 +429,7 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
 
   // Nobody is sealed in. A kitchen whose only neighbours are bedrooms — a hallway the parser
   // merged away, usually — still needs a way in: through whichever neighbour reaches the rest.
-  const doorsOf = (r: PlanRoom) => [...pairs].filter((k) => k.split('|').includes(r.id)).length;
+  const doorsOf = (r: PlanRoom) => [...pairs, ...open].filter((k) => k.split('|').includes(r.id)).length;
   for (const room of rooms) {
     const around = neighbours(room);
     if (around.length === 0 || doorsOf(room) > 0) continue;
@@ -472,7 +504,7 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
   for (const room of rooms) {
     if (noWindows.includes(room.type)) continue;
 
-    const edges = roomEdges(room.polygon);
+    const edges = wallEdges(room);
     const used = new Set(room.openings.map((o) => o.wallIndex));
     const candidates = edges
       .filter((e) => !used.has(e.index))
@@ -622,7 +654,8 @@ export function planToCalculatorRooms(plan: FloorPlan): Room[] {
   return plan.rooms.map((r) => {
     const b = polygonBounds(r.polygon);
     const floorM2 = round2(r.areaM2);
-    const perimeterM = round2(r.perimeterM);
+    // What is walled: an edge on a room separator is open onto the next room, and no wall is plastered or painted there.
+    const perimeterM = round2(wallPerimeterM(r));
     return {
       id: r.id,
       type: r.type,
@@ -664,20 +697,24 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
     const width = round2(Math.max(...xs) - Math.min(...xs));
     const depth = round2(Math.max(...zs) - Math.min(...zs));
     const length = room.polygon.length > 4 ? round2(room.areaM2 / Math.max(width, 0.1)) : depth;
+    const areas = computeRoomAreas({
+      id: room.id,
+      type: room.type,
+      nameKa: room.name,
+      width,
+      length,
+      height: room.heightM,
+    });
+    // An edge on a room separator is open onto the next room: no wall there to plaster, paint or tile.
+    const open = round2(room.perimeterM - wallPerimeterM(room));
     return {
-      ...computeRoomAreas({
-        id: room.id,
-        type: room.type,
-        nameKa: room.name,
-        width,
-        length,
-        height: room.heightM,
-      }),
+      ...areas,
+      ...(open > 0 ? { perimeterM: round2(Math.max(0, areas.perimeterM - open)), wallM2: round2(Math.max(0, areas.wallM2 - open * room.heightM)) } : {}),
       x: round2(Math.min(...xs)),
       z: round2(Math.min(...zs)),
       ...studioFields(room),
-      // The walls one by one, as the board has them — what the catalogue step lists.
-      walls: edgeLengthsM(room.polygon),
+      // The walls one by one, as the board has them — what the catalogue step lists; an open edge measures nothing.
+      walls: edgeLengthsM(room.polygon).map((l, i) => (isOpenEdge(room, i) ? 0 : l)),
     };
   });
 }

@@ -95,7 +95,10 @@ Each of these cost real debugging time. Don't undo them.
     **each half's far face wears the neighbour's finish.** Each room builds its own walls
     outwards from its inner face, and two rooms either side of one wall sit a thickness apart —
     so a full-depth wall from each put room A's outer face exactly on room B's inner face, and
-    the two colours z-fought, flicking as the camera turned. `planEdgeWalls` (in
+    the two colours z-fought, flicking as the camera turned. (An edge on a room separator is
+    open, `PlanRoom.open`: `planEdgeWalls` gives it no pieces and `buildRoomScene` builds no
+    wall or moulding along it — [plan-board.md](plan-board.md#room-separators-libdesignseparatorsts).)
+    `planEdgeWalls` (in
     `wallPieces.ts`) therefore gives a piece half the wall's depth wherever another room's edge
     stands behind that stretch (`piece.neighbour`), full depth elsewhere, so the halves meet on
     a plane nobody sees while both stand. The cutaway

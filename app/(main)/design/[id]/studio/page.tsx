@@ -37,6 +37,8 @@ import { useRateBook } from '@/hooks/useRateBook';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { priceScene } from '@/lib/design/pricing';
+import { buildsPartitions } from '@/lib/design/partitions';
+import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
@@ -76,7 +78,7 @@ const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furnit
 const CLICK_SLOP_PX = 5;
 
 const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
-  build: ['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam'],
+  build: ['select', 'pan', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam'],
   furniture: ['select', 'pan'],
   electric: ['select', 'pan', 'electrical'],
   technical: ['select', 'pan', 'technical'],
@@ -127,6 +129,8 @@ export default function StudioPage() {
   } = store;
   const { products, shelf } = useDesignCatalog();
   const { book } = useRateBook();
+  // A renovation that builds the partition walls (a black frame) shows which of them already stand.
+  const wallBuilding = mode === 'full' && !!homeState && !!plan && buildsPartitions(effectivePhases(homeState, plan.technical?.works ?? null));
 
   // Calculator picks that arrived for an existing design go into it once the catalogue is here.
   useEffect(() => {
@@ -759,6 +763,7 @@ export default function StudioPage() {
     updateRoom: store.updateRoom,
     resizeRoom: store.resizeRoom,
     removeRoom: store.removeRoom,
+    setRoomWhole: store.setRoomWhole,
     removeZone: store.removeFinishZone,
     setRadiatorProduct: store.setRadiatorProduct,
   };
@@ -880,6 +885,7 @@ export default function StudioPage() {
               frameless
               furniture
               locked={structureLocked}
+              wallBuilding={wallBuilding}
               electricalKind={electricalKind}
               technicalKind={technicalKind}
               layers={{ furniture: true, dimensions: category === 'build' }}
@@ -1053,7 +1059,7 @@ export default function StudioPage() {
               />
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
-                <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} className="border-0" />
+                <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} wallBuilding={wallBuilding} className="border-0" />
                 {selectedElement.kind === 'zone' && (
                   <div className="mt-3">
                     <FinishPanel roomId={selectedElement.roomId} surface="floor" rooms={plan.rooms} catalog={products} styleId={styleId} finishes={finishes} onRoom={(id) => store.setFocusRoom(id)} onPick={(surface, product) => (surface === 'floor' ? store.updateFinishZone(selectedElement.roomId, selectedElement.id, { product }) : pickFinish(surface, product))} />

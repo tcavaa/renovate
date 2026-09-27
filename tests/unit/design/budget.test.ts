@@ -135,10 +135,10 @@ describe('budget lines', () => {
   it('measures the partitions off the plan’s walls', () => {
     const p = plan();
     const cost = priceScene({ ...p, walls: [
-      { id: 'w1', a: P(0, 0), b: P(4, 0), thicknessM: 0.12, origin: 'existing' },
-      { id: 'w2', a: P(4, -2), b: P(4, 2), thicknessM: 0.12, origin: 'user', heightM: 3 },
+      { id: 'w1', a: P(0, -3), b: P(4, -3), thicknessM: 0.12, origin: 'existing' },
+      { id: 'w2', a: P(10, -2), b: P(10, 2), thicknessM: 0.12, origin: 'user', heightM: 3 },
     ] }, scene('full', []), { homeState: 'black_frame', works: ['walls'] });
-    // Neither wall bounds a room of this plan, so both stand free: 4 m × 2.7 m and 4 m × 3 m.
+    // Neither wall has a room of this plan beside it, so both stand free: 4 m × 2.7 m and 4 m × 3 m.
     expect(cost.lines.find((l) => l.key === 'wall_build')!.qty).toBeCloseTo(4 * 2.7 + 4 * 3, 2);
   });
 

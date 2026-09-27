@@ -23,8 +23,8 @@ export function PlanSketch({ plan, rooms, className, labels = true }: { plan: Fl
   const pad = 0.6;
   const w = maxX - minX + pad * 2;
   const d = maxZ - minZ + pad * 2;
-  const wet = new Set(['bathroom', 'toilet', 'kitchen']);
 
+  // Drawn as the board draws a plan: white floors inside black walls.
   return (
     <svg viewBox={`${minX - pad} ${minZ - pad} ${w} ${d}`} className={className} style={{ aspectRatio: `${w} / ${d}` }} role="img">
       {source.rooms.map((room) => {
@@ -36,7 +36,7 @@ export function PlanSketch({ plan, rooms, className, labels = true }: { plan: Fl
         const fs = Math.max(0.22, Math.min(0.38, width / 10));
         return (
           <g key={room.id}>
-            <polygon points={points} fill={wet.has(room.type) ? 'rgba(110,150,190,0.14)' : 'rgba(233,226,216,0.7)'} stroke="#161513" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
+            <polygon points={points} fill="#FFFFFF" stroke="#141414" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
             {labels && (
               <>
                 <text x={cx} y={cz - fs * 0.15} textAnchor="middle" fontSize={fs} fontWeight={600} fill="#161513">

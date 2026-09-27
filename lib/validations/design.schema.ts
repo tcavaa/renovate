@@ -65,11 +65,16 @@ export const wallSchema = z.object({
   id: z.string().min(1).max(64),
   a: vec2,
   b: vec2,
-  thicknessM: z.number().min(0.03).max(1),
+  // A room separator has no thickness (`Wall.separator`); a wall has at least 3 cm.
+  thicknessM: z.number().min(0).max(1),
   heightM: z.number().min(1).max(8).optional(),
   material: buildMaterialSchema.optional(),
   origin: elementOriginSchema,
   locked: z.boolean().optional(),
+  /** A partition already standing in a black frame: not built, not priced (`Wall.built`). */
+  built: z.boolean().optional(),
+  /** A room separator, not a wall (`Wall.separator`). */
+  separator: z.boolean().optional(),
 });
 
 export const columnSchema = z.object({
@@ -133,6 +138,9 @@ export const planRoomSchema = z.object({
   wallIds: z.array(z.string().max(64)).max(64).optional(),
   origin: elementOriginSchema.optional(),
   split: roomSplitSchema.optional(),
+  /** The edges on a room separator (`PlanRoom.open`). */
+  open: z.array(z.number().int().min(0).max(63)).max(64).optional(),
+  keepWhole: z.boolean().optional(),
 });
 
 export const floorPlanSchema = z.object({

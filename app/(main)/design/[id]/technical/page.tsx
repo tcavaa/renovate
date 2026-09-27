@@ -18,7 +18,8 @@ import { useProjectId } from '@/components/projects/ProjectGate';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
-import { technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck } from '@/lib/design/technical';
+import { effectivePhases, technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck } from '@/lib/design/technical';
+import { buildsPartitions } from '@/lib/design/partitions';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { technicalLabel } from '@/components/plan/PlanToolbar';
@@ -211,6 +212,7 @@ export default function TechnicalPage() {
             layerKeys={['walls', 'openings', 'structure', 'technical', 'dimensions']}
             locked
             bleed={FLOW_BOARD_BLEED}
+            wallBuilding={mode === 'full' && !!homeState && buildsPartitions(effectivePhases(homeState, plan.technical?.works ?? null))}
             dock={kindsTray}
           />
 

@@ -6,7 +6,7 @@
  * game's build mode on purpose: the person should never feel they are in CAD.
  */
 
-import { BrickWall, Cable, DoorOpen, Hand, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, DoorOpen, Ellipsis, Hand, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
@@ -60,6 +60,7 @@ const TOOL_ICON: Record<EditorTool, LucideIcon> = {
   pan: Hand,
   wall: BrickWall,
   room: Square,
+  divider: Ellipsis,
   door: DoorOpen,
   window: RectangleHorizontal,
   column: SquareDashed,
@@ -76,6 +77,7 @@ export function toolLabel(t: Dictionary, tool: EditorTool): string {
     pan: 'toolPan',
     wall: 'toolWall',
     room: 'toolRoom',
+    divider: 'toolDivider',
     door: 'toolDoor',
     window: 'toolWindow',
     column: 'toolColumn',
@@ -95,6 +97,7 @@ export function toolHint(t: Dictionary, tool: EditorTool, locked: boolean): stri
     pan: 'hintSelect',
     wall: 'hintWall',
     room: 'hintRoom',
+    divider: 'hintDivider',
     door: 'hintDoor',
     window: 'hintWindow',
     column: 'hintColumn',
@@ -151,11 +154,11 @@ export function PlanToolbar({ tools, tool, onTool, thicknessM, onThickness, tech
 /** The big tiles, one per tool: a row, or a rail down the side of the sheet (`vertical`). */
 export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, style }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'vertical'> & { edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
   const t = useT();
-  const drawing = tool === 'wall' || tool === 'room';
-  // A room is a shape of the wall tool, not a tool of its own: one tile, then a line or a
-  // square. The tile row therefore leaves `room` out and the shape switch offers it.
-  const shapes = tools.includes('room');
-  const tiles = shapes ? tools.filter((id) => id !== 'room') : tools;
+  const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
+  // A room and a room separator are shapes of the wall tool, not tools of their own: one tile,
+  // then a line, a square or a separator. The tile row leaves them out and the shape switch offers them.
+  const shapes = tools.includes('room') || tools.includes('divider');
+  const tiles = shapes ? tools.filter((id) => id !== 'room' && id !== 'divider') : tools;
   return (
     <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
       {tiles.map((id) => {
@@ -190,51 +193,57 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
  */
 export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, technicalKind, onTechnicalKind, electricalKind, onElectricalKind, kindPicker = true }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'thicknessM' | 'onThickness' | 'technicalKind' | 'onTechnicalKind' | 'electricalKind' | 'onElectricalKind' | 'kindPicker'>) {
   const t = useT();
-  const drawing = tool === 'wall' || tool === 'room';
-  const shapes = tools.includes('room');
+  const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
+  const shapeIds = (['wall', 'room', 'divider'] as const).filter((id) => id === 'wall' || tools.includes(id));
+  const shapes = shapeIds.length > 1;
+  // The wall's shape and its thickness side by side, compact: they sit in one row along the
+  // bottom of a full-screen board. A room separator has no thickness.
   return (
     <>
-      {shapes && drawing && (
-        <div className="flex items-center gap-1 whitespace-nowrap rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.wallShape}>
-          {/* Between `lg` and `xl` the captions give way: a full-screen board lines these groups up along its bottom, and the buttons say enough. */}
-          <span className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.wallShape}</span>
-          {(['wall', 'room'] as const).map((id) => {
-            const Icon = id === 'wall' ? Minus : Square;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={tool === id}
-                onClick={() => onTool(id)}
-                title={toolLabel(t, id)}
-                className={cn('flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
-              >
-                <Icon className="h-4 w-4" />
-                {toolLabel(t, id)}
-              </button>
-            );
-          })}
+      {(shapes && drawing) || (drawing && tool !== 'divider') ? (
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {shapes && drawing && (
+            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.wallShape}>
+              {/* Between `lg` and `xl` the captions give way: a full-screen board lines these groups up along its bottom, and the buttons say enough. */}
+              <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.wallShape}</span>
+              {shapeIds.map((id) => {
+                const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={tool === id}
+                    onClick={() => onTool(id)}
+                    title={toolLabel(t, id)}
+                    className={cn('flex h-7 items-center gap-1 rounded-[8px] px-2 text-[11px] font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {toolLabel(t, id)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {drawing && tool !== 'divider' && (
+            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.thickness}>
+              <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.thickness}</span>
+              {WALL_THICKNESS_OPTIONS_M.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={Math.abs(thicknessM - m) < 1e-6}
+                  onClick={() => onThickness(m)}
+                  className={cn('h-7 rounded-[8px] px-2 text-[11px] font-semibold tabular-nums transition-colors', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                >
+                  {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-
-      {drawing && (
-        <div className="flex items-center gap-1 whitespace-nowrap rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.thickness}>
-          <span className="px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.thickness}</span>
-          {WALL_THICKNESS_OPTIONS_M.map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="radio"
-              aria-checked={Math.abs(thicknessM - m) < 1e-6}
-              onClick={() => onThickness(m)}
-              className={cn('h-9 rounded-[10px] px-3 text-xs font-semibold tabular-nums transition-colors', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
-            >
-              {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
-            </button>
-          ))}
-        </div>
-      )}
+      ) : null}
 
       {kindPicker && tool === 'technical' && (
         <div className="flex max-w-[560px] flex-wrap items-center gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.toolTechnical}>

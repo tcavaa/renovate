@@ -20,6 +20,7 @@ import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
 import { ALL_LAYERS, PlanEditor, type BoardInsets, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
 import { PlanToolbar, PlanToolOptions, PlanToolTiles, PlanViewControls, toolHint } from './PlanToolbar';
+import { EDITOR } from './palette';
 
 export interface PlanWorkspaceProps {
   tools: EditorTool[];
@@ -89,9 +90,14 @@ export interface PlanWorkspaceProps {
   frameless?: boolean;
   /** The tool's hint on the board; off where the page shows it itself (the studio floats it above its tray). */
   hint?: boolean;
+  /**
+   * The estimate builds the partition walls (a black frame): the walls marked as already
+   * standing are drawn grey, and the corner says which colour is which.
+   */
+  wallBuilding?: boolean;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore, bleed, dock, frameless = false, hint: showHint = true }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore, bleed, dock, frameless = false, hint: showHint = true, wallBuilding = false }: PlanWorkspaceProps) {
   const t = useT();
   // The hook comes in as a prop, but it is a module constant either way — the same store for
   // the life of the component, so the rules of hooks hold.
@@ -218,6 +224,19 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
       <span className="text-ink-muted">· {fill(t.build.roomCount, { n: plan.rooms.length })}</span>
     </>
   );
+  // A black frame: which walls the estimate builds and which already stand — a plate of its own, over the area's.
+  const legend = wallBuilding ? (
+    <>
+      <span className="inline-flex items-center gap-1">
+        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wall }} aria-hidden />
+        {t.build.legendToBuild}
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wallBuilt }} aria-hidden />
+        {t.build.legendBuilt}
+      </span>
+    </>
+  ) : null;
   const optionProps = {
     tools,
     tool,
@@ -251,9 +270,12 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
         // Below `lg` only the page's tray is left of it, in its place above the board.
         <div className="contents lg:pointer-events-none lg:absolute lg:bottom-4 lg:left-4 lg:z-10 lg:flex lg:items-end lg:gap-3" style={{ right: bleed.right }}>
           {showTotals && (
-            <p data-board-edge="bottom" className="hidden shrink-0 items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur lg:flex" aria-live="polite">
-              {totals}
-            </p>
+            <div data-board-edge="bottom" className="hidden shrink-0 flex-col items-start gap-1.5 lg:flex">
+              {legend && <p className="flex items-center gap-3 rounded-[10px] bg-white/85 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
+              <p className="flex items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
+                {totals}
+              </p>
+            </div>
           )}
           <div data-board-edge="bottom" className={cn('min-w-0 flex-1 flex-col gap-2 lg:flex lg:items-center', dock ? 'flex' : 'hidden')}>
             {showHint && <p className="hidden max-w-[40rem] rounded-[10px] bg-ink/80 px-3 py-1.5 text-center text-[11px] leading-snug text-white backdrop-blur lg:block">{hint}</p>}
@@ -284,6 +306,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           electricalKind={electricalKind}
           layers={layers}
           locked={locked}
+          builtWalls={wallBuilding}
           selection={selection}
           selectedRoomId={focusRoomId}
           selectedRoomIds={selectedRoomIds}
@@ -309,6 +332,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onMoveElectrical={actions.moveElectricalPoint}
           // A studio's line is where the kitchen stops, not structure: the lock does not hold it.
           onSplitRoom={roomsOnly ? undefined : actions.splitRoom}
+          onAddSeparator={(a, b) => actions.addWall({ a, b, thicknessM: 0, separator: true })}
           onSelectRoomPart={actions.selectRoomPart}
           selectedRoomPart={selectedRoomPart && selectedRoomPart.roomId === focusRoomId ? selectedRoomPart.part : null}
           onMoveItem={furniture ? actions.placeItem : undefined}
@@ -336,9 +360,12 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onApi={onApi}
         />
         {showTotals && (
-          <p className={cn('pointer-events-none absolute left-3 top-3 flex items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur', bleed && 'lg:hidden')} aria-live="polite">
-            {totals}
-          </p>
+          <div className={cn('pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1.5', bleed && 'lg:hidden')}>
+            {legend && <p className="flex items-center gap-3 rounded-[10px] bg-white/85 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
+            <p className="flex items-baseline gap-2 rounded-[10px] bg-white/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
+              {totals}
+            </p>
+          </div>
         )}
         {showHint && <p className={cn('pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-[10px] bg-ink/80 px-3 py-1.5 text-[11px] leading-snug text-white backdrop-blur', bleed && 'lg:hidden')}>{hint}</p>}
       </div>

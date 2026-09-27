@@ -25,6 +25,7 @@ import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
+import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import { layoutPlan } from '@/lib/design/autoLayout';
 import {
@@ -289,7 +290,7 @@ interface DesignActions {
   offsetWall: (wallId: string, distance: number, alone?: boolean) => void;
   /** Moves a junction and every wall end on it — or, with `onlyWallId` (the Shift drag), that one wall's end alone. */
   moveWallNode: (from: Vec2, to: Vec2, onlyWallId?: string | null) => void;
-  updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
+  updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'built'>>) => void;
   /** Stretches a wall to a typed length, its far end (and whatever meets it) following. */
   resizeWall: (wallId: string, lengthM: number) => void;
   removeWall: (wallId: string) => void;
@@ -446,6 +447,12 @@ interface DesignActions {
   selectRoomPart: (roomId: string, part: 0 | 1 | null) => void;
   /** A studio's dividing line moved, turned, or its parts given other types (`lib/design/studio`). */
   splitRoom: (roomId: string, split: RoomSplit) => void;
+  /**
+   * A room joined with the rooms across its room separators and kept whole against a partial
+   * wall standing in it (`true`), or divided in two along that partial wall by a separator
+   * (`false`) — the choice on its card (`lib/design/separators`).
+   */
+  setRoomWhole: (roomId: string, whole: boolean) => void;
   setStructureLocked: (locked: boolean) => void;
   // --- history and versions ---
   undo: () => void;
@@ -537,7 +544,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         });
 
       /** A plan edit that changed the rooms: prune what belonged to rooms that are gone, re-home the rest. */
-      const reconcile = (s: DesignState, edited: FloorPlan): Partial<DesignState> => {
+      const reconcile = (s: DesignState, drawn: FloorPlan): Partial<DesignState> => {
+        // A partial wall standing in a living room or a kitchen is carried on across it by a room
+        // separator, which follows the wall and goes with it (`withPartialWallSeparators`); a
+        // room a separator cuts off takes its type from the one it came out of.
+        const edited = withSplitRoomTypes(s.plan?.rooms ?? [], withPartialWallSeparators(drawn));
         // Whatever the edit did to the rooms — one drawn, one taken away, two merged — the names
         // the app gave are dealt again: a kind with one room has no number, a kind with several
         // is numbered 1…n (`withRoomNames`). A plan already dealt comes back as it was.
@@ -651,7 +662,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
 
         setPlan: (incoming, floorPlanUrl) =>
           set((s) => {
-            const plan = ensureWalls(incoming);
+            // A plan just read (or drawn from the calculator's rooms) has its partial walls read too.
+            const ensured = ensureWalls(incoming);
+            const plan = withSplitRoomTypes(ensured.rooms, withPartialWallSeparators(ensured));
             return {
               plan,
               floorPlanUrl: floorPlanUrl ?? s.floorPlanUrl,
@@ -719,7 +732,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => {
             if (!s.plan) return null;
             const room = s.plan.rooms.find((r) => r.id === roomId);
-            const rooms = s.plan.rooms.map((r) => (r.id === roomId ? withStudioSplit({ ...r, ...patch }) : r));
+            const rooms = s.plan.rooms.map((r) => (r.id === roomId ? withStudioLine({ ...r, ...patch }) : r));
             // A room of another type now: the kind it left and the kind it joined are numbered
             // again. Only then — a name being typed must not be renumbered under the cursor.
             const retyped = !!room && patch.type !== undefined && patch.type !== room.type;
@@ -881,7 +894,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => (s.plan?.walls ? withWalls(s, onlyWallId ? markUser(moveWallEndIn(s.plan.walls, onlyWallId, from, to), onlyWallId) : moveWallNodeIn(s.plan.walls, from, to)) : null)),
         updateWall: (wallId, patch) => commit((s) => (s.plan?.walls ? withWalls(s, updateWallIn(s.plan.walls, wallId, patch)) : null)),
         resizeWall: (wallId, lengthM) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(resizeWallIn(s.plan.walls, wallId, lengthM), wallId)) : null)),
-        removeWall: (wallId) => commit((s) => (s.plan?.walls ? withWalls(s, removeWallIn(s.plan.walls, wallId)) : null)),
+        // A separator taken away keeps the room it divided whole against its partial wall (`withoutWall`).
+        removeWall: (wallId) => commit((s) => (s.plan?.walls ? reconcile(s, withoutWall(s.plan, wallId)) : null)),
 
         addColumn: (position, size = {}) => {
           const id = uid('c');
@@ -1505,6 +1519,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!s.plan) return null;
             return { plan: { ...s.plan, rooms: s.plan.rooms.map((r) => (r.id === roomId ? { ...r, split } : r)) } };
           }),
+        setRoomWhole: (roomId, whole) =>
+          commit((s) => {
+            if (!s.plan) return null;
+            const plan = whole ? joinRoom(s.plan, roomId) : divideAlongPartialWall(s.plan, roomId);
+            return plan === s.plan ? null : reconcile(s, plan);
+          }),
         setStructureLocked: (structureLocked) => set({ structureLocked }),
 
         // --- history and versions ---
@@ -1669,12 +1689,11 @@ function placeableOnly(items: PlacedItem[]): PlacedItem[] {
   return items.filter((item) => !!item.product?.model3dUrl);
 }
 
-/** Default floor/wall/ceiling finishes from the style — tiles in the wet rooms — and its skirting board and cornice. */
 /**
  * A room that has just become a studio is divided the default way (kitchen a third, across
  * the longer side); a room that stopped being one lets go of its line.
  */
-function withStudioSplit(room: PlanRoom): PlanRoom {
+function withStudioLine(room: PlanRoom): PlanRoom {
   if (room.type === 'studio') return room.split ? room : { ...room, split: defaultSplit(room) };
   if (!room.split) return room;
   const { split: _split, ...rest } = room;
@@ -1757,7 +1776,8 @@ function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): Surfac
 
 /** A wall a person moved is theirs from then on. */
 function markUser(walls: Wall[], wallId: string): Wall[] {
-  return walls.map((w) => (w.id === wallId && w.origin === 'existing' ? { ...w, origin: 'user' } : w));
+  // A separator the app drew on from a partial wall is the person's once they move it: it no longer follows the wall.
+  return walls.map((w) => (w.id === wallId && w.origin !== 'user' ? { ...w, origin: 'user' } : w));
 }
 
 /** An opening the person added is theirs — and so is its twin on the other side of the wall. */

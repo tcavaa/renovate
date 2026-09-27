@@ -13,7 +13,7 @@
  */
 
 import { cellSquare, cellsAreaM2, patchAreaM2, patchesAreaM2, patchSpans, spanAreaM2 } from './paint';
-import { polygonAreaM2, roomEdges } from './planGeometry';
+import { polygonAreaM2, roomEdges, wallEdges } from './planGeometry';
 import { wallAreaM2 } from './surfaces';
 import { isTrimSurface, trimLengthM } from './trims';
 import { clipPolygon, isBaseFinish, wallEdgeAreaM2, zoneAreaM2 } from './zones';
@@ -113,7 +113,7 @@ function hiddenAreas(finishes: SurfaceFinish[], rooms: PlanRoom[]): Map<SurfaceF
 
     // --- the walls: the room's, a wall's own, the strips on it, the square metres on top ---
     const walls = firstOf(own.filter((f) => f.surface === 'wall' && isBaseFinish(f)));
-    const edges = roomEdges(room.polygon);
+    const edges = wallEdges(room);
     let bareWalls = 0;
     for (const edge of edges) {
       const onWall = own.filter((f) => f.surface === 'wall' && f.wallIndex === edge.index);

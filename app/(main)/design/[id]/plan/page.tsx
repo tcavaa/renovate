@@ -19,6 +19,8 @@ import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { deriveOpenings, totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { designStepHref, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
+import { effectivePhases } from '@/lib/design/technical';
+import { buildsPartitions } from '@/lib/design/partitions';
 import { formatM2 } from '@/lib/utils';
 
 /**
@@ -100,6 +102,8 @@ export default function ExistingHousePage() {
   };
 
   const roomCount = fill(t.build.roomCount, { n: plan.rooms.length });
+  // A renovation that builds the partition walls (a black frame) asks which of them already stand.
+  const wallBuilding = mode === 'full' && !!homeState && buildsPartitions(effectivePhases(homeState, plan.technical?.works ?? null));
   const nextLabel = emptyStart ? t.design.continueToStudio : after === 3 ? t.build.continueToTechnical : t.build.continueToStyle;
 
   return (
@@ -144,9 +148,10 @@ export default function ExistingHousePage() {
 
         <div className="container pb-10 lg:contents">
           <PlanWorkspace
-            tools={['select', 'pan', 'wall', 'room', 'door', 'window', 'column', 'beam']}
+            tools={['select', 'pan', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam']}
             layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']}
             bleed={FLOW_BOARD_BLEED}
+            wallBuilding={wallBuilding}
             onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
           />
           <FlowPanel className="mt-6 lg:mt-0">
@@ -154,6 +159,7 @@ export default function ExistingHousePage() {
               roomPart={actions.selectedRoomPart}
               plan={plan}
               electrical={electrical}
+              wallBuilding={wallBuilding}
               selection={selection && selection.kind !== 'room' ? selection : null}
               actions={{
                 updateWall: actions.updateWall,
@@ -176,6 +182,7 @@ export default function ExistingHousePage() {
                 removeElectrical: actions.removeElectricalPoint,
                 updateRoom: actions.updateRoom,
                 selectRoomPart: actions.selectRoomPart,
+                setRoomWhole: actions.setRoomWhole,
                 resizeRoom: actions.resizeRoom,
                 removeRoom: actions.removeRoom,
               }}
@@ -188,7 +195,8 @@ export default function ExistingHousePage() {
                 actions.selectElement(id ? { kind: 'room', id } : null);
               }}
               actions={{ updateRoom: actions.updateRoom,
-                selectRoomPart: actions.selectRoomPart, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
+                selectRoomPart: actions.selectRoomPart,
+                setRoomWhole: actions.setRoomWhole, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
               onAddRectangle={(rect, type) => {
                 const id = actions.addRectangleRoom(rect, type);
                 if (id) actions.setFocusRoom(id);

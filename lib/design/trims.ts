@@ -16,7 +16,7 @@
  * the product photos.
  */
 
-import { roomEdges } from './planGeometry';
+import { wallEdges } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { styleAffinity } from './styles';
 import type { ItemOrigin, PlanRoom, StyleId, SurfaceFinish, TrimKind, TrimProfile, TrimSpec } from './types';
@@ -113,9 +113,9 @@ export function trimOptions(catalog: CatalogProduct[], kind: TrimKind, styleId: 
     .sort((a, b) => styleAffinity(styleId, b.styleTags, b.tags) - styleAffinity(styleId, a.styleTags, a.tags) || a.pricePerUnit - b.pricePerUnit);
 }
 
-/** Running metres of a trim in a room: the whole perimeter for a cornice, less the doorways for a skirting board. */
+/** Running metres of a trim in a room: the walled perimeter for a cornice (not the edges on a room separator), less the doorways for a skirting board. */
 export function trimLengthM(room: PlanRoom, kind: TrimKind): number {
-  const perimeter = roomEdges(room.polygon).reduce((sum, e) => sum + e.length, 0);
+  const perimeter = wallEdges(room).reduce((sum, e) => sum + e.length, 0);
   const doorways = kind === 'skirting' ? room.openings.filter((o) => o.kind !== 'window').reduce((sum, o) => sum + o.widthM, 0) : 0;
   return Math.max(0, Math.round((perimeter - doorways) * 10) / 10);
 }

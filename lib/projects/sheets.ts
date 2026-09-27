@@ -1,11 +1,12 @@
 import { inArray } from 'drizzle-orm';
-import { projectKind } from '@/lib/projects/saved';
+import { calculatorBoardPlan, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { products, stores, type Project } from '@/lib/db/schema';
 import { buildProjectSummary } from '@/lib/calculator/materials';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { RateBook } from '@/lib/calculator/rates';
 import { priceScene, type BudgetLine } from '@/lib/design/pricing';
+import { boardPartitionCounts } from '@/lib/design/partitions';
 import type { DesignScene, FloorPlan, SceneStore } from '@/lib/design/types';
 import { basketLabels } from '@/lib/i18n/labels';
 import type { Dictionary } from '@/lib/i18n/ka';
@@ -79,7 +80,7 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
     const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
     const picks = [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()];
     const shops = await storesOf(picks.map((p) => p.productId));
-    const summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
+    const summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices, counts: boardPartitionCounts(calculatorBoardPlan(project)) });
     calculator = calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null, storeOf: (id) => shops.get(id) ?? null });
   }
 

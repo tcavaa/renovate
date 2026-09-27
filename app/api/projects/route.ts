@@ -1,9 +1,11 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { isCalculatorPending, projectKind } from '@/lib/projects/saved';
+import { calculatorBoardPlan, isCalculatorPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { saveCalculatorSchema } from '@/lib/validations/calculatorSave.schema';
 import { buildProjectSummary } from '@/lib/calculator/materials';
+import { boardPartitionCounts } from '@/lib/design/partitions';
+import type { FloorPlan } from '@/lib/design/types';
 import { calculatorSheet } from '@/lib/summary/calculatorSheet';
 import type { SelectedProduct } from '@/lib/calculator/types';
 import { auth } from '@/auth';
@@ -67,11 +69,16 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   const edits = parsed.data.edits ?? null;
   const pending = isCalculatorPending(edits) || !homeState || rooms.length === 0;
 
+  // The drawing board this save carries, else the one the row has: its partition walls — less
+  // the ones already standing — are what the estimate builds (`boardPartitionCounts`).
+  const board = parsed.data.board;
+  const boardPlan = board !== undefined ? ((board?.plan ?? null) as FloorPlan | null) : calculatorBoardPlan(existing);
+
   let summary: ReturnType<typeof buildProjectSummary> | null = null;
   let costColumns: Record<'totalMaterialsCost' | 'totalFurnitureCost' | 'totalWorkersCost' | 'totalCost', string | null> | null = null;
   if (!pending && homeState) {
     // Same rate book the calculator UI used, so the saved total matches what was shown.
-    summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), await loadRateBook(), { choices: edits?.choices });
+    summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), await loadRateBook(), { choices: edits?.choices, counts: boardPartitionCounts(boardPlan) });
     // What the person made of the estimate — lines ticked off, quantities of their own — is
     // laid over the figures just worked out, never over the client's. The row keeps the edits
     // and the totals *as edited*: what the estimate was before them is worked out again from
@@ -90,7 +97,6 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   // calculation still on its first step (no home state, no rooms yet) must not blank out what
   // a design already in the row has.
   const hasDesign = existing.plan != null;
-  const board = parsed.data.board;
   const calculatorColumns = {
     // A calculation with no design writes its home state as it is — null until step 1 is answered.
     ...(homeState != null || !hasDesign ? { homeState } : {}),

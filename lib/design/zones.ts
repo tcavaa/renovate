@@ -10,7 +10,7 @@
  * Pure geometry.
  */
 
-import { pointOnEdge, polygonAreaM2, polygonBounds, roomEdges, toCounterClockwise } from './planGeometry';
+import { isOpenEdge, pointOnEdge, polygonAreaM2, polygonBounds, roomEdges, toCounterClockwise } from './planGeometry';
 import type { FinishZone, PlanRoom, SceneProduct, SurfaceFinish, Vec2 } from './types';
 
 export interface ZoneRect {
@@ -124,7 +124,8 @@ export function zoneAreaM2(zone: FinishZone): number {
 /** Square metres of one wall of a room, less the doors and windows on it. */
 export function wallEdgeAreaM2(room: PlanRoom, wallIndex: number): number {
   const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
-  if (!edge) return 0;
+  // An edge on a room separator is no wall.
+  if (!edge || isOpenEdge(room, wallIndex)) return 0;
   const gross = edge.length * room.heightM;
   const openings = room.openings.filter((o) => o.wallIndex === wallIndex).reduce((s, o) => s + o.widthM * o.heightM, 0);
   return Math.max(0.1, Math.round((gross - openings) * 10) / 10);

@@ -87,6 +87,24 @@ export interface Wall {
   material?: BuildMaterial;
   origin: ElementOrigin;
   locked?: boolean;
+  /**
+   * A partition that already stands. A black frame has its partition walls built as part of
+   * the renovation (phase 1, `partitionArea`), and some of them are often up already: those
+   * are marked here and left out of the price. Unset: the wall is built, and paid for, when
+   * the renovation builds walls at all. Says nothing about a wall with a room on one side
+   * only (the building's own), which is never priced.
+   */
+  built?: boolean;
+  /**
+   * A room separator (ოთახის გამყოფი), not a wall: a line drawn with the wall tool, and edited
+   * like one, that divides an open space into rooms — a kitchen from the living room it opens
+   * onto — the way an architect's room separation line does. It bounds rooms in the wall graph
+   * like any wall (`roomsFromWalls`), but nothing stands along it: it has no thickness, is
+   * never built, priced, finished or drawn in 3D, carries no doors or windows, and the edges it
+   * gives a room are open (`PlanRoom.open`). One the app drew on from a partial wall
+   * (`lib/design/separators`) is `origin: 'generated'` until the person touches it.
+   */
+  separator?: boolean;
 }
 
 /** A structural column: a box standing on the floor, `widthM` along x and `depthM` along z. */
@@ -197,6 +215,17 @@ export interface PlanRoom {
   origin?: ElementOrigin;
   /** A studio's dividing line (`lib/design/studio`); only read when `type` is `studio`. */
   split?: RoomSplit;
+  /**
+   * The edges of the outline (by index) that lie on a room separator: open onto the next room,
+   * not walls — no wall area, finish, skirting, door or socket goes on them. Derived with the
+   * room (`roomsFromWalls`); absent when the room is walled all round.
+   */
+  open?: number[];
+  /**
+   * The person keeps the room one room although a partial wall stands in it: the app does not
+   * draw a room separator on from the wall again (`lib/design/separators`).
+   */
+  keepWhole?: boolean;
 }
 
 export interface FloorPlan {

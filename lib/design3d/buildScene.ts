@@ -21,7 +21,7 @@
 
 import * as THREE from 'three';
 import { loadFixture, loadModel } from './modelLoader';
-import { pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { isOpenEdge, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
 import { wallFinishFor } from '@/lib/design/zones';
@@ -226,6 +226,8 @@ function buildRoomShell(
     const tops = edges.map((edge) => wallForEdge(plan, room, edge)?.heightM ?? room.heightM);
 
     edges.forEach((edge, order) => {
+      // An edge on a room separator is open onto the next room: no wall, no moulding.
+      if (isOpenEdge(room, edge.index)) return;
       const openings = room.openings.filter((o) => o.wallIndex === edge.index);
       const planWall = wallForEdge(plan, room, edge);
       const edgeWall = edgeWalls.get(edgeWallKey(room.id, edge.index));

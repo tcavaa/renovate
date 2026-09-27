@@ -16,6 +16,7 @@ import type { CatalogProduct } from './matcher';
 import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
+import { wallPerimeterM } from './planGeometry';
 import type { ItemOrigin, PlanRoom, StyleId, StyleSurface, SurfaceFinish } from './types';
 
 export type Surface = 'floor' | 'wall';
@@ -76,9 +77,9 @@ export function pricePerM2(product: CatalogProduct): number {
   return product.pricePerUnit / Math.max(coverage, 0.01);
 }
 
-/** Wall area to cover: the perimeter times the height, less the doors and windows. */
+/** Wall area to cover: the walled perimeter (not the edges on a room separator) times the height, less the doors and windows. */
 export function wallAreaM2(room: PlanRoom): number {
-  const gross = room.perimeterM * room.heightM;
+  const gross = wallPerimeterM(room) * room.heightM;
   const openings = room.openings.reduce((sum, o) => sum + o.widthM * o.heightM, 0);
   return Math.max(1, Math.round((gross - openings) * 10) / 10);
 }

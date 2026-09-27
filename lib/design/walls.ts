@@ -319,6 +319,10 @@ export function roomsFromWalls(walls: Wall[], options: RoomsFromWallsOptions = {
       ...(match?.origin ? { origin: match.origin } : {}),
       // A studio's line is a fraction of the room's extent, so it follows the room wherever it went.
       ...(match?.split ? { split: match.split } : {}),
+      // Told to stay one room although a partial wall stands in it (`lib/design/separators`).
+      ...(match?.keepWhole ? { keepWhole: true } : {}),
+      // The edges on a room separator are open, not walls.
+      ...openEdges(inner.wallIds, byId),
     };
     room.openings = match ? reprojectOpenings(match, room) : [];
     rooms.push(room);
@@ -331,6 +335,12 @@ export function roomsFromWalls(walls: Wall[], options: RoomsFromWallsOptions = {
     room.openings = room.openings.filter((o) => !o.connectsToRoomId || ids.has(o.connectsToRoomId));
   }
   return rooms;
+}
+
+/** The edges (by index) whose wall is a room separator, as `PlanRoom.open`; nothing when there are none. */
+function openEdges(wallIds: string[], byId: Map<string, Wall>): { open?: number[] } {
+  const open = wallIds.flatMap((id, i) => (byId.get(id)?.separator ? [i] : []));
+  return open.length > 0 ? { open } : {};
 }
 
 /** A stable-ish id for a new room, from where it is, so re-deriving twice gives the same id. */
@@ -423,9 +433,12 @@ export function innerPolygon(centre: Vec2[], thickness: number[], wallIds: strin
       polygon.push(roundVec(meet));
       outIds.push(ids[i]);
     } else {
-      // Collinear neighbours of different thickness: a jog between the two offset lines.
+      // Collinear neighbours of different thickness: a jog between the two offset lines. The
+      // jog is the end face of whichever wall has a body — a room separator has none, so a
+      // wall running on as a separator keeps the jog as its own face, not as an open edge.
+      const prevIndex = (i - 1 + m) % m;
       polygon.push(roundVec(prev.b));
-      outIds.push(ids[i]);
+      outIds.push(ths[i] === 0 && ths[prevIndex] > 0 ? ids[prevIndex] : ids[i]);
       polygon.push(roundVec(cur.a));
       outIds.push(ids[i]);
     }
@@ -738,10 +751,17 @@ export function rebuildRooms(plan: FloorPlan, walls: Wall[]): FloorPlan {
  * the stretches nobody holds are added exactly as drawn.
  */
 export function addWalls(walls: Wall[], added: Wall[]): Wall[] {
-  const out = [...walls];
+  let out = [...walls];
   for (const wall of added) {
     if (wallLength(wall) < NODE_TOL_M * 2) continue;
-    out.push(...uncoveredPieces(wall, out));
+    // A room separator gives way to any wall on its line, and a wall drawn over a separator
+    // takes its place: where both stand, the room is walled, not open.
+    if (wall.separator) {
+      out.push(...uncoveredPieces(wall, out, true));
+      continue;
+    }
+    out = out.flatMap((other) => (other.separator && collinear(other, wall) ? uncoveredPieces(other, [wall], true) : [other]));
+    out.push(...uncoveredPieces(wall, out.filter((other) => !other.separator)));
   }
   return out;
 }
@@ -889,10 +909,13 @@ export const WALL_CLEARANCE_M = 0.05;
  */
 export function wallsClash(moved: Wall[], staying: Wall[]): boolean {
   for (const wall of moved) {
+    // A room separator has no body to stand inside another's.
+    if (wall.separator) continue;
     const dir = wallDirection(wall);
     const normal = leftNormal(dir);
     const length = wallLength(wall);
     for (const other of staying) {
+      if (other.separator) continue;
       if (Math.abs(cross(dir, wallDirection(other))) > 1e-3) continue;
       const apart = Math.abs(dot(sub(other.a, wall.a), normal));
       if (apart <= NODE_TOL_M) continue; // one line: they join, or one stands for the other
@@ -1063,7 +1086,7 @@ export function removeWall(walls: Wall[], id: string): Wall[] {
   return walls.filter((w) => w.id !== id);
 }
 
-export function updateWall(walls: Wall[], id: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'origin'>>): Wall[] {
+export function updateWall(walls: Wall[], id: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'origin' | 'built'>>): Wall[] {
   return walls.map((w) => (w.id === id ? { ...w, ...patch } : w));
 }
 
@@ -1115,11 +1138,12 @@ export function wallHeightFor(plan: FloorPlan, wall: Wall | null, room?: PlanRoo
   return wall?.heightM ?? room?.heightM ?? plan.wallHeightM ?? DEFAULT_WALL_HEIGHT_M;
 }
 
-/** The pieces of wall that bound no room at all — free-standing walls the 3D view still has to draw. */
+/** The pieces of wall that bound no room at all — free-standing walls the 3D view still has to draw. Never a room separator, which is no wall. */
 export function orphanWallSegments(plan: FloorPlan): Array<{ wall: Wall; a: Vec2; b: Vec2 }> {
   const walls = plan.walls ?? [];
   const out: Array<{ wall: Wall; a: Vec2; b: Vec2 }> = [];
   for (const wall of walls) {
+    if (wall.separator) continue;
     const dir = wallDirection(wall);
     const length = wallLength(wall);
     if (length < NODE_TOL_M) continue;

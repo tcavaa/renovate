@@ -8,7 +8,7 @@
  * store through the actions it is given.
  */
 
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Square, SquareSplitHorizontal, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -18,6 +18,8 @@ import type { RoomSplit, RoomType } from '@/lib/calculator/types';
 import { isPartType, studioParts, swapped, turned, withFirstArea, withPartType } from '@/lib/design/studio';
 import { roomEdges } from '@/lib/design/planGeometry';
 import { WALL_THICKNESS_OPTIONS_M, wallLength } from '@/lib/design/walls';
+import { partitionWall } from '@/lib/design/partitions';
+import { partialWallIn } from '@/lib/design/separators';
 import { AC_CEILING_GAP_M, TECHNICAL_KIND_LIST, technicalElevation } from '@/lib/design/technical';
 import { ELECTRICAL_KINDS, ELECTRICAL_KIND_LIST, LIGHT_CATEGORIES, isLight } from '@/lib/design/electrical';
 import { zoneAreaM2 } from '@/lib/design/zones';
@@ -52,7 +54,7 @@ export function materialLabel(t: Dictionary, m: BuildMaterial): string {
 const LIGHT_CATEGORY_KEY: Record<LightCategory, keyof Dictionary['build']> = { primary: 'lcPrimary', secondary: 'lcSecondary', furniture: 'lcFurniture', bedside: 'lcBedside', indirect: 'lcIndirect', decorative: 'lcDecorative' };
 
 export interface InspectorActions {
-  updateWall: (id: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked'>>) => void;
+  updateWall: (id: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'built'>>) => void;
   /** Stretches the wall to a typed length; without it the length is shown and not edited. */
   resizeWall?: (id: string, lengthM: number) => void;
   removeWall: (id: string) => void;
@@ -74,12 +76,17 @@ export interface InspectorActions {
   removeRoom: (id: string) => void;
   /** Picks out one half of a studio (the board does the same on a click). */
   selectRoomPart?: (roomId: string, part: 0 | 1 | null) => void;
+  /**
+   * A room joined with the rooms across its room separators (`true`), or divided in two along
+   * the partial wall standing in it by a separator (`false`) — `lib/design/separators`.
+   */
+  setRoomWhole?: (roomId: string, whole: boolean) => void;
   removeZone?: (roomId: string, zoneId: string) => void;
   /** The catalogue product a radiator is (null: back to the estimate). */
   setRadiatorProduct?: (id: string, product: CatalogProduct | null) => void;
 }
 
-export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian', roomPart }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId; /** The half of a studio picked out on the board. */ roomPart?: RoomPartPick }) {
+export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian', roomPart, wallBuilding = false }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId; /** The half of a studio picked out on the board. */ roomPart?: RoomPartPick; /** The estimate builds the partition walls (a black frame): a wall can be marked as already standing (`Wall.built`). */ wallBuilding?: boolean }) {
   const t = useT();
   const locale = useLocale();
   if (!selection) {
@@ -89,14 +96,25 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
   if (selection.kind === 'wall') {
     const wall = plan.walls?.find((w) => w.id === selection.id);
     if (!wall) return null;
+    const length = actions.resizeWall && !locked && !wall.locked ? (
+      <NumberField label={`${t.build.length} (${t.units.m})`} value={Number(wallLength(wall).toFixed(2))} min={0.1} max={80} step={0.01} onCommit={(v) => actions.resizeWall!(wall.id, v)} />
+    ) : (
+      <Fact label={t.build.length} value={`${wallLength(wall).toFixed(2)} ${t.units.m}`} />
+    );
+    if (wall.separator) {
+      // A room separator is no wall: its length, what it is, and nothing to build, finish or open.
+      return (
+        <Section title={t.build.inspectorSeparator} onDelete={locked ? undefined : () => actions.removeWall(wall.id)} className={className}>
+          {length}
+          <p className="text-[11px] leading-snug text-ink-muted">{t.build.separatorHint}</p>
+          <LockRow locked={!!wall.locked} onToggle={() => actions.updateWall(wall.id, { locked: !wall.locked })} />
+        </Section>
+      );
+    }
     const rooms = plan.rooms.filter((r) => r.wallIds?.includes(wall.id));
     return (
       <Section title={t.build.inspectorWall} onDelete={locked ? undefined : () => actions.removeWall(wall.id)} className={className}>
-        {actions.resizeWall && !locked && !wall.locked ? (
-          <NumberField label={`${t.build.length} (${t.units.m})`} value={Number(wallLength(wall).toFixed(2))} min={0.1} max={80} step={0.01} onCommit={(v) => actions.resizeWall!(wall.id, v)} />
-        ) : (
-          <Fact label={t.build.length} value={`${wallLength(wall).toFixed(2)} ${t.units.m}`} />
-        )}
+        {length}
         <Field label={t.build.thickness}>
           <div className="flex flex-wrap gap-1">
             {WALL_THICKNESS_OPTIONS_M.map((m) => (
@@ -108,7 +126,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
         </Field>
         <NumberField label={`${t.build.height} (${t.units.m})`} value={wall.heightM ?? plan.wallHeightM ?? rooms[0]?.heightM ?? 2.8} min={1} max={8} step={0.05} onCommit={(v) => actions.updateWall(wall.id, { heightM: v })} disabled={locked} />
         <MaterialField value={wall.material ?? 'block'} options={['concrete', 'brick', 'block', 'drywall', 'wood']} onChange={(m) => actions.updateWall(wall.id, { material: m })} disabled={locked} />
-        <OriginRow origin={wall.origin} />
+        {/* In a black frame "existing" (where the wall came from) would read as "already built": the building question replaces it. */}
+        {wallBuilding ? <WallBuildingField plan={plan} wall={wall} onChange={(built) => actions.updateWall(wall.id, { built: built || undefined })} /> : <OriginRow origin={wall.origin} />}
         <LockRow locked={!!wall.locked} onToggle={() => actions.updateWall(wall.id, { locked: !wall.locked })} />
         {actions.addOpening && rooms.length > 0 && (
           <Field label={t.build.addOpeningOnWall}>
@@ -376,8 +395,11 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
 }
 
 /** Name, type, height and size of a room — shared by the inspector and the rooms panel. */
-export function RoomFields({ room, plan, actions, locked, compact, roomPart }: { room: PlanRoom; plan: FloorPlan; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'selectRoomPart'>; locked?: boolean; compact?: boolean; roomPart?: RoomPartPick }) {
+export function RoomFields({ room, plan, actions, locked, compact, roomPart }: { room: PlanRoom; plan: FloorPlan; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'selectRoomPart' | 'setRoomWhole'>; locked?: boolean; compact?: boolean; roomPart?: RoomPartPick }) {
   const t = useT();
+  // A room separated from its neighbour can be joined with it; one a partial wall stands in, divided along it.
+  const separated = !!room.open?.length;
+  const partial = actions.setRoomWhole && !separated ? partialWallIn(plan, room) : null;
   const xs = room.polygon.map((p) => p.x);
   const zs = room.polygon.map((p) => p.z);
   const width = Math.max(...xs) - Math.min(...xs);
@@ -419,8 +441,29 @@ export function RoomFields({ room, plan, actions, locked, compact, roomPart }: {
         <span className="mx-1.5 text-ink-faint">·</span>
         {t.design.openingsTitle}: {room.openings.length}
       </p>
+      {actions.setRoomWhole && (separated || partial) && <SeparatorField separated={separated} onWhole={(whole) => actions.setRoomWhole!(room.id, whole)} />}
       {room.type === 'studio' && <StudioSplitFields room={room} actions={actions} active={roomPart?.roomId === room.id ? roomPart.part : null} />}
     </>
+  );
+}
+
+/**
+ * A room and the room separators round it (`lib/design/separators`): one separated from its
+ * neighbour by a separator can be joined with it into one room — and stays one room against the
+ * partial wall that separator was drawn on from; one a partial wall stands in can be divided
+ * along it. The separator itself is selected and edited on the board like a wall.
+ */
+function SeparatorField({ separated, onWhole }: { separated: boolean; onWhole: (whole: boolean) => void }) {
+  const t = useT();
+  return (
+    <div className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <p className="text-xs font-semibold text-ink">{separated ? t.design.separatedTitle : t.design.partialWallTitle}</p>
+      <p className="text-[11px] leading-snug text-ink-muted">{separated ? t.design.separatedHint : t.design.partialWallHint}</p>
+      <button type="button" onClick={() => onWhole(separated)} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
+        {separated ? <Square className="h-3.5 w-3.5" /> : <SquareSplitHorizontal className="h-3.5 w-3.5" />}
+        {separated ? t.design.joinRooms : t.design.divideAlongWall}
+      </button>
+    </div>
   );
 }
 
@@ -448,6 +491,7 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
           <button type="button" onClick={() => setSplit(swapped(room))} title={t.design.studioSwap} aria-label={t.design.studioSwap} className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink">
             <ArrowLeftRight className="h-3.5 w-3.5" />
           </button>
+
         </div>
       </div>
       {parts.map((part) => (
@@ -490,6 +534,33 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
 // ---------------------------------------------------------------------------
 // Small building blocks
 // ---------------------------------------------------------------------------
+
+/**
+ * Whether a partition still has to be built (and is priced as such, `partitionArea`) or
+ * already stands — the black frame's question. A wall with a room on one side only is the
+ * building's own and never priced; it says so instead.
+ */
+function WallBuildingField({ plan, wall, onChange }: { plan: FloorPlan; wall: Wall; onChange: (built: boolean) => void }) {
+  const t = useT();
+  const partition = partitionWall(plan, wall.id);
+  if (!partition) return <p className="text-[11px] leading-snug text-ink-muted">{t.build.wallOuterNotBuilt}</p>;
+  const built = !!wall.built;
+  return (
+    <div className="space-y-1">
+      <Field label={t.build.wallBuilding}>
+        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.build.wallBuilding}>
+          <Chip active={!built} onClick={() => built && onChange(false)}>
+            {t.build.wallToBuild}
+          </Chip>
+          <Chip active={built} onClick={() => !built && onChange(true)}>
+            {t.build.wallAlreadyBuilt}
+          </Chip>
+        </div>
+      </Field>
+      <p className="text-[11px] leading-snug text-ink-muted">{built ? t.build.wallBuiltHint : fill(t.build.wallToBuildHint, { m2: formatM2(partition.areaM2) })}</p>
+    </div>
+  );
+}
 
 
 /**

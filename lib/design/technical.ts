@@ -13,7 +13,7 @@
 
 import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
-import { pointInPolygon, roomEdges } from './planGeometry';
+import { pointInPolygon, roomEdges, wallEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
 import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
@@ -293,7 +293,7 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     for (const point of points) {
       if (point.kind !== 'radiator') continue;
       // A radiator belongs under a window, on an exterior wall.
-      const edges = roomEdges(room.polygon);
+      const edges = wallEdges(room);
       const near = edges
         .map((e) => ({ e, d: closestOnSegment(point.position, e.a, e.b).distance }))
         .sort((p, q) => p.d - q.d)[0];

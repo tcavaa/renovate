@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Flame, Grid2x2, Hammer, Hand, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, Hand, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -31,7 +31,7 @@ import type { EditorTool } from '@/components/plan/PlanEditor';
 import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
-/** A room is a shape of the wall tool — one line, one square — not a tile of its own. */
+/** A room and a room separator are shapes of the wall tool — a line, a square, a dashed line — not tiles of their own. */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
   { id: 'pan', icon: Hand },
@@ -44,7 +44,7 @@ const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
 
 export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void }) {
   const t = useT();
-  const drawing = tool === 'wall' || tool === 'room';
+  const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1" role="toolbar">
@@ -60,8 +60,8 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
       </div>
       {drawing && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
-          {(['wall', 'room'] as const).map((id) => {
-            const Icon = id === 'wall' ? Minus : Square;
+          {(['wall', 'room', 'divider'] as const).map((id) => {
+            const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
             return (
               <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
                 <Icon className="h-3.5 w-3.5" />
@@ -71,7 +71,8 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
           })}
         </div>
       )}
-      {drawing && (
+      {/* A room separator has no thickness. */}
+      {drawing && tool !== 'divider' && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.thickness}>
           {WALL_THICKNESS_OPTIONS_M.map((m) => (
             <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} onClick={() => onThickness(m)} className={cn('h-8 rounded-[8px] px-2.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>

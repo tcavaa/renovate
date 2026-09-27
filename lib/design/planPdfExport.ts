@@ -100,7 +100,9 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
   if (options.finishes) drawBaseFinishes(ctx, transform, plan, options.finishes);
   // Walls with their corners closed, like the board.
   const extensions = wallEndExtensions(plan.walls ?? []);
-  for (const wall of plan.walls ?? []) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b });
+  // Room separators first, dashed, so the walls they end against are drawn over their ends.
+  const walls = [...(plan.walls ?? []).filter((w) => w.separator), ...(plan.walls ?? []).filter((w) => !w.separator)];
+  for (const wall of walls) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b });
   for (const room of plan.rooms) {
     for (const opening of room.openings) {
       drawOpening(ctx, transform, room, opening, plan.wallThicknessM, {});
