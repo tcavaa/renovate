@@ -2,11 +2,12 @@
 
 What floors and walls wear in the studio (step 6, the finishes category): finish products and
 their textures, the style's own finishes (products too), whole rooms, single walls, the paint
-brush (metre-wide strips and square metres), floor zones, skirting boards and cornices — and
-how each is priced: only where it shows.
+brush (metre-wide strips and square metres), floor zones, skirting boards and cornices, how a
+person browses them (the shelf's style and colour filters, the finishes catalogue) and how a
+partner adds one — and how each is priced: only where it shows.
 Read this before touching `lib/design/surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`,
-`finishQuantity.ts`, `components/design/FinishPanel.tsx`, the `FinishesTray`, or the finish
-actions of `store/designStore.ts`.
+`finishQuantity.ts`, `finishBrowser.ts`, `components/design/FinishPanel.tsx`, the
+`FinishesTray`, `FinishCatalog`, or the finish actions of `store/designStore.ts`.
 
 Related: [studio.md](studio.md) (the tray and the brush in the page) ·
 [3d-engine.md](3d-engine.md) (wall geometry, spans, materials) ·
@@ -24,8 +25,12 @@ per-room floor and wall picks, carried into 3D).
 | `lib/design/paint.ts` | the brush: floor cells, wall strips (`span`) and wall patches (`cells` as [column, row]) — `paintCell`, `paintSpan`, `paintPatch`, `patchAt`, `patchSpans`, `patchSpansOnWall`, `erasePatchFromStrip`, `patchesAreaM2` |
 | `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
 | `lib/design/finishQuantity.ts` | `finishQuantity` / `finishUnit` — what a finish covers, shared by the store and the save route; `visibleFinishes` — what of it shows, which is what the budget buys |
+| `lib/design/finishBrowser.ts` | `FinishSurface`, `finishOptions` (a surface's finishes, best first), `finishUnitPrice` (per m², per m for a moulding), `narrowFinishShelf` (the tray's style and colour filters), `browseFinishes` (the catalogue's filters with counts) |
 | `lib/design3d/wallGeometry.ts` | spans on a wall face (`buildWallGeometry`), `buildMouldingGeometry` |
-| `components/studio/Trays.tsx` → `FinishesTray` | surfaces (floor · walls · skirting · cornice), scopes, swatches |
+| `components/studio/Trays.tsx` → `FinishesTray` | surfaces (floor · walls · skirting · cornice), scopes, the colour swatches, the style picker (`StylePicker.tsx`), the catalogue button, swatches; `finishScopeChips` / `SURFACE_TABS` shared with the catalogue |
+| `components/studio/FinishCatalog.tsx` | every finish as a modal: search, filters, the texture at its real size, "take as the brush" / "lay in the room" |
+| `lib/uploads/textureColors.ts`, `scripts/texture-colors.ts` | a finish's colours read off its texture (`colorsOfImage` → `specs.colors`); `pnpm textures:colors` for the finishes a database already holds |
+| `components/admin/ProductForm.tsx` | the "finish for the studio" and "skirting or cornice" sections a partner fills in ([../catalog.md](../catalog.md#managing-the-catalogue)) |
 | `components/design/FinishPanel.tsx` | the picker shown under the inspector for a selected floor zone |
 | `store/designStore.ts` | `setFinish`, `setWallFinish`, `paintSurface`, `clearPartialFinishes`, zone actions, `ensureFinishProducts`, `defaultFinishes` / `keepChosen`, `fitToPlan` (refits and re-measures) |
 | `components/design/DesignFinishProducts.tsx` | in the design layout: keeps a generated design's floors and walls the style's products (`ensureFinishProducts`) |
@@ -44,14 +49,71 @@ a wall, a drawn rectangle) are still in the data model, drawn, selectable (the i
 `FinishPanel` for a selected zone) and priced — but nothing in the UI creates one at the moment:
 no page offers the board's `zone` tool and the tray has no zone scope (see Known gaps).
 
+## Browsing finishes: the shelf's filters and the catalogue (`lib/design/finishBrowser.ts`)
+
+**The tray's shelf is narrowed like the furniture shelf** (`narrowFinishShelf`): by **style** —
+the project's own ticked to begin with, a change of style on the style step followed, the
+person's own ticks left alone — and by **colour**, one swatch per colour family on the shelf as
+it stands, counted after the style, a family the style has emptied standing aside rather than
+emptying the shelf. The surfaces keep the tray's left edge and the brush sizes its top line, so
+the style filter folds into a button that opens the four style chips upward (`StylePicker`;
+Escape there closes the list and nothing else), and the colours take the rest of that line and
+scroll (`ScrollRow`) when four wall scopes leave them little room; the room and the area a pick
+covers moved to the hint line under the swatches. **What is on the surface now — or in the
+brush — stays on the shelf whatever the filters say**, right after "the style's own": it is the
+one swatch a person must always find. The colours are the texture's (`specs.colors`), a
+moulding's its `colorHex` (`productColorFamilies`).
+
+**Every finish is a page one button away** (`components/studio/FinishCatalog.tsx`, the tray's
+"კატალოგი", the way `CatalogBrowser` is the furniture shelf's): a search across names, brands,
+shops and category names in any language; down the left what is being finished (floor · walls ·
+skirting · cornice, each with how many finishes it has), the categories the finishes are filed
+under (laminate, floor tiles, paint… and admin's subcategories under a chosen one), "for
+bathrooms" (`specs.wet`), styles, colours, a price band by the m² (by the metre for a moulding)
+and the shop, every control with a count read before it narrows and standing aside when the
+rest has emptied it (`browseFinishes`, pure and tested); the finishes as cards (a water drop on
+the bathroom-ready ones, a badge on the one on the surface now or in the brush); and on the
+right the open one — **its texture tiled at its real size over two metres by two**, so a
+mosaic reads as a mosaic and a slab as a slab — its price by the m² (and by the litre or pack
+with what one covers), shop, brand, surfaces, repeat size, styles and colours. The sort's
+default is "best match" — `finishOptions`' order, what suits the room (wet in a bathroom),
+then the style, then the price. **The surface and the brush size are the tray's own**: the
+modal switches the tray's surface (`chooseFinishSurface` — the brush goes with it) and shows
+its scope chips above the one button, whose words follow them — "take as the brush" in a
+painting scope, "lay in the whole room" / "in every room" / "on this wall" otherwise. The pick
+is `pickFinish`, exactly a swatch's click, and the modal folds to a chip at the top of the
+canvas (`finishCatalog: 'minimized'`, shown in the finishes category only) that opens it again
+with the search, the filters and the open finish as they were (`FinishBrowserState` lives in
+the studio page). While it is open the studio's keys are off and its Escape is its own (the
+brush survives it), as with the furniture catalogue.
+
 ## Finishes (`lib/design/surfaces.ts`, `components/design/FinishPanel.tsx`)
 
-A finish is an ordinary product from `laminate`, `floor-tiles`, `wall-tiles` or `paint` that
-carries a `textureUrl`; its `specs` say which surfaces it is for (`surfaces`), whether it is
-made for wet rooms (`wet`), how many metres one tile covers (`textureScaleM`) and its normal
-and roughness maps. `pnpm textures:stock` writes ~35 of them: the partner drop's own floors,
-plasters and bricks, plus Poly Haven parquets, tiles, a plaster, a paint and slate, and
-ambientCG tiles, a microcement floor and paints (all CC0), written straight to the database. Paint is sold by the litre, so `pricePerM2` divides by `coveragePerUnit`.
+A finish is an ordinary product from `laminate`, `floor-tiles`, `wall-tiles` or `paint` (or a
+category under one of them) that carries a `textureUrl`; its `specs` say which surfaces it is
+for (`surfaces`), whether it is made for wet rooms (`wet`), how many metres one tile covers
+(`textureScaleM`), its normal and roughness maps, and the colours read off its texture
+(`colors`, for the colour filter). `pnpm textures:stock` writes ~35 of them: the partner drop's
+own floors, plasters and bricks, plus Poly Haven parquets, tiles, a plaster, a paint and slate,
+and ambientCG tiles, a microcement floor and paints (all CC0), written straight to the
+database. Paint is sold by the litre, so `pricePerM2` divides by `coveragePerUnit`.
+
+**A partner or admin adds one in the product form** (`/admin/products/new`, or
+`/partner/products/new` for a store): a category under laminate, floor tiles, wall tiles or
+paint turns the form's 3D section into **"finish for the studio"** — the style tags, the
+texture (a square, seamlessly repeating photo, uploaded to `textures/`), where it goes (floor,
+walls or both — required once there is a texture), water-resistant for bathrooms, the pattern
+repeat in metres (a 2 × 2 m preview shows it tiled at that size), what one unit covers when it
+is not sold by the m² (a litre of paint, a pack of laminate) and the colour shown until the
+texture loads. The upload route reads the texture's colours as it stores it
+(`colorsOfImage`) and the form keeps them in `specs.colors`, so the new finish is under the
+right swatch at once. A category under skirting or cornice gives **"skirting or cornice for
+the studio"** instead: profile (`flat`, `rounded`, `stepped`, `ogee`, `cove`), height and depth
+in cm (`specs.profile` / `heightCm` / `depthCm`, which `trimFromProduct` reads) and the colour
+it is drawn in. The form writes only those keys and keeps whatever else `specs` holds (the
+calculator's "size: 60×60", the stock textures' maps); `productSpecsSchema` checks them. The
+studio's cached catalogue is invalidated by the save, so the finish is on the shelf on the next
+load of the studio.
 
 The style's look comes first: bathrooms and toilets take the style's `wetFloor` / `wetWall`
 (tiles) rather than its parquet and plaster (`defaultFinish`). A finish with a product carries
@@ -234,6 +296,11 @@ off by a wall that stops short), and so does the brush's glow.
 project, a line ticked off not),
 `visibleFinishes.test.ts` (what shows is what is bought, strips painted twice),
 `styleFinishes.test.ts` (the style's product, the fallbacks, `withStyleFinishes`),
+`finishBrowser.test.ts` (a surface's finishes best first, the shelf's style and colour filters,
+the catalogue's categories, bathroom filter, price per m², sorts and stand-asides),
+`colors.test.ts` (colours read off pixels), `tests/unit/api/textureColors.test.ts` (off an image
+with sharp), `tests/integration/product-routes.test.ts` (a finish's and a moulding's `specs`
+saved, what the studio cannot read refused),
 `planDrawing.test.ts` (the sheet leaves the style's own as paper),
 `tests/unit/design3d/wallGeometry.test.ts` (the last span on top, the moulding mitre),
 `cornice.test.ts`, `wallSide.test.ts` (the accent wall is gone; whose side a hit is),
@@ -243,12 +310,19 @@ own", re-measuring after a resize, `ensureFinishProducts`),
 
 ## Known gaps
 
-- Surface finishes are per room: the studio's right panel offers every catalogue product with
-  a `textureUrl` for the focused room's floor and walls (or all rooms at once), priced by what
-  of it shows. `pnpm textures:stock` is what gives products textures; a product without one
-  never appears there, and a catalogue without the style's own texture products gives the
-  generated flat stand-ins of the same wetness (or leaves the look unpriced). Ceilings stay the
-  style's colour.
+- Surface finishes are per room: the tray offers every catalogue product with a `textureUrl`
+  and `specs.surfaces` for the focused room's floor and walls (or all rooms at once), priced by
+  what of it shows. A product without a texture never appears there, and a catalogue without
+  the style's own texture products gives the generated flat stand-ins of the same wetness (or
+  leaves the look unpriced). Ceilings stay the style's colour.
+- **The product form takes a finish's colour map only**: no normal or roughness map (a partner's
+  tile looks flat next to the stock ones, which have both), and the form cannot set `specs`
+  maps by hand. Adding them means two more uploads and `productFileUrls` learning the maps, so
+  a replaced map is deleted too.
+- **A finish's colours are its texture's raw albedo**: a honey oak reads orange, a mid-tan
+  "beige" porcelain brown — the families are the furniture's (`lib/design/colors.ts`), tuned on
+  models. A database that had finishes before colours were read needs `pnpm textures:colors`
+  once (run on the local database 28 Sept 2026; production not yet).
 - **The style's skirting boards and cornices are still only its look**: drawn in 3D, not
   products, not in the budget (`defaultTrim`, product null). The same treatment as the floors
   and walls would need a trim product per style profile.

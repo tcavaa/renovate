@@ -13,7 +13,7 @@ the detailed documents. Read it first for any task under `app/(main)/design/`, `
 | [layout-and-matching.md](layout-and-matching.md) | archetypes and room programs, the automatic layout, matching products to slots, fit checks, tight passages |
 | [studio.md](studio.md) | the build mode page (steps 5–6): trays, shelf, catalogue modal, carrying, dragging, direct manipulation, photos |
 | [3d-engine.md](3d-engine.md) | `lib/design3d/` + `Viewer3D`: scene building, wall geometry, model loading, lighting, the Three.js gotchas |
-| [finishes.md](finishes.md) | floor and wall finishes, the paint brush (strips and square metres), zones, skirting and cornices |
+| [finishes.md](finishes.md) | floor and wall finishes, the paint brush (strips and square metres), zones, skirting and cornices, the shelf's style and colour filters and the finishes catalogue, how a partner adds a finish |
 | [technical-and-fittings.md](technical-and-fittings.md) | technical points, sockets/switches/lights, radiators, doors and windows as products |
 | [../budget.md](../budget.md) | the budget (step 7): `priceScene`, lines, ticks, baskets, kitchens, trades |
 | [../project-flow.md](../project-flow.md) | the project around it: hubs, gate, autosave, resume, locks, the calculator → 3D handoff |

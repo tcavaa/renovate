@@ -25,7 +25,8 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `hooks/useDesignCatalog.ts` | the client cache of that catalogue (`refreshDesignCatalog`) |
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: size, category, placement rule, labels), `ROOM_PROGRAMS`, the category slug sets the code knows (`FIXTURE_…`, `OPENING_…`, `RADIATOR_…`, `TRIM_…`, `DESIGN_CATEGORY_SLUGS`), `SHELF_ROOMS` (the studio rooms' starting point), `archetypeLabel` |
 | `lib/design/styles.ts` | the four style ids ([design-studio/overview.md](design-studio/overview.md#the-four-styles)) |
-| `lib/design/colors.ts` | colour families for the shelf's filter (`productColors`, `productColorFamilies`) |
+| `lib/design/colors.ts` | colour families for the shelves' filters (`productColors`, `productColorFamilies`, `colorTally`, `colorsOfPixels`) |
+| `lib/uploads/textureColors.ts`, `app/api/upload/route.ts` | an image upload; a texture (`folder: textures`) comes back with the colours read off it (`colorsOfImage`) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
 | `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
 | `app/api/upload/model/route.ts`, `lib/uploads/glb.ts` | GLB upload and inspection (`sniffModel`, `inspectGlb`) |
@@ -76,7 +77,20 @@ product lists filter by one, subtree included.
 
 The product form (the store is among its general fields) carries a **3D design settings**
 section: style tags, `model3dKind`, real dimensions in cm, and colour. Choosing an archetype
-prefills its standard dimensions when all three are still empty.
+prefills its standard dimensions when all three are still empty. **The section follows the
+category** (`studioKind`): under laminate, floor tiles, wall tiles or paint it is **"finish for
+the studio"** — style tags, the texture (uploaded to `textures/`; the route reads its colours,
+which go into `specs.colors`; an empty photo takes the texture and an untouched colour its main
+colour), where it goes (floor, walls — required once there is a texture), water-resistant, the
+pattern repeat in metres over a 2 × 2 m tiled preview, what one unit covers when it is not sold
+by the m² (`coveragePerUnit`), and the colour; under skirting or cornice it is **"skirting or
+cornice for the studio"** — style tags, profile, height and depth in cm (into `specs`, decimals
+allowed) and colour. Everything else keeps the model section. How a finish is then offered is
+[design-studio/finishes.md](design-studio/finishes.md). The form writes only those `specs` keys
+and keeps the rest; `productSpecsSchema` (`lib/validations/product.schema.ts`) checks the keys
+the studio reads (`surfaces`, `wet`, `textureScaleM`, the maps, `colors`, `profile`,
+`heightCm`, `depthCm`) and lets any other key hold a plain value — it used to take strings
+only, which is why nothing could send a finish's settings.
 
 **Only products with a `model3dUrl` are ever placed.** `matchProducts` drops everything
 without one before it looks at archetype or style. There are two ways a product gets one:
@@ -114,7 +128,9 @@ stays listed (marked `?`) rather than silently blanking the select and being los
   the item's wrapper immediately (selection, dragging and the cost bar work from the first
   frame) and drops the mesh in when the GLB arrives. There is no procedural stand-in: a slot
   with no product stays empty ([3d-assets.md](3d-assets.md)).
-- **`products.textureUrl`** — tileable texture for surface products (floor, wall, tile).
+- **`products.textureUrl`** — tileable texture for surface products (floor, wall, tile); their
+  surfaces, wetness, repeat size, maps and colours ride in `specs`
+  ([design-studio/finishes.md](design-studio/finishes.md)).
 - **`products.widthCm/depthCm/heightCm`** — real dimensions; drives scale and collision in layout.
 - **`products.styleTags`** — `['scandinavian']`, `['industrial','modern']`, … drives style matching.
 
@@ -207,7 +223,9 @@ or the approval state; a store it does not list is a 404 ([auth-and-roles.md](au
 `tests/unit/api/productAccess.test.ts` (who sees, changes and deletes a product),
 `tests/integration/product-routes.test.ts` (`/api/products/[id]` with the database and session
 mocked: hidden products 404 to the public, staff and a product's store read them, a catalogue
-agent may change a store's product but not delete it, a store only its own),
+agent may change a store's product but not delete it, a store only its own, a finish's and a
+moulding's `specs` saved and a bad one refused), `tests/unit/api/textureColors.test.ts` (a
+texture's colours, with sharp),
 `tests/integration/catalog-delete-routes.test.ts` (deleting a category, a store and products in
 bulk: admin's, a store's own products, never the catalogue agent's),
 `tests/unit/admin/categoryIcons.test.ts` (icon names, search, drawings), the category tree's

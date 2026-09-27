@@ -164,6 +164,19 @@ describe('PUT and DELETE /api/products/[id]', () => {
     expect(state.deletes).toBe(0);
   });
 
+  it('saves a finish\'s and a moulding\'s studio settings in specs, and refuses what the studio cannot read', async () => {
+    ownStore();
+    const finish = { surfaces: ['floor', 'wall'], wet: true, textureScaleM: 1.2, colors: ['#ECECEC', '#161616'], normalUrl: null, source: 'partner', ზომა: '60x60 სმ' };
+    expect((await (await load()).PUT(put({ specs: finish }), ctx)).status).toBe(200);
+    expect(state.updates[0]).toMatchObject({ specs: finish });
+    const moulding = { profile: 'ogee', heightCm: 14, depthCm: 2.2 };
+    expect((await (await load()).PUT(put({ specs: moulding }), ctx)).status).toBe(200);
+    for (const bad of [{ surfaces: ['ceiling'] }, { colors: ['beige'] }, { textureScaleM: -1 }, { profile: 'baroque' }, { anything: { nested: true } }]) {
+      expect((await (await load()).PUT(put({ specs: bad }), ctx)).status).toBe(400);
+    }
+    expect(state.updates).toHaveLength(2);
+  });
+
   it('keeps a store from moving its product to another store or featuring it', async () => {
     ownStore();
     await (await load()).PUT(put({ nameKa: 'x', storeId: 8, isFeatured: true }), ctx);

@@ -10,9 +10,12 @@ import { useT } from '@/lib/i18n/client';
 interface Props {
   value: string;
   onChange: (url: string) => void;
-  folder?: 'products' | 'workers' | 'categories' | 'misc';
+  /** `textures`: a finish's tileable image — the route answers with the colours it read off it. */
+  folder?: 'products' | 'textures' | 'workers' | 'categories' | 'misc';
   label?: string;
   helperText?: string;
+  /** A file was uploaded (not typed in as a URL): its URL and, for a texture, its colours. */
+  onUploaded?: (result: { url: string; colors?: string[] }) => void;
 }
 
 export function ImageUploader({
@@ -20,6 +23,7 @@ export function ImageUploader({
   onChange,
   folder = 'products',
   helperText,
+  onUploaded,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const ka = useT();
@@ -40,6 +44,7 @@ export function ImageUploader({
         return;
       }
       onChange(json.data.url);
+      onUploaded?.({ url: json.data.url, colors: Array.isArray(json.data.colors) ? json.data.colors : undefined });
     } catch (e) {
       console.error(e);
       setError(ka.imageUploader.uploadError);

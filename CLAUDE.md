@@ -78,6 +78,7 @@ pnpm models:photos      # product photos rendered from those models (Playwright'
 pnpm models:colors [--force]   # read each model's colours into the manifests
 pnpm models:seed        # the catalogue made to match the model manifests
 pnpm textures:stock     # floor/wall finish textures → surface products
+pnpm textures:colors [--force]   # each finish's colours read off its texture (the colour filter)
 pnpm deploy:bundle-seed # models:seed as one plain-node file (the cPanel workflow runs it)
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist

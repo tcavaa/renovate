@@ -1,14 +1,16 @@
 /**
- * Colour families for the furniture shelf's colour filter.
+ * Colour families for the studio's colour filters — the furniture shelf's and the finishes'.
  *
  * A catalogue of two hundred models has nearly as many hex values, and nobody filters by
  * `#C8B79A`. So a product's colours (`products.colorHex`, and `specs.colors` when a piece is
- * really two — an oak frame under white linen) are each read as one of a dozen families a
- * person would actually name, and the shelf offers the families that are on it as swatches.
+ * really two — an oak frame under white linen, a chequerboard of black and white tiles) are
+ * each read as one of a dozen families a person would actually name, and the shelf offers the
+ * families that are on it as swatches.
  *
  * The rules work on hue, lightness and **chroma** (max − min), not HSL saturation: HSL's
  * saturation races to 1 as a colour nears white, so a pale peach wood read as a vivid orange.
- * Pure arithmetic, no DOM — the scripts that read colours off the models use it too.
+ * Pure arithmetic, no DOM — the scripts that read colours off the models and the textures use
+ * it too.
  */
 
 export const COLOR_FAMILIES = [
@@ -81,9 +83,66 @@ export function colorFamily(hex: string | null | undefined): ColorFamily | null 
   return rgb ? familyOfRgb(rgb[0], rgb[1], rgb[2]) : null;
 }
 
+/** A family has to cover this much of a thing to count as one of its colours. */
+export const MIN_COLOR_SHARE = 0.12;
+/** The most colours a product is known by. */
+export const MAX_PRODUCT_COLORS = 3;
+
+/** Colour weighed family by family — triangles of a model by their area, pixels of a texture one each. */
+export interface ColorTally {
+  add(r: number, g: number, b: number, weight?: number): void;
+  /**
+   * The families that cover at least `MIN_COLOR_SHARE` of what was added — the largest always
+   * counts, a thing in five colours still has one that is most of it — three at most, the
+   * largest first, each as the mean of what fell into it: "brown" comes back as *this* walnut.
+   */
+  colors(): string[];
+}
+
+export function colorTally(): ColorTally {
+  const buckets = new Map<ColorFamily, { weight: number; r: number; g: number; b: number }>();
+  let total = 0;
+  return {
+    add(r, g, b, weight = 1) {
+      if (!(weight > 0)) return;
+      const family = familyOfRgb(r, g, b);
+      const bucket = buckets.get(family) ?? { weight: 0, r: 0, g: 0, b: 0 };
+      bucket.weight += weight;
+      bucket.r += r * weight;
+      bucket.g += g * weight;
+      bucket.b += b * weight;
+      buckets.set(family, bucket);
+      total += weight;
+    },
+    colors() {
+      if (total <= 0) return [];
+      return [...buckets.values()]
+        .sort((x, y) => y.weight - x.weight)
+        .filter((bucket, index) => index === 0 || bucket.weight / total >= MIN_COLOR_SHARE)
+        .slice(0, MAX_PRODUCT_COLORS)
+        .map((bucket) => toHex(bucket.r / bucket.weight, bucket.g / bucket.weight, bucket.b / bucket.weight));
+    },
+  };
+}
+
 /**
- * Every colour a product is known by: `specs.colors` (read off its model, the largest
- * first) when it has them, its one `colorHex` otherwise.
+ * The colours of an image, from its raw sRGB pixels (`channels` 3, or 4 with alpha — a pixel
+ * next to transparent is nothing and is skipped): what a floor or a wall finish is, read off
+ * its texture. The image is best shrunk first — a 96-pixel square of a tile says as much as
+ * the 2048-pixel one.
+ */
+export function colorsOfPixels(data: ArrayLike<number>, channels: 3 | 4): string[] {
+  const tally = colorTally();
+  for (let at = 0; at + channels <= data.length; at += channels) {
+    if (channels === 4 && data[at + 3] < 13) continue;
+    tally.add(data[at], data[at + 1], data[at + 2]);
+  }
+  return tally.colors();
+}
+
+/**
+ * Every colour a product is known by: `specs.colors` (read off its model or its texture, the
+ * largest first) when it has them, its one `colorHex` otherwise.
  */
 export function productColors(product: { colorHex?: string | null; specs?: unknown }): string[] {
   const specs = product.specs && typeof product.specs === 'object' ? (product.specs as { colors?: unknown }) : null;

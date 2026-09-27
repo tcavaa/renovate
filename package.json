@@ -33,6 +33,7 @@
     "models:photos": "tsx scripts/model-photos.ts",
     "models:colors": "tsx scripts/model-colors.ts",
     "textures:stock": "tsx scripts/stock-textures.ts",
+    "textures:colors": "tsx scripts/texture-colors.ts",
     "db:seed:rates": "tsx scripts/seed-rates.ts",
     "db:seed:teams": "tsx scripts/seed-teams.ts",
     "db:seed:workers": "tsx scripts/seed-workers.ts",
