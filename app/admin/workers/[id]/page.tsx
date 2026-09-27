@@ -5,6 +5,7 @@ import { workers } from '@/lib/db/schema';
 import { WorkerForm } from '@/components/admin/WorkerForm';
 import { PartnerApproval } from '@/components/admin/PartnerApproval';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,7 @@ export default async function EditWorkerPage(
     params: Promise<{ id: string }>;
   }
 ) {
+  await requireAdminPage('workers');
   const params = await props.params;
   const ka = await getT();
   const id = Number(params.id);

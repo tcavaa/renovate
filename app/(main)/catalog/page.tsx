@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
-import { and, asc, count, desc, eq, gte, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { categories, products, stores } from '@/lib/db/schema';
+import { products, stores } from '@/lib/db/schema';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
-import { CatalogSidebar } from '@/components/catalog/CatalogSidebar';
+import { CatalogSidebar, type SidebarNode } from '@/components/catalog/CatalogSidebar';
 import { SortSelect } from '@/components/catalog/SortSelect';
 import { StyleFilter } from '@/components/catalog/StyleFilter';
 import { getLocale, getT } from '@/lib/i18n/server';
@@ -13,6 +13,8 @@ import { localizedName, pickLocalizedName, styleLabel } from '@/lib/i18n/labels'
 import { STYLE_IDS } from '@/lib/design/styles';
 import { fill, hrefWith, pageWindow, parseListParams, type SearchParams } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
+import { childrenOf, pathOf, subtreeCounts, subtreeIds } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,18 +55,30 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
   // itself is inactive until admin approves it, and its shelf stays out of sight until then.
   const publicProduct = and(eq(products.isActive, true), or(isNull(products.storeId), eq(stores.isActive, true)), isNull(products.ownerUserId))!;
 
-  const [visibleCategories, activeStores, countRows] = await Promise.all([
-    db.select().from(categories).where(eq(categories.isVisible, true)).orderBy(asc(categories.phase), asc(categories.sortOrder)),
+  const [tree, activeStores, countRows] = await Promise.all([
+    loadCategoryTree(),
     db.select().from(stores).where(eq(stores.isActive, true)).orderBy(asc(stores.nameKa)),
     db.select({ categoryId: products.categoryId, n: count() }).from(products).leftJoin(stores, eq(products.storeId, stores.id)).where(publicProduct).groupBy(products.categoryId),
   ]);
-  const counts = Object.fromEntries(countRows.map((r) => [r.categoryId, r.n])) as Record<number, number>;
-
-  const activeCategory = state.category ? visibleCategories.find((c) => c.slug === state.category) ?? null : null;
+  // A category counts everything under it; one hidden from the catalogue hides its subtree.
+  const counts = subtreeCounts(tree, new Map(countRows.map((r) => [r.categoryId, Number(r.n)])));
+  const shown = (id: number) => pathOf(tree, id).every((c) => c.isVisible);
+  const activeCategory = state.category ? ([...tree.byId.values()].find((c) => c.slug === state.category && shown(c.id)) ?? null) : null;
+  const activePath = activeCategory ? pathOf(tree, activeCategory.id).map((c) => c.id) : [];
   const activeStore = state.store ? activeStores.find((s) => String(s.id) === state.store) ?? null : null;
+  // The sidebar's tree: what is shown and holds something (or is where the visitor is).
+  const nodesUnder = (parentId: number | null): SidebarNode[] =>
+    childrenOf(tree, parentId)
+      .filter((c) => c.isVisible && ((counts.get(c.id) ?? 0) > 0 || activePath.includes(c.id)))
+      .map((c) => ({ category: c, count: counts.get(c.id) ?? 0, children: nodesUnder(c.id) }));
+  const sidebarTree = nodesUnder(null);
+  const totalCount = sidebarTree.reduce((sum, n) => sum + n.count, 0);
 
   const where: SQL[] = [publicProduct];
-  if (state.category) where.push(eq(products.categoryId, activeCategory?.id ?? -1));
+  if (state.category) {
+    const ids = activeCategory ? subtreeIds(tree, activeCategory.id) : [];
+    where.push(ids.length ? inArray(products.categoryId, ids) : sql`FALSE`);
+  }
   if (state.store) where.push(eq(products.storeId, activeStore?.id ?? -1));
   if (styles.length) where.push(or(...styles.map((s) => sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(s)})`))!);
   const min = params.num('min');
@@ -129,7 +143,7 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
           {t.catalog.filters}
         </label>
         <aside className="hidden min-w-0 peer-checked:block lg:block lg:sticky lg:top-24 lg:self-start">
-          <CatalogSidebar t={t} locale={locale} categories={visibleCategories} counts={counts} stores={activeStores} state={state} />
+          <CatalogSidebar t={t} locale={locale} tree={sidebarTree} total={totalCount} activePath={activePath} stores={activeStores} state={state} />
         </aside>
 
         <section className="min-w-0">

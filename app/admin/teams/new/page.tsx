@@ -4,10 +4,12 @@ import { workers } from '@/lib/db/schema';
 import { AdminPageHeader } from '@/components/admin/AdminList';
 import { TeamForm } from '@/components/admin/TeamForm';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewTeamPage() {
+  await requireAdminPage('teams');
   const ka = await getT();
   const list = await db
     .select({ id: workers.id, nameKa: workers.nameKa, specialtySlug: workers.specialtySlug, city: workers.city })

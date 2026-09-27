@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canDeleteProduct,
   canEditProduct,
   canReadProduct,
   canViewProductPage,
@@ -13,7 +14,8 @@ import {
 /**
  * Who may see a product and who may change it. The public sees an active product sold by no
  * store or an active one, and nobody's own furniture; the owner sees their own; staff with the
- * products section and a product's own store see (and change) the rest.
+ * products section and a product's own store see (and change) the rest. Deleting is admin's and
+ * a store's own — never the catalogue agent's.
  */
 
 const product = (patch: Partial<ProductVisibility> = {}): ProductVisibility => ({
@@ -90,6 +92,31 @@ describe('canEditProduct', () => {
   it('lets nobody else change a product', () => {
     for (const editor of [visitor, customer, ordersAgent, { role: 'worker' as const, storeId: null }]) {
       expect(canEditProduct({ storeId: 7 }, editor)).toBe(false);
+    }
+  });
+});
+
+describe('canDeleteProduct', () => {
+  it('lets admin delete any product, whatever its store', () => {
+    expect(canDeleteProduct({ storeId: 7 }, admin)).toBe(true);
+    expect(canDeleteProduct({ storeId: null }, admin)).toBe(true);
+  });
+
+  it('keeps the catalogue agent to hiding: it deletes nothing', () => {
+    expect(canEditProduct({ storeId: 7 }, catalogAgent)).toBe(true);
+    expect(canDeleteProduct({ storeId: 7 }, catalogAgent)).toBe(false);
+    expect(canDeleteProduct({ storeId: null }, catalogAgent)).toBe(false);
+  });
+
+  it('lets a store delete its own products and nothing else', () => {
+    expect(canDeleteProduct({ storeId: 7 }, ownStore)).toBe(true);
+    expect(canDeleteProduct({ storeId: 7 }, otherStore)).toBe(false);
+    expect(canDeleteProduct({ storeId: null }, { role: 'store', storeId: null })).toBe(false);
+  });
+
+  it('lets nobody else delete a product', () => {
+    for (const editor of [visitor, customer, ordersAgent, { role: 'team' as const, storeId: null }]) {
+      expect(canDeleteProduct({ storeId: 7 }, editor)).toBe(false);
     }
   });
 });

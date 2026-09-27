@@ -18,9 +18,16 @@ const ssl =
     ? { rejectUnauthorized: true, ...(env.DATABASE_SSL_CA ? { ca: env.DATABASE_SSL_CA } : {}) }
     : undefined;
 
-export const pool =
-  globalForDb.pool ??
-  mysql.createPool({
+/**
+ * Every connection talks UTC. Drizzle writes and reads `timestamp` columns as UTC strings, but
+ * MySQL fills `DEFAULT (now())` and `ON UPDATE` in the session's time zone and converts every
+ * TIMESTAMP to it on the way out: on a server that is not on UTC (a laptop in Tbilisi, +04) a
+ * row's `createdAt` came back four hours late while every time the app set itself (`viewedAt`,
+ * `sentAt`, `lastLoginAt`) was right — an order "placed" after it was "sent". With the session
+ * on UTC both are the same clock. (Rows written before this on such a server keep their skew.)
+ */
+function createPool(): mysql.Pool {
+  const created = mysql.createPool({
     host: env.DATABASE_HOST,
     port: env.DATABASE_PORT,
     user: env.DATABASE_USER,
@@ -33,6 +40,15 @@ export const pool =
     enableKeepAlive: true,
     keepAliveInitialDelay: 0,
   });
+  created.on('connection', (connection) => {
+    // mysql2 forwards the core pool's event as it is: the connection is the callback-style one,
+    // whatever the typings say. A failed SET leaves the session as it was before this existed.
+    (connection as unknown as { query: (sql: string, done: (err: Error | null) => void) => void }).query("SET time_zone = '+00:00'", () => undefined);
+  });
+  return created;
+}
+
+export const pool = globalForDb.pool ?? createPool();
 
 if (env.NODE_ENV !== 'production') {
   globalForDb.pool = pool;

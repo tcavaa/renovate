@@ -23,6 +23,7 @@ import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, stores } from '../lib/db/schema';
 import { CATEGORY_RU, STORE_I18N } from './lib/translations';
+import { defaultPlacement } from './lib/categoryTree';
 
 // ---------------------------------------------------------------------------
 // Categories the studio needs on top of the calculator's own
@@ -33,19 +34,15 @@ const extraCategories = [
     nameKa: 'ხალიჩები',
     nameEn: 'Rugs',
     slug: 'rugs',
-    phase: 20,
     calculationType: 'per_unit' as const,
     isFurniture: true,
-    icon: 'square',
   },
   {
     nameKa: 'დეკორი',
     nameEn: 'Decor',
     slug: 'decor',
-    phase: 20,
     calculationType: 'per_unit' as const,
     isFurniture: true,
-    icon: 'frame',
   },
 ];
 
@@ -192,9 +189,10 @@ async function seed() {
 
   console.log('— categories');
   for (const c of extraCategories) {
+    // Made where the starting tree puts it; one the database has keeps its place.
     await db
       .insert(categories)
-      .values({ ...c, isVisible: true, sortOrder: 50 })
+      .values({ ...c, ...(await defaultPlacement(c.slug)), isVisible: true })
       .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameRu: CATEGORY_RU[c.slug] ?? null, isFurniture: c.isFurniture } });
   }
 

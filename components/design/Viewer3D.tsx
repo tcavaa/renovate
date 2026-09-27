@@ -151,6 +151,11 @@ export interface Viewer3DProps {
   frameKey?: unknown;
   /** Receives the camera API once the scene is up; `null` on unmount. */
   onApi?: (api: ViewerApi | null) => void;
+  /**
+   * Look, do not touch: the camera turns, zooms, pans and walks, but nothing in the flat can be
+   * picked, hovered or dragged — a brigade looking at the flat it is hired for.
+   */
+  readOnly?: boolean;
   className?: string;
 }
 
@@ -287,6 +292,7 @@ function SceneContent({
   onSelectOpening,
   frameKey,
   onApi,
+  readOnly = false,
   daylight,
 }: Viewer3DProps & { daylight: Daylight }) {
   const style = getStyle(scene.styleId);
@@ -973,6 +979,7 @@ function SceneContent({
   const pointDragRef = useRef<PointDragState | null>(null);
 
   const handleMove = (event: ThreeEvent<PointerEvent>) => {
+    if (readOnly) return; // nothing to point at in a view that only looks
     if (carryRef.current) return; // the carried item owns the pointer
     if (dragRef.current?.moved) return; // the drag loop owns the pointer
 
@@ -1038,6 +1045,8 @@ function SceneContent({
    * reliable, and committing to a drag immediately would make the scene impossible to orbit.
    */
   const handleDown = (event: ThreeEvent<PointerEvent>) => {
+    // Only the camera answers in a view that only looks; the press goes to the controls.
+    if (readOnly) return;
     if (carryRef.current) {
       // A press while carrying is a candidate "set it down here"; decided on release.
       carryRef.current.pressX = event.clientX;

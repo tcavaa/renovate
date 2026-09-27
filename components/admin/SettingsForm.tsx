@@ -17,7 +17,7 @@ import { cn, formatDateTime, formatGEL } from '@/lib/utils';
  * The platform's own prices. Four numbers, but the ones the whole business model hangs on,
  * so the form shows what they mean on a real flat before you save.
  */
-export function SettingsForm({ initial }: { initial: PlatformSettings & { updatedAt: string | null } }) {
+export function SettingsForm({ initial, stores }: { initial: PlatformSettings & { materialsStoreId: number | null; updatedAt: string | null }; stores: Array<{ id: number; name: string }> }) {
   const t = useT();
   const router = useRouter();
   const s = t.admin.settings;
@@ -26,6 +26,7 @@ export function SettingsForm({ initial }: { initial: PlatformSettings & { update
     designFeePerM2: String(initial.designFeePerM2),
     storeCommissionPct: String(initial.storeCommissionPct),
     workerCommissionPct: String(initial.workerCommissionPct),
+    materialsStoreId: initial.materialsStoreId != null ? String(initial.materialsStoreId) : '',
   });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -46,6 +47,7 @@ export function SettingsForm({ initial }: { initial: PlatformSettings & { update
           designFeePerM2: num(form.designFeePerM2),
           storeCommissionPct: num(form.storeCommissionPct),
           workerCommissionPct: num(form.workerCommissionPct),
+          materialsStoreId: form.materialsStoreId ? Number(form.materialsStoreId) : null,
         }),
       });
       const json = (await res.json()) as { error: string | null };
@@ -106,6 +108,24 @@ export function SettingsForm({ initial }: { initial: PlatformSettings & { update
       </div>
 
       <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">{example}</p>
+
+      {/* Who is sent the rate book's construction materials with every order. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif">{t.orderReview.supplierTitle}</CardTitle>
+          <p className="text-sm text-ink-muted">{t.orderReview.supplierHint}</p>
+        </CardHeader>
+        <CardContent>
+          <select value={form.materialsStoreId} onChange={(e) => update('materialsStoreId', e.target.value)} aria-label={t.orderReview.supplierTitle} className="h-10 w-full max-w-md border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none">
+            <option value="">{t.orderReview.supplierNone}</option>
+            {stores.map((store) => (
+              <option key={store.id} value={store.id}>
+                {store.name}
+              </option>
+            ))}
+          </select>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-muted" suppressHydrationWarning>

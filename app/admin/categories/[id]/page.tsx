@@ -3,26 +3,35 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categories } from '@/lib/db/schema';
 import { CategoryForm } from '@/components/admin/CategoryForm';
-import { getT } from '@/lib/i18n/server';
+import { CategoryTabs } from '@/components/admin/CategoryTabs';
+import { getLocale, getT } from '@/lib/i18n/server';
+import { pickLocalizedName } from '@/lib/i18n/labels';
+import { requireAdminPage } from '@/lib/admin/guard';
+import { canDeleteIn } from '@/lib/auth/roles';
+import { buildCategoryTree, pathOf, subtreeCounts } from '@/lib/catalog/tree';
+import { loadCategoryFormData, productCountsByCategory, roomIdsOfCategory } from '@/lib/admin/categoryPages';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditCategoryPage(
-  props: {
-    params: Promise<{ id: string }>;
-  }
-) {
+export default async function EditCategoryPage(props: { params: Promise<{ id: string }> }) {
+  const session = await requireAdminPage('categories');
   const params = await props.params;
-  const ka = await getT();
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
-  const rows = await db.select().from(categories).where(eq(categories.id, id)).limit(1);
+  const [ka, locale] = await Promise.all([getT(), getLocale()]);
+  const [rows, { all, rooms }, roomIds, own] = await Promise.all([db.select().from(categories).where(eq(categories.id, id)).limit(1), loadCategoryFormData(locale), roomIdsOfCategory(id), productCountsByCategory()]);
   if (rows.length === 0) notFound();
+  const tree = buildCategoryTree(all);
+  const path = pathOf(tree, id);
 
   return (
     <div className="space-y-6">
-      <h1 className="font-serif text-3xl font-bold">{ka.admin.actions.edit}</h1>
-      <CategoryForm category={rows[0]} />
+      <div>
+        <p className="eyebrow">{path.slice(0, -1).map((c) => pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)).join(' › ') || ka.admin.categories}</p>
+        <h1 className="mt-1 font-serif text-3xl font-bold">{pickLocalizedName(locale, rows[0].nameKa, rows[0].nameEn, rows[0].nameRu)}</h1>
+      </div>
+      <CategoryTabs t={ka} active="tree" />
+      <CategoryForm category={rows[0]} all={all} rooms={rooms} roomIds={roomIds} counts={{ own: own.get(id) ?? 0, total: subtreeCounts(tree, own).get(id) ?? 0 }} canDelete={canDeleteIn(session.user.role, 'categories')} />
     </div>
   );
 }

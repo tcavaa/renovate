@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { canOpenPartnerPortal } from '@/lib/auth/roles';
+import { canOpenPartnerPortal, homePathFor } from '@/lib/auth/roles';
 import { getT } from '@/lib/i18n/server';
 import { loadPartnerContext } from '@/lib/partner/context';
 import { partnerStats } from '@/lib/finance/orders';
@@ -17,7 +17,7 @@ export default async function PartnerLayout({ children }: { children: React.Reac
   const session = await auth();
   const t = await getT();
   if (!session?.user) redirect('/login?callbackUrl=/partner');
-  if (!canOpenPartnerPortal(session.user.role)) redirect('/');
+  if (!canOpenPartnerPortal(session.user.role)) redirect(homePathFor(session.user.role));
 
   // The layout cannot read search params, so admin's preview target is resolved by each
   // page; the sidebar shows the account's own link, or the admin placeholder.

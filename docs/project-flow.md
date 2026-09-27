@@ -345,7 +345,8 @@ first too.
 
 ### The project page (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
 
-`/profile/projects/[id]` and `/admin/projects/[id]` share `ProjectDetail`: the title on its
+`/profile/projects/[id]`, `/admin/projects/[id]` and a brigade's `/partner/projects/[id]` share
+`ProjectDetail`: the title on its
 own line with the action buttons under it (side by side, the buttons squeezed the name into a
 column of words), then the blocks in a fixed order — layout · rooms, the calculator's sheet,
 the 3D design's budget (each the read-only `BudgetSheet` of that journey as it was left, with
@@ -356,7 +357,11 @@ a `FoldSection` (client; the title row toggles, + / − in the corner, open by d
 layout is always open, a sheet with no lines is not rendered, the design's sheet starts folded
 when there is a calculator sheet above it, and the renders and orders fold when empty.
 `ProjectRenders` and `ProjectOrders` render their own `FoldSection`, so a page passes them in
-whole. `PlanSketch` draws a saved layout as static SVG — the plan's outlines when there are any,
+whole — the admin's project page passes `ProjectOrdersReview` instead, where the orders agent
+confirms each store's order, and the orders block carries the `#orders` anchor its "orders to
+confirm" button jumps to ([marketplace.md](marketplace.md#order-review-the-platform-confirms-every-store-order)). A `viewer` slot, under the figures, takes
+`ProjectViewer` on the brigade's page — the 2D plan, the 3D model and the walk-through, to look
+at only ([partners-and-admin.md](partners-and-admin.md)). `PlanSketch` draws a saved layout as static SVG — the plan's outlines when there are any,
 otherwise the rooms at their `x`/`z` (`labels={false}` for the hub cards' thumbnails).
 
 ## 11. Where a project opens (`lib/flow/resume.ts`, pure, `tests/unit/flow/resume.test.ts`)

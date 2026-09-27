@@ -125,7 +125,7 @@ export default function StudioPage() {
     saveState,
     pendingPicks,
   } = store;
-  const { products } = useDesignCatalog();
+  const { products, shelf } = useDesignCatalog();
   const { book } = useRateBook();
 
   // Calculator picks that arrived for an existing design go into it once the catalogue is here.
@@ -1093,6 +1093,7 @@ export default function StudioPage() {
                   {category === 'furniture' && (
                     <FurnitureTray
                       catalog={products}
+                      shelf={shelf}
                       styleId={styleId}
                       roomLabel={focusRoom?.name ?? t.design.wholeFlat}
                       roomType={focusShelfType}
@@ -1217,8 +1218,9 @@ export default function StudioPage() {
         open={catalogBrowser === 'open'}
         onOpenChange={(next) => setCatalogBrowser(next ? 'open' : 'closed')}
         catalog={products}
+        shelf={shelf}
         styleId={styleId}
-        focusRoom={focusRoom?.type ?? null}
+        focusRoom={focusShelfType}
         roomLabel={focusRoom?.name ?? t.design.wholeFlat}
         state={catalogState}
         onState={setCatalogState}

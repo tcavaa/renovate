@@ -11,6 +11,7 @@ import { getT } from '@/lib/i18n/server';
 import { workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,7 @@ const PATH = '/admin/workers';
 const SPECIALTIES = ['tiling', 'painting', 'plumbing', 'electrical', 'carpentry', 'plastering'] as const;
 
 export default async function AdminWorkersPage(props: { searchParams: Promise<SearchParams> }) {
+  await requireAdminPage('workers');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });

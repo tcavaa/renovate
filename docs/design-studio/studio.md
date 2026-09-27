@@ -22,7 +22,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/design/Viewer3D.tsx` | the R3F viewer and its `ViewerApi` ([3d-engine.md](3d-engine.md)) |
 | `components/studio/BuildBar.tsx` | `CategoryRail` (the six categories down the left: build, furniture, electric, technical, finishes, budget) and `Tray` (the open category along the bottom) |
 | `components/studio/Trays.tsx` | `BuildTray`, `ElectricTray`, `TechnicalTray`, `FinishesTray`, `BudgetTray` |
-| `components/studio/FurnitureTray.tsx` | the furniture shelf: rooms → kinds → tiles, colour swatches, style chips |
+| `components/studio/FurnitureTray.tsx` | the furniture shelf: admin's studio rooms → their categories (→ subcategories) → tiles, colour swatches, style chips (`lib/design/shelf.ts`, [../categories.md](../categories.md#the-studios-rooms-shelf_rooms-shelf_room_categories)) |
 | `components/studio/CatalogBrowser.tsx` + `lib/design/catalogBrowser.ts` | the whole catalogue as a modal (search, filters with counts, details, "place") |
 | `components/studio/OwnModelDialog.tsx` | adding a person's own furniture ([../catalog.md](../catalog.md)) |
 | `components/studio/FurnitureDrawer.tsx`, `RoomItemsPanel.tsx` | what is placed, by room, with its total |
@@ -151,22 +151,28 @@ they lined the camera up on a door, nudged it, and were back at the doll's-house
 ## Adding furniture in the studio
 
 The furniture tray (`FurnitureTray`) is the catalogue browser scoped to the focused room.
-**It is browsed by room, then by kind.** Thirty-four kinds in one row of look-alike icons was
-a row nobody could read, so the line is two levels: the rooms as icons (`SHELF_ROOMS`,
-`roomIcon`), and inside a room the kinds that belong there (`kindsForRoom`, one icon each —
-`archetypeIcons` draws the tables, chairs, storage, corner sofa and rugs itself, in lucide's
-idiom, because lucide's tables are spreadsheets and it has one sofa). A kind belongs to a room
-by the **slot** it fills in the room's program, not by being named there: the program names
-the double bed and "bedroom" lists the single bed too. The opened room's chip stands at the
-head of the line as the way back and stays put while the kinds scroll; the shelf opens on the
-room the studio has in focus and follows it; a kind no program has a slot for is under
-"other" (`unroomedKinds`, pinned empty by `tests/unit/design/shelfRooms.test.ts`); a room or a
-kind nothing is sold for is not offered.
+**It is browsed by room, then by category — both admin's.** Thirty-four kinds in one row of
+look-alike icons was a row nobody could read, so the line is two levels: the **studio rooms**
+admin makes (`shelf_rooms`: name, icon, the plan's room types it is for, the categories it
+lists in order), and inside a room its categories, one icon each; a category that has
+subcategories with something in them opens onto those, a chip at the head of the line for
+each step back. A product is in a room when one of the room's categories covers its own, so a
+pendant light is in every room that lists pendants; what no room covers is under "other"; a
+room or a category nothing is sold for is not offered. The opened room's chip stands at the
+head of the line as the way back and stays put while the categories scroll; the shelf opens
+on the room admin made for the type in focus and follows it. The icons come drawn with the
+catalogue (`iconNodeFor` → `NodeIcon`), so the studio ships no icon set; the studio's own
+furniture icons (the tables, chairs, storage, corner sofa and rugs lucide lacks) are
+`STUDIO_ICONS`. The starting rooms are the ones this line had in code (`SHELF_ROOMS`, with
+`kindsForRoom`'s kinds as their subcategories — a kind belongs to a room by the **slot** it
+fills in the room's program, pinned by `tests/unit/design/shelfRooms.test.ts`). The rules are in
+[../categories.md](../categories.md#the-studios-rooms-shelf_rooms-shelf_room_categories).
 
 **The whole catalogue is a page, one button away** (`components/studio/CatalogBrowser.tsx`,
 `lib/design/catalogBrowser.ts`). The shelf is fine for fifty tiles; a catalogue of thousands
 wants search, filters and names. The "კატალოგი" button on the shelf's line opens a modal: a
-search box across names, brands, shops and kinds in any language; the rooms and their kinds,
+search box across names, brands, shops, kinds and categories in any language; the rooms and
+their categories (a chosen one unfolding its subcategories),
 the styles, the colour swatches, a price band and the shop down the left, every one with a
 count; the products as cards with their names; the open product's photo, size, shop and page
 link on the right, with the one button that matters. `browseCatalog` is pure and tested

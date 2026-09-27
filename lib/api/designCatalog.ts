@@ -1,19 +1,27 @@
 import { revalidateTag, unstable_cache } from 'next/cache';
-import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { categories, products, stores } from '@/lib/db/schema';
+import { products, stores, type Category } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { SURFACE_CATEGORY_SLUGS } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
+import type { ShelfData } from '@/lib/design/shelf';
+import { nearestSlug, subtreeOfSlugs, type CategoryTree } from '@/lib/catalog/tree';
+import { loadCategoryTree, loadShelf } from '@/lib/catalog/queries';
 import type { PartnerStore } from '@/hooks/useDesignCatalog';
 
 export interface DesignCatalog {
   products: CatalogProduct[];
   stores: PartnerStore[];
+  /** The furniture shelf's rooms and the category tree (`lib/design/shelf.ts`). */
+  shelf: ShelfData;
 }
 
+/** The categories the studio's code names: its furniture, fittings, openings, radiators, mouldings and finishes. */
+const KNOWN_SLUGS: ReadonlySet<string> = new Set([...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS]);
+
 /**
- * Cache tag for the design catalogue. Admin writes to products, stores or categories call
+ * Cache tag for the design catalogue. Admin writes to products, stores, categories or the studio's rooms call
  * `invalidateDesignCatalog()`, so the studio never sees a stale price for longer than one
  * request; the time-based revalidation below is only a safety net for writes that bypass
  * the API (seed scripts).
@@ -21,8 +29,8 @@ export interface DesignCatalog {
 export const DESIGN_CATALOG_TAG = 'design-catalog';
 
 /**
- * The whole design catalogue — ~200 products with their stores — assembled once and served
- * from the server cache. Every studio visit used to run the three queries below.
+ * The whole design catalogue — ~200 products with their stores and the shelf — assembled once
+ * and served from the server cache. Every studio visit used to run the queries below.
  */
 export const getDesignCatalog = unstable_cache(loadDesignCatalog, [DESIGN_CATALOG_TAG], {
   tags: [DESIGN_CATALOG_TAG],
@@ -33,15 +41,15 @@ export function invalidateDesignCatalog(): void {
   revalidateTag(DESIGN_CATALOG_TAG, 'max');
 }
 
+/**
+ * What the studio can use: every product with a 3D kind (furniture, fittings, doors, radiators
+ * — wherever admin filed it), and everything under the categories its code names (the
+ * finishes and mouldings, which have no kind). Each product carries its own category, for the
+ * shelf's rooms, and the category the code knows it by (`nearestSlug`).
+ */
 async function loadDesignCatalog(): Promise<DesignCatalog> {
-  const designCategories = await db
-    .select()
-    .from(categories)
-    .where(inArray(categories.slug, [...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS]));
-
-  if (designCategories.length === 0) return { products: [], stores: [] };
-
-  const categorySlugById = new Map(designCategories.map((c) => [c.id, c.slug]));
+  const tree = await loadCategoryTree();
+  const known = [...subtreeOfSlugs(tree, KNOWN_SLUGS)];
 
   const rows = await db
     .select({ product: products, store: stores })
@@ -55,18 +63,16 @@ async function loadDesignCatalog(): Promise<DesignCatalog> {
         or(isNull(products.storeId), eq(stores.isActive, true)),
         // A person's own uploads are theirs alone: `loadOwnProducts` adds them for their owner.
         isNull(products.ownerUserId),
-        inArray(
-          products.categoryId,
-          designCategories.map((c) => c.id)
-        )
+        known.length ? or(isNotNull(products.model3dKind), inArray(products.categoryId, known)) : isNotNull(products.model3dKind)
       )
     );
 
-  const items: CatalogProduct[] = rows.map(({ product, store }) => mapProduct(product, store, categorySlugById));
+  const items: CatalogProduct[] = rows.map(({ product, store }) => mapProduct(product, store, tree));
 
-  const partnerStores = await db.select().from(stores).where(eq(stores.isActive, true));
+  const [partnerStores, shelf] = await Promise.all([db.select().from(stores).where(eq(stores.isActive, true)), loadShelf(tree)]);
 
   return {
+    shelf,
     products: items,
     stores: partnerStores.map((s) => ({
       id: s.id,
@@ -91,7 +97,7 @@ type ProductRow = typeof products.$inferSelect;
 type StoreRow = typeof stores.$inferSelect;
 
 /** A product row as the studio reads it. */
-function mapProduct(product: ProductRow, store: StoreRow | null, categorySlugById: Map<number, string>): CatalogProduct {
+function mapProduct(product: ProductRow, store: StoreRow | null, tree: CategoryTree<Category>): CatalogProduct {
   return {
     id: product.id,
     nameKa: product.nameKa,
@@ -99,7 +105,9 @@ function mapProduct(product: ProductRow, store: StoreRow | null, categorySlugByI
     nameRu: product.nameRu,
     slug: product.slug,
     brand: product.brand,
-    categorySlug: categorySlugById.get(product.categoryId) ?? '',
+    // The category the studio's code knows it by: a toilet in "Toilets" is "sanitary" to it.
+    categorySlug: nearestSlug(tree, product.categoryId, KNOWN_SLUGS) ?? tree.byId.get(product.categoryId)?.slug ?? '',
+    categoryId: product.categoryId,
     pricePerUnit: Number(product.pricePerUnit),
     unit: product.unit,
     imageUrl: product.imageUrl,
@@ -141,11 +149,13 @@ function mapProduct(product: ProductRow, store: StoreRow | null, categorySlugByI
  * catalogue is the shared list plus these.
  */
 export async function loadOwnProducts(userId: number): Promise<CatalogProduct[]> {
-  const rows = await db
-    .select({ product: products, category: categories })
-    .from(products)
-    .innerJoin(categories, eq(products.categoryId, categories.id))
-    .where(and(eq(products.ownerUserId, userId), eq(products.isActive, true)))
-    .orderBy(desc(products.id));
-  return rows.map(({ product, category }) => mapProduct(product, null, new Map([[category.id, category.slug]])));
+  const [rows, tree] = await Promise.all([
+    db
+      .select()
+      .from(products)
+      .where(and(eq(products.ownerUserId, userId), eq(products.isActive, true)))
+      .orderBy(desc(products.id)),
+    loadCategoryTree(),
+  ]);
+  return rows.map((product) => mapProduct(product, null, tree));
 }

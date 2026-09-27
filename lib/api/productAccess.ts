@@ -1,6 +1,6 @@
 import { and, eq, isNull, or } from 'drizzle-orm';
 import { products, stores } from '@/lib/db/schema';
-import { canAdmin, type UserRole } from '@/lib/auth/roles';
+import { canAdmin, canDeleteIn, type UserRole } from '@/lib/auth/roles';
 
 /**
  * Who may see a product and who may change it — one set of rules for every read and write.
@@ -12,7 +12,8 @@ import { canAdmin, type UserRole } from '@/lib/auth/roles';
  *
  * Beyond the public, a person sees their own furniture; staff whose job covers the products
  * (admin, catalogue agents) see and change any product; a store sees and changes its own.
- * Anyone else asking for a product they may not see is told it does not exist.
+ * Deleting is narrower (`canDeleteProduct`): admin any product, a store its own, the catalogue
+ * agent none. Anyone else asking for a product they may not see is told it does not exist.
  */
 
 /** The public-product condition for a query that left-joins `stores` on `products.storeId`. */
@@ -70,8 +71,9 @@ export function canViewProductPage(p: ProductVisibility, viewer: ProductViewer |
 }
 
 /**
- * Whether a product may be edited or deleted: by staff whose job covers the products (admin,
- * catalogue agents) whatever store it belongs to, and by a store for its own products only.
+ * Whether a product may be edited (and shown or hidden): by staff whose job covers the products
+ * (admin, catalogue agents) whatever store it belongs to, and by a store for its own products
+ * only. Deleting is `canDeleteProduct`.
  */
 export function canEditProduct(
   p: { storeId: number | null },
@@ -79,6 +81,21 @@ export function canEditProduct(
 ): boolean {
   if (!editor) return false;
   if (canAdmin(editor.role, 'products')) return true;
+  return editor.role === 'store' && editor.storeId != null && p.storeId === editor.storeId;
+}
+
+/**
+ * Whether a product may be deleted — with its photo and its model: by admin, whatever store it
+ * belongs to, and by a store for its own products. The catalogue agent adds, edits, hides and
+ * shows products but deletes none: removing what a store sells, and the saved designs that
+ * refer to it, is admin's call.
+ */
+export function canDeleteProduct(
+  p: { storeId: number | null },
+  editor: { role: UserRole; storeId: number | null } | null
+): boolean {
+  if (!editor) return false;
+  if (canDeleteIn(editor.role, 'products')) return true;
   return editor.role === 'store' && editor.storeId != null && p.storeId === editor.storeId;
 }
 

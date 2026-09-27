@@ -10,15 +10,22 @@ import { loadPlatformSettings } from '@/lib/finance/settings';
 import { effectiveCommissionPct } from '@/lib/finance/money';
 import { Button } from '@/components/ui/button';
 import { WorkerSelfForm } from '@/components/partner/WorkerSelfForm';
+import { TeamProfile } from '@/components/partner/TeamProfile';
+import { getLocale } from '@/lib/i18n/server';
 import { formatGEL, formatNumber } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-/** A worker's own card: what customers see, the commission the platform keeps, and the form to change the service and price. */
-export default async function PartnerProfilePage(props: { searchParams: Promise<{ store?: string; worker?: string }> }) {
+/**
+ * The partner's own page: a worker's card (what customers see, the commission the platform
+ * keeps, the form to change the service and price), or a brigade's company profile and crew.
+ */
+export default async function PartnerProfilePage(props: { searchParams: Promise<{ store?: string; worker?: string; team?: string }> }) {
   const search = await props.searchParams;
   const t = await getT();
   const ctx = await loadPartnerContext(search);
+  // A brigade's page is its company profile and crew; a worker's, their own card.
+  if (ctx?.type === 'team' && ctx.ref.teamId) return <TeamProfile teamId={ctx.ref.teamId} t={t} locale={await getLocale()} isAdmin={ctx.isAdmin} />;
   if (!ctx || ctx.type !== 'worker' || !ctx.ref.workerId) return null;
   const [worker] = await db.select().from(workers).where(eq(workers.id, ctx.ref.workerId)).limit(1);
   if (!worker) return null;

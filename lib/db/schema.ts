@@ -8,6 +8,7 @@ import {
   timestamp,
   mysqlEnum,
   index,
+  primaryKey,
   type AnyMySqlColumn,
 } from 'drizzle-orm/mysql-core';
 import { json } from './json';
@@ -31,6 +32,14 @@ export const users = mysqlTable('users', {
   teamId: int('team_id').references((): AnyMySqlColumn => teams.id, { onDelete: 'set null' }),
   /** Set when the address was confirmed by link (or came from Google, which already did). */
   emailVerifiedAt: timestamp('email_verified_at'),
+  /**
+   * Admin's switch. A deactivated account cannot sign in, and a session it already has ends at
+   * its next request (`lib/auth/accountClaims.ts` re-reads the row) — the row, its projects and
+   * its orders stay.
+   */
+  isActive: boolean('is_active').default(true).notNull(),
+  /** The last successful sign-in, password or social. */
+  lastLoginAt: timestamp('last_login_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -51,14 +60,21 @@ export const authTokens = mysqlTable('auth_tokens', {
   userKindIdx: index('auth_tokens_user_kind_idx').on(t.userId, t.kind),
 }));
 
+/**
+ * The catalogue's categories — one tree (`lib/catalog/tree.ts`): each row under its parent,
+ * three levels at most, siblings in `sortOrder`. A product sits in one category at any level;
+ * a category stands for its whole subtree wherever it is listed.
+ */
 export const categories = mysqlTable('categories', {
   id: int('id').primaryKey().autoincrement(),
+  /** The category above; null at the top. A category with children cannot be deleted. */
+  parentId: int('parent_id').references((): AnyMySqlColumn => categories.id, { onDelete: 'restrict' }),
   nameKa: varchar('name_ka', { length: 255 }).notNull(),
   nameEn: varchar('name_en', { length: 255 }).notNull(),
   nameRu: varchar('name_ru', { length: 255 }),
   slug: varchar('slug', { length: 255 }).notNull().unique(),
+  /** A lucide icon's kebab name, or one of the studio's own (`STUDIO_ICONS`). */
   icon: varchar('icon', { length: 100 }),
-  phase: int('phase').notNull(),
   calculationType: mysqlEnum('calculation_type', [
     'per_m2_floor',
     'per_m2_wall',
@@ -70,8 +86,45 @@ export const categories = mysqlTable('categories', {
   ]).notNull(),
   isVisible: boolean('is_visible').default(true).notNull(),
   isFurniture: boolean('is_furniture').default(false).notNull(),
+  /** Offered as a tab in the calculator, with its whole subtree's products. */
+  inCalculator: boolean('in_calculator').default(false).notNull(),
+  /** The 3D kind whose products belong here: the model pipeline and people's own uploads put them in it. */
+  model3dKind: varchar('model_3d_kind', { length: 64 }),
   sortOrder: int('sort_order').default(0),
+}, (t) => ({
+  parentIdx: index('categories_parent_idx').on(t.parentId),
+}));
+
+/**
+ * The studio's rooms — the top row of the furniture shelf (living room, bedroom, …) — made,
+ * named, ordered and given icons by admin. Each lists the categories it shows
+ * (`shelfRoomCategories`) and the plan's room types it is for: the shelf opens on it when a
+ * room of that type is in focus.
+ */
+export const shelfRooms = mysqlTable('shelf_rooms', {
+  id: int('id').primaryKey().autoincrement(),
+  slug: varchar('slug', { length: 100 }).notNull().unique(),
+  nameKa: varchar('name_ka', { length: 255 }).notNull(),
+  nameEn: varchar('name_en', { length: 255 }).notNull(),
+  nameRu: varchar('name_ru', { length: 255 }),
+  icon: varchar('icon', { length: 100 }),
+  /** `RoomType`s from `lib/calculator/types`. */
+  roomTypes: json<string[]>('room_types'),
+  isVisible: boolean('is_visible').default(true).notNull(),
+  sortOrder: int('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
 });
+
+/** Which categories a studio room shows, in its order. A category may be in several rooms. */
+export const shelfRoomCategories = mysqlTable('shelf_room_categories', {
+  shelfRoomId: int('shelf_room_id').notNull().references(() => shelfRooms.id, { onDelete: 'cascade' }),
+  categoryId: int('category_id').notNull().references(() => categories.id, { onDelete: 'cascade' }),
+  sortOrder: int('sort_order').default(0).notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.shelfRoomId, t.categoryId] }),
+  categoryIdx: index('shelf_room_categories_category_idx').on(t.categoryId),
+}));
 
 export const stores = mysqlTable('stores', {
   id: int('id').primaryKey().autoincrement(),
@@ -425,6 +478,12 @@ export const platformSettings = mysqlTable('platform_settings', {
   designFeePerM2: decimal('design_fee_per_m2', { precision: 8, scale: 2 }).default('12.00').notNull(),
   storeCommissionPct: decimal('store_commission_pct', { precision: 5, scale: 2 }).default('5.00').notNull(),
   workerCommissionPct: decimal('worker_commission_pct', { precision: 5, scale: 2 }).default('5.00').notNull(),
+  /**
+   * The store that supplies the construction materials of the rate book (blocks, plaster,
+   * putty, pipes, cable…): a checkout sends the project's material lines to it as an order of
+   * their own. NULL = nobody, and those lines are reported as unassigned.
+   */
+  materialsStoreId: int('materials_store_id').references(() => stores.id, { onDelete: 'set null' }),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
 });
 
@@ -487,6 +546,18 @@ export const orders = mysqlTable('orders', {
   staffNote: text('staff_note'),
   /** First time the partner opened it; null = unread badge. */
   viewedAt: timestamp('viewed_at'),
+  /**
+   * When the partner was given the order. A store's order waits for the platform first: the
+   * orders agent checks it with the customer (lines kept or struck, delivery) and confirms it,
+   * and only then does the store see it. A brigade's or a worker's booking is sent at once.
+   * NULL = still with the platform; the partner portal shows only orders that have one.
+   */
+  sentAt: timestamp('sent_at'),
+  /** When the platform confirmed a store's order, and who did. */
+  confirmedAt: timestamp('confirmed_at'),
+  confirmedBy: int('confirmed_by').references(() => users.id, { onDelete: 'set null' }),
+  /** The delivery fee as the order was placed, so a change the agent makes shows as one. */
+  originalDeliveryFee: decimal('original_delivery_fee', { precision: 10, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
 }, (t) => ({
@@ -518,15 +589,46 @@ export const orderItems = mysqlTable('order_items', {
   removed: boolean('removed').default(false).notNull(),
   note: text('note'),
   sortOrder: int('sort_order').default(0).notNull(),
+  /**
+   * The quantity and price the line was ordered at. The customer's view shows every change
+   * against them ("3 → 2"); NULL on a line added afterwards, which is how an added line is told.
+   */
+  originalQty: decimal('original_qty', { precision: 10, scale: 2 }),
+  originalUnitPrice: decimal('original_unit_price', { precision: 12, scale: 2 }),
 }, (t) => ({
   orderIdx: index('order_items_order_idx').on(t.orderId),
   productIdx: index('order_items_product_idx').on(t.productId),
+}));
+
+/**
+ * What happened to an order and what was said about it: its creation, the platform's
+ * confirmation, status changes, edits of its lines and delivery, the message to the customer —
+ * and the comments the platform's people and the partner leave for each other. Never shown to
+ * the customer; the partner sees the whole thread except the staff's own note (which is not an
+ * event at all).
+ */
+export const orderEvents = mysqlTable('order_events', {
+  id: int('id').primaryKey().autoincrement(),
+  orderId: int('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  userId: int('user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** The author's role when they wrote it, and their name — the thread outlives role changes. */
+  actorRole: varchar('actor_role', { length: 20 }),
+  actorName: varchar('actor_name', { length: 255 }),
+  kind: mysqlEnum('kind', ['created', 'confirmed', 'status', 'edited', 'message', 'comment']).notNull(),
+  /** A comment's or a message's text. */
+  body: text('body'),
+  /** The facts of a system event: `{ from, to }` for a status, counts for an edit. */
+  meta: json('meta'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  orderIdx: index('order_events_order_idx').on(t.orderId, t.createdAt),
 }));
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
+export type ShelfRoomRow = typeof shelfRooms.$inferSelect;
 export type Store = typeof stores.$inferSelect;
 export type NewStore = typeof stores.$inferInsert;
 export type Product = typeof products.$inferSelect;
@@ -545,6 +647,7 @@ export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
+export type OrderEvent = typeof orderEvents.$inferSelect;
 export type OrderStatus = Order['status'];
 export type UserRole = User['role'];
 export type Team = typeof teams.$inferSelect;

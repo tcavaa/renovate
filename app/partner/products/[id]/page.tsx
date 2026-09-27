@@ -29,7 +29,7 @@ export default async function PartnerEditProductPage(props: { params: Promise<{ 
         <p className="eyebrow">{ctx.name}</p>
         <h1 className="mt-2 font-serif text-3xl font-bold">{t.partner.editProduct}</h1>
       </div>
-      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} />
+      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} canDelete />
     </div>
   );
 }

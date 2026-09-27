@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { ClipboardList, Hammer, Home, LayoutDashboard, LogOut, Package, Store, UserCircle, UsersRound } from 'lucide-react';
+import { ClipboardList, FolderKanban, Hammer, Home, LayoutDashboard, LogOut, Package, Store, UserCircle, UsersRound } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,8 @@ export function PartnerSidebar({ partnerName, partnerType, unread }: { partnerNa
     { href: '/partner', label: t.partner.dashboard, icon: LayoutDashboard, exact: true },
     { href: '/partner/orders', label: t.partner.orders, icon: ClipboardList, badge: unread },
     ...(partnerType === 'store' ? [{ href: '/partner/products', label: t.partner.products, icon: Package }] : []),
+    // A brigade does the whole job: the flats it is hired for, to look at.
+    ...(partnerType === 'team' ? [{ href: '/partner/projects', label: t.projectView.projectsTitle, icon: FolderKanban }] : []),
     ...(partnerType === 'worker' || partnerType === 'team' ? [{ href: '/partner/profile', label: t.partner.profile, icon: UserCircle }] : []),
   ];
   const user = session?.user;

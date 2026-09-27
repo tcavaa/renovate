@@ -4,6 +4,7 @@ import './lib/loadEnv';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 import { CATEGORY_RU, PRODUCT_I18N, STORE_I18N, WORKER_I18N } from './lib/translations';
+import { defaultPlacement } from './lib/categoryTree';
 import { db, pool } from '../lib/db';
 import {
   categories,
@@ -17,7 +18,6 @@ type SeedCategory = {
   nameKa: string;
   nameEn: string;
   slug: string;
-  phase: number;
   calculationType:
     | 'per_m2_floor'
     | 'per_m2_wall'
@@ -30,22 +30,22 @@ type SeedCategory = {
 };
 
 const seedCategories: SeedCategory[] = [
-  { nameKa: 'იატაკის ფილა', nameEn: 'Floor Tiles', slug: 'floor-tiles', phase: 9, calculationType: 'per_m2_floor', isFurniture: false },
-  { nameKa: 'კედლის ფილა', nameEn: 'Wall Tiles', slug: 'wall-tiles', phase: 9, calculationType: 'per_m2_wall', isFurniture: false },
-  { nameKa: 'ლამინატი', nameEn: 'Laminate Flooring', slug: 'laminate', phase: 11, calculationType: 'per_m2_floor', isFurniture: false },
-  { nameKa: 'კარები', nameEn: 'Doors', slug: 'doors', phase: 10, calculationType: 'per_unit', isFurniture: false },
-  { nameKa: 'ფანჯრები', nameEn: 'Windows', slug: 'windows', phase: 10, calculationType: 'per_unit', isFurniture: false },
-  { nameKa: 'საღებავი', nameEn: 'Paint', slug: 'paint', phase: 13, calculationType: 'per_m2_wall', isFurniture: false },
-  { nameKa: 'სანიტარია', nameEn: 'Sanitary', slug: 'sanitary', phase: 16, calculationType: 'per_unit', isFurniture: false },
-  { nameKa: 'განათება', nameEn: 'Lighting', slug: 'lighting', phase: 15, calculationType: 'per_unit', isFurniture: false },
-  { nameKa: 'როზეტები/ამომრთველები', nameEn: 'Sockets & Switches', slug: 'sockets-switches', phase: 14, calculationType: 'per_unit', isFurniture: false },
-  { nameKa: 'საწოლები', nameEn: 'Beds', slug: 'beds', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'სავარძლები/დივნები', nameEn: 'Sofas & Armchairs', slug: 'sofas', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'მაგიდები', nameEn: 'Tables', slug: 'tables', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'სკამები', nameEn: 'Chairs', slug: 'chairs', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'კარადები', nameEn: 'Wardrobes', slug: 'wardrobes', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'სამზარეულოს ავეჯი', nameEn: 'Kitchen Furniture', slug: 'kitchen-furniture', phase: 20, calculationType: 'per_unit', isFurniture: true },
-  { nameKa: 'შენახვა/თარო', nameEn: 'Storage & Shelving', slug: 'storage', phase: 20, calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'იატაკის ფილა', nameEn: 'Floor Tiles', slug: 'floor-tiles', calculationType: 'per_m2_floor', isFurniture: false },
+  { nameKa: 'კედლის ფილა', nameEn: 'Wall Tiles', slug: 'wall-tiles', calculationType: 'per_m2_wall', isFurniture: false },
+  { nameKa: 'ლამინატი', nameEn: 'Laminate Flooring', slug: 'laminate', calculationType: 'per_m2_floor', isFurniture: false },
+  { nameKa: 'კარები', nameEn: 'Doors', slug: 'doors', calculationType: 'per_unit', isFurniture: false },
+  { nameKa: 'ფანჯრები', nameEn: 'Windows', slug: 'windows', calculationType: 'per_unit', isFurniture: false },
+  { nameKa: 'საღებავი', nameEn: 'Paint', slug: 'paint', calculationType: 'per_m2_wall', isFurniture: false },
+  { nameKa: 'სანიტარია', nameEn: 'Sanitary', slug: 'sanitary', calculationType: 'per_unit', isFurniture: false },
+  { nameKa: 'განათება', nameEn: 'Lighting', slug: 'lighting', calculationType: 'per_unit', isFurniture: false },
+  { nameKa: 'როზეტები/ამომრთველები', nameEn: 'Sockets & Switches', slug: 'sockets-switches', calculationType: 'per_unit', isFurniture: false },
+  { nameKa: 'საწოლები', nameEn: 'Beds', slug: 'beds', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'სავარძლები/დივნები', nameEn: 'Sofas & Armchairs', slug: 'sofas', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'მაგიდები', nameEn: 'Tables', slug: 'tables', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'სკამები', nameEn: 'Chairs', slug: 'chairs', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'კარადები', nameEn: 'Wardrobes', slug: 'wardrobes', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'სამზარეულოს ავეჯი', nameEn: 'Kitchen Furniture', slug: 'kitchen-furniture', calculationType: 'per_unit', isFurniture: true },
+  { nameKa: 'შენახვა/თარო', nameEn: 'Storage & Shelving', slug: 'storage', calculationType: 'per_unit', isFurniture: true },
 ];
 
 type SeedProduct = {
@@ -184,9 +184,10 @@ async function seed() {
 
   console.log('— inserting categories');
   for (const c of seedCategories) {
+    // Made where the starting tree puts it; one the database has keeps its place.
     await db
       .insert(categories)
-      .values({ ...c, nameRu: CATEGORY_RU[c.slug] ?? null, sortOrder: 0, isVisible: true })
+      .values({ ...c, ...(await defaultPlacement(c.slug)), nameRu: CATEGORY_RU[c.slug] ?? null, isVisible: true })
       .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameEn: c.nameEn, nameRu: CATEGORY_RU[c.slug] ?? null } });
   }
 

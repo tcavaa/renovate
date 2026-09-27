@@ -12,8 +12,13 @@ import { DEFAULT_PLATFORM_SETTINGS, type PlatformSettings } from './money';
  * itself is read through here — the summaries, the checkout, the partner commission.
  */
 export interface PlatformSettingsWithMeta extends PlatformSettings {
+  /** The store that supplies the rate book's construction materials; null = nobody yet. */
+  materialsStoreId: number | null;
   updatedAt: Date | null;
 }
+
+/** What admin's settings form may change. */
+export type PlatformSettingsPatch = Partial<PlatformSettings> & { materialsStoreId?: number | null };
 
 function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
   return {
@@ -21,6 +26,7 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
     designFeePerM2: Number(row.designFeePerM2),
     storeCommissionPct: Number(row.storeCommissionPct),
     workerCommissionPct: Number(row.workerCommissionPct),
+    materialsStoreId: row.materialsStoreId ?? null,
     updatedAt: row.updatedAt,
   };
 }
@@ -28,15 +34,15 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
 export async function loadPlatformSettings(): Promise<PlatformSettingsWithMeta> {
   try {
     const rows = await db.select().from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);
-    if (!rows[0]) return { ...DEFAULT_PLATFORM_SETTINGS, updatedAt: null };
+    if (!rows[0]) return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, updatedAt: null };
     return fromRow(rows[0]);
   } catch (e) {
     log.warn('platform settings unavailable, using defaults', { err: e });
-    return { ...DEFAULT_PLATFORM_SETTINGS, updatedAt: null };
+    return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, updatedAt: null };
   }
 }
 
-export async function savePlatformSettings(patch: Partial<PlatformSettings>): Promise<PlatformSettingsWithMeta> {
+export async function savePlatformSettings(patch: PlatformSettingsPatch): Promise<PlatformSettingsWithMeta> {
   const current = await loadPlatformSettings();
   const next: PlatformSettings = {
     calculatorFeePerM2: patch.calculatorFeePerM2 ?? current.calculatorFeePerM2,
@@ -44,14 +50,16 @@ export async function savePlatformSettings(patch: Partial<PlatformSettings>): Pr
     storeCommissionPct: patch.storeCommissionPct ?? current.storeCommissionPct,
     workerCommissionPct: patch.workerCommissionPct ?? current.workerCommissionPct,
   };
+  const materialsStoreId = patch.materialsStoreId !== undefined ? patch.materialsStoreId : current.materialsStoreId;
   const values = {
     calculatorFeePerM2: String(next.calculatorFeePerM2),
     designFeePerM2: String(next.designFeePerM2),
     storeCommissionPct: String(next.storeCommissionPct),
     workerCommissionPct: String(next.workerCommissionPct),
+    materialsStoreId,
   };
   const existing = await db.select({ id: platformSettings.id }).from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);
   if (existing[0]) await db.update(platformSettings).set(values).where(eq(platformSettings.id, existing[0].id));
   else await db.insert(platformSettings).values(values);
-  return { ...next, updatedAt: new Date() };
+  return { ...next, materialsStoreId, updatedAt: new Date() };
 }

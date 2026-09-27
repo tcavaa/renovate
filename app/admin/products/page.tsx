@@ -1,18 +1,24 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { Box, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FilterBar } from '@/components/admin/FilterBar';
+import { BulkAllCheckbox, BulkBar, BulkCheckbox, BulkProvider } from '@/components/admin/BulkSelect';
+import { ProductRowActions } from '@/components/admin/ProductRowActions';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { unitLabel, pickLocalizedName, styleLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { STYLE_IDS } from '@/lib/design/styles';
 import { formatGEL } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
+import { subtreeIds, treeOptions } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
+import { canDeleteIn } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,22 +26,26 @@ const SORTS = ['newest', 'name', 'price'] as const;
 const PATH = '/admin/products';
 
 export default async function AdminProductsPage(props: { searchParams: Promise<SearchParams> }) {
+  const session = await requireAdminPage('products');
+  // A catalogue agent hides and shows; deleting is admin's.
+  const mayDelete = canDeleteIn(session.user.role, 'products');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const locale = await getLocale();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });
 
-  const [cats, storeRows] = await Promise.all([
-    db.select({ id: categories.id, nameKa: categories.nameKa, nameEn: categories.nameEn, nameRu: categories.nameRu, slug: categories.slug }).from(categories).orderBy(asc(categories.phase), asc(categories.sortOrder)),
-    db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores).orderBy(asc(stores.nameKa)),
-  ]);
+  const [tree, storeRows] = await Promise.all([loadCategoryTree(), db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores).orderBy(asc(stores.nameKa))]);
 
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
     where.push(or(like(products.nameKa, needle), like(products.sku, needle), like(products.brand, needle), like(products.slug, needle))!);
   }
-  if (p.num('category')) where.push(eq(products.categoryId, p.num('category')!));
+  // A category stands for its whole subtree: "Furniture" lists every sofa and bed under it.
+  if (p.num('category')) {
+    const ids = subtreeIds(tree, p.num('category')!);
+    where.push(inArray(products.categoryId, ids.length ? ids : [-1]));
+  }
   if (p.get('store') === 'none') where.push(isNull(products.storeId));
   else if (p.num('store')) where.push(eq(products.storeId, p.num('store')!));
   if (p.get('status') === 'active') where.push(eq(products.isActive, true));
@@ -43,6 +53,10 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
   if (p.get('featured') === '1') where.push(eq(products.isFeatured, true));
   if (p.get('model') === 'has') where.push(isNotNull(products.model3dUrl));
   if (p.get('model') === 'none') where.push(isNull(products.model3dUrl));
+  if (p.get('photo') === 'has') where.push(sql`${products.imageUrl} IS NOT NULL AND ${products.imageUrl} <> ''`);
+  if (p.get('photo') === 'none') where.push(sql`(${products.imageUrl} IS NULL OR ${products.imageUrl} = '')`);
+  // People's own furniture is theirs, not the catalogue's.
+  where.push(isNull(products.ownerUserId));
   if (p.get('style')) where.push(sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(p.get('style'))})`);
   if (p.num('priceMin') != null) where.push(gte(products.pricePerUnit, String(p.num('priceMin'))));
   if (p.num('priceMax') != null) where.push(lte(products.pricePerUnit, String(p.num('priceMax'))));
@@ -103,11 +117,12 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
       <FilterBar
         fields={[
           { name: 'q', type: 'search', placeholder: `${f.search} (${ka.admin.forms.nameKa}, SKU, ${ka.admin.forms.brand})`, className: 'w-72' },
-          { name: 'category', type: 'select', label: f.category, options: cats.map((c) => ({ value: String(c.id), label: pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu) })) },
+          { name: 'category', type: 'select', label: f.category, options: treeOptions(tree, (c) => pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)) },
           { name: 'store', type: 'select', label: f.store, options: [{ value: 'none', label: f.noStore }, ...storeRows.map((s) => ({ value: String(s.id), label: s.nameKa }))] },
           { name: 'style', type: 'select', label: f.style, options: STYLE_IDS.map((id) => ({ value: id, label: styleLabel(ka, id) })) },
           { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }] },
           { name: 'model', type: 'select', label: f.model, options: [{ value: 'has', label: f.has3d }, { value: 'none', label: f.no3d }] },
+          { name: 'photo', type: 'select', label: ka.partnerProducts.photo, options: [{ value: 'has', label: ka.partnerProducts.withPhoto }, { value: 'none', label: ka.staffDashboard.noPhoto }] },
           { name: 'featured', type: 'select', label: f.featured, options: [{ value: '1', label: f.featuredOnly }] },
           { name: 'priceMin', type: 'number', placeholder: f.priceFrom, min: 0 },
           { name: 'priceMax', type: 'number', placeholder: f.priceTo, min: 0 },
@@ -122,8 +137,13 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
         defaultSort="newest"
       />
 
+      <BulkProvider>
+      <BulkBar endpoint="/api/products/bulk" actions={mayDelete ? ['show', 'hide', 'delete'] : ['show', 'hide']} />
       <AdminTable>
         <THead>
+          <Th className="w-10">
+            <BulkAllCheckbox ids={rows.map((r) => r.id)} />
+          </Th>
           <Th>{ka.admin.cols.product}</Th>
           <Th>{ka.admin.table.category}</Th>
           <Th>{ka.admin.cols.store}</Th>
@@ -137,7 +157,10 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
           {rows.map((r) => {
             const styles = Array.isArray(r.styleTags) ? (r.styleTags as string[]) : [];
             return (
-              <Tr key={r.id}>
+              <Tr key={r.id} className={r.isActive ? undefined : 'opacity-70'}>
+                <td className="px-4 py-2.5">
+                  <BulkCheckbox id={r.id} label={r.nameKa} />
+                </td>
                 <td className="px-4 py-2.5">
                   <Link href={`/admin/products/${r.id}`} className="flex items-center gap-3">
                     <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-line bg-bg-base">
@@ -188,16 +211,15 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
                   {r.isFeatured && <Badge className="ml-1">{ka.admin.badges.best}</Badge>}
                 </td>
                 <td className="px-4 py-2.5 text-right">
-                  <Button variant="outline" size="sm" asChild>
-                    <Link href={`/admin/products/${r.id}`}>{ka.admin.actions.edit}</Link>
-                  </Button>
+                  <ProductRowActions id={r.id} isActive={r.isActive} editHref={`/admin/products/${r.id}`} canDelete={mayDelete} />
                 </td>
               </Tr>
             );
           })}
-          {rows.length === 0 && <EmptyRow colSpan={8} text={p.hasFilters ? f.noResults : ka.admin.productsEmpty} />}
+          {rows.length === 0 && <EmptyRow colSpan={9} text={p.hasFilters ? f.noResults : ka.admin.productsEmpty} />}
         </tbody>
       </AdminTable>
+      </BulkProvider>
 
       <Pager t={ka} pathname={PATH} raw={p.raw} page={p.page} pageSize={p.pageSize} total={Number(total)} />
     </div>

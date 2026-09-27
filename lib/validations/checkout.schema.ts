@@ -35,6 +35,8 @@ export const orderEditSchema = z.object({
   partnerMessage: z.string().trim().max(4000).nullable().optional(),
   /** The agent's own note. Written and read by the platform's people only. */
   staffNote: z.string().trim().max(4000).nullable().optional(),
+  /** The delivery the store charges — the platform's people only. */
+  deliveryFee: z.number().min(0).max(100000).optional(),
   items: z
     .array(
       z.object({
@@ -63,11 +65,18 @@ export const orderEditSchema = z.object({
 
 export type OrderEditInput = z.infer<typeof orderEditSchema>;
 
+/** A comment on an order, between the platform's people and the partner. */
+export const orderCommentSchema = z.object({
+  body: z.string().trim().min(1).max(4000),
+});
+
 export const platformSettingsSchema = z.object({
   calculatorFeePerM2: z.coerce.number().min(0).max(10000).optional(),
   designFeePerM2: z.coerce.number().min(0).max(10000).optional(),
   storeCommissionPct: z.coerce.number().min(0).max(100).optional(),
   workerCommissionPct: z.coerce.number().min(0).max(100).optional(),
+  /** The store that supplies the rate book's construction materials; null for nobody. */
+  materialsStoreId: z.number().int().positive().nullable().optional(),
 });
 
 /** Turns the form's empty string / null e-mail into what the row wants. */

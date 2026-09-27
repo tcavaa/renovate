@@ -13,6 +13,10 @@
  *
  * Re-running is safe: products are matched by slug and updated in place, so a price or store
  * edited in admin survives a re-seed unless the manifest says otherwise.
+ *
+ * Categories are a tree admin keeps (`lib/catalog/tree.ts`): a product goes to the category
+ * that takes its 3D kind ("Corner sofas"), else to its archetype's; one admin has filed
+ * elsewhere under that archetype's category stays where it was put.
  */
 
 import './lib/loadEnv';
@@ -23,6 +27,8 @@ import { and, eq, inArray, isNotNull, isNull, like, notInArray, or } from 'drizz
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
 import { archetypeLabel, getArchetype } from '../lib/design/catalog';
+import { buildCategoryTree, categoryForKind, subtreeIds, subtreeOfSlugs } from '../lib/catalog/tree';
+import { DEFAULT_CATEGORY_TREE } from '../lib/catalog/defaultTree';
 import type { ManifestModel } from './convert-models';
 import type { FixtureManifestModel } from './fixture-models';
 import type { RadiatorManifestModel } from './radiator-models';
@@ -56,33 +62,51 @@ async function main() {
   }
 
   const storeRows = await db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores);
-  const categoryRows = await db.select({ id: categories.id, slug: categories.slug }).from(categories);
-  const categoryBySlug = new Map(categoryRows.map((c) => [c.slug, c.id]));
+  const categoryColumns = { id: categories.id, slug: categories.slug, parentId: categories.parentId, sortOrder: categories.sortOrder, nameKa: categories.nameKa, model3dKind: categories.model3dKind, isFurniture: categories.isFurniture };
+  let tree = buildCategoryTree(await db.select(categoryColumns).from(categories));
+  const categoryBySlug = (slug: string) => [...tree.byId.values()].find((c) => c.slug === slug)?.id;
+
+  /**
+   * Where a product goes: the category that takes its kind, else `fallbackSlug`'s (the
+   * archetype's). One already filed under the fallback's subtree — admin moved it to a
+   * subcategory of their own — stays; one sitting in the fallback itself or elsewhere moves.
+   */
+  const placeFor = (kind: string | null, fallbackSlug: string, currentId: number | null | undefined): number | null => {
+    const target = categoryForKind(tree, kind, fallbackSlug);
+    if (!target) return null;
+    const root = categoryBySlug(fallbackSlug) ?? target.id;
+    if (currentId != null && currentId !== root && subtreeIds(tree, root).includes(currentId)) return currentId;
+    return target.id;
+  };
 
   /**
    * The category, made when it is missing. The cPanel deploy runs this script alone
    * (bundled), so it cannot count on `db:seed:design` having been run for the categories the
    * newer products live in.
    */
-  const ensureCategory = async (spec: { slug: string; nameKa: string; nameEn: string; nameRu: string; phase: number; calculationType: 'per_m2_floor' | 'per_m2_wall' | 'per_m2_ceiling' | 'per_linear_m' | 'per_unit' | 'per_room' | 'fixed'; icon?: string; sortOrder?: number; isFurniture?: boolean }): Promise<number> => {
-    const known = categoryBySlug.get(spec.slug);
+  const ensureCategory = async (slug: string): Promise<number> => {
+    const known = categoryBySlug(slug);
     if (known) return known;
+    // Made as the starting tree has it (`lib/catalog/defaultTree.ts`), under its parent if that is there.
+    const spec = DEFAULT_CATEGORY_TREE.find((c) => c.slug === slug);
+    if (!spec) throw new Error(`no default for category "${slug}"`);
     const inserted = await db.insert(categories).values({
       nameKa: spec.nameKa,
       nameEn: spec.nameEn,
       nameRu: spec.nameRu,
       slug: spec.slug,
-      icon: spec.icon ?? null,
-      phase: spec.phase,
+      icon: spec.icon,
+      parentId: spec.parent ? (categoryBySlug(spec.parent) ?? null) : null,
       calculationType: spec.calculationType,
       isVisible: true,
-      isFurniture: spec.isFurniture ?? false,
-      sortOrder: spec.sortOrder ?? spec.phase * 10,
+      isFurniture: spec.isFurniture,
+      inCalculator: spec.inCalculator,
+      model3dKind: spec.model3dKind,
+      sortOrder: spec.sortOrder,
     });
-    const id = Number(inserted[0].insertId);
-    categoryBySlug.set(spec.slug, id);
-    console.log(`  + category ${spec.slug}`);
-    return id;
+    tree = buildCategoryTree(await db.select(categoryColumns).from(categories));
+    console.log(`  + category ${slug}`);
+    return Number(inserted[0].insertId);
   };
 
   // Stores are matched by the slug used in seed-design.ts, which is derived from the name.
@@ -98,7 +122,9 @@ async function main() {
       console.log(`  ! ${model.name}: unknown archetype "${model.kind}" — skipped`);
       continue;
     }
-    const categoryId = categoryBySlug.get(archetype.categorySlug ?? 'decor');
+    const slug = `${SLUG_PREFIX}${model.name}`;
+    const existing = await db.select({ id: products.id, specs: products.specs, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+    const categoryId = placeFor(model.kind, archetype.categorySlug ?? 'decor', existing[0]?.categoryId);
     if (!categoryId) {
       console.log(`  ! ${model.name}: no category "${archetype.categorySlug}" — skipped`);
       continue;
@@ -106,7 +132,6 @@ async function main() {
     const storeId = storeBySlug.get(model.storeSlug) ?? null;
     if (!storeId) console.log(`  ! ${model.name}: store "${model.storeSlug}" not found — left without a store`);
 
-    const slug = `${SLUG_PREFIX}${model.name}`;
     keepSlugs.push(slug);
 
     const row = {
@@ -134,7 +159,6 @@ async function main() {
       isFeatured: true,
     };
 
-    const existing = await db.select({ id: products.id, specs: products.specs }).from(products).where(eq(products.slug, slug)).limit(1);
     // The colours read off the model (`pnpm models:colors`) ride in `specs.colors`, beside
     // whatever else the row's specs already hold; `colorHex` above is the first of them.
     const kept = existing[0]?.specs && typeof existing[0].specs === 'object' && !Array.isArray(existing[0].specs) ? (existing[0].specs as Record<string, unknown>) : {};
@@ -157,13 +181,14 @@ async function main() {
     const fixtures = JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'fixtures', 'manifest.json'), 'utf8')) as { models: FixtureManifestModel[] };
     for (const model of fixtures.models) {
       if (!model.product) continue;
-      const categoryId = categoryBySlug.get(model.product.categorySlug);
+      const slug = `${SLUG_PREFIX}fixture-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(model.product.kind, model.product.categorySlug, existing[0]?.categoryId);
       if (!categoryId) {
         console.log(`  ! fixture ${model.slug}: no category "${model.product.categorySlug}" — skipped`);
         continue;
       }
       const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
-      const slug = `${SLUG_PREFIX}fixture-${model.slug}`;
       keepSlugs.push(slug);
       const row = {
         categoryId,
@@ -189,7 +214,6 @@ async function main() {
         isActive: true,
         isFeatured: false,
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -204,11 +228,13 @@ async function main() {
   // as many times as the room's heat calls for (see `lib/design/radiators.ts`).
   try {
     const radiators = JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'radiators', 'manifest.json'), 'utf8')) as { models: RadiatorManifestModel[] };
-    const categoryId = await ensureCategory({ slug: 'radiators', nameKa: 'რადიატორები', nameEn: 'Radiators', nameRu: 'Радиаторы', phase: 15, calculationType: 'per_unit', icon: 'flame', sortOrder: 155 });
+    await ensureCategory('radiators');
     for (const model of radiators.models) {
       if (!model.product) continue;
       const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
       const slug = `${SLUG_PREFIX}radiator-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(model.product.kind, 'radiators', existing[0]?.categoryId)!;
       keepSlugs.push(slug);
       const row = {
         categoryId,
@@ -235,7 +261,6 @@ async function main() {
         isActive: true,
         isFeatured: false,
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -249,12 +274,11 @@ async function main() {
   // profile their `specs` name along every wall of the room (`lib/design/trims.ts`), so what
   // is drawn is what is bought, by the running metre.
   for (const kind of ['skirting', 'cornice'] as const) {
-    const meta = kind === 'skirting'
-      ? { nameKa: 'იატაკის პლინტუსი', nameEn: 'Skirting boards', nameRu: 'Напольные плинтусы', icon: 'minus', sortOrder: 111 }
-      : { nameKa: 'ჭერის პლინტუსი', nameEn: 'Cornices', nameRu: 'Потолочные плинтусы', icon: 'minus', sortOrder: 121 };
-    const categoryId = await ensureCategory({ slug: kind, phase: kind === 'skirting' ? 11 : 12, calculationType: 'per_linear_m', ...meta });
+    await ensureCategory(kind);
     for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind)) {
       const slug = `trim-${trim.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(null, kind, existing[0]?.categoryId)!;
       const row = {
         categoryId,
         storeId: storeBySlug.get(trim.storeSlug) ?? null,
@@ -277,7 +301,6 @@ async function main() {
         isActive: true,
         isFeatured: false,
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -308,11 +331,9 @@ async function main() {
   // pendant without a model, or a tile without a texture, is switched off rather than
   // deleted, so admin can bring it back the day a model arrives. Doors, windows and sockets
   // have no 3D counterpart at all and are left alone.
-  const threeD = await db
-    .select({ id: categories.id, slug: categories.slug, isFurniture: categories.isFurniture })
-    .from(categories);
-  const modelCategoryIds = threeD.filter((c) => c.isFurniture || c.slug === 'sanitary' || c.slug === 'lighting').map((c) => c.id);
-  const surfaceCategoryIds = threeD.filter((c) => ['laminate', 'floor-tiles', 'wall-tiles', 'paint'].includes(c.slug)).map((c) => c.id);
+  // Each with everything filed under it.
+  const modelCategoryIds = [...new Set([...[...tree.byId.values()].filter((c) => c.isFurniture).map((c) => c.id), ...subtreeOfSlugs(tree, ['sanitary', 'lighting'])])];
+  const surfaceCategoryIds = [...subtreeOfSlugs(tree, ['laminate', 'floor-tiles', 'wall-tiles', 'paint'])];
   let hidden = 0;
   if (modelCategoryIds.length) {
     const rows = await db

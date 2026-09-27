@@ -55,7 +55,15 @@ Everything the app needs to run unattended, and where each piece lives.
 - **Migrations** live in `lib/db/migrations` (`drizzle-kit generate` after a schema change;
   never edit a generated file). `pnpm db:migrate` applies them and is what
   `deploy/deploy.sh` runs. A database created with `db:push` before migrations existed needs
-  `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only.
+  `pnpm db:migrate:baseline` exactly once. `db:push` is for local experiments only. A data
+  change every environment needs (a row, a backfill) is a custom migration
+  (`pnpm db:generate --custom --name=…`, SQL written by hand, idempotent — `0015` creates the
+  building-materials store and points `platform_settings` at it), so deploys get it with the
+  schema.
+- **The database clock is UTC.** Every pooled connection runs `SET time_zone = '+00:00'`
+  (`lib/db/index.ts`), so timestamps MySQL fills in and those the app writes agree whatever the
+  server's own zone ([data-model.md](data-model.md#rules-for-working-with-the-data)). A running
+  `pnpm dev` keeps its pool across edits — restart it after changing `lib/db/index.ts`.
 - **cPanel / Passenger** (shared hosting, no login shell): the app runs under cPanel's "Setup
   Node.js App" (Node 22, mode Production, application root `renovate`, startup file
   `server.cjs`, which loads `~/renovate/.env` through `deploy/lib/env.cjs` and hands off to

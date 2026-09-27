@@ -9,7 +9,8 @@
  *     had, corrects the lines, rings the customer, writes down what was agreed and confirms.
  *     They never touch prices, rates, revenue, settings or accounts.
  *   - `agent_catalog` keeps the catalogue: signs up stores, adds their products and their
- *     3D models, sorts the categories. They never see an order or what the platform earns.
+ *     3D models, sorts the categories. They switch things off rather than delete them
+ *     (`canDeleteIn`), and never see an order or what the platform earns.
  *
  * `store`, `worker` and `team` are partner accounts: each is bound to one row and sees only
  * that partner's orders in the portal at `/partner`. Everyone else is a `user`. The role
@@ -85,9 +86,31 @@ export function canAdmin(role: UserRole | undefined | null, section: AdminSectio
   return adminSectionsFor(role).includes(section);
 }
 
+/**
+ * Whether the account may delete what this part of the admin holds. Deleting is admin's alone:
+ * an agent adds, changes, switches on and off, but removes nothing — a category, a store or a
+ * product deleted takes with it what saved designs and orders point at, and that call is
+ * admin's. (A store deleting its own products in the portal is `canDeleteProduct`.)
+ */
+export function canDeleteIn(role: UserRole | undefined | null, section: AdminSection): boolean {
+  return role === 'admin' && canAdmin(role, section);
+}
+
 /** Where an account lands when it opens `/admin`: its first section. */
 export function adminHomeFor(role: UserRole | undefined | null): AdminSection | null {
   return adminSectionsFor(role)[0] ?? null;
+}
+
+/**
+ * The part of the site an account works in: the admin for the platform's people, the portal
+ * for a partner, the site for everybody else. Where the login page sends someone who did not
+ * ask for a page, and where the proxy sends someone who knocked on a door that is not theirs —
+ * a brigade that types `/admin` lands in its own portal rather than on the landing page.
+ */
+export function homePathFor(role: UserRole | undefined | null): '/admin' | '/partner' | '/' {
+  if (canOpenAdmin(role)) return '/admin';
+  if (isPartnerRole(role)) return '/partner';
+  return '/';
 }
 
 /** The session fields a partner account carries next to its role. */

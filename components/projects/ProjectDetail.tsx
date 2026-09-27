@@ -49,6 +49,7 @@ export function ProjectDetail({
   actions,
   renders,
   orders,
+  viewer,
 }: {
   project: Project;
   /** Both halves priced as saved, with and without the edits (`loadProjectSheets`). */
@@ -64,6 +65,8 @@ export function ProjectDetail({
   renders?: React.ReactNode;
   /** The orders placed against the project — the last folding block before the breakdown. */
   orders?: React.ReactNode;
+  /** The flat to look at (`ProjectViewer`: the plan, 3D, walk-through), right under the figures. */
+  viewer?: React.ReactNode;
 }) {
   const rooms = (project.rooms ?? []) as Room[];
   const plan = (project.plan as FloorPlan | null) ?? null;
@@ -126,6 +129,8 @@ export function ProjectDetail({
           design && <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal)} emphasis />
         )}
       </div>
+
+      {viewer && <div className="mt-8">{viewer}</div>}
 
       {/* Every block folds on its title; the breakdown at the end stays open. */}
       <div className="mt-8">
@@ -191,7 +196,12 @@ export function ProjectDetail({
 
         {renders}
 
-        {orders}
+        {/* An anchor: the admin's "orders to confirm" button jumps here. */}
+        {orders && (
+          <div id="orders" className="scroll-mt-6">
+            {orders}
+          </div>
+        )}
 
         {/* Nothing worked out yet (a draft left before it was calculated or generated): no breakdown to give. */}
         {(calculator || design) && (

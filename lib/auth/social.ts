@@ -16,3 +16,10 @@ export const FACEBOOK_ENABLED = process.env.NEXT_PUBLIC_FACEBOOK_ENABLED === 'tr
 
 /** `?error=` on the login page when a provider signed someone in but gave no e-mail address. */
 export const SOCIAL_NO_EMAIL = 'SocialNoEmail';
+
+/**
+ * A deactivated account: the `code` of the password form's refusal, and the `?error=` a social
+ * sign-in comes back with. The person did nothing wrong, so they are told rather than shown
+ * "wrong e-mail or password".
+ */
+export const ACCOUNT_DISABLED = 'account_disabled';

@@ -1,10 +1,11 @@
 import { and, eq, desc, asc, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { products, categories, stores } from '@/lib/db/schema';
+import { products, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { fail, handle, ok, requireCatalogEditor } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 import { publicProductCondition } from '@/lib/api/productAccess';
+import { loadCategoryTree, subtreeOfSlug } from '@/lib/catalog/queries';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,10 @@ export const GET = handle('GET /api/products', 'Failed to load products', async 
   if (ids.length > 0) conditions.push(inArray(products.id, ids));
 
   if (categorySlug) {
-    const c = await db.select().from(categories).where(eq(categories.slug, categorySlug)).limit(1);
-    if (c.length === 0) return ok({ items: [], total: 0, page, limit, totalPages: 0 });
-    conditions.push(eq(products.categoryId, c[0].id));
+    // A category stands for its whole subtree: the calculator's "Sanitary" lists the toilets too.
+    const ids = subtreeOfSlug(await loadCategoryTree(), categorySlug);
+    if (ids.length === 0) return ok({ items: [], total: 0, page, limit, totalPages: 0 });
+    conditions.push(inArray(products.categoryId, ids));
   }
 
   const where = and(...conditions);

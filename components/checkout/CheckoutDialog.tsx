@@ -10,7 +10,7 @@ import { CustomerFields, type CustomerForm } from '@/components/checkout/Custome
 import { useLocale, useT } from '@/lib/i18n/client';
 import { apiErrorMessage, localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import type { CheckoutResult, ProjectOrderState } from '@/lib/finance/orders';
+import type { CheckoutResult, MaterialsPreview, ProjectOrderState } from '@/lib/finance/orders';
 import { lineTotal, platformFee, round2, type CheckoutKind } from '@/lib/finance/money';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
@@ -29,7 +29,9 @@ export interface CheckoutPart {
  * writes the fees and one order per store. A project with both halves is one checkout: a
  * quick line per half — fee and products — with the full list a click away; a half ordered
  * earlier is shown as already paid, and products already sent to a store are not sent again.
- * Guests are welcome. Nothing is paid here; the fees are shown.
+ * The rate book's construction materials go to their supplier as an order of their own. The
+ * project's owner orders it (the route answers 401 to a guest). Nothing is paid here; the fees
+ * are shown, and every store's order is confirmed with the customer before the store sees it.
  */
 export function CheckoutDialog({
   open,
@@ -57,7 +59,7 @@ export function CheckoutDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResult | null>(null);
-  const [state, setState] = useState<ProjectOrderState | null>(null);
+  const [state, setState] = useState<(ProjectOrderState & { materials?: MaterialsPreview | null }) | null>(null);
   const [full, setFull] = useState(false);
 
   // What earlier sittings already ordered, so the preview matches what the server will do.
@@ -66,7 +68,7 @@ export function CheckoutDialog({
     let cancelled = false;
     fetch(`/api/checkout?projectId=${projectId}`)
       .then((r) => r.json())
-      .then((json: { data: ProjectOrderState | null }) => {
+      .then((json: { data: (ProjectOrderState & { materials?: MaterialsPreview | null }) | null }) => {
         if (!cancelled) setState(json.data);
       })
       .catch(() => undefined);
@@ -134,11 +136,15 @@ export function CheckoutDialog({
     onOpenChange(next);
   };
 
+  // The construction materials go to their supplier as an order of their own; the server says
+  // what they come to (read off the saved project as the checkout will read it).
+  const materials = state?.materials ?? null;
+  const materialsTotal = materials?.storeId != null ? materials.total : 0;
   const feeTotal = view.reduce((s, p) => s + p.fee, 0);
-  const goodsTotal = view.reduce((s, p) => s + p.goods, 0);
+  const goodsTotal = view.reduce((s, p) => s + p.goods, 0) + materialsTotal;
   const skipped = view.reduce((s, p) => s + p.skipped, 0);
   // Everything already charged and sent: say so instead of letting the server refuse.
-  const nothingNew = state != null && feeTotal === 0 && view.every((p) => p.lines.every((l) => l.duplicate));
+  const nothingNew = state != null && feeTotal === 0 && materialsTotal === 0 && view.every((p) => p.lines.every((l) => l.duplicate));
   const partLabel = (kind: CheckoutKind) => (kind === 'design' ? t.market.partDesign : t.market.partCalculator);
 
   const submit = async (e: React.FormEvent) => {
@@ -205,6 +211,7 @@ export function CheckoutDialog({
                 </ul>
               )}
             </div>
+            {result.orders.length > 0 && <p className="border border-line bg-bg-base px-3 py-2 text-xs text-ink-soft">{t.orderReview.reviewNote}</p>}
             {result.alreadyOrdered > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: result.alreadyOrdered })}</p>}
             {result.unassigned > 0 && <p className="text-xs text-warning">{fill(t.market.noPartnerItems, { n: result.unassigned })}</p>}
             <div className="grid gap-2 sm:grid-cols-2">
@@ -247,6 +254,24 @@ export function CheckoutDialog({
                   </p>
                 </div>
               ))}
+              {materials && (
+                <div className="border-b border-line px-4 py-2.5 last:border-b-0">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium text-ink">{t.orderReview.materialsTitle}</span>
+                    <span className="shrink-0 tabular-nums">{materials.storeId != null ? formatGEL(materials.total) : '—'}</span>
+                  </div>
+                  <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
+                    {materials.storeId != null ? (
+                      <>
+                        <span>{fill(t.orderReview.materialsFrom, { store: materials.storeNameKa ?? '—' })}</span>
+                        <span>{fill(t.market.itemsCount, { n: materials.lines.length })}</span>
+                      </>
+                    ) : (
+                      <span className="text-warning">{t.orderReview.materialsNoSupplier}</span>
+                    )}
+                  </p>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink px-4 py-2.5">
                 <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
                 <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(goodsTotal + feeTotal)}</span>
@@ -285,6 +310,22 @@ export function CheckoutDialog({
                     </ul>
                   </div>
                 ))}
+                {materials && materials.lines.length > 0 && (
+                  <div>
+                    <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.orderReview.materialsTitle}</p>
+                    <ul className="divide-y divide-line/70">
+                      {materials.lines.map((line) => (
+                        <li key={line.categorySlug ?? line.nameKa} className="flex items-baseline justify-between gap-3 px-3 py-1.5">
+                          <span className="min-w-0 truncate">{localizedName(locale, line)}</span>
+                          <span className="shrink-0 tabular-nums">
+                            <span className="mr-1 text-ink-muted">{formatNumber(line.qty)} ×</span>
+                            {formatGEL(line.total)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
-import { ArrowLeft, Calendar, ChevronRight, Mail, Shield } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronRight, LogIn, Mail, Shield } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { projects, stores, users, workers } from '@/lib/db/schema';
+import { projects, stores, teams, users, workers } from '@/lib/db/schema';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
-import { UserForm } from '@/components/admin/UserForm';
+import { AccountForm } from '@/components/admin/AccountForm';
 import { getT, getLocale } from '@/lib/i18n/server';
 import {
   formatM2L,
@@ -17,6 +17,7 @@ import {
   statusLabel,
 } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export default async function AdminUserDetailPage(
     params: Promise<{ id: string }>;
   }
 ) {
+  await requireAdminPage('users');
   const params = await props.params;
   const session = await auth();
   const ka = await getT();
@@ -39,9 +41,10 @@ export default async function AdminUserDetailPage(
 
   // The partner pickers on the role form: every store and worker, active or not, so a link
   // to a paused partner still shows what it points at.
-  const [partnerStores, partnerWorkers] = await Promise.all([
+  const [partnerStores, partnerWorkers, partnerTeams] = await Promise.all([
     db.select({ id: stores.id, name: stores.nameKa }).from(stores).orderBy(stores.nameKa),
     db.select({ id: workers.id, name: workers.nameKa, specialty: workers.specialty }).from(workers).orderBy(workers.nameKa),
+    db.select({ id: teams.id, name: teams.nameKa }).from(teams).orderBy(teams.nameKa),
   ]);
 
   const userProjects = await db
@@ -97,6 +100,7 @@ export default async function AdminUserDetailPage(
               <span className="font-serif text-xl font-semibold">{user.name}</span>
               <Badge variant={user.role === 'admin' ? 'success' : user.role === 'user' ? 'outline' : 'secondary'}>{roleLabel(ka, user.role)}</Badge>
               {isSelf && <Badge variant="outline">{ka.admin.youBadge}</Badge>}
+              {!user.isActive && <Badge variant="danger">{ka.accounts.deactivated}</Badge>}
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
               <span className="inline-flex items-center gap-1.5">
@@ -105,6 +109,10 @@ export default async function AdminUserDetailPage(
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="h-4 w-4" />
                 {new Date(user.createdAt).toLocaleString(dateLocale)}
+              </span>
+              <span className="inline-flex items-center gap-1.5" title={ka.accounts.lastLogin}>
+                <LogIn className="h-4 w-4" />
+                {ka.accounts.lastLogin}: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString(dateLocale) : ka.accounts.never}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Shield className="h-4 w-4" />
@@ -125,18 +133,21 @@ export default async function AdminUserDetailPage(
         />
       </div>
 
-      <UserForm
-        user={{
+      <AccountForm
+        account={{
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
           storeId: user.storeId,
           workerId: user.workerId,
+          teamId: user.teamId,
+          isActive: user.isActive,
         }}
         isSelf={isSelf}
         stores={partnerStores}
         workers={partnerWorkers}
+        teams={partnerTeams}
       />
 
       <Card>

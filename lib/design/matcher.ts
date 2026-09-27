@@ -23,7 +23,13 @@ export interface CatalogProduct {
   nameRu?: string | null;
   slug: string;
   brand: string | null;
+  /**
+   * The category the studio's code knows the product by — its own, or the nearest one up the
+   * tree the code names ("sanitary" for a toilet in "Toilets"; `nearestSlug`).
+   */
   categorySlug: string;
+  /** The product's own category, where the shelf's rooms find it (`lib/design/shelf.ts`). */
+  categoryId?: number | null;
   pricePerUnit: number;
   unit: string;
   imageUrl: string | null;

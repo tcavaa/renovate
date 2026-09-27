@@ -1,46 +1,50 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Loader2, Phone, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { Ban, Loader2, Phone, Plus, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
+import { useOrderActions } from '@/components/orders/useOrderActions';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { apiErrorMessage, localizedName, orderStatusLabel, unitLabel } from '@/lib/i18n/labels';
+import { localizedName, orderStatusLabel, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { ORDER_STATUSES, lineTotal, orderTotals, type OrderStatus } from '@/lib/finance/money';
+import { lineDiff } from '@/lib/finance/orderFlow';
 import type { OrderData, OrderItemData } from '@/lib/finance/view';
 import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
 
 /**
- * One order, editable by the partner it belongs to (and by admin): quantities and prices
- * per line, lines struck out and restored, new lines, a message to the customer and the
- * status. Totals update as you type; nothing is written until "save". Struck-out lines stay
- * visible so the customer can see what changed, and the platform's commission is shown next
- * to the partner's share — a partner should never have to guess what the platform takes.
+ * One order, as the platform's people work it (admin and the orders agent).
+ *
+ * A store's order arrives here before the store ever sees it: the agent rings the customer,
+ * keeps or strikes each line (the tick is "stays in the order"), corrects quantities, prices and
+ * the delivery, and presses "confirm and send" — which saves whatever is still unsaved and sends
+ * the order to the store with the lines still ticked. Struck lines stay on the order, so the
+ * customer sees what changed. After that — and for a brigade's or a worker's booking, which
+ * goes to its partner at once — the agent can still change anything, reopen a closed order, and
+ * keep a note the partner and the customer never see. Totals update as you type; nothing is
+ * written until a button is pressed.
  */
 type ItemEdit = { qty: number; unitPrice: number; removed: boolean; note: string | null };
 type NewItem = { key: number; nameKa: string; qty: number; unitPrice: number; unit: string };
 
 const INPUT = 'h-8 w-full border border-line bg-white px-2 text-right text-sm tabular-nums text-ink focus:border-ink focus:outline-none disabled:bg-bg-base disabled:text-ink-muted';
 
-export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode: 'partner' | 'admin'; backHref: string }) {
+export function OrderEditor({ order, backHref }: { order: OrderData; backHref: string }) {
   const t = useT();
+  const r = t.orderReview;
   const locale = useLocale();
-  const router = useRouter();
+  const { busy, notice, save, confirm } = useOrderActions(order.id);
   const [edits, setEdits] = useState<Record<number, ItemEdit>>({});
   const [added, setAdded] = useState<NewItem[]>([]);
   const [message, setMessage] = useState(order.partnerMessage ?? '');
-  /** The agent's own record of the call: what was checked, what was agreed. Staff only. */
   const [staffNote, setStaffNote] = useState(order.staffNote ?? '');
   const [status, setStatus] = useState<OrderStatus>(order.status);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [delivery, setDelivery] = useState<number>(order.deliveryFee);
 
-  const closed = mode === 'partner' && (order.status === 'done' || order.status === 'cancelled');
-
+  const review = order.stage === 'review';
   const current = (item: OrderItemData): ItemEdit => edits[item.id] ?? { qty: item.qty, unitPrice: item.unitPrice, removed: item.removed, note: item.note };
   const setItem = (item: OrderItemData, patch: Partial<ItemEdit>) => setEdits((e) => ({ ...e, [item.id]: { ...current(item), ...patch } }));
 
@@ -49,60 +53,36 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
     return orderTotals(live, order.commissionPct);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edits, added, order]);
+  const kept = order.items.filter((i) => !current(i).removed).length + added.length;
 
-  const dirty = Object.keys(edits).length > 0 || added.length > 0 || message !== (order.partnerMessage ?? '') || staffNote !== (order.staffNote ?? '') || status !== order.status;
+  const dirty =
+    Object.keys(edits).length > 0 || added.length > 0 || message !== (order.partnerMessage ?? '') || staffNote !== (order.staffNote ?? '') || status !== order.status || delivery !== order.deliveryFee;
 
-  const save = async () => {
-    setSaving(true);
-    setNotice(null);
-    const body = {
-      status: status !== order.status ? status : undefined,
-      partnerMessage: message !== (order.partnerMessage ?? '') ? message || null : undefined,
-      staffNote: mode === 'admin' && staffNote !== (order.staffNote ?? '') ? staffNote || null : undefined,
-      items: Object.entries(edits).map(([id, e]) => ({ id: Number(id), qty: e.qty, unitPrice: e.unitPrice, removed: e.removed, note: e.note })),
-      addItems: added.filter((a) => a.nameKa.trim()).map((a) => ({ nameKa: a.nameKa.trim(), qty: a.qty, unitPrice: a.unitPrice, unit: a.unit })),
-    };
-    try {
-      const res = await fetch(`/api/orders/${order.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const json = (await res.json()) as { error: string | null };
-      if (!res.ok) {
-        setNotice({ ok: false, text: apiErrorMessage(t, json.error) });
-        return;
-      }
-      setEdits({});
-      setAdded([]);
-      setNotice({ ok: true, text: t.partner.saved });
-      router.refresh();
-    } catch {
-      setNotice({ ok: false, text: t.partner.saveError });
-    } finally {
-      setSaving(false);
-    }
+  /** Only what changed, so an unchanged field is never rewritten. */
+  const body = () => ({
+    status: status !== order.status ? status : undefined,
+    partnerMessage: message !== (order.partnerMessage ?? '') ? message || null : undefined,
+    staffNote: staffNote !== (order.staffNote ?? '') ? staffNote || null : undefined,
+    deliveryFee: delivery !== order.deliveryFee ? delivery : undefined,
+    items: Object.entries(edits).map(([id, e]) => ({ id: Number(id), qty: e.qty, unitPrice: e.unitPrice, removed: e.removed, note: e.note })),
+    addItems: added.filter((a) => a.nameKa.trim()).map((a) => ({ nameKa: a.nameKa.trim(), qty: a.qty, unitPrice: a.unitPrice, unit: a.unit })),
+  });
+  const reset = () => {
+    setEdits({});
+    setAdded([]);
   };
 
-  /**
-   * The partner's answer to a new order, in one press: accepted or turned down. It is the
-   * status select's `confirmed` / `cancelled` and nothing more — but a brigade that has just
-   * been chosen by a customer should not have to find a dropdown to say yes, and the
-   * customer's page is waiting on exactly this.
-   */
-  const answer = async (next: 'confirmed' | 'cancelled') => {
-    setSaving(true);
-    setNotice(null);
-    try {
-      const res = await fetch(`/api/orders/${order.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next, partnerMessage: message !== (order.partnerMessage ?? '') ? message || null : undefined }) });
-      const json = (await res.json()) as { error: string | null };
-      if (!res.ok) {
-        setNotice({ ok: false, text: apiErrorMessage(t, json.error) });
-        return;
-      }
-      setStatus(next);
-      setNotice({ ok: true, text: t.partner.saved });
-      router.refresh();
-    } catch {
-      setNotice({ ok: false, text: t.partner.saveError });
-    } finally {
-      setSaving(false);
+  const onSave = async () => {
+    if (await save(body())) reset();
+  };
+  const onConfirm = async () => {
+    if (await confirm(dirty ? body() : null)) reset();
+  };
+  const onCancel = async () => {
+    if (!window.confirm(r.cancelConfirm)) return;
+    if (await save({ ...body(), status: 'cancelled' })) {
+      reset();
+      setStatus('cancelled');
     }
   };
 
@@ -110,19 +90,31 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
 
   return (
     <div className="space-y-6">
-      {mode === 'partner' && order.status === 'new' && (
-        <section className="flex flex-wrap items-center justify-between gap-4 border border-ink bg-bg-surface p-5">
-          <p className="max-w-2xl text-sm text-ink">{t.teams.acceptHint}</p>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => answer('cancelled')} disabled={saving}>
-              {t.teams.decline}
+      {review && (
+        <section className="flex flex-wrap items-center justify-between gap-4 border border-warning/60 bg-warning/5 p-5">
+          <div className="max-w-2xl">
+            <p className="font-serif text-lg font-semibold text-ink">{r.awaitingTitle}</p>
+            <p className="mt-1 text-sm text-ink-soft">{r.awaitingHint}</p>
+            <p className="mt-2 text-xs text-ink-muted">{fill(r.keptCount, { n: kept, total: order.items.length + added.length })}</p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>
+              <Ban className="h-4 w-4" />
+              {r.cancelOrder}
             </Button>
-            <Button type="button" variant="ink" onClick={() => answer('confirmed')} disabled={saving}>
-              {t.teams.accept}
+            <Button type="button" variant="ink" onClick={onConfirm} disabled={busy || kept === 0}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {order.partner ? fill(r.confirmSendStore, { store: order.partner.nameKa }) : r.confirmSend}
             </Button>
           </div>
         </section>
       )}
+      {!review && order.sentAt && (
+        <p className="text-sm text-ink-muted" suppressHydrationWarning>
+          {order.confirmedAt ? fill(r.confirmedOn, { date: formatDateTime(order.confirmedAt) }) : fill(r.sentOn, { date: formatDateTime(order.sentAt) })}
+        </p>
+      )}
+
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
         {/* customer */}
         <section className="border border-line bg-bg-surface p-5">
@@ -156,32 +148,33 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
               <div>
                 <dt className="uppercase tracking-wide">{t.partner.project}</dt>
                 <dd className="mt-0.5 text-sm text-ink">
-                  {mode === 'admin' ? (
-                    <Link href={`/admin/projects/${order.project.id}`} className="text-brand hover:underline">
-                      {order.project.nameKa ?? `#${order.project.id}`} · {formatNumber(order.project.totalM2)} {t.units.m2}
-                    </Link>
-                  ) : (
-                    <>
-                      {order.project.nameKa ?? `#${order.project.id}`} · {formatNumber(order.project.totalM2)} {t.units.m2}
-                    </>
-                  )}
+                  <Link href={`/admin/projects/${order.project.id}`} className="text-brand hover:underline">
+                    {order.project.nameKa ?? `#${order.project.id}`} · {formatNumber(order.project.totalM2)} {t.units.m2}
+                  </Link>
                 </dd>
               </div>
             )}
           </dl>
         </section>
 
-        {/* money */}
+        {/* money and status */}
         <section className="border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.total}</p>
-          <p className="mt-2 font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal)}</p>
+          <p className="mt-2 font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal + delivery)}</p>
           <dl className="mt-4 space-y-1.5 text-sm">
-            {order.deliveryFee > 0 && (
-              <div className="flex justify-between text-ink-muted">
-                <dt>{t.partner.deliveryFee}</dt>
-                <dd className="tabular-nums">{formatGEL(order.deliveryFee)}</dd>
-              </div>
-            )}
+            <div className="flex justify-between text-ink-muted">
+              <dt>{t.partner.items}</dt>
+              <dd className="tabular-nums">{formatGEL(totals.subtotal)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-ink-muted">
+              <dt>
+                <label htmlFor={`delivery-${order.id}`}>{r.deliveryFee}</label>
+                {order.originalDeliveryFee != null && delivery !== order.originalDeliveryFee && <span className="block text-[11px]">{fill(r.deliveryWas, { amount: formatGEL(order.originalDeliveryFee) })}</span>}
+              </dt>
+              <dd>
+                <input id={`delivery-${order.id}`} type="number" min={0} step={1} value={delivery} onChange={(e) => setDelivery(Math.max(0, Number(e.target.value) || 0))} className={cn(INPUT, 'w-24')} />
+              </dd>
+            </div>
             <div className="flex justify-between text-ink-muted">
               <dt>{fill(t.partner.commission, { pct: formatNumber(order.commissionPct) })}</dt>
               <dd className="tabular-nums">− {formatGEL(totals.commissionAmount)}</dd>
@@ -193,58 +186,62 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
           </dl>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-line pt-4">
             <span className="text-xs uppercase tracking-wide text-ink-muted">{t.partner.statusLabel}</span>
-            <OrderStatusBadge status={status} t={t} />
+            <OrderStageBadge stage={order.stage} t={t} />
           </div>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as OrderStatus)}
-            disabled={closed}
-            className="mt-2 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none disabled:bg-bg-base"
-            aria-label={t.partner.statusLabel}
-          >
-            {ORDER_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {orderStatusLabel(t, s)}
-              </option>
-            ))}
-          </select>
+          {/* A store's order still with the platform is sent on by the button above, not from a list. */}
+          {!review && (
+            <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="mt-2 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none" aria-label={t.partner.statusLabel}>
+              {ORDER_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {orderStatusLabel(t, s)}
+                </option>
+              ))}
+            </select>
+          )}
         </section>
       </div>
 
       {/* items */}
       <section className="border border-line bg-bg-surface">
         <header className="flex items-center justify-between border-b border-line px-5 py-3">
-          <p className="eyebrow">{t.partner.items}</p>
-          {!closed && (
-            <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
-              <Plus className="h-3.5 w-3.5" />
-              {t.partner.addItem}
-            </button>
-          )}
+          <p className="eyebrow">
+            {t.partner.items} <span className="ml-2 normal-case tracking-normal text-ink-muted">{fill(r.keptCount, { n: kept, total: order.items.length + added.length })}</span>
+          </p>
+          <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+            <Plus className="h-3.5 w-3.5" />
+            {t.partner.addItem}
+          </button>
         </header>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
-                <th className="px-4 py-2">{t.partner.item}</th>
+                <th className="w-10 px-3 py-2" aria-label={r.keep} />
+                <th className="px-2 py-2">{t.partner.item}</th>
                 <th className="px-2 py-2 text-right">{t.partner.qty}</th>
                 <th className="px-2 py-2 text-right">{t.partner.unitPrice}</th>
                 <th className="px-2 py-2 text-right">{t.partner.lineTotal}</th>
-                <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {order.items.map((item) => {
                 const e = current(item);
+                const diff = lineDiff({ ...e, originalQty: item.originalQty, originalUnitPrice: item.originalUnitPrice });
                 return (
                   <tr key={item.id} className={cn('border-b border-line/70 align-top last:border-b-0', e.removed && 'bg-bg-base/60')}>
-                    <td className="px-4 py-2.5">
-                      <p className={cn('font-medium text-ink', e.removed && 'line-through text-ink-muted')}>{localizedName(locale, item)}</p>
+                    <td className="px-3 py-2.5">
+                      <input type="checkbox" checked={!e.removed} onChange={() => setItem(item, { removed: !e.removed })} aria-label={r.keep} title={r.keep} className="mt-1 h-4 w-4 accent-ink" />
+                    </td>
+                    <td className="px-2 py-2.5">
+                      <p className={cn('font-medium text-ink', e.removed && 'text-ink-muted line-through')}>{localizedName(locale, item)}</p>
                       <p className="text-xs text-ink-muted">
-                        {[item.roomName, item.categorySlug?.startsWith('labour:') ? null : item.categorySlug].filter(Boolean).join(' · ')}
-                        {e.removed && <span className="ml-2 border border-danger/40 px-1 text-[10px] uppercase tracking-wide text-danger">{t.partner.removed}</span>}
+                        {[item.roomName, item.categorySlug?.includes(':') ? null : item.categorySlug].filter(Boolean).join(' · ')}
+                        {diff.kind === 'removed' && <span className="ml-2 border border-danger/40 px-1 text-[10px] uppercase tracking-wide text-danger">{r.removedByManager}</span>}
+                        {diff.kind === 'added' && <span className="ml-2 border border-success/40 px-1 text-[10px] uppercase tracking-wide text-success">{r.addedByManager}</span>}
+                        {diff.kind === 'changed' && diff.qtyFrom != null && <span className="ml-2 text-warning">{fill(r.qtyWas, { qty: formatNumber(diff.qtyFrom) })}</span>}
+                        {diff.kind === 'changed' && diff.priceFrom != null && <span className="ml-2 text-warning">{fill(r.priceWas, { price: formatGEL(diff.priceFrom) })}</span>}
                       </p>
-                      {!closed && !e.removed && (
+                      {!e.removed && (
                         <input
                           type="text"
                           value={e.note ?? ''}
@@ -253,37 +250,28 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
                           className="mt-1.5 h-7 w-full max-w-md border border-line bg-white px-2 text-xs text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
                         />
                       )}
-                      {(closed || e.removed) && e.note && <p className="mt-1 text-xs italic text-ink-muted">{e.note}</p>}
                     </td>
                     <td className="px-2 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <input type="number" min={0} step={item.unit === 'piece' || item.unit === 'unit' ? 1 : 0.1} value={e.qty} disabled={closed || e.removed} onChange={(ev) => setItem(item, { qty: Math.max(0, Number(ev.target.value) || 0) })} className={cn(INPUT, 'w-20')} />
+                        <input type="number" min={0} step={item.unit === 'piece' || item.unit === 'unit' ? 1 : 0.1} value={e.qty} disabled={e.removed} onChange={(ev) => setItem(item, { qty: Math.max(0, Number(ev.target.value) || 0) })} className={cn(INPUT, 'w-20')} />
                         <span className="w-10 text-left text-xs text-ink-muted">{unitLabel(t, item.unit)}</span>
                       </div>
                     </td>
                     <td className="px-2 py-2.5 text-right">
-                      <input type="number" min={0} step={0.01} value={e.unitPrice} disabled={closed || e.removed} onChange={(ev) => setItem(item, { unitPrice: Math.max(0, Number(ev.target.value) || 0) })} className={cn(INPUT, 'w-28')} />
+                      <input type="number" min={0} step={0.01} value={e.unitPrice} disabled={e.removed} onChange={(ev) => setItem(item, { unitPrice: Math.max(0, Number(ev.target.value) || 0) })} className={cn(INPUT, 'w-28')} />
                     </td>
                     <td className={cn('px-2 py-2.5 text-right font-semibold tabular-nums', e.removed ? 'text-ink-faint line-through' : 'text-ink')}>{formatGEL(lineTotal(e.qty, e.unitPrice))}</td>
-                    <td className="px-2 py-2.5 text-right">
-                      {!closed && (
-                        <button
-                          type="button"
-                          onClick={() => setItem(item, { removed: !e.removed })}
-                          title={e.removed ? t.partner.restore : t.partner.remove}
-                          aria-label={e.removed ? t.partner.restore : t.partner.remove}
-                          className={cn('grid h-8 w-8 place-items-center border transition-colors', e.removed ? 'border-line text-ink hover:bg-ink hover:text-white' : 'border-line text-ink-faint hover:border-danger hover:text-danger')}
-                        >
-                          {e.removed ? <RotateCcw className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </button>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
               {added.map((a, index) => (
                 <tr key={a.key} className="border-b border-line/70 bg-success/5 align-top last:border-b-0">
-                  <td className="px-4 py-2.5">
+                  <td className="px-3 py-2.5">
+                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-7 w-7 place-items-center border border-line text-ink-faint hover:border-danger hover:text-danger">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                  <td className="px-2 py-2.5">
                     <input type="text" autoFocus value={a.nameKa} placeholder={t.partner.newItemName} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, nameKa: ev.target.value } : x)))} className="h-8 w-full max-w-md border border-line bg-white px-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
                   </td>
                   <td className="px-2 py-2.5 text-right">
@@ -302,11 +290,6 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
                     <input type="number" min={0} step={0.01} value={a.unitPrice} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, unitPrice: Math.max(0, Number(ev.target.value) || 0) } : x)))} className={cn(INPUT, 'w-28')} />
                   </td>
                   <td className="px-2 py-2.5 text-right font-semibold tabular-nums text-ink">{formatGEL(lineTotal(a.qty, a.unitPrice))}</td>
-                  <td className="px-2 py-2.5 text-right">
-                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-8 w-8 place-items-center border border-line text-ink-faint hover:border-danger hover:text-danger">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </td>
                 </tr>
               ))}
               {order.items.length === 0 && added.length === 0 && (
@@ -319,25 +302,23 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
             </tbody>
             <tfoot className="border-t-2 border-ink">
               <tr>
-                <td colSpan={3} className="px-4 py-3 text-right text-sm font-semibold text-ink">
+                <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold text-ink">
                   {t.partner.total}
                 </td>
                 <td className="px-2 py-3 text-right font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal)}</td>
-                <td />
               </tr>
             </tfoot>
           </table>
         </div>
       </section>
 
-      {/* message */}
+      {/* message to the customer */}
       <section className="border border-line bg-bg-surface p-5">
         <label className="block">
           <span className="eyebrow">{t.partner.messageLabel}</span>
-          <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={t.partner.messagePlaceholder} rows={3} className="mt-2" disabled={closed && mode === 'partner'} />
+          <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={t.partner.messagePlaceholder} rows={3} className="mt-2" />
         </label>
-        {mode === 'admin' && <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.adminEdit}</p>}
-        {closed && <p className="mt-2 text-xs text-warning">{t.partner.closed}</p>}
+        <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.adminEdit}</p>
       </section>
 
       {/*
@@ -346,30 +327,42 @@ export function OrderEditor({ order, mode, backHref }: { order: OrderData; mode:
         none of it is written anywhere until it is written here. Neither the customer nor the
         partner ever sees it — the API strips it for both.
       */}
-      {mode === 'admin' && (
-        <section className="border border-warning/40 bg-warning/5 p-5">
-          <label className="block">
-            <span className="eyebrow">{t.admin.ordersPage.staffNote}</span>
-            <Textarea value={staffNote} onChange={(e) => setStaffNote(e.target.value)} placeholder={t.admin.ordersPage.staffNotePlaceholder} rows={3} className="mt-2 bg-white" />
-          </label>
-          <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.staffNoteHint}</p>
-        </section>
-      )}
+      <section className="border border-warning/40 bg-warning/5 p-5">
+        <label className="block">
+          <span className="eyebrow">{t.admin.ordersPage.staffNote}</span>
+          <Textarea value={staffNote} onChange={(e) => setStaffNote(e.target.value)} placeholder={t.admin.ordersPage.staffNotePlaceholder} rows={3} className="mt-2 bg-white" />
+        </label>
+        <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.staffNoteHint}</p>
+      </section>
 
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/90 py-3 backdrop-blur-md">
         <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-ink">
-          ← {mode === 'admin' ? t.admin.ordersPage.backToAll : t.partner.orders}
+          ← {t.admin.ordersPage.backToAll}
         </Link>
-        <div className="flex items-center gap-3">
-          {notice && (
+        <div className="flex flex-wrap items-center gap-3">
+          {notice ? (
             <p role="status" className={cn('text-sm', notice.ok ? 'text-success' : 'text-danger')}>
               {notice.text}
             </p>
+          ) : (
+            dirty && <p className="text-sm text-warning">{r.unsaved}</p>
           )}
-          <Button type="button" variant="ink" onClick={save} disabled={!dirty || saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {t.partner.save}
+          {!review && order.status === 'cancelled' && (
+            <Button type="button" variant="outline" onClick={() => save({ status: order.sentAt ? 'confirmed' : 'new' })} disabled={busy}>
+              <RotateCcw className="h-4 w-4" />
+              {r.reopen}
+            </Button>
+          )}
+          <Button type="button" variant={review ? 'outline' : 'ink'} onClick={onSave} disabled={!dirty || busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {r.saveChanges}
           </Button>
+          {review && (
+            <Button type="button" variant="ink" onClick={onConfirm} disabled={busy || kept === 0}>
+              <Send className="h-4 w-4" />
+              {r.confirmSend}
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -1,14 +1,17 @@
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import {
   checkouts,
+  orderEvents,
   orderItems,
   orders,
   products,
   projects,
   stores,
+  teams,
   workers,
   type Order,
+  type OrderEvent,
   type OrderItem,
   type Project,
   type Worker,
@@ -29,7 +32,11 @@ import {
   costLinesByStore,
   effectiveCommissionPct,
   feePerM2For,
+  joinLines,
+  MATERIAL_SLUG_PREFIX,
+  materialLinesByStore,
   mergeLines,
+  type OrderedMaterials,
   type OrderedQuantities,
   orderTotals,
   platformFee,
@@ -39,6 +46,7 @@ import {
   type OrderLineDraft,
   type OrderStatus,
 } from './money';
+import { awaitsConfirmation, summariseEdit } from './orderFlow';
 import { notifyCustomerCheckout, notifyCustomerOrderUpdate, notifyPartnerNewOrder, type CustomerContact } from './notify';
 import { loadPlatformSettings } from './settings';
 import { projectKind } from '@/lib/projects/saved';
@@ -48,12 +56,43 @@ import type { BudgetLine } from '@/lib/design/pricing';
 /**
  * Writing and reading orders.
  *
- * A checkout turns a saved project into one `order` per partner store plus the platform's
- * own fee; a booking is a worker's order for a project's labour. Both are built by the pure
- * functions in `./money` and written here in one transaction, then announced by mail.
- * Partners edit their orders through `applyOrderEdit`, which recomputes the totals from the
- * items every time — the stored subtotal is never trusted to be up to date on its own.
+ * A checkout turns a saved project into one `order` per partner store — the construction
+ * materials to the store that supplies them — plus the platform's own fee; a booking is a
+ * brigade's or a worker's order for a project's labour. Both are built by the pure functions in
+ * `./money` and written here in one transaction. A booking is sent to its partner at once; a
+ * store's order waits with the platform (`sentAt` NULL) until the orders agent has checked it
+ * with the customer and confirmed it (`confirmOrder`), which is when the store is told.
+ * Every edit goes through `applyOrderEdit`, which recomputes the totals from the items every
+ * time — the stored subtotal is never trusted to be up to date on its own — and every step
+ * leaves an `order_events` row (`./orderFlow` holds the rules).
  */
+
+/** Who did something to an order, as its events remember them. */
+export interface OrderActor {
+  userId: number | null;
+  role: string;
+  name: string | null;
+}
+
+/** The signed-in person as an order's events remember them. */
+export function actorOf(user: { id?: string | null; role: string; name?: string | null }): OrderActor {
+  const id = Number(user.id);
+  return { userId: Number.isInteger(id) && id > 0 ? id : null, role: user.role, name: user.name ?? null };
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** One line of an order's history. Written inside the caller's transaction when it has one. */
+export async function recordOrderEvent(
+  runner: Tx | typeof db,
+  orderId: number,
+  actor: OrderActor,
+  kind: OrderEvent['kind'],
+  body: string | null = null,
+  meta: Record<string, unknown> | null = null
+): Promise<void> {
+  await runner.insert(orderEvents).values({ orderId, userId: actor.userId, actorRole: actor.role.slice(0, 20), actorName: actor.name?.slice(0, 255) ?? null, kind, body, meta });
+}
 
 export function checkoutKindOf(project: Pick<Project, 'plan'>): CheckoutKind {
   return project.plan ? 'design' : 'calculator';
@@ -97,23 +136,26 @@ export interface ProjectOrderState {
   orderedKinds: CheckoutKind[];
   /** Units per product already sent to a store, on orders that were not cancelled. */
   orderedQty: OrderedQuantities;
+  /** Units of each rate-book material already ordered, by the line's `material:<key>` slug. */
+  orderedMaterials: OrderedMaterials;
 }
 
 export async function projectOrderState(projectId: number): Promise<ProjectOrderState> {
   const [kindRows, productRows] = await Promise.all([
     db.select({ kind: checkouts.kind }).from(checkouts).where(eq(checkouts.projectId, projectId)),
     db
-      .select({ productId: orderItems.productId, qty: orderItems.qty })
+      .select({ productId: orderItems.productId, categorySlug: orderItems.categorySlug, qty: orderItems.qty })
       .from(orderItems)
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .where(and(eq(orders.projectId, projectId), ne(orders.status, 'cancelled'), eq(orderItems.removed, false))),
   ]);
   const orderedQty: OrderedQuantities = {};
+  const orderedMaterials: OrderedMaterials = {};
   for (const row of productRows) {
-    if (row.productId == null) continue;
-    orderedQty[row.productId] = round2((orderedQty[row.productId] ?? 0) + Number(row.qty));
+    if (row.productId != null) orderedQty[row.productId] = round2((orderedQty[row.productId] ?? 0) + Number(row.qty));
+    else if (row.categorySlug?.startsWith(MATERIAL_SLUG_PREFIX)) orderedMaterials[row.categorySlug] = round2((orderedMaterials[row.categorySlug] ?? 0) + Number(row.qty));
   }
-  return { orderedKinds: [...new Set(kindRows.map((r) => r.kind))], orderedQty };
+  return { orderedKinds: [...new Set(kindRows.map((r) => r.kind))], orderedQty, orderedMaterials };
 }
 
 async function storeLookup(productIds: number[]): Promise<(id: number) => number | null> {
@@ -160,6 +202,9 @@ function itemRows(orderId: number, lines: OrderLineDraft[]) {
     unitPrice: String(l.unitPrice),
     total: String(l.total),
     sortOrder: i,
+    // What was ordered, kept beside what the platform later makes of it.
+    originalQty: String(l.qty),
+    originalUnitPrice: String(l.unitPrice),
   }));
 }
 
@@ -182,8 +227,16 @@ export async function createCheckoutForProject(project: Project, customer: Custo
   // figures are not an estimate the customer has seen (`projectKind`).
   const calculatorReady = kind.hasCalculator && !kind.calculatorPending;
   const designReady = kind.hasDesign && !kind.designPending;
-  const [calculatorLines, designLines] = await Promise.all([calculatorReady ? calculatorLinesOf(project) : null, designReady ? sceneLinesOf(project) : null]);
-  const lines = mergeLines(designLines, calculatorLines, state.orderedQty);
+  const [calculatorLines, designLines, materialDrafts] = await Promise.all([
+    calculatorReady ? calculatorLinesOf(project) : null,
+    designReady ? sceneLinesOf(project) : null,
+    calculatorReady || designReady ? projectMaterials(project) : [],
+  ]);
+  const productLines = mergeLines(designLines, calculatorLines, state.orderedQty);
+  // The construction materials go to the store that supplies them — an order of their own, or
+  // on that store's order when it also sells some of the products.
+  const materialLines = materialLinesByStore(materialDrafts, settings.materialsStoreId, state.orderedMaterials);
+  const lines = { ...joinLines(productLines, materialLines), skipped: productLines.skipped + materialLines.skipped };
 
   const totalM2 = Number(project.totalM2) || 0;
   const feeKinds: CheckoutKind[] = [];
@@ -229,6 +282,8 @@ export async function createCheckoutForProject(project: Project, customer: Custo
     }
     const created: Array<{ id: number; draft: (typeof drafts)[number] }> = [];
     for (const draft of drafts) {
+      // No `sentAt`: a store's order waits with the platform until the orders agent has
+      // checked it with the customer and confirmed it (`confirmOrder`).
       const [orderInsert] = await tx.insert(orders).values({
         checkoutId,
         projectId: project.id,
@@ -236,8 +291,10 @@ export async function createCheckoutForProject(project: Project, customer: Custo
         partnerType: 'store',
         storeId: draft.storeId,
         status: 'new',
+        sentAt: null,
         subtotal: String(draft.subtotal),
         deliveryFee: String(draft.deliveryFee),
+        originalDeliveryFee: String(draft.deliveryFee),
         commissionPct: String(draft.commissionPct),
         commissionAmount: String(draft.commissionAmount),
         customerName: customer.name,
@@ -247,6 +304,7 @@ export async function createCheckoutForProject(project: Project, customer: Custo
       });
       const orderId = orderInsert.insertId;
       if (draft.lines.length) await tx.insert(orderItems).values(itemRows(orderId, draft.lines));
+      await recordOrderEvent(tx, orderId, { userId, role: 'user', name: customer.name }, 'created', null, { lines: draft.lines.length, subtotal: draft.subtotal, deliveryFee: draft.deliveryFee });
       created.push({ id: orderId, draft });
     }
     await tx.update(projects).set({ status: 'submitted' }).where(eq(projects.id, project.id));
@@ -280,22 +338,8 @@ export async function createCheckoutForProject(project: Project, customer: Custo
     alreadyOrdered: lines.skipped,
   };
 
-  // Mail is best-effort and outside the transaction: the rows are the record.
-  await Promise.all(
-    written.created.map(({ id, draft }) => {
-      const store = storesById.get(draft.storeId);
-      return notifyPartnerNewOrder({
-        email: store?.email,
-        partnerName: store?.nameKa ?? `#${draft.storeId}`,
-        orderId: id,
-        customer,
-        lines: draft.lines,
-        subtotal: draft.subtotal,
-        deliveryFee: draft.deliveryFee,
-        kind: 'store',
-      });
-    })
-  );
+  // Mail is best-effort and outside the transaction: the rows are the record. The stores are
+  // not told yet — each is, with the lines the customer kept, when its order is confirmed.
   if (result.orders.length > 0 || platformFeeTotal > 0) {
     await notifyCustomerCheckout({
       customer,
@@ -313,38 +357,37 @@ const workTypeNames = (key: string) => ({
 });
 
 /**
- * The work a project asks for, as the customer left it on their summary: the labour lines
- * of the sheet, less the ones ticked off, at the quantities they set.
+ * The sheet a project's work and materials are read off, as the customer left it on their
+ * summary: its lines less the ones ticked off, at the quantities they set.
  *
  * A project with a design is read off the design's budget, because that is the fuller
  * account — the calculator's phases, but also an electrician's point for every socket that
  * was actually placed, the radiators hung, the skirting board fitted, and only the works
  * ticked on the technical step. A calculation on its own is the calculator's sheet. Either
- * way it is the same list the customer was looking at when they chose who to send it to;
- * it used to be the calculator's estimate worked out afresh, whatever had been edited.
+ * way it is the same list the customer was looking at when they ordered; it used to be the
+ * calculator's estimate worked out afresh, whatever had been edited.
  */
-async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
+async function projectSheetLines(project: Project): Promise<BudgetLine[]> {
   const book = await loadRateBook();
   const kind = projectKind(project);
-  let labour: BudgetLine[];
   // Only work that was worked out: a design never generated, a calculation never started, has
-  // no labour anybody has seen (`projectKind`). The design's budget when it was generated, else
+  // no lines anybody has seen (`projectKind`). The design's budget when it was generated, else
   // the calculator's sheet when it was calculated, else nothing.
   const designReady = project.plan != null && project.scene != null && !kind.designPending;
   // A calculation needs its home state; a project still on its first step has none.
   const calculatorReady = !kind.calculatorPending && project.homeState != null && (project.selectedProducts != null || project.plan == null);
-  if (!designReady && !calculatorReady) return [];
-  if (designReady) {
-    const cost = priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState ?? undefined, book });
-    labour = sheetLabour(cost.lines);
-  } else {
-    const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-    const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-    const rooms = (project.rooms ?? []) as Room[];
-    const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
-    labour = sheetLabour(calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines);
-  }
-  return labour.map((line) => {
+  if (designReady) return priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState ?? undefined, book }).lines;
+  if (!calculatorReady) return [];
+  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
+  const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
+  const rooms = (project.rooms ?? []) as Room[];
+  const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices });
+  return calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines;
+}
+
+/** The work a project asks for: the labour lines of its sheet — what a brigade or a worker is sent. */
+async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
+  return sheetLabour(await projectSheetLines(project)).map((line) => {
     const names = workTypeNames(line.key);
     return {
       productId: null,
@@ -359,6 +402,50 @@ async function projectLabour(project: Project): Promise<OrderLineDraft[]> {
       total: round2(line.total),
     };
   });
+}
+
+/**
+ * The construction materials a project asks for: the rate book's `material` lines of its sheet
+ * (blocks, plaster, putty, pipes, cable…) still ticked — what the materials store is sent. The
+ * Georgian name is the one on the sheet (the rate book's own label); English and Russian come
+ * from the dictionaries.
+ */
+export async function projectMaterials(project: Project): Promise<OrderLineDraft[]> {
+  return (await projectSheetLines(project))
+    .filter((line) => line.section === 'materials' && !line.excluded && line.qty > 0 && line.total > 0)
+    .map((line) => ({
+      productId: null,
+      nameKa: line.name ?? (ka.materials as Record<string, string>)[line.key] ?? line.key,
+      nameEn: (en.materials as Record<string, string>)[line.key] ?? null,
+      nameRu: (ru.materials as Record<string, string>)[line.key] ?? null,
+      categorySlug: `${MATERIAL_SLUG_PREFIX}${line.key}`,
+      roomName: null,
+      unit: line.unit,
+      qty: round2(line.qty),
+      unitPrice: round2(line.unitPrice),
+      total: round2(line.total),
+    }));
+}
+
+/**
+ * What a checkout would send the materials store now — the checkout dialogue's preview, read
+ * off the saved project the same way the checkout will read it.
+ */
+export interface MaterialsPreview {
+  /** The supplier; null when none is set, and the lines would go nowhere. */
+  storeId: number | null;
+  storeNameKa: string | null;
+  lines: OrderLineDraft[];
+  total: number;
+}
+
+export async function materialsPreview(project: Project, state: ProjectOrderState): Promise<MaterialsPreview | null> {
+  const settings = await loadPlatformSettings();
+  const grouped = materialLinesByStore(await projectMaterials(project), settings.materialsStoreId, state.orderedMaterials);
+  const lines = settings.materialsStoreId != null ? grouped.groups.get(settings.materialsStoreId) ?? [] : grouped.unassigned;
+  if (lines.length === 0) return null;
+  const [store] = settings.materialsStoreId != null ? await db.select({ nameKa: stores.nameKa }).from(stores).where(eq(stores.id, settings.materialsStoreId)).limit(1) : [];
+  return { storeId: settings.materialsStoreId, storeNameKa: store?.nameKa ?? null, lines, total: round2(lines.reduce((sum, l) => sum + l.total, 0)) };
 }
 
 export interface BookingResult {
@@ -396,8 +483,11 @@ export async function createWorkerBooking(args: { worker: Worker; project: Proje
       partnerType: 'worker',
       workerId: worker.id,
       status: 'new',
+      // The customer chose this partner on the last step: the booking is theirs at once.
+      sentAt: new Date(),
       subtotal: String(totals.subtotal),
       deliveryFee: '0.00',
+      originalDeliveryFee: '0.00',
       commissionPct: String(commissionPct),
       commissionAmount: String(totals.commissionAmount),
       customerName: customer.name,
@@ -407,6 +497,7 @@ export async function createWorkerBooking(args: { worker: Worker; project: Proje
     });
     const id = orderInsert.insertId;
     if (lines.length) await tx.insert(orderItems).values(itemRows(id, lines));
+    await recordOrderEvent(tx, id, { userId, role: 'user', name: customer.name }, 'created', null, { lines: lines.length, subtotal: totals.subtotal });
     return id;
   });
 
@@ -448,8 +539,11 @@ export async function createTeamBooking(args: { team: Team; project: Project | n
       partnerType: 'team',
       teamId: team.id,
       status: 'new',
+      // The customer chose this partner on the last step: the booking is theirs at once.
+      sentAt: new Date(),
       subtotal: String(totals.subtotal),
       deliveryFee: '0.00',
+      originalDeliveryFee: '0.00',
       commissionPct: String(commissionPct),
       commissionAmount: String(totals.commissionAmount),
       customerName: customer.name,
@@ -459,6 +553,7 @@ export async function createTeamBooking(args: { team: Team; project: Project | n
     });
     const id = orderInsert.insertId;
     if (lines.length) await tx.insert(orderItems).values(itemRows(id, lines));
+    await recordOrderEvent(tx, id, { userId, role: 'user', name: customer.name }, 'created', null, { lines: lines.length, subtotal: totals.subtotal });
     return id;
   });
 
@@ -476,6 +571,7 @@ export interface OrderView {
   items: OrderItem[];
   store: { id: number; nameKa: string; nameEn: string | null; nameRu: string | null; email: string | null; phone: string | null; logoUrl: string | null } | null;
   worker: { id: number; nameKa: string; nameEn: string | null; nameRu: string | null; email: string | null; phone: string | null; specialty: string; specialtySlug: string } | null;
+  team: { id: number; nameKa: string; nameEn: string | null; nameRu: string | null; email: string | null; phone: string | null; logoUrl: string | null; leadName: string | null } | null;
   project: { id: number; nameKa: string | null; totalM2: string; isDesign: boolean } | null;
   checkout: { id: number; platformFee: string; feePerM2: string; kind: CheckoutKind } | null;
 }
@@ -484,13 +580,16 @@ export async function loadOrderView(orderId: number): Promise<OrderView | null> 
   const rows = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   const order = rows[0];
   if (!order) return null;
-  const [items, storeRows, workerRows, projectRows, checkoutRows] = await Promise.all([
+  const [items, storeRows, workerRows, teamRows, projectRows, checkoutRows] = await Promise.all([
     db.select().from(orderItems).where(eq(orderItems.orderId, orderId)).orderBy(asc(orderItems.sortOrder), asc(orderItems.id)),
     order.storeId
       ? db.select({ id: stores.id, nameKa: stores.nameKa, nameEn: stores.nameEn, nameRu: stores.nameRu, email: stores.email, phone: stores.phone, logoUrl: stores.logoUrl }).from(stores).where(eq(stores.id, order.storeId)).limit(1)
       : Promise.resolve([]),
     order.workerId
       ? db.select({ id: workers.id, nameKa: workers.nameKa, nameEn: workers.nameEn, nameRu: workers.nameRu, email: workers.email, phone: workers.phone, specialty: workers.specialty, specialtySlug: workers.specialtySlug }).from(workers).where(eq(workers.id, order.workerId)).limit(1)
+      : Promise.resolve([]),
+    order.teamId
+      ? db.select({ id: teams.id, nameKa: teams.nameKa, nameEn: teams.nameEn, nameRu: teams.nameRu, email: teams.email, phone: teams.phone, logoUrl: teams.logoUrl, leadName: teams.leadName }).from(teams).where(eq(teams.id, order.teamId)).limit(1)
       : Promise.resolve([]),
     order.projectId
       ? db.select({ id: projects.id, nameKa: projects.nameKa, totalM2: projects.totalM2, isDesign: sql<number>`${projects.plan} IS NOT NULL` }).from(projects).where(eq(projects.id, order.projectId)).limit(1)
@@ -500,7 +599,12 @@ export async function loadOrderView(orderId: number): Promise<OrderView | null> 
       : Promise.resolve([]),
   ]);
   const project = projectRows[0] ? { ...projectRows[0], isDesign: Boolean(Number(projectRows[0].isDesign)) } : null;
-  return { order, items, store: storeRows[0] ?? null, worker: workerRows[0] ?? null, project, checkout: checkoutRows[0] ?? null };
+  return { order, items, store: storeRows[0] ?? null, worker: workerRows[0] ?? null, team: teamRows[0] ?? null, project, checkout: checkoutRows[0] ?? null };
+}
+
+/** The partner's name as the mails and the pages print it. */
+export function partnerNameOf(view: Pick<OrderView, 'store' | 'worker' | 'team'>): string {
+  return view.store?.nameKa ?? view.team?.nameKa ?? view.worker?.nameKa ?? 'პარტნიორი';
 }
 
 /** First open: clears the unread badge. Idempotent. */
@@ -513,18 +617,29 @@ export interface OrderEdit {
   partnerMessage?: string | null;
   /** The agent's own note; never shown to the customer or the partner. */
   staffNote?: string | null;
+  /** The platform's to change: what the store charges to bring the order. */
+  deliveryFee?: number;
   items?: Array<{ id: number; qty?: number; unitPrice?: number; removed?: boolean; note?: string | null }>;
   addItems?: Array<{ nameKa: string; qty: number; unitPrice: number; unit?: string; note?: string | null }>;
 }
 
 /**
- * A partner's (or admin's) changes: struck-out lines, corrected quantities and prices,
- * new lines, a message, a status. The subtotal and the commission are recomputed from what
- * is left; the percentage stays what it was when the order was placed.
+ * A change to an order: lines kept or struck out (they stay on the order, visible to the
+ * customer), quantities and prices corrected, new lines, the delivery, a message, a status —
+ * the platform's people may make any of these, a partner only the last two (the route decides).
+ * The subtotal and the commission are recomputed from what is left; the percentage stays what
+ * it was when the order was placed. Each kind of change leaves its own event, and a status or a
+ * message tells the customer by mail.
  */
-export async function applyOrderEdit(orderId: number, edit: OrderEdit, notifyCustomer = true): Promise<OrderView | null> {
+export async function applyOrderEdit(orderId: number, edit: OrderEdit, actor: OrderActor, notifyCustomer = true): Promise<OrderView | null> {
   const before = await loadOrderView(orderId);
   if (!before) return null;
+  const summary = summariseEdit(
+    { items: before.items.map((i) => ({ id: i.id, qty: Number(i.qty), unitPrice: Number(i.unitPrice), removed: i.removed })), deliveryFee: Number(before.order.deliveryFee) },
+    edit
+  );
+  const statusChanged = edit.status !== undefined && edit.status !== before.order.status;
+  const messageChanged = edit.partnerMessage !== undefined && (edit.partnerMessage ?? null) !== before.order.partnerMessage;
 
   await db.transaction(async (tx) => {
     for (const change of edit.items ?? []) {
@@ -560,6 +675,10 @@ export async function applyOrderEdit(orderId: number, edit: OrderEdit, notifyCus
           total: String(round2(a.qty * a.unitPrice)),
           note: a.note ?? null,
           sortOrder: start + i,
+          // Added after the order was placed: no original, which is how the customer's view
+          // knows to call it an addition.
+          originalQty: null,
+          originalUnitPrice: null,
         }))
       );
     }
@@ -570,29 +689,91 @@ export async function applyOrderEdit(orderId: number, edit: OrderEdit, notifyCus
       .set({
         subtotal: String(totals.subtotal),
         commissionAmount: String(totals.commissionAmount),
+        deliveryFee: edit.deliveryFee !== undefined ? String(round2(Math.max(0, edit.deliveryFee))) : undefined,
         status: edit.status ?? before.order.status,
         partnerMessage: edit.partnerMessage === undefined ? before.order.partnerMessage : edit.partnerMessage,
         staffNote: edit.staffNote === undefined ? before.order.staffNote : edit.staffNote,
       })
       .where(eq(orders.id, orderId));
+    if (summary) await recordOrderEvent(tx, orderId, actor, 'edited', null, { ...summary });
+    if (statusChanged) await recordOrderEvent(tx, orderId, actor, 'status', null, { from: before.order.status, to: edit.status });
+    if (messageChanged) await recordOrderEvent(tx, orderId, actor, 'message', edit.partnerMessage ?? null);
   });
 
   const after = await loadOrderView(orderId);
-  if (after && notifyCustomer) {
-    const statusChanged = edit.status && edit.status !== before.order.status;
-    const messageChanged = edit.partnerMessage !== undefined && edit.partnerMessage !== before.order.partnerMessage;
-    if (statusChanged || messageChanged) {
-      await notifyCustomerOrderUpdate({
-        email: after.order.customerEmail,
-        customerName: after.order.customerName,
-        orderId,
-        partnerName: after.store?.nameKa ?? after.worker?.nameKa ?? 'პარტნიორი',
-        status: after.order.status,
-        partnerMessage: after.order.partnerMessage,
-      });
-    }
+  if (after && notifyCustomer && (statusChanged || messageChanged)) {
+    await notifyCustomerOrderUpdate({
+      email: after.order.customerEmail,
+      customerName: after.order.customerName,
+      orderId,
+      partnerName: partnerNameOf(after),
+      status: after.order.status,
+      partnerMessage: after.order.partnerMessage,
+    });
   }
   return after;
+}
+
+export type ConfirmResult = { ok: true; view: OrderView } | { ok: false; error: 'NOT_FOUND' | 'ORDER_ALREADY_SENT' | 'ORDER_EMPTY' };
+
+/**
+ * The platform confirms a store's order — checked with the customer, lines kept or struck, the
+ * delivery agreed — and sends it to the store, which is told now, with the lines still ticked.
+ * The customer is told it is confirmed. Two agents pressing at once confirm it once: only an
+ * order still unsent is updated.
+ */
+export async function confirmOrder(orderId: number, actor: OrderActor): Promise<ConfirmResult> {
+  const before = await loadOrderView(orderId);
+  if (!before) return { ok: false, error: 'NOT_FOUND' };
+  if (!awaitsConfirmation(before.order)) return { ok: false, error: 'ORDER_ALREADY_SENT' };
+  const kept = before.items.filter((i) => !i.removed && Number(i.qty) > 0);
+  if (kept.length === 0) return { ok: false, error: 'ORDER_EMPTY' };
+
+  const now = new Date();
+  const sent = await db.transaction(async (tx) => {
+    const [result] = await tx
+      .update(orders)
+      .set({ status: 'confirmed', sentAt: now, confirmedAt: now, confirmedBy: actor.userId, viewedAt: null })
+      .where(and(eq(orders.id, orderId), isNull(orders.sentAt)));
+    if (!result.affectedRows) return false;
+    await recordOrderEvent(tx, orderId, actor, 'confirmed', null, { lines: kept.length, subtotal: Number(before.order.subtotal), deliveryFee: Number(before.order.deliveryFee) });
+    return true;
+  });
+  if (!sent) return { ok: false, error: 'ORDER_ALREADY_SENT' };
+
+  const after = await loadOrderView(orderId);
+  if (!after) return { ok: false, error: 'NOT_FOUND' };
+  log.info('order confirmed and sent', { orderId, by: actor.userId, storeId: after.order.storeId, lines: kept.length });
+  const { order } = after;
+  await notifyPartnerNewOrder({
+    email: after.store?.email,
+    partnerName: partnerNameOf(after),
+    orderId,
+    customer: { name: order.customerName, phone: order.customerPhone, email: order.customerEmail, note: order.customerNote },
+    lines: kept.map((i) => ({ nameKa: i.nameKa, qty: Number(i.qty), unit: i.unit, total: Number(i.total), roomName: i.roomName })),
+    subtotal: Number(order.subtotal),
+    deliveryFee: Number(order.deliveryFee),
+    kind: 'store',
+  });
+  await notifyCustomerOrderUpdate({ email: order.customerEmail, customerName: order.customerName, orderId, partnerName: partnerNameOf(after), status: order.status, partnerMessage: order.partnerMessage });
+  return { ok: true, view: after };
+}
+
+/**
+ * A comment on an order — between the platform's people and the partner; the customer never
+ * sees these. A word from the platform on an order the partner has is news for them: it is
+ * flagged unread in their portal again.
+ */
+export async function addOrderComment(orderId: number, actor: OrderActor, body: string, fromStaff: boolean): Promise<void> {
+  await db.transaction(async (tx) => {
+    await recordOrderEvent(tx, orderId, actor, 'comment', body);
+    if (fromStaff) await tx.update(orders).set({ viewedAt: null }).where(and(eq(orders.id, orderId), isNotNull(orders.sentAt)));
+  });
+}
+
+/** An order's history, oldest first. */
+export async function orderEventsFor(orderId: number): Promise<OrderEvent[]> {
+  return db.select().from(orderEvents).where(eq(orderEvents.orderId, orderId)).orderBy(asc(orderEvents.createdAt), asc(orderEvents.id));
 }
 
 /** Which partner a session belongs to. */
@@ -602,10 +783,15 @@ export interface PartnerRef {
   teamId?: number | null;
 }
 
+/**
+ * A partner's orders: its own, and only those it has been sent — a store's order waiting for
+ * the platform's confirmation is not the store's yet.
+ */
 export function partnerCondition(ref: PartnerRef) {
-  if (ref.storeId) return eq(orders.storeId, ref.storeId);
-  if (ref.workerId) return eq(orders.workerId, ref.workerId);
-  if (ref.teamId) return eq(orders.teamId, ref.teamId);
+  const sent = isNotNull(orders.sentAt);
+  if (ref.storeId) return and(eq(orders.storeId, ref.storeId), sent)!;
+  if (ref.workerId) return and(eq(orders.workerId, ref.workerId), sent)!;
+  if (ref.teamId) return and(eq(orders.teamId, ref.teamId), sent)!;
   return sql`1 = 0`;
 }
 
@@ -618,7 +804,9 @@ export function redactForPartner<T extends { order: Order }>(view: T): T {
   return { ...view, order: { ...view.order, staffNote: null } };
 }
 
-export function partnerOwnsOrder(ref: PartnerRef, order: Pick<Order, 'storeId' | 'workerId' | 'teamId'>): boolean {
+export function partnerOwnsOrder(ref: PartnerRef, order: Pick<Order, 'storeId' | 'workerId' | 'teamId' | 'sentAt'>): boolean {
+  // Still with the platform: not the partner's yet, whoever it will go to.
+  if (!order.sentAt) return false;
   if (ref.storeId && order.storeId === ref.storeId) return true;
   if (ref.workerId && order.workerId === ref.workerId) return true;
   if (ref.teamId && order.teamId === ref.teamId) return true;
@@ -627,7 +815,9 @@ export function partnerOwnsOrder(ref: PartnerRef, order: Pick<Order, 'storeId' |
 
 export interface PartnerOrderRow {
   id: number;
+  partnerType: 'store' | 'worker' | 'team';
   status: OrderStatus;
+  sentAt: Date | null;
   subtotal: string;
   deliveryFee: string;
   commissionAmount: string;
@@ -638,16 +828,24 @@ export interface PartnerOrderRow {
   viewedAt: Date | null;
   partnerMessage: string | null;
   itemCount: number;
+  projectId: number | null;
   projectName: string | null;
 }
 
-export async function partnerOrders(ref: PartnerRef, opts: { status?: OrderStatus; limit?: number } = {}): Promise<PartnerOrderRow[]> {
+export async function partnerOrders(ref: PartnerRef, opts: { status?: OrderStatus; unread?: boolean; q?: string; limit?: number } = {}): Promise<PartnerOrderRow[]> {
   const where = [partnerCondition(ref)];
   if (opts.status) where.push(eq(orders.status, opts.status));
+  if (opts.unread) where.push(isNull(orders.viewedAt));
+  if (opts.q) {
+    const needle = `%${opts.q}%`;
+    where.push(sql`(${orders.customerName} LIKE ${needle} OR ${orders.customerPhone} LIKE ${needle} OR CAST(${orders.id} AS CHAR) LIKE ${needle})`);
+  }
   const rows = await db
     .select({
       id: orders.id,
+      partnerType: orders.partnerType,
       status: orders.status,
+      sentAt: orders.sentAt,
       subtotal: orders.subtotal,
       deliveryFee: orders.deliveryFee,
       commissionAmount: orders.commissionAmount,
@@ -658,12 +856,14 @@ export async function partnerOrders(ref: PartnerRef, opts: { status?: OrderStatu
       viewedAt: orders.viewedAt,
       partnerMessage: orders.partnerMessage,
       itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND ${orderItems.removed} = 0)`,
+      projectId: orders.projectId,
       projectName: projects.nameKa,
     })
     .from(orders)
     .leftJoin(projects, eq(orders.projectId, projects.id))
     .where(and(...where))
-    .orderBy(desc(orders.createdAt))
+    // Newest to the partner first: a store's order is new to it when the platform sent it.
+    .orderBy(desc(orders.sentAt), desc(orders.id))
     .limit(opts.limit ?? 200);
   return rows.map((r) => ({ ...r, itemCount: Number(r.itemCount) }));
 }
@@ -689,9 +889,9 @@ export async function partnerStats(ref: PartnerRef, now = new Date()): Promise<P
       open: sql<number>`SUM(${orders.status} IN ('new','confirmed','in_progress'))`,
       done: sql<number>`SUM(${orders.status} = 'done')`,
       cancelled: sql<number>`SUM(${orders.status} = 'cancelled')`,
-      monthGoods: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.createdAt} >= ${monthStart} THEN ${orders.subtotal} ELSE 0 END), 0)`,
-      monthCommission: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.createdAt} >= ${monthStart} THEN ${orders.commissionAmount} ELSE 0 END), 0)`,
-      monthOrders: sql<number>`SUM(${orders.status} <> 'cancelled' AND ${orders.createdAt} >= ${monthStart})`,
+      monthGoods: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart} THEN ${orders.subtotal} ELSE 0 END), 0)`,
+      monthCommission: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart} THEN ${orders.commissionAmount} ELSE 0 END), 0)`,
+      monthOrders: sql<number>`SUM(${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart})`,
       allTimeGoods: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' THEN ${orders.subtotal} ELSE 0 END), 0)`,
       allTimeCommission: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' THEN ${orders.commissionAmount} ELSE 0 END), 0)`,
     })
@@ -710,7 +910,7 @@ export async function partnerStats(ref: PartnerRef, now = new Date()): Promise<P
   };
 }
 
-/** Every order placed against one project, with its lines, for the customer's project page. */
+/** Every order placed against one project, with its lines, for the customer's project page and the admin's. */
 export async function ordersForProject(projectId: number) {
   const rows = await db
     .select({
@@ -719,9 +919,15 @@ export async function ordersForProject(projectId: number) {
       status: orders.status,
       subtotal: orders.subtotal,
       deliveryFee: orders.deliveryFee,
+      originalDeliveryFee: orders.originalDeliveryFee,
+      commissionAmount: orders.commissionAmount,
       partnerMessage: orders.partnerMessage,
+      sentAt: orders.sentAt,
+      confirmedAt: orders.confirmedAt,
+      viewedAt: orders.viewedAt,
       createdAt: orders.createdAt,
       updatedAt: orders.updatedAt,
+      storeId: orders.storeId,
       storeNameKa: stores.nameKa,
       storeNameEn: stores.nameEn,
       storeNameRu: stores.nameRu,
@@ -730,17 +936,24 @@ export async function ordersForProject(projectId: number) {
       workerNameEn: workers.nameEn,
       workerNameRu: workers.nameRu,
       workerPhone: workers.phone,
+      teamNameKa: teams.nameKa,
+      teamNameEn: teams.nameEn,
+      teamNameRu: teams.nameRu,
+      teamPhone: teams.phone,
       itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND ${orderItems.removed} = 0)`,
     })
     .from(orders)
     .leftJoin(stores, eq(orders.storeId, stores.id))
     .leftJoin(workers, eq(orders.workerId, workers.id))
+    .leftJoin(teams, eq(orders.teamId, teams.id))
     .where(eq(orders.projectId, projectId))
-    .orderBy(desc(orders.createdAt));
+    .orderBy(desc(orders.createdAt), asc(orders.id));
   const ids = rows.map((r) => r.id);
   const lines = ids.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, ids)).orderBy(asc(orderItems.sortOrder), asc(orderItems.id)) : [];
   return rows.map((r) => ({ ...r, itemCount: Number(r.itemCount), items: lines.filter((l) => l.orderId === r.id) }));
 }
+
+export type ProjectOrder = Awaited<ReturnType<typeof ordersForProject>>[number];
 
 /** Every checkout of a project, oldest first — one per half charged, plus any goods-only re-order. */
 export async function checkoutsForProject(projectId: number) {

@@ -5,7 +5,8 @@ import { products, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireCatalogEditor } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
-import { canEditProduct, canReadProduct, isPublicProduct, productViewer, visibilityOf } from '@/lib/api/productAccess';
+import { canDeleteProduct, canEditProduct, canReadProduct, isPublicProduct, productViewer, visibilityOf } from '@/lib/api/productAccess';
+import { droppedUrls, productFileUrls, removeUnusedUploads } from '@/lib/storage/cleanup';
 import type { UserRole } from '@/lib/auth/roles';
 
 export const runtime = 'nodejs';
@@ -42,7 +43,11 @@ export const GET = handle('GET /api/products/[id]', 'Failed to load product', as
  * products — admin and catalogue agents — any product, a store only its own.
  */
 async function editable(id: number, user: { role: UserRole; storeId: number | null }) {
-  const rows = await db.select({ id: products.id, storeId: products.storeId }).from(products).where(eq(products.id, id)).limit(1);
+  const rows = await db
+    .select({ id: products.id, storeId: products.storeId, imageUrl: products.imageUrl, model3dUrl: products.model3dUrl, textureUrl: products.textureUrl })
+    .from(products)
+    .where(eq(products.id, id))
+    .limit(1);
   const product = rows[0];
   if (!product) return { product: null, response: fail(API_ERRORS.NOT_FOUND, 404) };
   if (!canEditProduct(product, user)) return { product: null, response: fail(API_ERRORS.FORBIDDEN, 403) };
@@ -76,11 +81,15 @@ export const PUT = handle('PUT /api/products/[id]', 'Failed to update product', 
       model3dStatus: data.model3dUrl !== undefined ? (data.model3dUrl ? 'ready' : 'none') : undefined,
     })
     .where(eq(products.id, id));
+  // A photo or a model replaced (or cleared) in the form is a file nothing shows any more.
+  const before = { imageUrl: owned.product.imageUrl, model3dUrl: owned.product.model3dUrl, textureUrl: owned.product.textureUrl };
+  await removeUnusedUploads(droppedUrls(before, { imageUrl: data.imageUrl, model3dUrl: data.model3dUrl, textureUrl: data.textureUrl }));
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();
   return ok({ id });
 });
 
+/** Deleting is admin's (any product) and a store's (its own) — never the catalogue agent's (`canDeleteProduct`). */
 export const DELETE = handle('DELETE /api/products/[id]', 'Failed to delete product', async (_req, { params }) => {
   const editor = await requireCatalogEditor();
   if (editor.response) return editor.response;
@@ -88,8 +97,11 @@ export const DELETE = handle('DELETE /api/products/[id]', 'Failed to delete prod
   if (response) return response;
   const owned = await editable(id, editor.session.user);
   if (owned.response) return owned.response;
+  if (!canDeleteProduct(owned.product, editor.session.user)) return fail(API_ERRORS.FORBIDDEN, 403);
 
   await db.delete(products).where(eq(products.id, id));
+  // Its photo, its 3D model and its texture go with it — unless something else still uses them.
+  await removeUnusedUploads(productFileUrls(owned.product));
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();
   return ok({ id });

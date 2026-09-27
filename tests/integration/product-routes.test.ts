@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * What these prove: a hidden product — inactive, of a store not approved yet, or a person's own
  * furniture — answers 404 to anybody not entitled to it, and is read by its owner, by staff
  * and by its own store; a catalogue agent may change any product while a store may change only
- * its own.
+ * its own; deleting is admin's (any) and a store's (its own), never the catalogue agent's.
  */
 
 type Row = Record<string, unknown>;
@@ -133,17 +133,25 @@ describe('PUT and DELETE /api/products/[id]', () => {
   const update = async () => (await load()).PUT(put({ nameKa: 'ახალი სახელი' }), ctx);
   const remove = async () => (await load()).DELETE(del(), ctx);
 
-  it('lets a catalogue agent change and delete a store\'s product', async () => {
+  it('lets a catalogue agent change a store\'s product but not delete it', async () => {
     catalogAgent();
     expect((await update()).status).toBe(200);
     expect(state.updates).toHaveLength(1);
+    expect((await remove()).status).toBe(403);
+    expect(state.deletes).toBe(0);
+  });
+
+  it('lets admin change and delete any product', async () => {
+    admin();
+    expect((await update()).status).toBe(200);
     expect((await remove()).status).toBe(200);
     expect(state.deletes).toBe(1);
   });
 
-  it('lets admin change any product', async () => {
-    admin();
-    expect((await update()).status).toBe(200);
+  it('lets a store delete its own product', async () => {
+    ownStore();
+    expect((await remove()).status).toBe(200);
+    expect(state.deletes).toBe(1);
   });
 
   it('lets a store change its own product, never another store\'s', async () => {

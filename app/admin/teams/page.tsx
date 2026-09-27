@@ -11,6 +11,7 @@ import { membersOf, tradesOf } from '@/lib/teams/queries';
 import { getT } from '@/lib/i18n/server';
 import { workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,7 @@ const PATH = '/admin/teams';
 
 /** Every brigade, with the trades it covers read off the workers in it. */
 export default async function AdminTeamsPage(props: { searchParams: Promise<SearchParams> }) {
+  await requireAdminPage('teams');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'newest' });

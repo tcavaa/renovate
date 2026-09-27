@@ -1,0 +1,3 @@
+{
+  "/api/shelf-rooms/[id]/route": "app/api/shelf-rooms/[id]/route.js"
+}

@@ -6,7 +6,8 @@ pages, what is hidden from the public, and a person's own furniture. Read this b
 `app/(main)/catalog/`, the product/store/category API routes, `components/admin/ProductForm.tsx`,
 `components/catalog/`, `lib/api/designCatalog.ts` or `lib/design/catalog.ts`.
 
-Related: [3d-assets.md](3d-assets.md) (where the models and textures come from, and
+Related: [categories.md](categories.md) (the category tree, the calculator's tabs and the
+studio's rooms) · [3d-assets.md](3d-assets.md) (where the models and textures come from, and
 `models:seed`) · [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)
 (archetypes and matching) · [partners-and-admin.md](partners-and-admin.md) (stores registering,
 the portal) · [calculator.md](calculator.md) (the catalogue step) ·
@@ -17,11 +18,12 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | File | Responsibility |
 |---|---|
 | `lib/api/productAccess.ts` | who may see and who may change a product: `publicProductCondition` (for queries), `isPublicProduct`, `canViewProductPage`, `canReadProduct`, `canEditProduct` |
-| `app/api/products/route.ts`, `[id]/route.ts` | product list (public products only) and one product (`canReadProduct`), create / update / delete (`requireCatalogEditor`, then `canEditProduct`) |
-| `app/api/categories/**`, `app/api/stores/**` | category and store CRUD (staff), store approval |
+| `app/api/products/route.ts`, `[id]/route.ts`, `bulk/route.ts` | product list (public products only) and one product (`canReadProduct`), create / update (`requireCatalogEditor`, then `canEditProduct`), delete (then also `canDeleteProduct`: admin any, a store its own, never the catalogue agent), many at once (show / hide / delete) |
+| `app/api/categories/**`, `app/api/stores/**` | category and store CRUD (staff; deleting admin's only — `canDeleteIn`), store approval; a store's public face to everybody else (`lib/api/publicPartners.ts`); the category tree is [categories.md](categories.md) |
+| `lib/storage/cleanup.ts`, `lib/storage/uploadKeys.ts` | `removeUnusedUploads` — the files a deleted or edited row let go of, when storage made them at runtime and nothing else uses them (`isRuntimeUploadKey`, `productFileUrls`, `droppedUrls`) |
 | `lib/api/designCatalog.ts` + `app/api/design/catalog/route.ts` | the whole design catalogue in one cached response (`invalidateDesignCatalog` on admin writes); a signed-in person's own products added fresh (`loadOwnProducts`) |
 | `hooks/useDesignCatalog.ts` | the client cache of that catalogue (`refreshDesignCatalog`) |
-| `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: size, category, placement rule, labels), `ROOM_PROGRAMS`, the category slug sets (`FIXTURE_…`, `OPENING_…`, `RADIATOR_…`, `TRIM_…`, `DESIGN_CATEGORY_SLUGS`), `SHELF_ROOMS`, `archetypeLabel` |
+| `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: size, category, placement rule, labels), `ROOM_PROGRAMS`, the category slug sets the code knows (`FIXTURE_…`, `OPENING_…`, `RADIATOR_…`, `TRIM_…`, `DESIGN_CATEGORY_SLUGS`), `SHELF_ROOMS` (the studio rooms' starting point), `archetypeLabel` |
 | `lib/design/styles.ts` | the four style ids ([design-studio/overview.md](design-studio/overview.md#the-four-styles)) |
 | `lib/design/colors.ts` | colour families for the shelf's filter (`productColors`, `productColorFamilies`) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
@@ -33,10 +35,44 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 
 ## Managing the catalogue
 
-`/admin/stores` is full CRUD for partners — the fields there are exactly what the studio's
-hover card and the summary's per-store basket render, so a blank address or delivery time
-shows up as a blank line in the product. Deleting a store that still has products is refused
-with a 409; deactivate it instead.
+`/admin/stores` is full CRUD for partners (admin and the catalogue agent — the commission rate
+and deleting are admin's alone: the commission field is hidden from the agent and ignored from
+anybody else, and the agent has no delete button and is refused one) — the fields
+there are exactly what the studio's hover card and the summary's per-store basket render, so a
+blank address or delivery time shows up as a blank line in the product. Deleting a store that
+still has products is refused with a 409; delete or move its products first (the product list
+filters by store and deletes in bulk) or deactivate it instead.
+
+**Who deletes.** Admin deletes any product, category or store; a store deletes its own
+products; the catalogue agent adds, edits, shows and hides but deletes nothing — a row deleted
+takes with it what saved designs and orders point at, so that call is admin's
+(`canDeleteProduct`, `canDeleteIn`; the pages leave the agent's delete buttons out, the routes
+answer 403). The agent switches things off instead: a product or a store by its active switch,
+a category by "visible".
+
+**Deleting leaves no files behind.** A product deleted — one at a time or in bulk, by admin or
+by its store — takes its photo, its 3D model and its texture with it, and a photo or model
+replaced or cleared in the form is removed too; so is a store's, a brigade's or a worker's old
+logo or avatar (`removeUnusedUploads`, after the write). Only files storage made at runtime are
+ever deleted (`<ms>-<hex>.<ext>` from the upload routes, `own-…` for own furniture — the seed
+pictures under `public/uploads` are tracked in git and never match), and only when no product,
+logo, avatar or portfolio photo still uses the URL. Static assets (`/models/…`, `/textures/…`)
+are not storage's to delete.
+
+**Bulk and quick actions.** The admin's product list and a store's own list tick rows and show,
+hide or delete them together (`POST /api/products/bulk`: showing and hiding follow
+`canEditProduct` per product — staff any, a store its own; deleting `canDeleteProduct` — admin
+any, a store its own, and a delete from the catalogue agent is refused outright; the rest of a
+selection is skipped and counted, never refused wholesale; someone's own furniture is never
+touched), and each row has edit / hide-show buttons and, for whoever may, delete
+(`ProductRowActions`).
+
+**Categories** are one tree admin keeps — parents up to three levels, icons, an order, and
+switches for the catalogue and the calculator — and a category stands for everything under it;
+the studio's shelf reads it through the rooms admin makes. All of it is in
+[categories.md](categories.md). The product form picks a category from the tree (a category
+that takes a 3D kind gives it to a product that has none), and the admin's and a store's
+product lists filter by one, subtree included.
 
 The product form (the store is among its general fields) carries a **3D design settings**
 section: style tags, `model3dKind`, real dimensions in cm, and colour. Choosing an archetype
@@ -138,6 +174,12 @@ One module holds the rules, and every read and write of a product goes through i
   with the products section may change any product; a store only its own, and it can neither
   move a product to another store nor feature it.
 
+**Who sees a store.** `GET /api/stores` and `/api/stores/[id]` answer staff with the stores
+section with the whole row; everybody else sees only the stores the platform lists (approved
+and active) and only their public fields (`publicStore`: names, descriptions, logo, website,
+phone, address, city, rating, delivery days and fee) — never the commission, the private e-mail
+or the approval state; a store it does not list is a 404 ([auth-and-roles.md](auth-and-roles.md#where-access-is-enforced)).
+
 ## Public pages
 
 - **Product page** (`/catalog/[slug]`): no "add to project" button any more — the calculator
@@ -146,24 +188,33 @@ One module holds the rules, and every read and write of a product goes through i
   plain three.js loaded on demand, the product's materials as shipped) and a link into the
   studio at the bottom. The drawer's content is portalled, so the host element is a callback
   ref in state — an effect keyed on `open` alone ran before the host existed.
-- **Catalogue** (`/catalog`): server-rendered with a real sidebar — categories in two groups
-  (materials by phase, then furniture) with live counts, and partner stores — and a toolbar
+- **Catalogue** (`/catalog`): server-rendered with a real sidebar — the category tree, each
+  top group with its categories and the deeper levels opening along the path the visitor is on,
+  every category with its icon (drawn on the server) and the count of its whole subtree,
+  empty ones left out; a category shows its whole subtree — and partner stores — and a toolbar
   above the grid with search, a multi-select style dropdown (`style=modern,vintage`, OR),
   a price band, the result count and sort. Every control is a link or a GET form built
   with `hrefWith` from `lib/admin/list.ts`, so any filtered view is a URL and the page works
   without JavaScript; the sort `<select>`, the style dropdown and `ProductCard` are the client
   components. On small screens a checkbox (`#catalog-filters`, `peer-checked`) shows the
   sidebar. Only category links carry `aria-current="page"` (the e2e test counts exactly one).
+  The product page's breadcrumb is the category's whole path.
   `ProductCard` takes `href` to be a link (catalogue) or `onAction` to end in a select button
   (calculator steps).
 
 ## Tests
 
-`tests/unit/api/productAccess.test.ts` (who sees and who changes a product),
+`tests/unit/api/productAccess.test.ts` (who sees, changes and deletes a product),
 `tests/integration/product-routes.test.ts` (`/api/products/[id]` with the database and session
 mocked: hidden products 404 to the public, staff and a product's store read them, a catalogue
-agent may change a store's product, a store only its own),
+agent may change a store's product but not delete it, a store only its own),
+`tests/integration/catalog-delete-routes.test.ts` (deleting a category, a store and products in
+bulk: admin's, a store's own products, never the catalogue agent's),
+`tests/unit/admin/categoryIcons.test.ts` (icon names, search, drawings), the category tree's
+tests ([categories.md](categories.md#tests)),
 `tests/unit/api/sniff.test.ts` (image and GLB sniffing, Draco/Basis refusal),
+`tests/unit/api/uploadKeys.test.ts` (which stored files may be deleted, what an edit let go
+of), `tests/unit/api/publicPartners.test.ts` (a store's public face),
 `tests/unit/design/matcher.test.ts` (only products with a model are placed),
 `tests/unit/design/colors.test.ts`, `tests/unit/design/catalogBrowser.test.ts` (own and pending
 items), `e2e/public.spec.ts` (catalogue filters through the URL). Nothing tests the own-furniture
@@ -172,9 +223,12 @@ routes (`/api/design/models`), and the product page itself is covered only throu
 
 ## Known gaps
 
-- Admin has no bulk import: one GLB per product through the form. Converting a partner's
+- Admin has no bulk import: one GLB per product through the form. Files uploaded in a form that
+  is then abandoned (never saved) stay in storage — only plans have a sweeper
+  (`pnpm uploads:cleanup`). Converting a partner's
   archive drop is still an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
 - The product form offers no `radiator` kind, so a radiator product's kind shows as unknown
   (`?`) in the select.
+

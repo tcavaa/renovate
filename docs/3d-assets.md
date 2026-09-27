@@ -37,12 +37,17 @@ Reads the four manifests — `public/models/manifest.json` (partner), `stock/`, 
 
 - writes one product per manifest entry (prices, stores and names from the manifest win over
   admin edits of those rows), plus the fixtures, radiators and the skirting/cornice range
-  (`scripts/lib/trimProducts.ts`), creating any missing categories;
+  (`scripts/lib/trimProducts.ts`), creating a missing category where the starting tree puts it
+  (`DEFAULT_CATEGORY_TREE`);
+- files each product in the category tree by its 3D kind (`categoryForKind`: the category that
+  takes the kind — "Corner sofas" — else the archetype's own); one admin filed elsewhere under
+  the archetype's category stays where it was put, one moved outside it goes back
+  ([categories.md](categories.md));
 - deletes every other manifest-managed product with a `model3dKind` — including ones with a
   `model3dKind` and no `model3dUrl`. A product whose `model3dUrl` is not under `/models/` (an
   admin or partner upload) and a person's own product (`ownerUserId`) are left alone;
 - deactivates (does not delete) active furniture, sanitary and lighting products that have no
-  model, and surface products that have no texture — so only products with a 3D model or a
+  model, and surface products that have no texture (each category with its subtree) — so only products with a 3D model or a
   texture are on sale in the calculator's catalogue. The doors, windows and sockets & switches
   categories are left alone.
 

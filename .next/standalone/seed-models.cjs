@@ -6802,7 +6802,7 @@ var require_umd = __commonJS({
           return this.not().add(ONE);
         };
         LongPrototype.neg = LongPrototype.negate;
-        LongPrototype.add = function add(addend) {
+        LongPrototype.add = function add2(addend) {
           if (!isLong(addend)) addend = fromValue(addend);
           var a48 = this.high >>> 16;
           var a32 = this.high & 65535;
@@ -14115,9 +14115,9 @@ var require_packets = __commonJS({
       module2.exports[name] = ctor;
       if (process2.env.NODE_DEBUG) {
         if (ctor.prototype.toPacket) {
-          const old = ctor.prototype.toPacket;
+          const old2 = ctor.prototype.toPacket;
           ctor.prototype.toPacket = function() {
-            const p = old.call(this);
+            const p = old2.call(this);
             p._name = name;
             return p;
           };
@@ -19383,10 +19383,10 @@ var require_create_pool = __commonJS({
     "use strict";
     var Pool = require_pool3();
     var PoolConfig = require_pool_config();
-    function createPool2(config2) {
+    function createPool3(config2) {
       return new Pool({ config: new PoolConfig(config2) });
     }
-    module2.exports = createPool2;
+    module2.exports = createPool3;
   }
 });
 
@@ -19518,7 +19518,7 @@ var require_promise = __commonJS({
     var parserCache = require_parser_cache();
     var PoolCluster = require_pool_cluster();
     var createConnection = require_create_connection();
-    var createPool2 = require_create_pool();
+    var createPool3 = require_create_pool();
     var createPoolCluster = require_create_pool_cluster();
     var PromiseConnection = require_connection2();
     var PromisePool = require_pool2();
@@ -19550,7 +19550,7 @@ var require_promise = __commonJS({
       });
     }
     function createPromisePool(opts) {
-      const corePool = createPool2(opts);
+      const corePool = createPool3(opts);
       const thePromise = opts.Promise || Promise;
       if (!thePromise) {
         throw new Error(
@@ -19705,9 +19705,9 @@ var require_mysql2 = __commonJS({
     exports2.ConnectionConfig = ConnectionConfig;
     var Pool = require_pool3();
     var PoolCluster = require_pool_cluster();
-    var createPool2 = require_create_pool();
+    var createPool3 = require_create_pool();
     var createPoolCluster = require_create_pool_cluster();
-    exports2.createPool = createPool2;
+    exports2.createPool = createPool3;
     exports2.createPoolCluster = createPoolCluster;
     exports2.createQuery = Connection.createQuery;
     exports2.Pool = Pool;
@@ -21484,19 +21484,19 @@ function extractTablesRelationalConfig(schema2, configHelpers) {
       const relations2 = value.config(
         configHelpers(value.table)
       );
-      let primaryKey;
+      let primaryKey2;
       for (const [relationName, relation] of Object.entries(relations2)) {
         if (tableName) {
           const tableConfig = tablesConfig[tableName];
           tableConfig.relations[relationName] = relation;
-          if (primaryKey) {
-            tableConfig.primaryKey.push(...primaryKey);
+          if (primaryKey2) {
+            tableConfig.primaryKey.push(...primaryKey2);
           }
         } else {
           if (!(dbName in relationsBuffer)) {
             relationsBuffer[dbName] = {
               relations: {},
-              primaryKey
+              primaryKey: primaryKey2
             };
           }
           relationsBuffer[dbName].relations[relationName] = relation;
@@ -23874,6 +23874,42 @@ function index(name) {
   return new IndexBuilderOn(name, false);
 }
 
+// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
+function primaryKey(...config2) {
+  if (config2[0].columns) {
+    return new PrimaryKeyBuilder2(config2[0].columns, config2[0].name);
+  }
+  return new PrimaryKeyBuilder2(config2);
+}
+var PrimaryKeyBuilder2 = class {
+  static [entityKind] = "MySqlPrimaryKeyBuilder";
+  /** @internal */
+  columns;
+  /** @internal */
+  name;
+  constructor(columns, name) {
+    this.columns = columns;
+    this.name = name;
+  }
+  /** @internal */
+  build(table) {
+    return new PrimaryKey2(table, this.columns, this.name);
+  }
+};
+var PrimaryKey2 = class {
+  constructor(table, columns, name) {
+    this.table = table;
+    this.columns = columns;
+    this.name = name;
+  }
+  static [entityKind] = "MySqlPrimaryKey";
+  columns;
+  name;
+  getName() {
+    return this.name ?? `${this.table[MySqlTable.Symbol.Name]}_${this.columns.map((column) => column.name).join("_")}_pk`;
+  }
+};
+
 // node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/utils.js
 function convertIndexToString(indexes) {
   return indexes.map((idx) => {
@@ -25646,6 +25682,7 @@ __export(schema_exports, {
   authTokens: () => authTokens,
   categories: () => categories,
   checkouts: () => checkouts,
+  orderEvents: () => orderEvents,
   orderItems: () => orderItems,
   orders: () => orders,
   platformSettings: () => platformSettings,
@@ -25653,6 +25690,8 @@ __export(schema_exports, {
   projectRenders: () => projectRenders,
   projects: () => projects,
   rates: () => rates,
+  shelfRoomCategories: () => shelfRoomCategories,
+  shelfRooms: () => shelfRooms,
   stores: () => stores,
   teamMembers: () => teamMembers,
   teams: () => teams,
@@ -25702,6 +25741,14 @@ var users = mysqlTable("users", {
   teamId: int("team_id").references(() => teams.id, { onDelete: "set null" }),
   /** Set when the address was confirmed by link (or came from Google, which already did). */
   emailVerifiedAt: timestamp("email_verified_at"),
+  /**
+   * Admin's switch. A deactivated account cannot sign in, and a session it already has ends at
+   * its next request (`lib/auth/accountClaims.ts` re-reads the row) — the row, its projects and
+   * its orders stay.
+   */
+  isActive: boolean("is_active").default(true).notNull(),
+  /** The last successful sign-in, password or social. */
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 var authTokens = mysqlTable("auth_tokens", {
@@ -25717,12 +25764,14 @@ var authTokens = mysqlTable("auth_tokens", {
 }));
 var categories = mysqlTable("categories", {
   id: int("id").primaryKey().autoincrement(),
+  /** The category above; null at the top. A category with children cannot be deleted. */
+  parentId: int("parent_id").references(() => categories.id, { onDelete: "restrict" }),
   nameKa: varchar("name_ka", { length: 255 }).notNull(),
   nameEn: varchar("name_en", { length: 255 }).notNull(),
   nameRu: varchar("name_ru", { length: 255 }),
   slug: varchar("slug", { length: 255 }).notNull().unique(),
+  /** A lucide icon's kebab name, or one of the studio's own (`STUDIO_ICONS`). */
   icon: varchar("icon", { length: 100 }),
-  phase: int("phase").notNull(),
   calculationType: mysqlEnum("calculation_type", [
     "per_m2_floor",
     "per_m2_wall",
@@ -25734,8 +25783,36 @@ var categories = mysqlTable("categories", {
   ]).notNull(),
   isVisible: boolean("is_visible").default(true).notNull(),
   isFurniture: boolean("is_furniture").default(false).notNull(),
+  /** Offered as a tab in the calculator, with its whole subtree's products. */
+  inCalculator: boolean("in_calculator").default(false).notNull(),
+  /** The 3D kind whose products belong here: the model pipeline and people's own uploads put them in it. */
+  model3dKind: varchar("model_3d_kind", { length: 64 }),
   sortOrder: int("sort_order").default(0)
+}, (t) => ({
+  parentIdx: index("categories_parent_idx").on(t.parentId)
+}));
+var shelfRooms = mysqlTable("shelf_rooms", {
+  id: int("id").primaryKey().autoincrement(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  nameKa: varchar("name_ka", { length: 255 }).notNull(),
+  nameEn: varchar("name_en", { length: 255 }).notNull(),
+  nameRu: varchar("name_ru", { length: 255 }),
+  icon: varchar("icon", { length: 100 }),
+  /** `RoomType`s from `lib/calculator/types`. */
+  roomTypes: json2("room_types"),
+  isVisible: boolean("is_visible").default(true).notNull(),
+  sortOrder: int("sort_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
 });
+var shelfRoomCategories = mysqlTable("shelf_room_categories", {
+  shelfRoomId: int("shelf_room_id").notNull().references(() => shelfRooms.id, { onDelete: "cascade" }),
+  categoryId: int("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+  sortOrder: int("sort_order").default(0).notNull()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.shelfRoomId, t.categoryId] }),
+  categoryIdx: index("shelf_room_categories_category_idx").on(t.categoryId)
+}));
 var stores = mysqlTable("stores", {
   id: int("id").primaryKey().autoincrement(),
   // Unique so the seed's onDuplicateKeyUpdate has a key to match on — without it, re-running
@@ -26039,6 +26116,12 @@ var platformSettings = mysqlTable("platform_settings", {
   designFeePerM2: decimal("design_fee_per_m2", { precision: 8, scale: 2 }).default("12.00").notNull(),
   storeCommissionPct: decimal("store_commission_pct", { precision: 5, scale: 2 }).default("5.00").notNull(),
   workerCommissionPct: decimal("worker_commission_pct", { precision: 5, scale: 2 }).default("5.00").notNull(),
+  /**
+   * The store that supplies the construction materials of the rate book (blocks, plaster,
+   * putty, pipes, cable…): a checkout sends the project's material lines to it as an order of
+   * their own. NULL = nobody, and those lines are reported as unassigned.
+   */
+  materialsStoreId: int("materials_store_id").references(() => stores.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
 });
 var checkouts = mysqlTable("checkouts", {
@@ -26088,6 +26171,18 @@ var orders = mysqlTable("orders", {
   staffNote: text("staff_note"),
   /** First time the partner opened it; null = unread badge. */
   viewedAt: timestamp("viewed_at"),
+  /**
+   * When the partner was given the order. A store's order waits for the platform first: the
+   * orders agent checks it with the customer (lines kept or struck, delivery) and confirms it,
+   * and only then does the store see it. A brigade's or a worker's booking is sent at once.
+   * NULL = still with the platform; the partner portal shows only orders that have one.
+   */
+  sentAt: timestamp("sent_at"),
+  /** When the platform confirmed a store's order, and who did. */
+  confirmedAt: timestamp("confirmed_at"),
+  confirmedBy: int("confirmed_by").references(() => users.id, { onDelete: "set null" }),
+  /** The delivery fee as the order was placed, so a change the agent makes shows as one. */
+  originalDeliveryFee: decimal("original_delivery_fee", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
 }, (t) => ({
@@ -26112,10 +26207,32 @@ var orderItems = mysqlTable("order_items", {
   total: decimal("total", { precision: 12, scale: 2 }).notNull(),
   removed: boolean("removed").default(false).notNull(),
   note: text("note"),
-  sortOrder: int("sort_order").default(0).notNull()
+  sortOrder: int("sort_order").default(0).notNull(),
+  /**
+   * The quantity and price the line was ordered at. The customer's view shows every change
+   * against them ("3 → 2"); NULL on a line added afterwards, which is how an added line is told.
+   */
+  originalQty: decimal("original_qty", { precision: 10, scale: 2 }),
+  originalUnitPrice: decimal("original_unit_price", { precision: 12, scale: 2 })
 }, (t) => ({
   orderIdx: index("order_items_order_idx").on(t.orderId),
   productIdx: index("order_items_product_idx").on(t.productId)
+}));
+var orderEvents = mysqlTable("order_events", {
+  id: int("id").primaryKey().autoincrement(),
+  orderId: int("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  userId: int("user_id").references(() => users.id, { onDelete: "set null" }),
+  /** The author's role when they wrote it, and their name — the thread outlives role changes. */
+  actorRole: varchar("actor_role", { length: 20 }),
+  actorName: varchar("actor_name", { length: 255 }),
+  kind: mysqlEnum("kind", ["created", "confirmed", "status", "edited", "message", "comment"]).notNull(),
+  /** A comment's or a message's text. */
+  body: text("body"),
+  /** The facts of a system event: `{ from, to }` for a status, counts for an edit. */
+  meta: json2("meta"),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (t) => ({
+  orderIdx: index("order_events_order_idx").on(t.orderId, t.createdAt)
 }));
 
 // node_modules/.pnpm/zod@3.25.76/node_modules/zod/v3/external.js
@@ -27790,13 +27907,13 @@ var ZodNumber = class _ZodNumber extends ZodType {
   lt(value, message) {
     return this.setLimit("max", value, false, errorUtil.toString(message));
   }
-  setLimit(kind, value, inclusive, message) {
+  setLimit(kind2, value, inclusive, message) {
     return new _ZodNumber({
       ...this._def,
       checks: [
         ...this._def.checks,
         {
-          kind,
+          kind: kind2,
           value,
           inclusive,
           message: errorUtil.toString(message)
@@ -28006,13 +28123,13 @@ var ZodBigInt = class _ZodBigInt extends ZodType {
   lt(value, message) {
     return this.setLimit("max", value, false, errorUtil.toString(message));
   }
-  setLimit(kind, value, inclusive, message) {
+  setLimit(kind2, value, inclusive, message) {
     return new _ZodBigInt({
       ...this._def,
       checks: [
         ...this._def.checks,
         {
-          kind,
+          kind: kind2,
           value,
           inclusive,
           message: errorUtil.toString(message)
@@ -30238,19 +30355,26 @@ var env = load();
 // lib/db/index.ts
 var globalForDb = globalThis;
 var ssl = env.DATABASE_SSL === "true" ? { rejectUnauthorized: true, ...env.DATABASE_SSL_CA ? { ca: env.DATABASE_SSL_CA } : {} } : void 0;
-var pool = globalForDb.pool ?? import_promise.default.createPool({
-  host: env.DATABASE_HOST,
-  port: env.DATABASE_PORT,
-  user: env.DATABASE_USER,
-  password: env.DATABASE_PASSWORD,
-  database: env.DATABASE_NAME,
-  ssl,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 0
-});
+function createPool2() {
+  const created = import_promise.default.createPool({
+    host: env.DATABASE_HOST,
+    port: env.DATABASE_PORT,
+    user: env.DATABASE_USER,
+    password: env.DATABASE_PASSWORD,
+    database: env.DATABASE_NAME,
+    ssl,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
+  });
+  created.on("connection", (connection) => {
+    connection.query("SET time_zone = '+00:00'", () => void 0);
+  });
+  return created;
+}
+var pool = globalForDb.pool ?? createPool2();
 if (env.NODE_ENV !== "production") {
   globalForDb.pool = pool;
 }
@@ -30658,8 +30782,8 @@ var ARCHETYPES = {
     ghost: true
   }
 };
-function getArchetype(kind) {
-  return ARCHETYPES[kind] ?? null;
+function getArchetype(kind2) {
+  return ARCHETYPES[kind2] ?? null;
 }
 var ROOM_PROGRAMS = {
   bedroom: [
@@ -30758,13 +30882,238 @@ var DESIGN_CATEGORY_SLUGS = Array.from(
     ...TRIM_CATEGORY_SLUGS
   ])
 );
-function archetypeLabel(kind, locale) {
-  const archetype = getArchetype(kind);
-  if (!archetype) return kind;
+var SHELF_ROOMS = ["living_room", "bedroom", "kitchen", "bathroom", "toilet", "hallway", "office", "closet", "balcony", "storage"];
+function kindsForRoom(type) {
+  const out = [];
+  for (const entry of ROOM_PROGRAMS[type] ?? []) {
+    const slot = ARCHETYPES[entry.kind]?.slot;
+    if (!slot) continue;
+    for (const kind2 of [entry.kind, ...Object.keys(ARCHETYPES).filter((k) => ARCHETYPES[k].slot === slot)]) {
+      if (!out.includes(kind2)) out.push(kind2);
+    }
+  }
+  return out;
+}
+function archetypeLabel(kind2, locale) {
+  const archetype = getArchetype(kind2);
+  if (!archetype) return kind2;
   if (locale === "en") return archetype.labelEn || archetype.labelKa;
   if (locale === "ru") return archetype.labelRu || archetype.labelEn || archetype.labelKa;
   return archetype.labelKa;
 }
+
+// lib/catalog/tree.ts
+var bySiblingOrder = (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.nameKa.localeCompare(b.nameKa, "ka") || a.id - b.id;
+function buildCategoryTree(rows) {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const parentOf = (row) => {
+    if (row.parentId == null || !byId.has(row.parentId)) return null;
+    const seen = /* @__PURE__ */ new Set([row.id]);
+    let at = row.parentId;
+    while (at != null) {
+      if (seen.has(at)) return null;
+      seen.add(at);
+      const next = byId.get(at)?.parentId ?? null;
+      at = next != null && byId.has(next) ? next : null;
+    }
+    return row.parentId;
+  };
+  const children = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const parent = parentOf(row);
+    const list = children.get(parent);
+    if (list) list.push(row);
+    else children.set(parent, [row]);
+  }
+  for (const list of children.values()) list.sort(bySiblingOrder);
+  return { byId, children, roots: children.get(null) ?? [] };
+}
+function childrenOf(tree, id) {
+  return tree.children.get(id) ?? [];
+}
+function subtreeIds(tree, id) {
+  if (!tree.byId.has(id)) return [];
+  const out = [];
+  const walk = (at) => {
+    out.push(at);
+    for (const child of childrenOf(tree, at)) walk(child.id);
+  };
+  walk(id);
+  return out;
+}
+function flattenTree(tree) {
+  const out = [];
+  const walk = (list, depth) => {
+    for (const row of list) {
+      out.push({ row, depth });
+      walk(childrenOf(tree, row.id), depth + 1);
+    }
+  };
+  walk(tree.roots, 1);
+  return out;
+}
+function subtreeOfSlugs(tree, slugs) {
+  const wanted = new Set(slugs);
+  const out = /* @__PURE__ */ new Set();
+  for (const row of tree.byId.values()) if (wanted.has(row.slug)) for (const id of subtreeIds(tree, row.id)) out.add(id);
+  return out;
+}
+function categoryForKind(tree, kind2, fallbackSlug) {
+  if (kind2) {
+    const taking = flattenTree(tree).filter(({ row }) => row.model3dKind === kind2).sort((a, b) => a.depth - b.depth)[0];
+    if (taking) return taking.row;
+  }
+  if (!fallbackSlug) return null;
+  return [...tree.byId.values()].find((row) => row.slug === fallbackSlug) ?? null;
+}
+
+// lib/catalog/defaultTree.ts
+var old = (slug, nameKa, nameEn, nameRu, icon, extra = {}) => ({ slug, nameKa, nameEn, nameRu, icon, existing: true, ...extra });
+var add = (slug, nameKa, nameEn, nameRu, icon, extra = {}) => ({ slug, nameKa, nameEn, nameRu, icon, ...extra });
+var kind = (model3dKind, slug, nameKa, nameEn, nameRu, icon) => add(slug, nameKa, nameEn, nameRu, icon, { model3dKind });
+var TREE = [
+  add("materials", "\u10DB\u10D0\u10E1\u10D0\u10DA\u10D4\u10D1\u10D8", "Materials", "\u041C\u0430\u0442\u0435\u0440\u0438\u0430\u043B\u044B", "brick-wall", {
+    isFurniture: false,
+    children: [
+      add("tiles", "\u10E4\u10D8\u10DA\u10D4\u10D1\u10D8", "Tiles", "\u041F\u043B\u0438\u0442\u043A\u0430", "grid-3x3", {
+        children: [old("floor-tiles", "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10E4\u10D8\u10DA\u10D0", "Floor Tiles", "\u041D\u0430\u043F\u043E\u043B\u044C\u043D\u0430\u044F \u043F\u043B\u0438\u0442\u043A\u0430", "grid-2x2", { calculationType: "per_m2_floor" }), old("wall-tiles", "\u10D9\u10D4\u10D3\u10DA\u10D8\u10E1 \u10E4\u10D8\u10DA\u10D0", "Wall Tiles", "\u041D\u0430\u0441\u0442\u0435\u043D\u043D\u0430\u044F \u043F\u043B\u0438\u0442\u043A\u0430", "layout-grid", { calculationType: "per_m2_wall" })]
+      }),
+      add("flooring", "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8", "Flooring", "\u041D\u0430\u043F\u043E\u043B\u044C\u043D\u044B\u0435 \u043F\u043E\u043A\u0440\u044B\u0442\u0438\u044F", "layers", {
+        children: [old("laminate", "\u10DA\u10D0\u10DB\u10D8\u10DC\u10D0\u10E2\u10D8", "Laminate Flooring", "\u041B\u0430\u043C\u0438\u043D\u0430\u0442", "rows-3", { calculationType: "per_m2_floor" }), old("skirting", "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", "Skirting boards", "\u041D\u0430\u043F\u043E\u043B\u044C\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", "minus", { calculationType: "per_linear_m" })]
+      }),
+      add("walls-ceilings", "\u10D9\u10D4\u10D3\u10DA\u10D4\u10D1\u10D8 \u10D3\u10D0 \u10ED\u10D4\u10E0\u10D8", "Walls and ceilings", "\u0421\u0442\u0435\u043D\u044B \u0438 \u043F\u043E\u0442\u043E\u043B\u043A\u0438", "paint-roller", {
+        children: [old("paint", "\u10E1\u10D0\u10E6\u10D4\u10D1\u10D0\u10D5\u10D8", "Paint", "\u041A\u0440\u0430\u0441\u043A\u0430", "paint-bucket", { calculationType: "per_m2_wall" }), old("cornice", "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", "Cornices", "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", "frame", { calculationType: "per_linear_m" })]
+      }),
+      old("doors", "\u10D9\u10D0\u10E0\u10D4\u10D1\u10D8", "Doors", "\u0414\u0432\u0435\u0440\u0438", "door-closed", {
+        children: [kind("door", "interior-doors", "\u10E8\u10D8\u10D3\u10D0 \u10D9\u10D0\u10E0\u10D4\u10D1\u10D8", "Interior doors", "\u041C\u0435\u0436\u043A\u043E\u043C\u043D\u0430\u0442\u043D\u044B\u0435 \u0434\u0432\u0435\u0440\u0438", "door-open"), kind("entrance_door", "entrance-doors", "\u10E8\u10D4\u10E1\u10D0\u10E1\u10D5\u10DA\u10D4\u10DA\u10D8 \u10D9\u10D0\u10E0\u10D4\u10D1\u10D8", "Entrance doors", "\u0412\u0445\u043E\u0434\u043D\u044B\u0435 \u0434\u0432\u0435\u0440\u0438", "door-closed")]
+      }),
+      old("windows", "\u10E4\u10D0\u10DC\u10EF\u10E0\u10D4\u10D1\u10D8", "Windows", "\u041E\u043A\u043D\u0430", "app-window", { model3dKind: "window" }),
+      old("sockets-switches", "\u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8/\u10D0\u10DB\u10DD\u10DB\u10E0\u10D7\u10D5\u10D4\u10DA\u10D4\u10D1\u10D8", "Sockets & Switches", "\u0420\u043E\u0437\u0435\u0442\u043A\u0438 \u0438 \u0432\u044B\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438", "plug-zap", {
+        children: [kind("socket", "sockets", "\u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8", "Sockets", "\u0420\u043E\u0437\u0435\u0442\u043A\u0438", "plug"), kind("switch", "switches", "\u10D0\u10DB\u10DD\u10DB\u10E0\u10D7\u10D5\u10D4\u10DA\u10D4\u10D1\u10D8", "Switches", "\u0412\u044B\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438", "toggle-left")]
+      }),
+      old("radiators", "\u10E0\u10D0\u10D3\u10D8\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", "Radiators", "\u0420\u0430\u0434\u0438\u0430\u0442\u043E\u0440\u044B", "heater", { model3dKind: "radiator" })
+    ]
+  }),
+  old("lighting", "\u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D0", "Lighting", "\u041E\u0441\u0432\u0435\u0449\u0435\u043D\u0438\u0435", "lightbulb", {
+    isFurniture: false,
+    children: [
+      kind("pendant", "pendant-lights", "\u10ED\u10D0\u10E6\u10D4\u10D1\u10D8", "Pendant lights", "\u041F\u043E\u0434\u0432\u0435\u0441\u043D\u044B\u0435 \u0441\u0432\u0435\u0442\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "lamp-ceiling"),
+      kind("light_ceiling", "ceiling-lights", "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10E1\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D8", "Ceiling lights", "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0435 \u0441\u0432\u0435\u0442\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "lightbulb"),
+      kind("light_wall", "wall-lights", "\u10D9\u10D4\u10D3\u10DA\u10D8\u10E1 \u10E1\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D8", "Wall lights", "\u041D\u0430\u0441\u0442\u0435\u043D\u043D\u044B\u0435 \u0441\u0432\u0435\u0442\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "lamp-wall-up"),
+      kind("light_spot", "spotlights", "\u10EC\u10D4\u10E0\u10E2\u10D8\u10DA\u10DD\u10D5\u10D0\u10DC\u10D8 \u10E1\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D8", "Spotlights", "\u0422\u043E\u0447\u0435\u0447\u043D\u044B\u0435 \u0441\u0432\u0435\u0442\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "circle-dot"),
+      kind("light_strip", "led-strips", "LED \u10DA\u10D4\u10DC\u10E2\u10D4\u10D1\u10D8", "LED strips", "LED-\u043B\u0435\u043D\u0442\u044B", "rows-2"),
+      kind("light_furniture", "furniture-lights", "\u10D0\u10D5\u10D4\u10EF\u10D8\u10E1 \u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D0", "Furniture lights", "\u041C\u0435\u0431\u0435\u043B\u044C\u043D\u0430\u044F \u043F\u043E\u0434\u0441\u0432\u0435\u0442\u043A\u0430", "lamp-desk"),
+      kind("floor_lamp", "floor-lamps", "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10E1\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D8", "Floor lamps", "\u0422\u043E\u0440\u0448\u0435\u0440\u044B", "lamp-floor")
+    ]
+  }),
+  old("sanitary", "\u10E1\u10D0\u10DC\u10D8\u10E2\u10D0\u10E0\u10D8\u10D0", "Sanitary", "\u0421\u0430\u043D\u0442\u0435\u0445\u043D\u0438\u043A\u0430", "bath", {
+    isFurniture: false,
+    children: [
+      kind("toilet", "toilets", "\u10E3\u10DC\u10D8\u10E2\u10D0\u10D6\u10D4\u10D1\u10D8", "Toilets", "\u0423\u043D\u0438\u0442\u0430\u0437\u044B", "toilet"),
+      kind("sink", "sinks", "\u10DC\u10D8\u10DF\u10D0\u10E0\u10D4\u10D1\u10D8", "Sinks", "\u0420\u0430\u043A\u043E\u0432\u0438\u043D\u044B", "sink"),
+      kind("shower", "showers", "\u10E8\u10EE\u10D0\u10DE\u10D4\u10D1\u10D8", "Showers", "\u0414\u0443\u0448\u0435\u0432\u044B\u0435", "shower-head"),
+      kind("bathtub", "bathtubs", "\u10D0\u10D1\u10D0\u10D6\u10D0\u10DC\u10D4\u10D1\u10D8", "Bathtubs", "\u0412\u0430\u043D\u043D\u044B", "bath"),
+      kind("washer", "washing-machines", "\u10E1\u10D0\u10E0\u10D4\u10EA\u10EE\u10D8 \u10DB\u10D0\u10DC\u10E5\u10D0\u10DC\u10D4\u10D1\u10D8", "Washing machines", "\u0421\u0442\u0438\u0440\u0430\u043B\u044C\u043D\u044B\u0435 \u043C\u0430\u0448\u0438\u043D\u044B", "washing-machine")
+    ]
+  }),
+  add("furniture", "\u10D0\u10D5\u10D4\u10EF\u10D8", "Furniture", "\u041C\u0435\u0431\u0435\u043B\u044C", "sofa", {
+    isFurniture: true,
+    children: [
+      old("sofas", "\u10E1\u10D0\u10D5\u10D0\u10E0\u10EB\u10DA\u10D4\u10D1\u10D8/\u10D3\u10D8\u10D5\u10DC\u10D4\u10D1\u10D8", "Sofas & Armchairs", "\u0414\u0438\u0432\u0430\u043D\u044B \u0438 \u043A\u0440\u0435\u0441\u043B\u0430", "sofa", {
+        children: [
+          kind("sofa_3seat", "sofas-three-seat", "\u10E1\u10D0\u10DB\u10D0\u10D3\u10D2\u10D8\u10DA\u10D8\u10D0\u10DC\u10D8 \u10D3\u10D8\u10D5\u10DC\u10D4\u10D1\u10D8", "Three-seat sofas", "\u0422\u0440\u0451\u0445\u043C\u0435\u0441\u0442\u043D\u044B\u0435 \u0434\u0438\u0432\u0430\u043D\u044B", "sofa"),
+          kind("sofa_corner", "sofas-corner", "\u10D9\u10E3\u10D7\u10EE\u10D8\u10E1 \u10D3\u10D8\u10D5\u10DC\u10D4\u10D1\u10D8", "Corner sofas", "\u0423\u0433\u043B\u043E\u0432\u044B\u0435 \u0434\u0438\u0432\u0430\u043D\u044B", "sofa-corner"),
+          kind("armchair", "armchairs", "\u10E1\u10D0\u10D5\u10D0\u10E0\u10EB\u10DA\u10D4\u10D1\u10D8", "Armchairs", "\u041A\u0440\u0435\u0441\u043B\u0430", "armchair")
+        ]
+      }),
+      old("beds", "\u10E1\u10D0\u10EC\u10DD\u10DA\u10D4\u10D1\u10D8", "Beds", "\u041A\u0440\u043E\u0432\u0430\u0442\u0438", "bed-double", {
+        children: [kind("bed_double", "beds-double", "\u10DD\u10E0\u10D0\u10D3\u10D2\u10D8\u10DA\u10D8\u10D0\u10DC\u10D8 \u10E1\u10D0\u10EC\u10DD\u10DA\u10D4\u10D1\u10D8", "Double beds", "\u0414\u0432\u0443\u0441\u043F\u0430\u043B\u044C\u043D\u044B\u0435 \u043A\u0440\u043E\u0432\u0430\u0442\u0438", "bed-double"), kind("bed_single", "beds-single", "\u10D4\u10E0\u10D7\u10D0\u10D3\u10D2\u10D8\u10DA\u10D8\u10D0\u10DC\u10D8 \u10E1\u10D0\u10EC\u10DD\u10DA\u10D4\u10D1\u10D8", "Single beds", "\u041E\u0434\u043D\u043E\u0441\u043F\u0430\u043B\u044C\u043D\u044B\u0435 \u043A\u0440\u043E\u0432\u0430\u0442\u0438", "bed-single")]
+      }),
+      old("tables", "\u10DB\u10D0\u10D2\u10D8\u10D3\u10D4\u10D1\u10D8", "Tables", "\u0421\u0442\u043E\u043B\u044B", "coffee-table", {
+        children: [
+          kind("coffee_table", "coffee-tables", "\u10DF\u10E3\u10E0\u10DC\u10D0\u10DA\u10D8\u10E1 \u10DB\u10D0\u10D2\u10D8\u10D3\u10D4\u10D1\u10D8", "Coffee tables", "\u0416\u0443\u0440\u043D\u0430\u043B\u044C\u043D\u044B\u0435 \u0441\u0442\u043E\u043B\u0438\u043A\u0438", "coffee-table"),
+          kind("dining_table", "dining-tables", "\u10E1\u10D0\u10E1\u10D0\u10D3\u10D8\u10DA\u10DD \u10DB\u10D0\u10D2\u10D8\u10D3\u10D4\u10D1\u10D8", "Dining tables", "\u041E\u0431\u0435\u0434\u0435\u043D\u043D\u044B\u0435 \u0441\u0442\u043E\u043B\u044B", "utensils-crossed"),
+          kind("desk", "desks", "\u10E1\u10D0\u10DB\u10E3\u10E8\u10D0\u10DD \u10DB\u10D0\u10D2\u10D8\u10D3\u10D4\u10D1\u10D8", "Desks", "\u041F\u0438\u0441\u044C\u043C\u0435\u043D\u043D\u044B\u0435 \u0441\u0442\u043E\u043B\u044B", "desk")
+        ]
+      }),
+      old("chairs", "\u10E1\u10D9\u10D0\u10DB\u10D4\u10D1\u10D8", "Chairs", "\u0421\u0442\u0443\u043B\u044C\u044F", "dining-chair", {
+        children: [kind("dining_chair", "dining-chairs", "\u10E1\u10D0\u10E1\u10D0\u10D3\u10D8\u10DA\u10DD \u10E1\u10D9\u10D0\u10DB\u10D4\u10D1\u10D8", "Dining chairs", "\u041E\u0431\u0435\u0434\u0435\u043D\u043D\u044B\u0435 \u0441\u0442\u0443\u043B\u044C\u044F", "dining-chair"), kind("office_chair", "office-chairs", "\u10E1\u10D0\u10DD\u10E4\u10D8\u10E1\u10D4 \u10E1\u10D9\u10D0\u10DB\u10D4\u10D1\u10D8", "Office chairs", "\u041E\u0444\u0438\u0441\u043D\u044B\u0435 \u043A\u0440\u0435\u0441\u043B\u0430", "office-chair")]
+      }),
+      old("wardrobes", "\u10D9\u10D0\u10E0\u10D0\u10D3\u10D4\u10D1\u10D8", "Wardrobes", "\u0428\u043A\u0430\u0444\u044B", "wardrobe", { model3dKind: "wardrobe" }),
+      old("storage", "\u10E8\u10D4\u10DC\u10D0\u10EE\u10D5\u10D0/\u10D7\u10D0\u10E0\u10DD", "Storage & Shelving", "\u0425\u0440\u0430\u043D\u0435\u043D\u0438\u0435 \u0438 \u043F\u043E\u043B\u043A\u0438", "dresser", {
+        children: [
+          kind("nightstand", "nightstands", "\u10E6\u10D0\u10DB\u10D8\u10E1 \u10DB\u10D0\u10D2\u10D8\u10D3\u10D4\u10D1\u10D8", "Nightstands", "\u041F\u0440\u0438\u043A\u0440\u043E\u0432\u0430\u0442\u043D\u044B\u0435 \u0442\u0443\u043C\u0431\u044B", "nightstand"),
+          kind("dresser", "dressers", "\u10D9\u10DD\u10DB\u10DD\u10D3\u10D4\u10D1\u10D8", "Dressers", "\u041A\u043E\u043C\u043E\u0434\u044B", "dresser"),
+          kind("tv_unit", "tv-units", "\u10E2\u10D4\u10DA\u10D4\u10D5\u10D8\u10D6\u10DD\u10E0\u10D8\u10E1 \u10D7\u10D0\u10E0\u10DD\u10D4\u10D1\u10D8", "TV units", "\u0422\u0412-\u0442\u0443\u043C\u0431\u044B", "tv"),
+          kind("bookshelf", "bookshelves", "\u10EC\u10D8\u10D2\u10DC\u10D4\u10D1\u10D8\u10E1 \u10D7\u10D0\u10E0\u10DD\u10D4\u10D1\u10D8", "Bookshelves", "\u041A\u043D\u0438\u0436\u043D\u044B\u0435 \u0448\u043A\u0430\u0444\u044B", "library-big"),
+          kind("storage_shelf", "open-shelving", "\u10E6\u10D8\u10D0 \u10E1\u10E2\u10D4\u10DA\u10D0\u10DF\u10D4\u10D1\u10D8", "Open shelving", "\u041E\u0442\u043A\u0440\u044B\u0442\u044B\u0435 \u0441\u0442\u0435\u043B\u043B\u0430\u0436\u0438", "rows-3"),
+          kind("console_table", "console-tables", "\u10D9\u10DD\u10DC\u10E1\u10DD\u10DA\u10D4\u10D1\u10D8", "Console tables", "\u041A\u043E\u043D\u0441\u043E\u043B\u0438", "console-table"),
+          kind("shoe_cabinet", "shoe-cabinets", "\u10E4\u10D4\u10EE\u10E1\u10D0\u10EA\u10DB\u10DA\u10D8\u10E1 \u10D9\u10D0\u10E0\u10D0\u10D3\u10D4\u10D1\u10D8", "Shoe cabinets", "\u041E\u0431\u0443\u0432\u043D\u0438\u0446\u044B", "footprints")
+        ]
+      }),
+      old("kitchen-furniture", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D0\u10D5\u10D4\u10EF\u10D8", "Kitchen Furniture", "\u041A\u0443\u0445\u043E\u043D\u043D\u0430\u044F \u043C\u0435\u0431\u0435\u043B\u044C", "kitchen-run", {
+        children: [
+          kind("kitchen_run", "kitchen-units", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D9\u10D0\u10E0\u10D0\u10D3\u10D4\u10D1\u10D8", "Kitchen units", "\u041A\u0443\u0445\u043E\u043D\u043D\u044B\u0435 \u0433\u0430\u0440\u043D\u0438\u0442\u0443\u0440\u044B", "kitchen-run"),
+          kind("kitchen_island", "kitchen-islands", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D9\u10E3\u10DC\u10EB\u10E3\u10DA\u10D4\u10D1\u10D8", "Kitchen islands", "\u041A\u0443\u0445\u043E\u043D\u043D\u044B\u0435 \u043E\u0441\u0442\u0440\u043E\u0432\u0430", "kitchen-island"),
+          kind("fridge", "fridges", "\u10DB\u10D0\u10EA\u10D8\u10D5\u10E0\u10D4\u10D1\u10D8", "Fridges", "\u0425\u043E\u043B\u043E\u0434\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "refrigerator")
+        ]
+      })
+    ]
+  }),
+  old("decor", "\u10D3\u10D4\u10D9\u10DD\u10E0\u10D8", "Decor", "\u0414\u0435\u043A\u043E\u0440", "flower-2", {
+    isFurniture: true,
+    children: [
+      kind("artwork", "artwork", "\u10DC\u10D0\u10EE\u10D0\u10E2\u10D4\u10D1\u10D8", "Artwork", "\u041A\u0430\u0440\u0442\u0438\u043D\u044B", "image"),
+      kind("plant", "plants", "\u10DB\u10EA\u10D4\u10DC\u10D0\u10E0\u10D4\u10D4\u10D1\u10D8", "Plants", "\u0420\u0430\u0441\u0442\u0435\u043D\u0438\u044F", "flower-2"),
+      kind("mirror", "mirrors", "\u10E1\u10D0\u10E0\u10D9\u10D4\u10D4\u10D1\u10D8", "Mirrors", "\u0417\u0435\u0440\u043A\u0430\u043B\u0430", "mirror"),
+      kind("curtain", "curtains", "\u10E4\u10D0\u10E0\u10D3\u10D4\u10D1\u10D8", "Curtains", "\u0428\u0442\u043E\u0440\u044B", "blinds"),
+      old("rugs", "\u10EE\u10D0\u10DA\u10D8\u10E9\u10D4\u10D1\u10D8", "Rugs", "\u041A\u043E\u0432\u0440\u044B", "rug", {
+        children: [kind("rug", "area-rugs", "\u10DD\u10D7\u10D0\u10EE\u10D8\u10E1 \u10EE\u10D0\u10DA\u10D8\u10E9\u10D4\u10D1\u10D8", "Area rugs", "\u041A\u043E\u0432\u0440\u044B \u0434\u043B\u044F \u043A\u043E\u043C\u043D\u0430\u0442\u044B", "rug"), kind("rug_bed", "bedside-rugs", "\u10E1\u10D0\u10EC\u10DD\u10DA\u10D8\u10E1 \u10EE\u10D0\u10DA\u10D8\u10E9\u10D4\u10D1\u10D8", "Bedside rugs", "\u041F\u0440\u0438\u043A\u0440\u043E\u0432\u0430\u0442\u043D\u044B\u0435 \u043A\u043E\u0432\u0440\u0438\u043A\u0438", "rug-bedside")]
+      })
+    ]
+  })
+];
+var DEFAULT_CATEGORY_TREE = (() => {
+  const out = [];
+  const walk = (list, parent) => {
+    list.forEach((spec, i) => {
+      const { children, ...rest } = spec;
+      const row = {
+        ...rest,
+        parent: parent?.slug ?? null,
+        sortOrder: (i + 1) * 10,
+        // A subcategory takes after its parent unless it says otherwise.
+        isFurniture: spec.isFurniture ?? parent?.isFurniture ?? false,
+        calculationType: spec.calculationType ?? parent?.calculationType ?? "per_unit",
+        inCalculator: spec.existing === true,
+        model3dKind: spec.model3dKind ?? null,
+        existing: spec.existing === true
+      };
+      out.push(row);
+      if (children) walk(children, row);
+    });
+  };
+  walk(TREE, null);
+  return out;
+})();
+var DEFAULT_KIND_CATEGORY = Object.fromEntries(DEFAULT_CATEGORY_TREE.filter((c) => c.model3dKind).map((c) => [c.model3dKind, c.slug]));
+var ROOM_TEXT = {
+  living_room: { slug: "living-room", ka: "\u10DB\u10D8\u10E1\u10D0\u10E6\u10D4\u10D1\u10D8 \u10DD\u10D7\u10D0\u10EE\u10D8", en: "Living room", ru: "\u0413\u043E\u0441\u0442\u0438\u043D\u0430\u044F", icon: "sofa" },
+  bedroom: { slug: "bedroom", ka: "\u10E1\u10D0\u10EB\u10D8\u10DC\u10D4\u10D1\u10D4\u10DA\u10D8", en: "Bedroom", ru: "\u0421\u043F\u0430\u043B\u044C\u043D\u044F", icon: "bed-double" },
+  kitchen: { slug: "kitchen", ka: "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD", en: "Kitchen", ru: "\u041A\u0443\u0445\u043D\u044F", icon: "cooking-pot" },
+  bathroom: { slug: "bathroom", ka: "\u10E1\u10D5\u10D4\u10DA\u10D8 \u10EC\u10D4\u10E0\u10E2\u10D8\u10DA\u10D8", en: "Bathroom", ru: "\u0421\u0430\u043D\u0443\u0437\u0435\u043B", icon: "bath" },
+  toilet: { slug: "toilet", ka: "\u10E2\u10E3\u10D0\u10DA\u10D4\u10E2\u10D8", en: "Toilet", ru: "\u0422\u0443\u0430\u043B\u0435\u0442", icon: "toilet" },
+  hallway: { slug: "hallway", ka: "\u10D3\u10D4\u10E0\u10D4\u10E4\u10D0\u10DC\u10D8", en: "Hallway", ru: "\u041A\u043E\u0440\u0438\u0434\u043E\u0440", icon: "door-open" },
+  office: { slug: "office", ka: "\u10E1\u10D0\u10DD\u10E4\u10D8\u10E1\u10D4 \u10DD\u10D7\u10D0\u10EE\u10D8", en: "Office", ru: "\u041A\u0430\u0431\u0438\u043D\u0435\u0442", icon: "briefcase-business" },
+  closet: { slug: "closet", ka: "\u10D2\u10D0\u10E0\u10D3\u10D4\u10E0\u10DD\u10D1\u10D8", en: "Closet / wardrobe", ru: "\u0413\u0430\u0440\u0434\u0435\u0440\u043E\u0431\u043D\u0430\u044F", icon: "shirt" },
+  balcony: { slug: "balcony", ka: "\u10D0\u10D8\u10D5\u10D0\u10DC\u10D8", en: "Balcony", ru: "\u0411\u0430\u043B\u043A\u043E\u043D", icon: "sun" },
+  storage: { slug: "storage-room", ka: "\u10E1\u10D0\u10EC\u10E7\u10DD\u10D1\u10D8", en: "Storage", ru: "\u041A\u043B\u0430\u0434\u043E\u0432\u0430\u044F", icon: "warehouse" }
+};
+var DEFAULT_SHELF_ROOMS = SHELF_ROOMS.map((type) => {
+  const text2 = ROOM_TEXT[type];
+  const categories2 = [...new Set(kindsForRoom(type).map((k) => DEFAULT_KIND_CATEGORY[k]).filter((slug) => !!slug))];
+  return { slug: text2.slug, nameKa: text2.ka, nameEn: text2.en, nameRu: text2.ru, icon: text2.icon, roomTypes: [type], categories: categories2 };
+});
 
 // scripts/lib/trimProducts.ts
 var TRIM_PRODUCTS = [
@@ -30922,27 +31271,38 @@ async function main() {
     process.exit(1);
   }
   const storeRows = await db.select({ id: stores.id, nameKa: stores.nameKa }).from(stores);
-  const categoryRows = await db.select({ id: categories.id, slug: categories.slug }).from(categories);
-  const categoryBySlug = new Map(categoryRows.map((c) => [c.slug, c.id]));
-  const ensureCategory = async (spec) => {
-    const known = categoryBySlug.get(spec.slug);
+  const categoryColumns = { id: categories.id, slug: categories.slug, parentId: categories.parentId, sortOrder: categories.sortOrder, nameKa: categories.nameKa, model3dKind: categories.model3dKind, isFurniture: categories.isFurniture };
+  let tree = buildCategoryTree(await db.select(categoryColumns).from(categories));
+  const categoryBySlug = (slug) => [...tree.byId.values()].find((c) => c.slug === slug)?.id;
+  const placeFor = (kind2, fallbackSlug, currentId) => {
+    const target = categoryForKind(tree, kind2, fallbackSlug);
+    if (!target) return null;
+    const root = categoryBySlug(fallbackSlug) ?? target.id;
+    if (currentId != null && currentId !== root && subtreeIds(tree, root).includes(currentId)) return currentId;
+    return target.id;
+  };
+  const ensureCategory = async (slug) => {
+    const known = categoryBySlug(slug);
     if (known) return known;
+    const spec = DEFAULT_CATEGORY_TREE.find((c) => c.slug === slug);
+    if (!spec) throw new Error(`no default for category "${slug}"`);
     const inserted = await db.insert(categories).values({
       nameKa: spec.nameKa,
       nameEn: spec.nameEn,
       nameRu: spec.nameRu,
       slug: spec.slug,
-      icon: spec.icon ?? null,
-      phase: spec.phase,
+      icon: spec.icon,
+      parentId: spec.parent ? categoryBySlug(spec.parent) ?? null : null,
       calculationType: spec.calculationType,
       isVisible: true,
-      isFurniture: spec.isFurniture ?? false,
-      sortOrder: spec.sortOrder ?? spec.phase * 10
+      isFurniture: spec.isFurniture,
+      inCalculator: spec.inCalculator,
+      model3dKind: spec.model3dKind,
+      sortOrder: spec.sortOrder
     });
-    const id = Number(inserted[0].insertId);
-    categoryBySlug.set(spec.slug, id);
-    console.log(`  + category ${spec.slug}`);
-    return id;
+    tree = buildCategoryTree(await db.select(categoryColumns).from(categories));
+    console.log(`  + category ${slug}`);
+    return Number(inserted[0].insertId);
   };
   const storeBySlug = /* @__PURE__ */ new Map();
   for (const row of storeRows) storeBySlug.set(storeSlugFor(row.nameKa), row.id);
@@ -30954,14 +31314,15 @@ async function main() {
       console.log(`  ! ${model.name}: unknown archetype "${model.kind}" \u2014 skipped`);
       continue;
     }
-    const categoryId = categoryBySlug.get(archetype.categorySlug ?? "decor");
+    const slug = `${SLUG_PREFIX}${model.name}`;
+    const existing = await db.select({ id: products.id, specs: products.specs, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+    const categoryId = placeFor(model.kind, archetype.categorySlug ?? "decor", existing[0]?.categoryId);
     if (!categoryId) {
       console.log(`  ! ${model.name}: no category "${archetype.categorySlug}" \u2014 skipped`);
       continue;
     }
     const storeId = storeBySlug.get(model.storeSlug) ?? null;
     if (!storeId) console.log(`  ! ${model.name}: store "${model.storeSlug}" not found \u2014 left without a store`);
-    const slug = `${SLUG_PREFIX}${model.name}`;
     keepSlugs.push(slug);
     const row = {
       categoryId,
@@ -30987,7 +31348,6 @@ async function main() {
       isActive: true,
       isFeatured: true
     };
-    const existing = await db.select({ id: products.id, specs: products.specs }).from(products).where(eq(products.slug, slug)).limit(1);
     const kept = existing[0]?.specs && typeof existing[0].specs === "object" && !Array.isArray(existing[0].specs) ? existing[0].specs : {};
     const specs = model.colors?.length ? { ...kept, colors: model.colors } : Object.keys(kept).length ? kept : null;
     if (existing.length) {
@@ -31004,13 +31364,14 @@ async function main() {
     const fixtures = JSON.parse(await (0, import_promises.readFile)(import_node_path.default.join(process.cwd(), "public", "models", "fixtures", "manifest.json"), "utf8"));
     for (const model of fixtures.models) {
       if (!model.product) continue;
-      const categoryId = categoryBySlug.get(model.product.categorySlug);
+      const slug = `${SLUG_PREFIX}fixture-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(model.product.kind, model.product.categorySlug, existing[0]?.categoryId);
       if (!categoryId) {
         console.log(`  ! fixture ${model.slug}: no category "${model.product.categorySlug}" \u2014 skipped`);
         continue;
       }
       const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
-      const slug = `${SLUG_PREFIX}fixture-${model.slug}`;
       keepSlugs.push(slug);
       const row = {
         categoryId,
@@ -31036,7 +31397,6 @@ async function main() {
         isActive: true,
         isFeatured: false
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -31047,11 +31407,13 @@ async function main() {
   }
   try {
     const radiators = JSON.parse(await (0, import_promises.readFile)(import_node_path.default.join(process.cwd(), "public", "models", "radiators", "manifest.json"), "utf8"));
-    const categoryId = await ensureCategory({ slug: "radiators", nameKa: "\u10E0\u10D0\u10D3\u10D8\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", nameEn: "Radiators", nameRu: "\u0420\u0430\u0434\u0438\u0430\u0442\u043E\u0440\u044B", phase: 15, calculationType: "per_unit", icon: "flame", sortOrder: 155 });
+    await ensureCategory("radiators");
     for (const model of radiators.models) {
       if (!model.product) continue;
       const storeId = storeBySlug.get(model.product.storeSlug) ?? null;
       const slug = `${SLUG_PREFIX}radiator-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(model.product.kind, "radiators", existing[0]?.categoryId);
       keepSlugs.push(slug);
       const row = {
         categoryId,
@@ -31078,7 +31440,6 @@ async function main() {
         isActive: true,
         isFeatured: false
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -31087,11 +31448,12 @@ async function main() {
   } catch {
     console.log("  (no public/models/radiators/manifest.json \u2014 run `pnpm models:radiators` for the radiators)");
   }
-  for (const kind of ["skirting", "cornice"]) {
-    const meta = kind === "skirting" ? { nameKa: "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", nameEn: "Skirting boards", nameRu: "\u041D\u0430\u043F\u043E\u043B\u044C\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", icon: "minus", sortOrder: 111 } : { nameKa: "\u10ED\u10D4\u10E0\u10D8\u10E1 \u10DE\u10DA\u10D8\u10DC\u10E2\u10E3\u10E1\u10D8", nameEn: "Cornices", nameRu: "\u041F\u043E\u0442\u043E\u043B\u043E\u0447\u043D\u044B\u0435 \u043F\u043B\u0438\u043D\u0442\u0443\u0441\u044B", icon: "minus", sortOrder: 121 };
-    const categoryId = await ensureCategory({ slug: kind, phase: kind === "skirting" ? 11 : 12, calculationType: "per_linear_m", ...meta });
-    for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind)) {
+  for (const kind2 of ["skirting", "cornice"]) {
+    await ensureCategory(kind2);
+    for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind2)) {
       const slug = `trim-${trim.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(null, kind2, existing[0]?.categoryId);
       const row = {
         categoryId,
         storeId: storeBySlug.get(trim.storeSlug) ?? null,
@@ -31114,7 +31476,6 @@ async function main() {
         isActive: true,
         isFeatured: false
       };
-      const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
       if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
       else await db.insert(products).values(row);
       upserted++;
@@ -31128,9 +31489,8 @@ async function main() {
   if (stale.length) {
     await db.delete(products).where(inArray(products.id, stale.map((s) => s.id)));
   }
-  const threeD = await db.select({ id: categories.id, slug: categories.slug, isFurniture: categories.isFurniture }).from(categories);
-  const modelCategoryIds = threeD.filter((c) => c.isFurniture || c.slug === "sanitary" || c.slug === "lighting").map((c) => c.id);
-  const surfaceCategoryIds = threeD.filter((c) => ["laminate", "floor-tiles", "wall-tiles", "paint"].includes(c.slug)).map((c) => c.id);
+  const modelCategoryIds = [.../* @__PURE__ */ new Set([...[...tree.byId.values()].filter((c) => c.isFurniture).map((c) => c.id), ...subtreeOfSlugs(tree, ["sanitary", "lighting"])])];
+  const surfaceCategoryIds = [...subtreeOfSlugs(tree, ["laminate", "floor-tiles", "wall-tiles", "paint"])];
   let hidden = 0;
   if (modelCategoryIds.length) {
     const rows = await db.select({ id: products.id }).from(products).where(and(inArray(products.categoryId, modelCategoryIds), isNull(products.model3dUrl), isNull(products.ownerUserId), eq(products.isActive, true)));

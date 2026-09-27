@@ -94,6 +94,14 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/admin/categories/rooms/[id]",
+      "regex": "^/admin/categories/rooms/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/categories/rooms/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/admin/categories/[id]",
       "regex": "^/admin/categories/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -206,6 +214,22 @@
       "namedRegex": "^/api/orders/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/orders/[id]/comments",
+      "regex": "^/api/orders/([^/]+?)/comments(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/orders/(?<nxtPid>[^/]+?)/comments(?:/)?$"
+    },
+    {
+      "page": "/api/orders/[id]/confirm",
+      "regex": "^/api/orders/([^/]+?)/confirm(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/orders/(?<nxtPid>[^/]+?)/confirm(?:/)?$"
+    },
+    {
       "page": "/api/products/[id]",
       "regex": "^/api/products/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -220,6 +244,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/projects/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/shelf-rooms/[id]",
+      "regex": "^/api/shelf\\-rooms/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/shelf\\-rooms/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/stores/[id]",
@@ -414,6 +446,14 @@
       "namedRegex": "^/partner/products/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/partner/projects/[id]",
+      "regex": "^/partner/projects/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/partner/projects/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/profile/projects/[id]",
       "regex": "^/profile/projects/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -480,6 +520,18 @@
       "regex": "^/admin/categories/new(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/admin/categories/new(?:/)?$"
+    },
+    {
+      "page": "/admin/categories/rooms",
+      "regex": "^/admin/categories/rooms(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/categories/rooms(?:/)?$"
+    },
+    {
+      "page": "/admin/categories/rooms/new",
+      "regex": "^/admin/categories/rooms/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/categories/rooms/new(?:/)?$"
     },
     {
       "page": "/admin/orders",
@@ -552,6 +604,12 @@
       "regex": "^/admin/users(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/admin/users(?:/)?$"
+    },
+    {
+      "page": "/admin/users/new",
+      "regex": "^/admin/users/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/users/new(?:/)?$"
     },
     {
       "page": "/admin/workers",
@@ -632,6 +690,12 @@
       "namedRegex": "^/api/categories(?:/)?$"
     },
     {
+      "page": "/api/categories/reorder",
+      "regex": "^/api/categories/reorder(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/categories/reorder(?:/)?$"
+    },
+    {
       "page": "/api/checkout",
       "regex": "^/api/checkout(?:/)?$",
       "routeKeys": {},
@@ -686,6 +750,12 @@
       "namedRegex": "^/api/products(?:/)?$"
     },
     {
+      "page": "/api/products/bulk",
+      "regex": "^/api/products/bulk(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/products/bulk(?:/)?$"
+    },
+    {
       "page": "/api/projects",
       "regex": "^/api/projects(?:/)?$",
       "routeKeys": {},
@@ -702,6 +772,18 @@
       "regex": "^/api/settings(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/settings(?:/)?$"
+    },
+    {
+      "page": "/api/shelf-rooms",
+      "regex": "^/api/shelf\\-rooms(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/shelf\\-rooms(?:/)?$"
+    },
+    {
+      "page": "/api/shelf-rooms/reorder",
+      "regex": "^/api/shelf\\-rooms/reorder(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/shelf\\-rooms/reorder(?:/)?$"
     },
     {
       "page": "/api/stores",
@@ -726,6 +808,12 @@
       "regex": "^/api/upload/model(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/upload/model(?:/)?$"
+    },
+    {
+      "page": "/api/users",
+      "regex": "^/api/users(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/users(?:/)?$"
     },
     {
       "page": "/api/workers",
@@ -798,6 +886,12 @@
       "regex": "^/partner/profile(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/partner/profile(?:/)?$"
+    },
+    {
+      "page": "/partner/projects",
+      "regex": "^/partner/projects(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/partner/projects(?:/)?$"
     },
     {
       "page": "/privacy",

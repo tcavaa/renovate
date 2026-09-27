@@ -4,6 +4,7 @@ import { rates } from '@/lib/db/schema';
 import { ratesForAdmin } from '@/lib/calculator/rates';
 import { RatesTable } from '@/components/admin/RatesTable';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,7 @@ export const dynamic = 'force-dynamic';
  * price that moved on the market this week is a field, not a deploy.
  */
 export default async function AdminRatesPage() {
+  await requireAdminPage('rates');
   const ka = await getT();
   const rows = await db.select().from(rates).orderBy(asc(rates.phase), asc(rates.sortOrder), asc(rates.id));
 
