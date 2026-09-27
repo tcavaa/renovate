@@ -9,6 +9,7 @@ import type { FinishSurface, RoomFinishes } from '@/lib/calculator/roomFinishes'
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import type { Vec2 } from '@/lib/design/types';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import { WallGlyph } from './PlanGlyphs';
 
 /** What the product grid under the cards chooses for: one of the floor's two products, the room's walls, or one wall. */
 export type FinishTarget = { surface: 'floor'; slot: 0 | 1 } | { surface: 'wall'; wall: number | null };
@@ -225,26 +226,5 @@ function Swatch({ pick, size }: { pick: SelectedProduct | null; size: number }) 
     <span className={cn('relative block shrink-0 overflow-hidden border bg-bg-base', pick ? 'border-line' : 'border-dashed border-ink-faint')} style={{ width: size, height: size }}>
       {pick?.imageUrl ? <Image src={pick.imageUrl} alt="" fill sizes={`${size}px`} className="object-cover" /> : pick?.colorHex ? <span className="block h-full w-full" style={{ backgroundColor: pick.colorHex }} /> : null}
     </span>
-  );
-}
-
-/** The room's outline, drawn as the board draws it (x across, z down), with one wall picked out. */
-function WallGlyph({ outline, index, active }: { outline: Vec2[]; index: number; active: boolean }) {
-  const xs = outline.map((p) => p.x);
-  const zs = outline.map((p) => p.z);
-  const minX = Math.min(...xs);
-  const minZ = Math.min(...zs);
-  const width = Math.max(...xs) - minX || 1;
-  const depth = Math.max(...zs) - minZ || 1;
-  const scale = 18 / Math.max(width, depth);
-  const at = (p: Vec2): [number, number] => [(24 - width * scale) / 2 + (p.x - minX) * scale, (24 - depth * scale) / 2 + (p.z - minZ) * scale];
-  const path = `${outline.map((p, i) => `${i === 0 ? 'M' : 'L'}${at(p).join(' ')}`).join(' ')} Z`;
-  const [ax, az] = at(outline[index] ?? outline[0]);
-  const [bx, bz] = at(outline[(index + 1) % outline.length] ?? outline[0]);
-  return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" aria-hidden>
-      <path d={path} className="fill-bg-base stroke-ink-faint" strokeWidth={1} strokeLinejoin="round" />
-      <line x1={ax} y1={az} x2={bx} y2={bz} className={active ? 'stroke-ink' : 'stroke-ink-soft'} strokeWidth={3} strokeLinecap="round" />
-    </svg>
   );
 }

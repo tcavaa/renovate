@@ -6,6 +6,8 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
 import { RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
+import { RoomGlyph } from '@/components/calculator/PlanGlyphs';
+import { ScrollRow } from '@/components/ui/scroll-row';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -102,7 +104,11 @@ export default function CatalogStepPage() {
         : { surface: 'wall', wall: null };
   const surface: FinishSurface = aim.surface;
   const aimed = !finishes ? null : aim.surface === 'floor' ? (finishes.floor[aim.slot]?.[1] ?? null) : aim.wall == null ? (finishes.walls?.[1] ?? null) : (finishes.byWall?.[aim.wall] ?? null);
-  // The room's outline on the board, edge i being wall i; a room the board does not have is its rectangle.
+  // Every room where it lies on the board — the little plan beside each room — else where the
+  // calculator placed it; the room's own outline, edge i being wall i, else its rectangle.
+  const flat = boardPlan?.rooms.length
+    ? boardPlan.rooms.map((r) => ({ id: r.id, polygon: r.polygon }))
+    : rooms.flatMap((r) => (r.x != null && r.z != null ? [{ id: r.id, polygon: [{ x: r.x, z: r.z }, { x: r.x + r.width, z: r.z }, { x: r.x + r.width, z: r.z + r.length }, { x: r.x, z: r.z + r.length }] }] : []));
   const drawn = room ? boardPlan?.rooms.find((r) => r.id === room.id)?.polygon : undefined;
   const outline = !room ? [] : drawn && drawn.length === roomWalls(room).length ? drawn : [{ x: 0, z: 0 }, { x: room.width, z: 0 }, { x: room.width, z: room.length }, { x: 0, z: room.length }];
 
@@ -196,17 +202,35 @@ export default function CatalogStepPage() {
       <div className="container py-10 md:py-14">
         <StepHeader step={4} total={CALCULATOR_STEPS} title={t.calculator.step3} subtitle={t.calculator.catalogSubtitle} />
 
+        {/* The rooms, side by side: each with the flat drawn small and itself picked out on it. */}
+        <div className="mt-6">
+          <p className="eyebrow mb-2">{t.calculator.finishesTitle}</p>
+          <ScrollRow contentClassName="gap-2" ariaLabel={t.calculator.finishesTitle}>
+            {rooms.map((r) => {
+              const id = `room:${r.id}`;
+              const on = activeId === id;
+              const n = roomChosenCount(r);
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => openRoom(id)}
+                  aria-pressed={on}
+                  className={cn('flex shrink-0 items-center gap-3 border py-2 pl-2 pr-4 text-left transition-colors', on ? 'border-ink bg-bg-surface' : 'border-line bg-bg-surface/60 hover:border-ink/40')}
+                >
+                  <RoomGlyph outlines={flat} roomId={r.id} active={on} />
+                  <span>
+                    <span className={cn('block whitespace-nowrap text-sm', on ? 'font-medium text-ink' : 'text-ink-soft')}>{r.nameKa || roomTypeLabel(t, r.type)}</span>
+                    <span className={cn('block text-xs tabular-nums', n === 2 ? 'text-success' : 'text-ink-faint')}>{n === 2 ? '✓' : `${n}/2`}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </ScrollRow>
+        </div>
+
         <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_300px]">
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
-            <SideList
-              title={t.calculator.finishesTitle}
-              activeId={activeId}
-              onSelect={openRoom}
-              items={rooms.map((r) => {
-                const n = roomChosenCount(r);
-                return { id: `room:${r.id}`, label: r.nameKa || roomTypeLabel(t, r.type), count: n === 2 ? '✓' : `${n}/2` };
-              })}
-            />
             {catLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
