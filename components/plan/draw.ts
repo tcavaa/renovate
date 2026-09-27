@@ -13,7 +13,7 @@ import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 import type { SnapGuide } from '@/lib/design/drawing';
-import { EDITOR, ELECTRICAL_COLOR, ORIGIN_COLOR, ROOM_TINT, ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
+import { EDITOR, ELECTRICAL_COLOR, ORIGIN_COLOR, TECHNICAL_COLOR } from './palette';
 
 export interface Transform {
   /** CSS pixels per metre. */
@@ -86,20 +86,21 @@ export function drawRoom(ctx: CanvasRenderingContext2D, t: Transform, room: Plan
     else ctx.lineTo(s.x, s.y);
   });
   ctx.closePath();
+  // Floors are white, like an architect's plan; the room in hand is picked out in a pale tint.
+  const floor = (strong: boolean) => (strong ? EDITOR.roomSelected : options.hovered ? EDITOR.roomHover : EDITOR.roomFill);
   const parts = studioParts(room);
   if (parts) {
-    // A studio: each part in its own type's tint, the one picked out stronger, then the line.
+    // A studio: the part picked out in the tint (both, while the room as a whole is), then the line.
     for (const part of parts) {
-      const strong = options.activePart === part.index || (options.selected && options.activePart == null);
       tracePolygon(ctx, t, part.polygon);
-      ctx.fillStyle = strong ? ROOM_TINT_STRONG[part.type] : options.hovered ? blend(ROOM_TINT[part.type], ROOM_TINT_STRONG[part.type]) : ROOM_TINT[part.type];
+      ctx.fillStyle = floor(options.activePart === part.index || (!!options.selected && options.activePart == null));
       ctx.fill();
     }
     drawDivider(ctx, t, room, options.ui ?? 1);
     // The outline again, for the selection's dashes below.
     tracePolygon(ctx, t, room.polygon);
   } else {
-    ctx.fillStyle = options.selected ? ROOM_TINT_STRONG[room.type] : options.hovered ? blend(ROOM_TINT[room.type], ROOM_TINT_STRONG[room.type]) : ROOM_TINT[room.type];
+    ctx.fillStyle = floor(!!options.selected);
     ctx.fill();
   }
   if (options.selected) {
@@ -224,6 +225,8 @@ export interface WallDrawOptions {
   locked?: boolean;
   /** Colour by origin instead of the plain wall colour. */
   byOrigin?: boolean;
+  /** A partition that already stands (`Wall.built`, a black frame): grey, out of the estimate. */
+  built?: boolean;
   /** How far past each end the body is drawn, metres, so it meets the wall it turns into (`wallEndExtensions`). */
   extendA?: number;
   extendB?: number;
@@ -238,7 +241,7 @@ export interface WallDrawOptions {
  * a corner, harmlessly inside it at a T. A wall that only continues in line is butted, and
  * a free end stays where it is.
  */
-export function wallEndExtensions(walls: Pick<Wall, 'id' | 'a' | 'b' | 'thicknessM'>[]): Map<string, { a: number; b: number }> {
+export function wallEndExtensions(walls: Pick<Wall, 'id' | 'a' | 'b' | 'thicknessM' | 'separator'>[]): Map<string, { a: number; b: number }> {
   const tol = 0.03;
   const out = new Map<string, { a: number; b: number }>();
   const directionOf = (w: Pick<Wall, 'a' | 'b'>): Vec2 => {
@@ -255,6 +258,11 @@ export function wallEndExtensions(walls: Pick<Wall, 'id' | 'a' | 'b' | 'thicknes
     return Math.hypot(p.x - (a.x + dx * u), p.z - (a.z + dz * u));
   };
   for (const wall of walls) {
+    // A room separator ends where it was drawn: it has no body to close a corner with.
+    if (wall.separator) {
+      out.set(wall.id, { a: 0, b: 0 });
+      continue;
+    }
     const dir = directionOf(wall);
     const extension = (end: Vec2): number => {
       let best = 0;
@@ -275,6 +283,10 @@ export function wallEndExtensions(walls: Pick<Wall, 'id' | 'a' | 'b' | 'thicknes
 }
 
 export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall, options: WallDrawOptions = {}): void {
+  if (wall.separator) {
+    drawSeparator(ctx, t, wall, options);
+    return;
+  }
   // The body runs past the ends by whatever closes the corner (see `wallEndExtensions`).
   const dx = wall.b.x - wall.a.x;
   const dz = wall.b.z - wall.a.z;
@@ -295,7 +307,7 @@ export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  ctx.strokeStyle = options.byOrigin ? ORIGIN_COLOR[wall.origin] : options.locked ? EDITOR.wallLocked : EDITOR.wall;
+  ctx.strokeStyle = options.byOrigin ? ORIGIN_COLOR[wall.origin] : options.built ? EDITOR.wallBuilt : options.locked ? EDITOR.wallLocked : EDITOR.wall;
   ctx.lineWidth = thickness;
   ctx.beginPath();
   ctx.moveTo(a.x, a.y);
@@ -310,6 +322,35 @@ export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
+}
+
+/**
+ * A room separator: a dashed line where one room opens onto the next — no wall stands there.
+ * Picked out and handled like a wall (the halo, the handles), so it reads as something to grab.
+ */
+function drawSeparator(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall, options: WallDrawOptions): void {
+  const a = toScreen(t, wall.a);
+  const b = toScreen(t, wall.b);
+  ctx.save();
+  ctx.lineCap = 'butt';
+  if (options.selected || options.hovered) {
+    ctx.strokeStyle = options.selected ? EDITOR.selected : EDITOR.hover;
+    ctx.lineWidth = 8;
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.strokeStyle = options.byOrigin ? ORIGIN_COLOR[wall.origin] : EDITOR.separator;
+  ctx.lineWidth = 1.75;
+  ctx.setLineDash([8, 5]);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** The wall's junctions, as small squares — the handles the select tool drags. */
@@ -338,7 +379,8 @@ export function drawOpening(ctx: CanvasRenderingContext2D, t: Transform, room: P
   ctx.save();
   ctx.globalAlpha = state.alpha ?? 1;
   if (state.dashed) ctx.setLineDash([5, 4]);
-  ctx.fillStyle = EDITOR.paper;
+  // The hole through the wall, the floor's white.
+  ctx.fillStyle = EDITOR.roomFill;
   ctx.beginPath();
   ctx.moveTo(sa.x, sa.y);
   ctx.lineTo(sb.x, sb.y);
@@ -759,17 +801,20 @@ export function drawWallLength(ctx: CanvasRenderingContext2D, t: Transform, wall
 }
 
 /** A wall being drawn: its stroke, its length, and a dot at the start. */
-export function drawDraftWall(ctx: CanvasRenderingContext2D, t: Transform, a: Vec2, b: Vec2, thicknessM: number, unitM: string): void {
+export function drawDraftWall(ctx: CanvasRenderingContext2D, t: Transform, a: Vec2, b: Vec2, thicknessM: number, unitM: string, options: { dashed?: boolean } = {}): void {
   const sa = toScreen(t, a);
   const sb = toScreen(t, b);
   ctx.save();
   ctx.strokeStyle = EDITOR.selected;
-  ctx.globalAlpha = 0.55;
+  ctx.globalAlpha = options.dashed ? 0.9 : 0.55;
   ctx.lineWidth = Math.max(2, thicknessM * t.scale);
+  // A room separator in the drawing is dashed, as it will stand.
+  if (options.dashed) ctx.setLineDash([7, 5]);
   ctx.beginPath();
   ctx.moveTo(sa.x, sa.y);
   ctx.lineTo(sb.x, sb.y);
   ctx.stroke();
+  ctx.setLineDash([]);
   ctx.globalAlpha = 1;
   ctx.fillStyle = EDITOR.selected;
   ctx.beginPath();
@@ -838,13 +883,6 @@ export function drawOriginLegendDot(ctx: CanvasRenderingContext2D, x: number, y:
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
-
-function blend(a: string, b: string): string {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
-  const mix = (shift: number) => Math.round((((pa >> shift) & 255) + ((pb >> shift) & 255)) / 2);
-  return `#${((mix(16) << 16) | (mix(8) << 8) | mix(0)).toString(16).padStart(6, '0')}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
-import { pointOnEdge, roomEdges, type PlanEdge } from './planGeometry';
+import { pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
@@ -64,7 +64,8 @@ export function isLight(kind: ElectricalKind): boolean {
 /** The wall spot nearest to a world point: the edge, how far along it, and the point itself. */
 export function wallSpotNear(room: PlanRoom, point: Vec2, maxDistance = Infinity): { wallIndex: number; t: number; position: Vec2; edge: PlanEdge } | null {
   let best: { wallIndex: number; t: number; position: Vec2; edge: PlanEdge; distance: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
+  // A room separator is no wall: nothing is fixed to it.
+  for (const edge of wallEdges(room)) {
     const hit = closestOnSegment(point, edge.a, edge.b);
     if (hit.distance <= maxDistance && (!best || hit.distance < best.distance)) {
       best = { wallIndex: edge.index, t: hit.t, position: hit.point, edge, distance: hit.distance };
@@ -145,7 +146,7 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
 
   for (const room of plan.rooms) {
     if (skip.has(room.id)) continue;
-    const edges = roomEdges(room.polygon);
+    const edges = wallEdges(room);
     if (edges.length === 0) continue;
     const here = items.filter((i) => i.roomId === room.id);
     const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };

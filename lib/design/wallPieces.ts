@@ -26,7 +26,7 @@
  * Pure geometry: no THREE, no React. Tested in `tests/unit/design/wallPieces.test.ts`.
  */
 
-import { roomEdges, type PlanEdge } from './planGeometry';
+import { isOpenEdge, roomEdges, type PlanEdge } from './planGeometry';
 import { lineIntersection, wallThicknessForEdge } from './walls';
 import type { FloorPlan, PlanRoom, Vec2 } from './types';
 
@@ -69,6 +69,8 @@ export function planEdgeWalls(plan: FloorPlan): Map<string, EdgeWall> {
   // First the stretches: where each edge is shared, and with whom.
   for (const room of plan.rooms) {
     for (const edge of edgesOf.get(room.id) ?? []) {
+      // A room separator is no wall: nothing is built along it.
+      if (isOpenEdge(room, edge.index)) continue;
       const thickness = wallThicknessForEdge(plan, room, edge);
       out.set(edgeWallKey(room.id, edge.index), { room, edge, thickness, pieces: stretches(room, edge, thickness, plan.rooms, edgesOf) });
     }

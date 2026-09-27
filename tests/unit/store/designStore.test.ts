@@ -358,3 +358,45 @@ describe('the technical setup', () => {
     expect(useDesignStore.getState().plan!.technical!.checked).toEqual(['auto', 'works']);
   });
 });
+
+describe('room separators', () => {
+  const state = () => useDesignStore.getState();
+  const separators = () => (state().plan!.walls ?? []).filter((w) => w.separator);
+
+  it('carries a partial wall drawn into a living room on across it, and keeps the room whole once that is deleted', () => {
+    // A partial wall from the top wall halfway into the 4 × 3 m living room.
+    state().addWall({ a: { x: 2, z: -0.1 }, b: { x: 2, z: 1.5 }, thicknessM: 0.12 });
+    expect(separators()).toHaveLength(1);
+    expect(separators()[0]).toMatchObject({ origin: 'generated', thicknessM: 0 });
+    expect(state().plan!.rooms.map((r) => r.type).sort()).toEqual(['kitchen', 'living_room']);
+
+    // Deleted: one room again, and not divided again on the next edit.
+    state().removeWall(separators()[0].id);
+    expect(state().plan!.rooms).toHaveLength(1);
+    expect(state().plan!.rooms[0].keepWhole).toBe(true);
+    state().addRectangleRoom({ x: 6, z: 0, width: 3, depth: 3 }, 'bedroom');
+    expect(separators()).toHaveLength(0);
+
+    // Divided along the wall from its card: the person's own separator.
+    const living = state().plan!.rooms.find((r) => r.type === 'living_room')!;
+    state().setRoomWhole(living.id, false);
+    expect(separators()).toHaveLength(1);
+    expect(separators()[0].origin).toBe('user');
+    expect(state().plan!.rooms).toHaveLength(3);
+
+    // And undone.
+    state().undo();
+    expect(separators()).toHaveLength(0);
+    expect(state().plan!.rooms).toHaveLength(2);
+  });
+
+  it('draws a separator of the person’s own like a wall, and joins the rooms from their card', () => {
+    state().addWall({ a: { x: 2, z: -0.1 }, b: { x: 2, z: 3.1 }, thicknessM: 0, separator: true });
+    expect(state().plan!.rooms).toHaveLength(2);
+    const kitchen = state().plan!.rooms.find((r) => r.type === 'kitchen')!;
+    expect(kitchen.open).toHaveLength(1);
+    state().setRoomWhole(kitchen.id, true);
+    expect(state().plan!.rooms).toHaveLength(1);
+    expect(separators()).toHaveLength(0);
+  });
+});

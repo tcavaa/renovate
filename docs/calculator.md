@@ -90,6 +90,16 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 - **A re-uploaded plan** is a new plan in the same project: `replaceRooms` drops every pick
   with the rooms, and the id stays. `setRooms` prunes the furniture of rooms that vanished
   and re-counts or drops their floors and walls.
+- **Open spaces are divided into rooms by room separators** — the wall tool's third shape, and
+  the dashed line the board draws on from a partial wall in a living room or a kitchen
+  ([design-studio/plan-board.md](design-studio/plan-board.md#room-separators-libdesignseparatorsts)).
+  Each side is a room of the calculation. What a separator gives a room is open, not wall: read
+  off the board, the room's wall area and perimeter leave it out and its wall one by one measures
+  0 (`calculatorRoomsFromPlan`).
+- **A black frame asks which partitions already stand.** It is the home state that builds the
+  partition walls (phase 1), and a wall selected on the board offers "already built"
+  (`Wall.built`, drawn grey; the legend sits over the area plate) — see
+  [design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts).
 
 ### Step 4: every room's floor and walls (`lib/calculator/roomFinishes.ts`)
 
@@ -120,6 +130,12 @@ the rooms. So:
   number and its m², and the product on it or nothing. Switching to per wall keeps the room's product on
   every wall; switching back keeps the product that covers the most wall (the first wall's on
   a tie). Until a wall is chosen, "per wall" is only the page's state.
+- **The walls one by one leave out what is not a wall to finish**: a room separator's open
+  side (it measures 0) and slivers under `MIN_LISTED_WALL_M` (the end face of a partial wall
+  running on as a separator); they still count in the room's walls as a whole. The numbers stay
+  the board's, so a list can read "walls 1, 2, 3, 6". A room divided off by a separator says
+  which room it opens onto under its name (`openNeighbours`), and each of the two takes its own
+  floor and walls.
 - A row is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
   `per_m2_wall`), opening on the category of what the row has. The calculator's categories are
   the ones admin marks as its tabs (`inCalculator`, `useCategories` → `GET
@@ -281,7 +297,15 @@ Laminate/parquet and plasterboard/stretch ceiling are `WorkChoices` — the calc
 on the materials step and the technical step (`WorkChoicesPicker`). The counts the phases
 multiply by (`EstimateCounts`: points, radiators, doors, partition m²) come from the room types
 in the calculator (`ROOM_POINTS`, `estimateCounts`) and from the plan in the studio: the points
-placed, `countDoors`, `partitionArea` (walls with a room on both sides or none). **A point's
+placed, `countDoors`, `partitionArea` (`lib/design/partitions.ts`: walls with a room on both
+sides — a partial wall has its room on both — or none, never a room separator, less the ones
+marked already built). **The calculator's partition walls are measured off its own board**
+(`boardPartitionCounts`) once the board is a flat drawn joined up — a wall between two rooms, or
+a single room; rooms typed by size stand apart, share no wall, and are still estimated from the
+rooms. Every place that prices a calculation passes it as `counts`: the materials and summary
+steps (from the board store), the save route (the board it carries, else the row's), the
+project page (`loadProjectSheets`) and the orders (`projectSheetLines`), through
+`calculatorBoardPlan`. **A point's
 labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the phase when that
 phase runs (it counts every point the plan holds), to the point's own line when it does not —
 never both. The book before the team's is `RETIRED_RATE_KEYS`: `rateBookFromRows` never reads a
@@ -355,6 +379,9 @@ rooms when the project is loaded (see "Picks from before" above).
   of the floor (the catalogue step's "chosen" column does).
 - The calculator's wall area is gross (doors and windows not taken off) — the engine's figure,
   and the only one the server has; the studio's is net. The walls one by one are gross too.
+- The calculator's rooms are read off its board only on its plan step, so a project saved
+  before room separators existed keeps its rooms as they were until that step is opened again;
+  and a partition marked already built counts only once the board holds the flat joined up.
 - A room read off the board with more than four corners (an L-shape) is priced as the rectangle
   of the same width and area (`calculatorRoomsFromPlan` takes length = area ÷ width), so its
   perimeter and wall area are approximate — while its walls one by one are their true lengths,

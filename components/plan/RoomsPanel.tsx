@@ -18,7 +18,7 @@ import type { FloorPlan, PlanRoom } from '@/lib/design/types';
 import { ROOM_TINT_STRONG } from './palette';
 import { Field, RoomFields, type InspectorActions, type RoomPartPick } from './ElementInspector';
 
-export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAddRectangle, locked, className }: { plan: FloorPlan; selectedId: string | null; onSelect: (id: string | null) => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart'>; roomPart?: RoomPartPick; onAddRectangle: (rect: { x: number; z: number; width: number; depth: number }, type: RoomType, name?: string) => void; locked?: boolean; className?: string }) {
+export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAddRectangle, locked, className }: { plan: FloorPlan; selectedId: string | null; onSelect: (id: string | null) => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart' | 'setRoomWhole'>; roomPart?: RoomPartPick; onAddRectangle: (rect: { x: number; z: number; width: number; depth: number }, type: RoomType, name?: string) => void; locked?: boolean; className?: string }) {
   const t = useT();
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState<RoomType>('bedroom');
@@ -92,7 +92,7 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAd
   );
 }
 
-function RoomCard({ room, plan, active, onSelect, actions, locked, roomPart }: { room: PlanRoom; plan: FloorPlan; active: boolean; onSelect: () => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart'>; locked?: boolean; roomPart?: RoomPartPick }) {
+function RoomCard({ room, plan, active, onSelect, actions, locked, roomPart }: { room: PlanRoom; plan: FloorPlan; active: boolean; onSelect: () => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart' | 'setRoomWhole'>; locked?: boolean; roomPart?: RoomPartPick }) {
   const t = useT();
   return (
     <li id={`plan-room-${room.id}`} className={cn('rounded-[14px] border bg-white transition-colors', active ? 'border-ink' : 'border-line hover:border-ink/40')}>

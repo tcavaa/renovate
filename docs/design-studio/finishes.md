@@ -208,8 +208,11 @@ is *swept* — its cross-section (`trimOutline`: flat, rounded, stepped, ogee, c
 along every wall by `buildMouldingGeometry`, mitred at the corners (each run gives way by
 `tan(turn/2)` per metre it stands out) and broken at the doorways for a skirting board.
 It travels in `scene.finishes` as `surface: 'skirting' | 'cornice'` with a `trim` spec, is
-sold by the running metre (`trimLengthM`: the perimeter, less the doorways for a skirting
-board), and `trim_install` is its labour. A room with no product wears the style's own
+sold by the running metre (`trimLengthM`: the walled perimeter — not an edge on a room
+separator — less the doorways for a skirting board), and `trim_install` is its labour. A wall
+finish never lands on a separator's open edge either: the room's wall area (`wallAreaM2`), one
+wall's (`wallEdgeAreaM2`, 0 there), the visible-finish sums and the paint brush all go by
+`wallEdges`. A room with no product wears the style's own
 moulding for nothing (`STYLE_TRIMS`; modern and industrial have no cornice at all).
 `scripts/lib/trimProducts.ts` is the seeded range — profile, height and depth in `specs`.
 

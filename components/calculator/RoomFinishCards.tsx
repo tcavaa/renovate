@@ -4,12 +4,15 @@ import Image from 'next/image';
 import { CopyPlus, Plus, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, unitLabel } from '@/lib/i18n/labels';
-import { roomWallAreasM2 } from '@/lib/calculator/quantities';
+import { roomWallAreasM2, roomWalls } from '@/lib/calculator/quantities';
 import type { FinishSurface, RoomFinishes } from '@/lib/calculator/roomFinishes';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import type { Vec2 } from '@/lib/design/types';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 import { WallGlyph } from './PlanGlyphs';
+
+/** A wall shorter than this is left out of the list of walls one by one (see the list). */
+export const MIN_LISTED_WALL_M = 0.2;
 
 /** What the product grid under the cards chooses for: one of the floor's two products, the room's walls, or one wall. */
 export type FinishTarget = { surface: 'floor'; slot: 0 | 1 } | { surface: 'wall'; wall: number | null };
@@ -61,6 +64,7 @@ export function RoomFinishCards({
   const adding = !!first && !second && target.surface === 'floor' && target.slot === 1;
   const walls = finishes.walls?.[1] ?? null;
   const wallAreas = roomWallAreasM2(room);
+  const wallLengths = roomWalls(room);
   const share = first && second ? Math.round((first.share ?? 0.5) * 100) : 100;
   const isTarget = (next: FinishTarget) => target.surface === next.surface && (next.surface === 'floor' ? target.surface === 'floor' && target.slot === next.slot : target.surface === 'wall' && target.wall === next.wall);
 
@@ -158,6 +162,10 @@ export function RoomFinishCards({
         {oneByOne ? (
           <ul>
             {wallAreas.map((area, i) => {
+              // An edge on a room separator is no wall — open onto the next room, it measures 0 —
+              // and a sliver of one (the end face of a partial wall running on as a separator) is
+              // nothing to choose a finish for; both still count in the room's walls as a whole.
+              if (wallLengths[i] < MIN_LISTED_WALL_M) return null;
               const pick = finishes.byWall?.[i] ?? null;
               const selected = isTarget({ surface: 'wall', wall: i });
               return (

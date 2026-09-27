@@ -25,6 +25,7 @@ import { useProjectId, useProjectMeta } from '@/components/projects/ProjectGate'
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { buildProjectSummary } from '@/lib/calculator/materials';
+import { boardPartitionCounts } from '@/lib/design/partitions';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designEntryHref } from '@/lib/design/steps';
 import { useRateBook } from '@/hooks/useRateBook';
@@ -88,8 +89,8 @@ export default function SummaryPage() {
     if (!ready) return null;
     const products = Object.values(selectedProducts);
     const furniture = Object.values(selectedFurniture).flat();
-    return buildProjectSummary(rooms, homeState, products, furniture, book, { choices });
-  }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book, choices]);
+    return buildProjectSummary(rooms, homeState, products, furniture, book, { choices, counts: boardPartitionCounts(boardPlan) });
+  }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book, choices, boardPlan]);
 
   // The estimate as one sheet: every line with its tick and its quantity, the picks under the
   // shop that sells them. The engine's figures are the original; the person's edits — lines

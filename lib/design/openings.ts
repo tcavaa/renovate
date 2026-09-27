@@ -10,7 +10,7 @@
  *
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
-import { roomEdges, pointOnEdge, type PlanEdge } from './planGeometry';
+import { roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import type { Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
 
@@ -50,7 +50,8 @@ export function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
 export function nearestWall(rooms: PlanRoom[], point: Vec2, maxDistance: number, preferRoomId?: string | null): { room: PlanRoom; edge: PlanEdge; distance: number } | null {
   let best: { room: PlanRoom; edge: PlanEdge; distance: number } | null = null;
   for (const room of rooms) {
-    for (const edge of roomEdges(room.polygon)) {
+    // A room separator is no wall: nothing opens in it, it is open already.
+    for (const edge of wallEdges(room)) {
       const distance = distanceToSegment(point, edge.a, edge.b);
       if (distance > maxDistance) continue;
       const closer = !best || distance < best.distance - 1e-6;
@@ -329,7 +330,8 @@ export interface AddOpeningOptions {
 export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThicknessM: number, options: AddOpeningOptions = {}): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);
   if (!room) return { rooms, openingId: null };
-  const edges = roomEdges(room.polygon);
+  // Never in a room separator: there is no wall to cut a door or a window into.
+  const edges = wallEdges(room);
   const defaults = OPENING_DEFAULTS[kind];
   const minLength = defaults.widthM + CORNER_MARGIN_M * 2;
   const chosen =

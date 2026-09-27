@@ -2,28 +2,17 @@
  * The colours of the build mode — one language for the 2D editor, the 3D view's outlines
  * and the layers panel, so a thing looks the same everywhere it is drawn.
  *
- * Rooms are tinted by type (soft, like a coloured plan), structure by *origin* (what came
- * with the flat, what the person changed, what the app generated), and the technical
- * systems by what flows through them.
+ * The plan itself reads like an architect's drawing: black walls, white floors, red doors,
+ * blue windows (`EDITOR`). A room's type is its label, not a tint — the tints below mark the
+ * type in the lists beside the plan (the rooms panel, a studio's parts). Structure can be
+ * coloured by *origin* instead (what came with the flat, what the person changed, what the
+ * app generated, the "origins" layer), and the technical systems by what flows through them.
  */
 
 import type { RoomType } from '@/lib/calculator/types';
 import type { ElementOrigin, TechnicalKind } from '@/lib/design/types';
 
-export const ROOM_TINT: Record<RoomType, string> = {
-  living_room: '#F4E7D3',
-  bedroom: '#E3E8F6',
-  kitchen: '#F9E4C8',
-  bathroom: '#D6ECF2',
-  toilet: '#DDEEF1',
-  hallway: '#ECEAE4',
-  balcony: '#E4F0DC',
-  storage: '#E9E4DC',
-  office: '#E8E3F3',
-  closet: '#EFE6DA',
-  studio: '#F6E6CD',
-};
-
+/** A room type's swatch in the lists beside the plan (the plan's floors are white). */
 export const ROOM_TINT_STRONG: Record<RoomType, string> = {
   living_room: '#E6C79A',
   bedroom: '#B7C4EA',
@@ -77,12 +66,20 @@ export const EDITOR = {
   paper: '#FBFAF7',
   gridMinor: '#EEEAE2',
   gridMajor: '#DDD6CB',
-  wall: '#2C3E50',
-  wallLocked: '#5F6B78',
+  /** Every room's floor, a studio's two parts alike; its type is on its label. */
+  roomFill: '#FFFFFF',
+  roomHover: '#F4F2EE',
+  roomSelected: '#FCEBE2',
+  wall: '#141414',
+  wallLocked: '#2B2B2B',
+  /** A partition that already stands in a black frame (`Wall.built`): not built again, not priced. */
+  wallBuilt: '#A29C93',
+  /** A room separator (`Wall.separator`): the dashed line where one room opens onto the next. */
+  separator: '#141414',
   selected: '#E85D26',
   hover: '#F5A623',
   guide: '#2FA7A0',
-  door: '#E85D26',
+  door: '#D92D20',
   window: '#5B8FB9',
   label: '#161513',
   labelMuted: '#6F6A63',

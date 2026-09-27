@@ -173,7 +173,11 @@ LED strip or a furniture light counted as half a point — `ELECTRICAL_LABOUR`),
 when its phase is not running (`technicalWork`, [calculator.md](calculator.md)) — bulk material
 and labour line — plus `openingsTotal`,
 `technicalTotal`, `lightingTotal` and `coverage`. In `design_only` mode only what the person
-added (`origin: 'user'`) is new work; in `full` mode the ticked phases decide.
+added (`origin: 'user'`) is new work; in `full` mode the ticked phases decide. The engine's rooms
+come from the plan (`planToCalculatorRooms`), their walls measured without the edges on a room
+separator (`wallPerimeterM`), and the partition walls a black frame builds are measured off the
+plan's walls, less the ones marked already built and never a room separator (`partitionArea`,
+[design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts)).
 
 **Finishes: every floor and wall the flat is shown in, bought where it shows.** Generation
 lays each room's floor and walls in the style's own partner products — the bathroom's tiles,
@@ -222,7 +226,8 @@ line again.
 - `tests/unit/design/visibleFinishes.test.ts` — what shows is what is bought: strips, squares,
   walls of their own, zones and tiles; a strip painted twice bought once, through `priceScene`.
 - `tests/unit/design/budget.test.ts` — technical points, doors and fittings, what the flat
-  already has, partitions, work choices, `tradesNeeded`.
+  already has, partitions, work choices, `tradesNeeded`; `tests/unit/design/partitions.test.ts`
+  — which walls are partitions, built walls, room separators, the calculator's board.
 - `tests/unit/design/kitchen.test.ts` — measured runs and islands, `custom: false`.
 - `tests/unit/summary/calculatorSheet.test.ts`, `tests/unit/summary/quantity.test.ts` — the
   calculator's sheet, its edits and legacy flags; the quantity options.

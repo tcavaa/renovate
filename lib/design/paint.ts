@@ -16,7 +16,7 @@
  * Pure geometry over plain data; the store, the 2D board and the 3D view all call in here.
  */
 
-import { pointInPolygon, polygonAreaM2, polygonBounds, roomEdges, type PlanEdge } from './planGeometry';
+import { pointInPolygon, polygonAreaM2, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { finishFromProduct } from './surfaces';
 import { clipPolygon } from './zones';
 import type { CatalogProduct } from './matcher';
@@ -237,7 +237,8 @@ export function paintPatch(finishes: SurfaceFinish[], room: PlanRoom, wallIndex:
 /** A room's wall and the spot along it nearest to a point, within `reachM` of the wall's face. */
 export function wallSpotAt(room: PlanRoom, point: Vec2, reachM: number): { edge: PlanEdge; s: number; distance: number } | null {
   let best: { edge: PlanEdge; s: number; distance: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
+  // A room separator is no wall: there is nothing to paint.
+  for (const edge of wallEdges(room)) {
     const s = Math.max(0, Math.min(edge.length, (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z));
     const distance = Math.hypot(point.x - (edge.a.x + edge.dir.x * s), point.z - (edge.a.z + edge.dir.z * s));
     if (distance <= reachM && (!best || distance < best.distance)) best = { edge, s, distance };

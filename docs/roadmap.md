@@ -45,6 +45,10 @@ runtime yet.
   ([3d-assets.md](3d-assets.md#known-gaps), [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).
 - **Editing**: draw walls and move rooms in 3D; walk-through collision is deliberately off
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
+- **Room separators**: a line on the 3D floor where one runs, corner furniture kept off an open
+  edge, the app's separator only from partial walls square to the plan; a studio (one room in
+  two parts) still takes one floor and one set of walls in the calculator's catalogue
+  ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
 - **Pricing accuracy**: wall heights of their own, net wall areas in the calculator, a
   heat-loss calculation for radiators ([budget.md](budget.md#known-gaps),
   [calculator.md](calculator.md#known-gaps)); the style's skirting boards and cornices as

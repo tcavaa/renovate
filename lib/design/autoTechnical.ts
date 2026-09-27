@@ -17,7 +17,7 @@
  * Pure geometry over the plan and the furniture; no React, no store.
  */
 
-import { pointOnEdge, roomEdges, type PlanEdge } from './planGeometry';
+import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, studioParts } from './studio';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
@@ -103,7 +103,8 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
 function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = []): Vec2 | null {
   const info = TECHNICAL_KINDS[kind];
   // A studio's dividing line is not a wall: nothing is fixed to it.
-  const edges = roomEdges(room.polygon).filter((edge) => !notOn.some(([a, b]) => onSegment(pointOnEdge(edge, 0.5), a, b)));
+  // Nor is a room separator (`wallEdges`).
+  const edges = wallEdges(room).filter((edge) => !notOn.some(([a, b]) => onSegment(pointOnEdge(edge, 0.5), a, b)));
   if (edges.length === 0) return null;
 
   // The fixture this kind serves, biggest first — a bath before a basin.

@@ -39,7 +39,7 @@ import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type Pai
 import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
-export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
+export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
 
 export interface EditorLayers {
   rooms: boolean;
@@ -71,6 +71,11 @@ export interface PlanEditorProps {
   layers?: Partial<EditorLayers>;
   /** Walls, doors, windows, columns and beams can be picked but not moved. */
   locked?: boolean;
+  /**
+   * The estimate builds the partition walls (a black frame): the ones marked as already
+   * standing (`Wall.built`) are drawn grey, out of the price.
+   */
+  builtWalls?: boolean;
   selection: ElementSelection;
   selectedRoomId?: string | null;
   /** Rooms picked out with a click or a rubber band; they drag together. */
@@ -89,6 +94,11 @@ export interface PlanEditorProps {
   onSplitRoom?: (roomId: string, split: RoomSplit) => void;
   /** Which part of a studio a click landed in (null for any other room), so the inspector can offer that part's type. */
   onSelectRoomPart?: (roomId: string, part: 0 | 1 | null) => void;
+  /**
+   * A room separator drawn (the wall tool's third shape): a line that divides rooms like a wall
+   * and is no wall (`Wall.separator`), drawn in runs exactly as walls are.
+   */
+  onAddSeparator?: (a: Vec2, b: Vec2) => void;
   /** The studio part picked out on the board. */
   selectedRoomPart?: 0 | 1 | null;
   onAddWall?: (a: Vec2, b: Vec2) => void;
@@ -133,8 +143,8 @@ export interface PlanEditorProps {
   /** Delete or Backspace with something selected. */
   onDelete?: () => void;
   /**
-   * A drop the plan would not accept, and why: `opening` — a window on a shared wall, a
-   * door with no wall to go on; `overlap` — a room drawn on top of a room.
+   * A drop the plan would not accept, and why: `opening` — a window on a shared wall or a room
+   * separator, a door with no wall to go on; `overlap` — a room drawn on top of a room.
    */
   onRefused?: (reason: 'opening' | 'overlap') => void;
   /** A one-shot tool finished (a column placed): the page may go back to select. */
@@ -267,6 +277,7 @@ export function PlanEditor(props: PlanEditorProps) {
     technicalKind = 'water_supply',
     electricalKind = 'socket',
     locked = false,
+    builtWalls = false,
     selection,
     selectedRoomId = null,
     selectedRoomIds = EMPTY_IDS,
@@ -636,7 +647,8 @@ export function PlanEditor(props: PlanEditorProps) {
     // plate, live, so the number changes under the pointer instead of after the fact.
     if (layers.walls) {
       const measured: Array<{ wall: Pick<Wall, 'a' | 'b'>; extra?: string }> = [];
-      for (const wall of walls) {
+      // Room separators first: where one meets a wall, the wall is drawn over its end.
+      for (const wall of [...walls.filter((w) => w.separator), ...walls.filter((w) => !w.separator)]) {
         let live = wall;
         if (gesture?.kind === 'wall-drag' && gesture.wall.id === wall.id) {
           const n = wallNormal(wall);
@@ -644,7 +656,8 @@ export function PlanEditor(props: PlanEditorProps) {
         }
         if (gesture?.kind === 'node-drag' && (!gesture.alone || gesture.wallId === wall.id)) {
           const near = (p: Vec2) => Math.hypot(p.x - gesture.from.x, p.z - gesture.from.z) < 0.02;
-          live = { ...live, a: near(wall.a) ? gesture.to : live.a, b: near(wall.b) ? gesture.to : live.b };
+          // Only the walls with an end on the corner being dragged move — and only they carry a length plate.
+          if (near(wall.a) || near(wall.b)) live = { ...live, a: near(wall.a) ? gesture.to : live.a, b: near(wall.b) ? gesture.to : live.b };
         }
         const isSelected = selection?.kind === 'wall' && selection.id === wall.id;
         const extension = live === wall ? wallExtensions.get(wall.id) : undefined;
@@ -653,6 +666,7 @@ export function PlanEditor(props: PlanEditorProps) {
           hovered: hover.kind === 'wall' && hover.id === wall.id,
           locked: locked || wall.locked,
           byOrigin: layers.origins,
+          built: builtWalls && !!wall.built,
           extendA: extension?.a,
           extendB: extension?.b,
         });
@@ -740,7 +754,7 @@ export function PlanEditor(props: PlanEditorProps) {
     }
 
     // What the tool in hand is about to do.
-    if (draftWall) drawDraftWall(ctx, tr, draftWall.anchor, draftWall.current, wallThicknessM, t.units.m);
+    if (draftWall) drawDraftWall(ctx, tr, draftWall.anchor, draftWall.current, tool === 'divider' ? 0 : wallThicknessM, t.units.m, { dashed: tool === 'divider' });
     if (draftBeam) drawDraftWall(ctx, tr, draftBeam.anchor, draftBeam.current, 0.25, t.units.m);
     if (gesture?.kind === 'rect') {
       const rect = gesture.snapped ?? normaliseRect(gesture.start, gesture.current);
@@ -770,7 +784,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
     // The sizes of the flat, chained along each side outside the walls.
     if (dimensionChains) drawOuterDimensions(ctx, tr, dimensionChains, t.units.m);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, builtWalls, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
 
   useEffect(() => {
     draw();
@@ -972,7 +986,9 @@ export function PlanEditor(props: PlanEditorProps) {
     }
 
     switch (tool) {
-      case 'wall': {
+      case 'wall':
+      case 'divider': {
+        // A room separator is drawn exactly as a wall is: in runs, corner by corner.
         const snapped = snapFor(world, draftWall?.anchor ?? null);
         if (!draftWall) {
           setDraftWall({ anchor: snapped.point, current: snapped.point });
@@ -981,7 +997,8 @@ export function PlanEditor(props: PlanEditorProps) {
           const b = snapped.point;
           if (Math.hypot(b.x - a.x, b.z - a.z) >= 0.1) {
             edited.current = true;
-            callbacks.current.onAddWall?.(a, b);
+            if (tool === 'divider') callbacks.current.onAddSeparator?.(a, b);
+            else callbacks.current.onAddWall?.(a, b);
             // The run continues from the point just placed; a click on an existing junction ends it.
             setDraftWall(snapped.snappedTo === 'node' ? null : { anchor: b, current: b });
           }
@@ -1282,7 +1299,7 @@ export function PlanEditor(props: PlanEditorProps) {
       if (paintKey(target) !== paintKey(paintHover)) setPaintHover(target);
       return;
     }
-    if (tool === 'wall' && draftWall) {
+    if ((tool === 'wall' || tool === 'divider') && draftWall) {
       const snapped = snapFor(world, draftWall.anchor);
       setDraftWall({ anchor: draftWall.anchor, current: snapped.point });
       setGuides(snapped.guides);
@@ -1294,7 +1311,7 @@ export function PlanEditor(props: PlanEditorProps) {
       setGuides(snapped.guides);
       return;
     }
-    if (tool === 'wall' || tool === 'column' || tool === 'beam') {
+    if (tool === 'wall' || tool === 'column' || tool === 'beam' || tool === 'divider') {
       const snapped = snapFor(world);
       setGuides(snapped.guides);
       return;

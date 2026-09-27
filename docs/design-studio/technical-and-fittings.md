@@ -48,7 +48,11 @@ is the hint list on step 3 (a toilet, shower or bath far from the sewer; a sink,
 or washer more than 2.2 m from the water; a bathroom with no floor drain or sewer; a radiator on
 an interior wall; no extractor in a bathroom or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
-panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. The step offers the kinds as a grid of icon tiles that is always
+panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. Nothing is fixed to a
+room separator's open edge — not these points, not a socket or switch (`wallSpotNear`,
+`suggestElectrical`), not a radiator (`radiatorWallSpot`, `suggestRadiators`), not a door or a
+window (`nearestWall`, `addOpening`): they all go by `wallEdges`
+([plan-board.md](plan-board.md#room-separators-libdesignseparatorsts)). The step offers the kinds as a grid of icon tiles that is always
 on screen (`components/plan/icons.ts` is the one icon per system, shared with the toolbar
 and the inspector): a tile arms the point tool with that kind and stays armed until it is
 clicked again, and a click on a point already placed picks it up instead of stacking

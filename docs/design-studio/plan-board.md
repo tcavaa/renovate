@@ -1,9 +1,10 @@
 # The plan: walls, rooms and the 2D board
 
-The plan's model (walls are lines, rooms are the faces they enclose), studio rooms split in
+The plan's model (walls are lines, rooms are the faces they enclose), room separators that
+divide an open space into rooms, the partition walls a black frame builds, studio rooms split in
 two, and the 2D drawing board both products use. Read this before touching
-`lib/design/walls.ts`, `lib/design/drawing.ts`, `lib/design/studio.ts`, `components/plan/` or
-the plan actions of `store/designStore.ts`.
+`lib/design/walls.ts`, `separators.ts`, `partitions.ts`, `drawing.ts`, `studio.ts`,
+`components/plan/` or the plan actions of `store/designStore.ts`.
 
 Related: [overview.md](overview.md) · [plan-reading.md](plan-reading.md) (where uploaded rooms
 come from) · [technical-and-fittings.md](technical-and-fittings.md) (doors and windows on the
@@ -17,16 +18,18 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 |---|---|
 | `lib/design/walls.ts` | walls ⇄ rooms: `roomsFromWalls`, `wallsFromRooms`, `ensureWalls`, `rebuildRooms`, junction splitting, room clusters and moves, clash tests |
 | `lib/design/drawing.ts` | snapping (junction → wall → axis → alignment → grid), hit tests, `snapRoomMove`, `snapRectangle`, `snapWallOffset` |
+| `lib/design/separators.ts` | room separators: the partial walls the app draws one on from (`partialWallIn`, `withPartialWallSeparators`), the type a room cut off takes (`withSplitRoomTypes`), deleting one (`withoutWall`), a room's card (`joinRoom`, `divideAlongPartialWall`), `openNeighbours` |
+| `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
 | `lib/design/roomNames.ts` | the names the app gives rooms: a kind's name, numbered only when the flat has several (`withRoomNames`, `nextRoomName`, `isAutoRoomName`, `readingOrder`) |
-| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against |
+| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator) |
 | `lib/design/types.ts` | `FloorPlan`, `Room`, `Wall`, `Column`, `Beam`, `Opening`, … |
 | `components/plan/PlanEditor.tsx` | the canvas board: tools, gestures, pan/zoom; everything else is callbacks to the store |
 | `components/plan/PlanWorkspace.tsx` | the board wired to a store (the studio's by default, or the calculator's), with toolbar, hint line and undo keys |
 | `components/plan/PlanToolbar.tsx` | tool tiles, wall shape and thickness, kinds, layers (`PlanToolTiles`, `PlanViewControls` on the full-window steps) |
 | `components/plan/ElementInspector.tsx`, `RoomsPanel.tsx` | edit the selected element; the rooms list and typed rooms |
 | `components/plan/draw.ts` | plain canvas drawing routines (rooms, walls, openings, chains, finishes) — shared with the PDF export |
-| `components/plan/palette.ts`, `icons.ts` | room tints, origin and system colours; one icon per technical system and electrical kind |
+| `components/plan/palette.ts`, `icons.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, grey built walls, dashed separators), room-type swatches for the lists, origin and system colours; one icon per technical system and electrical kind |
 | `lib/design/planPdfExport.ts` | the plan as an A4 PDF |
 | `lib/calculator/planSync.ts`, `hooks/useCalculatorPlan.ts` | keep the calculator's rooms in step with its board |
 
@@ -109,6 +112,80 @@ the rooms as they now stand (`fitToPlan`, `keepChosen`) and re-projects the elec
 free-standing walls. Tested in `tests/unit/design/walls.test.ts`; touching rooms from an
 old calculator layout lose half a thickness on the shared wall, by design.
 
+## Room separators (`lib/design/separators.ts`)
+
+**A room separator (ოთახის გამყოფი) divides an open space into rooms without being a wall** —
+an architect's room separation line. It is a `Wall` with `separator: true` and no thickness,
+drawn with the wall tool's third shape and edited exactly like a wall: in runs, corner by
+corner, with every snap; selected, dragged sideways, its ends dragged, lengthened in the
+inspector, deleted, undone. It bounds rooms in the wall graph like any wall, so each side of it
+is a room of its own with its own type, name and area — a kitchen and the living room it opens
+onto are two rooms. But nothing stands along it: `roomsFromWalls` records the edges it gives a
+room as open (`PlanRoom.open`), and everything that measures, finishes or hangs things on walls
+asks `wallEdges` / `wallPerimeterM` instead of the whole outline — the wall area (the estimate's
+plaster and paint, the style's and the calculator's wall finishes, the calculator's walls one by
+one, where an open edge measures 0), the skirting and cornice, doors and windows (never placed
+on one, and `deriveOpenings` hangs no door between two rooms a separator divides — they are
+open onto each other, and neither counts as sealed in), sockets, radiators, the technical
+points, the paint brush, and the layout engine's furniture against a wall, along a run or on
+the wall. It is never a partition (`partitionArea`), never built in 3D (`planEdgeWalls` and
+`buildRoomScene` skip open edges), and on the board it is a dashed line drawn under the walls it
+ends against. `addWalls` keeps a wall and a separator from standing on one line: a separator
+gives way to any wall, and a wall drawn over a separator takes its place. Where a wall runs on
+in line as a separator the 6 cm jog between their faces belongs to the wall (`innerPolygon`).
+
+**A partial wall is carried on by the app** (`withPartialWallSeparators`). A wall that runs into
+a room from its side and stops short — the stub of a partition that leaves the way through
+open — closes no room (the graph prunes it as a dead end), so the room it stands in stayed one
+room. `partialWallIn` finds it: square to the plan, at least `MIN_PARTIAL_WALL_M` long, against
+the room's side at one end and open at the other, its line crossing the room once past the free
+end without leaving a side too small (the studio line's own rule, `clampT`). In a living room, a
+kitchen or a studio (`DIVIDED_BY_PARTIAL_WALL`) the app draws a separator from the free end
+straight across to the far wall's centreline, `origin: 'generated'`. The pass runs in the
+store's `reconcile` after every edit of the rooms and on a plan taken in (`setPlan`) — not when a
+saved plan opens, because the calculator reads its rooms off the board only on its plan step.
+**Once drawn, a separator is a line of the plan like any other**: it starts on the wall's free
+end, so dragging that end — off square too — takes the separator's end along, as a junction
+drag takes every wall end on it. (The first version drew the app's separators afresh after
+every edit, and a partial wall dragged off square lost its separator.) The app takes one of its
+own away only when it no longer carries a wall on (`carriesWallOn`: its start is no longer the
+end of exactly one wall — the wall deleted, a partition drawn on from that end, the end dragged
+onto the far side so the separator shrinks to nothing), and gives a partial wall with nothing
+carrying it on a new one; the same plan comes back when nothing changed. A separator the person
+drags or resizes becomes theirs (`markUser`: `'user'`), and the app never takes it away.
+
+**What the new room is** (`withSplitRoomTypes`): a room that is new after an edit and has a room
+from before across an open edge takes its type and height from it — off a living room or a studio
+a kitchen, off a kitchen a living room, off anything else the same kind. The room that kept the
+old room's identity (the face its centroid falls in) keeps its type.
+
+**One room or two is the person's call.** Deleting a separator (`withoutWall`, the store's
+`removeWall`) joins the rooms, and the room that makes is kept whole (`PlanRoom.keepWhole`) for as
+long as a partial wall stands in it, or the app would only draw the separator back; the flag goes
+by itself when the wall does. A room's card (`RoomFields` → `SeparatorField`) says it: a room with
+an open edge offers "ერთ ოთახად გაერთიანება" (`joinRoom`: every separator along it taken away, kept
+whole), and a room a partial wall stands in offers "გამყოფით გაყოფა" (`divideAlongPartialWall`: a
+separator of the person's own along the wall, whatever the room's type). The store's
+`setRoomWhole(roomId, whole)` is both.
+
+## The partition walls a black frame builds (`lib/design/partitions.ts`)
+
+Phase 1 of a renovation builds the partition walls (`wall_build`, 45 + 45 ₾/m²), and a black
+frame is the home state that runs it (`buildsPartitions`). A partition is a wall with a room on
+both sides — a partial wall has *its* room on both sides — or one standing free; a wall with a
+room on one side only is the building's own and is never priced. Which it is is asked of the
+geometry, a hand's breadth past each face at the wall's middle (`roomSides`): asking which rooms a
+wall *bounds* called a partial wall the building's own, since it runs on into the corner of the
+room it stands in. Some partitions of a black frame are up already, so a wall can be marked
+**already built** (`Wall.built`): the wall card asks "კედლის აშენება — ასაშენებელია / უკვე
+აშენებულია" with the wall's m² (`WallBuildingField`, shown instead of the origin row whenever the
+estimate builds walls — `wallBuilding` on the pages, from the home state and, in the design, the
+ticked works); an outer wall says it is not priced; a separator is not a wall at all. A built
+wall is drawn grey on the board (`EDITOR.wallBuilt`), and the sheet's corner carries a small
+legend above the area plate. `partitionArea` sums the partitions not built, at each wall's own
+height; the studio prices from it (`priceScene`), and the calculator from its own board
+(`boardPartitionCounts` — see [../calculator.md](../calculator.md)).
+
 ## A studio is one room in two parts (`lib/design/studio.ts`)
 
 `studio` (სტუდიო) is a room type for an open plan — most often a kitchen and a living room.
@@ -140,11 +217,21 @@ no line on the floor, and the kitchen half's default floor is the room's (as any
 (On the full-screen steps the board runs under everything, its toolbar floating over it —
 see "The board steps are the whole window" in [../ui-design-system.md](../ui-design-system.md).)
 
-One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with two shapes, a line
-and a square** (`room` is the square: a rectangle whose inside is exactly what was drawn,
-four walls around it), `door` / `window` (dropped on the nearest room edge, the usual twin
-logic), `column`, `beam`, `technical`, `electrical`, `zone`. The toolbar and the studio's
-build tray both leave `room` out of the tile row and offer it as the wall tool's shape.
+**The board reads like an architect's plan**: black walls, white floors, red doors, blue
+windows (`EDITOR` in `palette.ts`; `drawRoom`, `drawWall`, `drawOpening`). A room's type is its
+label, not a tint — the rooms panel and a studio's part fields keep a swatch per type — and the
+room picked out is a pale warm tint with the dashed outline. A room separator is a dashed black
+line; a wall already built in a black frame is grey. The PDF (`planPdfExport`) and the project
+page's sketch (`PlanSketch`) draw the same way.
+
+One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with three shapes: a line,
+a square and a room separator** (`room` is the square: a rectangle whose inside is exactly what
+was drawn, four walls around it; `divider` draws separators in runs exactly as `wall` draws
+walls, dashed while drawn, through `onAddSeparator`), `door` / `window` (dropped on the nearest
+wall edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`. The
+toolbar and the studio's build tray both leave `room` and `divider` out of the tile row and
+offer them as the wall tool's shapes; the shape and the thickness (none for a separator) sit
+side by side in one compact row.
 `lib/design/drawing.ts` does the snapping — a junction first, then the axis lock (applied
 before the wall snap so a T-junction still lands on the axis), then a point on a wall, then
 alignment with any junction's x or z, then the 5 cm grid (1 cm with Shift) — and reports the
@@ -316,8 +403,12 @@ parses the result back with pdf.js.
 ## Tests
 
 `tests/unit/design/walls.test.ts`, `drawing.test.ts`, `planDrawing.test.ts`, `studio.test.ts`,
-`roomNames.test.ts`, `planPdfExport.test.ts`, `tests/unit/calculator/planSync.test.ts`,
-`tests/unit/store/designStore.test.ts` (plan actions, room names).
+`separators.test.ts` (partial walls, the app's separators following and leaving, kept whole,
+joined and divided from the card, open edges out of every wall measure, no door, no 3D wall,
+drawing over a separator), `partitions.test.ts` (inner, outer and partial walls, built walls,
+separators, the calculator's board), `roomNames.test.ts`, `planPdfExport.test.ts`,
+`tests/unit/calculator/planSync.test.ts`, `tests/unit/store/designStore.test.ts` (plan actions,
+room names, separators through the store with undo).
 
 ## Known gaps
 
@@ -332,3 +423,12 @@ parses the result back with pdf.js.
   engine.
 - The wall graph is rectilinear in practice (angled walls draw and enclose rooms, but the
   room programs, `snapPlacement` and the footprints assume right angles).
+- Room separators: the app draws one on only from a partial wall square to the plan whose line
+  crosses its room once; a corner piece (`placeInCorner`) and a dragged piece (`snapPlacement`)
+  can still stand against an open edge as if it were a wall; deleting a room divided off by a
+  separator takes its own outer walls away like any room's (`removeRoom`) — joining it is the
+  way back to one room; the 3D view draws no line on the floor where a separator runs; a room
+  that becomes a separator's new side is typed by a rule, not asked.
+- A studio (one room, two parts) and a separator (two rooms) are two ways of saying one thing;
+  the calculator's catalogue gives a studio one floor and one set of walls, while a separator's
+  rooms each take their own ([../calculator.md](../calculator.md#known-gaps)).

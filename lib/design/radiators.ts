@@ -20,7 +20,7 @@
  * Pure: plain data in, plain data out.
  */
 
-import { pointOnEdge, polygonCentroid, roomEdges, type PlanEdge } from './planGeometry';
+import { pointOnEdge, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { planEdgeWalls, edgeWallKey } from './wallPieces';
 import type { FloorPlan, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
@@ -188,7 +188,7 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string): Technic
     if (existing.some((p) => radiatorRoom(plan, p)?.id === room.id)) continue;
     const wanted = radiatorsNeeded(plan, room);
     if (wanted === 0) continue;
-    const edges = roomEdges(room.polygon);
+    const edges = wallEdges(room);
     const windows = room.openings.filter((o) => o.kind === 'window').sort((a, b) => b.widthM - a.widthM);
     const spots: Array<{ edge: PlanEdge; t: number }> = [];
     for (const window of windows.slice(0, Math.max(1, wanted))) {
@@ -221,7 +221,7 @@ export function radiatorWallSpot(plan: FloorPlan, point: TechnicalPoint): { room
   const room = radiatorRoom(plan, point);
   if (!room) return null;
   let best: { edge: PlanEdge; s: number; distance: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
+  for (const edge of wallEdges(room)) {
     const s = Math.max(0, Math.min(edge.length, (point.position.x - edge.a.x) * edge.dir.x + (point.position.z - edge.a.z) * edge.dir.z));
     const distance = Math.hypot(point.position.x - (edge.a.x + edge.dir.x * s), point.position.z - (edge.a.z + edge.dir.z * s));
     if (!best || distance < best.distance) best = { edge, s, distance };

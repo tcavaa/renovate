@@ -17,6 +17,8 @@ import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorStepHref } from '@/lib/calculator/steps';
+import { HOME_STATES } from '@/lib/calculator/constants';
+import { buildsPartitions } from '@/lib/design/partitions';
 import { useProjectId } from '@/components/projects/ProjectGate';
 
 /**
@@ -60,6 +62,9 @@ export default function CalculatorPlanPage() {
     );
   }
 
+  // A black frame builds its partition walls, and asks which of them already stand.
+  const wallBuilding = buildsPartitions(HOME_STATES[homeState].includedPhases);
+
   const handleStart = () => {
     if (rooms.length === 0) {
       setError(t.calculator.needRoomsFirst);
@@ -94,9 +99,10 @@ export default function CalculatorPlanPage() {
         <div id="rooms-list" className="container pb-10 lg:contents">
           <PlanWorkspace
             store={useCalculatorPlanStore}
-            tools={['select', 'pan', 'wall', 'room', 'door', 'window']}
+            tools={['select', 'pan', 'wall', 'room', 'divider', 'door', 'window']}
             layerKeys={['walls', 'openings', 'dimensions']}
             bleed={FLOW_BOARD_BLEED}
+            wallBuilding={wallBuilding}
             onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
           />
           <FlowPanel className="mt-6 lg:mt-0">
@@ -104,6 +110,7 @@ export default function CalculatorPlanPage() {
               roomPart={actions.selectedRoomPart}
               plan={plan}
               electrical={electrical}
+              wallBuilding={wallBuilding}
               selection={selection && selection.kind !== 'room' ? selection : null}
               actions={{
                 updateWall: actions.updateWall,
@@ -125,6 +132,7 @@ export default function CalculatorPlanPage() {
                 removeElectrical: actions.removeElectricalPoint,
                 updateRoom: actions.updateRoom,
                 selectRoomPart: actions.selectRoomPart,
+                setRoomWhole: actions.setRoomWhole,
                 resizeRoom: actions.resizeRoom,
                 removeRoom: actions.removeRoom,
               }}
@@ -137,7 +145,8 @@ export default function CalculatorPlanPage() {
                 actions.selectElement(id ? { kind: 'room', id } : null);
               }}
               actions={{ updateRoom: actions.updateRoom,
-                selectRoomPart: actions.selectRoomPart, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
+                selectRoomPart: actions.selectRoomPart,
+                setRoomWhole: actions.setRoomWhole, resizeRoom: actions.resizeRoom, removeRoom: actions.removeRoom }}
               onAddRectangle={(rect, type) => {
                 const id = actions.addRectangleRoom(rect, type);
                 if (id) actions.setFocusRoom(id);

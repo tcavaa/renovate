@@ -20,6 +20,11 @@ export interface CalculatorBoard {
   finishes: SurfaceFinish[];
 }
 
+/** The plan on a project's calculator board, or null — what its partition walls are measured off (`boardPartitionCounts`). */
+export function calculatorBoardPlan(project: Pick<Project, 'calculatorBoard'>): FloorPlan | null {
+  return ((project.calculatorBoard as Partial<CalculatorBoard> | null)?.plan ?? null) as FloorPlan | null;
+}
+
 /** How far the calculator got, and the page last open (`lib/flow/resume`). */
 export interface CalculatorProgress {
   step: number;

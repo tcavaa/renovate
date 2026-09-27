@@ -126,7 +126,10 @@ give a private room a second door from its neighbour). The front door prefers ha
 room > kitchen. The AI path starts from this inference too (`aiPlan.ts` runs `deriveOpenings`)
 and then replaces each room's openings with the ones read off the drawing
 (`applyReadOpenings`); a room with none read keeps the inferred ones, and a read opening more
-than 1.2 m from a wall is dropped.
+than 1.2 m from a wall is dropped. Two rooms a room separator divides are open onto each other:
+no door is hung between them, a private room open onto another is reached through it, and
+neither counts as sealed in; windows go on walls only, never on a separator's open edge
+([plan-board.md](plan-board.md#room-separators-libdesignseparatorsts)).
 
 ## Tests
 

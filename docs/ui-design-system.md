@@ -21,7 +21,7 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 | `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`) |
 | `components/layout/*` | `Header` (`HEADER_HEIGHT_CLASS`), `Footer`, `AdminSidebar`, `LanguageSwitcher`, `UserMenu`, `NotFoundContent` |
 | `components/landing/*`, `components/motion/*` | the landing page; `CountUp`, `Marquee`, `RotatingBadge` |
-| `components/plan/palette.ts` | room tints, origin colours (existing ink / changed terracotta / generated teal), technical-system colours |
+| `components/plan/palette.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, blue windows, grey built walls, dashed room separators), room-type swatches for the lists, origin colours (existing ink / changed terracotta / generated teal), technical-system colours |
 
 ## Rules
 
@@ -66,9 +66,10 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   character left the viewer standing still.
 - **Build-mode surfaces** (the eight-step flow and the studio) use rounded panels
   (`rounded-[12px]`…`[20px]` arbitrary values, since the theme's radius scale is collapsed),
-  frosted white bars and big icon tiles with labels; room tints, origin colours (existing
-  ink / changed terracotta / generated teal) and technical-system colours live in
-  `components/plan/palette.ts`. The editorial site outside the flow keeps sharp corners.
+  frosted white bars and big icon tiles with labels; the plan itself reads like an
+  architect's drawing — black walls, white floors, red doors, blue windows — and the board's
+  colours, the room-type swatches, origin colours (existing ink / changed terracotta / generated
+  teal) and technical-system colours live in `components/plan/palette.ts`. The editorial site outside the flow keeps sharp corners.
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
 - **Corners are sharp outside the build mode.** The Tailwind radius scale is collapsed to
@@ -102,9 +103,11 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   float over it where the reference puts them: `FlowBar` along the top — the way back as an
   arrow, the step's number and title (a click opens its subtitle and, on the design's steps,
   the five `StageBrief` lines), the step's own actions, the way on; the board's tools down the
-  left (`PlanToolTiles`, vertical); what the tool in hand can be told (the wall's shape and
-  thickness) along the bottom with the hint over it, next to any tray of the page's own
-  (`dock`: the technical kinds); the area in the bottom-left corner; the
+  left (`PlanToolTiles`, vertical); what the tool in hand can be told (the wall's shape — a
+  line, a square, a room separator — and its thickness, compact and side by side in one row)
+  along the bottom with the hint over it, next to any tray of the page's own (`dock`: the
+  technical kinds); the area in the bottom-left corner, and over it, in a black frame, the
+  legend of the walls to build and the ones already built; the
   layers and the zoom in a column at the bottom right (`PlanViewControls`); the step's cards
   in `FlowPanel` down the right, scrolling inside itself. `PlanToolbar` is those three parts
   in one row, as before, for everything else. **Whatever floats over the sheet says which edge

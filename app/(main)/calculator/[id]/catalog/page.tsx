@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
-import { RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
+import { MIN_LISTED_WALL_M, RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
 import { RoomRow } from '@/components/calculator/RoomRow';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -25,6 +25,7 @@ import type { Category, Product } from '@/lib/db/schema';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import { roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, suggestedQuantity } from '@/lib/calculator/quantities';
 import { calculatorStepHref } from '@/lib/calculator/steps';
+import { openNeighbours } from '@/lib/design/separators';
 import { useProjectId } from '@/components/projects/ProjectGate';
 
 const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ''));
@@ -93,16 +94,20 @@ export default function CatalogStepPage() {
   const finishes = room ? roomFinishesOf(selectedProducts, room) : null;
   const oneByOne = !!room && !!finishes && (finishes.byWall ? true : finishes.walls ? false : !!perWall[room.id]);
   const wallAreas = room ? roomWallAreasM2(room) : [];
+  // The walls the list offers: not a room separator's open edge, nor a sliver (`MIN_LISTED_WALL_M`).
+  const wallLengths = room ? roomWalls(room) : [];
   // What the grid is choosing for, as the room has it: a second floor product only once there
   // is a first, one wall only while the walls are chosen one by one.
   const aim: FinishTarget =
     target.surface === 'floor'
       ? { surface: 'floor', slot: target.slot === 1 && (finishes?.floor.length ?? 0) > 0 ? 1 : 0 }
       : oneByOne
-        ? { surface: 'wall', wall: target.wall != null && target.wall < wallAreas.length ? target.wall : 0 }
+        ? { surface: 'wall', wall: target.wall != null && (wallLengths[target.wall] ?? 0) >= MIN_LISTED_WALL_M ? target.wall : Math.max(0, wallLengths.findIndex((l) => l >= MIN_LISTED_WALL_M)) }
         : { surface: 'wall', wall: null };
   const surface: FinishSurface = aim.surface;
   const aimed = !finishes ? null : aim.surface === 'floor' ? (finishes.floor[aim.slot]?.[1] ?? null) : aim.wall == null ? (finishes.walls?.[1] ?? null) : (finishes.byWall?.[aim.wall] ?? null);
+  // The rooms this one opens onto across a room separator: it is one part of an open space.
+  const opensOnto = room && boardPlan ? openNeighbours(boardPlan, room.id) : [];
   // The room's own outline on the board, edge i being wall i, else its rectangle.
   const drawn = room ? boardPlan?.rooms.find((r) => r.id === room.id)?.polygon : undefined;
   const outline = !room ? [] : drawn && drawn.length === roomWalls(room).length ? drawn : [{ x: 0, z: 0 }, { x: room.width, z: 0 }, { x: room.width, z: room.length }, { x: 0, z: room.length }];
@@ -242,6 +247,7 @@ export default function CatalogStepPage() {
                   <p className="mt-1 text-xs text-ink-muted">
                     {roomTypeLabel(t, room.type)} · {t.calculator.summaryFloor} {formatM2(room.floorM2)} · {t.calculator.summaryWalls} {formatM2(room.wallM2)}
                   </p>
+                  {opensOnto.length > 0 && <p className="mt-1 text-xs text-ink-muted">{fill(t.calculator.opensOnto, { rooms: opensOnto.map((r) => r.name).join(', ') })}</p>}
                 </div>
 
                 {/* The room's floor and walls, and which row of them the grid is choosing for. */}

@@ -25,6 +25,7 @@ import {
   type Size3,
 } from './catalog';
 import {
+  isOpenEdge,
   pointInPolygon,
   pointOnEdge,
   polygonBounds,
@@ -201,12 +202,14 @@ function resolvePose(
   options: { exact?: boolean; anchors?: TechnicalAnchor[] } = {}
 ): Pose | null {
   const rule = archetype.placement;
+  // A room separator is no wall: nothing stands against it, runs along it or hangs on it.
+  const walled = edges.filter((e) => !isOpenEdge(room, e.index));
 
   switch (rule.type) {
     case 'wall':
-      return placeAgainstWall(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? []);
+      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? []);
     case 'wall-run':
-      return placeWallRun(archetype, room, edges, occupied, rule.prefer, rule.clearanceM, options.anchors ?? []);
+      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? []);
     case 'center':
       return placeCentre(archetype, room, occupied);
     case 'relative':
@@ -216,7 +219,7 @@ function resolvePose(
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
-      return placeOnWall(archetype, index, room, edges, rule.heightM);
+      return placeOnWall(archetype, index, room, walled, rule.heightM);
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':

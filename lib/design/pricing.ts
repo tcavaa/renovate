@@ -33,7 +33,7 @@ import {
   type EstimateOptions,
 } from '@/lib/calculator/materials';
 import type { HomeState, Room, WorkChoices } from '@/lib/calculator/types';
-import { wallLength, wallsBoundingRoom } from './walls';
+import { partitionArea } from './partitions';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
 import { alreadyHave, defaultExistingForHomeState, EXISTING_KEYS, HAVE_NOTHING, type AlreadyHave, type ExistingKey } from './existing';
@@ -558,25 +558,6 @@ export function countDoors(plan: FloorPlan): number {
     }
   }
   return doors;
-}
-
-/**
- * The partition walls, in m²: every wall with a room on both sides, and every wall standing
- * free, at its own height. Nothing when the plan has no walls — the estimate then works it out
- * from the rooms, like the calculator does.
- */
-export function partitionArea(plan: FloorPlan): { partitionM2?: number } {
-  const walls = plan.walls ?? [];
-  if (walls.length === 0) return {};
-  const bounding = plan.rooms.map((room) => wallsBoundingRoom(walls, room));
-  const fallbackHeight = plan.wallHeightM ?? (plan.rooms.length > 0 ? plan.rooms.reduce((s, r) => s + r.heightM, 0) / plan.rooms.length : 2.7);
-  let area = 0;
-  for (const wall of walls) {
-    const sides = bounding.filter((set) => set.has(wall.id)).length;
-    if (sides === 1) continue;
-    area += wallLength(wall) * (wall.heightM ?? fallbackHeight);
-  }
-  return { partitionM2: round2(area) };
 }
 
 /**

@@ -78,8 +78,11 @@ column, as the flow uses it, is [project-flow.md §6](project-flow.md); in short
   choices, progress }` — migration 0009), **`calculatorBoard`** (`{ plan, floorPlanUrl,
   finishes }` — 0011);
 - the design: `mode`, `styleId`, `budgetGel`, `floorPlanUrl`, **`plan`** (rooms + walls,
-  columns, beams, technical), **`scene`** (items, finishes incl. per-wall and zones, electrical,
-  style profile, excluded, quantities, progress), **`versions`** (`DesignVersion[]` — 0006);
+  columns, beams, technical — a wall may be `built` (already standing in a black frame) or a
+  room `separator` (thickness 0, not a wall); a room carries its `open` edges and `keepWhole`;
+  all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`** (items, finishes
+  incl. per-wall and zones, electrical, style profile, excluded, quantities, progress),
+  **`versions`** (`DesignVersion[]` — 0006);
 - concurrency: **`calculatorRev` / `designRev`** (each half's revision; a save from an older one
   is refused with 409 — 0012) and **`calculatorSaveId` / `designSaveId`** (the id of each
   half's last save — 0013);
