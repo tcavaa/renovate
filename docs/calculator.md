@@ -35,7 +35,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/api/projectSave.ts` | server: `repriceCalculatorPicks` (prices and per-room quantities recomputed from the catalogue), `ownProject` |
 | `app/api/projects/route.ts` | `POST` = the calculation's save (see [project-flow.md §10](project-flow.md)) |
 | `app/api/calculator/rates/` | the rate book API (public GET, admin writes); `/admin/rates` edits it (`components/admin/RatesTable.tsx`) |
-| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave`, `RoomFinishCards` (a room's floor and walls on the catalogue step) |
+| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave`, `RoomFinishCards` (a room's floor and walls on the catalogue step), `PlanGlyphs` (the little plans beside its rooms and walls) |
 | `lib/validations/calculatorSave.schema.ts`, `project.schema.ts`, `rate.schema.ts`, `room.schema.ts` | the save payload, `calculatorEdits`, a rate row, a room (and its studio split) |
 
 ## Data flow
@@ -100,8 +100,11 @@ was the quantity. It was an extra step and a confusing one: everything it asked 
 the rooms. So:
 
 **The page.**
-- The catalogue lists the rooms (`SideList` "rooms — floors and walls", with how many of the
-  two are chosen), and a room shows two cards, **floor** and **walls**
+- The rooms stand in a row under the step's head (`ScrollRow`, sideways on a narrow screen),
+  each with the flat drawn small — every room's outline where it lies on the calculator's
+  board, else its rectangle where the calculator placed it — and itself filled in on it
+  (`RoomGlyph`), and how many of its two surfaces are chosen. The side column keeps the "other
+  products" only. The room open shows two cards, **floor** and **walls**
   (`components/calculator/RoomFinishCards.tsx`). Each row in them is something the product
   grid under them can choose for, and the one in hand is marked and named beside the category
   tabs ("choosing for: wall 2 · 18.76 m²"); a chosen product clicked again takes it off that
@@ -112,8 +115,8 @@ the rooms. So:
   over the whole floor; the same product in both rows is that product over the whole floor.
 - **The walls** are the **whole room** in one product, or **per wall** — a switch at the
   card's head. Per wall, each of the room's walls is a row: a little drawing of the room with
-  that wall picked out (drawn as the board draws it, x across and z down), its number and its
-  m², and the product on it or nothing. Switching to per wall keeps the room's product on
+  that wall picked out (`WallGlyph`; both drawings as the board draws, x across and z down), its
+  number and its m², and the product on it or nothing. Switching to per wall keeps the room's product on
   every wall; switching back keeps the product that covers the most wall (the first wall's on
   a tie). Until a wall is chosen, "per wall" is only the page's state.
 - A row is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
