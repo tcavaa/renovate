@@ -1812,7 +1812,7 @@ const persistedSchema = z.object({
     .object({
       furniture: z.array(z.object({ roomId: z.string(), productId: z.number().int() })),
       productIds: z.array(z.number().int()),
-      roomProducts: z.array(z.object({ roomId: z.string(), productId: z.number().int(), surface: z.enum(['floor', 'wall']).optional() })).optional(),
+      roomProducts: z.array(z.object({ roomId: z.string(), productId: z.number().int(), surface: z.enum(['floor', 'wall']).optional(), share: z.number().min(0).max(1).optional(), walls: z.array(z.number().int().min(0)).optional() })).optional(),
     })
     .nullable(),
   styleId: z.enum(['modern', 'scandinavian', 'industrial', 'vintage']),

@@ -50,4 +50,25 @@ describe('the calculator’s room finishes in 3D', () => {
     const finishes = applyFinishPicks([], plan, picksFromCalculator({ 'wall-tiles_room:bath': wallTile }, {}), catalog);
     expect(finishes.map((f) => `${f.roomId}:${f.surface}:${f.product?.productId}`)).toEqual(['bath:wall:11']);
   });
+
+  it('go on the walls they were chosen for one by one, and a floor two products share goes in the one with more of it', () => {
+    const paint: SelectedProduct = { ...wallTile, productId: 12, categorySlug: 'paint', textureUrl: '/paint.jpg', specs: { surfaces: ['wall'] }, walls: [0, 2, 3] };
+    const tile: SelectedProduct = { ...wallTile, walls: [1] };
+    const floor = (productId: number, share: number): SelectedProduct => ({ ...wallTile, productId, categorySlug: 'floor-tiles', surface: 'floor', textureUrl: `/floor-${productId}.jpg`, specs: { surfaces: ['floor'] }, share });
+    const selected = { 'paint_room:bath/walls12': paint, 'wall-tiles_room:bath/walls11': tile, 'floor-tiles_room:bath': floor(21, 0.3), 'floor-tiles_room:bath/floor2': floor(22, 0.7) };
+    const picks = picksFromCalculator(selected, {});
+    expect(picks.roomProducts).toContainEqual({ roomId: 'bath', productId: 12, surface: 'wall', walls: [0, 2, 3] });
+    expect(picks.roomProducts).toContainEqual({ roomId: 'bath', productId: 21, surface: 'floor', share: 0.3 });
+    const finishes = applyFinishPicks([], plan, picks, Object.values(selected).map(catalogProductFromPick));
+    const walls = finishes.filter((f) => f.surface === 'wall').map((f) => [f.wallIndex, f.product?.productId]);
+    expect(walls.sort((a, b) => Number(a[0]) - Number(b[0]))).toEqual([
+      [0, 12],
+      [1, 11],
+      [2, 12],
+      [3, 12],
+    ]);
+    // Each wall is bought by its own area: two metres of wall 2.7 m high.
+    expect(finishes.find((f) => f.wallIndex === 1)?.product?.qty).toBe(5.4);
+    expect(finishes.filter((f) => f.surface === 'floor').map((f) => f.product?.productId)).toEqual([22]);
+  });
 });

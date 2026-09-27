@@ -15,7 +15,7 @@
  * ping-pong that grew a sliver room per round until React gave up ("maximum update depth").
  */
 
-import { calculatorRoomsFromPlan, planFromCalculatorRooms } from '@/lib/design/planGeometry';
+import { calculatorRoomsFromPlan, edgeLengthsM, planFromCalculatorRooms } from '@/lib/design/planGeometry';
 import { ensureWalls } from '@/lib/design/walls';
 import type { FloorPlan } from '@/lib/design/types';
 import type { Room } from './types';
@@ -35,7 +35,7 @@ export function sameCalculatorRooms(a: Room[], b: Room[]): boolean {
     a.length === b.length &&
     a.every((r, i) => {
       const c = b[i];
-      return !!c && c.id === r.id && c.width === r.width && c.length === r.length && c.height === r.height && c.type === r.type && c.nameKa === r.nameKa && c.x === r.x && c.z === r.z && JSON.stringify(c.split ?? null) === JSON.stringify(r.split ?? null) && JSON.stringify(c.parts ?? null) === JSON.stringify(r.parts ?? null);
+      return !!c && c.id === r.id && c.width === r.width && c.length === r.length && c.height === r.height && c.type === r.type && c.nameKa === r.nameKa && c.x === r.x && c.z === r.z && JSON.stringify(c.split ?? null) === JSON.stringify(r.split ?? null) && JSON.stringify(c.parts ?? null) === JSON.stringify(r.parts ?? null) && JSON.stringify(c.walls ?? null) === JSON.stringify(r.walls ?? null);
     })
   );
 }
@@ -51,4 +51,24 @@ export function reconcileCalculatorPlan(plan: FloorPlan | null, rooms: Room[]): 
   if (!nextPlan) return { plan, rooms };
   const fromPlan = calculatorRoomsFromPlan(nextPlan);
   return { plan: nextPlan, rooms: sameCalculatorRooms(fromPlan, rooms) ? rooms : fromPlan };
+}
+
+/**
+ * The rooms with each wall's length read off the board where a room has none yet — a
+ * calculation from before the rooms carried their walls, opened past its plan step (the plan
+ * step reads them with everything else). The walls are the board's own, in its order, so a wall
+ * chosen on its own is the same wall on the board and in 3D. The same array when there is
+ * nothing to fill in.
+ */
+export function withBoardWalls(rooms: Room[], plan: FloorPlan | null): Room[] {
+  if (!plan || rooms.every((r) => r.walls)) return rooms;
+  const outlines = new Map(plan.rooms.map((r) => [r.id, r.polygon]));
+  let changed = false;
+  const next = rooms.map((room) => {
+    const outline = room.walls ? null : outlines.get(room.id);
+    if (!outline || outline.length < 3) return room;
+    changed = true;
+    return { ...room, walls: edgeLengthsM(outline) };
+  });
+  return changed ? next : rooms;
 }

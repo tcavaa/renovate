@@ -17,6 +17,7 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
 import { migrateFinishPicks, withRoomFinishQuantities } from '@/lib/calculator/roomFinishes';
+import { withBoardWalls } from '@/lib/calculator/planSync';
 import { cacheIsCurrent, isDirty, markClean, markDirty, touch, type ProjectHalf } from '@/lib/flow/projectSync';
 import { picksFromScene, type SavedProjectInput } from '@/lib/projects/saved';
 import type { FloorPlan } from '@/lib/design/types';
@@ -33,11 +34,18 @@ export type LoadedFrom = 'cache' | 'server';
  * surface, counted from the room (`lib/calculator/roomFinishes`). Picks from before every room
  * took its own (the cart laid on the board by hand; a finish for the whole flat) are moved
  * onto the rooms here, once. True when anything changed.
+ *
+ * Rooms from before they carried their walls read them off the board first (`withBoardWalls`),
+ * so a wall can be chosen on its own. That is worked out, not work: it is not a change to write
+ * back, and the next save carries it.
  */
 function normalizeFinishPicks(id: number): boolean {
   const calc = useCalculatorStore.for(id);
-  const { selectedProducts, rooms } = calc.getState();
-  const next = withRoomFinishQuantities(migrateFinishPicks(selectedProducts, rooms, useCalculatorPlanStore.for(id).getState().finishes), rooms);
+  const board = useCalculatorPlanStore.for(id).getState();
+  const { selectedProducts, rooms: stored } = calc.getState();
+  const rooms = withBoardWalls(stored, board.plan);
+  if (rooms !== stored) calc.setState({ rooms });
+  const next = withRoomFinishQuantities(migrateFinishPicks(selectedProducts, rooms, board.finishes), rooms);
   if (next === selectedProducts) return false;
   calc.setState({ selectedProducts: next });
   return true;

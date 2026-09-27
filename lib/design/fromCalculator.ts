@@ -11,6 +11,7 @@
 
 import type { SelectedProduct } from '@/lib/calculator/types';
 import { categorySlugFromKey, isCartKey, surfaceOfPick } from '@/lib/calculator/quantities';
+import { calculatorSurfaceFinishes, type LaidFinish } from '@/lib/calculator/roomFinishes';
 import { placeAdditional } from './autoLayout';
 import { getArchetype } from './catalog';
 import type { CatalogProduct } from './matcher';
@@ -25,10 +26,11 @@ export interface CalculatorPicks {
   productIds: number[];
   /**
    * Each room's floor and walls from the catalogue step (`lib/calculator/roomFinishes`): the
-   * product and the surface it was chosen for. A pick from before it carried its surface goes
-   * on every surface its product suits.
+   * product and the surface it was chosen for, with its share of a floor two products share or
+   * the walls it was chosen for one by one. A pick from before it carried its surface goes on
+   * every surface its product suits.
    */
-  roomProducts?: Array<{ roomId: string; productId: number; surface?: 'floor' | 'wall' }>;
+  roomProducts?: Array<{ roomId: string; productId: number; surface?: 'floor' | 'wall'; share?: number; walls?: number[] }>;
 }
 
 export function picksFromCalculator(
@@ -45,7 +47,7 @@ export function picksFromCalculator(
       .filter(([, p]) => !!p.roomId)
       .map(([key, p]) => {
         const surface = surfaceOfPick({ surface: p.surface, categorySlug: p.categorySlug ?? categorySlugFromKey(key) });
-        return { roomId: p.roomId!, productId: p.productId, ...(surface ? { surface } : {}) };
+        return { roomId: p.roomId!, productId: p.productId, ...(surface ? { surface } : {}), ...(p.share != null ? { share: p.share } : {}), ...(p.walls ? { walls: p.walls } : {}) };
       }),
   };
 }
@@ -150,27 +152,34 @@ export function applyFinishPicks(
   const byId = new Map(catalog.map((p) => [p.id, p]));
   let next = [...finishes];
   const perRoom = new Set<string>();
-  const apply = (room: FloorPlan['rooms'][number], surface: 'floor' | 'wall', product: CatalogProduct) => {
+  const lay = (room: FloorPlan['rooms'][number], surface: 'floor' | 'wall', laid: SurfaceFinish[]) => {
     // A tile picked in the studio outranks the calculator's — it was chosen later, by eye.
     if (next.some((f) => f.roomId === room.id && f.surface === surface && f.origin === 'studio')) return;
     next = next.filter((f) => !(f.roomId === room.id && f.surface === surface));
-    next.push(finishFromProduct(room, surface, product, 'calculator'));
+    next.push(...laid);
   };
+  const apply = (room: FloorPlan['rooms'][number], surface: 'floor' | 'wall', product: CatalogProduct) => lay(room, surface, [finishFromProduct(room, surface, product, 'calculator')]);
 
   // Finishes chosen for one room go on that room, whatever kind of room it is: the person
   // picked this tile for this bathroom and that paint for that bedroom on purpose — on the
   // surface it was picked for, not on every one the product would suit (a wall tile that
-  // could be laid on a floor stays on the walls).
+  // could be laid on a floor stays on the walls) — and on the walls it was chosen for, or
+  // over its share of the floor (`calculatorSurfaceFinishes`).
+  const chosen = new Map<string, { room: FloorPlan['rooms'][number]; surface: 'floor' | 'wall'; laid: LaidFinish[] }>();
   for (const pick of picks.roomProducts ?? []) {
     const product = byId.get(pick.productId);
     const room = plan.rooms.find((r) => r.id === pick.roomId);
     if (!product || !room) continue;
     for (const surface of pick.surface ? [pick.surface] : (['floor', 'wall'] as const)) {
       if (!isSurfaceProduct(product, surface)) continue;
-      apply(room, surface, product);
-      perRoom.add(`${room.id}:${surface}`);
+      const key = `${room.id}:${surface}`;
+      const entry = chosen.get(key) ?? { room, surface, laid: [] };
+      entry.laid.push({ product, share: pick.share, walls: pick.walls });
+      chosen.set(key, entry);
+      perRoom.add(key);
     }
   }
+  for (const { room, surface, laid } of chosen.values()) lay(room, surface, calculatorSurfaceFinishes(room, surface, laid));
   // Whole-flat picks fill in the rest by wetness, skipping surfaces a room already chose.
   for (const id of picks.productIds) {
     const product = byId.get(id);

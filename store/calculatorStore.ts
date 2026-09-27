@@ -6,7 +6,7 @@ import { safeLocalStorage } from '@/lib/flow/storage';
 import { projectScopedStore } from './projectScope';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
-import { withRoomFinish, withRoomFinishQuantities, type FinishSurface } from '@/lib/calculator/roomFinishes';
+import { withFloorProduct, withFloorShare, withRoomFinish, withRoomFinishQuantities, withSameFinish, withWallProduct, withWallsOneByOne, type FinishSurface } from '@/lib/calculator/roomFinishes';
 import { CALCULATOR_STEPS, fromSevenSteps } from '@/lib/calculator/steps';
 import { tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
 import { effectiveExcluded } from '@/lib/summary/calculatorSheet';
@@ -98,12 +98,22 @@ interface CalculatorStore extends CalculatorState {
   setStep: (step: CalculatorStepNumber) => void;
   selectProduct: (key: string, product: SelectedProduct) => void;
   /**
-   * The floor or the walls of each of `roomIds` in `product` — one product per room and
-   * surface, whatever category it is from — or that surface of theirs cleared with null
-   * (`lib/calculator/roomFinishes`). The quantity is each room's own area in the product's
-   * units, worked out here and again by the server; `product` carries its `categorySlug`.
+   * The whole floor or all the walls of each of `roomIds` in `product`, whatever category it
+   * is from — or that surface of theirs cleared with null (`lib/calculator/roomFinishes`). The
+   * quantity is each room's own area in the product's units, worked out here and again by the
+   * server; `product` carries its `categorySlug`. The finishes below it the same way.
    */
   setRoomFinish: (roomIds: string[], surface: FinishSurface, product: SelectedProduct | null) => void;
+  /** A room's floor: its first product (`slot` 0) or the second sharing it (1), or taken off with null. */
+  setFloorProduct: (roomId: string, slot: 0 | 1, product: SelectedProduct | null) => void;
+  /** A floor in two products: the first one's share of it, 0–1. */
+  setFloorShare: (roomId: string, share: number) => void;
+  /** One wall of a room (its index, `roomWalls`) in `product`, or with nothing on it. */
+  setWallProduct: (roomId: string, wallIndex: number, product: SelectedProduct | null) => void;
+  /** A room's walls chosen one by one, or as one product for the whole room. */
+  setWallsOneByOne: (roomId: string, oneByOne: boolean) => void;
+  /** A room's floor or walls, as they are, into other rooms. */
+  copyRoomFinish: (fromRoomId: string, toRoomIds: string[], surface: FinishSurface) => void;
   removeProduct: (key: string) => void;
   addFurniture: (roomId: string, product: SelectedProduct) => void;
   removeFurniture: (roomId: string, productId: number) => void;
@@ -242,10 +252,17 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
           selectedProducts: { ...s.selectedProducts, [key]: product },
         })),
       setRoomFinish: (roomIds, surface, product) => set((s) => ({ selectedProducts: withRoomFinish(s.selectedProducts, s.rooms, roomIds, surface, product) })),
+      setFloorProduct: (roomId, slot, product) => set((s) => ({ selectedProducts: withFloorProduct(s.selectedProducts, s.rooms, roomId, slot, product) })),
+      setFloorShare: (roomId, share) => set((s) => ({ selectedProducts: withFloorShare(s.selectedProducts, s.rooms, roomId, share) })),
+      setWallProduct: (roomId, wallIndex, product) => set((s) => ({ selectedProducts: withWallProduct(s.selectedProducts, s.rooms, roomId, wallIndex, product) })),
+      setWallsOneByOne: (roomId, oneByOne) => set((s) => ({ selectedProducts: withWallsOneByOne(s.selectedProducts, s.rooms, roomId, oneByOne) })),
+      copyRoomFinish: (fromRoomId, toRoomIds, surface) => set((s) => ({ selectedProducts: withSameFinish(s.selectedProducts, s.rooms, fromRoomId, toRoomIds, surface) })),
       removeProduct: (key) =>
         set((s) => {
           const { [key]: _removed, ...rest } = s.selectedProducts;
-          return { selectedProducts: rest };
+          // What is left of that room's floor or walls is put back in shape and counted again:
+          // the second of two floor products takes the whole floor.
+          return { selectedProducts: withRoomFinishQuantities(rest, s.rooms) };
         }),
       addFurniture: (roomId, product) =>
         set((s) => ({
@@ -315,8 +332,10 @@ const selectedProductSchema = z.object({
   categorySlug: z.string().optional(),
   roomId: z.string().optional(),
   excluded: z.boolean().optional(),
-  // A finish in the cart carries what the placement board needs (see `SelectedProduct`).
+  // A room's finish carries what the board and the studio need to show it (see `SelectedProduct`).
   surface: z.enum(['floor', 'wall']).optional(),
+  share: z.number().min(0).max(1).optional(),
+  walls: z.array(z.number().int().min(0)).optional(),
   slug: z.string().optional(),
   textureUrl: z.string().nullable().optional(),
   colorHex: z.string().nullable().optional(),

@@ -1,8 +1,9 @@
 # Renovation calculator
 
 The calculator product (`/calculator`): pick the home's condition, draw or upload the rooms, get
-materials and labour from the rate book, choose a floor and a wall product for every room and
-products for the whole flat, add furniture, and read the summary. Read this before touching
+materials and labour from the rate book, choose every room's floor (one product or two sharing
+it) and walls (the whole room or wall by wall) and products for the whole flat, add furniture,
+and read the summary. Read this before touching
 `lib/calculator/`, `lib/summary/`, `store/calculatorStore.ts`, `components/calculator/`,
 `app/(main)/calculator/` or the rate book.
 
@@ -21,10 +22,10 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, wet rooms), `ROOM_POINTS`, `RETIRED_RATE_KEYS`, `PHASE_NAMES` |
 | `lib/calculator/rates.ts` | rows of the `rates` table → a `RateBook` (`rateBookFromRows`, `defaultRateRows`, `DEFAULT_RATE_BOOK`, `LABOUR_PHASE`) |
 | `lib/calculator/types.ts` | `HomeState`, `Room`, `SelectedProduct`, `WorkChoices`, … |
-| `lib/calculator/quantities.ts` | selection keys (`selectionKey`, `categorySlugFromKey`, `roomIdFromKey`), `suggestedQuantity`, `roomFinishQuantity` / `finishPickQuantity` |
-| `lib/calculator/roomFinishes.ts` | a floor and a wall per room: `withRoomFinish`, `withRoomFinishQuantities`, `roomsLike`, `migrateFinishPicks`, `boardFinishesFromPicks` |
+| `lib/calculator/quantities.ts` | selection keys (`selectionKey`, `categorySlugFromKey`, `roomIdFromKey`, `partFromKey`), `suggestedQuantity`, a room's walls (`roomWalls`, `roomWallAreasM2`), `roomFinishAreaM2` / `roomFinishQuantity` / `finishPickQuantity` |
+| `lib/calculator/roomFinishes.ts` | each room's floor and walls: `roomFinishesOf`, `withRoomFinish`, `withFloorProduct`, `withFloorShare`, `withWallProduct`, `withWallsOneByOne`, `withSameFinish`, `normalizeRoomFinishes`, `withRoomFinishQuantities`, `roomsLike`, `migrateFinishPicks`, `boardFinishesFromPicks` / `calculatorSurfaceFinishes` |
 | `lib/calculator/steps.ts` | step URLs (`calculatorStepHref`, `calculatorEntryHref`, `calculatorStepFromPath`), `fromSevenSteps` |
-| `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`) |
+| `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`); `withBoardWalls` for rooms saved without their walls |
 | `lib/calculator/layout.ts` | `findFreeSpot` for rooms typed by size |
 | `lib/calculator/saveProject.ts` | the client save (`saveCalculatorProject`: queue, `baseRev`, save ids, board finishes) |
 | `lib/summary/calculatorSheet.ts`, `lib/summary/quantity.ts` | the estimate and picks as `BudgetLine`s with the person's edits; the quantity dropdown |
@@ -34,7 +35,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/api/projectSave.ts` | server: `repriceCalculatorPicks` (prices and per-room quantities recomputed from the catalogue), `ownProject` |
 | `app/api/projects/route.ts` | `POST` = the calculation's save (see [project-flow.md §10](project-flow.md)) |
 | `app/api/calculator/rates/` | the rate book API (public GET, admin writes); `/admin/rates` edits it (`components/admin/RatesTable.tsx`) |
-| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave` |
+| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave`, `RoomFinishCards` (a room's floor and walls on the catalogue step) |
 | `lib/validations/calculatorSave.schema.ts`, `project.schema.ts`, `rate.schema.ts`, `room.schema.ts` | the save payload, `calculatorEdits`, a rate row, a room (and its studio split) |
 
 ## Data flow
@@ -49,8 +50,10 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
    `reconcileCalculatorPlan` → `setRooms` after every edit; "გამოთვლის დაწყება" → `setCalculated`.
 4. `materials/` — `useRateBook()` → `calculateMaterials` / `calculateWorkerCosts` with the
    person's `choices` (`WorkChoicesPicker` → `setChoices`).
-5. `catalog/` — `setRoomFinish` per room and surface; `selectProduct('<slug>_global', suggestedQuantity)`
-   for whole-flat products. `furniture/` — `addFurniture` per room.
+5. `catalog/` — a room's floor through `setFloorProduct` / `setFloorShare`, its walls through
+   `setRoomFinish` (the whole room) or `setWallProduct` / `setWallsOneByOne` (wall by wall);
+   `selectProduct('<slug>_global', suggestedQuantity)` for whole-flat products. `furniture/` —
+   `addFurniture` per room.
 6. `summary/` — `buildProjectSummary(…, book, { choices })` → `calculatorSheet(…, { rooms, edits,
    storeOf })` → `BudgetSheet`; save, order (`CheckoutDialog`), plan PDF, "see it in 3D".
 7. `CalculatorAutosave` (drafts) and the summary's save → `saveCalculatorProject` →
@@ -88,7 +91,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   with the rooms, and the id stays. `setRooms` prunes the furniture of rooms that vanished
   and re-counts or drops their floors and walls.
 
-### Step 4: a floor and a wall for every room (`lib/calculator/roomFinishes.ts`)
+### Step 4: every room's floor and walls (`lib/calculator/roomFinishes.ts`)
 
 Until 26 September the catalogue was a **cart**: floor and wall materials went in under
 `<slug>_item:<productId>` with no quantity, and a fifth step, **placement**, had the person lay
@@ -98,45 +101,91 @@ the rooms. So:
 
 **The page.**
 - The catalogue lists the rooms (`SideList` "rooms — floors and walls", with how many of the
-  two are chosen), and a room shows two slots, **floor** and **walls**.
-- A slot is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
-  `per_m2_wall`). The usual one is offered first (`usualFinishCategory`: floor tiles for a
-  bathroom, toilet, kitchen or balcony floor, laminate for the rest; wall tiles for bathroom and
-  toilet walls, paint for the rest), and a bathroom or toilet sees products marked
-  `specs.wet` first (a kitchen is not reordered).
+  two are chosen), and a room shows two cards, **floor** and **walls**
+  (`components/calculator/RoomFinishCards.tsx`). Each row in them is something the product
+  grid under them can choose for, and the one in hand is marked and named beside the category
+  tabs ("choosing for: wall 2 · 18.76 m²"); a chosen product clicked again takes it off that
+  row.
+- **The floor** is one product, or two: "second product" adds a row, the product chosen for it
+  takes half the floor, and a slider under the two (0–100 %, in fives) splits it, each side
+  showing its share and its m². Never more than two. Taking the first off leaves the second
+  over the whole floor; the same product in both rows is that product over the whole floor.
+- **The walls** are the **whole room** in one product, or **per wall** — a switch at the
+  card's head. Per wall, each of the room's walls is a row: a little drawing of the room with
+  that wall picked out (drawn as the board draws it, x across and z down), its number and its
+  m², and the product on it or nothing. Switching to per wall keeps the room's product on
+  every wall; switching back keeps the product that covers the most wall (the first wall's on
+  a tie). Until a wall is chosen, "per wall" is only the page's state.
+- A row is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
+  `per_m2_wall`), opening on the category of what the row has. The usual one is offered first
+  (`usualFinishCategory`: floor tiles for a bathroom, toilet, kitchen or balcony floor,
+  laminate for the rest; wall tiles for bathroom and toilet walls, paint for the rest), and a
+  bathroom or toilet sees products marked `specs.wet` first (a kitchen is not reordered).
+- The "chosen" column names where each pick goes: the room, and its walls ("walls 1, 3, 4") or
+  its share of the floor ("floor 70%").
 - "Other products" (sockets, lights, sanitary ware, doors, windows…) are one product for the
   whole flat, as before (`<slug>_global`, `suggestedQuantity`).
 
-**One pick per room and surface.**
-- Stored under the room's own key, `<slug>_room:<roomId>` (`selectionKey`), with `roomId` and
-  `surface` on the pick.
-- `setRoomFinish(roomIds, surface, product | null)` → `withRoomFinish`: whatever that room had
-  for that surface goes, whatever category it was from; null clears it.
-- **"The same in N more rooms like this"** copies a room's choice to the rooms of the same kind
-  of work that have nothing chosen (`roomsLike` / `finishGroup`: tiled floor, laid floor,
-  tiled wall, painted wall). It never overwrites.
+**How a room's picks are kept.**
+- Under the room's own key, `<slug>_room:<roomId>` (`selectionKey`), with `roomId` and
+  `surface` on the pick. A floor's second product is `…/floor2`, and both carry their `share`
+  of the floor, the two making 1 (one product alone has none, and covers it all). Walls chosen
+  one by one are **one pick per product**, `…/walls<productId>`, carrying the walls it is on
+  (`walls`, by index) — so a paint on three walls is one line, its tins rounded up once rather
+  than per wall.
+- Every change goes through `roomFinishes.ts` — `withRoomFinish` (the whole floor or all the
+  walls in one product; null clears the surface), `withFloorProduct`, `withFloorShare`,
+  `withWallProduct`, `withWallsOneByOne`, `withSameFinish` — and the result is put back in that
+  shape by `normalizeRoomFinishes`: at most two floor products (the first one's share stands,
+  the second has the rest), a lone second one moved up to the whole floor, a wall claimed twice
+  left to the first pick, walls the room does not have dropped, and a whole-room walls product
+  found beside walls chosen one by one spread over the walls nobody chose. The store runs it
+  after every edit and on `removeProduct`; the server runs it before it counts a save.
+- **"The same in N more rooms like this"** copies a room's floor — both products and the split —
+  or its walls product to the rooms of the same kind of work that have nothing chosen for that
+  surface (`roomsLike` / `finishGroup`: tiled floor, laid floor, tiled wall, painted wall). It
+  never overwrites. Walls chosen one by one are that room's own and are not copied.
+
+**A room's walls one by one are the board's** (`Room.walls`).
+- Each wall's length, metres, in the order of the room's outline on the calculator's board —
+  the `wallIndex` the board and the studio know that wall by — read off the board with the rest
+  of the room (`calculatorRoomsFromPlan` → `edgeLengthsM`), so it reaches the server with the
+  rooms; `sameCalculatorRooms` compares it, so the plan step writes it in.
+- A room saved before it carried them reads them off the board when the project opens
+  (`withBoardWalls`, in the loader's `normalizeFinishPicks`). That is worked out, not work: it
+  is not marked unsaved, and the next save carries it. A room with none at all is the four
+  sides of its rectangle (`roomWalls`).
 
 **The quantity is the room's** (`roomFinishQuantity` in `lib/calculator/quantities.ts`).
-- The room's floor m² or its wall m² — the estimate's own figures, perimeter × height, doors and
-  windows not taken off — in the product's units (`finishPickQuantity`): m² plus a tenth of
-  cutting waste for laminate and tiles, tins of paint by the product's coverage (8 m²/L when the
-  row says nothing), one unit per m² otherwise.
-- The server uses **the same function** with the catalogue's own unit and coverage
-  (`lib/api/projectSave.ts`, `repriceCalculatorPicks`): the figure the person saw is the figure saved. The surface comes
-  from `SURFACE_OF_SLUG` for the seeded categories, or the pick's own for one made in admin.
+- The area the pick covers (`roomFinishAreaM2`): the room's floor m² times its share; its wall
+  m² — the estimate's own figure, perimeter × height, doors and windows not taken off; or, wall
+  by wall, the sum of its walls, each its length × the room's height (`roomWallAreasM2`, gross
+  like the rest). Then in the product's units (`finishPickQuantity`): m² plus a tenth of cutting
+  waste for laminate and tiles, tins of paint by the product's coverage (8 m²/L when the row
+  says nothing), one unit per m² otherwise.
+- The server uses **the same functions** with the catalogue's own unit and coverage
+  (`lib/api/projectSave.ts`, `repriceCalculatorPicks`): it puts each pick on the surface its
+  category is for (`SURFACE_OF_SLUG` for the seeded categories, the pick's own for one made in
+  admin), runs `normalizeRoomFinishes`, and counts each pick from its room, share and walls — the
+  figure the person saw is the figure saved, and a forged share or wall list is put in shape
+  before it is priced.
 - A resized room re-counts its picks and a deleted one drops them (`withRoomFinishQuantities`,
   run by `setRooms`, `updateRoom`, `removeRoom` and on every open). A flat with no rooms at all
   is left alone — that is a flat not read yet.
 
 **Where the finishes go.**
-- **The board wears them without being told** (`boardFinishesFromPicks`): each room in its
-  chosen floor and walls. The summary's PDF draws them, and the save stores them as the board's
-  finishes. Nothing is laid by hand any more.
-- **Into 3D.** Per-room picks travel as `roomProducts` with their surface
-  (`picksFromCalculator`), and `applyFinishPicks` puts each on that surface only. A wall tile
-  that could also be laid on a floor used to land on the floor too.
-- **Studios** (kitchen + living room in one room) take one floor for the whole room — a known
-  gap.
+- **The board wears them without being told** (`boardFinishesFromPicks` →
+  `calculatorSurfaceFinishes`): each room in its floor and walls, a wall chosen on its own as
+  that wall's finish (`wallIndex`). A floor two products share is drawn in the one with the
+  larger share (see Known gaps). The summary's PDF draws them, and the save stores them as the
+  board's finishes. Nothing is laid by hand any more.
+- **Into 3D.** Per-room picks travel as `roomProducts` with their surface, `share` and `walls`
+  (`picksFromCalculator`), and `applyFinishPicks` lays them with the same
+  `calculatorSurfaceFinishes`: on the surface they were chosen for only (a wall tile that could
+  also be laid on a floor used to land on the floor too), a wall chosen on its own on that wall
+  and bought by its own area, a shared floor in its larger product.
+- **Studios** (kitchen + living room in one room) can take two floor products and a split, but
+  the split is a share of the floor, not the studio's parts — a known gap.
 
 **Picks from before** are moved onto the rooms when the project opens (`migrateFinishPicks`,
 run by the loader, written back once).
@@ -241,10 +290,14 @@ already has), the choices (`plan.technical.choices`) and the counts (points plac
 ## Selection keys
 
 **Calculator selection keys** (`selectedProducts`): `<slug>_global` is a product chosen for the
-whole flat, `<slug>_room:<roomId>` one chosen for a single room (floor and wall finishes only).
-`lib/calculator/quantities.ts` owns the format — `selectionKey`, `categorySlugFromKey`,
-`roomIdFromKey` — and a per-room snapshot also carries `roomId` so the summaries, the order
-lines and the studio can name the room. Never build or parse these strings by hand.
+whole flat, `<slug>_room:<roomId>` one chosen for a single room (floor and wall finishes only),
+and `<slug>_room:<roomId>/<part>` a room's surface in more than one product — `floor2` for a
+floor's second product, `walls<productId>` for a product over the walls it was chosen for one
+by one. What a pick covers is on the pick (`share`, `walls`); the part only keeps the keys
+apart. `lib/calculator/quantities.ts` owns the format — `selectionKey`, `categorySlugFromKey`,
+`roomIdFromKey`, `partFromKey` — and a per-room snapshot also carries `roomId` so the
+summaries, the order lines and the studio can name the room. Never build or parse these
+strings by hand.
 
 The first catalogue's cart key, `<slug>_item:<productId>` (no room, no quantity), is still read
 (`cartKey` / `isCartKey`) so old projects open; `migrateFinishPicks` moves such picks onto the
@@ -257,27 +310,39 @@ rooms when the project is loaded (see "Picks from before" above).
   work choices, phase overrides, the contingency.
 - `tests/unit/calculator/rates.test.ts` — `rateBookFromRows` (defaults, unseeded keys, inactive
   and retired rows), `defaultRateRows`.
-- `tests/unit/calculator/quantities.test.ts`, `roomFinishes.test.ts` — keys, suggested and
-  per-room quantities, groups, the migration of old picks, the board's finishes.
-- `tests/unit/calculator/planSync.test.ts`, `layout.test.ts` — rooms ⇄ board; free spots.
+- `tests/unit/calculator/quantities.test.ts`, `roomFinishes.test.ts` — keys and their parts,
+  suggested and per-room quantities, a room's walls one by one, a floor in two products and its
+  split, walls chosen one by one and the switch back, the shape every edit is put back in,
+  groups, the migration of old picks, the board's finishes.
+- `tests/unit/calculator/planSync.test.ts`, `layout.test.ts` — rooms ⇄ board, the walls read
+  off it and filled in for rooms saved without them; free spots.
 - `tests/unit/summary/calculatorSheet.test.ts`, `quantity.test.ts` — the sheet and its edits.
 - `tests/unit/store/calculatorStore.test.ts` — the seven-to-six step migration, re-counting
-  finishes when rooms change.
+  finishes when rooms change, the floor and wall actions.
+- `tests/unit/design/fromCalculator.test.ts` — the picks in 3D on their surface, their walls
+  and the larger share of a floor.
 - `tests/integration/save-routes.test.ts` (`POST /api/projects`) — ownership, pending saves,
-  repricing, per-room quantities on the server, revisions, unknown products, throttling.
+  repricing, per-room quantities on the server (shares and walls one by one included, forged
+  ones put in shape), revisions, unknown products, throttling.
 - `lib/calculator/**` is in the coverage gate ([testing.md](testing.md)).
 
 ## Known gaps
 
-- A studio room (kitchen + living room) takes one floor for the whole room in the calculator;
-  the engine prices its parts separately (`expandStudios`), the picks do not.
-- Floors and walls are chosen for whole rooms only; a feature wall or a tiled splashback is the
-  studio's job (per wall, strips, square metres).
+- A floor in two products says how much of the floor each covers, not where: the board, the
+  PDF and 3D lay the one with the larger share over the whole floor, so a design made from the
+  calculation buys only that one until the person lays the other in the studio. A studio's
+  split is a share like any other room's, not its two parts (the engine prices the parts
+  separately, `expandStudios`; the picks do not).
+- Walls are chosen whole; a strip of a wall, a square metre or a tiled splashback is the
+  studio's job.
+- The summary, the checkout and the order lines name a pick's room, not its walls or its share
+  of the floor (the catalogue step's "chosen" column does).
 - The calculator's wall area is gross (doors and windows not taken off) — the engine's figure,
-  and the only one the server has; the studio's is net.
+  and the only one the server has; the studio's is net. The walls one by one are gross too.
 - A room read off the board with more than four corners (an L-shape) is priced as the rectangle
   of the same width and area (`calculatorRoomsFromPlan` takes length = area ÷ width), so its
-  perimeter and wall area are approximate.
+  perimeter and wall area are approximate — while its walls one by one are their true lengths,
+  so there its walls chosen one by one can come to more than its whole-room wall area.
 - The rate API accepts a new `labour` row with any key (`rate.schema.ts`) although the engine
   only knows fixed labour keys; such a row is ignored. The admin UI only creates material rows.
 - Dead code: `components/calculator/RoomForm.tsx` and `RoomList.tsx` have no importers, and

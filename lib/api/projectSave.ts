@@ -1,5 +1,6 @@
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
 import { categorySlugFromKey, isCartKey, roomFinishQuantity, roomIdFromKey, SURFACE_OF_SLUG, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
+import { normalizeRoomFinishes } from '@/lib/calculator/roomFinishes';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -24,29 +25,42 @@ export async function repriceCalculatorPicks(
   incomingFurniture: Record<string, SelectedProduct[]>
 ): Promise<RepricedPicks | { unknownProductId: number }> {
   const totals = aggregateRoomTotals(rooms);
+  // A room's finishes in the shape the catalogue step keeps them — each on the surface its
+  // category is for (the seeds' categories say; one made in admin is taken at the surface the
+  // pick was made for), a floor in at most two products whose shares make the whole, every
+  // wall in one product — whatever was sent: the same function the browser's store runs.
+  const sent = normalizeRoomFinishes(
+    Object.fromEntries(
+      Object.entries(incomingProducts).map(([key, snapshot]) => {
+        const categorySlug = snapshot.categorySlug ?? categorySlugFromKey(key);
+        const surface = roomIdFromKey(key) ? (SURFACE_OF_SLUG[categorySlug] ?? snapshot.surface) : snapshot.surface;
+        return [key, { ...snapshot, categorySlug, ...(surface ? { surface } : {}) }];
+      })
+    ),
+    rooms
+  );
   const known = await loadProductPrices([
-    ...Object.values(incomingProducts).map((p) => p.productId),
+    ...Object.values(sent).map((p) => p.productId),
     ...Object.values(incomingFurniture).flat().map((p) => p.productId),
   ]);
 
   const selectedProducts: Record<string, SelectedProduct> = {};
-  for (const [key, snapshot] of Object.entries(incomingProducts)) {
+  for (const [key, snapshot] of Object.entries(sent)) {
     const categorySlug = snapshot.categorySlug ?? categorySlugFromKey(key);
     // A room's floor or walls are counted from that room — the same function the catalogue
-    // step shows the figure with (`roomFinishQuantity`), in the catalogue's own unit and
-    // coverage for the product; a room that no longer exists (deleted after the pick) is
-    // dropped rather than priced for the whole flat.
+    // step shows the figure with (`roomFinishQuantity`: the whole surface, a share of the
+    // floor, the walls chosen one by one), in the catalogue's own unit and coverage for the
+    // product; a room that no longer exists (deleted after the pick) is dropped rather than
+    // priced for the whole flat.
     const roomId = roomIdFromKey(key);
     const room = roomId ? rooms.find((r) => r.id === roomId) : null;
     if (roomId && !room) continue;
     const catalogue = known.get(snapshot.productId);
     if (!catalogue) return { unknownProductId: snapshot.productId };
     if (room) {
-      // The seeds' finish categories say which surface they are for; a category made in admin
-      // is taken at the surface the pick was made for.
-      const surface = SURFACE_OF_SLUG[categorySlug] ?? snapshot.surface ?? null;
+      const surface = snapshot.surface ?? null;
       const unit = catalogue.unit as SelectedProduct['unit'];
-      const qty = surface ? roomFinishQuantity({ unit, categorySlug, coveragePerUnit: catalogue.coveragePerUnit }, surface, room) : suggestedQuantityForRoom(categorySlug, room);
+      const qty = surface ? roomFinishQuantity({ unit, categorySlug, coveragePerUnit: catalogue.coveragePerUnit, share: snapshot.share, walls: snapshot.walls }, surface, room) : suggestedQuantityForRoom(categorySlug, room);
       const repriced = repriceSnapshot({ ...snapshot, categorySlug, unit }, known, qty);
       if (!repriced) return { unknownProductId: snapshot.productId };
       selectedProducts[key] = { ...repriced, roomId: room.id, ...(surface ? { surface } : {}) };

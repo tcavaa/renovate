@@ -51,6 +51,9 @@ runtime yet.
   products like its floors and walls ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Projects**: live updates between two tabs on one project
   ([project-flow.md §19](project-flow.md#19-known-gaps)).
+- **Calculator finishes**: a floor in two products has a share, not a place (the board and 3D
+  show its larger product), and the summary and the orders do not name a pick's walls or share
+  ([calculator.md](calculator.md#known-gaps)).
 - No SMS notifications; admin has no bulk product import.
 
 ## Known gaps by area

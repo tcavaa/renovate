@@ -63,14 +63,19 @@ export function suggestedQuantityForRoom(categorySlug: string, room: Room): numb
 
 /**
  * Calculator selection keys: `<slug>_global` is a product chosen for the whole flat (a socket,
- * a door), `<slug>_room:<roomId>` a room's floor or walls (`lib/calculator/roomFinishes`: one
- * product for each), and `<slug>_item:<productId>` a floor or wall material from the cart that
- * was laid on the rooms by hand on the placement step, until September 2026 — no longer made,
- * still read, and moved onto the rooms when its project opens (`migrateFinishPicks`). Room ids
- * come from nanoid (no colons), so the room part is everything after the marker.
+ * a door), `<slug>_room:<roomId>` a room's floor or walls (`lib/calculator/roomFinishes`), and
+ * `<slug>_item:<productId>` a floor or wall material from the cart that was laid on the rooms
+ * by hand on the placement step, until September 2026 — no longer made, still read, and moved
+ * onto the rooms when its project opens (`migrateFinishPicks`).
+ *
+ * A room's surface in more than one product adds a part after the room: `/<part>` — the
+ * floor's second product (`floor2`), or one product over the walls it was chosen for one by
+ * one (`walls<productId>`). What the pick covers is on the pick itself (`share`, `walls`); the
+ * part only keeps the keys apart. Room ids come from nanoid (no colons, no slashes).
  */
-export function selectionKey(categorySlug: string, roomId?: string | null): string {
-  return roomId ? `${categorySlug}_room:${roomId}` : `${categorySlug}_global`;
+export function selectionKey(categorySlug: string, roomId?: string | null, part?: string | null): string {
+  if (!roomId) return `${categorySlug}_global`;
+  return part ? `${categorySlug}_room:${roomId}/${part}` : `${categorySlug}_room:${roomId}`;
 }
 
 /** The key a finish had in the cart (one per product), before every room took its own. */
@@ -107,7 +112,17 @@ export function finishPickQuantity(pick: Pick<SelectedProduct, 'unit' | 'categor
 /** The room a per-room selection key names, or null for a whole-flat key. */
 export function roomIdFromKey(key: string): string | null {
   const at = key.indexOf('_room:');
-  return at >= 0 ? key.slice(at + '_room:'.length) || null : null;
+  if (at < 0) return null;
+  const rest = key.slice(at + '_room:'.length);
+  const slash = rest.indexOf('/');
+  return (slash >= 0 ? rest.slice(0, slash) : rest) || null;
+}
+
+/** The part a per-room key names after its room (`floor2`, `walls12`), or null for the room's whole surface. */
+export function partFromKey(key: string): string | null {
+  const at = key.indexOf('_room:');
+  const slash = at >= 0 ? key.indexOf('/', at) : -1;
+  return slash >= 0 ? key.slice(slash + 1) || null : null;
 }
 
 /** The two surfaces a room's finishes cover in the calculator. */
@@ -135,11 +150,41 @@ export function roomSurfaceAreaM2(room: Pick<Room, 'floorM2' | 'wallM2'>, surfac
   return surface === 'floor' ? room.floorM2 : room.wallM2;
 }
 
+type RoomGeometry = Pick<Room, 'floorM2' | 'wallM2' | 'width' | 'length' | 'height' | 'walls'>;
+
 /**
- * How much of a finish one room takes: its floor or its walls, in the product's units with the
- * cutting waste (`finishPickQuantity`). The catalogue step shows it and the save route stores
- * it — the same function on both sides, so the figure the person saw is the figure saved.
+ * A room's walls one by one: each one's length, metres, in the board's order (`Room.walls`); a
+ * room that has none recorded is the four sides of its rectangle.
  */
-export function roomFinishQuantity(pick: Pick<SelectedProduct, 'unit' | 'categorySlug' | 'coveragePerUnit'>, surface: FinishSurface, room: Pick<Room, 'floorM2' | 'wallM2'>): number {
-  return finishPickQuantity(pick, roomSurfaceAreaM2(room, surface));
+export function roomWalls(room: Pick<Room, 'width' | 'length' | 'walls'>): number[] {
+  if (room.walls && room.walls.length >= 3 && room.walls.every((l) => Number.isFinite(l) && l >= 0)) return room.walls;
+  return [room.width, room.length, room.width, room.length];
+}
+
+/** Each wall's area as the estimate counts a wall — its length times the room's height, doors and windows not taken off. */
+export function roomWallAreasM2(room: Pick<Room, 'width' | 'length' | 'height' | 'walls'>): number[] {
+  return roomWalls(room).map((length) => Math.round(length * room.height * 100) / 100);
+}
+
+const clamp01 = (n: number): number => Math.min(1, Math.max(0, n));
+
+/**
+ * The area a room's finish covers: the whole surface, the pick's share of the floor when two
+ * products share it, or the walls it was chosen for one by one.
+ */
+export function roomFinishAreaM2(pick: Pick<SelectedProduct, 'share' | 'walls'>, surface: FinishSurface, room: RoomGeometry): number {
+  if (surface === 'floor') return pick.share == null ? room.floorM2 : room.floorM2 * clamp01(pick.share);
+  if (!pick.walls) return room.wallM2;
+  const areas = roomWallAreasM2(room);
+  return [...new Set(pick.walls)].reduce((sum, i) => sum + (areas[i] ?? 0), 0);
+}
+
+/**
+ * How much of a finish one room takes: the area it covers there (`roomFinishAreaM2`), in the
+ * product's units with the cutting waste (`finishPickQuantity`). The catalogue step shows it
+ * and the save route stores it — the same function on both sides, so the figure the person saw
+ * is the figure saved.
+ */
+export function roomFinishQuantity(pick: Pick<SelectedProduct, 'unit' | 'categorySlug' | 'coveragePerUnit' | 'share' | 'walls'>, surface: FinishSurface, room: RoomGeometry): number {
+  return finishPickQuantity(pick, roomFinishAreaM2(pick, surface, room));
 }

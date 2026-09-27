@@ -2,25 +2,27 @@
 
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Check, CopyPlus, Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
+import { RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { SideList } from '@/components/flow/SideList';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
+import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
-import { roomFinishEntry, roomsLike, surfaceOfCategory, usualFinishCategory, type FinishSurface } from '@/lib/calculator/roomFinishes';
+import { roomFinishEntry, roomFinishesOf, roomsLike, surfaceOfCategory, usualFinishCategory, type FinishSurface } from '@/lib/calculator/roomFinishes';
 import { BATH_ROOM_TYPES } from '@/lib/calculator/constants';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { localizedName, pickLocalizedName, roomTypeLabel, unitLabel } from '@/lib/i18n/labels';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 import type { Category, Product } from '@/lib/db/schema';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
-import { roomIdFromKey, selectionKey, suggestedQuantity } from '@/lib/calculator/quantities';
+import { roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, suggestedQuantity } from '@/lib/calculator/quantities';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 
@@ -50,26 +52,32 @@ function snapshotOf(p: Product, categorySlug: string): SelectedProduct {
 const isWetProduct = (p: Product) => !!(p.specs as { wet?: boolean } | null | undefined)?.wet;
 
 /**
- * Step 4: the catalogue. Every room takes one floor and one wall product
- * (`lib/calculator/roomFinishes`), and what it comes to is counted from the room — its floor
- * or its walls, with the cutting waste — so nothing is laid by hand: the placement step that
- * followed this one until September 2026 is gone. A room's floor and walls are offered from
- * the categories its kind of work is done in first (tiles in the bathroom, laminate in the
- * bedroom), and a choice can be copied to the rooms like it that have none yet. Everything
- * else — sockets, lights, sanitary ware, doors, windows — is one product for the whole flat,
- * counted from the rooms as before. Nothing is required: with nothing chosen the estimate is
- * the renovation alone.
+ * Step 4: the catalogue. Every room takes its floor and its walls (`lib/calculator/roomFinishes`)
+ * — the floor in one product or two sharing it by a slider, the walls in one product for the
+ * whole room or wall by wall, each wall listed with its area — and what each comes to is
+ * counted from the room, with the cutting waste, so nothing is laid by hand: the placement step
+ * that followed this one until September 2026 is gone. A room's floor and walls are offered
+ * from the categories its kind of work is done in first (tiles in the bathroom, laminate in the
+ * bedroom), and a choice can be copied to the rooms like it that have none yet. Everything else
+ * — sockets, lights, sanitary ware, doors, windows — is one product for the whole flat, counted
+ * from the rooms as before. Nothing is required: with nothing chosen the estimate is the
+ * renovation alone.
  */
 export default function CatalogStepPage() {
   const t = useT();
   const locale = useLocale();
   const projectId = useProjectId();
-  const { rooms, homeState, selectedProducts, selectProduct, setRoomFinish, removeProduct } = useCalculatorStore();
+  const { rooms, homeState, selectedProducts, selectProduct, setRoomFinish, setFloorProduct, setFloorShare, setWallProduct, setWallsOneByOne, copyRoomFinish, removeProduct } = useCalculatorStore();
+  // The calculator's own board: each room's outline, for the little drawing beside each of its walls.
+  const boardPlan = useCalculatorPlanStore((s) => s.plan);
   const { items: categories, loading: catLoading } = useCategories(false);
 
   /** What the middle shows: a room (`room:<id>`) or a category for the whole flat (`cat:<slug>`). */
   const [active, setActive] = useState<string | null>(null);
-  const [surface, setSurface] = useState<FinishSurface>('floor');
+  /** What the product grid chooses for in the open room: one of its floor's two products, its walls, or one wall. */
+  const [target, setTarget] = useState<FinishTarget>({ surface: 'floor', slot: 0 });
+  /** Rooms switched to "per wall" before any wall was chosen — once one is, the picks say so. */
+  const [perWall, setPerWall] = useState<Record<string, boolean>>({});
   /** The finish category open for a room's surface, when the person chose one (`<roomId>:<surface>` → slug). */
   const [finishTab, setFinishTab] = useState<Record<string, string>>({});
   const [askFurniture, setAskFurniture] = useState(false);
@@ -81,11 +89,27 @@ export default function CatalogStepPage() {
   const room = activeId?.startsWith('room:') ? rooms.find((r) => `room:${r.id}` === activeId) ?? null : null;
   const category = !room && activeId?.startsWith('cat:') ? otherCategories.find((c) => `cat:${c.slug}` === activeId) ?? null : null;
 
-  // The room's surface opens on the category of what it has, else the one the person opened,
-  // else the one its kind of work is done in.
-  const roomPick = room ? roomFinishEntry(selectedProducts, room.id, surface) : null;
+  const finishes = room ? roomFinishesOf(selectedProducts, room) : null;
+  const oneByOne = !!room && !!finishes && (finishes.byWall ? true : finishes.walls ? false : !!perWall[room.id]);
+  const wallAreas = room ? roomWallAreasM2(room) : [];
+  // What the grid is choosing for, as the room has it: a second floor product only once there
+  // is a first, one wall only while the walls are chosen one by one.
+  const aim: FinishTarget =
+    target.surface === 'floor'
+      ? { surface: 'floor', slot: target.slot === 1 && (finishes?.floor.length ?? 0) > 0 ? 1 : 0 }
+      : oneByOne
+        ? { surface: 'wall', wall: target.wall != null && target.wall < wallAreas.length ? target.wall : 0 }
+        : { surface: 'wall', wall: null };
+  const surface: FinishSurface = aim.surface;
+  const aimed = !finishes ? null : aim.surface === 'floor' ? (finishes.floor[aim.slot]?.[1] ?? null) : aim.wall == null ? (finishes.walls?.[1] ?? null) : (finishes.byWall?.[aim.wall] ?? null);
+  // The room's outline on the board, edge i being wall i; a room the board does not have is its rectangle.
+  const drawn = room ? boardPlan?.rooms.find((r) => r.id === room.id)?.polygon : undefined;
+  const outline = !room ? [] : drawn && drawn.length === roomWalls(room).length ? drawn : [{ x: 0, z: 0 }, { x: room.width, z: 0 }, { x: room.width, z: room.length }, { x: 0, z: room.length }];
+
+  // The surface opens on the category of what the row in hand has, else the one the person
+  // opened, else the one the room's kind of work is done in.
   const surfaceCategories = orderedFinishCategories(finishCategories[surface], room, surface);
-  const finishSlug = room ? finishTab[`${room.id}:${surface}`] ?? roomPick?.[1].categorySlug ?? surfaceCategories[0]?.slug ?? null : null;
+  const finishSlug = room ? finishTab[`${room.id}:${surface}`] ?? aimed?.categorySlug ?? surfaceCategories[0]?.slug ?? null : null;
   const openSlug = room ? finishSlug : category?.slug ?? null;
   const { items: products, loading } = useProducts(openSlug, 1, 60);
   const bath = !!room && BATH_ROOM_TYPES.includes(room.type);
@@ -110,8 +134,11 @@ export default function CatalogStepPage() {
 
   const choose = (p: Product) => {
     if (room && finishSlug) {
-      if (roomPick?.[1].productId === p.id) setRoomFinish([room.id], surface, null);
-      else setRoomFinish([room.id], surface, { ...snapshotOf(p, finishSlug), surface });
+      // The same product again takes it off what the row in hand is.
+      const pick = aimed?.productId === p.id ? null : { ...snapshotOf(p, finishSlug), surface };
+      if (aim.surface === 'floor') setFloorProduct(room.id, aim.slot, pick);
+      else if (aim.wall == null) setRoomFinish([room.id], 'wall', pick);
+      else chooseForWall(aim.wall, pick);
       return;
     }
     if (!category) return;
@@ -123,7 +150,45 @@ export default function CatalogStepPage() {
     const qty = suggestedQuantity(category.slug, totals) || 1;
     selectProduct(key, { ...snapshotOf(p, category.slug), qty, totalPrice: Math.round(Number(p.pricePerUnit) * qty * 100) / 100 });
   };
-  const isChosen = (p: Product): boolean => (room ? roomPick?.[1].productId === p.id : !!category && selectedProducts[selectionKey(category.slug)]?.productId === p.id);
+  const isChosen = (p: Product): boolean => (room ? aimed?.productId === p.id : !!category && selectedProducts[selectionKey(category.slug)]?.productId === p.id);
+
+  /** Another room (`room:<id>`): the grid goes on choosing for the same surface there, from its first row. */
+  const openRoom = (id: string) => {
+    setActive(id);
+    setTarget((t) => (t.surface === 'floor' ? { surface: 'floor', slot: 0 } : { surface: 'wall', wall: 0 }));
+  };
+  /** One wall's product; the room stays per wall even when its last wall is emptied. */
+  const chooseForWall = (wall: number, pick: SelectedProduct | null) => {
+    if (!room) return;
+    setPerWall((m) => ({ ...m, [room.id]: true }));
+    setWallProduct(room.id, wall, pick);
+  };
+  const setWallsMode = (next: boolean) => {
+    if (!room) return;
+    setPerWall((m) => ({ ...m, [room.id]: next }));
+    setWallsOneByOne(room.id, next);
+    setTarget({ surface: 'wall', wall: next ? 0 : null });
+  };
+  const aimLabel = !room
+    ? ''
+    : aim.surface === 'floor'
+      ? (finishes?.floor.length ?? 0) === 2 || aim.slot === 1
+        ? aim.slot === 0
+          ? t.calculator.floorFirstTarget
+          : t.calculator.floorSecondTarget
+        : `${t.calculator.summaryFloor} · ${formatM2(room.floorM2)}`
+      : aim.wall == null
+        ? `${t.calculator.summaryWalls} · ${formatM2(room.wallM2)}`
+        : `${fill(t.calculator.wallN, { n: aim.wall + 1 })} · ${formatM2(wallAreas[aim.wall] ?? 0)}`;
+  /** The rooms of the same kind with nothing chosen yet for each surface — "the same in N more rooms like this". */
+  const like: Record<FinishSurface, Room[]> = { floor: [], wall: [] };
+  if (room) for (const s of ['floor', 'wall'] as const) like[s] = roomsLike(rooms, room, s).filter((r) => !roomFinishEntry(selectedProducts, r.id, s));
+  /** Where in its room a pick is: the walls it was chosen for, its share of the floor, or its surface. */
+  const placeOf = (p: SelectedProduct): string => {
+    if (p.walls?.length) return fill(p.walls.length === 1 ? t.calculator.wallN : t.calculator.wallsN, { n: [...p.walls].sort((a, b) => a - b).map((i) => i + 1).join(', ') });
+    if (p.share != null) return `${t.calculator.summaryFloor} ${Math.round(p.share * 100)}%`;
+    return p.surface ? surfaceName(p.surface) : '';
+  };
 
   return (
     <>
@@ -136,7 +201,7 @@ export default function CatalogStepPage() {
             <SideList
               title={t.calculator.finishesTitle}
               activeId={activeId}
-              onSelect={setActive}
+              onSelect={openRoom}
               items={rooms.map((r) => {
                 const n = roomChosenCount(r);
                 return { id: `room:${r.id}`, label: r.nameKa || roomTypeLabel(t, r.type), count: n === 2 ? '✓' : `${n}/2` };
@@ -174,55 +239,27 @@ export default function CatalogStepPage() {
                   </p>
                 </div>
 
-                {/* The room's two slots: what its floor and its walls are, and which one the grid is choosing for. */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(['floor', 'wall'] as const).map((s) => {
-                    const entry = roomFinishEntry(selectedProducts, room.id, s);
-                    const pick = entry?.[1];
-                    const like = pick ? roomsLike(rooms, room, s).filter((r) => !roomFinishEntry(selectedProducts, r.id, s)) : [];
-                    return (
-                      // The whole card chooses its surface, the row under the line included; the
-                      // button at its head is what the keyboard reaches.
-                      <div key={s} onClick={() => setSurface(s)} className={cn('cursor-pointer border bg-bg-surface text-left transition-colors', surface === s ? 'border-ink' : 'border-line hover:border-ink/40')}>
-                        <button type="button" onClick={() => setSurface(s)} className="flex w-full items-center gap-3 px-4 py-3 text-left" aria-pressed={surface === s}>
-                          <span className="relative block h-10 w-10 shrink-0 overflow-hidden border border-line bg-bg-base">
-                            {pick?.imageUrl ? <Image src={pick.imageUrl} alt="" fill sizes="40px" className="object-cover" /> : pick?.colorHex ? <span className="block h-full w-full" style={{ backgroundColor: pick.colorHex }} /> : null}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="eyebrow block">{surfaceName(s)}</span>
-                            <span className={cn('block truncate text-sm', pick ? 'font-medium text-ink' : 'text-ink-muted')}>{pick ? localizedName(locale, pick) : t.calculator.notChosen}</span>
-                            {pick && (
-                              <span className="block text-xs tabular-nums text-ink-muted">
-                                {formatNumber(pick.qty, pick.unit === 'm2' ? 1 : 0)} {unitLabel(t, pick.unit)} × {formatGEL(pick.pricePerUnit)} = <span className="text-ink">{formatGEL(pick.totalPrice)}</span>
-                              </span>
-                            )}
-                          </span>
-                          {pick && <Check className="h-4 w-4 shrink-0 text-success" aria-hidden />}
-                        </button>
-                        {pick && (
-                          <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-2">
-                            {like.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => setRoomFinish(like.map((r) => r.id), s, pick)}
-                                title={fill(t.calculator.sameInRoomsLikeHint, { rooms: like.map((r) => r.nameKa || roomTypeLabel(t, r.type)).join(', ') })}
-                                className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-ink underline-offset-2 hover:underline"
-                              >
-                                <CopyPlus className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate">{fill(t.calculator.sameInRoomsLike, { n: like.length })}</span>
-                              </button>
-                            ) : (
-                              <span />
-                            )}
-                            <button type="button" onClick={() => setRoomFinish([room.id], s, null)} aria-label={t.calculator.removeChoice} title={t.calculator.removeChoice} className="grid h-7 w-7 shrink-0 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                {/* The room's floor and walls, and which row of them the grid is choosing for. */}
+                {finishes && (
+                  <RoomFinishCards
+                    room={room}
+                    finishes={finishes}
+                    target={aim}
+                    onTarget={setTarget}
+                    oneByOne={oneByOne}
+                    onOneByOne={setWallsMode}
+                    outline={outline}
+                    like={like}
+                    onCopy={(s) => copyRoomFinish(room.id, like[s].map((r) => r.id), s)}
+                    onClearFloor={(slot) => {
+                      setFloorProduct(room.id, slot, null);
+                      setTarget({ surface: 'floor', slot: 0 });
+                    }}
+                    onClearWalls={() => setRoomFinish([room.id], 'wall', null)}
+                    onClearWall={(i) => chooseForWall(i, null)}
+                    onShare={(share) => setFloorShare(room.id, share)}
+                  />
+                )}
 
                 {/* The categories the surface in hand is finished from, the room's usual one first. */}
                 <div className="mt-6 flex flex-wrap items-center gap-2" role="tablist" aria-label={surfaceName(surface)}>
@@ -238,7 +275,9 @@ export default function CatalogStepPage() {
                       {pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)}
                     </button>
                   ))}
-                  <span className="ml-auto text-xs text-ink-muted">{t.calculator.finishesHint}</span>
+                  <span className="ml-auto text-xs text-ink-muted" title={t.calculator.finishesHint}>
+                    {fill(t.calculator.choosingFor, { what: aimLabel })}
+                  </span>
                 </div>
               </>
             ) : (
@@ -288,7 +327,7 @@ export default function CatalogStepPage() {
                         <div className="min-w-0 flex-1">
                           <p className="line-clamp-2 font-medium text-ink">{localizedName(locale, p)}</p>
                           <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
-                            {inRoom ? `${inRoom.nameKa || roomTypeLabel(t, inRoom.type)} · ${p.surface ? surfaceName(p.surface) : ''} · ` : ''}
+                            {inRoom ? `${[inRoom.nameKa || roomTypeLabel(t, inRoom.type), placeOf(p)].filter(Boolean).join(' · ')} · ` : ''}
                             {formatNumber(p.qty, p.unit === 'm2' ? 1 : 0)} {unitLabel(t, p.unit)} × {formatGEL(p.pricePerUnit)}
                           </p>
                         </div>

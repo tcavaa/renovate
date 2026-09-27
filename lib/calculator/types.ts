@@ -73,6 +73,13 @@ export interface Room {
   split?: RoomSplit;
   /** A studio's two parts, measured off the plan; the estimate prices each as its own type. */
   parts?: RoomPart[];
+  /**
+   * The length of each of the room's walls, metres, in the order of its outline's edges on the
+   * board (the `wallIndex` the board and the studio know them by) — the walls the catalogue step
+   * lists one by one. Read off the plan with the rest of the room; a room without it is the four
+   * sides of its rectangle (`roomWalls`).
+   */
+  walls?: number[];
 }
 
 export interface MaterialItem {
@@ -104,6 +111,16 @@ export interface SelectedProduct {
    * so neither has to fetch the catalogue to draw it.
    */
   surface?: 'floor' | 'wall';
+  /**
+   * A floor laid in two products: the fraction of the room's floor this one covers (0–1), the
+   * other taking the rest. Absent: the whole floor.
+   */
+  share?: number;
+  /**
+   * Walls chosen one by one: the room's walls this product covers, by index (`Room.walls`).
+   * Absent: every wall of the room.
+   */
+  walls?: number[];
   slug?: string;
   textureUrl?: string | null;
   colorHex?: string | null;
