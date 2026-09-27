@@ -1,6 +1,8 @@
 import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { categories, products, stores } from '@/lib/db/schema';
+import { products, stores } from '@/lib/db/schema';
+import { subtreeOfSlugs } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName } from '@/lib/i18n/labels';
@@ -22,10 +24,8 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const [t, locale] = await Promise.all([getT(), getLocale()]);
 
-  const designCategories = await db
-    .select({ id: categories.id })
-    .from(categories)
-    .where(inArray(categories.slug, [...DESIGN_CATEGORY_SLUGS]));
+  // The studio's categories and everything filed under them.
+  const designCategories = [...subtreeOfSlugs(await loadCategoryTree(), DESIGN_CATEGORY_SLUGS)];
 
   const [rows, [{ productCount }], [{ storeCount }]] = await Promise.all([
     designCategories.length
@@ -53,7 +53,7 @@ export default async function HomePage() {
               isNull(products.ownerUserId),
               isNotNull(products.imageUrl),
               isNotNull(products.model3dUrl),
-              inArray(products.categoryId, designCategories.map((c) => c.id)),
+              inArray(products.categoryId, designCategories),
               // The stylised stock kit is a placeholder; the wall should show photographed products.
               ne(products.brand, 'Kenney')
             )

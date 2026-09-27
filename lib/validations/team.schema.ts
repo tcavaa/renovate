@@ -44,3 +44,27 @@ export function teamRow(input: Omit<TeamInput, 'memberIds' | 'leadWorkerId'>, sl
     commissionRate: decimal(input.commissionRate),
   };
 }
+
+/**
+ * What a brigade may change about itself from its portal: who it is and how to reach it — the
+ * company name, the words about it, the foreman, the phone, the e-mail, the city, the logo — and
+ * how many jobs it can run at once. Its crew, its markup, its commission, its rating and whether
+ * it is verified or live stay with the platform; the slug too, so its public address never moves.
+ */
+export const teamSelfSchema = z.object({
+  nameKa: z.string().trim().min(2).max(255),
+  nameEn: z.string().trim().max(255).nullable().optional(),
+  nameRu: z.string().trim().max(255).nullable().optional(),
+  descriptionKa: z.string().trim().max(4000).nullable().optional(),
+  descriptionEn: z.string().trim().max(4000).nullable().optional(),
+  descriptionRu: z.string().trim().max(4000).nullable().optional(),
+  leadName: z.string().trim().max(255).nullable().optional(),
+  phone: z.string().trim().max(50).nullable().optional(),
+  email: z.string().trim().email().max(255).nullable().optional().or(z.literal('').transform(() => null)),
+  logoUrl: z.string().trim().max(500).nullable().optional(),
+  city: z.string().trim().max(100).nullable().optional(),
+  experienceYears: z.coerce.number().int().min(0).max(80).nullable().optional(),
+  capacityJobs: z.coerce.number().int().min(1).max(100).nullable().optional(),
+});
+
+export type TeamSelfInput = z.infer<typeof teamSelfSchema>;

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { AdminSidebar } from '@/components/layout/AdminSidebar';
 import { canOpenAdmin } from '@/lib/auth/roles';
+import { sidebarBadges } from '@/lib/admin/badges';
 import { getT } from '@/lib/i18n/server';
 
 export const metadata = { title: 'Admin' };
@@ -28,9 +29,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
+  const badges = await sidebarBadges(session.user.role);
+
   return (
     <div className="flex min-h-screen bg-bg-base">
-      <AdminSidebar />
+      <AdminSidebar badges={badges} />
       <main className="flex-1 overflow-x-auto p-6">{children}</main>
     </div>
   );

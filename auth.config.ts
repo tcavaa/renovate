@@ -1,5 +1,5 @@
 import type { NextAuthConfig } from 'next-auth';
-import { canOpenAdmin, canOpenPartnerPortal, type UserRole } from '@/lib/auth/roles';
+import { canOpenAdmin, canOpenPartnerPortal, homePathFor, type UserRole } from '@/lib/auth/roles';
 
 /**
  * The part of the auth setup that runs in the proxy (edge-safe: no database). The role and
@@ -54,13 +54,16 @@ export const authConfig = {
         return Response.redirect(loginUrl);
       }
       // Anybody with a part of the admin may come in — the agents as well as admin; which
-      // part is theirs is each section's layout to say (`lib/auth/roles`). Asking for
+      // part is theirs is each section's page to say (`lib/auth/roles`). Asking for
       // `admin` here turned both kinds of agent away at the door, every time, to the landing.
+      // Someone at a door that is not theirs is sent to their own part of the site
+      // (`homePathFor`): a brigade typing /admin lands in its portal, an agent typing /partner
+      // in the admin, a customer on the landing page.
       if (isAdminRoute && !canOpenAdmin(auth.user.role)) {
-        return Response.redirect(new URL('/', request.nextUrl));
+        return Response.redirect(new URL(homePathFor(auth.user.role), request.nextUrl));
       }
       if (isPartnerRoute && !canOpenPartnerPortal(auth.user.role)) {
-        return Response.redirect(new URL('/', request.nextUrl));
+        return Response.redirect(new URL(homePathFor(auth.user.role), request.nextUrl));
       }
       return true;
     },

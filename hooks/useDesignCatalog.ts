@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { CatalogProduct } from '@/lib/design/matcher';
+import { EMPTY_SHELF, type ShelfData } from '@/lib/design/shelf';
 
 export interface PartnerStore {
   id: number;
@@ -20,9 +21,14 @@ export interface PartnerStore {
   deliveryFeeGel: number | null;
 }
 
-interface CatalogState {
+interface CatalogData {
   products: CatalogProduct[];
   stores: PartnerStore[];
+  /** The furniture shelf's rooms and the category tree. */
+  shelf: ShelfData;
+}
+
+interface CatalogState extends CatalogData {
   loading: boolean;
   error: string | null;
 }
@@ -33,10 +39,10 @@ interface CatalogState {
  * Cached at module scope rather than in React state so moving between the style page and the
  * studio does not refetch — and so the studio can match products the instant it mounts.
  */
-let cache: { products: CatalogProduct[]; stores: PartnerStore[] } | null = null;
-let inflight: Promise<{ products: CatalogProduct[]; stores: PartnerStore[] }> | null = null;
+let cache: CatalogData | null = null;
+let inflight: Promise<CatalogData> | null = null;
 /** Every mounted hook, told when the catalogue is fetched again. */
-const listeners = new Set<(data: { products: CatalogProduct[]; stores: PartnerStore[] }) => void>();
+const listeners = new Set<(data: CatalogData) => void>();
 
 /**
  * Fetches the catalogue again and hands it to every component holding it — after a person
@@ -57,12 +63,12 @@ async function fetchCatalog() {
     inflight = fetch('/api/design/catalog', { cache: 'no-store' })
       .then(async (res) => {
         const json = (await res.json()) as {
-          data: { products: CatalogProduct[]; stores: PartnerStore[] } | null;
+          data: CatalogData | null;
           error: string | null;
         };
         if (json.error || !json.data) throw new Error(json.error ?? 'catalog-failed');
-        cache = json.data;
-        return json.data;
+        cache = { ...json.data, shelf: json.data.shelf ?? EMPTY_SHELF };
+        return cache;
       })
       .finally(() => {
         inflight = null;
@@ -75,14 +81,15 @@ export function useDesignCatalog(): CatalogState {
   const [state, setState] = useState<CatalogState>(() => ({
     products: cache?.products ?? [],
     stores: cache?.stores ?? [],
+    shelf: cache?.shelf ?? EMPTY_SHELF,
     loading: !cache,
     error: null,
   }));
 
   useEffect(() => {
     let cancelled = false;
-    const onData = (data: { products: CatalogProduct[]; stores: PartnerStore[] }) => {
-      if (!cancelled) setState({ products: data.products, stores: data.stores, loading: false, error: null });
+    const onData = (data: CatalogData) => {
+      if (!cancelled) setState({ products: data.products, stores: data.stores, shelf: data.shelf, loading: false, error: null });
     };
     listeners.add(onData);
     if (!cache) {
@@ -90,7 +97,7 @@ export function useDesignCatalog(): CatalogState {
         .then(onData)
         .catch((e: Error) => {
           if (cancelled) return;
-          setState({ products: [], stores: [], loading: false, error: e.message });
+          setState({ products: [], stores: [], shelf: EMPTY_SHELF, loading: false, error: e.message });
         });
     }
     return () => {

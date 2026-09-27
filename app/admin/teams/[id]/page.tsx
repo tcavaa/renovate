@@ -6,10 +6,12 @@ import { AdminPageHeader } from '@/components/admin/AdminList';
 import { TeamForm } from '@/components/admin/TeamForm';
 import { loadTeam } from '@/lib/teams/queries';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function EditTeamPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage('teams');
   const { id } = await params;
   const ka = await getT();
   const found = await loadTeam(Number(id), { includeInactive: true });

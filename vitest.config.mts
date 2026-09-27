@@ -24,6 +24,8 @@ export default defineConfig({
         'lib/design/pricing.ts',
         'lib/design/matcher.ts',
         'lib/finance/money.ts',
+        'lib/finance/orderFlow.ts',
+        'lib/storage/uploadKeys.ts',
         'lib/api/**/*.ts',
         'lib/auth/**/*.ts',
         'app/api/projects/route.ts',

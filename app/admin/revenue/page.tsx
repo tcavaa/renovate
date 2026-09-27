@@ -10,6 +10,7 @@ import { ORDER_STATUSES, REPORT_PERIODS, periodRange, type ReportPeriod } from '
 import { localizedName, orderStatusLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatNumber, cn } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ const PERIOD_KEY: Record<ReportPeriod, 'today' | 'd7' | 'd30' | 'month' | 'year'
  * them. Every figure is a URL (period, from, to), so a month can be bookmarked.
  */
 export default async function AdminRevenuePage(props: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
+  await requireAdminPage('revenue');
   const search = await props.searchParams;
   const ka = await getT();
   const locale = await getLocale();

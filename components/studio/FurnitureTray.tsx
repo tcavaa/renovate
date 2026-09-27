@@ -9,11 +9,13 @@
  *
  * What narrows the shelf, from the outside in:
  * - the **styles**, down the left edge, the project's own preselected;
- * - the **room**, then the **kind** within it — two levels of icons on one line. Thirty-four
+ * - the **room**, then the **category** within it — two levels of icons on one line. Thirty-four
  *   kinds in a row of look-alike pictures was a row nobody could read; a person furnishing a
- *   bedroom thinks "bedroom" first, and then has nine icons to look at instead of thirty-four
- *   (`kindsForRoom`). The line opens on the room that is in focus in the studio, the chip at
- *   its head is both where one is and the way back to the rooms;
+ *   bedroom thinks "bedroom" first, and then has nine icons to look at. The rooms, their
+ *   categories and every icon are admin's (`lib/design/shelf.ts`); a category that has
+ *   subcategories of its own opens onto them, a chip at the head of the line for each step
+ *   back. The line opens on the room that is in focus in the studio, the chip at its head is
+ *   both where one is and the way back to the rooms;
  * - the **colour**: swatches of the colour families that are actually on the shelf as it
  *   stands (`lib/design/colors`; the colours themselves are read off the models);
  * - the search, folded to an icon until it is wanted.
@@ -24,26 +26,31 @@ import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, LayoutGrid, Package, Palette, Plus, Search, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { localizedName, roomTypeLabel, styleLabel } from '@/lib/i18n/labels';
-import { SHELF_ROOMS, archetypeLabel, kindsForRoom, unroomedKinds } from '@/lib/design/catalog';
+import { localizedName, styleLabel } from '@/lib/i18n/labels';
+import { archetypeLabel } from '@/lib/design/catalog';
 import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from '@/lib/design/colors';
 import { STYLE_IDS } from '@/lib/design/styles';
 import { isFurnitureProduct } from '@/lib/design/catalogBrowser';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
+import { inCategory, inShelfRoom, roomCategories, shelfIndex, shelfName, shelfRoomCounts, shelfRoomForType, shelfTrail, subcategoryCounts, type ShelfData, type ShelfRoomId } from '@/lib/design/shelf';
+import type { IconNode } from '@/lib/admin/icons';
 import { ScrollRow } from '@/components/ui/scroll-row';
+import { NodeIcon } from '@/components/ui/node-icon';
 import { cn, formatGEL } from '@/lib/utils';
-import { archetypeIcon, roomIcon } from './archetypeIcons';
 import { emptyDragImage } from './dragImage';
 
 export const FURNITURE_DRAG_TYPE = 'application/x-renovate-product';
 
-/** A room of the shelf, or the kinds that belong to none. */
-type ShelfRoom = RoomType | 'other';
+/** An icon admin chose, or a plain package where there is none. */
+function ShelfIcon({ node, className }: { node: IconNode | null | undefined; className?: string }) {
+  return node ? <NodeIcon node={node} className={className} /> : <Package className={className} />;
+}
 
 export function FurnitureTray({
   catalog,
+  shelf,
   styleId,
   roomLabel,
   roomType = null,
@@ -53,6 +60,8 @@ export function FurnitureTray({
   onAddOwn,
 }: {
   catalog: CatalogProduct[];
+  /** The rooms and the category tree the shelf is arranged by. */
+  shelf: ShelfData;
   styleId: StyleId;
   roomLabel: string;
   /** The type of the room in focus in the studio, if one is: the shelf opens on it. */
@@ -70,8 +79,9 @@ export function FurnitureTray({
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const searchInput = useRef<HTMLInputElement>(null);
-  const [room, setRoom] = useState<ShelfRoom | null>(roomType);
-  const [kind, setKind] = useState('');
+  const index = useMemo(() => shelfIndex(shelf), [shelf]);
+  const [room, setRoom] = useState<ShelfRoomId | null>(() => shelfRoomForType(index, roomType));
+  const [category, setCategory] = useState<number | null>(null);
   const [colors, setColors] = useState<Set<ColorFamily>>(() => new Set());
   const [styles, setStyles] = useState<Set<StyleId>>(() => new Set([styleId]));
   // The style the project was given follows a change of mind on the style step; the person's
@@ -87,8 +97,8 @@ export function FurnitureTray({
   const [followed, setFollowed] = useState(roomType);
   if (followed !== roomType) {
     setFollowed(roomType);
-    setRoom(roomType);
-    setKind('');
+    setRoom(shelfRoomForType(index, roomType));
+    setCategory(null);
   }
   const [notice, setNotice] = useState<{ id: number; ok: boolean } | null>(null);
 
@@ -96,42 +106,41 @@ export function FurnitureTray({
   // furniture: they belong to the electrical layer, the wall and the technical layer.
   const placeable = useMemo(() => catalog.filter(isFurnitureProduct), [catalog]);
 
-  // What the shelf holds of each kind, and from that the rooms worth listing and the kinds
-  // worth listing in each: a room or a kind nobody sells anything for is not offered.
-  const stock = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const p of placeable) seen.set(p.model3dKind!, (seen.get(p.model3dKind!) ?? 0) + 1);
-    return seen;
-  }, [placeable]);
-  const kindsOf = useMemo(() => {
-    const roomed = new Set(unroomedKinds());
-    const map = new Map<ShelfRoom, string[]>();
-    for (const type of SHELF_ROOMS) map.set(type, kindsForRoom(type).filter((k) => stock.has(k)));
-    // Anything on the shelf that no room has a slot for — a kind from an older catalogue, an
-    // archetype added without a program — is still findable, under "other".
-    map.set('other', [...stock.keys()].filter((k) => roomed.has(k) || !SHELF_ROOMS.some((type) => kindsForRoom(type).includes(k))));
-    return map;
-  }, [stock]);
-  const rooms = useMemo(() => ([...SHELF_ROOMS, 'other'] as ShelfRoom[]).filter((r) => (kindsOf.get(r)?.length ?? 0) > 0), [kindsOf]);
+  // The rooms worth listing (something on the shelf is in them) and, in the open one, where
+  // one is among its categories: the trail from the category the room lists down to the one
+  // chosen. The line shows the level under the last step that opens onto more, else the level
+  // the chosen category is on.
+  const rooms = useMemo(() => shelfRoomCounts(index, placeable), [index, placeable]);
   // A room in focus that the shelf has nothing for (or a catalogue still loading) is the
   // rooms list, not an empty line.
-  const openRoom = room && rooms.includes(room) ? room : null;
-  const roomKinds = useMemo(() => (openRoom ? (kindsOf.get(openRoom) ?? []) : []), [openRoom, kindsOf]);
-  const openKind = kind && roomKinds.includes(kind) ? kind : '';
+  const openRoom = room != null && rooms.some((r) => r.id === room) ? room : null;
+  const inRoom = useMemo(() => (openRoom == null ? placeable : placeable.filter((p) => inShelfRoom(index, p, openRoom))), [index, placeable, openRoom]);
+  const { chosen, levelParent, crumbs, options, picked } = useMemo(() => {
+    const trail = openRoom == null ? [] : shelfTrail(index, openRoom, category, inRoom);
+    const last = trail.length ? trail[trail.length - 1] : null;
+    const opens = last != null && subcategoryCounts(index, inRoom, last).length > 0;
+    const parent = opens ? last : trail.length > 1 ? trail[trail.length - 2] : null;
+    return {
+      chosen: last,
+      levelParent: parent,
+      crumbs: parent == null ? [] : trail.slice(0, trail.indexOf(parent) + 1),
+      options: openRoom == null ? [] : parent == null ? roomCategories(index, inRoom, openRoom) : subcategoryCounts(index, inRoom, parent),
+      picked: opens ? null : last,
+    };
+  }, [index, openRoom, category, inRoom]);
 
   // Everything but the colour, so that the swatches can say which colours are to be had.
   const uncoloured = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const inRoom = openRoom ? new Set(roomKinds) : null;
-    return placeable
-      .filter((p) => (openKind ? p.model3dKind === openKind : !inRoom || inRoom.has(p.model3dKind!)))
+    return inRoom
+      .filter((p) => chosen == null || inCategory(index, p, chosen))
       // A piece of the person's own has no style tag and is theirs in any style.
       .filter((p) => p.own || styles.size === 0 || (Array.isArray(p.styleTags) ? (p.styleTags as string[]) : []).some((s) => styles.has(s as StyleId)))
       .filter((p) => {
         if (!q) return true;
         return [p.nameKa, p.nameEn, p.nameRu, p.brand, p.store?.nameKa, p.store?.nameEn].filter(Boolean).join(' ').toLowerCase().includes(q);
       });
-  }, [placeable, query, openRoom, roomKinds, openKind, styles]);
+  }, [index, inRoom, chosen, query, styles]);
   const swatches = useMemo(() => {
     const seen = new Map<ColorFamily, number>();
     for (const p of uncoloured) for (const family of productColorFamilies(p)) seen.set(family, (seen.get(family) ?? 0) + 1);
@@ -149,7 +158,20 @@ export function FurnitureTray({
     setSearching(true);
     window.setTimeout(() => searchInput.current?.focus(), 0);
   };
-  const roomName = (r: ShelfRoom) => (r === 'other' ? t.design.shelfOther : roomTypeLabel(t, r));
+  const roomDef = (r: ShelfRoomId) => (r === 'other' ? null : (index.rooms.find((x) => x.id === r) ?? null));
+  const roomName = (r: ShelfRoomId) => {
+    const def = roomDef(r);
+    return def ? shelfName(def, locale) : t.design.shelfOther;
+  };
+  const categoryDef = (id: number) => index.tree.byId.get(id) ?? null;
+  const categoryName = (id: number) => {
+    const def = categoryDef(id);
+    return def ? shelfName(def, locale) : '';
+  };
+  const leaveRoom = () => {
+    setRoom(null);
+    setCategory(null);
+  };
 
   const pick = (product: CatalogProduct) => {
     const ok = onPick(product);
@@ -202,28 +224,44 @@ export function FurnitureTray({
         */}
         <div className="flex items-center gap-1.5">
           {/* The open room's chip is the way back — a chevron before its name — and it stays
-              put while the kinds scroll behind it. */}
-          {openRoom && (
-            <button type="button" onClick={() => { setRoom(null); setKind(''); }} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-[8px] bg-ink pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
+              put while its categories scroll behind it; a chip for each category opened
+              onto its subcategories follows it, each a step back. */}
+          {openRoom != null && (
+            <button type="button" onClick={leaveRoom} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-[8px] bg-ink pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
               <ChevronLeft className="h-3.5 w-3.5" />
-              {(() => {
-                const Icon = openRoom === 'other' ? Package : roomIcon(openRoom);
-                return <Icon className="h-3.5 w-3.5" />;
-              })()}
+              <ShelfIcon node={roomDef(openRoom)?.icon} className="h-3.5 w-3.5" />
               <span className="max-w-[110px] truncate">{roomName(openRoom)}</span>
             </button>
           )}
-          <ScrollRow className="min-w-0 flex-1" contentClassName="items-center gap-0.5" role="radiogroup" ariaLabel={openRoom ? roomName(openRoom) : t.design.shelfRooms}>
-            {openRoom ? (
+          {crumbs.map((id, i) => (
+            <button key={id} type="button" onClick={() => setCategory(crumbs[i - 1] ?? null)} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-[8px] bg-ink/80 pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <ShelfIcon node={categoryDef(id)?.icon} className="h-3.5 w-3.5" />
+              <span className="max-w-[96px] truncate">{categoryName(id)}</span>
+            </button>
+          ))}
+          <ScrollRow className="min-w-0 flex-1" contentClassName="items-center gap-0.5" role="radiogroup" ariaLabel={openRoom != null ? roomName(openRoom) : t.design.shelfRooms}>
+            {openRoom != null ? (
               <>
-                <button type="button" role="radio" aria-checked={openKind === ''} onClick={() => setKind('')} title={t.design.allKinds} className={cn('h-7 shrink-0 rounded-[8px] px-2 text-[10px] font-semibold', openKind === '' ? 'bg-ink/10 text-ink' : 'text-ink-soft hover:bg-sand-light')}>
+                <button type="button" role="radio" aria-checked={picked == null} onClick={() => setCategory(levelParent)} title={t.design.allKinds} className={cn('h-7 shrink-0 rounded-[8px] px-2 text-[10px] font-semibold', picked == null ? 'bg-ink/10 text-ink' : 'text-ink-soft hover:bg-sand-light')}>
                   {t.design.allKinds}
                 </button>
-                {roomKinds.map((k) => {
-                  const Icon = archetypeIcon(k);
+                {options.map((o) => {
+                  const active = picked === o.id;
                   return (
-                    <button key={k} type="button" role="radio" aria-checked={openKind === k} onClick={() => setKind(openKind === k ? '' : k)} title={`${archetypeLabel(k, locale)} · ${stock.get(k) ?? 0}`} aria-label={archetypeLabel(k, locale)} className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-[8px]', openKind === k ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
-                      <Icon className="h-4 w-4" />
+                    <button
+                      key={o.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      // One that opens onto subcategories is stepped into; another is ticked and unticked.
+                      onClick={() => setCategory(o.opens ? o.id : active ? levelParent : o.id)}
+                      title={`${categoryName(o.id)} · ${o.count}`}
+                      aria-label={categoryName(o.id)}
+                      className={cn('relative grid h-7 w-7 shrink-0 place-items-center rounded-[8px]', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
+                    >
+                      <ShelfIcon node={categoryDef(o.id)?.icon} className="h-4 w-4" />
+                      {o.opens && <span className="absolute bottom-0.5 right-0.5 h-1 w-1 rounded-full bg-current opacity-60" aria-hidden />}
                     </button>
                   );
                 })}
@@ -234,16 +272,24 @@ export function FurnitureTray({
                   {t.design.shelfAllRooms}
                 </button>
                 {/* The tray is 880 px whatever the window, so the rooms are icons like the
-                    kinds, their names in the tooltip; the chip at the head names the one opened. */}
-                {rooms.map((r) => {
-                  const Icon = r === 'other' ? Package : roomIcon(r);
-                  const n = (kindsOf.get(r) ?? []).reduce((sum, k) => sum + (stock.get(k) ?? 0), 0);
-                  return (
-                    <button key={r} type="button" role="radio" aria-checked={false} onClick={() => { setRoom(r); setKind(''); }} title={`${roomName(r)} · ${n}`} aria-label={roomName(r)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-ink-soft hover:bg-sand-light hover:text-ink">
-                      <Icon className="h-4 w-4" />
-                    </button>
-                  );
-                })}
+                    categories, their names in the tooltip; the chip at the head names the one opened. */}
+                {rooms.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={false}
+                    onClick={() => {
+                      setRoom(r.id);
+                      setCategory(null);
+                    }}
+                    title={`${roomName(r.id)} · ${r.count}`}
+                    aria-label={roomName(r.id)}
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-ink-soft hover:bg-sand-light hover:text-ink"
+                  >
+                    <ShelfIcon node={roomDef(r.id)?.icon} className="h-4 w-4" />
+                  </button>
+                ))}
               </>
             )}
           </ScrollRow>

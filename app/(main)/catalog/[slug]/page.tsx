@@ -1,4 +1,4 @@
-import { cache } from 'react';
+import { Fragment, cache } from 'react';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import Link from 'next/link';
@@ -8,6 +8,8 @@ import { Box, ChevronRight, ExternalLink, MapPin, Phone, Truck } from 'lucide-re
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
+import { pathOf } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
 import { canViewProductPage, isPublicProduct, productViewer, publicProductCondition, visibilityOf } from '@/lib/api/productAccess';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
 import { ProductModelDrawer } from '@/components/catalog/ProductModelDrawer';
@@ -72,6 +74,9 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 
   const name = localizedName(locale, product);
   const description = localizedText(locale, product.descriptionKa, product.descriptionEn, product.descriptionRu);
+  // The category's whole path, top first, for the breadcrumb: Furniture › Sofas & armchairs › Corner sofas.
+  const tree = category ? await loadCategoryTree() : null;
+  const trail = tree && category ? pathOf(tree, category.id).filter((c) => c.isVisible) : [];
   const categoryName = category ? pickLocalizedName(locale, category.nameKa, category.nameEn, category.nameRu) : null;
   const imageUrl = product.imageUrl || `https://placehold.co/1200x900/E9E2D8/6F6A63/png?text=${encodeURIComponent(name.split(' ')[0])}`;
   const gallery = Array.isArray(product.images) ? (product.images as string[]).filter((u) => typeof u === 'string' && u && u !== product.imageUrl) : [];
@@ -98,14 +103,14 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
         <Link href="/catalog" className="hover:text-ink">
           {t.nav.catalog}
         </Link>
-        {category && (
-          <>
+        {trail.map((c) => (
+          <Fragment key={c.id}>
             <ChevronRight className="h-3 w-3 text-ink-faint" />
-            <Link href={`/catalog?category=${encodeURIComponent(category.slug)}`} className="hover:text-ink">
-              {categoryName}
+            <Link href={`/catalog?category=${encodeURIComponent(c.slug)}`} className="hover:text-ink">
+              {pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)}
             </Link>
-          </>
-        )}
+          </Fragment>
+        ))}
         <ChevronRight className="h-3 w-3 text-ink-faint" />
         <span className="truncate text-ink">{name}</span>
       </nav>

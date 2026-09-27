@@ -3,10 +3,12 @@ import { db } from '@/lib/db';
 import { categories, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewProductPage() {
+  await requireAdminPage('products');
   const ka = await getT();
   const [cats, storeRows] = await Promise.all([
     db.select().from(categories).orderBy(asc(categories.nameKa)),

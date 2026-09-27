@@ -52,7 +52,7 @@ export async function notifyPartnerNewOrder(args: {
     '',
     `სულ: ${formatGEL(args.subtotal)}${args.deliveryFee > 0 ? ` + მიწოდება ${formatGEL(args.deliveryFee)}` : ''}`,
     '',
-    `შეკვეთის ნახვა, დადასტურება და პოზიციების შესწორება: ${url}`,
+    `შეკვეთის ნახვა, სტატუსის განახლება და კომენტარი: ${url}`,
   ]
     .filter((line): line is string => line != null)
     .join('\n');
@@ -77,7 +77,7 @@ export async function notifyCustomerCheckout(args: {
     '',
     `პლატფორმის მომსახურება: ${formatGEL(args.platformFee)}`,
     '',
-    'თითოეული მაღაზია თავად დაგიკავშირდებათ დეტალების დასაზუსტებლად.',
+    'ჩვენი მენეჯერი დაგიკავშირდებათ თითოეული მაღაზიის შეკვეთის დასაზუსტებლად — დადასტურების შემდეგ შეკვეთა მაღაზიას გაეგზავნება.',
     `შეკვეთების სტატუსი: ${env.NEXT_PUBLIC_APP_URL}/profile`,
   ].join('\n');
   try {

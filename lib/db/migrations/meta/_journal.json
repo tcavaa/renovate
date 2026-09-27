@@ -99,6 +99,41 @@
       "when": 1790379991775,
       "tag": "0013_project_save_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1790515336768,
+      "tag": "0014_roles_and_order_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1790515337257,
+      "tag": "0015_order_review_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1790525755698,
+      "tag": "0016_category_tree",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1790525761768,
+      "tag": "0017_drop_category_phase",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1790525830463,
+      "tag": "0018_category_tree_defaults",
+      "breakpoints": true
     }
   ]
 }

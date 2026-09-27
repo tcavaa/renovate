@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * What a session says about the account behind it, however the person signed in.
+ * What a session says about the account behind it, however the person signed in — and that it
+ * says what the account is *now*.
  *
  * With JWT sessions and no adapter, @auth/core (0.41) gives an OAuth sign-in's user an id of
  * its own making — `crypto.randomUUID()` in `getUserAndAccount` — and the provider's profile
  * has no role, so a Google or Facebook session used to carry that UUID as `session.user.id`
- * (every `Number(session.user.id)` NaN) and the role `user`. These tests drive the callbacks
- * exactly as `auth.ts` hands them to NextAuth, with the database mocked.
+ * (every `Number(session.user.id)` NaN) and the role `user`. And a role was read once, at
+ * sign-in: an agent demoted, an account switched off or deleted kept its session and its old
+ * role for as long as it kept coming back. These tests drive the callbacks exactly as `auth.ts`
+ * hands them to NextAuth, with the database mocked.
  */
 
 type Row = Record<string, unknown>;
-const users = vi.hoisted(() => ({ rows: [] as Row[], selects: 0, inserts: [] as Row[] }));
+const users = vi.hoisted(() => ({ rows: [] as Row[], selects: 0, inserts: [] as Row[], updates: [] as Row[] }));
 
 vi.mock('@/lib/db', () => ({
   db: {
@@ -29,25 +32,33 @@ vi.mock('@/lib/db', () => ({
     insert: () => ({
       values: async (values: Row) => {
         users.inserts.push(values);
-        users.rows = [{ id: 44, storeId: null, workerId: null, teamId: null, ...values }];
+        users.rows = [{ id: 44, storeId: null, workerId: null, teamId: null, isActive: true, ...values }];
         return [{ insertId: 44 }];
       },
     }),
+    // `lastLoginAt`.
+    update: () => ({ set: (values: Row) => ({ where: async () => void users.updates.push(values) }) }),
   },
 }));
 
 // NextAuth itself is not under test — our callbacks are — and next-auth's ESM build imports
 // `next/server` in a way plain Node cannot resolve outside Next. `authOptions` is what it is
 // given, so these stand-ins only have to take it.
-vi.mock('next-auth', () => ({ default: () => ({ handlers: {}, auth: async () => null, signIn: async () => undefined, signOut: async () => undefined }) }));
+vi.mock('next-auth', () => ({
+  default: () => ({ handlers: {}, auth: async () => null, signIn: async () => undefined, signOut: async () => undefined }),
+  CredentialsSignin: class CredentialsSignin extends Error {
+    code = 'credentials';
+  },
+}));
 vi.mock('next-auth/providers/credentials', () => ({ default: (options: object) => ({ id: 'credentials', type: 'credentials', ...options }) }));
 vi.mock('next-auth/providers/google', () => ({ default: (options: object) => ({ id: 'google', type: 'oidc', ...options }) }));
 vi.mock('next-auth/providers/facebook', () => ({ default: (options: object) => ({ id: 'facebook', type: 'oauth', ...options }) }));
 
-import { accountClaimsByEmail, claimsOf, isSocialSignIn, sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
+import bcrypt from 'bcryptjs';
+import { accountById, accountClaimsByEmail, CLAIMS_TTL_MS, claimsOf, currentAccount, forgetAccount, isSocialSignIn, refreshSessionToken, sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
 import { authOptions } from '@/auth';
 
-const row = (patch: Row = {}): Row => ({ id: 12, role: 'admin', storeId: null, workerId: null, teamId: null, ...patch });
+const row = (patch: Row = {}): Row => ({ id: 12, role: 'admin', storeId: null, workerId: null, teamId: null, isActive: true, name: 'Nino', email: 'nino@example.ge', ...patch });
 const google = { provider: 'google', type: 'oidc', providerAccountId: '1098765432101234567890' } as const;
 const credentials = { provider: 'credentials', type: 'credentials', providerAccountId: '12' } as const;
 /** What @auth/core hands the callbacks for a Google sign-in: the profile, with a random id. */
@@ -63,6 +74,9 @@ beforeEach(() => {
   users.rows = [];
   users.selects = 0;
   users.inserts.length = 0;
+  users.updates.length = 0;
+  // The per-process cache outlives a test; every id these tests use starts unknown.
+  for (const id of [5, 12, 30, 44, 77]) forgetAccount(id);
 });
 
 describe('claimsOf / isSocialSignIn', () => {
@@ -83,6 +97,11 @@ describe('accountClaimsByEmail', () => {
   it('finds the account behind an e-mail', async () => {
     users.rows = [row()];
     expect(await accountClaimsByEmail('Nino@Example.ge')).toEqual({ id: '12', role: 'admin', storeId: null, workerId: null, teamId: null });
+  });
+
+  it('is nobody for a deactivated account', async () => {
+    users.rows = [row({ isActive: false })];
+    expect(await accountClaimsByEmail('nino@example.ge')).toBeNull();
   });
 
   it('is nobody without an e-mail or without a row, and asks the database only when it has an e-mail', async () => {
@@ -153,9 +172,96 @@ describe('the callbacks auth.ts gives NextAuth', () => {
     expect(users.selects).toBe(0);
   });
 
-  it('does not touch the database when a signed-in session is merely read', async () => {
-    const token = { id: '12', role: 'admin', storeId: null, workerId: null, teamId: null };
-    expect(await jwt({ token, user: undefined, account: null })).toEqual(token);
-    expect(users.selects).toBe(0);
+  it('re-reads the account when a signed-in session is read: a role changed by admin is on the next request', async () => {
+    users.rows = [row({ role: 'agent_catalog', name: 'Nino B.' })];
+    const token = await jwt({ token: { id: '12', sub: '12', role: 'admin', storeId: null, workerId: null, teamId: null }, user: undefined, account: null });
+    expect(token).toMatchObject({ id: '12', role: 'agent_catalog', name: 'Nino B.' });
+    expect(users.selects).toBe(1);
+  });
+
+  it('carries a partner link changed by admin — and drops one that was taken away', async () => {
+    users.rows = [row({ id: 30, role: 'user', storeId: null })];
+    expect(await jwt({ token: { id: '30', role: 'store', storeId: 7 }, user: undefined, account: null })).toMatchObject({ role: 'user', storeId: null });
+  });
+
+  it('ends the session of an account switched off or deleted since it signed in', async () => {
+    users.rows = [row({ isActive: false })];
+    expect(await jwt({ token: { id: '12', role: 'admin' }, user: undefined, account: null })).toBeNull();
+    forgetAccount(12);
+    users.rows = [];
+    expect(await jwt({ token: { id: '12', role: 'admin' }, user: undefined, account: null })).toBeNull();
+  });
+
+  it('refuses a Google sign-in into a deactivated account, and stamps the last sign-in of an active one', async () => {
+    const signIn = authOptions.callbacks.signIn as unknown as (p: unknown) => Promise<string | boolean>;
+    users.rows = [row({ isActive: false })];
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: google })).toBe('/login?error=account_disabled');
+    users.rows = [row()];
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: google })).toBe(true);
+    expect(users.updates).toEqual([expect.objectContaining({ lastLoginAt: expect.any(Date) })]);
+  });
+});
+
+describe('refreshSessionToken / currentAccount / accountById', () => {
+  const account = { id: '12', role: 'agent_orders' as const, storeId: null, workerId: null, teamId: null, name: 'Nino', email: 'nino@example.ge' };
+
+  it('brings a token up to date with its account: role, link, name and e-mail', async () => {
+    const lookup = vi.fn(async () => account);
+    const token = { id: '12', sub: '12', role: 'admin', name: 'Old', email: 'old@example.ge', picture: null };
+    expect(await refreshSessionToken(token, lookup)).toEqual({ ...token, ...account, sub: '12' });
+    expect(lookup).toHaveBeenCalledWith(12);
+  });
+
+  it('gives no session to a token that names no account, or one that is gone', async () => {
+    const lookup = vi.fn(async () => null);
+    expect(await refreshSessionToken({ role: 'admin' }, lookup)).toBeNull();
+    expect(lookup).not.toHaveBeenCalled();
+    expect(await refreshSessionToken({ id: '12' }, lookup)).toBeNull();
+    // `sub` is the id when `id` is missing.
+    expect(await refreshSessionToken({ sub: '12' }, async () => account)).toMatchObject({ id: '12', role: 'agent_orders' });
+  });
+
+  it('reads an account once per window, and again at once after admin changed it', async () => {
+    const lookup = vi.fn(async () => account);
+    await currentAccount(77, 1_000, lookup);
+    await currentAccount(77, 1_000 + CLAIMS_TTL_MS - 1, lookup);
+    expect(lookup).toHaveBeenCalledTimes(1);
+    await currentAccount(77, 1_000 + CLAIMS_TTL_MS, lookup);
+    expect(lookup).toHaveBeenCalledTimes(2);
+    forgetAccount(77);
+    await currentAccount(77, 1_000 + CLAIMS_TTL_MS + 1, lookup);
+    expect(lookup).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads the row: the account when it is active, nobody when it is switched off or gone', async () => {
+    users.rows = [row({ role: 'team', teamId: 3 })];
+    expect(await accountById(12)).toEqual({ id: '12', role: 'team', storeId: null, workerId: null, teamId: 3, name: 'Nino', email: 'nino@example.ge' });
+    users.rows = [row({ isActive: false })];
+    expect(await accountById(12)).toBeNull();
+    users.rows = [];
+    expect(await accountById(12)).toBeNull();
+  });
+});
+
+describe('the password form (`authorize`)', () => {
+  type Authorize = (credentials: Record<string, string>) => Promise<unknown>;
+  const authorize = (authOptions.providers[0] as unknown as { authorize: Authorize }).authorize;
+  const hash = bcrypt.hashSync('right-password', 4);
+
+  it('signs an active account in with the right password, and stamps its last sign-in', async () => {
+    users.rows = [row({ email: 'active@example.ge', passwordHash: hash })];
+    expect(await authorize({ email: 'Active@Example.ge', password: 'right-password' })).toMatchObject({ id: '12', role: 'admin' });
+    expect(users.updates).toEqual([expect.objectContaining({ lastLoginAt: expect.any(Date) })]);
+  });
+
+  it('refuses a wrong password without saying whether the account is switched off', async () => {
+    users.rows = [row({ email: 'off@example.ge', passwordHash: hash, isActive: false })];
+    expect(await authorize({ email: 'off@example.ge', password: 'wrong-password' })).toBeNull();
+  });
+
+  it('tells a deactivated account with the right password that it is deactivated', async () => {
+    users.rows = [row({ email: 'off2@example.ge', passwordHash: hash, isActive: false })];
+    await expect(authorize({ email: 'off2@example.ge', password: 'right-password' })).rejects.toMatchObject({ code: 'account_disabled' });
+    expect(users.updates).toHaveLength(0);
   });
 });

@@ -78,11 +78,12 @@ app/
   admin/                            staff area, one folder per section (dashboard, orders, projects,
                                     products, categories, stores, workers, teams, rates, revenue,
                                     users, settings) — see docs/partners-and-admin.md
-  partner/                          partner portal: orders, products (stores), profile (workers)
+  partner/                          partner portal: orders, products (stores), profile (workers,
+                                    brigades), projects (a brigade's booked projects, read-only)
   api/                              route handlers (list below)
 components/
   ui/          button button-3d card dialog input label select textarea accordion badge skeleton
-               money-row stat-card scroll-row
+               money-row stat-card scroll-row node-icon
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu NotFoundContent
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
   motion/      CountUp Marquee RotatingBadge
@@ -97,18 +98,21 @@ components/
                PhotoDialog ProductPageLink DesignAutosave TechnicalChecks
   studio/      BuildBar Trays FurnitureTray FurnitureDrawer CatalogBrowser RoomItemsPanel
                FixturePanel OpeningPanel OwnModelDialog StudioTopBar TutorialOverlay NavHelp
-               VersionsPanel archetypeIcons.ts dragImage.ts
+               VersionsPanel dragImage.ts
   budget/      BudgetSheet lineName.ts
   projects/    ProjectGate SaveProblemBanner ProjectDetail FoldSection ProjectRenders PlanSketch
+               ProjectViewer (read-only 2D / 3D / walk-through)
                ProjectKindTags OpenIn3dButton CalculateCostsButton OrderProjectButton
                DeleteProjectButton · hub/ (ProjectHub HubTiles ProjectCardMenu LegacyWorkNotice
                HubCachePrune)
   checkout/    CheckoutDialog BookingDialog CustomerFields
-  orders/      OrderEditor OrderStatusBadge ProjectOrders
+  orders/      OrderEditor PartnerOrderView OrderTimeline OrderReviewCard ProjectOrdersReview
+               ProjectOrders OrderStatusBadge (OrderStageBadge) useOrderActions.ts
   catalog/     ProductCard ProductGrid CatalogSidebar ProductModelDrawer SortSelect StyleFilter
   admin/       ProductForm (also the partner portal's) ModelUploader ImageUploader StoreForm
-               CategoryForm WorkerForm TeamForm UserForm PartnerApproval RatesTable SettingsForm
-               RevenueChart FilterBar AdminList
+               CategoryForm WorkerForm TeamForm AccountForm PartnerApproval RatesTable SettingsForm
+               RevenueChart FilterBar AdminList BulkSelect ProductRowActions IconPicker
+               CategoryIcon CategoryTree CategoryTabs ShelfRoomList ShelfRoomForm
   auth/ partner/ profile/ teams/ workers/ legal/ contact/ providers/
 lib/
   calculator/  the estimate engine, rate book, selection keys, per-room finishes, step URLs
@@ -117,16 +121,22 @@ lib/
   design3d/    three.js scene building, materials, model loading, lighting
   flow/        per-project caches, sync lines, save queue, loaders, resume, legacy migration
   projects/    row ↔ client shapes, hub query, owner check, sheets, checkout parts
-  finance/     marketplace money, orders, notifications, revenue report, settings
+  finance/     marketplace money, orders, the order flow's rules (orderFlow), notifications,
+               revenue report, settings
   teams/       brigade queries
   api/         route helpers (handle, guards), rate limiting, repricing, who sees a product
-               (productAccess), design catalogue, rate book
-  auth/        roles, lockout, tokens, safe callback URLs, social providers, account claims
-  admin/       admin page guard, URL list state
-  partner/     partner portal context
+               (productAccess), what the public sees of a partner (publicPartners), design
+               catalogue, rate book
+  auth/        roles, account rules, passwords, lockout, tokens, safe callback URLs, social
+               providers, account claims (re-read on every session read)
+  admin/       admin page guard, URL list state, account links, sidebar counts, icon names,
+               the category and studio-room pages' loaders
+  catalog/     the category tree (tree.ts, pure), its reads, the studio rooms' links, icon
+               drawings for payloads, the starting tree — see docs/categories.md
+  partner/     partner portal context, partner analytics, a brigade's booked projects
   db/          schema.ts, index.ts (pool + drizzle), json.ts, migrations/
   i18n/        ka.ts (source of the Dictionary type) en.ts ru.ts, client.tsx, server.ts, labels.ts
-  storage/     local | s3 upload drivers
+  storage/     local | s3 upload drivers; removing files nothing uses (cleanup, uploadKeys)
   uploads/     byte sniffing (images, GLB)
   validations/ zod schemas per payload
   env.ts log.ts email.ts features.ts utils.ts
@@ -152,9 +162,9 @@ playwright.config.ts drizzle.config.ts vercel.json ecosystem.config.cjs server.c
 | Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) |
 | Design | `design/projects` (the design's save) · `design/catalog` · `design/upload-plan` · `design/parse-plan` · `design/renders`, `design/renders/[id]` · `design/models`, `design/models/[id]` (a person's own furniture) |
 | Calculator | `calculator/materials` · `calculator/rates`, `calculator/rates/[id]` |
-| Catalogue | `products`, `products/[id]` · `categories`, `categories/[id]` · `stores`, `stores/[id]`, `stores/[id]/approval` |
+| Catalogue | `products`, `products/[id]`, `products/bulk` · `categories`, `categories/[id]`, `categories/reorder` · `shelf-rooms`, `shelf-rooms/[id]`, `shelf-rooms/reorder` · `stores`, `stores/[id]`, `stores/[id]/approval` |
 | People | `workers`, `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` |
-| Marketplace | `checkout` · `bookings` · `orders`, `orders/[id]` · `settings` · `admin/settings` · `admin/revenue/export` |
+| Marketplace | `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
 | Auth | `auth/[...nextauth]` · `auth/register` · `auth/register-partner` · `auth/forgot` · `auth/reset` · `auth/verify` |
 | Uploads | `upload` (images) · `upload/model` (GLB) |
 | Ops | `health` |

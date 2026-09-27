@@ -121,7 +121,11 @@ the rooms. So:
   every wall; switching back keeps the product that covers the most wall (the first wall's on
   a tie). Until a wall is chosen, "per wall" is only the page's state.
 - A row is chosen from the categories of its surface (`surfaceOfCategory`: `per_m2_floor` /
-  `per_m2_wall`), opening on the category of what the row has. The usual one is offered first
+  `per_m2_wall`), opening on the category of what the row has. The calculator's categories are
+  the ones admin marks as its tabs (`inCalculator`, `useCategories` → `GET
+  /api/categories?calculator=true`); each lists every product under it in the category tree
+  (`GET /api/products?category=<slug>` takes the subtree), and a pick keeps the tab's slug, so
+  the slug-keyed rules below see what they always saw ([categories.md](categories.md)). The usual one is offered first
   (`usualFinishCategory`: floor tiles for a bathroom, toilet, kitchen or balcony floor,
   laminate for the rest; wall tiles for bathroom and toilet walls, paint for the rest), and a
   bathroom or toilet sees products marked `specs.wet` first (a kitchen is not reordered).
@@ -214,7 +218,8 @@ run by the loader, written back once).
 
 Optional, room by room (`AskFurnitureDialog` asks on leaving the catalogue). The rooms are the
 catalogue's row under the step's head (`RoomRow`), each on its little plan with its name and
-how many pieces it has ("3 ნივთი", or "ცარიელი"); the categories are the side column and the
+how many pieces it has ("3 ნივთი", or "ცარიელი"); the categories are the side column (the
+furniture tabs admin marks for the calculator, each with its whole subtree) and the
 products the grid, every piece added going to the room open — the first room until another is
 picked. Each piece is `addFurniture(roomId, product)` at its own price; the same product again is
 one more of it.

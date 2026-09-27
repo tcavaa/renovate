@@ -262,6 +262,44 @@ export function mergeLines(design: LinesByStore | null, calculator: LinesByStore
   return merged;
 }
 
+/** The category slug an order line of a rate-book material carries: `material:<rate key>`. */
+export const MATERIAL_SLUG_PREFIX = 'material:';
+
+/** Units of each rate-book material an earlier checkout already sent, keyed by its line's slug. */
+export type OrderedMaterials = Record<string, number>;
+
+/**
+ * The construction materials of a checkout (blocks, plaster, putty, pipes, cable — the rate
+ * book's `material` lines as the sheet left them), sent to the one store that supplies them
+ * (`platform_settings.materialsStoreId`). Units an earlier checkout of the project already sent
+ * come off the top, material by material, as they do for products; with no supplier the lines
+ * are reported as unassigned rather than dropped silently.
+ */
+export function materialLinesByStore(lines: OrderLineDraft[], storeId: number | null | undefined, ordered: OrderedMaterials = {}): LinesByStore & { skipped: number } {
+  const result: LinesByStore & { skipped: number } = { groups: new Map(), unassigned: [], skipped: 0 };
+  const covered: OrderedMaterials = { ...ordered };
+  for (const line of lines) {
+    const key = line.categorySlug ?? '';
+    const remaining = covered[key] ?? 0;
+    if (remaining >= line.qty) {
+      covered[key] = remaining - line.qty;
+      result.skipped++;
+      continue;
+    }
+    covered[key] = 0;
+    const qty = round2(line.qty - remaining);
+    push(result, storeId ?? null, remaining > 0 ? { ...line, qty, total: lineTotal(qty, line.unitPrice) } : line);
+  }
+  return result;
+}
+
+/** Two groupings as one: the materials' store orders join the products' (same store, same order). */
+export function joinLines(a: LinesByStore, b: LinesByStore): LinesByStore {
+  const groups = new Map(a.groups);
+  for (const [storeId, lines] of b.groups) groups.set(storeId, [...(groups.get(storeId) ?? []), ...lines]);
+  return { groups, unassigned: [...a.unassigned, ...b.unassigned] };
+}
+
 export interface StoreLike {
   id: number;
   commissionRate: number | string | null;

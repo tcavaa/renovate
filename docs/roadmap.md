@@ -17,7 +17,7 @@ runtime yet.
 
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
-- Brigade orders are missing from the revenue report, the CSV and the customer's order list —
+- Brigade orders are missing from the revenue report and the CSV —
   [marketplace.md](marketplace.md#known-gaps).
 - Studio: Shift does not speed up keyboard panning; the walk-through's hint never shows; the
   hover card's phone line never renders — [design-studio/studio.md](design-studio/studio.md#known-gaps).
@@ -54,7 +54,21 @@ runtime yet.
 - **Calculator finishes**: a floor in two products has a share, not a place (the board and 3D
   show its larger product), and the summary and the orders do not name a pick's walls or share
   ([calculator.md](calculator.md#known-gaps)).
-- No SMS notifications; admin has no bulk product import.
+- **Orders**: nobody on the staff is told when a store order arrives for review (the queue, the
+  dashboard and the sidebar's count are the signal); the customer cannot cancel or message from
+  the project page; one supplier for every construction material
+  ([marketplace.md](marketplace.md#known-gaps)).
+- **Accounts**: no password-reset link sent from the account page, no audit trail of account
+  changes in the database, brigades cannot register or change their crew
+  ([auth-and-roles.md](auth-and-roles.md#known-gaps), [partners-and-admin.md](partners-and-admin.md#known-gaps)).
+- No SMS notifications; admin has no bulk product import; files uploaded in a form that is
+  never saved stay in storage ([catalog.md](catalog.md#known-gaps)).
+- **Categories**: no drag-and-drop on the tree page (a category moves through its form); a
+  product sits in one category; a new 3D kind needs its subcategory and icon made by hand
+  ([categories.md](categories.md#known-gaps)).
+- **Brigade portal**: admin previewing it (`?team=`) sees the generic sidebar, without the
+  brigade's "Projects" link; a brigade sees its project as the customer has it now, not as it
+  was when booked ([partners-and-admin.md](partners-and-admin.md#known-gaps)).
 
 ## Known gaps by area
 
@@ -65,6 +79,7 @@ Each topic document ends with its own "Known gaps" section:
 [marketplace.md](marketplace.md#known-gaps) ·
 [partners-and-admin.md](partners-and-admin.md#known-gaps) ·
 [catalog.md](catalog.md#known-gaps) ·
+[categories.md](categories.md#known-gaps) ·
 [3d-assets.md](3d-assets.md#known-gaps) ·
 [auth-and-roles.md](auth-and-roles.md#known-gaps) ·
 [operations.md](operations.md#known-gaps) ·

@@ -51,6 +51,10 @@ export function useProducts(categorySlug?: string | null, page = 1, limit = 12) 
   return { items, total, loading, error };
 }
 
+/**
+ * The calculator's tabs: the categories marked for it (`inCalculator`), in the tree's order,
+ * each standing for its whole subtree (`useProducts` of one lists the products under it too).
+ */
 export function useCategories(isFurniture?: boolean) {
   const [items, setItems] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +65,7 @@ export function useCategories(isFurniture?: boolean) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const qs = new URLSearchParams();
+        const qs = new URLSearchParams({ calculator: 'true' });
         if (typeof isFurniture === 'boolean')
           qs.set('isFurniture', String(isFurniture));
         const res = await fetch(`/api/categories?${qs}`);

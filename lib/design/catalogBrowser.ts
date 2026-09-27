@@ -1,24 +1,24 @@
 /**
- * The furniture catalogue as a searchable list — the shelf's filters (room, kind, style,
+ * The furniture catalogue as a searchable list — the shelf's filters (room, category, style,
  * colour) plus what a shelf of fifty tiles never needed and a catalogue of thousands cannot
- * do without: a query across names, brands, shops and kinds, a price band, a shop, a sort,
- * and a count on every filter, so the person sees where the products are before narrowing
- * down. Pure: the studio's catalogue modal renders what this returns, and the tests read it.
+ * do without: a query across names, brands, shops, kinds and categories, a price band, a
+ * shop, a sort, and a count on every filter, so the person sees where the products are
+ * before narrowing down. The rooms and their categories are admin's (`lib/design/shelf.ts`).
+ * Pure: the studio's catalogue modal renders what this returns, and the tests read it.
  */
 
 import type { RoomType } from '@/lib/calculator/types';
 import type { Locale } from '@/lib/i18n';
 import { localizedName } from '@/lib/i18n/labels';
-import { SHELF_ROOMS, archetypeLabel, kindsForRoom, unroomedKinds } from './catalog';
+import { pathOf } from '@/lib/catalog/tree';
+import { archetypeLabel } from './catalog';
 import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from './colors';
 import { isFixtureProductKind } from './electrical';
 import type { CatalogProduct } from './matcher';
 import { isOpeningProductKind } from './openings';
 import { isRadiatorProductKind } from './radiators';
+import { inCategory, inShelfRoom, roomCategories, shelfRoomCounts, shelfRoomForType, shelfTrail, subcategoryCounts, type ShelfIndex, type ShelfRoomId } from './shelf';
 import type { SceneStore, StyleId } from './types';
-
-/** A room of the shelf, or the kinds that belong to none. */
-export type ShelfRoom = RoomType | 'other';
 
 export type CatalogSort = 'priceAsc' | 'priceDesc' | 'name';
 
@@ -29,10 +29,10 @@ export type CatalogSort = 'priceAsc' | 'priceDesc' | 'name';
  */
 export interface CatalogBrowserState {
   query: string;
-  /** A room of the shelf; `null` is every room; `undefined` follows the room the studio has in focus. */
-  room: ShelfRoom | null | undefined;
-  /** A kind within the open room, or '' for all of them. */
-  kind: string;
+  /** A room of the shelf (its id, or "other"); `null` is every room; `undefined` follows the room the studio has in focus. */
+  room: ShelfRoomId | null | undefined;
+  /** A category within the open room — one it lists or one under that — or null for all of them. */
+  category: number | null;
   styles: StyleId[];
   colors: ColorFamily[];
   priceMin: number | null;
@@ -46,12 +46,12 @@ export interface CatalogBrowserState {
 }
 
 export function initialCatalogBrowserState(): CatalogBrowserState {
-  return { query: '', room: undefined, kind: '', styles: [], colors: [], priceMin: null, priceMax: null, storeId: null, sort: 'priceAsc', mine: false, selectedId: null };
+  return { query: '', room: undefined, category: null, styles: [], colors: [], priceMin: null, priceMax: null, storeId: null, sort: 'priceAsc', mine: false, selectedId: null };
 }
 
 /** Whether anything narrows the list — what the "clear filters" button undoes. */
 export function hasCatalogFilters(state: CatalogBrowserState): boolean {
-  return state.query.trim() !== '' || state.room !== undefined || state.kind !== '' || state.styles.length > 0 || state.colors.length > 0 || state.priceMin != null || state.priceMax != null || state.storeId != null || state.mine;
+  return state.query.trim() !== '' || state.room !== undefined || state.category != null || state.styles.length > 0 || state.colors.length > 0 || state.priceMin != null || state.priceMax != null || state.storeId != null || state.mine;
 }
 
 /**
@@ -73,15 +73,19 @@ export interface CatalogBrowse {
   total: number;
   /** How many of them are the person's own uploads. */
   ownCount: number;
-  /** How many products every room together holds after every filter but the room and the kind — the "all rooms" count. */
+  /** How many products every room together holds after every filter but the room and the category — the "all rooms" count. */
   all: number;
-  /** The rooms of the shelf with something in them after every filter but the room and the kind. A kind can belong to several rooms, so these do not add up to `all`. */
-  rooms: Array<{ id: ShelfRoom; count: number }>;
+  /** The rooms of the shelf with something in them after every filter but the room and the category. A product can be in several rooms, so these do not add up to `all`. */
+  rooms: Array<{ id: ShelfRoomId; count: number }>;
   /** The room the list is narrowed to, if it still has anything in it. */
-  openRoom: ShelfRoom | null;
-  /** The open room's kinds, with counts; empty when no room is open. */
-  kinds: Array<{ id: string; count: number }>;
-  openKind: string;
+  openRoom: ShelfRoomId | null;
+  /**
+   * The open room's categories with counts, and under the chosen one its subcategories
+   * (`depth` 1, 2 …) — what the sidebar lists, in order; empty when no room is open.
+   */
+  categories: Array<{ id: number; count: number; depth: number; opens: boolean }>;
+  /** The category the list is narrowed to, if it still has anything in it. */
+  openCategory: number | null;
   /** One swatch per colour family on the list as it stands, with a count. */
   swatches: Array<{ id: ColorFamily; hex: string; count: number }>;
   /** The colours ticked that the list actually has: a tick nothing answers to stands aside. */
@@ -103,7 +107,8 @@ export interface CatalogBrowse {
  * the list: the person typed "sofa" to see sofas, not a blank page because the bathroom was
  * open.
  */
-export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserState, opts: { focusRoom: RoomType | null; locale: Locale }): CatalogBrowse {
+export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserState, opts: { focusRoom: RoomType | null; locale: Locale; shelf: ShelfIndex }): CatalogBrowse {
+  const { shelf } = opts;
   // A person's own photo waiting for its model is listed too — it is theirs and they will
   // look for it — though it cannot be placed until the model is there.
   const everything = catalog.filter((p) => isFurnitureProduct(p) || (p.own && p.pending && p.model3dKind));
@@ -113,7 +118,9 @@ export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserSt
   const matchesQuery = (p: CatalogProduct): boolean => {
     if (!q) return true;
     const kind = p.model3dKind!;
-    return [p.nameKa, p.nameEn, p.nameRu, p.brand, p.store?.nameKa, p.store?.nameEn, p.store?.nameRu, archetypeLabel(kind, opts.locale), archetypeLabel(kind, 'ka'), archetypeLabel(kind, 'en')]
+    // The product's category and the ones above it: "sofa" finds what sits under "Sofas".
+    const categories = p.categoryId != null ? pathOf(shelf.tree, p.categoryId).flatMap((c) => [c.nameKa, c.nameEn, c.nameRu]) : [];
+    return [p.nameKa, p.nameEn, p.nameRu, p.brand, p.store?.nameKa, p.store?.nameEn, p.store?.nameRu, archetypeLabel(kind, opts.locale), archetypeLabel(kind, 'ka'), archetypeLabel(kind, 'en'), ...categories]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
@@ -136,29 +143,26 @@ export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserSt
   const storeId = state.storeId != null && storeCounts.has(state.storeId) ? state.storeId : null;
   const base = storeId == null ? broad : broad.filter((p) => p.store?.id === storeId);
 
-  // The rooms and their kinds, counted before the room narrows the list.
-  const countByKind = new Map<string, number>();
-  for (const p of base) countByKind.set(p.model3dKind!, (countByKind.get(p.model3dKind!) ?? 0) + 1);
-  const unroomed = new Set(unroomedKinds());
-  const kindsIn = (room: ShelfRoom): string[] =>
-    room === 'other'
-      ? // Anything on the list that no room has a slot for — a kind from an older catalogue,
-        // an archetype added without a program — is still findable, under "other".
-        [...countByKind.keys()].filter((k) => unroomed.has(k) || !SHELF_ROOMS.some((type) => kindsForRoom(type).includes(k)))
-      : kindsForRoom(room).filter((k) => countByKind.has(k));
-  const roomEntries = ([...SHELF_ROOMS, 'other'] as ShelfRoom[])
-    .map((id) => {
-      const kinds = kindsIn(id);
-      return { id, kinds, count: kinds.reduce((sum, k) => sum + (countByKind.get(k) ?? 0), 0) };
-    })
-    .filter((r) => r.count > 0);
-  const wantedRoom = state.room === undefined ? opts.focusRoom : state.room;
-  const openEntry = wantedRoom ? (roomEntries.find((r) => r.id === wantedRoom) ?? null) : null;
-  const openRoom = openEntry?.id ?? null;
-  const kinds = openEntry ? openEntry.kinds.map((id) => ({ id, count: countByKind.get(id) ?? 0 })) : [];
-  const openKind = state.kind && kinds.some((k) => k.id === state.kind) ? state.kind : '';
-  const inRoom = openEntry ? new Set(openEntry.kinds) : null;
-  const uncoloured = base.filter((p) => (openKind ? p.model3dKind === openKind : !inRoom || inRoom.has(p.model3dKind!)));
+  // The rooms, counted before the room narrows the list.
+  const rooms = shelfRoomCounts(shelf, base);
+  const wantedRoom = state.room === undefined ? shelfRoomForType(shelf, opts.focusRoom) : state.room;
+  const openRoom = wantedRoom != null && rooms.some((r) => r.id === wantedRoom) ? wantedRoom : null;
+  const inRoom = openRoom == null ? base : base.filter((p) => inShelfRoom(shelf, p, openRoom));
+  // The categories: the room's own, and under each chosen one its subcategories. A choice the
+  // rest of the filters emptied stands aside, as the room does.
+  const trail = openRoom == null ? [] : shelfTrail(shelf, openRoom, state.category, inRoom);
+  const held = trail.findIndex((id) => !inRoom.some((p) => inCategory(shelf, p, id)));
+  const chosen = held < 0 ? trail : trail.slice(0, held);
+  const categories: CatalogBrowse['categories'] = [];
+  const list = (entries: Array<{ id: number; count: number; opens: boolean }>, depth: number) => {
+    for (const entry of entries) {
+      categories.push({ ...entry, depth });
+      if (chosen[depth] === entry.id) list(subcategoryCounts(shelf, inRoom, entry.id), depth + 1);
+    }
+  };
+  if (openRoom != null) list(roomCategories(shelf, inRoom, openRoom), 0);
+  const openCategory = chosen.at(-1) ?? null;
+  const uncoloured = openCategory == null ? inRoom : inRoom.filter((p) => inCategory(shelf, p, openCategory));
 
   // The colours, counted before the colour narrows the list.
   const colorCounts = new Map<ColorFamily, number>();
@@ -175,10 +179,10 @@ export function browseCatalog(catalog: CatalogProduct[], state: CatalogBrowserSt
     total: everything.length,
     ownCount,
     all: base.length,
-    rooms: roomEntries.map(({ id, count }) => ({ id, count })),
+    rooms,
     openRoom,
-    kinds,
-    openKind,
+    categories,
+    openCategory,
     swatches,
     wantedColors,
     stores,

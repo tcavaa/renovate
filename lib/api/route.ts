@@ -31,6 +31,18 @@ export const API_ERRORS = {
   INVALID_ID: 'INVALID_ID',
   NOT_FOUND: 'NOT_FOUND',
   CATEGORY_HAS_PRODUCTS: 'CATEGORY_HAS_PRODUCTS',
+  /** A category with subcategories: they are moved or deleted first. */
+  CATEGORY_HAS_CHILDREN: 'CATEGORY_HAS_CHILDREN',
+  /** A category cannot sit under itself or anything under it. */
+  CATEGORY_CYCLE: 'CATEGORY_CYCLE',
+  /** The tree is three levels deep at most, the moved category's own subtree included. */
+  CATEGORY_TOO_DEEP: 'CATEGORY_TOO_DEEP',
+  /** The parent chosen for a category does not exist. */
+  UNKNOWN_PARENT: 'UNKNOWN_PARENT',
+  /** Another category or studio room already has this slug. */
+  SLUG_EXISTS: 'SLUG_EXISTS',
+  /** A new order for a list that has changed since the page was loaded: reload and try again. */
+  STALE_ORDER: 'STALE_ORDER',
   STORE_HAS_PRODUCTS: 'STORE_HAS_PRODUCTS',
   CANNOT_CHANGE_OWN_ROLE: 'CANNOT_CHANGE_OWN_ROLE',
   CANNOT_DELETE_SELF: 'CANNOT_DELETE_SELF',
@@ -48,6 +60,17 @@ export const API_ERRORS = {
   PROJECT_HAS_ORDERS: 'PROJECT_HAS_ORDERS',
   OWN_MODEL_KIND: 'OWN_MODEL_KIND',
   IMAGE_TOO_LARGE: 'IMAGE_TOO_LARGE',
+  /** A store / worker / team account needs the store, worker or brigade it speaks for. */
+  PARTNER_LINK_REQUIRED: 'PARTNER_LINK_REQUIRED',
+  CANNOT_DEACTIVATE_SELF: 'CANNOT_DEACTIVATE_SELF',
+  /** The platform has already confirmed this order and sent it on. */
+  ORDER_ALREADY_SENT: 'ORDER_ALREADY_SENT',
+  /** A partner may move an order only along its own steps (`partnerNextStatuses`). */
+  ORDER_STATUS_NOT_ALLOWED: 'ORDER_STATUS_NOT_ALLOWED',
+  /** Lines, prices and delivery are the platform's to change, not the partner's. */
+  ORDER_LINES_LOCKED: 'ORDER_LINES_LOCKED',
+  /** Every line is struck out: there is nothing to send — cancel the order instead. */
+  ORDER_EMPTY: 'ORDER_EMPTY',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];

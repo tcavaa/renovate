@@ -11,6 +11,7 @@ import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/c
 import { getT } from '@/lib/i18n/server';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ const SORTS = ['name', 'products', 'rating', 'newest'] as const;
 const PATH = '/admin/stores';
 
 export default async function AdminStoresPage(props: { searchParams: Promise<SearchParams> }) {
+  await requireAdminPage('stores');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const p = parseListParams(searchParams, { sorts: SORTS, defaultSort: 'name', defaultDir: 'asc' });

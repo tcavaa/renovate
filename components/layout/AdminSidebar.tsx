@@ -9,7 +9,11 @@ import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { canAdmin, type AdminSection } from '@/lib/auth/roles';
 
-export function AdminSidebar() {
+/**
+ * The admin's navigation: the sections the role has (`canAdmin`), each with the count of what
+ * waits on the person looking — orders to confirm, partners to approve (`lib/admin/badges`).
+ */
+export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSection, number>> }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const ka = useT();
@@ -53,6 +57,7 @@ export function AdminSidebar() {
               ? pathname === item.href
               : pathname?.startsWith(item.href);
             const Icon = item.icon;
+            const badge = badges[item.section] ?? 0;
             return (
               <Link
                 key={item.href}
@@ -63,7 +68,8 @@ export function AdminSidebar() {
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && <span className="min-w-5 bg-warning px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-white">{badge}</span>}
               </Link>
             );
           })}

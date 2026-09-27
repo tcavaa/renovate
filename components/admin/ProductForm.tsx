@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,13 +19,14 @@ import { ImageUploader } from '@/components/admin/ImageUploader';
 import { ModelUploader, type ModelMeasurement } from '@/components/admin/ModelUploader';
 import { useT, useLocale } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
-import { unitLabel, pickLocalizedName } from '@/lib/i18n/labels';
+import { unitLabel, pickLocalizedName, FIXTURE_KIND_LABEL, OPENING_KIND_LABEL } from '@/lib/i18n/labels';
 import { ARCHETYPES } from '@/lib/design/catalog';
 import { FIXTURE_PRODUCT_KINDS } from '@/lib/design/electrical';
 import { OPENING_PRODUCT_KINDS } from '@/lib/design/openings';
 import { STYLES, STYLE_IDS } from '@/lib/design/styles';
 import type { StyleId } from '@/lib/design/types';
 import type { Category, Product, Store } from '@/lib/db/schema';
+import { buildCategoryTree, treeOptions } from '@/lib/catalog/tree';
 
 const UNIT_KEYS = ['m2', 'linear_m', 'piece', 'liter', 'kg', 'pack', 'set'] as const;
 
@@ -38,25 +39,6 @@ const UNIT_KEYS = ['m2', 'linear_m', 'piece', 'liter', 'kg', 'pack', 'set'] as c
 const MODEL_KINDS = Object.values(ARCHETYPES)
   .map((a) => ({ kind: a.kind, label: a.labelKa, size: a.size }))
   .sort((a, b) => a.label.localeCompare(b.label, 'ka'));
-
-/**
- * The electrical layer's fittings are products of their own kinds — a socket, a switch, a
- * lamp per point kind — sized like a plate unless the form says otherwise.
- */
-const FIXTURE_KIND_LABEL: Record<string, string> = {
-  socket: 'ekSocket',
-  socket_tv: 'ekTv',
-  socket_data: 'ekInternet',
-  switch: 'ekSwitch',
-  light_ceiling: 'ekLightCeiling',
-  light_wall: 'ekLightWall',
-  light_spot: 'ekLightSpot',
-  light_strip: 'ekLightStrip',
-  light_furniture: 'ekLightFurniture',
-};
-
-/** Doors and windows are products of their own kinds too, drawn in the wall's hole. */
-const OPENING_KIND_LABEL: Record<string, string> = { door: 'lineDoor', entrance_door: 'lineEntranceDoor', window: 'lineWindow' };
 
 function asStyleTags(value: unknown): StyleId[] {
   if (!Array.isArray(value)) return [];
@@ -72,12 +54,16 @@ interface Props {
    * and saving returns to the store's own product list instead of admin's.
    */
   partner?: { storeId: number; backHref: string };
+  /** Whether the delete button is offered (`canDeleteProduct`): admin, or a store for its own. */
+  canDelete?: boolean;
 }
 
-export function ProductForm({ product, categories, stores, partner }: Props) {
+export function ProductForm({ product, categories, stores, partner, canDelete = false }: Props) {
   const router = useRouter();
   const ka = useT();
   const locale = useLocale();
+  // The categories as the tree has them, each under its parent.
+  const categoryOptions = useMemo(() => treeOptions(buildCategoryTree(categories), (c) => pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)), [categories, locale]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const backHref = partner?.backHref ?? '/admin/products';
@@ -90,7 +76,7 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
     descriptionRu: product?.descriptionRu ?? '',
     slug: product?.slug ?? '',
     sku: product?.sku ?? '',
-    categoryId: product?.categoryId ? String(product.categoryId) : (categories[0] ? String(categories[0].id) : ''),
+    categoryId: product?.categoryId ? String(product.categoryId) : '',
     pricePerUnit: product?.pricePerUnit ? String(product.pricePerUnit) : '',
     unit: product?.unit ?? 'piece',
     brand: product?.brand ?? '',
@@ -122,6 +108,10 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.categoryId) {
+      setError(ka.admin.forms.chooseCategory);
+      return;
+    }
     setLoading(true);
     setError(null);
     const payload = {
@@ -158,8 +148,14 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
     if (!product) return;
     if (!confirm(ka.admin.forms.confirms.deleteProduct)) return;
     setLoading(true);
-    await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
+    setError(null);
+    const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
     setLoading(false);
+    if (!res.ok) {
+      const json = (await res.json().catch(() => ({ error: null }))) as { error: string | null };
+      setError(apiErrorMessage(ka, json.error));
+      return;
+    }
     router.push(backHref);
     router.refresh();
   };
@@ -213,14 +209,21 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.table.category}</Label>
-              <Select value={form.categoryId} onValueChange={(v) => update('categoryId', v)}>
+              <Select
+                value={form.categoryId}
+                onValueChange={(v) => {
+                  // A category that takes a 3D kind gives it to a product that has none yet.
+                  const kind = categories.find((c) => String(c.id) === v)?.model3dKind;
+                  setForm((f) => ({ ...f, categoryId: v, ...(kind && !f.model3dKind ? { model3dKind: kind } : {}) }));
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder={ka.admin.forms.chooseCategory} />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {pickLocalizedName(locale, c.nameKa, c.nameEn)}
+                  {categoryOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -483,7 +486,7 @@ export function ProductForm({ product, categories, stores, partner }: Props) {
 
           <div className="flex justify-between">
             <div>
-              {product && (
+              {product && canDelete && (
                 <Button type="button" variant="destructive" onClick={remove} disabled={loading}>
                   <Trash2 className="h-4 w-4" /> {ka.admin.actions.delete}
                 </Button>

@@ -1,10 +1,12 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
+import { UserPlus } from 'lucide-react';
+import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { USER_ROLES, isUserRole, type UserRole } from '@/lib/auth/roles';
+import { PARTNER_ROLES, STAFF_ROLES, USER_ROLES, isUserRole, type UserRole } from '@/lib/auth/roles';
 import { roleLabel } from '@/lib/i18n/labels';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { StatCard } from '@/components/ui/stat-card';
 import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
@@ -12,13 +14,15 @@ import { getT, getLocale } from '@/lib/i18n/server';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
-const SORTS = ['newest', 'name', 'projects', 'total'] as const;
+const SORTS = ['newest', 'name', 'projects', 'total', 'login'] as const;
 const PATH = '/admin/users';
 
 export default async function AdminUsersPage(props: { searchParams: Promise<SearchParams> }) {
+  await requireAdminPage('users');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const locale = await getLocale();
@@ -32,6 +36,11 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
   if (isUserRole(p.get('role'))) where.push(eq(users.role, p.get('role') as UserRole));
   if (p.get('verified') === 'yes') where.push(sql`${users.emailVerifiedAt} IS NOT NULL`);
   if (p.get('verified') === 'no') where.push(sql`${users.emailVerifiedAt} IS NULL`);
+  if (p.get('status') === 'active') where.push(eq(users.isActive, true));
+  if (p.get('status') === 'inactive') where.push(eq(users.isActive, false));
+  // The three kinds of account at a glance: the platform's own people, partners, customers.
+  if (p.get('group') === 'staff') where.push(inArray(users.role, [...STAFF_ROLES]));
+  if (p.get('group') === 'partners') where.push(inArray(users.role, [...PARTNER_ROLES]));
   const filter = where.length ? and(...where) : undefined;
 
   const projectCount = count(projects.id);
@@ -46,7 +55,9 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
         ? [p.dir === 'asc' ? asc(projectCount) : desc(projectCount)]
         : p.sort === 'total'
           ? [p.dir === 'asc' ? asc(totalCost) : desc(totalCost)]
-          : [p.dir === 'asc' ? asc(users.createdAt) : desc(users.createdAt)];
+          : p.sort === 'login'
+            ? [p.dir === 'asc' ? asc(users.lastLoginAt) : desc(users.lastLoginAt)]
+            : [p.dir === 'asc' ? asc(users.createdAt) : desc(users.createdAt)];
 
   const base = () =>
     db
@@ -56,6 +67,8 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
         email: users.email,
         role: users.role,
         emailVerifiedAt: users.emailVerifiedAt,
+        isActive: users.isActive,
+        lastLoginAt: users.lastLoginAt,
         createdAt: users.createdAt,
         projectCount,
         totalCost,
@@ -67,11 +80,17 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
       .groupBy(users.id)
       .having(having);
 
-  const [rows, allMatching, [{ usersTotal }], [{ admins }]] = await Promise.all([
+  const [rows, allMatching, [groups]] = await Promise.all([
     base().orderBy(...orderBy).limit(p.pageSize).offset((p.page - 1) * p.pageSize),
     base(),
-    db.select({ usersTotal: count() }).from(users),
-    db.select({ admins: count() }).from(users).where(eq(users.role, 'admin')),
+    db
+      .select({
+        staff: sql<number>`SUM(${users.role} IN ('admin','agent_orders','agent_catalog'))`,
+        partners: sql<number>`SUM(${users.role} IN ('store','worker','team'))`,
+        customers: sql<number>`SUM(${users.role} = 'user')`,
+        deactivated: sql<number>`SUM(${users.isActive} = 0)`,
+      })
+      .from(users),
   ]);
   const total = allMatching.length;
   const withProjects = allMatching.filter((r) => Number(r.projectCount) > 0).length;
@@ -81,18 +100,32 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
 
   return (
     <div className="space-y-5">
-      <AdminPageHeader title={ka.admin.users} subtitle={`${ka.admin.usersPage.headerCount} — ${total}`} />
+      <AdminPageHeader
+        title={ka.admin.users}
+        subtitle={`${ka.admin.usersPage.headerCount} — ${total} · ${ka.admin.stats.usersActive}: ${withProjects}`}
+        actions={
+          <Button asChild variant="ink">
+            <Link href="/admin/users/new">
+              <UserPlus className="h-4 w-4" /> {ka.accounts.newUser}
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label={ka.admin.stats.usersTotal} value={`${usersTotal}`} />
-        <StatCard label={ka.admin.stats.usersAdmins} value={`${admins}`} />
-        <StatCard label={ka.admin.stats.usersActive} value={`${withProjects}`} />
+      {/* The groups are links: a click is the filtered list. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Link href="/admin/users?group=staff"><StatCard label={ka.accounts.groupStaff} value={`${Number(groups?.staff ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
+        <Link href="/admin/users?group=partners"><StatCard label={ka.accounts.groupPartners} value={`${Number(groups?.partners ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
+        <Link href="/admin/users?role=user"><StatCard label={ka.accounts.groupCustomers} value={`${Number(groups?.customers ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
+        <Link href="/admin/users?status=inactive"><StatCard label={ka.accounts.groupDeactivated} value={`${Number(groups?.deactivated ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
       </div>
 
       <FilterBar
         fields={[
           { name: 'q', type: 'search', placeholder: ka.admin.usersPage.searchPlaceholder, className: 'w-72' },
           { name: 'role', type: 'select', label: f.role, options: USER_ROLES.map((r) => ({ value: r, label: roleLabel(ka, r) })) },
+          { name: 'group', type: 'select', label: ka.admin.table.role, options: [{ value: 'staff', label: ka.accounts.groupStaff }, { value: 'partners', label: ka.accounts.groupPartners }] },
+          { name: 'status', type: 'select', label: ka.accounts.statusTitle, options: [{ value: 'active', label: ka.accounts.active }, { value: 'inactive', label: ka.accounts.deactivated }] },
           { name: 'projects', type: 'select', label: ka.admin.table.projects, options: [{ value: 'yes', label: f.hasProjects }, { value: 'no', label: f.noProjects }] },
           { name: 'verified', type: 'select', label: ka.admin.cols.verified, options: [{ value: 'yes', label: f.verified }, { value: 'no', label: f.unverified }] },
         ]}
@@ -101,6 +134,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
           { value: 'name:asc', label: f.sortName },
           { value: 'projects', label: f.sortProducts.replace(/.*/, ka.admin.table.projects) },
           { value: 'total', label: f.sortCost },
+          { value: 'login', label: ka.accounts.lastLogin },
         ]}
         defaultSort="newest"
       />
@@ -114,6 +148,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
           <Th right>{ka.admin.table.projects}</Th>
           <Th right>{ka.admin.table.total}</Th>
           <Th>{ka.admin.cols.lastActive}</Th>
+          <Th>{ka.accounts.lastLogin}</Th>
           <Th>{ka.admin.table.registered}</Th>
         </THead>
         <tbody>
@@ -139,6 +174,11 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
               </td>
               <td className="px-4 py-2.5">
                 <Badge variant={u.role === 'admin' ? 'success' : u.role === 'user' ? 'outline' : 'secondary'}>{roleLabel(ka, u.role)}</Badge>
+                {!u.isActive && (
+                  <Badge variant="danger" className="ml-1">
+                    {ka.accounts.deactivated}
+                  </Badge>
+                )}
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">
                 <Link href={`/admin/projects?q=${encodeURIComponent(u.email)}`} className="hover:text-brand hover:underline">
@@ -147,10 +187,11 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">{Number(u.totalCost) > 0 ? formatGEL(Number(u.totalCost)) : '—'}</td>
               <td className="px-4 py-2.5 text-ink-muted">{u.lastProjectAt ? new Date(u.lastProjectAt).toLocaleDateString(dateLocale) : '—'}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString(dateLocale) : ka.accounts.never}</td>
               <td className="px-4 py-2.5 text-ink-muted">{new Date(u.createdAt).toLocaleDateString(dateLocale)}</td>
             </Tr>
           ))}
-          {rows.length === 0 && <EmptyRow colSpan={8} text={ka.admin.usersEmpty} />}
+          {rows.length === 0 && <EmptyRow colSpan={9} text={ka.admin.usersEmpty} />}
         </tbody>
       </AdminTable>
 

@@ -4,6 +4,8 @@ import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';
 import { getT } from '@/lib/i18n/server';
+import { requireAdminPage } from '@/lib/admin/guard';
+import { canDeleteIn } from '@/lib/auth/roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,7 @@ export default async function EditProductPage(
     params: Promise<{ id: string }>;
   }
 ) {
+  const session = await requireAdminPage('products');
   const params = await props.params;
   const ka = await getT();
   const id = Number(params.id);
@@ -26,7 +29,7 @@ export default async function EditProductPage(
   return (
     <div className="space-y-6">
       <h1 className="font-serif text-3xl font-bold">{ka.admin.actions.edit}</h1>
-      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} />
+      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} canDelete={canDeleteIn(session.user.role, 'products')} />
     </div>
   );
 }

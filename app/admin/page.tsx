@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { and, count, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
-import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, Hammer, Package, Plus, Receipt, Settings, Store, TrendingUp, Users } from 'lucide-react';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, FolderTree, Hammer, Package, Plus, Receipt, Send, Settings, Store, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, orders, products, projects, stores, users, workers } from '@/lib/db/schema';
 import { revenueReport } from '@/lib/finance/report';
+import { loadPlatformSettings } from '@/lib/finance/settings';
 import { periodRange } from '@/lib/finance/money';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,20 +16,39 @@ import { fill } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { formatGEL } from '@/lib/utils';
-import { auth } from '@/auth';
-import { canAdmin } from '@/lib/auth/roles';
+import { canAdmin, type AdminSection } from '@/lib/auth/roles';
+import { requireAdminPage } from '@/lib/admin/guard';
+import { subtreeOfSlugs } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The admin's first page, cut to the role looking at it: every button, figure and "needs
+ * attention" line belongs to a section (`lib/auth/roles`), and only the sections the account
+ * has are shown. The orders agent opens it on the queue of store orders waiting to be
+ * confirmed; the catalogue agent on the catalogue's gaps (photos, 3D models, stores waiting for
+ * approval); admin sees all of it, the money included. What a role does not see is not even
+ * queried where it costs something (the revenue report).
+ */
 export default async function AdminDashboardPage() {
+  const session = await requireAdminPage('dashboard');
   const ka = await getT();
   const locale = await getLocale();
-  // An agent sees the dashboard, but only the rows their job covers: what the platform earns
-  // is not an orders agent's business, and neither is the catalogue a catalogue agent's
-  // count of users.
-  const session = await auth();
-  const may = (section: Parameters<typeof canAdmin>[1]) => canAdmin(session?.user?.role, section);
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
+  const role = session.user.role;
+  const may = (section: AdminSection) => canAdmin(role, section);
+  const d = ka.admin.dash;
+  const s = ka.staffDashboard;
+  const r = ka.orderReview;
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60_000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const settings = await loadPlatformSettings();
+
+  // Store orders the platform has not confirmed and sent yet: the orders agent's queue.
+  const awaiting: SQL = and(eq(orders.partnerType, 'store'), isNull(orders.sentAt), notInArray(orders.status, ['cancelled', 'done']))!;
+  // The materials supplier sells no catalogue products by design; it is not an "empty store".
+  const emptyStoreCondition = and(eq(stores.isActive, true), isNull(products.id), settings.materialsStoreId != null ? ne(stores.id, settings.materialsStoreId) : undefined);
 
   const [
     [productStats],
@@ -38,19 +58,25 @@ export default async function AdminDashboardPage() {
     [userCount],
     [projectStats],
     recent,
-    designCategoryRows,
+    categoryTree,
     [emptyStores],
     [emptyCategories],
+    [orderStats],
+    queue,
+    [partnersNoEmail],
+    [storesNoAccount],
   ] = await Promise.all([
     db
       .select({
         total: count(),
         active: sql<number>`SUM(${products.isActive} = 1)`,
+        noPhoto: sql<number>`SUM(${products.isActive} = 1 AND (${products.imageUrl} IS NULL OR ${products.imageUrl} = ''))`,
       })
-      .from(products),
+      .from(products)
+      .where(isNull(products.ownerUserId)),
     db.select({ c: count() }).from(categories),
-    db.select({ total: count(), active: sql<number>`SUM(${stores.isActive} = 1)` }).from(stores),
-    db.select({ total: count(), verified: sql<number>`SUM(${workers.isVerified} = 1)` }).from(workers),
+    db.select({ total: count(), active: sql<number>`SUM(${stores.isActive} = 1)`, pending: sql<number>`SUM(${stores.approvalStatus} = 'pending')` }).from(stores),
+    db.select({ total: count(), verified: sql<number>`SUM(${workers.isVerified} = 1)`, pending: sql<number>`SUM(${workers.approvalStatus} = 'pending')` }).from(workers),
     db.select({ c: count() }).from(users),
     db
       .select({
@@ -79,158 +105,235 @@ export default async function AdminDashboardPage() {
       .leftJoin(users, eq(projects.userId, users.id))
       .orderBy(desc(projects.createdAt))
       .limit(8),
-    db.select({ id: categories.id }).from(categories).where(inArray(categories.slug, [...DESIGN_CATEGORY_SLUGS])),
-    db
-      .select({ c: sql<number>`COUNT(*)` })
-      .from(stores)
-      .leftJoin(products, eq(products.storeId, stores.id))
-      .where(and(eq(stores.isActive, true), isNull(products.id))),
+    loadCategoryTree(),
+    db.select({ c: sql<number>`COUNT(*)` }).from(stores).leftJoin(products, eq(products.storeId, stores.id)).where(emptyStoreCondition),
     db
       .select({ c: sql<number>`COUNT(*)` })
       .from(categories)
       .leftJoin(products, eq(products.categoryId, categories.id))
-      .where(and(eq(categories.isVisible, true), isNull(products.id))),
-  ]);
-
-  const [monthRevenue, [orderStats], [partnersNoEmail], [storesNoAccount], [pendingPartners]] = await Promise.all([
-    revenueReport(periodRange('month')),
+      // A group holds its subcategories, not products: only a category with nothing under it is empty.
+      .where(and(eq(categories.isVisible, true), isNull(products.id), sql`NOT EXISTS (SELECT 1 FROM ${categories} AS child WHERE child.parent_id = ${categories.id})`)),
     db
       .select({
-        pending: sql<number>`SUM(${orders.status} = 'new')`,
-        unread: sql<number>`SUM(${orders.viewedAt} IS NULL AND ${orders.status} <> 'cancelled')`,
+        toConfirm: sql<number>`SUM(${orders.partnerType} = 'store' AND ${orders.sentAt} IS NULL AND ${orders.status} NOT IN ('cancelled','done'))`,
+        waitingPartner: sql<number>`SUM(${orders.sentAt} IS NOT NULL AND ${orders.status} = 'new')`,
+        inWork: sql<number>`SUM(${orders.sentAt} IS NOT NULL AND ${orders.status} IN ('confirmed','in_progress'))`,
+        doneMonth: sql<number>`SUM(${orders.status} = 'done' AND ${orders.updatedAt} >= ${monthStart})`,
       })
       .from(orders),
+    may('orders')
+      ? db
+          .select({ id: orders.id, projectId: orders.projectId, storeName: stores.nameKa, customerName: orders.customerName, customerPhone: orders.customerPhone, subtotal: orders.subtotal, deliveryFee: orders.deliveryFee, createdAt: orders.createdAt })
+          .from(orders)
+          .leftJoin(stores, eq(orders.storeId, stores.id))
+          .where(awaiting)
+          .orderBy(asc(orders.createdAt))
+          .limit(8)
+      : Promise.resolve([]),
     db.select({ c: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.isActive} = 1 AND (${stores.email} IS NULL OR ${stores.email} = '')) + (SELECT COUNT(*) FROM ${workers} WHERE ${workers.isActive} = 1 AND (${workers.email} IS NULL OR ${workers.email} = ''))` }).from(sql`(SELECT 1) AS one`),
     db.select({ c: sql<number>`COUNT(*)` }).from(stores).where(and(eq(stores.isActive, true), sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.storeId} = ${stores.id})`)),
-    // Stores and workers who registered themselves and wait for a verdict.
-    db.select({ stores: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.approvalStatus} = 'pending')`, workers: sql<number>`(SELECT COUNT(*) FROM ${workers} WHERE ${workers.approvalStatus} = 'pending')` }).from(sql`(SELECT 1) AS one`),
   ]);
 
-  const designCategoryIds = designCategoryRows.map((c) => c.id);
-  const [noModel] = designCategoryIds.length
-    ? await db
-        .select({ c: count() })
-        .from(products)
-        .where(and(eq(products.isActive, true), inArray(products.categoryId, designCategoryIds), isNull(products.model3dUrl)))
-    : [{ c: 0 }];
+  // The studio's categories and everything filed under them.
+  const designCategoryIds = [...subtreeOfSlugs(categoryTree, DESIGN_CATEGORY_SLUGS)];
+  const [[noModel], monthRevenue] = await Promise.all([
+    designCategoryIds.length
+      ? db
+          .select({ c: count() })
+          .from(products)
+          .where(and(eq(products.isActive, true), inArray(products.categoryId, designCategoryIds), isNull(products.model3dUrl), isNull(products.ownerUserId)))
+      : Promise.resolve([{ c: 0 }]),
+    // The money is admin's: nobody else's dashboard even asks for it.
+    may('revenue') ? revenueReport(periodRange('month')) : Promise.resolve(null),
+  ]);
 
-  const d = ka.admin.dash;
   const dateLocale = dateLocaleFor(locale);
-  const inactiveProducts = Number(productStats.total) - Number(productStats.active ?? 0);
-  const unverifiedWorkers = Number(workerStats.total) - Number(workerStats.verified ?? 0);
+  const n = (v: unknown) => Number(v ?? 0);
+  const toConfirm = n(orderStats.toConfirm);
+  const inactiveProducts = n(productStats.total) - n(productStats.active);
+  const unverifiedWorkers = n(workerStats.total) - n(workerStats.verified);
 
-  const attention: Array<{ text: string; href: string }> = [];
-  if (Number(pendingPartners.stores ?? 0) > 0) attention.push({ text: `${ka.admin.pendingPartners}: ${ka.admin.stores} ${Number(pendingPartners.stores)}`, href: '/admin/stores?status=pending' });
-  if (Number(pendingPartners.workers ?? 0) > 0) attention.push({ text: `${ka.admin.pendingPartners}: ${ka.admin.workers} ${Number(pendingPartners.workers)}`, href: '/admin/workers?status=pending' });
-  if (Number(orderStats.pending ?? 0) > 0) attention.push({ text: fill(d.pendingOrders, { n: Number(orderStats.pending) }), href: '/admin/orders?status=new' });
-  if (Number(partnersNoEmail.c) > 0) attention.push({ text: fill(d.partnersWithoutEmail, { n: Number(partnersNoEmail.c) }), href: '/admin/stores' });
-  if (Number(storesNoAccount.c) > 0) attention.push({ text: fill(d.partnersWithoutAccount, { n: Number(storesNoAccount.c) }), href: '/admin/users?role=store' });
-  if (Number(noModel.c) > 0) attention.push({ text: fill(d.noModelProducts, { n: Number(noModel.c) }), href: '/admin/products?model=none&status=active' });
-  if (Number(emptyStores.c) > 0) attention.push({ text: fill(d.emptyStores, { n: Number(emptyStores.c) }), href: '/admin/stores?sort=products&dir=asc' });
-  if (Number(emptyCategories.c) > 0) attention.push({ text: fill(d.emptyCategories, { n: Number(emptyCategories.c) }), href: '/admin/categories?sort=products&dir=asc' });
-  if (inactiveProducts > 0) attention.push({ text: fill(d.inactiveProducts, { n: inactiveProducts }), href: '/admin/products?status=inactive' });
-  if (unverifiedWorkers > 0) attention.push({ text: fill(d.unverifiedWorkers, { n: unverifiedWorkers }), href: '/admin/workers?verified=no' });
+  const attentionAll: Array<{ section: AdminSection; text: string; href: string; show: boolean }> = [
+    { section: 'orders', text: fill(s.toConfirmAttention, { n: toConfirm }), href: '/admin/orders?review=pending', show: toConfirm > 0 },
+    { section: 'orders', text: fill(s.waitingPartnerAttention, { n: n(orderStats.waitingPartner) }), href: '/admin/orders?review=sent&status=new', show: n(orderStats.waitingPartner) > 0 },
+    { section: 'stores', text: fill(s.pendingStoresAttention, { n: n(storeStats.pending) }), href: '/admin/stores?status=pending', show: n(storeStats.pending) > 0 },
+    { section: 'workers', text: fill(s.pendingWorkersAttention, { n: n(workerStats.pending) }), href: '/admin/workers?status=pending', show: n(workerStats.pending) > 0 },
+    { section: 'stores', text: fill(d.partnersWithoutEmail, { n: n(partnersNoEmail.c) }), href: '/admin/stores', show: n(partnersNoEmail.c) > 0 },
+    { section: 'users', text: fill(d.partnersWithoutAccount, { n: n(storesNoAccount.c) }), href: '/admin/users?role=store', show: n(storesNoAccount.c) > 0 },
+    { section: 'products', text: fill(d.noModelProducts, { n: n(noModel.c) }), href: '/admin/products?model=none&status=active', show: n(noModel.c) > 0 },
+    { section: 'stores', text: fill(d.emptyStores, { n: n(emptyStores.c) }), href: '/admin/stores?sort=products&dir=asc', show: n(emptyStores.c) > 0 },
+    { section: 'categories', text: fill(d.emptyCategories, { n: n(emptyCategories.c) }), href: '/admin/categories?show=empty', show: n(emptyCategories.c) > 0 },
+    { section: 'products', text: fill(d.inactiveProducts, { n: inactiveProducts }), href: '/admin/products?status=inactive', show: inactiveProducts > 0 },
+    { section: 'workers', text: fill(d.unverifiedWorkers, { n: unverifiedWorkers }), href: '/admin/workers?verified=no', show: unverifiedWorkers > 0 },
+  ];
+  const attention = attentionAll.filter((a) => a.show && may(a.section));
+
+  // Each button belongs to a section: an agent is offered only what their job covers.
+  const actions: Array<{ section: AdminSection; href: string; label: string; icon: React.ComponentType<{ className?: string }>; variant: 'default' | 'outline' | 'ghost' }> = [
+    { section: 'orders' as const, href: '/admin/orders?review=pending', label: `${r.queueTitle} · ${toConfirm}`, icon: Send, variant: 'default' as const },
+    { section: 'products' as const, href: '/admin/products/new', label: d.addProduct, icon: Plus, variant: 'default' as const },
+    { section: 'stores' as const, href: '/admin/stores/new', label: d.addStore, icon: Store, variant: 'outline' as const },
+    { section: 'categories' as const, href: '/admin/categories/new', label: s.addCategory, icon: FolderTree, variant: 'outline' as const },
+    { section: 'workers' as const, href: '/admin/workers/new', label: d.addWorker, icon: Hammer, variant: 'outline' as const },
+    { section: 'users' as const, href: '/admin/users/new', label: ka.accounts.newUser, icon: UserPlus, variant: 'outline' as const },
+    { section: 'rates' as const, href: '/admin/rates', label: d.editRates, icon: Calculator, variant: 'ghost' as const },
+    { section: 'settings' as const, href: '/admin/settings', label: d.openSettings, icon: Settings, variant: 'ghost' as const },
+  ].filter((a) => may(a.section));
+  // One filled button at most: the first of the role's own.
+  const firstPrimary = actions.findIndex((a) => a.variant === 'default');
+
+  const subtitle = (s.subtitles as Record<string, string>)[role] ?? ka.admin.dashboardSubtitle;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl font-bold">{ka.admin.dashboard}</h1>
-          <p className="mt-1 text-sm text-ink-muted">{ka.admin.dashboardSubtitle}</p>
+          <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/admin/products/new">
-              <Plus className="h-4 w-4" /> {d.addProduct}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/admin/stores/new">
-              <Store className="h-4 w-4" /> {d.addStore}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/admin/workers/new">
-              <Hammer className="h-4 w-4" /> {d.addWorker}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/admin/rates">
-              <Calculator className="h-4 w-4" /> {d.editRates}
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost">
-            <Link href="/admin/settings">
-              <Settings className="h-4 w-4" /> {d.openSettings}
-            </Link>
-          </Button>
+          {actions.map((a, i) => (
+            <Button key={a.href} asChild size="sm" variant={a.variant === 'default' ? (i === firstPrimary ? 'default' : 'outline') : a.variant}>
+              <Link href={a.href}>
+                <a.icon className="h-4 w-4" /> {a.label}
+              </Link>
+            </Button>
+          ))}
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={d.revenueMonth} value={formatGEL(monthRevenue.revenue)} hint={fill(d.revenueMonthHint, { fees: formatGEL(monthRevenue.fees.total), commissions: formatGEL(monthRevenue.commissions.total) })} icon={TrendingUp} />}
-        {may('orders') && <LinkedStat href="/admin/orders?status=new" label={d.newOrders} value={`${orderStats.pending ?? 0}`} hint={fill(ka.admin.ordersPage.unread, {})} icon={Receipt} />}
-        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.gmv} value={formatGEL(monthRevenue.gmv.total)} hint={fill(ka.admin.revenue.ordersCount, { n: monthRevenue.commissions.orders })} icon={Store} />}
-        {may('revenue') && <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.fees} value={formatGEL(monthRevenue.fees.total)} hint={fill(ka.admin.revenue.checkoutsCount, { n: monthRevenue.fees.count })} icon={Calculator} />}
-      </div>
+      {may('orders') && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <LinkedStat href="/admin/orders?review=pending" label={s.toConfirm} value={`${toConfirm}`} hint={s.toConfirmHint} icon={Send} highlight={toConfirm > 0} />
+          <LinkedStat href="/admin/orders?review=sent&status=new" label={s.waitingPartner} value={`${n(orderStats.waitingPartner)}`} hint={s.waitingPartnerHint} icon={Receipt} />
+          <LinkedStat href="/admin/orders?review=sent" label={s.inWork} value={`${n(orderStats.inWork)}`} hint={s.inWorkHint} icon={ClipboardList} />
+          <LinkedStat href="/admin/orders?status=done" label={s.doneMonth} value={`${n(orderStats.doneMonth)}`} hint={s.doneMonthHint} icon={CheckCircle2} />
+        </div>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {may('products') && <LinkedStat href="/admin/products?status=active" label={d.activeProducts} value={`${productStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(productStats.total) })} icon={Package} />}
-        {may('stores') && <LinkedStat href="/admin/stores?status=active" label={d.activeStores} value={`${storeStats.active ?? 0}`} hint={fill(d.ofTotal, { n: Number(storeStats.total) })} icon={Store} />}
-        {may('workers') && <LinkedStat href="/admin/workers?verified=yes" label={d.verifiedWorkers} value={`${workerStats.verified ?? 0}`} hint={fill(d.ofTotal, { n: Number(workerStats.total) })} icon={Hammer} />}
-        {may('users') && <LinkedStat href="/admin/users" label={d.users} value={`${userCount.c}`} hint={`${categoryCount.c} ${ka.admin.categories.toLowerCase()}`} icon={Users} />}
-      </div>
+      {monthRevenue && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <LinkedStat href="/admin/revenue?period=month" label={d.revenueMonth} value={formatGEL(monthRevenue.revenue)} hint={fill(d.revenueMonthHint, { fees: formatGEL(monthRevenue.fees.total), commissions: formatGEL(monthRevenue.commissions.total) })} icon={TrendingUp} />
+          <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.gmv} value={formatGEL(monthRevenue.gmv.total)} hint={fill(ka.admin.revenue.ordersCount, { n: monthRevenue.commissions.orders })} icon={Store} />
+          <LinkedStat href="/admin/revenue?period=month" label={ka.admin.revenue.fees} value={formatGEL(monthRevenue.fees.total)} hint={fill(ka.admin.revenue.checkoutsCount, { n: monthRevenue.fees.count })} icon={Calculator} />
+        </div>
+      )}
+
+      {(may('products') || may('stores')) && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {may('products') && <LinkedStat href="/admin/products?status=active" label={d.activeProducts} value={`${n(productStats.active)}`} hint={fill(d.ofTotal, { n: n(productStats.total) })} icon={Package} />}
+          {may('products') && <LinkedStat href="/admin/products?status=active&photo=none" label={s.noPhoto} value={`${n(productStats.noPhoto)}`} hint={s.noPhotoHint} icon={Package} />}
+          {may('products') && <LinkedStat href="/admin/products?model=none&status=active" label={s.no3d} value={`${n(noModel.c)}`} hint={s.no3dHint} icon={Package} />}
+          {may('stores') && <LinkedStat href="/admin/stores?status=pending" label={s.pendingStores} value={`${n(storeStats.pending)}`} hint={`${d.activeStores}: ${n(storeStats.active)} / ${n(storeStats.total)}`} icon={Store} highlight={n(storeStats.pending) > 0} />}
+        </div>
+      )}
+
+      {(may('workers') || may('users')) && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {may('workers') && <LinkedStat href="/admin/workers?verified=yes" label={d.verifiedWorkers} value={`${n(workerStats.verified)}`} hint={fill(d.ofTotal, { n: n(workerStats.total) })} icon={Hammer} />}
+          {may('users') && <LinkedStat href="/admin/users" label={d.users} value={`${n(userCount.c)}`} hint={`${n(categoryCount.c)} ${ka.admin.categories.toLowerCase()}`} icon={Users} />}
+        </div>
+      )}
 
       {may('projects') && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label={d.savedProjects} value={`${projectStats.saved ?? 0}`} />
-          <StatCard label={d.draftProjects} value={`${projectStats.draft ?? 0}`} />
-          <StatCard label={d.designProjects} value={`${projectStats.design ?? 0} / ${Number(projectStats.total)}`} />
-          <StatCard label={d.plannedTotal} value={formatGEL(Number(projectStats.totalCost))} highlight />
+          <StatCard label={d.savedProjects} value={`${n(projectStats.saved)}`} />
+          <StatCard label={d.draftProjects} value={`${n(projectStats.draft)}`} />
+          <StatCard label={d.designProjects} value={`${n(projectStats.design)} / ${n(projectStats.total)}`} />
+          <StatCard label={d.plannedTotal} value={formatGEL(n(projectStats.totalCost))} highlight />
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="font-serif">{d.recentProjects}</CardTitle>
-            <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
-              {d.viewAll} <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm">
-              <tbody>
-                {recent.map((r) => (
-                  <tr key={r.id} className="border-t border-line/40 hover:bg-bg-base/60">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/admin/projects/${r.id}`} className="font-medium hover:text-brand">
-                        {r.nameKa ?? `#${r.id}`}
-                      </Link>
-                      <span className="block text-xs text-ink-muted">{r.userName ?? ka.admin.guestUser} · {new Date(r.createdAt).toLocaleDateString(dateLocale)}</span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant={r.isDesign ? 'secondary' : 'outline'}>{r.isDesign ? ka.admin.filters.designKind : ka.admin.filters.calculatorKind}</Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-muted">{r.homeState ? homeStateShortLabel(ka, r.homeState) : '—'}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{formatM2L(ka, Number(r.totalM2))}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium">{r.totalCost ? formatGEL(Number(r.totalCost)) : '—'}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant={r.status === 'saved' ? 'success' : 'outline'}>{statusLabel(ka, r.status ?? 'draft')}</Badge>
-                    </td>
-                  </tr>
-                ))}
-                {recent.length === 0 && (
-                  <tr>
-                    <td className="px-4 py-10 text-center text-ink-muted">{ka.admin.projectsEmpty}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {may('orders') && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-serif">{r.queueTitle}</CardTitle>
+                <Link href="/admin/orders?review=pending" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+                  {s.queueViewAll} <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </CardHeader>
+              <CardContent className="overflow-x-auto p-0">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {queue.map((o) => (
+                      <tr key={o.id} className="border-t border-line/40 hover:bg-bg-base/60">
+                        <td className="px-4 py-2.5">
+                          <Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-brand">
+                            #{o.id} · {o.storeName ?? '—'}
+                          </Link>
+                          <span className="block text-xs text-ink-muted">
+                            {o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString(dateLocale)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-right tabular-nums">
+                          {formatGEL(Number(o.subtotal))}
+                          {Number(o.deliveryFee) > 0 && <span className="block text-xs text-ink-muted">+ {formatGEL(Number(o.deliveryFee))}</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={o.projectId ? `/admin/projects/${o.projectId}#orders` : `/admin/orders/${o.id}`}>{s.queueOpen}</Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                    {queue.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-10 text-center text-ink-muted">{r.queueEmpty}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
 
-        <Card>
+          {may('projects') && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-serif">{d.recentProjects}</CardTitle>
+                <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+                  {d.viewAll} <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </CardHeader>
+              <CardContent className="overflow-x-auto p-0">
+                <table className="w-full text-sm">
+                  <tbody>
+                    {recent.map((p) => (
+                      <tr key={p.id} className="border-t border-line/40 hover:bg-bg-base/60">
+                        <td className="px-4 py-2.5">
+                          <Link href={`/admin/projects/${p.id}`} className="font-medium hover:text-brand">
+                            {p.nameKa ?? `#${p.id}`}
+                          </Link>
+                          <span className="block text-xs text-ink-muted">
+                            {p.userName ?? ka.admin.guestUser} · {new Date(p.createdAt).toLocaleDateString(dateLocale)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge variant={p.isDesign ? 'secondary' : 'outline'}>{p.isDesign ? ka.admin.filters.designKind : ka.admin.filters.calculatorKind}</Badge>
+                        </td>
+                        <td className="px-4 py-2.5 text-ink-muted">{p.homeState ? homeStateShortLabel(ka, p.homeState) : '—'}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{formatM2L(ka, Number(p.totalM2))}</td>
+                        <td className="px-4 py-2.5 text-right font-medium tabular-nums">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <Badge variant={p.status === 'saved' ? 'success' : 'outline'}>{statusLabel(ka, p.status ?? 'draft')}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                    {recent.length === 0 && (
+                      <tr>
+                        <td className="px-4 py-10 text-center text-ink-muted">{ka.admin.projectsEmpty}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <Card className="self-start">
           <CardHeader>
             <CardTitle className="font-serif">{d.attention}</CardTitle>
           </CardHeader>
@@ -241,16 +344,18 @@ export default async function AdminDashboardPage() {
               </p>
             ) : (
               attention.map((a) => (
-                <Link key={a.href} href={a.href} className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-sm hover:border-warning/60">
+                <Link key={a.href + a.text} href={a.href} className="flex items-start gap-2 border border-warning/30 bg-warning/5 px-3 py-2 text-sm hover:border-warning/60">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <span>{a.text}</span>
                 </Link>
               ))
             )}
-            <p className="pt-2 text-xs text-ink-muted">
-              <ClipboardList className="mr-1 inline h-3.5 w-3.5" />
-              {fill(d.guestProjects, { n: Number(projectStats.guestsWeek ?? 0) })} · {formatM2L(ka, Number(projectStats.totalM2))}
-            </p>
+            {may('projects') && (
+              <p className="pt-2 text-xs text-ink-muted">
+                <ClipboardList className="mr-1 inline h-3.5 w-3.5" />
+                {fill(d.guestProjects, { n: n(projectStats.guestsWeek) })} · {formatM2L(ka, n(projectStats.totalM2))}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -264,16 +369,18 @@ function LinkedStat({
   value,
   hint,
   icon: Icon,
+  highlight,
 }: {
   href: string;
   label: string;
   value: string;
   hint: string;
   icon: React.ComponentType<{ className?: string }>;
+  highlight?: boolean;
 }) {
   return (
-    <Link href={href} className="block rounded-lg transition-shadow hover:shadow-cardHover">
-      <Card className="h-full">
+    <Link href={href} className="block transition-shadow hover:shadow-cardHover">
+      <Card className={highlight ? 'h-full border-warning/60 bg-warning/5' : 'h-full'}>
         <CardContent className="flex items-start justify-between p-5">
           <div>
             <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>

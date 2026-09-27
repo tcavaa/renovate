@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { getSession, signIn } from 'next-auth/react';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { AuthForm, Field, Notice } from '@/components/auth/AuthForm';
 import { useT } from '@/lib/i18n/client';
 import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
-import { FACEBOOK_ENABLED, GOOGLE_ENABLED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
+import { homePathFor } from '@/lib/auth/roles';
+import { ACCOUNT_DISABLED, FACEBOOK_ENABLED, GOOGLE_ENABLED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,20 +22,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A social login that came back without an e-mail address redirects here with ?error=.
-  const socialError = searchParams.get('error') === SOCIAL_NO_EMAIL ? t.auth.socialNoEmail : null;
+  // A social login that came back without an e-mail address, or for a deactivated account,
+  // redirects here with ?error=.
+  const errorParam = searchParams.get('error');
+  const socialError = errorParam === SOCIAL_NO_EMAIL ? t.auth.socialNoEmail : errorParam === ACCOUNT_DISABLED ? t.auth.accountDisabled : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     const res = await signIn('credentials', { email, password, redirect: false });
-    setLoading(false);
     if (!res || res.error) {
-      setError(t.auth.invalidCredentials);
+      setLoading(false);
+      setError(res?.code === ACCOUNT_DISABLED ? t.auth.accountDisabled : t.auth.invalidCredentials);
       return;
     }
-    router.push(callbackUrl);
+    // Nobody asked for a page: the account goes to its own part of the site — the admin for
+    // staff, the portal for a partner, the landing page for a customer.
+    let target = callbackUrl;
+    if (!searchParams.get('callbackUrl')) {
+      const session = await getSession();
+      target = homePathFor(session?.user?.role);
+    }
+    setLoading(false);
+    router.push(target);
     router.refresh();
   };
 

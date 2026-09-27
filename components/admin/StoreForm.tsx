@@ -13,7 +13,12 @@ import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Store } from '@/lib/db/schema';
 
-export function StoreForm({ store }: { store?: Store }) {
+/**
+ * A partner store's details. The commission is money, and money is admin's: a catalogue agent
+ * edits everything else and never sees the field (`PUT /api/stores/[id]` ignores it from them).
+ */
+/** `canDelete`: admin only (`canDeleteIn`) — a catalogue agent switches a store off instead. */
+export function StoreForm({ store, canEditCommission = false, canDelete = false }: { store?: Store; canEditCommission?: boolean; canDelete?: boolean }) {
   const router = useRouter();
   const ka = useT();
   const [loading, setLoading] = useState(false);
@@ -183,18 +188,20 @@ export function StoreForm({ store }: { store?: Store }) {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>{ka.admin.forms.commission}</Label>
-              <Input
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={form.commissionRate}
-                onChange={(e) => update('commissionRate', e.target.value)}
-              />
-              <p className="text-xs text-ink-muted">{ka.admin.forms.commissionHint}</p>
-            </div>
+            {canEditCommission && (
+              <div className="space-y-2">
+                <Label>{ka.admin.forms.commission}</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={form.commissionRate}
+                  onChange={(e) => update('commissionRate', e.target.value)}
+                />
+                <p className="text-xs text-ink-muted">{ka.admin.forms.commissionHint}</p>
+              </div>
+            )}
 
             <div className="space-y-2 md:col-span-2">
               <Label>{ka.admin.forms.logo}</Label>
@@ -233,7 +240,7 @@ export function StoreForm({ store }: { store?: Store }) {
 
           <div className="flex justify-between">
             <div>
-              {store && (
+              {store && canDelete && (
                 <Button type="button" variant="destructive" onClick={remove} disabled={loading}>
                   <Trash2 className="h-4 w-4" /> {ka.admin.actions.delete}
                 </Button>

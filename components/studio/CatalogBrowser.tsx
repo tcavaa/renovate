@@ -2,7 +2,7 @@
 
 /**
  * The whole furniture catalogue in a modal: a search box, the filters down the left (rooms
- * and their kinds, styles, colours, a price band, the shop), the products as cards with
+ * and their categories, styles, colours, a price band, the shop), the products as cards with
  * their names, and the open product's details on the right with the one button that
  * matters — "place". The shelf along the bottom of the studio is fine for fifty tiles; a
  * catalogue of thousands wants a page.
@@ -15,21 +15,31 @@
  */
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, LayoutGrid, MousePointerClick, Package, Plus, Search, UserRound, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { localizedName, roomTypeLabel, styleLabel } from '@/lib/i18n/labels';
+import { localizedName, styleLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { browseCatalog, hasCatalogFilters, initialCatalogBrowserState, productStyles, type CatalogBrowserState, type CatalogSort, type ShelfRoom } from '@/lib/design/catalogBrowser';
+import { browseCatalog, hasCatalogFilters, initialCatalogBrowserState, productStyles, type CatalogBrowserState, type CatalogSort } from '@/lib/design/catalogBrowser';
+import { shelfIndex, shelfName, shelfTrail, type ShelfData, type ShelfRoomId } from '@/lib/design/shelf';
+import type { IconNode } from '@/lib/admin/icons';
+import { NodeIcon } from '@/components/ui/node-icon';
 import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from '@/lib/design/colors';
 import { STYLE_IDS } from '@/lib/design/styles';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { StyleId } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
 import { cn, formatGEL } from '@/lib/utils';
-import { archetypeIcon, roomIcon } from './archetypeIcons';
+
+/** A subcategory sits further in than the category above it. */
+const DEPTH_INDENT = ['pl-2', 'pl-5', 'pl-8'];
+
+/** An icon admin chose, or a plain package where there is none. */
+function ShelfIcon({ node }: { node: IconNode | null | undefined }) {
+  return node ? <NodeIcon node={node} className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5 shrink-0" />;
+}
 
 /** Where a placed product goes: on the pointer in 3D, on the pointer on the board, or nowhere (the walk-through has no pointer to carry on). */
 export type CatalogPlaceMode = '2d' | '3d' | 'walk';
@@ -38,6 +48,7 @@ export function CatalogBrowser({
   open,
   onOpenChange,
   catalog,
+  shelf,
   styleId,
   focusRoom,
   roomLabel,
@@ -50,6 +61,8 @@ export function CatalogBrowser({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   catalog: CatalogProduct[];
+  /** The rooms and the category tree the filters are arranged by. */
+  shelf: ShelfData;
   styleId: StyleId;
   /** The type of the room the studio has in focus: the list opens on it until a room is chosen here. */
   focusRoom: RoomType | null;
@@ -68,7 +81,8 @@ export function CatalogBrowser({
   const searchRef = useRef<HTMLInputElement>(null);
   const [refused, setRefused] = useState<number | null>(null);
 
-  const browse = browseCatalog(catalog, state, { focusRoom, locale });
+  const index = useMemo(() => shelfIndex(shelf), [shelf]);
+  const browse = browseCatalog(catalog, state, { focusRoom, locale, shelf: index });
   const patch = (next: Partial<CatalogBrowserState>) => onState({ ...state, ...next });
   const selected = state.selectedId != null ? (catalog.find((p) => p.id === state.selectedId) ?? null) : null;
   const canPlace = placeMode !== 'walk';
@@ -92,7 +106,18 @@ export function CatalogBrowser({
     setRefused(product.id);
   };
 
-  const roomName = (room: ShelfRoom) => (room === 'other' ? t.design.shelfOther : roomTypeLabel(t, room));
+  const roomDef = (room: ShelfRoomId) => (room === 'other' ? null : (index.rooms.find((r) => r.id === room) ?? null));
+  const roomName = (room: ShelfRoomId) => {
+    const def = roomDef(room);
+    return def ? shelfName(def, locale) : t.design.shelfOther;
+  };
+  const categoryDef = (id: number) => index.tree.byId.get(id) ?? null;
+  // Choosing the open category again steps back to the one above it on the trail.
+  const chooseCategory = (id: number) => {
+    if (browse.openCategory !== id) return patch({ category: id });
+    const trail = browse.openRoom == null ? [] : shelfTrail(index, browse.openRoom, id);
+    patch({ category: trail.at(-2) ?? null });
+  };
   const colorName = (family: ColorFamily) => (t.design.colorNames as Record<string, string>)[family] ?? family;
   const sortOptions: Array<{ id: CatalogSort; label: string }> = [
     { id: 'priceAsc', label: t.design.catalogSortPriceAsc },
@@ -169,34 +194,33 @@ export function CatalogBrowser({
             )}
 
             <p className={sectionTitle}>{t.design.shelfRooms}</p>
-            <button type="button" onClick={() => patch({ room: null, kind: '' })} className={filterRow(browse.openRoom === null)}>
+            <button type="button" onClick={() => patch({ room: null, category: null })} className={filterRow(browse.openRoom === null)}>
               <span className="flex-1 truncate">{t.design.shelfAllRooms}</span>
               <span className="tabular-nums opacity-70">{browse.all}</span>
             </button>
             {browse.rooms.map((room) => {
-              const Icon = room.id === 'other' ? Package : roomIcon(room.id);
               const isOpen = browse.openRoom === room.id;
               return (
                 <div key={room.id}>
-                  <button type="button" onClick={() => patch({ room: isOpen ? null : room.id, kind: '' })} className={filterRow(isOpen)}>
-                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                  <button type="button" onClick={() => patch({ room: isOpen ? null : room.id, category: null })} className={filterRow(isOpen)}>
+                    <ShelfIcon node={roomDef(room.id)?.icon} />
                     <span className="flex-1 truncate">{roomName(room.id)}</span>
                     <span className="tabular-nums opacity-70">{room.count}</span>
                   </button>
-                  {/* The open room's kinds, indented under it. */}
-                  {isOpen && browse.kinds.length > 0 && (
+                  {/* The open room's categories, indented under it, and under a chosen one its subcategories. */}
+                  {isOpen && browse.categories.length > 0 && (
                     <div className="my-1 ml-3 border-l border-line pl-1.5">
-                      <button type="button" onClick={() => patch({ kind: '' })} className={cn(filterRow(browse.openKind === ''), 'h-7')}>
+                      <button type="button" onClick={() => patch({ category: null })} className={cn(filterRow(browse.openCategory === null), 'h-7')}>
                         <span className="flex-1 truncate">{t.design.allKinds}</span>
                       </button>
-                      {browse.kinds.map((kind) => {
-                        const Icon = archetypeIcon(kind.id);
-                        const active = browse.openKind === kind.id;
+                      {browse.categories.map((c) => {
+                        const def = categoryDef(c.id);
+                        const active = browse.openCategory === c.id;
                         return (
-                          <button key={kind.id} type="button" onClick={() => patch({ kind: active ? '' : kind.id })} className={cn(filterRow(active), 'h-7')}>
-                            <Icon className="h-3.5 w-3.5 shrink-0" />
-                            <span className="flex-1 truncate">{archetypeLabel(kind.id, locale)}</span>
-                            <span className="tabular-nums opacity-70">{kind.count}</span>
+                          <button key={`${c.depth}-${c.id}`} type="button" onClick={() => chooseCategory(c.id)} className={cn(filterRow(active), 'h-7', DEPTH_INDENT[c.depth] ?? DEPTH_INDENT[DEPTH_INDENT.length - 1])}>
+                            <ShelfIcon node={def?.icon} />
+                            <span className="flex-1 truncate">{def ? shelfName(def, locale) : ''}</span>
+                            <span className="tabular-nums opacity-70">{c.count}</span>
                           </button>
                         );
                       })}

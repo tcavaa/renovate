@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { ChevronDown, FolderKanban, LayoutDashboard, LogOut, Store, User } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
+import { canOpenAdmin, isPartnerRole } from '@/lib/auth/roles';
+import { roleLabel } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
 
 /**
@@ -65,14 +67,17 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const isAdmin = user.role === 'admin';
-  const isPartner = user.role === 'store' || user.role === 'worker';
+  // Every role that has a part of the admin (both kinds of agent too) gets the admin link, and
+  // every partner — a brigade as well as a store or a worker — the portal's; the work area
+  // comes first, since it is what these accounts sign in for.
+  const staff = canOpenAdmin(user.role);
+  const partner = isPartnerRole(user.role);
 
   const items = [
+    ...(staff ? [{ href: '/admin', icon: LayoutDashboard, label: t.nav.admin }] : []),
+    ...(partner ? [{ href: '/partner', icon: Store, label: t.nav.partner }] : []),
     { href: '/profile', icon: User, label: t.nav.profile },
     { href: '/profile', icon: FolderKanban, label: t.nav.projects },
-    ...(isAdmin ? [{ href: '/admin', icon: LayoutDashboard, label: t.nav.admin }] : []),
-    ...(isPartner ? [{ href: '/partner', icon: Store, label: t.nav.partner }] : []),
   ];
 
   if (variant === 'mobile') {
@@ -84,7 +89,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
             <p className="truncate text-sm font-medium">{name}</p>
             <p className="truncate text-xs text-ink-muted">{user.email}</p>
           </div>
-          {isAdmin && <AdminTag />}
+          {user.role !== 'user' && <RoleTag label={roleLabel(t, user.role)} />}
         </div>
         {items.map((item) => (
           <MenuLink key={item.label} {...item} onClick={() => undefined} />
@@ -114,7 +119,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
               <p className="truncate text-sm font-semibold">{name}</p>
               <p className="truncate text-xs text-ink-muted">{user.email}</p>
             </div>
-            {isAdmin && <AdminTag />}
+            {user.role !== 'user' && <RoleTag label={roleLabel(t, user.role)} />}
           </div>
           {items.map((item) => (
             <MenuLink key={item.label} {...item} onClick={() => setOpen(false)} />
@@ -136,8 +141,9 @@ function Mark({ initials }: { initials: string }) {
   return <span className="grid h-7 w-7 shrink-0 place-items-center bg-ink text-[11px] font-semibold text-white">{initials}</span>;
 }
 
-function AdminTag() {
-  return <span className="shrink-0 border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">admin</span>;
+/** Whose account this is, for everybody but a customer: admin, an agent, a store, a brigade. */
+function RoleTag({ label }: { label: string }) {
+  return <span className="shrink-0 border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{label}</span>;
 }
 
 function MenuLink({ href, icon: Icon, label, onClick }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) {

@@ -1,4 +1,5 @@
 import type { Dictionary } from './ka';
+import { archetypeLabel, getArchetype } from '@/lib/design/catalog';
 import type { ProductLabels, SurfaceLabels } from '@/lib/design/pricing';
 
 type AnyMap = Record<string, string>;
@@ -18,6 +19,34 @@ export function materialLabel(t: Dictionary, key: string): string {
 
 export function workTypeLabel(t: Dictionary, key: string): string {
   return (t.workTypes as unknown as AnyMap)[key] ?? key;
+}
+
+/**
+ * The electrical layer's fittings are products of their own kinds — a socket, a switch, a
+ * lamp per point kind — named as the studio's electric tray names them.
+ */
+export const FIXTURE_KIND_LABEL: Readonly<Record<string, string>> = {
+  socket: 'ekSocket',
+  socket_tv: 'ekTv',
+  socket_data: 'ekInternet',
+  switch: 'ekSwitch',
+  light_ceiling: 'ekLightCeiling',
+  light_wall: 'ekLightWall',
+  light_spot: 'ekLightSpot',
+  light_strip: 'ekLightStrip',
+  light_furniture: 'ekLightFurniture',
+};
+
+/** Doors and windows are products of their own kinds too, drawn in the wall's hole. */
+export const OPENING_KIND_LABEL: Readonly<Record<string, string>> = { door: 'lineDoor', entrance_door: 'lineEntranceDoor', window: 'lineWindow' };
+
+/** A product's 3D kind by name: the studio's furniture by its label, a fitting or an opening as the studio calls it. */
+export function productKindLabel(t: Dictionary, locale: 'ka' | 'en' | 'ru', kind: string): string {
+  if (getArchetype(kind)) return archetypeLabel(kind, locale);
+  const key = FIXTURE_KIND_LABEL[kind] ?? OPENING_KIND_LABEL[kind];
+  if (key) return (t.build as unknown as AnyMap)[key] ?? kind;
+  if (kind === 'radiator') return t.build.radiatorSection;
+  return kind;
 }
 
 export function phaseLabel(t: Dictionary, num: number): string {

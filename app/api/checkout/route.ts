@@ -4,7 +4,8 @@ import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
-import { NothingToOrder, createCheckoutForProject, projectOrderState } from '@/lib/finance/orders';
+import { NothingToOrder, createCheckoutForProject, materialsPreview, projectOrderState } from '@/lib/finance/orders';
+import { log } from '@/lib/log';
 import { checkoutSchema, normaliseCustomer } from '@/lib/validations/checkout.schema';
 
 export const runtime = 'nodejs';
@@ -44,16 +45,24 @@ export const POST = handle('POST /api/checkout', 'Failed to place order', async 
 
 /**
  * What earlier checkouts of a project already charged and sent — so the checkout dialog can
- * show which half is still to be paid and which products will not be ordered again.
+ * show which half is still to be paid and which products will not be ordered again — and the
+ * construction materials this checkout would send their supplier, read off the saved project
+ * as the checkout will read it.
  */
 export const GET = handle('GET /api/checkout', 'Failed to load order state', async (req) => {
   const projectId = Number(new URL(req.url).searchParams.get('projectId'));
   if (!Number.isInteger(projectId) || projectId <= 0) return fail(API_ERRORS.INVALID_ID, 400);
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
-  const rows = await db.select({ userId: projects.userId }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
   if (project.userId !== userId && session?.user?.role !== 'admin') return fail(API_ERRORS.FORBIDDEN, 403);
-  return ok(await projectOrderState(projectId));
+  const state = await projectOrderState(projectId);
+  // A preview that cannot be worked out is no reason to refuse the dialogue its state.
+  const materials = await materialsPreview(project, state).catch((e: unknown) => {
+    log.warn('materials preview failed', { projectId, err: e });
+    return null;
+  });
+  return ok({ ...state, materials });
 });

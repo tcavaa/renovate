@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { categories, products } from '@/lib/db/schema';
+import { products } from '@/lib/db/schema';
+import { categoryForKind } from '@/lib/catalog/tree';
+import { loadCategoryTree } from '@/lib/catalog/queries';
 import { API_ERRORS, fail, handle, ok, requireSession } from '@/lib/api/route';
 import { loadOwnProducts } from '@/lib/api/designCatalog';
 import { ARCHETYPES, type Archetype } from '@/lib/design/catalog';
@@ -100,7 +101,8 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     status = 'pending';
   }
 
-  const [category] = await db.select({ id: categories.id }).from(categories).where(eq(categories.slug, archetype.categorySlug)).limit(1);
+  // Filed where products of its kind are: "Corner sofas" for a corner sofa, if admin has such a category.
+  const category = categoryForKind(await loadCategoryTree(), parsed.data.kind, archetype.categorySlug);
   if (!category) return fail(API_ERRORS.NOT_FOUND, 400);
 
   const slug = `own-${userId}-${slugify(parsed.data.name) || 'item'}-${randomBytes(3).toString('hex')}`;

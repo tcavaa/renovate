@@ -1,4 +1,4 @@
-import NextAuth, { type NextAuthConfig } from 'next-auth';
+import NextAuth, { CredentialsSignin, type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Facebook from 'next-auth/providers/facebook';
 import Google from 'next-auth/providers/google';
@@ -10,8 +10,8 @@ import { users } from '@/lib/db/schema';
 import { authConfig } from '@/auth.config';
 import { env } from '@/lib/env';
 import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
-import { SOCIAL_NO_EMAIL } from '@/lib/auth/social';
-import { sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
+import { ACCOUNT_DISABLED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
+import { refreshSessionToken, sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
 import { log } from '@/lib/log';
 import type { UserRole } from '@/lib/auth/roles';
 
@@ -19,6 +19,20 @@ const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+/** The right password for an account admin has switched off: said as such (`?code=`). */
+class AccountDisabled extends CredentialsSignin {
+  code = ACCOUNT_DISABLED;
+}
+
+/** Stamps `lastLoginAt`. Never fatal — a sign-in is not refused over a bookkeeping write. */
+async function recordLogin(userId: number): Promise<void> {
+  try {
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
+  } catch (e) {
+    log.warn('last login not recorded', { userId, err: e });
+  }
+}
 
 /**
  * The whole auth setup on the server: `authConfig` (what the edge proxy runs too) plus the
@@ -58,6 +72,13 @@ export const authOptions = {
           return null;
         }
         clearFailures(email);
+        // Only after the password: a stranger guessing addresses learns nothing about which
+        // accounts exist and which were switched off.
+        if (!user.isActive) {
+          log.info('login refused: account deactivated', { userId: user.id });
+          throw new AccountDisabled();
+        }
+        await recordLogin(user.id);
 
         return {
           id: String(user.id),
@@ -93,12 +114,20 @@ export const authOptions = {
     ...authConfig.callbacks,
     // `authConfig`'s copy of the signed-in user is the whole story for a password sign-in. A
     // Google or Facebook one hands over the provider's profile — a random id, no role — so the
-    // account's own claims are looked up by e-mail and put on the token instead
-    // (`lib/auth/accountClaims`). Server only: the proxy runs `authConfig` as it is.
+    // account's own claims are looked up by e-mail and put on the token instead. Every later
+    // read of the session re-reads the account, so a role changed, a partner unlinked or an
+    // account switched off or deleted takes effect on the next request, not at the next
+    // sign-in (`lib/auth/accountClaims`). Server only: the proxy runs `authConfig` as it is.
     async jwt(params) {
-      const token = await sessionTokenAfterSignIn(await authConfig.callbacks.jwt(params), params);
-      if (token === null) log.error('social sign-in refused: no account behind the e-mail', { provider: params.account?.provider });
-      return token;
+      const token = await authConfig.callbacks.jwt(params);
+      if (params.user) {
+        const signedIn = await sessionTokenAfterSignIn(token, params);
+        if (signedIn === null) log.error('social sign-in refused: no account behind the e-mail', { provider: params.account?.provider });
+        return signedIn;
+      }
+      const current = await refreshSessionToken(token);
+      if (current === null) log.info('session ended: account deactivated or removed', { userId: token.id ?? token.sub ?? null });
+      return current;
     },
     async signIn({ user, account }) {
       // Every social login lands here: the first sign-in creates the account, later ones
@@ -123,7 +152,13 @@ export const authOptions = {
             role: 'user',
             // Google and Facebook have both verified the address before handing it over.
             emailVerifiedAt: new Date(),
+            lastLoginAt: new Date(),
           });
+        } else if (existing[0].isActive === false) {
+          log.info('social login refused: account deactivated', { userId: existing[0].id, provider: account.provider });
+          return `/login?error=${ACCOUNT_DISABLED}`;
+        } else {
+          await recordLogin(existing[0].id);
         }
       }
       return true;

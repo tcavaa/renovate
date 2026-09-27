@@ -11,6 +11,7 @@ import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
 import { HOME_STATE_VALUES, type HomeState } from '@/lib/calculator/types';
+import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,7 @@ const SORTS = ['newest', 'cost', 'm2'] as const;
 const PATH = '/admin/projects';
 
 export default async function AdminProjectsPage(props: { searchParams: Promise<SearchParams> }) {
+  await requireAdminPage('projects');
   const searchParams = await props.searchParams;
   const ka = await getT();
   const locale = await getLocale();

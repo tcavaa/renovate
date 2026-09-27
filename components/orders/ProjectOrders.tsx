@@ -1,24 +1,27 @@
-import Link from 'next/link';
 import { ChevronDown, Phone } from 'lucide-react';
-import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { checkoutsForProject, ordersForProject } from '@/lib/finance/orders';
+import { checkoutsForProject, ordersForProject, type ProjectOrder } from '@/lib/finance/orders';
+import { lineDiff, orderStage } from '@/lib/finance/orderFlow';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { FoldSection } from '@/components/projects/FoldSection';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 
 /**
- * The orders a project turned into, for its owner (and admin): one card per partner with
- * status, total and whatever the partner wrote back. Server component — reads the database;
- * sits in the project page as one of its folding blocks, with the fees recorded at checkout
- * beside the title.
+ * The orders a project turned into, for its owner: one card per partner with where the order
+ * stands in plain words ("our manager is checking it", "confirmed and with the store"), what it
+ * comes to with the delivery, whatever the partner wrote back — and every change the platform
+ * made on the customer's behalf shown against what was ordered: a line struck out, a quantity
+ * "3 → 2", a price, a line added, the delivery. Server component; sits in the project page as
+ * one of its folding blocks, with the fees recorded at checkout beside the title.
  */
-export async function ProjectOrders({ projectId, t, locale, orderHref }: { projectId: number; t: Dictionary; locale: Locale; orderHref?: (id: number) => string }) {
+export async function ProjectOrders({ projectId, t, locale }: { projectId: number; t: Dictionary; locale: Locale }) {
   const [orders, checkouts] = await Promise.all([ordersForProject(projectId), checkoutsForProject(projectId)]);
   const fees = checkouts.filter((c) => Number(c.platformFee) > 0);
   const dateLocale = dateLocaleFor(locale);
+  const r = t.orderReview;
 
   const feeSummary =
     fees.length > 0 ? (
@@ -33,6 +36,13 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
       </span>
     ) : undefined;
 
+  const partnerOf = (o: ProjectOrder) =>
+    o.partnerType === 'store'
+      ? { kind: t.admin.ordersPage.kindStore, nameKa: o.storeNameKa ?? '—', nameEn: o.storeNameEn, nameRu: o.storeNameRu, phone: o.storePhone }
+      : o.partnerType === 'team'
+        ? { kind: r.kindTeam, nameKa: o.teamNameKa ?? '—', nameEn: o.teamNameEn, nameRu: o.teamNameRu, phone: o.teamPhone }
+        : { kind: t.admin.ordersPage.kindWorker, nameKa: o.workerNameKa ?? '—', nameEn: o.workerNameEn, nameRu: o.workerNameRu, phone: o.workerPhone };
+
   return (
     <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>
       {orders.length === 0 ? (
@@ -40,27 +50,24 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
       ) : (
         <ul className="grid gap-4 md:grid-cols-2">
           {orders.map((o) => {
-            const partner = o.partnerType === 'store' ? { nameKa: o.storeNameKa ?? '—', nameEn: o.storeNameEn, nameRu: o.storeNameRu, phone: o.storePhone } : { nameKa: o.workerNameKa ?? '—', nameEn: o.workerNameEn, nameRu: o.workerNameRu, phone: o.workerPhone };
-            const title = fill(t.market.orderNo, { id: o.id });
+            const partner = partnerOf(o);
+            const stage = orderStage(o);
+            const delivery = Number(o.deliveryFee);
+            const deliveryWas = o.originalDeliveryFee != null && Number(o.originalDeliveryFee) !== delivery ? Number(o.originalDeliveryFee) : null;
+            const changed = o.items.some((i) => lineDiff(lineOf(i)).kind !== 'same');
             return (
               <li key={o.id} className="border border-line bg-bg-surface p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="eyebrow">{o.partnerType === 'store' ? t.admin.ordersPage.kindStore : t.admin.ordersPage.kindWorker}</p>
+                    <p className="eyebrow">{partner.kind}</p>
                     <p className="mt-1 truncate font-serif text-lg font-semibold text-ink">{localizedName(locale, partner)}</p>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
-                      {orderHref ? (
-                        <Link href={orderHref(o.id)} className="text-brand hover:underline">
-                          {title}
-                        </Link>
-                      ) : (
-                        <span>{title}</span>
-                      )}
+                      <span>{fill(t.market.orderNo, { id: o.id })}</span>
                       <span>
                         {t.market.orderedOn} {new Date(o.createdAt).toLocaleDateString(dateLocale)}
                       </span>
                       <span>{fill(t.market.itemsCount, { n: o.itemCount })}</span>
-                      {partner.phone && (
+                      {partner.phone && o.sentAt && (
                         <a href={`tel:${partner.phone}`} className="inline-flex items-center gap-1 hover:text-ink">
                           <Phone className="h-3 w-3" />
                           {partner.phone}
@@ -70,16 +77,18 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
                   </div>
                   <div className="text-right">
                     <p className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(Number(o.subtotal))}</p>
-                    {Number(o.deliveryFee) > 0 && (
+                    {(delivery > 0 || deliveryWas != null) && (
                       <p className="text-xs text-ink-muted">
-                        {t.market.delivery} {formatGEL(Number(o.deliveryFee))}
+                        {t.market.delivery} {formatGEL(delivery)}
+                        {deliveryWas != null && <span className="ml-1 text-warning">({fill(r.deliveryWas, { amount: formatGEL(deliveryWas) })})</span>}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <OrderStatusBadge status={o.status} t={t} />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <OrderStageBadge stage={stage} t={t} />
                 </div>
+                <p className="mt-2 text-xs text-ink-muted">{(r.customerHints as Record<string, string>)[stage]}</p>
                 {o.partnerMessage && (
                   <div className="mt-3 border-l-2 border-ink pl-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.market.partnerMessage}</p>
@@ -87,23 +96,30 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
                   </div>
                 )}
                 {o.items.length > 0 && (
-                  <details className="group mt-3 border-t border-line pt-2">
+                  <details className="group mt-3 border-t border-line pt-2" open={changed || undefined}>
                     <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
                       <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
                       {fill(t.market.showItems, { n: o.items.length })}
                     </summary>
                     <ul className="mt-2 divide-y divide-line/70 text-sm">
-                      {o.items.map((line) => (
-                        <li key={line.id} className={cn('flex items-baseline justify-between gap-3 py-1.5', line.removed && 'text-ink-faint line-through')}>
-                          <span className="min-w-0">
-                            <span className="block truncate">{localizedName(locale, line)}</span>
-                            <span className="block text-xs text-ink-muted no-underline">
-                              {[line.roomName, `${formatNumber(Number(line.qty))} ${unitLabel(t, line.unit)} × ${formatGEL(Number(line.unitPrice))}`, line.removed ? t.market.removedByPartner : null].filter(Boolean).join(' · ')}
+                      {o.items.map((line) => {
+                        const diff = lineDiff(lineOf(line));
+                        return (
+                          <li key={line.id} className={cn('flex items-baseline justify-between gap-3 py-1.5', diff.kind === 'removed' && 'text-ink-faint')}>
+                            <span className="min-w-0">
+                              <span className={cn('block truncate', diff.kind === 'removed' && 'line-through')}>{localizedName(locale, line)}</span>
+                              <span className="block text-xs text-ink-muted">
+                                {[line.roomName, `${formatNumber(Number(line.qty))} ${unitLabel(t, line.unit)} × ${formatGEL(Number(line.unitPrice))}`].filter(Boolean).join(' · ')}
+                                {diff.kind === 'removed' && <span className="ml-2 text-danger">{r.removedByManager}</span>}
+                                {diff.kind === 'added' && <span className="ml-2 text-success">{r.addedByManager}</span>}
+                                {diff.kind === 'changed' && diff.qtyFrom != null && <span className="ml-2 text-warning">{fill(r.qtyWas, { qty: formatNumber(diff.qtyFrom) })}</span>}
+                                {diff.kind === 'changed' && diff.priceFrom != null && <span className="ml-2 text-warning">{fill(r.priceWas, { price: formatGEL(diff.priceFrom) })}</span>}
+                              </span>
                             </span>
-                          </span>
-                          <span className="shrink-0 tabular-nums">{formatGEL(Number(line.total))}</span>
-                        </li>
-                      ))}
+                            <span className={cn('shrink-0 tabular-nums', diff.kind === 'removed' && 'line-through')}>{formatGEL(Number(line.total))}</span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 )}
@@ -114,4 +130,14 @@ export async function ProjectOrders({ projectId, t, locale, orderHref }: { proje
       )}
     </FoldSection>
   );
+}
+
+function lineOf(line: ProjectOrder['items'][number]) {
+  return {
+    qty: Number(line.qty),
+    unitPrice: Number(line.unitPrice),
+    removed: line.removed,
+    originalQty: line.originalQty == null ? null : Number(line.originalQty),
+    originalUnitPrice: line.originalUnitPrice == null ? null : Number(line.originalUnitPrice),
+  };
 }

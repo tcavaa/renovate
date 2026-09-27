@@ -39,6 +39,8 @@ design:     plan + scene ──priceScene──▶ raw lines ──withEdits(sce
 calculator: rooms + picks ──buildProjectSummary──▶ calculatorSheet(…, { rooms, edits, storeOf }) ──▶ lines
 lines ──▶ BudgetSheet (both summary pages, the project page via loadProjectSheets)
 lines ──orderedLines / orderedPickLines──▶ baskets (design), checkout dialogue, store orders
+lines (section 'materials', still ticked) ──projectMaterials──▶ the construction-materials supplier's order
+lines (section 'labour', still ticked) ──projectLabour──▶ a brigade's or a worker's booking
 save routes: reprice from the catalogue first, then lay the edits over → cost columns as edited
 ```
 
@@ -127,6 +129,11 @@ have it fitted, so its rows came up short of the total under them. `budgetLineNa
 *kind* of line before the shape of its key (`components/budget/lineName.ts`): labour keys
 such as `electric_point` and `plumbing_install` are labour, not a kind of fitting, and read by
 their prefix they were rows with no name.
+
+**The rate book's construction materials are ordered too**, from the one store that supplies
+them (`platform_settings.materialsStoreId`): `projectMaterials` in `lib/finance/orders.ts` reads
+the sheet's `materials` lines as the customer left them — ticked-off ones out, at their
+quantities — the same way `projectLabour` reads the labour ([marketplace.md](marketplace.md#construction-materials-the-materials-supplier)).
 
 **What is bought is read off the budget, by everyone** (`orderedLines`). Every product line
 carries its `product` — the snapshot with its three names, its category and its shop, holding
