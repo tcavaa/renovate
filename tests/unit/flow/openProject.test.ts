@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { refreshRoom } from '@/lib/design/planGeometry';
+import { edgeLengthsM, refreshRoom } from '@/lib/design/planGeometry';
 import type { FloorPlan, DesignScene, PlacedItem } from '@/lib/design/types';
 import type { Room } from '@/lib/calculator/types';
 import type { SavedProjectInput } from '@/lib/projects/saved';
@@ -137,6 +137,9 @@ describe('opening the calculation', () => {
     expect(board(id).floorPlanUrl).toBe('/uploads/plans/x.png');
     // The copy names the revision it was made from, beside its content.
     expect(calc(id).baseRev).toBe(3);
+    // Rooms saved before they carried their walls read them off the board — worked out, so
+    // nothing is waiting to be written.
+    for (const room of calc(id).rooms) expect(room.walls).toEqual(edgeLengthsM(board(id).plan!.rooms.find((r) => r.id === room.id)!.polygon));
     expect(sync.isDirty('calculator', id)).toBe(false);
   });
 

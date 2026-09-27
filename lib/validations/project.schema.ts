@@ -16,6 +16,9 @@ export const selectedProductSchema = z.object({
   excluded: z.boolean().optional(),
   /** A finish in the cart: which surface it is laid on, and what the board shows it with (see `SelectedProduct`). */
   surface: z.enum(['floor', 'wall']).optional(),
+  /** Its part of a floor laid in two products, and the walls it was chosen for one by one (see `SelectedProduct`). */
+  share: z.number().min(0).max(1).optional(),
+  walls: z.array(z.number().int().min(0).max(63)).max(64).optional(),
   slug: z.string().max(255).optional(),
   textureUrl: z.string().max(1024).nullable().optional(),
   colorHex: z.string().max(16).nullable().optional(),

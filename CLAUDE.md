@@ -12,8 +12,9 @@ and both work on **projects** — a named row the person makes on a hub (`/calcu
 only), and a project can have both halves.
 
 1. **Renovation calculator** — home condition → rooms (drawn or uploaded) → materials and labour
-   from an editable rate book → a floor and a wall product per room and products for the flat →
-   furniture → a cost summary that can be ordered.
+   from an editable rate book → each room's floor (one product or two sharing it) and walls (the
+   whole room or wall by wall) and products for the flat → furniture → a cost summary that can
+   be ordered.
 2. **Design Studio** — eight steps: plan upload or blank sheet → the existing flat on a CAD-like
    2D board → technical setup → style test → a furnished **Three.js** model built from **real,
    purchasable partner products** → sockets and lighting → finishes → the budget → the brigade.

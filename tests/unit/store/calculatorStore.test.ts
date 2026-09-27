@@ -52,4 +52,24 @@ describe('a room’s floor and walls', () => {
     store.getState().removeRoom('b');
     expect(Object.keys(store.getState().selectedProducts)).toEqual(['laminate_room:a']);
   });
+
+  it('take a second floor product and a wall of its own, and the product left takes the floor when one is removed', () => {
+    const tile: SelectedProduct = { ...laminate, productId: 9, categorySlug: 'floor-tiles', pricePerUnit: 50 };
+    const paint: SelectedProduct = { ...laminate, productId: 12, categorySlug: 'paint', unit: 'liter', pricePerUnit: 30, coveragePerUnit: 10 };
+    const store = stores.useCalculatorStore.for(nextId);
+    store.setState({ rooms: [room('a', 4)] });
+    const s = () => store.getState();
+    s().setFloorProduct('a', 0, laminate);
+    s().setFloorProduct('a', 1, tile);
+    s().setFloorShare('a', 0.6);
+    expect(s().selectedProducts['floor-tiles_room:a/floor2']).toMatchObject({ share: 0.4, qty: 6.2 }); // 5.6 m² + 10 %
+    s().setRoomFinish(['a'], 'wall', paint);
+    s().setWallProduct('a', 0, null);
+    expect(s().selectedProducts['paint_room:a/walls12']).toMatchObject({ walls: [1, 2, 3] });
+    s().setWallsOneByOne('a', false);
+    expect(s().selectedProducts['paint_room:a']).toMatchObject({ qty: 5 });
+    s().removeProduct('laminate_room:a');
+    expect(Object.keys(s().selectedProducts).sort()).toEqual(['floor-tiles_room:a', 'paint_room:a']);
+    expect(s().selectedProducts['floor-tiles_room:a']).toMatchObject({ qty: 15.4 });
+  });
 });

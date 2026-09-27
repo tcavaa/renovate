@@ -188,9 +188,11 @@ every page — the calculator's step, the design's step with `?tool=finishes` as
     opens calculated, on step 3), otherwise step 1. Opening it writes nothing;
   - `baseRev` = the row's revision, the sync line clean. The picks are then normalised and
     written back once when they came from before (the calculation's own only).
-- **Normalising the picks** (`normalizeFinishPicks`): `migrateFinishPicks` (old cart and
-  whole-flat finishes onto the rooms, §13), then `withRoomFinishQuantities` (every room's
-  floor and walls counted from the room).
+- **Normalising the picks** (`normalizeFinishPicks`): rooms saved before they carried their
+  walls read them off the board (`withBoardWalls` — worked out, so not marked unsaved), then
+  `migrateFinishPicks` (old cart and whole-flat finishes onto the rooms, §13), then
+  `withRoomFinishQuantities` (every room's floor and walls put in shape and counted from the
+  room — see [calculator.md](calculator.md#step-4-every-rooms-floor-and-walls-libcalculatorroomfinishests)).
 
 **`loadDesignHalf(project)`** — from the cache under the same rule (dirty, or `baseRev` at
 `designRev`, and the store's `projectId` is this one), else `openSaved(row)` (plan, scene,
@@ -470,7 +472,8 @@ simply resumes it, carrying no picks. The handoff:
 - On `generate`, `applyFurniturePicks` puts each furniture pick into its room's slot of the same
   kind (placing an extra item when there is no such slot), and fixtures picked in the catalogue
   (a toilet, a pendant) take every slot of their kind; `applyFinishPicks` lays each room's floor
-  and walls on their surface, and a whole-flat finish (from before) by wetness. Everything the
+  and walls on their surface — walls chosen one by one on those walls, a floor two products
+  share in the one with the larger share — and a whole-flat finish (from before) by wetness. Everything the
   person chose is `origin: 'calculator'`; the matcher's own picks `style`; swaps in the studio
   `studio` — and a studio choice always outranks a calculator one.
 

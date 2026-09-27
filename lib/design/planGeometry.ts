@@ -52,6 +52,14 @@ export function polygonPerimeterM(polygon: Vec2[]): number {
   return sum;
 }
 
+/** Each edge's length, to the centimetre, in the polygon's own order: edge i runs from point i to the next — a room's walls by `wallIndex`. */
+export function edgeLengthsM(polygon: Vec2[]): number[] {
+  return polygon.map((a, i) => {
+    const b = polygon[(i + 1) % polygon.length];
+    return round2(Math.hypot(b.x - a.x, b.z - a.z));
+  });
+}
+
 /** Rewinds a polygon counter-clockwise so interior-is-left holds. */
 export function toCounterClockwise(polygon: Vec2[]): Vec2[] {
   return signedArea(polygon) < 0 ? [...polygon].reverse() : [...polygon];
@@ -684,6 +692,8 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
       x: round2(Math.min(...xs)),
       z: round2(Math.min(...zs)),
       ...studioFields(room),
+      // The walls one by one, as the board has them — what the catalogue step lists.
+      walls: edgeLengthsM(room.polygon),
     };
   });
 }

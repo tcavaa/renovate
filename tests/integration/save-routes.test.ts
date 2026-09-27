@@ -66,6 +66,8 @@ vi.mock('@/lib/api/productPrices', async (importOriginal) => {
         [4, { pricePerUnit: 620, nameKa: 'კარი', unit: 'piece', coveragePerUnit: null }],
         [5, { pricePerUnit: 30, nameKa: 'როზეტი', unit: 'piece', coveragePerUnit: null }],
         [6, { pricePerUnit: 38, nameKa: 'რადიატორი (1 სექცია)', unit: 'piece', coveragePerUnit: null }],
+        [7, { pricePerUnit: 60, nameKa: 'იატაკის ფილა', unit: 'm2', coveragePerUnit: null }],
+        [8, { pricePerUnit: 45, nameKa: 'კედლის ფილა', unit: 'm2', coveragePerUnit: null }],
       ]),
   };
 });
@@ -208,6 +210,39 @@ describe('POST /api/projects (the calculation)', () => {
     expect(Object.keys(products).sort()).toEqual(['laminate_room:r1', 'paint_room:r1']);
     expect(products['laminate_room:r1']).toMatchObject({ qty: 22, totalPrice: 2200, roomId: 'r1', surface: 'floor' }); // 20 m² + 10 % waste
     expect(products['paint_room:r1']).toMatchObject({ qty: 5, unit: 'liter', totalPrice: 250, roomId: 'r1', surface: 'wall' }); // 48.6 m² at 10 m² a litre
+  });
+
+  it('counts a floor two products share by their shares, and walls chosen one by one by those walls — whatever was sent', async () => {
+    signedIn();
+    const POST = await load();
+    const pick = (productId: number, over: object) => ({ productId, nameKa: 'x', pricePerUnit: 1, unit: 'm2', qty: 999, totalPrice: 1, imageUrl: null, ...over });
+    const res = await POST(
+      post('http://localhost/api/projects', {
+        projectId: 42,
+        homeState: 'green_frame',
+        // No walls recorded: the four sides of its 5 × 4 rectangle, 13.5 and 10.8 m² each.
+        rooms: [room],
+        selectedProducts: {
+          // Shares that come to more than the floor: the first one's stands, the second has the rest.
+          'laminate_room:r1': pick(1, { roomId: 'r1', surface: 'floor', categorySlug: 'laminate', share: 0.75 }),
+          'floor-tiles_room:r1/floor2': pick(7, { roomId: 'r1', surface: 'floor', categorySlug: 'floor-tiles', share: 0.75 }),
+          // Wall 1 claimed twice: the first pick keeps it.
+          'paint_room:r1/walls3': pick(3, { roomId: 'r1', surface: 'wall', categorySlug: 'paint', walls: [0, 1, 3] }),
+          'wall-tiles_room:r1/walls8': pick(8, { roomId: 'r1', surface: 'wall', categorySlug: 'wall-tiles', walls: [1, 2] }),
+        },
+        selectedFurniture: {},
+        edits: worked,
+        draft: true,
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const products = lastUpdate().selectedProducts as Record<string, { qty: number; totalPrice: number; share?: number; walls?: number[] }>;
+    expect(Object.keys(products).sort()).toEqual(['floor-tiles_room:r1/floor2', 'laminate_room:r1', 'paint_room:r1/walls3', 'wall-tiles_room:r1/walls8']);
+    expect(products['laminate_room:r1']).toMatchObject({ share: 0.75, qty: 16.5, totalPrice: 1650 }); // 15 m² + 10 %
+    expect(products['floor-tiles_room:r1/floor2']).toMatchObject({ share: 0.25, qty: 5.5, totalPrice: 330 }); // 5 m² + 10 %
+    expect(products['paint_room:r1/walls3']).toMatchObject({ walls: [0, 1, 3], qty: 4, totalPrice: 200 }); // 35.1 m² at 10 m² a litre
+    expect(products['wall-tiles_room:r1/walls8']).toMatchObject({ walls: [2], qty: 14.9, totalPrice: 670.5 }); // 13.5 m² + 10 %
   });
 
   it('turns a design in the row into a renovation in place, and counts it as a write to the design', async () => {
