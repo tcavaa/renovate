@@ -35,7 +35,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/api/projectSave.ts` | server: `repriceCalculatorPicks` (prices and per-room quantities recomputed from the catalogue), `ownProject` |
 | `app/api/projects/route.ts` | `POST` = the calculation's save (see [project-flow.md §10](project-flow.md)) |
 | `app/api/calculator/rates/` | the rate book API (public GET, admin writes); `/admin/rates` edits it (`components/admin/RatesTable.tsx`) |
-| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave`, `RoomFinishCards` (a room's floor and walls on the catalogue step), `PlanGlyphs` (the little plans beside its rooms and walls) |
+| `components/calculator/` | `StepIndicator`, `HomeStateSelector`, `MaterialsTable`, `SummaryCard`, `WorkChoicesPicker`, `AskFurnitureDialog`, `CalculatorAutosave`, `RoomFinishCards` (a room's floor and walls on the catalogue step), `PlanGlyphs` (the little plans beside its rooms and walls), `RoomRow` (the rooms in a row on the catalogue and furniture steps, `flatOutlines`) |
 | `lib/validations/calculatorSave.schema.ts`, `project.schema.ts`, `rate.schema.ts`, `room.schema.ts` | the save payload, `calculatorEdits`, a rate row, a room (and its studio split) |
 
 ## Data flow
@@ -100,10 +100,11 @@ was the quantity. It was an extra step and a confusing one: everything it asked 
 the rooms. So:
 
 **The page.**
-- The rooms stand in a row under the step's head (`ScrollRow`, sideways on a narrow screen),
-  each with the flat drawn small — every room's outline where it lies on the calculator's
-  board, else its rectangle where the calculator placed it — and itself filled in on it
-  (`RoomGlyph`), and how many of its two surfaces are chosen. The side column keeps the "other
+- The rooms stand in a row under the step's head (`RoomRow`: a `ScrollRow`, sideways on a
+  narrow screen), each with the flat drawn small — every room's outline where it lies on the
+  calculator's board, else its rectangle where the calculator placed it (`flatOutlines`) — and
+  itself filled in on it (`RoomGlyph`), and how many of its two surfaces are chosen. The
+  furniture step has the same row (below). The side column keeps the "other
   products" only. The room open shows two cards, **floor** and **walls**
   (`components/calculator/RoomFinishCards.tsx`). Each row in them is something the product
   grid under them can choose for, and the one in hand is marked and named beside the category
@@ -209,7 +210,14 @@ run by the loader, written back once).
   can save, and its progress is read as the seven steps it is.
 - The proxy sends `/calculator/<id>/placement` to the catalogue.
 
+### Step 5: furniture
 
+Optional, room by room (`AskFurnitureDialog` asks on leaving the catalogue). The rooms are the
+catalogue's row under the step's head (`RoomRow`), each on its little plan with its name and
+how many pieces it has ("3 ნივთი", or "ცარიელი"); the categories are the side column and the
+products the grid, every piece added going to the room open — the first room until another is
+picked. Each piece is `addFurniture(roomId, product)` at its own price; the same product again is
+one more of it.
 
 ## The engine (`lib/calculator/materials.ts`) — pure, deterministic, UI-free
 

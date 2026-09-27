@@ -29,6 +29,7 @@ import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
 import { alignTwins, projectToEdge } from './openings';
+import { nextRoomName } from './roomNames';
 import type { Column, ElementOrigin, FloorPlan, Opening, PlanRoom, Vec2, Wall } from './types';
 
 /** The thicknesses the wall tool offers, metres — the usual block, brick and concrete walls. */
@@ -305,7 +306,9 @@ export function roomsFromWalls(walls: Wall[], options: RoomsFromWallsOptions = {
     const room: PlanRoom = {
       id: match?.id ?? `w${rooms.length + 1}-${shortHash(inner.polygon)}`,
       type,
-      name: match?.name ?? `${ROOM_TYPES[type].labelKa} ${rooms.filter((r) => r.type === type).length + 1}`,
+      // A new room is called what it is; the store deals the numbers once the flat has
+      // several of a kind (`withRoomNames`).
+      name: match?.name ?? nextRoomName(rooms, type),
       polygon: inner.polygon,
       heightM,
       areaM2,

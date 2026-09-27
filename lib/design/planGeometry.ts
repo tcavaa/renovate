@@ -12,6 +12,7 @@ import type { Room, RoomType } from '@/lib/calculator/types';
 import { ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { computeRoomAreas } from '@/lib/calculator/materials';
 import { effectiveSplit, roomPartsFor } from './studio';
+import { roomTypeName, withRoomNames } from './roomNames';
 import type {
   FloorPlan,
   Opening,
@@ -192,13 +193,15 @@ export function buildPlanFromRegions(
 
   const types = classifyRooms(raw.map((r) => ({ polygon: r.polygon })));
 
-  const rooms: PlanRoom[] = raw.map((r, i) => {
+  // Each room is called what it is, and numbered only when the flat has several of its kind
+  // (`withRoomNames`) — in the order the plan is read.
+  const rooms: PlanRoom[] = withRoomNames(raw.map((r, i) => {
     const type = types[i];
     const areaM2 = polygonAreaM2(r.polygon);
     return {
       id: `r${i + 1}`,
       type,
-      name: defaultRoomName(type, i),
+      name: roomTypeName(type),
       polygon: r.polygon,
       heightM: options.ceilingHeightM ?? ROOM_TYPES[type].defaultHeight,
       areaM2: round2(areaM2),
@@ -207,7 +210,7 @@ export function buildPlanFromRegions(
       // A blobby region is usually a mis-trace; flag it so the editor nudges the user.
       lowConfidence: r.region.rectangularity < 0.72,
     };
-  });
+  }));
 
   deriveOpenings(rooms, wallThicknessM);
 
@@ -323,25 +326,6 @@ export function classifyRooms(rooms: Array<{ polygon: Vec2[] }>): RoomType[] {
   }
 
   return types;
-}
-
-function defaultRoomName(type: RoomType, index: number): string {
-  return `${ROOM_TYPES[type].labelKa} ${index + 1}`;
-}
-
-/** True for a name the app generated ("საძინებელი 2") rather than one the user typed. */
-export function isAutoRoomName(name: string): boolean {
-  const labels = Object.values(ROOM_TYPES).map((t) => t.labelKa);
-  return labels.some((label) => new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+$`).test(name.trim()));
-}
-
-/**
- * The name a room gets when its type changes: the type's label plus the next free number
- * among rooms of that type, so a flat with two bedrooms gets "საძინებელი 3".
- */
-export function nextRoomName(rooms: PlanRoom[], type: RoomType, excludeRoomId?: string): string {
-  const others = rooms.filter((r) => r.id !== excludeRoomId && r.type === type);
-  return `${ROOM_TYPES[type].labelKa} ${others.length + 1}`;
 }
 
 // ---------------------------------------------------------------------------

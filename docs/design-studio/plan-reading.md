@@ -102,6 +102,16 @@ then every dimension on it looks like a misread.
 `pnpm test:solver` covers all of this without an API key, which is the point: the half that
 has to be right is testable before a single token is spent.
 
+## Room names
+
+The CV parser reads no text, so a room is named by the type it is guessed to be; Claude's
+labels are the drawing's own, verbatim. Both then go through `withRoomNames`
+([plan-board.md](plan-board.md#room-names-libdesignroomnamests)): a lone room of its kind has
+the kind's name alone and a kind with several is numbered 1…n in the order the plan is read —
+"სამზარეულო", "საძინებელი 1", "საძინებელი 2" rather than every room numbered by its place in
+the plan. A label Claude reads that is not one of the room types' names ("Bedroom", "ბავშვის
+ოთახი") is left as it is.
+
 ## Doors are inferred by circulation, not adjacency (`planGeometry.deriveOpenings`)
 
 The CV path cannot see doorways (the parser seals them), so doors are placed on shared

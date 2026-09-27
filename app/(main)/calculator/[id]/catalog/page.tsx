@@ -6,8 +6,7 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
 import { RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
-import { RoomGlyph } from '@/components/calculator/PlanGlyphs';
-import { ScrollRow } from '@/components/ui/scroll-row';
+import { RoomRow } from '@/components/calculator/RoomRow';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
@@ -70,7 +69,7 @@ export default function CatalogStepPage() {
   const locale = useLocale();
   const projectId = useProjectId();
   const { rooms, homeState, selectedProducts, selectProduct, setRoomFinish, setFloorProduct, setFloorShare, setWallProduct, setWallsOneByOne, copyRoomFinish, removeProduct } = useCalculatorStore();
-  // The calculator's own board: each room's outline, for the little drawing beside each of its walls.
+  // The calculator's own board: the rooms where they lie, and each one's outline for the little drawing beside each of its walls.
   const boardPlan = useCalculatorPlanStore((s) => s.plan);
   const { items: categories, loading: catLoading } = useCategories(false);
 
@@ -104,11 +103,7 @@ export default function CatalogStepPage() {
         : { surface: 'wall', wall: null };
   const surface: FinishSurface = aim.surface;
   const aimed = !finishes ? null : aim.surface === 'floor' ? (finishes.floor[aim.slot]?.[1] ?? null) : aim.wall == null ? (finishes.walls?.[1] ?? null) : (finishes.byWall?.[aim.wall] ?? null);
-  // Every room where it lies on the board — the little plan beside each room — else where the
-  // calculator placed it; the room's own outline, edge i being wall i, else its rectangle.
-  const flat = boardPlan?.rooms.length
-    ? boardPlan.rooms.map((r) => ({ id: r.id, polygon: r.polygon }))
-    : rooms.flatMap((r) => (r.x != null && r.z != null ? [{ id: r.id, polygon: [{ x: r.x, z: r.z }, { x: r.x + r.width, z: r.z }, { x: r.x + r.width, z: r.z + r.length }, { x: r.x, z: r.z + r.length }] }] : []));
+  // The room's own outline on the board, edge i being wall i, else its rectangle.
   const drawn = room ? boardPlan?.rooms.find((r) => r.id === room.id)?.polygon : undefined;
   const outline = !room ? [] : drawn && drawn.length === roomWalls(room).length ? drawn : [{ x: 0, z: 0 }, { x: room.width, z: 0 }, { x: room.width, z: room.length }, { x: 0, z: room.length }];
 
@@ -203,31 +198,17 @@ export default function CatalogStepPage() {
         <StepHeader step={4} total={CALCULATOR_STEPS} title={t.calculator.step3} subtitle={t.calculator.catalogSubtitle} />
 
         {/* The rooms, side by side: each with the flat drawn small and itself picked out on it. */}
-        <div className="mt-6">
-          <p className="eyebrow mb-2">{t.calculator.finishesTitle}</p>
-          <ScrollRow contentClassName="gap-2" ariaLabel={t.calculator.finishesTitle}>
-            {rooms.map((r) => {
-              const id = `room:${r.id}`;
-              const on = activeId === id;
-              const n = roomChosenCount(r);
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => openRoom(id)}
-                  aria-pressed={on}
-                  className={cn('flex shrink-0 items-center gap-3 border py-2 pl-2 pr-4 text-left transition-colors', on ? 'border-ink bg-bg-surface' : 'border-line bg-bg-surface/60 hover:border-ink/40')}
-                >
-                  <RoomGlyph outlines={flat} roomId={r.id} active={on} />
-                  <span>
-                    <span className={cn('block whitespace-nowrap text-sm', on ? 'font-medium text-ink' : 'text-ink-soft')}>{r.nameKa || roomTypeLabel(t, r.type)}</span>
-                    <span className={cn('block text-xs tabular-nums', n === 2 ? 'text-success' : 'text-ink-faint')}>{n === 2 ? '✓' : `${n}/2`}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </ScrollRow>
-        </div>
+        <RoomRow
+          title={t.calculator.finishesTitle}
+          rooms={rooms}
+          board={boardPlan}
+          activeRoomId={room?.id ?? null}
+          onSelect={(id) => openRoom(`room:${id}`)}
+          status={(r) => {
+            const n = roomChosenCount(r);
+            return { text: n === 2 ? '✓' : `${n}/2`, done: n === 2 };
+          }}
+        />
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[220px_minmax(0,1fr)_300px]">
           <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">

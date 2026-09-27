@@ -40,7 +40,7 @@ import { priceScene } from '@/lib/design/pricing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
-import { designStepHref, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepPosition, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
@@ -238,6 +238,14 @@ export default function StudioPage() {
   useEffect(() => {
     if (plan && !tutorialSeen()) setTourOpen(true);
     // On mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The studio always opens on the whole flat. A room picked out on the board of another step
+  // — the plan, the technical setup — is that board's selection, not the view to open on.
+  useEffect(() => {
+    store.setFocusRoom(null);
+    // On mount only: a room chosen here stays chosen between the furniture and the finishes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1121,7 +1129,8 @@ export default function StudioPage() {
                       counts={technicalCounts}
                       onAuto={() => store.suggestTechnical()}
                       onRadiators={() => store.suggestRadiators(products)}
-                      stepHref={designStepHref(projectId, 3)}
+                      // The works are a check of the technical step now: open it on them.
+                      stepHref={technicalCheckHref(projectId, 'works')}
                     />
                   )}
                   {category === 'finishes' && (

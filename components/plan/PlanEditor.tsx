@@ -468,6 +468,9 @@ export function PlanEditor(props: PlanEditorProps) {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target;
       if (target instanceof HTMLElement && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)) return;
+      // A dialog over the board keeps its keys: Space presses its button rather than panning,
+      // and Delete does not take the point selected behind it.
+      if (target instanceof HTMLElement && target.closest('[role="dialog"]')) return;
       if (e.code === 'Space') {
         spaceHeld.current = true;
         e.preventDefault();

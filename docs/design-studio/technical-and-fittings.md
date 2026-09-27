@@ -1,7 +1,7 @@
 # Technical setup, fittings, radiators, doors and windows
 
 Everything in the flat that is not furniture or a finish: technical points (water, drains,
-panel, gas, radiators, AC, extractors, boiler, heating pipe) and the works checklist on step 3;
+panel, gas, radiators, AC, extractors, boiler, heating pipe) and the checks of step 3 (the works among them);
 sockets, switches and lights (the electrical layer); radiators bought by the section; doors and
 windows as editable openings and as products. Read this before touching
 `lib/design/technical.ts`, `autoTechnical.ts`, `technicalRates.ts`, `electrical.ts`,
@@ -18,8 +18,8 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 
 | File | Responsibility |
 |---|---|
-| `lib/design/technical.ts` | `TECHNICAL_KINDS`, `technicalElevation`, `WORK_ITEMS` / `WORK_STAGES` / `normalizeWorks`, `effectivePhases`, `technicalAnchors`, `technicalSuggestions` |
-| `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's button; `origin: 'user'`) |
+| `lib/design/technical.ts` | `TECHNICAL_KINDS`, `technicalElevation`, `WORK_ITEMS` / `WORK_STAGES` / `normalizeWorks`, `effectivePhases`, the step's checks (`TECHNICAL_CHECKS`, `technicalChecks`, `uncheckedTechnical`, `technicalCheckFrom`), `technicalAnchors`, `technicalSuggestions` |
+| `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's automatic-placement check and the studio's technical tray; `origin: 'user'`) |
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
 | `lib/design/electrical.ts` | sockets, switches, lights: `suggestElectrical`, `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
@@ -31,7 +31,8 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts` | the generated model lists (`FIXTURE_MODELS`, `RADIATOR_MODELS`) |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx` | the selected fitting's and opening's cards |
 | `components/plan/ElementInspector.tsx`, `components/plan/icons.ts` | editing a point or opening on the board; one icon per system |
-| `app/(main)/design/[id]/technical/page.tsx` | step 3: kinds as tiles, existing ticks, works checklist, radiators |
+| `app/(main)/design/[id]/technical/page.tsx` | step 3: the board with the kinds as tiles, the selected point, the checks' card and the hints; going on opens the checks |
+| `components/design/TechnicalChecks.tsx` | the step's checks: `TechnicalChecksDialog` (the modal over the plan), `TechnicalChecksCard` (the card on the step), `useTechnicalChecks` |
 
 ## Technical setup (`lib/design/technical.ts`), electrical (`lib/design/electrical.ts`)
 
@@ -53,7 +54,11 @@ and the inspector): a tile arms the point tool with that kind and stays armed un
 clicked again, and a click on a point already placed picks it up instead of stacking
 another. The works checklist is four collapsible groups by the stage the works take the
 house through (`WORK_STAGES`: old renovation → black frame, black → white frame, white →
-green, green → moving in), each with an all / none toggle.
+green, green → moving in), each with an all / none toggle — one of the step's checks (below).
+Every action that adds points (`addTechnicalPoint`, `suggestTechnical`, `suggestRadiators`)
+keeps the rest of `plan.technical` — the works, what the flat already has, the choices, the
+checks. They used to rebuild it from the points and the works, so placing a point or hanging
+the radiators quietly dropped what the flat already has and the floor and ceiling choices.
 
 Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wall +
 position, height, outlets, on/off, a lighting `category`). `suggestElectrical` places them
@@ -133,6 +138,39 @@ the furniture card's twin: photo, price and shop (or the estimate), the kind as 
 height with presets, the slider along the wall, outlets, on/off, and "შეცვალე პროდუქტი" —
 every product of that kind — in the drawer along the bottom.
 
+## The step's checks (`components/design/TechnicalChecks.tsx`)
+
+The answers the budget is counted from are the part of the journey people skip, and every one
+left at its default is a guess in the estimate — a flat with no pipes marked is priced as
+though it needed no plumbing. They used to be cards down the side of the board, easy to scroll
+past; now they are **checks** (`TECHNICAL_CHECKS`, in the order they are asked): the automatic
+placement, the radiators room by room, the works, how the floor and the ceiling are done (the
+`WorkChoicesPicker`), what the flat already has. A renovation is asked all five — "how it is
+done" only while the laminate or the ceiling is among its works — and a design-only project the
+first three (`technicalChecks`).
+
+- **Going on asks first.** The step's "next" (the bar's and the narrow screen's `StepNav`)
+  opens `TechnicalChecksDialog` on the first check not looked at yet (`uncheckedTechnical`),
+  and only when every one has been does it go on. The modal sits over the plan with a light
+  backdrop (`DialogContent`'s `overlayClassName`): the checks down its left, the one in view lit
+  up and the rest marked with their number or a tick and one line of where each stands (points
+  placed, rooms with a radiator, works ticked, the two choices, things ticked); what the check
+  asks on the right; back, the count looked at, and next along the bottom.
+- **A check counts once it was looked at** — something in it changed (the automatic placement
+  pressed, the radiators hung, a work or a tick or a choice changed), or the person went on
+  from it. `markTechnicalChecked` keeps the keys in `plan.technical.checked`, so they are saved
+  with the project (`technicalSetupSchema.checked`) and the modal does not come back on a later
+  visit once all are done. "Next" goes to the following check; after the last, to the first
+  still waiting; when none is, it does the modal's `finish` — on to the next step (labelled with
+  it) when going on opened it, back to the plan ("მზადაა") when the card did.
+- **The card on the step** (`TechnicalChecksCard`, in the panel down the right) lists the checks
+  with where each stands and opens any one of them; its button walks through what is left, or
+  all of them again. The panel keeps the selected point's inspector above it and the hints
+  (`technicalSuggestions`) under it.
+- **`?check=<key>` opens the step on a check** (`technicalCheckHref` builds it,
+  `technicalCheckFrom` reads it; the URL is put back to the bare step once it is open): the
+  studio's technical tray links "რა სამუშაოებია საჭირო?" to the works this way.
+
 ## Radiators are bought by the section (`lib/design/radiators.ts`)
 
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
@@ -143,7 +181,7 @@ How many sections is arithmetic, not a guess: ~100 W per m² at a 2.7 m ceiling,
 in a room with two outside walls (`outsideEdges`, from the wall pieces), divided by the
 product's `wattsPerSection`, then shared between the radiators in the room and kept between
 4 and 14 — above 14 the far end runs cold and the card says to add a second. The technical
-step shows the demand per room and hangs radiators at a click (`suggestRadiators`: as many
+step's radiators check shows the demand per room and hangs radiators at a click (`suggestRadiators`: as many
 as the room's sections call for — `ceil(sections / 14)`, at least one — under its widest
 windows and never more than it has windows, on the longest outside wall when it has none;
 rooms that already have one, unheated rooms (balcony, storage, closet) and rooms under 3.5 m²
@@ -250,13 +288,19 @@ Interior at made-up prices.
 
 ## Tests
 
-`tests/unit/design/technical.test.ts`, `autoTechnical.test.ts`, `electrical.test.ts`,
-`radiators.test.ts`, `openings.test.ts`, `budget.test.ts` (points, doors and fittings priced,
-existing), `tests/integration/save-routes.test.ts` (forged door, socket and radiator prices are
-refused).
+`tests/unit/design/technical.test.ts` (with the checks each project is asked),
+`autoTechnical.test.ts`, `electrical.test.ts`, `radiators.test.ts`, `openings.test.ts`,
+`budget.test.ts` (points, doors and fittings priced, existing),
+`tests/unit/store/designStore.test.ts` (the setup kept when points are added, checks recorded
+once), `tests/integration/save-routes.test.ts` (forged door, socket and radiator prices are
+refused), `e2e/design-studio.spec.ts` (going on through the checks). The modal and the card
+have no tests of their own.
 
 ## Known gaps
 
+- A check stays looked at whatever happens afterwards: a room drawn on step 2 after the checks
+  were gone through is not asked about again (its radiators, say) — the card still shows where
+  each check stands and opens it.
 - Estimates for pipes and air conditioning (`lib/design/technicalRates.ts`) are market
   averages, not products. Doors, windows, sockets, switches, lamps and radiators are
   products now, and fall back to the same estimates only where the catalogue has none of

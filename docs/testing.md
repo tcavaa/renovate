@@ -52,7 +52,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 |---|---|---|
 | `tests/unit/calculator/` | the engine and rate book (`materials`, `rates`), selection keys and quantities, per-room finishes, the layout editor, plan sync | [calculator.md](calculator.md) |
 | `tests/unit/summary/` | `calculatorSheet`, the quantity dropdown | [budget.md](budget.md) |
-| `tests/unit/design/` | walls, drawing, plan drawing, studio rooms, openings, technical, auto technical, electrical, radiators, paint, zones, visible finishes, the style's finish products, trims, pricing, budget, ticks, kitchen, matcher, manipulate, clearance, catalogue browser, shelf rooms, colours, style quiz, history, daylight, plan PDF export, AI plan reading, from-calculator handoff | [design-studio/](design-studio/overview.md) |
+| `tests/unit/design/` | walls, drawing, plan drawing, studio rooms, room names, openings, technical (and its checks), auto technical, electrical, radiators, paint, zones, visible finishes, the style's finish products, trims, pricing, budget, ticks, kitchen, matcher, manipulate, clearance, catalogue browser, shelf rooms, colours, style quiz, history, daylight, plan PDF export, AI plan reading, from-calculator handoff | [design-studio/](design-studio/overview.md) |
 | `tests/unit/design3d/` | wall geometry, whose wall a hit is, cornices, the environment, footprints read from a model | [design-studio/3d-engine.md](design-studio/3d-engine.md) |
 | `tests/unit/flow/` | resume, sync lines and pruning, opening a project, save helpers, legacy migration | [project-flow.md](project-flow.md) |
 | `tests/unit/projects/` | row helpers (`projectKind`, progress, `picksFromScene`), checkout parts | [project-flow.md](project-flow.md), [marketplace.md](marketplace.md) |
@@ -63,7 +63,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 | `tests/integration/save-routes.test.ts` | both save routes and project create/rename, with the DB and session mocked: ownership, forged prices, unknown products, revision conflicts, own unconfirmed saves, racing writes, column ownership, per-room quantities, rate limiting | [project-flow.md](project-flow.md) |
 | `tests/integration/product-routes.test.ts` | `/api/products/[id]` with the DB and session mocked: who may read a hidden product, who may change one | [catalog.md](catalog.md) |
 | `e2e/public.spec.ts` | landing, health, catalogue filters via URL, workers directory redirect, 404, security headers, auth pages, callback URL safety | — |
-| `e2e/design-studio.spec.ts` | registers an account, makes a project from the design hub, then the bundled sample plan through upload → mode → board → technical → style → a furnished studio with a price → summary, and the project reopening where it was left (the brigade step is not visited; the account and project stay in the database) | [design-studio/overview.md](design-studio/overview.md) |
+| `e2e/design-studio.spec.ts` | registers an account, makes a project from the design hub, then the bundled sample plan through upload → mode → board → technical (going on through its checks) → style → a furnished studio with a price → summary, and the project reopening where it was left (the brigade step is not visited; the account and project stay in the database) | [design-studio/overview.md](design-studio/overview.md) |
 
 ## Writing tests
 

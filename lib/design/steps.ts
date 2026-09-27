@@ -17,6 +17,7 @@
  */
 
 import type { HomeState } from '@/lib/calculator/types';
+import type { TechnicalCheck } from '@/lib/design/technical';
 import type { DesignMode } from '@/lib/design/types';
 import type { StudioStep } from '@/store/designStore';
 
@@ -37,6 +38,11 @@ export const DESIGN_STEP_PATHS: Record<StudioStep, string> = {
 
 export function designStepHref(projectId: number, step: StudioStep): string {
   return `/design/${projectId}/${DESIGN_STEP_PATHS[step]}`;
+}
+
+/** The technical step opened on one of its checks — the studio's way to the works (`technicalCheckFrom` reads it). */
+export function technicalCheckHref(projectId: number, check: TechnicalCheck): string {
+  return `${designStepHref(projectId, 3)}?check=${check}`;
 }
 
 /**

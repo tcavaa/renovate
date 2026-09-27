@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
+import { RoomRow } from '@/components/calculator/RoomRow';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { SideList } from '@/components/flow/SideList';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useCalculatorStore } from '@/store/calculatorStore';
+import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { useT, useLocale } from '@/lib/i18n/client';
-import { localizedName, roomTypeLabel, pickLocalizedName } from '@/lib/i18n/labels';
+import { localizedName, pickLocalizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
 import type { Product } from '@/lib/db/schema';
@@ -24,6 +26,8 @@ export default function FurnitureStepPage() {
   const locale = useLocale();
   const projectId = useProjectId();
   const { rooms, homeState, selectedFurniture, addFurniture, removeFurniture } = useCalculatorStore();
+  // The calculator's own board: the rooms where they lie, for the little plan beside each.
+  const boardPlan = useCalculatorPlanStore((s) => s.plan);
   const { items: categories, loading: catLoading } = useCategories(true);
   /** The piece just added, for a moment: the card says so, in the room it went to. */
   const [added, setAdded] = useState<{ productId: number; room: string } | null>(null);
@@ -33,7 +37,9 @@ export default function FurnitureStepPage() {
     return () => window.clearTimeout(handle);
   }, [added]);
 
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(rooms[0]?.id ?? null);
+  const [pickedRoomId, setActiveRoomId] = useState<string | null>(null);
+  // The room picked, else the first — also when the rooms arrive after the first render.
+  const activeRoomId = pickedRoomId && rooms.some((r) => r.id === pickedRoomId) ? pickedRoomId : (rooms[0]?.id ?? null);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const currentSlug = activeSlug ?? categories[0]?.slug ?? null;
   const current = categories.find((c) => c.slug === currentSlug) ?? null;
@@ -79,19 +85,21 @@ export default function FurnitureStepPage() {
       <div className="container py-10 md:py-14">
         <StepHeader step={5} total={CALCULATOR_STEPS} title={t.furniture.title} subtitle={t.furniture.subtitle} />
 
+        {/* The rooms, side by side as on the catalogue step: each on a little plan of the flat. */}
+        <RoomRow
+          title={t.furniture.selectRoom}
+          rooms={rooms}
+          board={boardPlan}
+          activeRoomId={activeRoomId}
+          onSelect={setActiveRoomId}
+          status={(r) => {
+            const n = (selectedFurniture[r.id] ?? []).length;
+            return { text: n > 0 ? fill(t.furniture.roomPieces, { n }) : t.furniture.roomEmpty, done: n > 0 };
+          }}
+        />
+
         <div className="mt-8 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-8 lg:sticky lg:top-24 lg:self-start">
-            <SideList
-              title={t.furniture.selectRoom}
-              activeId={activeRoomId}
-              onSelect={setActiveRoomId}
-              items={rooms.map((r) => ({
-                id: r.id,
-                label: r.nameKa,
-                hint: roomTypeLabel(t, r.type),
-                count: (selectedFurniture[r.id] ?? []).length || undefined,
-              }))}
-            />
             {catLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (

@@ -168,6 +168,11 @@ export interface TechnicalSetup {
   existing?: string[];
   /** Laminate or parquet, plasterboard or a stretch ceiling (`WorkChoices`); the defaults when absent. */
   choices?: Partial<WorkChoices>;
+  /**
+   * The technical step's checks the person has looked at (`TECHNICAL_CHECKS`): until each one
+   * they are asked is here, going on from the step opens them one by one first.
+   */
+  checked?: string[];
 }
 
 export interface PlanRoom {

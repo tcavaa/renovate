@@ -19,6 +19,7 @@ import { ROOM_TYPES } from '@/lib/calculator/constants';
 import { detectUnitSystem, parseLength } from './measure';
 import { solvePlan, type RoughRoom } from './planSolver';
 import { deriveOpenings, polygonAreaM2, polygonPerimeterM, roomEdges, toCounterClockwise } from './planGeometry';
+import { withRoomNames } from './roomNames';
 import type { FloorPlan, Opening, PlanRoom, Vec2 } from './types';
 
 export const PLAN_MODEL = 'claude-opus-5';
@@ -366,7 +367,9 @@ export function buildPlanFromReading(
 
   return {
     plan: {
-      rooms,
+      // The labels are the drawing's own; a type's bare name printed on more than one room
+      // ("საძინებელი" twice) is numbered, and one printed with a number on a lone room loses it.
+      rooms: withRoomNames(rooms),
       metresPerPixel: null,
       bounds: {
         width: allX.length ? Math.max(...allX) - Math.min(...allX) : 0,

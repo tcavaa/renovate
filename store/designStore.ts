@@ -30,8 +30,6 @@ import { layoutPlan } from '@/lib/design/autoLayout';
 import {
   DEFAULT_WALL_THICKNESS_M,
   deriveOpenings,
-  isAutoRoomName,
-  nextRoomName,
   pointInPolygon,
   polygonBounds,
   polygonCentroid,
@@ -40,6 +38,7 @@ import {
   planFromCalculatorRooms,
 } from '@/lib/design/planGeometry';
 import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { isAutoRoomName, nextRoomName, withRoomNames } from '@/lib/design/roomNames';
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
 import { addOpening as addOpeningTo, mirrorHinge, mirrorSwing, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningProduct as setOpeningProductIn, setOpeningWall as setOpeningWallIn, twinOf, updateOpening as updateOpeningIn, withOpeningProducts, type WallTarget } from '@/lib/design/openings';
@@ -63,7 +62,7 @@ import {
 } from '@/lib/design/walls';
 import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
-import { technicalAnchors, technicalElevation, TECHNICAL_KINDS } from '@/lib/design/technical';
+import { technicalAnchors, technicalElevation, TECHNICAL_KINDS, type TechnicalCheck } from '@/lib/design/technical';
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
@@ -320,6 +319,8 @@ interface DesignActions {
   setExisting: (keys: string[]) => void;
   /** Laminate or parquet, plasterboard or a stretch ceiling — how the budget prices those two works. */
   setWorkChoices: (choices: Partial<WorkChoices>) => void;
+  /** The technical step's checks (`TECHNICAL_CHECKS`) the person has looked at; stored on the plan. */
+  markTechnicalChecked: (keys: TechnicalCheck[]) => void;
   // --- electrical ---
   /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
   suggestElectrical: (catalog?: CatalogProduct[]) => void;
@@ -536,7 +537,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         });
 
       /** A plan edit that changed the rooms: prune what belonged to rooms that are gone, re-home the rest. */
-      const reconcile = (s: DesignState, plan: FloorPlan): Partial<DesignState> => {
+      const reconcile = (s: DesignState, edited: FloorPlan): Partial<DesignState> => {
+        // Whatever the edit did to the rooms — one drawn, one taken away, two merged — the names
+        // the app gave are dealt again: a kind with one room has no number, a kind with several
+        // is numbered 1…n (`withRoomNames`). A plan already dealt comes back as it was.
+        const named = withRoomNames(edited.rooms);
+        const plan = named === edited.rooms ? edited : { ...edited, rooms: named };
         const rooms = new Set(plan.rooms.map((r) => r.id));
         const items = s.items.flatMap((item) => {
           if (rooms.has(item.roomId)) return [item];
@@ -712,12 +718,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         updateRoom: (roomId, patch) =>
           commit((s) => {
             if (!s.plan) return null;
-            return {
-              plan: {
-                ...s.plan,
-                rooms: s.plan.rooms.map((r) => (r.id === roomId ? withStudioSplit({ ...r, ...patch }) : r)),
-              },
-            };
+            const room = s.plan.rooms.find((r) => r.id === roomId);
+            const rooms = s.plan.rooms.map((r) => (r.id === roomId ? withStudioSplit({ ...r, ...patch }) : r));
+            // A room of another type now: the kind it left and the kind it joined are numbered
+            // again. Only then — a name being typed must not be renumbered under the cursor.
+            const retyped = !!room && patch.type !== undefined && patch.type !== room.type;
+            return { plan: { ...s.plan, rooms: retyped ? withRoomNames(rooms) : rooms } };
           }),
 
         resizeRoom: (roomId, widthM, depthM) =>
@@ -900,7 +906,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const room = roomId ? s.plan.rooms.find((r) => r.id === roomId) : s.plan.rooms.find((r) => pointInPolygon(position, r.polygon));
             // An air conditioner hangs from the ceiling down, so its height is the room's.
             const point: TechnicalPoint = { id, kind, roomId: room?.id ?? null, position, elevationM: technicalElevation(kind, room), origin: 'user' };
-            return { plan: { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), point], works: s.plan.technical?.works } } };
+            // The rest of the setup — the works, what the flat already has, the choices — stays.
+            return { plan: { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), point] } } };
           });
           return id;
         },
@@ -944,7 +951,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const added = suggestRadiators(s.plan, () => `${uid('t')}${n++}`);
             if (added.length === 0) return null;
             hung = added.length;
-            const plan: FloorPlan = { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), ...added], works: s.plan.technical?.works } };
+            const plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...added] } };
             return { plan: withRadiatorProducts(plan, catalog, s.styleId) };
           });
           return hung;
@@ -963,13 +970,21 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const { points } = suggestTechnicalIn(s.plan, s.items, () => `${uid('t')}${n++}`);
             if (points.length === 0) return null;
             placed = points.length;
-            return { plan: { ...s.plan, technical: { points: [...(s.plan.technical?.points ?? []), ...points], works: s.plan.technical?.works, existing: s.plan.technical?.existing } } };
+            return { plan: { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } } };
           });
           return placed;
         },
         setWorks: (works) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical?.points ?? [], works } } } : s)),
         setExisting: (existing) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical?.points ?? [], existing } } } : s)),
         setWorkChoices: (choices) => set((s) => (s.plan ? { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical?.points ?? [], choices: { ...s.plan.technical?.choices, ...choices } } } } : s)),
+        markTechnicalChecked: (keys) =>
+          set((s) => {
+            if (!s.plan) return s;
+            const before = s.plan.technical?.checked ?? [];
+            const checked = [...new Set([...before, ...keys])];
+            if (checked.length === before.length) return s;
+            return { plan: { ...s.plan, technical: { ...s.plan.technical, points: s.plan.technical?.points ?? [], checked } } };
+          }),
 
         // --- electrical ---
         suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId) } : null)),
@@ -1064,6 +1079,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               items,
               finishes,
               electrical,
+              // The studio opens on the whole flat. A room picked out on the plan or the
+              // technical board is that board's selection; kept, it showed the new layout one
+              // room at a time.
+              focusRoomId: null,
+              selectedRoomIds: [],
               selectedItemId: null,
               selectedElement: null,
               carryingItemId: null,
