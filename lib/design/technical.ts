@@ -12,10 +12,10 @@
  */
 
 import type { HomeState, RoomType } from '@/lib/calculator/types';
-import { HOME_STATES } from '@/lib/calculator/constants';
+import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
-import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
+import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
   /** Where it sits: on a wall, on the floor, or either. */
@@ -175,6 +175,45 @@ export function phasesForWorks(works: string[]): number[] {
 export function effectivePhases(homeState: HomeState, works?: string[] | null): number[] {
   const ticked = works && works.length > 0 ? phasesForWorks(works) : [];
   return ticked.length > 0 ? ticked : HOME_STATES[homeState].includedPhases;
+}
+
+// ---------------------------------------------------------------------------
+// The step's checks
+// ---------------------------------------------------------------------------
+
+/**
+ * What the technical step asks the person to look at before going on, in the order it asks:
+ * the automatic placement, the radiators room by room, the works — and, for a renovation, how
+ * the floor and the ceiling are done and what the flat already has. It is the part of the
+ * journey people skip, and every answer left at its default is a guess in the budget: a flat
+ * with no pipes marked is priced as though it needed no plumbing.
+ */
+export const TECHNICAL_CHECKS = ['auto', 'radiators', 'works', 'choices', 'existing'] as const;
+export type TechnicalCheck = (typeof TECHNICAL_CHECKS)[number];
+
+/**
+ * The checks this project is asked: all of them for a renovation, where "how it is done" only
+ * while the laminate or the ceiling is among the works; the first three for a design only,
+ * which prices neither works nor what is already there.
+ */
+export function technicalChecks(mode: DesignMode, works: readonly string[]): TechnicalCheck[] {
+  const phases = new Set(phasesForWorks([...works]));
+  return TECHNICAL_CHECKS.filter((check) => {
+    if (check === 'existing') return mode === 'full';
+    if (check === 'choices') return mode === 'full' && (phases.has(FLOOR_PHASE) || phases.has(CEILING_PHASE));
+    return true;
+  });
+}
+
+/** A check named in a URL (`technicalCheckHref`), or null for anything else. */
+export function technicalCheckFrom(value: string | null | undefined): TechnicalCheck | null {
+  return (TECHNICAL_CHECKS as readonly string[]).includes(value ?? '') ? (value as TechnicalCheck) : null;
+}
+
+/** The checks not looked at yet (`plan.technical.checked`), in the order they are asked. */
+export function uncheckedTechnical(checks: readonly TechnicalCheck[], checked: readonly string[] | null | undefined): TechnicalCheck[] {
+  const done = new Set(checked ?? []);
+  return checks.filter((check) => !done.has(check));
 }
 
 // ---------------------------------------------------------------------------

@@ -50,7 +50,8 @@ furniture in the studio"), electric & light (four tiles — socket, switch, aeri
 data — and the lights; the double, high and kitchen sockets are still placed by the
 automatic wiring and still re-kindable from a fitting's card, but four extra tiles only made
 the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D board, the
-radiators at a click, the works checklist one link away), finishes (the same kind of shelf:
+radiators at a click, the works checklist one link away — the technical step opened on its
+works check, `technicalCheckHref`), finishes (the same kind of shelf:
 floor · walls · skirting · cornice, then where it goes — a square metre, a 1 m strip, this
 wall, the whole room ([finishes.md](finishes.md#what-the-studio-offers)) — then the swatches,
 the style default first), budget (totals at a glance). **"Empty the rooms"** (`clearDesign`,
@@ -135,6 +136,12 @@ button; the hover card keeps the address and the delivery time, since that is th
 that proves the sofa is a real sofa. Everything that can be done to a piece is one row of square icon buttons
 (`IconAction`): turn, mirror, duplicate, lock, delete. Inputs are 32 px, and the swap drawer
 carries its own padding.
+
+**The studio opens on the whole flat** — the room list's "მთელი ბინა". The page clears
+`focusRoomId` when it mounts and `generate` clears it too: the plan and technical boards keep
+the room picked out on them in the same field, and it used to open the new layout on that one
+room ([overview.md](overview.md#generation-versions-and-undo)). Between steps 5 and 6 the page
+stays mounted, so a room chosen here stays chosen there.
 
 **The camera frames on the plan's identity, never on the plan object** (`Viewer3D.frameKey`
 ← `designStore.planSerial`). A door slid along its wall, a wall dragged, a radiator moved:

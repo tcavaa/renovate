@@ -24,7 +24,7 @@ the detailed documents. Read it first for any task under `app/(main)/design/`, `
 |---|---|---|---|
 | 1 | `start/` | upload a plan or start on a blank sheet; wall defaults; *design only* or *renovation + design* (and the home state); or an empty start | `PlanUploadCard`, `HomeStateSelector`, [project-flow.md §14](../project-flow.md) |
 | 2 | `plan/` | the existing house on the 2D board: walls, rooms, doors, windows, columns, beams | `PlanWorkspace`, `ElementInspector`, `RoomsPanel` — [plan-board.md](plan-board.md) |
-| 3 | `technical/` | technical points, what the flat already has, the works checklist, radiators | `lib/design/technical.ts`, `existing.ts`, `radiators.ts` — [technical-and-fittings.md](technical-and-fittings.md) |
+| 3 | `technical/` | technical points on the board; the automatic placement, the radiators, the works, how it is done and what the flat already has as checks in a modal that going on opens | `lib/design/technical.ts`, `existing.ts`, `radiators.ts`, `TechnicalChecks` — [technical-and-fittings.md](technical-and-fittings.md) |
 | 4 | `style/` | the five-question style test (or a direct pick), budget, **generate** | `StyleQuiz`, `StylePicker`, `GenerationOverlay`, `designStore.generate` |
 | 5 | `studio/` | the 3D studio in build mode: furniture, fittings, lights | [studio.md](studio.md) |
 | 6 | `studio/?tool=finishes` | materials on rooms, single walls, strips, square metres, floor zones | [finishes.md](finishes.md) |
@@ -167,6 +167,12 @@ studio used to undo the whole layout and leave every room bare — and, coming f
 calculator, carry on into the walls drawn there, because `startFromCalculator` kept the
 versions of whatever was in the studio before and the baseline only ran when none existed.
 The new layout becomes version 01, with its furniture, when the studio next opens (below).
+**The studio opens on the whole flat.** `focusRoomId` is both the room picked out on the 2D
+boards of steps 2 and 3 (`RoomsPanel`, `PlanWorkspace`) and the room the studio shows alone, so
+a room clicked on the plan used to carry through the style test into the studio, which showed
+the new layout one room at a time. `generate` clears it (and the board's room selection), and
+the studio page clears it whenever it opens; a room chosen in the studio stays chosen between
+its furniture and its finishes, which are the same page.
 Generation also lays every room's floor and walls in the style's own partner products (tiles in
 the bathrooms, the style's laminate and paint elsewhere — `styleFinish`), keeping the finishes
 somebody chose, so the budget buys what the flat is shown in ([finishes.md](finishes.md)).
@@ -194,7 +200,8 @@ API key and must keep doing so.
 
 `tests/unit/design/styleQuiz.test.ts`, `history.test.ts`, `fromCalculator.test.ts` (the
 calculator's picks landing on their surfaces), `budget.test.ts` (what the flat already has),
-`tests/unit/store/designStore.test.ts` (the empty start, carry, swap, paint),
+`tests/unit/store/designStore.test.ts` (the empty start, carry, swap, paint, room names, the
+whole flat after generating),
 `e2e/design-studio.spec.ts`. Nothing tests `designStepOrder` / `nextStep`, `generate` clearing
 the versions and history, or `ensureExistingVersion` / `restoreVersion`.
 

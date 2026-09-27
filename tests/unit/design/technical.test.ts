@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, normalizeWorks, phasesForWorks, technicalAnchors, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
+import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, normalizeWorks, phasesForWorks, technicalAnchors, technicalChecks, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, uncheckedTechnical, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 import { HOME_STATES } from '@/lib/calculator/constants';
 import { HOME_STATE_VALUES } from '@/lib/calculator/types';
@@ -135,5 +135,25 @@ describe('how high a technical point sits', () => {
 
   it('falls back to the standard wall height when the point belongs to no room', () => {
     expect(technicalElevation('ac_unit', null)).toBe(technicalElevation('ac_unit', { heightM: DEFAULT_WALL_HEIGHT_M }));
+  });
+});
+
+describe('the checks before going on', () => {
+  it('asks a renovation everything, and how the floor and ceiling are done only while those works are in it', () => {
+    expect(technicalChecks('full', defaultWorksForHomeState('white_frame'))).toEqual(['auto', 'radiators', 'works', 'choices', 'existing']);
+    expect(technicalChecks('full', ['plumbing', 'electrical'])).toEqual(['auto', 'radiators', 'works', 'existing']);
+    expect(technicalChecks('full', ['ceiling'])).toContain('choices');
+  });
+
+  it('asks a design only about the points, the radiators and the works', () => {
+    expect(technicalChecks('design_only', defaultWorksForHomeState('green_frame'))).toEqual(['auto', 'radiators', 'works']);
+  });
+
+  it('says which are still to be looked at, in the order they are asked', () => {
+    const checks = technicalChecks('full', defaultWorksForHomeState('black_frame'));
+    expect(uncheckedTechnical(checks, undefined)).toEqual(checks);
+    expect(uncheckedTechnical(checks, ['works', 'auto'])).toEqual(['radiators', 'choices', 'existing']);
+    // One asked of another project once does not count here.
+    expect(uncheckedTechnical(['auto', 'radiators', 'works'], ['choices', 'existing', 'auto', 'radiators', 'works'])).toEqual([]);
   });
 });

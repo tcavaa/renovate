@@ -88,12 +88,13 @@ components/
   motion/      CountUp Marquee RotatingBadge
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief FlowGuard FlowWorkspace
   calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard
-               WorkChoicesPicker AskFurnitureDialog CalculatorAutosave
+               WorkChoicesPicker AskFurnitureDialog CalculatorAutosave RoomFinishCards PlanGlyphs
+               RoomRow
   plan/        PlanEditor (the 2D board) PlanWorkspace PlanToolbar ElementInspector RoomsPanel
                draw.ts palette.ts icons.ts
   design/      DesignSteps PlanUploadCard StylePicker StyleQuiz GenerationOverlay Viewer3D
                WalkControls ItemCard SwapPanel HoverCard FinishPanel StudioControls FloatingPanel
-               PhotoDialog ProductPageLink DesignAutosave
+               PhotoDialog ProductPageLink DesignAutosave TechnicalChecks
   studio/      BuildBar Trays FurnitureTray FurnitureDrawer CatalogBrowser RoomItemsPanel
                FixturePanel OpeningPanel OwnModelDialog StudioTopBar TutorialOverlay NavHelp
                VersionsPanel archetypeIcons.ts dragImage.ts

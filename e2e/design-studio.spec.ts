@@ -37,7 +37,8 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   // Neither mode is pre-selected; continuing without one is refused with a message.
   const nav = page.locator('.sticky.bottom-0');
   await nav.getByRole('button', { name: /^გაგრძელება$/ }).click();
-  await expect(page.getByRole('alert')).toContainText(/რა გჭირდება/);
+  // In the page: Next's route announcer is an alert too.
+  await expect(page.locator('main').getByRole('alert')).toContainText(/რა გჭირდება/);
   await page.getByRole('button', { name: /მხოლოდ დიზაინი/ }).click();
   await nav.getByRole('button', { name: /^გაგრძელება$/ }).click();
 
@@ -51,17 +52,25 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   await expect(page.getByText(/მ²/).filter({ visible: true }).first()).toBeVisible();
   await page.getByRole('button', { name: /ტექნიკური პირობები/ }).click();
 
-  // Step 3: the technical setup, with the works checklist.
+  // Step 3: the technical setup. Going on asks first: the checks a design-only project is
+  // asked — the automatic placement, the radiators, the works — one by one in a modal over the
+  // plan, its last button going on.
   await expect(page).toHaveURL(/\/design\/\d+\/technical/);
-  await expect(page.getByText(/რა სამუშაოებია საჭირო/)).toBeVisible();
   await page.getByRole('button', { name: /სტილის ტესტი/ }).click();
+  const checks = page.getByRole('dialog');
+  await expect(checks.getByText(/შეამოწმე ტექნიკური პირობები/)).toBeVisible();
+  await checks.getByRole('button', { name: /^შემდეგი$/ }).click();
+  await checks.getByRole('button', { name: /^შემდეგი$/ }).click();
+  await expect(checks.getByRole('heading', { name: /რა სამუშაოებია საჭირო/ })).toBeVisible();
+  await checks.getByRole('button', { name: /სტილის ტესტი/ }).click();
 
   // Step 4: the style test; five answers give a style, then generate.
   await expect(page).toHaveURL(/\/design\/\d+\/style/);
   for (let i = 0; i < 5; i++) {
     await page.getByRole('radio').nth(1).click();
   }
-  await expect(page.getByText(/შენი სტილი/)).toBeVisible();
+  // The result's label, not the step's lead that says the test will find it.
+  await expect(page.getByText('შენი სტილი', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /დიზაინის გენერაცია/ }).click();
 
   // Step 5: the studio, with the build bar and a price.

@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshRoom } from '@/lib/design/planGeometry';
+import { nextRoomName } from '@/lib/design/roomNames';
 import { getStyle } from '@/lib/design/styles';
 import { priceScene } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
@@ -288,5 +289,72 @@ describe('the style’s floors and walls', () => {
     useDesignStore.getState().ensureFinishProducts(catalog);
     expect(onRoom('floor')?.product?.productId).toBe(23);
     expect(onRoom('wall')?.product?.productId).toBe(24);
+  });
+});
+
+describe('room names', () => {
+  const nameOf = (id: string) => useDesignStore.getState().plan!.rooms.find((r) => r.id === id)?.name;
+  const add = (x: number, type: 'bedroom' | 'kitchen') => useDesignStore.getState().addRectangleRoom({ x, z: 0, width: 3, depth: 3 }, type)!;
+
+  it('numbers a kind once it has two rooms, and takes the number off the one left', () => {
+    const a = add(6, 'bedroom');
+    expect(nameOf(a)).toBe('საძინებელი');
+    const b = add(10, 'bedroom');
+    expect([nameOf(a), nameOf(b)]).toEqual(['საძინებელი 1', 'საძინებელი 2']);
+    useDesignStore.getState().removeRoom(a);
+    expect(nameOf(b)).toBe('საძინებელი');
+    // The name typed for the first room is the person's and stays.
+    expect(nameOf('r1')).toBe('living');
+  });
+
+  it('deals both kinds again when a room changes its type', () => {
+    const kitchen = add(6, 'kitchen');
+    const bedroom = add(10, 'bedroom');
+    expect([nameOf(kitchen), nameOf(bedroom)]).toEqual(['სამზარეულო', 'საძინებელი']);
+    // What the inspector's type field does.
+    const rooms = useDesignStore.getState().plan!.rooms;
+    useDesignStore.getState().updateRoom(bedroom, { type: 'kitchen', name: nextRoomName(rooms, 'kitchen', bedroom) });
+    expect([nameOf(kitchen), nameOf(bedroom)]).toEqual(['სამზარეულო 1', 'სამზარეულო 2']);
+  });
+
+  it('does not renumber a name while it is being typed', () => {
+    const a = add(6, 'bedroom');
+    const b = add(10, 'bedroom');
+    useDesignStore.getState().updateRoom(b, { name: 'საძინებელი' });
+    expect([nameOf(a), nameOf(b)]).toEqual(['საძინებელი 1', 'საძინებელი']);
+  });
+});
+
+describe('generating the flat', () => {
+  it('opens the studio on the whole flat, whatever room the plan step had picked out', () => {
+    useDesignStore.getState().setFocusRoom('r1');
+    useDesignStore.getState().selectRooms(['r1']);
+    useDesignStore.getState().generate([]);
+    expect(useDesignStore.getState().focusRoomId).toBeNull();
+    expect(useDesignStore.getState().selectedRoomIds).toEqual([]);
+    expect(useDesignStore.getState().generated).toBe(true);
+  });
+});
+
+describe('the technical setup', () => {
+  it('keeps what the flat already has and the choices when points are placed or radiators hung', () => {
+    const store = useDesignStore.getState();
+    store.setExisting(['plumbing']);
+    store.setWorkChoices({ floor: 'parquet' });
+    store.markTechnicalChecked(['existing', 'choices']);
+    useDesignStore.getState().addTechnicalPoint('water_supply', { x: 1, z: 1 }, 'r1');
+    useDesignStore.getState().suggestRadiators();
+    useDesignStore.getState().suggestTechnical();
+    const technical = useDesignStore.getState().plan!.technical!;
+    expect(technical.points.length).toBeGreaterThan(0);
+    expect(technical.existing).toEqual(['plumbing']);
+    expect(technical.choices).toEqual({ floor: 'parquet' });
+    expect(technical.checked).toEqual(['existing', 'choices']);
+  });
+
+  it('records each check once', () => {
+    useDesignStore.getState().markTechnicalChecked(['auto']);
+    useDesignStore.getState().markTechnicalChecked(['auto', 'works']);
+    expect(useDesignStore.getState().plan!.technical!.checked).toEqual(['auto', 'works']);
   });
 });

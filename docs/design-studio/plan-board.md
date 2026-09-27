@@ -18,6 +18,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `lib/design/walls.ts` | walls ⇄ rooms: `roomsFromWalls`, `wallsFromRooms`, `ensureWalls`, `rebuildRooms`, junction splitting, room clusters and moves, clash tests |
 | `lib/design/drawing.ts` | snapping (junction → wall → axis → alignment → grid), hit tests, `snapRoomMove`, `snapRectangle`, `snapWallOffset` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
+| `lib/design/roomNames.ts` | the names the app gives rooms: a kind's name, numbered only when the flat has several (`withRoomNames`, `nextRoomName`, `isAutoRoomName`, `readingOrder`) |
 | `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against |
 | `lib/design/types.ts` | `FloorPlan`, `Room`, `Wall`, `Column`, `Beam`, `Opening`, … |
 | `components/plan/PlanEditor.tsx` | the canvas board: tools, gestures, pan/zoom; everything else is callbacks to the store |
@@ -198,6 +199,10 @@ Escape disarms a fitting or a technical point whatever the view, and the board h
 on through `PlanEditor.onEscape`, which fires only when the board had nothing of its own to
 end — a wall or beam run in progress is ended by the first Escape, and the second one drops
 the tool (`putToolsDown` in the studio: the build tool back to select, the brush put down).
+The board's keys stay out of a dialog open over it (a key whose target is inside
+`[role="dialog"]` is left alone, like one typed in a field): Space presses the dialog's button
+instead of panning, and Delete does not take the point selected behind it — the technical
+step's checks are such a dialog.
 
 **Shift drags a wall alone** (`offsetWallAlone`, `moveWallEnd`). A wall dragged sideways
 takes the walls that meet it along (`offsetWall`), and a junction dragged takes every wall
@@ -255,10 +260,33 @@ the snapped rectangle while it is dragged — before this a room drawn beside a 
 studio handles the keys page-wide). The sheet's corner shows the flat's total area and
 room count (`showTotals`).
 
-## Room names
+## Room names (`lib/design/roomNames.ts`)
 
-Room names follow their type on the plan page: a generated name ("მისაღები ოთახი 1") is
-replaced when the type changes ("საძინებელი 2"); a name the user typed is kept.
+**A room is called what it is, and numbered only when the flat has more than one of its
+kind**: one kitchen is "სამზარეულო", one living room "მისაღები ოთახი", three bedrooms
+"საძინებელი 1", "საძინებელი 2", "საძინებელი 3". The readers used to number every room by its
+place in the whole plan, so a flat with one kitchen had "სამზარეულო 4" in it. `withRoomNames`
+deals the names the app gave — a type's name, bare or with a number (`isAutoRoomName`) — and
+never touches one the person typed, which does not count towards the numbering either (a
+bedroom named "ბავშვის ოთახი" beside one generated bedroom leaves that one "საძინებელი").
+
+- **A plan just read** (the CV parser's `buildPlanFromRegions`, Claude's `buildPlanFromReading`)
+  numbers a kind in the order a plan is read (`readingOrder`: rows from the top, each row left
+  to right; a room joins the row of the highest room whose depth takes in its middle).
+- **After that the store deals them again** whenever the rooms or their types change: every
+  edit that goes through `reconcile` (a room drawn, typed by size, deleted, merged, moved) and a
+  change of type in `updateRoom`. The present numbers keep their order, so a new room of a kind
+  takes the last number (`nextRoomName` gives it one past the rest, `roomsFromWalls` names a
+  new face with it), the gap a deleted room leaves closes, and the last room of a kind loses its
+  number. A name being typed is not renumbered under the cursor — `updateRoom` deals names only
+  when the type changed.
+- **A saved plan is not renamed when it opens** (`ensureWalls` leaves names alone); its first
+  edit through `reconcile` deals them. Names are Georgian in every language, like the rest of
+  the plan, and the calculator's rooms take theirs from its board.
+
+`tests/unit/design/roomNames.test.ts` (the screenshot's flat, typed names, gaps, retyping,
+reading order, the CV builder), `tests/unit/store/designStore.test.ts` (drawn, deleted and
+retyped rooms).
 
 ## The plan as a PDF
 
@@ -288,8 +316,8 @@ parses the result back with pdf.js.
 ## Tests
 
 `tests/unit/design/walls.test.ts`, `drawing.test.ts`, `planDrawing.test.ts`, `studio.test.ts`,
-`planPdfExport.test.ts`, `tests/unit/calculator/planSync.test.ts`,
-`tests/unit/store/designStore.test.ts` (plan actions).
+`roomNames.test.ts`, `planPdfExport.test.ts`, `tests/unit/calculator/planSync.test.ts`,
+`tests/unit/store/designStore.test.ts` (plan actions, room names).
 
 ## Known gaps
 

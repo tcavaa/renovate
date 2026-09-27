@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { CheckCircle2, ChevronDown, Flame, Lightbulb, Sparkles } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { CheckCircle2, Lightbulb } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
+import { TechnicalChecksCard, TechnicalChecksDialog, useTechnicalChecks } from '@/components/design/TechnicalChecks';
 import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
 import { ElementInspector } from '@/components/plan/ElementInspector';
@@ -15,65 +16,44 @@ import { FLOW_BOARD_BLEED, FlowBar, FlowPanel, FlowWorkspace } from '@/component
 import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { homeStateLabel, phaseLabel } from '@/lib/i18n/labels';
-import { CEILING_PHASE, FLOOR_PHASE } from '@/lib/calculator/constants';
-import { WorkChoicesPicker } from '@/components/calculator/WorkChoicesPicker';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
-import { defaultWorksForHomeState, normalizeWorks, phasesForWorks, technicalSuggestions, TECHNICAL_KIND_LIST, WORK_STAGES, worksForStage, type WorkStage } from '@/lib/design/technical';
+import { technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck } from '@/lib/design/technical';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
-import { EXISTING_KEYS, effectiveExisting, type ExistingKey } from '@/lib/design/existing';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { technicalLabel } from '@/components/plan/PlanToolbar';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
 import { TECHNICAL_ICON } from '@/components/plan/icons';
-import { isHeatedRoom, radiatorPoints, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';
+import { radiatorPoints } from '@/lib/design/radiators';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
-import { formatM2 } from '@/lib/utils';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import type { TechnicalKind } from '@/lib/design/types';
-import type { HomeState } from '@/lib/calculator/types';
-
-/** One label per thing a flat can already have; the budget leaves each ticked one out. */
-const EXISTING_LABEL = {
-  floor: 'haveFloor',
-  wall: 'haveWall',
-  ceiling: 'haveCeiling',
-  trim: 'haveTrim',
-  openings: 'haveOpenings',
-  electrical: 'haveElectrical',
-  lighting: 'haveLighting',
-  plumbing: 'havePlumbing',
-  heating: 'haveHeating',
-  climate: 'haveClimate',
-} as const satisfies Record<ExistingKey, string>;
-
-/** The line under each stage's title in the works checklist: where it takes the house from and to. */
-const STAGE_DESC = {
-  old_renovation: 'stageOldDesc',
-  black_frame: 'stageBlackDesc',
-  white_frame: 'stageWhiteDesc',
-  green_frame: 'stageGreenDesc',
-} as const satisfies Record<HomeState, string>;
 
 /**
  * Step 3: the technical setup. Points on the plan for what the building provides — water,
- * sewer, drains, the panel, gas, radiators, air conditioning, extractors — and the
- * checklist of works this renovation needs, grouped by the stage of the house they take it
- * through. The layout engine and the budget both read it.
+ * sewer, drains, the panel, gas, radiators, air conditioning, extractors — and the answers
+ * the budget is counted from: the automatic placement, the radiators room by room, the works
+ * this renovation needs, how the floor and the ceiling are done and what the flat already
+ * has. The layout engine and the budget both read it.
  *
  * The kinds are a grid of tiles that is always on screen: a tile arms the point tool with
  * that kind, the tool stays armed until the tile is clicked again (or Esc), and a click on a
  * point already placed picks it up instead of stacking another.
  *
+ * The answers are checks in a modal over the plan (`TechnicalChecksDialog`): going on opens
+ * it on the first one not looked at yet and walks through the rest in order, and only when
+ * every one has been looked at does going on go on. The card down the right lists them and
+ * opens any of them; `?check=<key>` opens the step on one (the studio's link to the works).
+ *
  * From `lg` up the step is the whole window (`FlowWorkspace`): the plan edge to edge, the
- * kinds along its bottom, the automatic placement, the heating and the works in a panel down
- * its right.
+ * kinds along its bottom, the selected point, the checks and the hints in a panel down its
+ * right.
  */
 export default function TechnicalPage() {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const projectId = useProjectId();
   const plan = useDesignStore((s) => s.plan);
   const items = useDesignStore((s) => s.items);
@@ -86,10 +66,15 @@ export default function TechnicalPage() {
   const { products } = useDesignCatalog();
   const [tool, setTool] = useState<EditorTool>('select');
   const [kind, setKind] = useState<TechnicalKind>('water_supply');
-  /** What the last "hang the radiators" did: how many were added, or 0 when every room had one. */
-  const [radiatorsHung, setRadiatorsHung] = useState<number | null>(null);
-  /** What the last automatic placement did, for the line under the button. */
-  const [autoPlaced, setAutoPlaced] = useState<number | null>(null);
+  const { works, checks, unchecked } = useTechnicalChecks();
+  /**
+   * The checks modal: shut, or open on one check — opened by going on (its last button goes
+   * on to the next step) or from the card (its last button comes back to the plan).
+   */
+  const [checksOpen, setChecksOpen] = useState<{ at: TechnicalCheck; goingOn: boolean } | null>(() => {
+    const asked = technicalCheckFrom(searchParams.get('check'));
+    return asked ? { at: asked, goingOn: false } : null;
+  });
 
   // Every radiator is a product where the catalogue has one, its sections counted from its room.
   const radiatorSignature = useMemo(() => (plan ? radiatorPoints(plan).map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.sections ?? ''}`).join('|') + `#${plan.rooms.map((r) => r.areaM2).join(',')}` : ''), [plan]);
@@ -99,17 +84,14 @@ export default function TechnicalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, radiatorSignature]);
 
-  // A list saved under the works of the old rate book reads in today's keys.
-  const storedWorks = plan?.technical?.works;
-  const works = useMemo(() => {
-    const stored = storedWorks ? normalizeWorks(storedWorks) : [];
-    return stored.length > 0 ? stored : defaultWorksForHomeState(homeState ?? (mode === 'full' ? 'white_frame' : 'green_frame'));
-  }, [storedWorks, homeState, mode]);
-  const workPhases = useMemo(() => new Set(phasesForWorks(works)), [works]);
-  // What the flat already has, so the budget does not charge for it again. A green frame
-  // starts with everything ticked, because that is what a green frame is.
-  const existing = useMemo(() => effectiveExisting(plan, homeState), [plan, homeState]);
   const suggestions = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
+
+  // `?check=` has done its work once the modal is open on it: a reload must not open it again.
+  useEffect(() => {
+    if (searchParams.get('check')) router.replace(designStepHref(projectId, 3), { scroll: false });
+    // On mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!plan || plan.rooms.length === 0) {
     return (
@@ -119,20 +101,6 @@ export default function TechnicalPage() {
       </>
     );
   }
-
-  const toggleExisting = (key: ExistingKey) => {
-    actions.setExisting(existing.includes(key) ? existing.filter((k) => k !== key) : [...existing, key]);
-  };
-
-  const toggleWork = (key: string) => {
-    const next = works.includes(key) ? works.filter((k) => k !== key) : [...works, key];
-    actions.setWorks(next);
-  };
-  const setStage = (stage: WorkStage, on: boolean) => {
-    const keys = worksForStage(stage).map((w) => w.key);
-    const rest = works.filter((k) => !keys.includes(k));
-    actions.setWorks(on ? [...rest, ...keys] : rest);
-  };
 
   const points = plan.technical?.points ?? [];
   const countOf = (k: TechnicalKind) => points.filter((p) => p.kind === k).length;
@@ -200,10 +168,15 @@ export default function TechnicalPage() {
   );
 
   const nextLabel = nextStep(3, homeState, mode) === 4 ? t.build.continueToStyle : t.build.budgetTitle;
-  const goNext = () => {
+  const proceed = () => {
     if (!plan.technical?.works) actions.setWorks(works);
     actions.setStep(nextStep(3, homeState, mode) ?? 4);
     router.push(nextStepHref(projectId, 3, homeState, mode));
+  };
+  // Going on asks first: every check not looked at yet, one by one, from the first of them.
+  const goNext = () => {
+    if (unchecked.length > 0) setChecksOpen({ at: unchecked[0], goingOn: true });
+    else proceed();
   };
 
   return (
@@ -274,151 +247,11 @@ export default function TechnicalPage() {
             )}
 
             {/*
-              The step people skip. Marking water, waste, drains, gas, the panel, the
-              extractors and the air conditioning by hand is the least rewarding part of the
-              journey, and a flat with none of them is priced as though it needed no
-              plumbing — so the rules place what they can and leave the rest.
+              The answers the budget is counted from — the automatic placement, the radiators,
+              the works, how it is done, what is already there: where each stands, any one a
+              click away. Their questions are asked in the modal, not here.
             */}
-            <section className="rounded-[16px] border border-line bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                    <Sparkles className="h-4 w-4 text-brand" />
-                    {t.build.autoTechnical}
-                  </p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.autoTechnicalHint}</p>
-                </div>
-                <button type="button" onClick={() => setAutoPlaced(actions.suggestTechnical())} className="h-9 shrink-0 rounded-[10px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
-                  {t.build.autoTechnical}
-                </button>
-              </div>
-              {autoPlaced != null && (
-                <p className="mt-2 text-xs font-medium text-success" role="status">
-                  {autoPlaced > 0 ? fill(t.build.autoTechnicalDone, { n: autoPlaced }) : t.build.autoTechnicalNone}
-                </p>
-              )}
-            </section>
-
-            {/* Heating: how many sections each room wants, and a radiator under every window at a click. */}
-            <section className="rounded-[16px] border border-line bg-white p-3" aria-label={t.build.radiatorTable}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                    <Flame className="h-4 w-4 text-brand" />
-                    {t.build.radiatorTable}
-                  </p>
-                  <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.suggestRadiatorsHint}</p>
-                </div>
-                <button type="button" onClick={() => setRadiatorsHung(actions.suggestRadiators(products))} className="h-9 shrink-0 rounded-[10px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
-                  {t.build.suggestRadiators}
-                </button>
-              </div>
-              {radiatorsHung != null && <p className="mt-2 text-[11px] font-medium text-success">{radiatorsHung > 0 ? fill(t.build.radiatorsAdded, { n: radiatorsHung }) : t.build.radiatorsNone}</p>}
-              <ul className="mt-3 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-1">
-                {plan.rooms.filter(isHeatedRoom).map((room) => {
-                  const here = radiatorPoints(plan).filter((p) => radiatorRoom(plan, p)?.id === room.id);
-                  const hung = here.reduce((sum, p) => sum + radiatorSections(plan, p), 0);
-                  const wanted = sectionsForRoom(plan, room, here[0]?.radiator?.wattsPerSection);
-                  return (
-                    <li key={room.id} className="flex items-baseline justify-between gap-2 rounded-[10px] bg-bg-base px-2.5 py-1.5 text-[11px]">
-                      <span className="min-w-0 truncate">
-                        <span className="font-semibold text-ink">{room.name}</span> <span className="text-ink-muted">· {formatM2(room.areaM2)} · {roomHeatDemandW(plan, room)} {t.build.unitWatt}</span>
-                      </span>
-                      <span className={cn('shrink-0 tabular-nums', here.length === 0 ? 'text-ink-muted' : hung < wanted ? 'text-warning' : 'text-success')}>
-                        {here.length > 0 ? `${here.length} × · ${hung}/${wanted}` : `0 · ${wanted}`} {t.build.radiatorSection}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-
-            <section className="rounded-[14px] border border-line bg-white p-3">
-              <p className="text-sm font-semibold text-ink">{t.build.worksTitle}</p>
-              <p className="mt-1 text-[11px] leading-snug text-ink-muted">{t.build.worksHint}</p>
-              <div className="mt-3 space-y-2">
-                {WORK_STAGES.map((stage) => {
-                  const list = worksForStage(stage);
-                  const on = list.filter((w) => works.includes(w.key)).length;
-                  const desc = t.build[STAGE_DESC[stage.homeState]];
-                  return (
-                    <details key={stage.homeState} open={on > 0} className="group rounded-[12px] border border-line">
-                      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-semibold text-ink">{homeStateLabel(t, stage.homeState)}</span>
-                          <span className="block truncate text-[10px] text-ink-muted">{desc}</span>
-                        </span>
-                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums', on > 0 ? 'bg-ink text-white' : 'bg-sand text-ink-muted')}>
-                          {on} / {list.length}
-                        </span>
-                        <ChevronDown className="h-4 w-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
-                      </summary>
-                      <div className="border-t border-line px-2 pb-2 pt-1">
-                        <div className="flex justify-end gap-2 px-1 py-1 text-[10px]">
-                          <button type="button" onClick={() => setStage(stage, true)} className="font-medium text-ink-soft hover:text-ink">
-                            {t.build.stageAll}
-                          </button>
-                          <span className="text-ink-faint">·</span>
-                          <button type="button" onClick={() => setStage(stage, false)} className="font-medium text-ink-soft hover:text-ink">
-                            {t.build.stageNone}
-                          </button>
-                        </div>
-                        <ul className="space-y-0.5">
-                          {list.map((w) => {
-                            const checked = works.includes(w.key);
-                            return (
-                              <li key={w.key}>
-                                <label className={cn('flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-xs transition-colors', checked ? 'bg-sand-light text-ink' : 'text-ink-soft hover:bg-sand-light/60')}>
-                                  <input type="checkbox" checked={checked} onChange={() => toggleWork(w.key)} className="accent-ink" />
-                                  <span className="w-6 text-[10px] tabular-nums text-ink-faint">{String(w.phase).padStart(2, '0')}</span>
-                                  {phaseLabel(t, w.phase)}
-                                </label>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            </section>
-
-            {mode === 'full' && (workPhases.has(FLOOR_PHASE) || workPhases.has(CEILING_PHASE)) && (
-              <section className="rounded-[14px] border border-line bg-white p-3">
-                <p className="mb-2 text-sm font-semibold text-ink">{t.calculator.choicesTitle}</p>
-                <WorkChoicesPicker compact value={plan.technical?.choices} onChange={actions.setWorkChoices} floor={workPhases.has(FLOOR_PHASE)} ceiling={workPhases.has(CEILING_PHASE)} />
-              </section>
-            )}
-
-            {mode === 'full' && (
-              <section className="rounded-[14px] border border-line bg-white p-3">
-                <p className="text-sm font-semibold text-ink">{t.build.alreadyHaveTitle}</p>
-                <p className="mt-1 text-[11px] leading-snug text-ink-muted">{t.build.alreadyHaveHint}</p>
-                <div className="mt-2 flex justify-end gap-2 text-[10px]">
-                  <button type="button" onClick={() => actions.setExisting([...EXISTING_KEYS])} className="font-medium text-ink-soft hover:text-ink">
-                    {t.build.stageAll}
-                  </button>
-                  <span className="text-ink-faint">·</span>
-                  <button type="button" onClick={() => actions.setExisting([])} className="font-medium text-ink-soft hover:text-ink">
-                    {t.build.stageNone}
-                  </button>
-                </div>
-                <ul className="mt-1 space-y-0.5">
-                  {EXISTING_KEYS.map((key) => {
-                    const checked = existing.includes(key);
-                    return (
-                      <li key={key}>
-                        <label className={cn('flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-xs transition-colors', checked ? 'bg-sand-light text-ink' : 'text-ink-soft hover:bg-sand-light/60')}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleExisting(key)} className="accent-ink" />
-                          {t.build[EXISTING_LABEL[key]]}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
+            <TechnicalChecksCard onOpen={(check) => setChecksOpen({ at: check, goingOn: false })} />
 
             <section className="rounded-[14px] border border-line bg-white p-3">
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -447,6 +280,26 @@ export default function TechnicalPage() {
       </FlowWorkspace>
 
       <StepNav className="lg:hidden" back={{ href: previousStepHref(projectId, 3, homeState, mode), label: t.calculator.backButton }} next={{ label: nextLabel, onClick: goNext }} />
+
+      {checksOpen && checks.length > 0 && (
+        <TechnicalChecksDialog
+          open
+          onOpenChange={(open) => !open && setChecksOpen(null)}
+          at={checksOpen.at}
+          onAt={(at) => setChecksOpen((c) => (c ? { ...c, at } : c))}
+          finish={
+            checksOpen.goingOn
+              ? {
+                  label: nextLabel,
+                  onFinish: () => {
+                    setChecksOpen(null);
+                    proceed();
+                  },
+                }
+              : { label: t.build.checksFinish, onFinish: () => setChecksOpen(null) }
+          }
+        />
+      )}
     </>
   );
 }
