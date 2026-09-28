@@ -69,6 +69,21 @@ export function fill(template: string, values: Record<string, string | number>):
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ''));
 }
 
+/**
+ * A page's rows back in the order of its ids. A list of projects has MySQL sort and cut the
+ * page on the ids alone, then reads those rows by id (`inArray`, which answers in no particular
+ * order): a sort carries every column the select reads through MySQL's sort buffer, and a
+ * project's plan or picks can overflow it ("Out of sort memory" — docs/data-model.md). An id
+ * whose row is gone by the second read is left out.
+ */
+export function inIdOrder<T extends { id: number }>(ids: readonly number[], rows: readonly T[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
+}
+
 export function pageWindow(page: number, pageCount: number, width = 5): number[] {
   const half = Math.floor(width / 2);
   let start = Math.max(1, page - half);

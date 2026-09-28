@@ -130,9 +130,11 @@ a JSON column whole, even when the select only takes `json_extract(…)`, `json_
 design is furnished: the hubs' query (`loadHubProjects`, ordered by `updatedAt`) broke that way
 on a project with a 192 KB scene, and now sorts in code. A query that orders `projects` should
 sort in code, select only small columns, or order by an index — the profile's
-`userId` + `createdAt` has one (`projects_user_created_idx`). The admin's project lists still
-sort with `plan` and `selected_products` carried (for `isDesign` and `hasCalculator`): a plan
-near the buffer's size would break them the same way.
+`userId` + `createdAt` has one (`projects_user_created_idx`). A paged list does the second: the
+admin's projects list and the dashboard's newest projects sort and cut the page on the ids
+alone, then read those rows — `isDesign` and `hasCalculator` take the plan and the picks — by
+id, back in order through `inIdOrder` (`lib/admin/list.ts`). With the sort buffer at its 32 KB
+minimum, the old queries failed on a 35 KB plan and these do not.
 
 ## Tests
 

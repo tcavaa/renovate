@@ -18,7 +18,7 @@ Related: [auth-and-roles.md](auth-and-roles.md) (roles and guards — who may op
 | `app/admin/layout.tsx` + `components/layout/AdminSidebar.tsx` | the admin shell; the sidebar shows the sections the role has, with counts of what waits (`lib/admin/badges.ts`) |
 | `app/admin/page.tsx` | the dashboard, cut to the role: its buttons, figures, queue and to-dos |
 | `lib/admin/guard.ts` | `requireAdminPage(section)` — the first call of every admin page and section layout |
-| `lib/admin/list.ts` | `parseListParams`, `hrefWith` — list state (filters, sort, page) in the URL |
+| `lib/admin/list.ts` | `parseListParams`, `hrefWith` — list state (filters, sort, page) in the URL; `inIdOrder` — a page read by id, back in its sorted order |
 | `lib/admin/listMemory.ts`, `lib/admin/storageStore.ts` | where each list was left in the tab (`rememberList`, `listHref`, `rememberedListHref`, `useListMemory`); a value kept in session or local storage, read as an external store (`storedValue`) |
 | `lib/admin/crumbs.ts`, `components/admin/AdminCrumbs.tsx` | the breadcrumbs and back button every admin page carries (`sectionCrumb`) |
 | `lib/admin/filters.ts` | what a filter button says: a tree option's plain name, option search, `rangeSummary`, `dateRangeSummary` |
@@ -134,7 +134,10 @@ Every admin list (`/admin/products`, `categories`, `stores`, `workers`, `teams`,
 `projects`, `users`) is a server component that first calls `requireAdminPage(section)`, then
 reads its state from the query string through `parseListParams` in `lib/admin/list.ts` and
 renders `FilterBar` (client, writes the URL) plus `Pager` (`components/admin/AdminList.tsx`,
-server, links).
+server, links). The projects list, and the dashboard's newest projects, sort and cut the page on
+the ids alone and then read those rows by id, put back in order by `inIdOrder`: their rows read
+a project's plan and picks, which MySQL would otherwise carry through its sort buffer
+([data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json)).
 
 **The filter bar** (`FilterBar`, declarative: the page lists its fields) is two rows in one
 frame: the search box (a pause after typing, or Enter; its own ×) and the sort menu on top; under

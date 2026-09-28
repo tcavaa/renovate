@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateShortLabel, statusLabel } from '@/lib/i18n/labels';
-import { fill } from '@/lib/admin/list';
+import { fill, inIdOrder } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { formatGEL } from '@/lib/utils';
@@ -23,6 +23,31 @@ import { subtreeOfSlugs } from '@/lib/catalog/tree';
 import { loadCategoryTree } from '@/lib/catalog/queries';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The newest projects, for the dashboard. Picked on the ids alone, then read by id
+ * (`inIdOrder`), as the projects list is: `isDesign` reads the plan, and a sort carries it whole.
+ */
+async function recentProjects(limit: number) {
+  const ids = (await db.select({ id: projects.id }).from(projects).orderBy(desc(projects.createdAt)).limit(limit)).map((row) => row.id);
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({
+      id: projects.id,
+      nameKa: projects.nameKa,
+      homeState: projects.homeState,
+      totalM2: projects.totalM2,
+      totalCost: projects.totalCost,
+      status: projects.status,
+      createdAt: projects.createdAt,
+      isDesign: isNotNull(projects.plan),
+      userName: users.name,
+    })
+    .from(projects)
+    .leftJoin(users, eq(projects.userId, users.id))
+    .where(inArray(projects.id, ids));
+  return inIdOrder(ids, rows);
+}
 
 /**
  * The admin's first page, cut to the role looking at it: every button, figure and "needs
@@ -90,22 +115,7 @@ export default async function AdminDashboardPage() {
         guestsWeek: sql<number>`SUM(${projects.userId} IS NULL AND ${projects.createdAt} >= ${weekAgo})`,
       })
       .from(projects),
-    db
-      .select({
-        id: projects.id,
-        nameKa: projects.nameKa,
-        homeState: projects.homeState,
-        totalM2: projects.totalM2,
-        totalCost: projects.totalCost,
-        status: projects.status,
-        createdAt: projects.createdAt,
-        isDesign: isNotNull(projects.plan),
-        userName: users.name,
-      })
-      .from(projects)
-      .leftJoin(users, eq(projects.userId, users.id))
-      .orderBy(desc(projects.createdAt))
-      .limit(8),
+    recentProjects(8),
     loadCategoryTree(),
     db.select({ c: sql<number>`COUNT(*)` }).from(stores).leftJoin(products, eq(products.storeId, stores.id)).where(emptyStoreCondition),
     db
