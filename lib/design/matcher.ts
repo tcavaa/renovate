@@ -10,7 +10,7 @@
  * and swap it, and the same inputs always give the same room.
  */
 
-import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
+import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
 import { getArchetype } from './catalog';
 import { styleAffinity } from './styles';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
@@ -83,6 +83,9 @@ export function matchProducts(
   // Sizes settle as items are matched: earlier items count with the size they got, later
   // ones with the archetype's until their turn.
   const settled: PlacedItem[] = [];
+  // Where every piece stood as laid out, before a product took its slot: which chairs the
+  // engine tucked under their table is read off these (`tuckedChair`).
+  const slots = new Map(items.map((item) => [item.id, item]));
 
   for (const item of items) {
     if (byKind.has(item.kind)) continue;
@@ -128,7 +131,7 @@ export function matchProducts(
     // laid against, or a cabinet that would stand in the doorway, is not placed at that size:
     // the next-best product that fits takes the slot, and when nothing fits the slot stays
     // empty rather than poke through the wall.
-    const placed = room ? placeFitting(item, chosen, scored.map((s) => s.product), room, others) : { product: chosen, position: item.position };
+    const placed = room ? placeFitting(item, chosen, scored.map((s) => s.product), room, others, slots) : { product: chosen, position: item.position };
     if (!placed) return finish({ ...item, product: null });
     return finish({
       ...item,
@@ -158,16 +161,26 @@ function placeFitting(
   preferred: CatalogProduct,
   ranked: CatalogProduct[],
   room: PlanRoom,
-  others: PlacedItem[]
+  others: PlacedItem[],
+  slots: ReadonlyMap<string, PlacedItem>
 ): { product: CatalogProduct; position: Vec2 } | null {
   if (!fitMatters(item)) return { product: preferred, position: item.position };
-  const blockers = blockingItems(others, room.id, item.id).map((o) => footprintOf(o.position, o.size, o.rotation));
+  const blockers = blockingItems(others, room.id, item.id).map((other) => ({
+    other,
+    box: footprintOf(other.position, other.size, other.rotation),
+    chair: tuckedChair(item, other, slots),
+  }));
   const tryProduct = (product: CatalogProduct): Vec2 | null => {
     const size = sizeFromProduct(product, item);
     const position = clampInsideRoom(room, item.position, size, item.rotation);
     const footprint = footprintOf(position, size, item.rotation);
     if (!footprintInRoom(footprint, room.polygon)) return null;
-    if (blockers.some((b) => footprintsOverlap(footprint, b))) return null;
+    for (const { other, box, chair } of blockers) {
+      // Pieces may touch; a chair the engine tucked under its table may stand under it by up
+      // to half its depth besides — its seat under the top, its back clear of it.
+      const depth = chair === item ? size.depth : chair === other ? other.size.depth : 0;
+      if (footprintsOverlap(footprint, box, Math.max(PIECE_TOUCH_M, depth / 2))) return null;
+    }
     return position;
   };
   const first = tryProduct(preferred);
@@ -178,6 +191,24 @@ function placeFitting(
     if (position) return { product, position };
   }
   return null;
+}
+
+/**
+ * The chair of a dining chair and the table the layout engine tucked it under (`tucksUnder`) —
+ * their slots, as laid out, overlapping: `placeSeatAroundTable` pushes a seat in when the room
+ * is tight — or null for any other pair, a chair the engine left clear of its table included.
+ *
+ * Only the engine's tucks, and only up to half the chair, where the studio lets a person put
+ * any chair under any table: here a product of another size takes the engine's slot, and with
+ * the pair free, table products bigger than their slots came to stand over the chairs round
+ * them — some all but wholly — in rooms where the engine had tucked no chair at all.
+ */
+function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, PlacedItem>): PlacedItem | null {
+  if (!tucksUnder(a, b)) return null;
+  const p = slots.get(a.id);
+  const q = slots.get(b.id);
+  if (!p || !q || !footprintsOverlap(footprintOf(p.position, p.size, p.rotation), footprintOf(q.position, q.size, q.rotation), 0)) return null;
+  return getArchetype(a.kind)?.slot === 'dining_chair' ? a : b;
 }
 
 /** Every catalogue row that could fill this slot, best first. */

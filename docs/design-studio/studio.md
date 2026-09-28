@@ -278,10 +278,31 @@ are in its way. It squares up to and snaps flush against only the walls of the r
 near the end of a partial wall both faces are within reach, and with the whole floor's walls a
 coffee table jumped through to the far face. A piece belongs to the room its centre is in (the
 drag already re-homed it by the point under the pointer). A room with no separator is judged by
-`footprintInRoom`, which is `boxInPolygon` (`lib/design/planGeometry.ts`): all four corners in
-its polygon *and* no edge of it running through the box. Corners alone let a box stand across
-the end of a partial wall or the gap of a U with every corner on the floor. The layout engine and
-the matcher's fit use the same test ([layout-and-matching.md](layout-and-matching.md#nothing-stands-through-a-wall)).
+`footprintInRoom`: `boxInPolygon` (`lib/design/planGeometry.ts`) — all four corners in its
+polygon *and* no edge of it running through the box — taken a nanometre in from the box's sides.
+Corners alone let a box stand across the end of a partial wall or the gap of a U with every
+corner on the floor. The matcher's fit uses the same test, and the layout engine the same without
+the nanometre ([layout-and-matching.md](layout-and-matching.md#nothing-stands-through-a-wall)).
+
+**A piece flush against a wall is in the room, whichever wall** (`footprintInRoom`, for a piece
+moved, turned, swapped or hung). The corner test is exact, and its ray cast counts a point on an
+east or south wall (the larger x or z) as outside and one on a west or north wall as inside: a
+sofa pushed edge-on into the east wall, which `clampInside` leaves exactly on it, was outlined
+red and its drop refused where the same push into the west wall was fine; a piece fitted into any
+corner but the north-west was red, and so was a clock hung at the east or south end of a wall.
+Judged a nanometre in from its sides, a box on any wall is in, and so is one a clamp's rounding
+leaves 1e-16 m past it (`wall + half − half` need not be the wall); a centimetre past is still
+out. The matcher judges a product by the same test; only the layout engine keeps the exact one,
+because it chooses its spots by it
+([layout-and-matching.md](layout-and-matching.md#nothing-stands-through-a-wall)).
+
+**A piece's box is exact at a right angle** (`footprintOf` squares the cosine and sine first —
+`trigOf` reads anything under 1e-9 as 0). The corner test is exact, and `Math.cos(-Math.PI / 2)`
+is 6e-17, not 0: a bed the engine had pushed flush into a corner at −π/2 got a box 1e-16 m past
+the wall and was outlined red, while the engine's own box (`boxFor`) squares the rotation and had
+found it inside. The fix belongs in the box, not the test: giving `boxInPolygon`'s corners a few
+millimetres of slack lets the engine into corner spots it never took and changes about a hundred
+local layouts ([layout-and-matching.md](layout-and-matching.md#nothing-stands-through-a-wall)).
 
 **A rug gets in nothing's way, and nothing gets in a rug's** (`blockersFor`). `blockingItems`
 always left the ghosts (rugs, pendants, artwork, curtains) out of what a dragged piece must
@@ -289,6 +310,18 @@ avoid, but the rule ran one way: the layout engine laid the rug under the sofa, 
 person picked that rug up there was no floor in the room to put it down on again, because
 every spot worth a rug has furniture on it. A moving ghost now has no blockers; the walls
 still hold it in.
+
+**A dining chair tucks under its table** (`tucksUnder`, in `blockersFor`). When a room is tight
+the layout engine pushes a seat 12 or 24 cm in towards its table — up to 15 cm of it under the
+table's edge — and tests it against everything but the table (`placeSeatAroundTable`); adding a
+chair from the shelf seats it the same way (`placeAdditional`). The studio kept the two apart, so
+it outlined such a chair and its table red, and a person could not push a chair in. Now a dining
+chair and a dining table, either way round, are not in each other's way: a chair drags in under
+a table, a table is set down or turned over its chairs, and the walls, the other chairs and
+everything else still hold both off. The matcher shares the rule but bounds it — only the
+engine's tucks, and only up to half the chair — because it puts products of other sizes into
+the engine's slots, where no person is looking
+([layout-and-matching.md](layout-and-matching.md#the-product-has-to-fit-the-slot-matcherts--placefitting)).
 
 **A piece covers the floor its model covers, not its box** (`lib/design/footprintMasks.ts`,
 `lib/design3d/footprintFromModel.ts`). A corner sofa's bounding box includes the corner it
@@ -371,9 +404,12 @@ screenshot now and of the render once `renderUrl` is set (`GET /api/design/rende
 
 ## Tests
 
-`tests/unit/design/manipulate.test.ts` (rotation, validity, `placeAdditional`, rugs, footprint
-masks, `fitSwapped`, `hangOnWall`, furniture over a room separator — straight and diagonal, the
-partial wall it carries on from, pieces across the line, no snap through a wall's end),
+`tests/unit/design/manipulate.test.ts` (rotation, validity, `placeAdditional`, rugs, every wall
+alike — a sofa dragged into each, a piece in each corner, a clock at either end of each wall —
+dining chairs under their table, a box exact at a right angle, the engine's tucked chair and
+corner bed let stand, footprint masks, `fitSwapped`, `hangOnWall`, furniture over a room
+separator — straight and diagonal, the partial wall it carries on from, pieces across the line,
+no snap through a wall's end),
 `tests/unit/design/clearance.test.ts` (with passages across a separator),
 `tests/unit/design/catalogBrowser.test.ts`, `tests/unit/design/finishBrowser.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/store/designStore.test.ts` (carry and swap as one history step, `beginAdd` giving a
