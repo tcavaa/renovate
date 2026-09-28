@@ -15,6 +15,7 @@ import { flattenTree, pathOf, subtreeCounts } from '@/lib/catalog/tree';
 import { loadCategoryTree } from '@/lib/catalog/queries';
 import { iconNodeFor } from '@/lib/catalog/iconNodes';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +93,7 @@ export default async function AdminCategoriesPage(props: { searchParams: Promise
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'categories', true)]}
         title={ka.admin.categories}
         subtitle={fill(c.subtitle, { n: tree.byId.size, top: tree.roots.length })}
         actions={
@@ -102,7 +104,7 @@ export default async function AdminCategoriesPage(props: { searchParams: Promise
           </Button>
         }
       />
-      <CategoryTabs t={ka} active="tree" />
+      <CategoryTabs active="tree" />
 
       <details className="border border-line bg-bg-surface">
         <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-ink">
@@ -123,7 +125,8 @@ export default async function AdminCategoriesPage(props: { searchParams: Promise
         ]}
       />
 
-      <CategoryTree rows={rows} filtered={filtered} />
+      {/* A new search is a new tree: everything it found unfolded. The whole tree keeps the folds it was left with. */}
+      <CategoryTree key={filtered ? `${q}|${show ?? ''}` : 'tree'} rows={rows} filtered={filtered} />
       {filtered && <p className="text-xs text-ink-muted">{fill(c.matchCount, { n: matches.size })}</p>}
     </div>
   );

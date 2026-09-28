@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2, Package, Pencil, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NodeIcon } from '@/components/ui/node-icon';
@@ -11,7 +11,15 @@ import { MAX_CATEGORY_DEPTH } from '@/lib/catalog/tree';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
+import { storedValue } from '@/lib/admin/storageStore';
 import { cn } from '@/lib/utils';
+
+/**
+ * The whole tree's folds, kept in the browser: opening a category to edit it and coming back —
+ * by the breadcrumbs, the tabs, a save — finds the tree folded as it was left. Null until the
+ * person first folds or unfolds anything.
+ */
+const foldStore = storedValue<number[] | null>('local', 'renovate-admin-category-tree', (raw) => (Array.isArray(raw) ? raw.filter((x): x is number => typeof x === 'number') : null), null);
 
 /** A category as the tree page shows it: what the server read, already in reading order. */
 export interface CategoryTreeRow {
@@ -44,8 +52,13 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
   const t = useT();
   const c = t.admin.catTree;
   const router = useRouter();
-  // Folded by default below the second level; a search unfolds everything it found.
-  const [open, setOpen] = useState<Set<number>>(() => new Set(rows.filter((r) => filtered || r.depth < 2).map((r) => r.id)));
+  // The whole tree unfolds as it was left (the first time, down to the second level). A search
+  // unfolds everything it found, and its folds are its own: the page gives each search a new
+  // tree, and clearing it brings back the folds that were kept.
+  const kept = useSyncExternalStore(foldStore.subscribe, foldStore.get, () => foldStore.fallback);
+  const [searchOpen, setSearchOpen] = useState<Set<number>>(() => new Set(rows.filter((r) => r.hasChildren).map((r) => r.id)));
+  const open = useMemo(() => (filtered ? searchOpen : new Set(kept ?? rows.filter((r) => r.depth < 2).map((r) => r.id))), [filtered, searchOpen, kept, rows]);
+  const setOpen = (next: Set<number>) => (filtered ? setSearchOpen(next) : foldStore.set([...next]));
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,13 +69,12 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
   });
   const siblingsOf = (r: CategoryTreeRow) => rows.filter((x) => x.parentId === r.parentId);
 
-  const toggle = (id: number) =>
-    setOpen((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggle = (id: number) => {
+    const next = new Set(open);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setOpen(next);
+  };
 
   const move = async (row: CategoryTreeRow, by: -1 | 1) => {
     const ids = siblingsOf(row).map((s) => s.id);

@@ -42,6 +42,7 @@ import {
   treeOptions,
   type CategoryTree,
 } from "@/lib/catalog/tree";
+import { rememberedListHref } from "@/lib/admin/listMemory";
 
 const UNIT_KEYS = [
   "m2",
@@ -304,7 +305,7 @@ export function ProductForm({
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push(backHref);
+    router.push(rememberedListHref(backHref));
     router.refresh();
   };
 
@@ -324,7 +325,7 @@ export function ProductForm({
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push(backHref);
+    router.push(rememberedListHref(backHref));
     router.refresh();
   };
 

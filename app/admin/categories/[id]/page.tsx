@@ -7,6 +7,8 @@ import { CategoryTabs } from '@/components/admin/CategoryTabs';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { pickLocalizedName } from '@/lib/i18n/labels';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 import { canDeleteIn } from '@/lib/auth/roles';
 import { buildCategoryTree, pathOf, subtreeCounts } from '@/lib/catalog/tree';
 import { loadCategoryFormData, productCountsByCategory, roomIdsOfCategory } from '@/lib/admin/categoryPages';
@@ -26,11 +28,16 @@ export default async function EditCategoryPage(props: { params: Promise<{ id: st
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">{path.slice(0, -1).map((c) => pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)).join(' › ') || ka.admin.categories}</p>
-        <h1 className="mt-1 font-serif text-3xl font-bold">{pickLocalizedName(locale, rows[0].nameKa, rows[0].nameEn, rows[0].nameRu)}</h1>
-      </div>
-      <CategoryTabs t={ka} active="tree" />
+      <AdminPageHeader
+        crumbs={[
+          sectionCrumb(ka, 'categories'),
+          // The categories above it, each its own page: the path is the way back up the tree.
+          ...path.slice(0, -1).map((c) => ({ label: pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu), href: `/admin/categories/${c.id}` })),
+          { label: pickLocalizedName(locale, rows[0].nameKa, rows[0].nameEn, rows[0].nameRu) },
+        ]}
+        title={pickLocalizedName(locale, rows[0].nameKa, rows[0].nameEn, rows[0].nameRu)}
+      />
+      <CategoryTabs active="tree" />
       <CategoryForm category={rows[0]} all={all} rooms={rooms} roomIds={roomIds} counts={{ own: own.get(id) ?? 0, total: subtreeCounts(tree, own).get(id) ?? 0 }} canDelete={canDeleteIn(session.user.role, 'categories')} />
     </div>
   );

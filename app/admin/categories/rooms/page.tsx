@@ -7,6 +7,7 @@ import { ShelfRoomList } from '@/components/admin/ShelfRoomList';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { iconNodeFor } from '@/lib/catalog/iconNodes';
 import { loadShelfRoomData } from '@/lib/admin/shelfRoomPages';
 
@@ -24,6 +25,7 @@ export default async function ShelfRoomsPage() {
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'categories'), sectionCrumb(ka, 'shelfRooms', true)]}
         title={ka.admin.categories}
         subtitle={s.subtitle}
         actions={
@@ -34,7 +36,7 @@ export default async function ShelfRoomsPage() {
           </Button>
         }
       />
-      <CategoryTabs t={ka} active="rooms" />
+      <CategoryTabs active="rooms" />
       <p className="flex items-start gap-2 border border-line bg-bg-surface px-4 py-3 text-sm text-ink-muted">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         {s.how}

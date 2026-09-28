@@ -15,6 +15,7 @@ import { apiErrorMessage, pickLocalizedName, roomTypeLabel } from '@/lib/i18n/la
 import { buildCategoryTree, flattenTree, pathOf } from '@/lib/catalog/tree';
 import type { RoomType } from '@/lib/calculator/types';
 import { cn, slugify } from '@/lib/utils';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 /** lucide's whole set is large: it loads with this form's icon field, not with the admin. */
 const IconPicker = dynamic(() => import('@/components/admin/IconPicker').then((m) => m.IconPicker), {
@@ -104,7 +105,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
       setError(apiErrorMessage(t, json.error));
       return;
     }
-    router.push('/admin/categories/rooms');
+    router.push(rememberedListHref('/admin/categories/rooms'));
     router.refresh();
   };
 
@@ -118,7 +119,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
       setError(apiErrorMessage(t, json.error));
       return;
     }
-    router.push('/admin/categories/rooms');
+    router.push(rememberedListHref('/admin/categories/rooms'));
     router.refresh();
   };
 

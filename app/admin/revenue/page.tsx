@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AdminPageHeader } from '@/components/admin/AdminList';
+import { AdminPageHeader, SegmentedLinks } from '@/components/admin/AdminList';
+import { RememberList } from '@/components/admin/RememberList';
 import { Figure } from '@/components/calculator/MaterialsTable';
 import { RevenueChart } from '@/components/admin/RevenueChart';
 import { getLocale, getT } from '@/lib/i18n/server';
@@ -11,6 +12,7 @@ import { localizedName, orderStatusLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatNumber, cn } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +41,7 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
   return (
     <div className="space-y-6">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'revenue', true)]}
         title={r.title}
         subtitle={`${r.subtitle} · ${rangeLabel}`}
         actions={
@@ -50,25 +53,25 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <nav className="flex flex-wrap gap-1.5">
-          {(['today', '7d', '30d', 'month', 'year'] as ReportPeriod[]).map((p) => (
-            <Link key={p} href={`/admin/revenue?period=${p}`} className={cn('border px-3 py-1.5 text-xs font-medium transition-colors', period === p ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink')}>
-              {r.periods[PERIOD_KEY[p]]}
-            </Link>
-          ))}
-        </nav>
-        <form action="/admin/revenue" className="flex flex-wrap items-center gap-2 text-xs">
+      {/* The period: the usual ones as one control, any two days beside them — the filter bar's look. */}
+      <RememberList />
+      <div className="flex flex-wrap items-center gap-3 border border-line bg-bg-surface p-2.5">
+        <SegmentedLinks
+          label={r.title}
+          items={(['today', '7d', '30d', 'month', 'year'] as ReportPeriod[]).map((p) => ({ href: `/admin/revenue?period=${p}`, label: r.periods[PERIOD_KEY[p]], active: period === p }))}
+        />
+        <form action="/admin/revenue" className="ml-auto flex flex-wrap items-center gap-2 text-xs">
           <input type="hidden" name="period" value="custom" />
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.from}
-            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none" />
+            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 border border-line bg-bg-base px-2 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
           </label>
+          <span className="text-ink-faint">–</span>
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.to}
-            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none" />
+            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 border border-line bg-bg-base px-2 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
           </label>
-          <button type="submit" className={cn('border px-3 py-1.5 text-xs font-medium transition-colors', period === 'custom' ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink')}>
+          <button type="submit" className={cn('h-8 px-3 text-xs font-semibold transition-colors', period === 'custom' ? 'bg-ink text-white hover:bg-brand' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}>
             {r.apply}
           </button>
         </form>

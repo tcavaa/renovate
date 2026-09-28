@@ -3,6 +3,8 @@ import { CategoryTabs } from '@/components/admin/CategoryTabs';
 import { ShelfRoomForm } from '@/components/admin/ShelfRoomForm';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 import { canDeleteIn } from '@/lib/auth/roles';
 import { SHELF_ROOM_TYPES, loadShelfRoomData } from '@/lib/admin/shelfRoomPages';
 
@@ -17,11 +19,8 @@ export default async function EditShelfRoomPage(props: { params: Promise<{ id: s
   if (!room) notFound();
   return (
     <div className="space-y-6">
-      <div>
-        <p className="eyebrow">{ka.admin.shelfRooms.tab}</p>
-        <h1 className="mt-1 font-serif text-3xl font-bold">{room.name}</h1>
-      </div>
-      <CategoryTabs t={ka} active="rooms" />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'categories'), sectionCrumb(ka, 'shelfRooms'), { label: room.name }]} title={room.name} />
+      <CategoryTabs active="rooms" />
       <ShelfRoomForm
         room={{ id: room.id, slug: room.slug, nameKa: room.nameKa, nameEn: room.nameEn, nameRu: room.nameRu, icon: room.icon, roomTypes: room.roomTypes, isVisible: room.isVisible, categoryIds: room.categoryIds }}
         categories={categories}

@@ -42,7 +42,7 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', className: 'w-72' },
+          { name: 'q', type: 'search' },
           { name: 'status', type: 'select', label: f.status, options: ORDER_STATUSES.map((s) => ({ value: s, label: orderStatusLabel(t, s) })) },
           { name: 'unread', type: 'select', label: t.partner.unread, options: [{ value: 'yes', label: t.partner.unread }] },
         ]}

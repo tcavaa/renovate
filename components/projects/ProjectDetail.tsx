@@ -45,6 +45,7 @@ export function ProjectDetail({
   locale,
   backHref,
   backLabel,
+  crumbs,
   extraMeta = [],
   actions,
   renders,
@@ -56,8 +57,10 @@ export function ProjectDetail({
   sheets: ProjectSheets;
   t: Dictionary;
   locale: Locale;
-  backHref: string;
-  backLabel: string;
+  backHref?: string;
+  backLabel?: string;
+  /** Breadcrumbs in place of the back link (the admin's `AdminCrumbs`). */
+  crumbs?: React.ReactNode;
   extraMeta?: MetaItem[];
   /** Buttons on the right of the head — the owner gets "open in 3D". */
   actions?: React.ReactNode;
@@ -84,10 +87,13 @@ export function ProjectDetail({
 
   return (
     <div className="py-4 md:py-8">
-      <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-ink-muted transition-colors hover:text-ink">
-        <ArrowLeft className="h-4 w-4" />
-        {backLabel}
-      </Link>
+      {crumbs ??
+        (backHref && (
+          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-ink-muted transition-colors hover:text-ink">
+            <ArrowLeft className="h-4 w-4" />
+            {backLabel}
+          </Link>
+        ))}
 
       {/* Title on its own line, the actions under it: side by side the buttons squeezed the name into a column of words. */}
       <header className="mt-4 border-b border-line pb-8">

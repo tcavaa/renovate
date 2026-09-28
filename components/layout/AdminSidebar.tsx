@@ -8,15 +8,19 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { canAdmin, type AdminSection } from '@/lib/auth/roles';
+import { listHref, useListMemory } from '@/lib/admin/listMemory';
 
 /**
  * The admin's navigation: the sections the role has (`canAdmin`), each with the count of what
  * waits on the person looking — orders to confirm, partners to approve (`lib/admin/badges`).
+ * A section's link opens its list as it was left in this tab — filters, sort, page
+ * (`lib/admin/listMemory`); "clear filters" on the list is the way to the whole of it.
  */
 export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSection, number>> }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const ka = useT();
+  const memory = useListMemory();
   // One entry per section; an agent is shown the sections their job covers and no others.
   const all: Array<{ section: AdminSection; href: string; label: string; icon: typeof Home; exact?: boolean }> = [
     { section: 'dashboard', href: '/admin', label: ka.admin.dashboard, icon: LayoutDashboard, exact: true },
@@ -61,7 +65,7 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={listHref(memory, item.href)}
                 className={cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                   active ? 'bg-brand/10 text-brand-dark' : 'text-ink hover:bg-bg-base'

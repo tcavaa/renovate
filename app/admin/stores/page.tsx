@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { getT } from '@/lib/i18n/server';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
@@ -84,6 +85,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'stores', true)]}
         title={ka.admin.stores}
         subtitle={`${total}`}
         actions={

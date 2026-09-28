@@ -1,10 +1,10 @@
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { db } from '@/lib/db';
 import { stores, teams, workers } from '@/lib/db/schema';
 import { AccountForm } from '@/components/admin/AccountForm';
 import { getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,14 +20,7 @@ export default async function NewUserPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <Link href="/admin/users" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand">
-          <ArrowLeft className="h-4 w-4" />
-          {t.accounts.backToAll}
-        </Link>
-        <h1 className="mt-2 font-serif text-3xl font-bold">{t.accounts.newUser}</h1>
-        <p className="mt-1 text-sm text-ink-muted">{t.accounts.newUserSubtitle}</p>
-      </div>
+      <AdminPageHeader crumbs={[sectionCrumb(t, 'users'), { label: t.accounts.newUser }]} title={t.accounts.newUser} subtitle={t.accounts.newUserSubtitle} />
       <AccountForm stores={partnerStores} workers={partnerWorkers} teams={partnerTeams} />
     </div>
   );

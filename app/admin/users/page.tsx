@@ -15,6 +15,7 @@ import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'users', true)]}
         title={ka.admin.users}
         subtitle={`${ka.admin.usersPage.headerCount} — ${total} · ${ka.admin.stats.usersActive}: ${withProjects}`}
         actions={
@@ -122,7 +124,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', placeholder: ka.admin.usersPage.searchPlaceholder, className: 'w-72' },
+          { name: 'q', type: 'search', placeholder: ka.admin.usersPage.searchPlaceholder },
           { name: 'role', type: 'select', label: f.role, options: USER_ROLES.map((r) => ({ value: r, label: roleLabel(ka, r) })) },
           { name: 'group', type: 'select', label: ka.admin.table.role, options: [{ value: 'staff', label: ka.accounts.groupStaff }, { value: 'partners', label: ka.accounts.groupPartners }] },
           { name: 'status', type: 'select', label: ka.accounts.statusTitle, options: [{ value: 'active', label: ka.accounts.active }, { value: 'inactive', label: ka.accounts.deactivated }] },

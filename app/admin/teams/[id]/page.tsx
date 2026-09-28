@@ -7,6 +7,7 @@ import { TeamForm } from '@/components/admin/TeamForm';
 import { loadTeam } from '@/lib/teams/queries';
 import { getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export default async function EditTeamPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="space-y-5">
-      <AdminPageHeader title={team.nameKa} subtitle={ka.admin.teams} />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'teams'), { label: team.nameKa }]} title={team.nameKa} />
       <TeamForm
         team={{
           id: team.id,

@@ -12,6 +12,7 @@ import { workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'workers', true)]}
         title={ka.admin.workers}
         subtitle={`${total}`}
         actions={
@@ -73,7 +75,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
           { name: 'specialty', type: 'select', label: f.specialty, options: SPECIALTIES.map((s) => ({ value: s, label: workerSpecialtyLabel(ka, s) })) },
           { name: 'verified', type: 'select', label: f.verified, options: [{ value: 'yes', label: f.verified }, { value: 'no', label: f.unverified }] },
           { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }, { value: 'pending', label: f.pending }] },
-          { name: 'ratingMin', type: 'number', placeholder: f.ratingMin, min: 0, step: 0.5 },
+          { type: 'range', label: f.rating, min: 'ratingMin', step: 0.5 },
         ]}
         sorts={[
           { value: 'newest', label: f.sortNewest },

@@ -14,6 +14,7 @@ import { USER_ROLES, type UserRole } from '@/lib/auth/roles';
 import { linkFieldFor } from '@/lib/auth/accounts';
 import { generatePassword } from '@/lib/auth/password';
 import { cn } from '@/lib/utils';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 export interface AccountFormAccount {
   id: number;
@@ -125,7 +126,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
       setNotice({ ok: false, text: apiErrorMessage(t, json.error) });
       return;
     }
-    router.push('/admin/users');
+    router.push(rememberedListHref('/admin/users'));
     router.refresh();
   };
 

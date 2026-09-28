@@ -17,6 +17,7 @@ import { MAX_CATEGORY_DEPTH, buildCategoryTree, depthOf, flattenTree, subtreeHei
 import { PRODUCT_KINDS } from '@/lib/catalog/kinds';
 import type { Category } from '@/lib/db/schema';
 import { cn, slugify } from '@/lib/utils';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 /** lucide's whole set is large: it loads with this form's icon field, not with the admin. */
 const IconPicker = dynamic(() => import('@/components/admin/IconPicker').then((m) => m.IconPicker), {
@@ -109,7 +110,7 @@ export function CategoryForm({ category, all, initialParentId = null, rooms, roo
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/categories');
+    router.push(rememberedListHref('/admin/categories'));
     router.refresh();
   };
 
@@ -124,7 +125,7 @@ export function CategoryForm({ category, all, initialParentId = null, rooms, roo
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/categories');
+    router.push(rememberedListHref('/admin/categories'));
     router.refresh();
   };
 

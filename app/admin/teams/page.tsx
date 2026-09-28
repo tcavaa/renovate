@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { membersOf, tradesOf } from '@/lib/teams/queries';
 import { getT } from '@/lib/i18n/server';
 import { workerSpecialtyLabel } from '@/lib/i18n/labels';
@@ -55,6 +56,7 @@ export default async function AdminTeamsPage(props: { searchParams: Promise<Sear
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'teams', true)]}
         title={ka.admin.teams}
         subtitle={`${total}`}
         actions={

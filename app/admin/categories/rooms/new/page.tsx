@@ -2,6 +2,8 @@ import { CategoryTabs } from '@/components/admin/CategoryTabs';
 import { ShelfRoomForm } from '@/components/admin/ShelfRoomForm';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 import { SHELF_ROOM_TYPES, loadShelfRoomData } from '@/lib/admin/shelfRoomPages';
 
 export const dynamic = 'force-dynamic';
@@ -12,8 +14,8 @@ export default async function NewShelfRoomPage() {
   const { categories } = await loadShelfRoomData(locale);
   return (
     <div className="space-y-6">
-      <h1 className="font-serif text-3xl font-bold">{ka.admin.shelfRooms.new}</h1>
-      <CategoryTabs t={ka} active="rooms" />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'categories'), sectionCrumb(ka, 'shelfRooms'), { label: ka.admin.shelfRooms.new }]} title={ka.admin.shelfRooms.new} />
+      <CategoryTabs active="rooms" />
       <ShelfRoomForm categories={categories} roomTypes={SHELF_ROOM_TYPES} />
     </div>
   );

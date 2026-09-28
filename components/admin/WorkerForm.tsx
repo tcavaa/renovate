@@ -19,6 +19,7 @@ import { ImageUploader } from '@/components/admin/ImageUploader';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Worker } from '@/lib/db/schema';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 interface Props {
   worker?: Worker;
@@ -86,7 +87,7 @@ export function WorkerForm({ worker }: Props) {
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/workers');
+    router.push(rememberedListHref('/admin/workers'));
     router.refresh();
   };
 
@@ -96,7 +97,7 @@ export function WorkerForm({ worker }: Props) {
     setLoading(true);
     await fetch(`/api/workers/${worker.id}`, { method: 'DELETE' });
     setLoading(false);
-    router.push('/admin/workers');
+    router.push(rememberedListHref('/admin/workers'));
     router.refresh();
   };
 

@@ -19,7 +19,10 @@ Related: [auth-and-roles.md](auth-and-roles.md) (roles and guards — who may op
 | `app/admin/page.tsx` | the dashboard, cut to the role: its buttons, figures, queue and to-dos |
 | `lib/admin/guard.ts` | `requireAdminPage(section)` — the first call of every admin page and section layout |
 | `lib/admin/list.ts` | `parseListParams`, `hrefWith` — list state (filters, sort, page) in the URL |
-| `components/admin/FilterBar.tsx`, `AdminList.tsx` (`Pager`) | the list chrome |
+| `lib/admin/listMemory.ts`, `lib/admin/storageStore.ts` | where each list was left in the tab (`rememberList`, `listHref`, `rememberedListHref`, `useListMemory`); a value kept in session or local storage, read as an external store (`storedValue`) |
+| `lib/admin/crumbs.ts`, `components/admin/AdminCrumbs.tsx` | the breadcrumbs and back button every admin page carries (`sectionCrumb`) |
+| `lib/admin/filters.ts` | what a filter button says: a tree option's plain name, option search, `rangeSummary`, `dateRangeSummary` |
+| `components/admin/FilterBar.tsx`, `AdminList.tsx` (`AdminPageHeader`, `Pager`, `SegmentedLinks`), `RememberList.tsx` | the list chrome: the filter bar (and its pieces, `FilterFrame`, `FilterSearch`, `FilterMenu`, `FilterToggle`, for a list that filters in the browser), the page header with its crumbs, the pager, a list's views as one control |
 | `components/admin/*Form.tsx` | `ProductForm` (+ `ModelUploader`, `ImageUploader`), `StoreForm` (commission for admin only), `CategoryForm`, `WorkerForm`, `TeamForm`, `AccountForm` (accounts — [auth-and-roles.md](auth-and-roles.md#managing-accounts-adminusers-admin-only)), `SettingsForm`, `RatesTable`, `PartnerApproval`, `RevenueChart` |
 | `components/admin/BulkSelect.tsx`, `ProductRowActions.tsx` | ticking rows of a server list and acting on them together (`POST /api/products/bulk`); a product row's edit / hide-show / delete buttons — the admin's product list and a store's own (delete only where `canDelete`) |
 | `lib/admin/icons.ts`, `components/admin/CategoryIcon.tsx`, `IconPicker.tsx` | icon names (`iconLookupKey`, `iconKebabName`, `iconMatches`), the studio's own furniture icons (`STUDIO_ICONS`) and the suggested icons with Georgian / Russian / English search words; an icon from its stored name; the searchable icon window |
@@ -131,7 +134,41 @@ Every admin list (`/admin/products`, `categories`, `stores`, `workers`, `teams`,
 `projects`, `users`) is a server component that first calls `requireAdminPage(section)`, then
 reads its state from the query string through `parseListParams` in `lib/admin/list.ts` and
 renders `FilterBar` (client, writes the URL) plus `Pager` (`components/admin/AdminList.tsx`,
-server, links). The product list also filters by photo, ticks rows for bulk show / hide /
+server, links).
+
+**The filter bar** (`FilterBar`, declarative: the page lists its fields) is two rows in one
+frame: the search box (a pause after typing, or Enter; its own ×) and the sort menu on top; under
+them "Filters" with how many are set, then one button per filter and "clear filters" at the end
+while anything is set. A filter button reads as its name while unset; set, it turns dark, says
+what it is set to ("Status: active", "Price: 15–40 ₾") and carries its own ×. It opens a panel:
+a list of choices with "all" first — a list longer than eight gets a search box of its own
+(the category tree's options are searched by their plain names), the arrow keys move through it,
+a choice closes it — or, for a `range` (price, cost, a rating's lower end) and a `dateRange`,
+both ends in one form with "apply" and "clear". A `select` with a single choice ("featured
+only", "unread") is a switch, not a list. The panel closes on a click outside and on Escape
+(matched on `event.code`) and puts the focus back on its button after a choice. The rate book,
+which filters in the browser, builds the same bar from the pieces (`FilterFrame`,
+`FilterSearch`, `FilterMenu`). A list split into views — the order queue and every order, the
+revenue report's periods — shows them as one segmented control (`SegmentedLinks`, links).
+
+**A list is remembered where it was left** (`lib/admin/listMemory.ts`): the filter bar writes
+the list's query string to session storage as it changes (`RememberList` does it for the revenue
+report, whose controls are links), and every road back to the list reads it — the breadcrumbs
+and back button, the sidebar's section links (`AdminSidebar`), the categories' tree tab, and the
+forms' redirect after a save or a delete (`rememberedListHref` in `ProductForm`, `StoreForm`,
+`WorkerForm`, `TeamForm`, `CategoryForm`, `ShelfRoomForm`, `AccountForm`; the partner portal's
+product list comes back the same way). So a product opened from "laminate, 15–40 ₾, active,
+page 2" goes back to exactly that. A link that carries its own query (a dashboard figure) goes
+where it says, and that view becomes the one remembered; "clear filters" is the way to the whole
+list. Session storage: a new tab or tomorrow starts on the whole list.
+
+**Every admin page carries breadcrumbs** at its top (`AdminCrumbs`,
+through `AdminPageHeader`'s `crumbs`, or on its own over a page with a custom head — an order,
+a project through `ProjectDetail`'s `crumbs`): a back button to the crumb above, then the
+dashboard, the section (`sectionCrumb`, a link back to its remembered list) and the thing open —
+a product, a store, an account, a category with its whole path. The dashboard's own crumbs start
+at the site. A detail page's title is the thing's name (a product's, a worker's), the section's
+"new" pages say what is being made ("New product"). The product list also filters by photo, ticks rows for bulk show / hide /
 delete (`BulkSelect`) and has per-row actions (`ProductRowActions`); people's own furniture is
 not listed there. **Deleting is admin's** (`canDeleteIn`): the catalogue agent's product list
 offers show and hide only, and its product, category and store forms have no delete button —
@@ -179,7 +216,9 @@ which section, who may delete (`canDeleteIn`) and where each role lands,
 the portal's order and product actions may do, `tests/integration/catalog-delete-routes.test.ts`
 who may delete a category, a store and products in bulk, `tests/unit/admin/categoryIcons.test.ts`
 the icon names (every lucide icon found again from its stored name; the suggested ones real and
-searchable in three languages; the studio's own icons), the category tree's and studio rooms'
+searchable in three languages; the studio's own icons), `tests/unit/admin/listMemory.test.ts`
+(the stored value, where each list was left, the section crumbs) and `filters.test.ts` (what a
+filter button says), the category tree's and studio rooms'
 routes ([categories.md](categories.md#tests)),
 and `e2e/public.spec.ts` the workers-directory redirect. The partner analytics
 (`lib/partner/analytics.ts`) read the database and are exercised through the pages.

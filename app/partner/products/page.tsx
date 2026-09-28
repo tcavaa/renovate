@@ -167,7 +167,7 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', placeholder: pp.searchPlaceholder, className: 'w-72' },
+          { name: 'q', type: 'search', placeholder: pp.searchPlaceholder },
           { name: 'category', type: 'select', label: pp.category, options: categoryOptions },
           { name: 'status', type: 'select', label: pp.visibility, options: [{ value: 'shown', label: pp.shown }, { value: 'hidden', label: pp.hidden }] },
           { name: 'model', type: 'select', label: f.model, options: [{ value: 'has', label: f.has3d }, { value: 'none', label: f.no3d }] },
