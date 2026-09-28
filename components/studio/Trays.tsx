@@ -2,13 +2,13 @@
 
 /**
  * The smaller trays of the build bar: the build tools with the wall thickness, the
- * electrical kinds with the automatic wiring, the finishes' scope, and the budget at a glance.
+ * electrical kinds with the automatic wiring, the finishes' shelf, and the budget at a glance.
  */
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, Hand, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, Hand, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatGEL } from '@/lib/utils';
@@ -19,10 +19,12 @@ import { ELECTRICAL_ICON, TECHNICAL_ICON } from '@/components/plan/icons';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
 import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
 import { emptyDragImage } from './dragImage';
+import { StylePicker } from './StylePicker';
 import { localizedName } from '@/lib/i18n/labels';
-import { pricePerM2 } from '@/lib/design/surfaces';
+import { finishUnitPrice, isTrimFinishSurface, narrowFinishShelf, type FinishSurface } from '@/lib/design/finishBrowser';
+import type { ColorFamily } from '@/lib/design/colors';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
+import type { ElectricalKind, StyleId, TechnicalKind } from '@/lib/design/types';
 import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
 import { designStepHref } from '@/lib/design/steps';
@@ -258,7 +260,7 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
 }
 
 export type FinishScope = 'room' | 'wall' | 'strip' | 'cell' | 'patch';
-export type FinishSurface = 'floor' | 'wall' | 'skirting' | 'cornice';
+export type { FinishSurface };
 
 /** The scopes that paint a piece at a click instead of applying to what is selected. */
 export function isPaintScope(scope: FinishScope): scope is 'strip' | 'cell' | 'patch' {
@@ -270,45 +272,90 @@ export function paintScopeOf(scope: FinishScope): 'cell' | 'strip' | 'patch' | n
   return isPaintScope(scope) ? scope : null;
 }
 
-/** What is being finished, down the left edge of the tray. */
-const SURFACE_TABS: Array<{ id: FinishSurface; icon: LucideIcon }> = [
+/** What is being finished, down the left edge of the tray (and of the finishes catalogue). */
+export const SURFACE_TABS: Array<{ id: FinishSurface; icon: LucideIcon }> = [
   { id: 'floor', icon: Grid2x2 },
   { id: 'wall', icon: Square },
   { id: 'skirting', icon: Minus },
   { id: 'cornice', icon: Minus },
 ];
 
+/** The surfaces' short names — "იატაკის პლინტუსი" does not fit a 90 px tab, and truncated it leaves two tabs that read the same. */
+export function finishSurfaceLabel(t: Dictionary, surface: FinishSurface): string {
+  return { floor: t.design.finishFloor, wall: t.design.finishWall, skirting: t.design.finishSkirtingShort, cornice: t.design.finishCorniceShort }[surface];
+}
+
+export interface FinishScopeChip {
+  id: FinishScope;
+  label: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  /** Why it is disabled, when it is. */
+  title?: string;
+}
+
+/**
+ * Where a pick goes on this surface, smallest first — a square metre, a strip, one wall —
+ * the whole room last: painting a piece at a time is what the tray is for, and "the whole
+ * room" is the one that erases. A moulding runs round the whole room.
+ */
+export function finishScopeChips(t: Dictionary, surface: FinishSurface, { hasWall, flat }: { hasWall: boolean; flat: boolean }): FinishScopeChip[] {
+  if (isTrimFinishSurface(surface)) return [{ id: 'room', label: t.build.applyRoom, icon: LayoutGrid }];
+  if (surface === 'wall') {
+    return [
+      // A square metre of wall needs the height of the click, which the board has not.
+      { id: 'patch', label: t.build.applyPatch, icon: Grid2x2, disabled: flat, title: flat ? t.build.patchIn3d : undefined },
+      { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
+      { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
+      { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
+    ];
+  }
+  return [
+    { id: 'cell', label: t.build.applyCell, icon: Paintbrush },
+    { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
+  ];
+}
+
+/** A finish's price as the shelf shows it: per m² for a floor or walls, per running metre for a moulding. */
+export function finishPriceLabel(t: Dictionary, product: CatalogProduct, surface: FinishSurface): string {
+  return `${formatGEL(finishUnitPrice(product, surface))}/${isTrimFinishSurface(surface) ? t.design.finishPerM : t.design.finishPerM2}`;
+}
+
 /**
  * The finishes as a shelf: what is being finished down the left (floor · walls · skirting ·
- * cornice), then where it goes and the swatches. A floor is laid over the whole room or
- * painted a square metre at a time; a wall over the whole room, on the one wall that is
- * selected, or a metre-wide strip at a time. In the two painting scopes a swatch is the
- * *brush*: picking one paints nothing until the floor or a wall is clicked.
+ * cornice); along the top where it goes, then the colours on the shelf, the styles and the
+ * whole catalogue; the swatches under them, the style's own first. A floor is laid over the
+ * whole room or painted a square metre at a time; a wall over the whole room, on the one wall
+ * that is selected, or a metre-wide strip at a time. In the two painting scopes a swatch is
+ * the *brush*: picking one paints nothing until the floor or a wall is clicked.
+ *
+ * The shelf is narrowed like the furniture shelf (`narrowFinishShelf`): by style — the
+ * project's own ticked to begin with, a change of style on the style step followed, the
+ * person's own ticks left alone — and by the colours read off the textures. What is on the
+ * surface now stays on the shelf whatever they say: it is the one swatch a person must always
+ * find.
  */
-export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean }) {
+export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false, styleId, onOpenCatalog }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean; /** The project's style: ticked on the style filter to begin with. */ styleId: StyleId; /** Opens every finish as a page (`FinishCatalog`): search, filters, details. */ onOpenCatalog?: () => void }) {
   const t = useT();
   const locale = useLocale();
-  const trim = surface === 'skirting' || surface === 'cornice';
-  // Short names on the tabs — "იატაკის პლინტუსი" does not fit a 90 px tab and truncating it
-  // leaves two tabs that read the same.
-  const surfaceLabel: Record<FinishSurface, string> = { floor: t.design.finishFloor, wall: t.design.finishWall, skirting: t.design.finishSkirtingShort, cornice: t.design.finishCorniceShort };
-  const chips: Array<{ id: FinishScope; label: string; icon: LucideIcon; disabled?: boolean; /** Why it is disabled, when it is. */ title?: string }> = trim
-    ? [{ id: 'room', label: t.build.applyRoom, icon: LayoutGrid }]
-    : surface === 'wall'
-      ? // Smallest first — a square metre, a strip, one wall — the whole room last: painting a
-        // piece at a time is what the tray is for, and "the whole room" is the one that erases.
-        [
-          // A square metre of wall needs the height of the click, which the board has not.
-          { id: 'patch', label: t.build.applyPatch, icon: Grid2x2, disabled: flat, title: flat ? t.build.patchIn3d : undefined },
-          { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
-          { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
-          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
-        ]
-      : [
-          { id: 'cell', label: t.build.applyCell, icon: Paintbrush },
-          { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
-        ];
+  const trim = isTrimFinishSurface(surface);
+  const chips = finishScopeChips(t, surface, { hasWall, flat });
   const painting = isPaintScope(scope);
+
+  const [styles, setStyles] = useState<StyleId[]>(() => [styleId]);
+  const [colors, setColors] = useState<ColorFamily[]>([]);
+  // The project's style follows a change of mind on the style step (state adjusted while
+  // rendering, the way React asks for a prop to be followed); the person's ticks are theirs.
+  const [followedStyle, setFollowedStyle] = useState(styleId);
+  if (followedStyle !== styleId) {
+    setFollowedStyle(styleId);
+    setStyles([styleId]);
+  }
+  const shelf = useMemo(() => narrowFinishShelf(options, styles, colors), [options, styles, colors]);
+  const pinned = typeof currentId === 'number' && !shelf.results.some((p) => p.id === currentId) ? (options.find((p) => p.id === currentId) ?? null) : null;
+  const swatches = pinned ? [pinned, ...shelf.results] : shelf.results;
+  const colorName = (family: ColorFamily) => (t.design.colorNames as Record<string, string>)[family] ?? family;
+
   return (
     <div className="flex gap-2">
       {/* What is being finished: down the left, so the shelf keeps the tray's whole width. */}
@@ -316,18 +363,19 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
         {SURFACE_TABS.map(({ id, icon: Icon }) => (
           <button key={id} type="button" role="tab" aria-selected={surface === id} onClick={() => onSurface(id)} className={cn('flex h-7 w-[94px] items-center gap-1.5 rounded-[7px] px-1.5 text-[10px] font-semibold transition-colors', surface === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
             <Icon className={cn('h-3.5 w-3.5 shrink-0', id === 'cornice' && 'rotate-180')} />
-            <span className="truncate">{surfaceLabel[id]}</span>
+            <span className="truncate">{finishSurfaceLabel(t, id)}</span>
           </button>
         ))}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.build.applyTo}>
+        {/* One line: where it goes, then the colours on the shelf, the styles and the catalogue. */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 gap-1" role="radiogroup" aria-label={t.build.applyTo}>
             {chips.map((c) => {
               const Icon = c.icon;
               return (
-                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
                   <Icon className="h-3 w-3 shrink-0" />
                   {c.label}
                 </button>
@@ -339,27 +387,70 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
               <Trash2 className="h-3 w-3" />
             </button>
           )}
-          <span className="ml-auto truncate text-[10px] text-ink-muted">
-            {roomName ?? t.design.finishForAllRooms}
-            {areaLabel ? ` · ${areaLabel}` : ''}
-          </span>
+          {/* The colours on the shelf as it stands, one swatch per family, ticked to narrow;
+              the line scrolls when the brush sizes leave it little room. */}
+          <div className="flex min-w-0 flex-1 items-center gap-0.5 border-l border-line pl-1.5" role="group" aria-label={t.design.shelfColors}>
+            {shelf.swatches.length > 0 && (
+              <>
+                <Palette className="h-3.5 w-3.5 shrink-0 text-ink-faint" aria-hidden />
+                <ScrollRow className="min-w-0 flex-1" contentClassName="items-center gap-0.5 py-0.5 pl-0.5">
+                  {shelf.swatches.map((swatch) => {
+                    const active = shelf.wantedColors.includes(swatch.id);
+                    return (
+                      <button
+                        key={swatch.id}
+                        type="button"
+                        aria-pressed={active}
+                        title={`${colorName(swatch.id)} · ${swatch.count}`}
+                        aria-label={colorName(swatch.id)}
+                        onClick={() => setColors((prev) => (prev.includes(swatch.id) ? prev.filter((c) => c !== swatch.id) : [...prev, swatch.id]))}
+                        className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full transition-shadow', active ? 'ring-2 ring-ink ring-offset-1' : 'hover:ring-2 hover:ring-line hover:ring-offset-1')}
+                      >
+                        <span className="block h-3.5 w-3.5 rounded-full border border-black/15" style={{ backgroundColor: swatch.hex }} />
+                      </button>
+                    );
+                  })}
+                  {shelf.wantedColors.length > 0 && (
+                    <button type="button" onClick={() => setColors([])} title={t.design.shelfNoColor} aria-label={t.design.shelfNoColor} className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-faint hover:text-ink">
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </ScrollRow>
+              </>
+            )}
+          </div>
+          <StylePicker styles={styles} onChange={setStyles} own={styleId} />
+          {/* Every finish as a page — search, filters, details — for when the shelf is not enough. */}
+          {onOpenCatalog && (
+            <button type="button" onClick={onOpenCatalog} title={t.design.finishCatalogOpenHint} className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
+              <LayoutGrid className="h-3.5 w-3.5" />
+              {t.design.catalogOpen}
+            </button>
+          )}
         </div>
         <ScrollRow contentClassName="gap-1 pb-0.5">
           <SwatchTile label={t.design.finishDefault} active={currentId === null} onClick={() => onPick(null)} />
-          {options.map((p) => (
+          {swatches.map((p) => (
             <SwatchTile
               key={p.id}
               label={localizedName(locale, p)}
-              price={trim ? `${formatGEL(p.pricePerUnit)}/${t.design.finishPerM}` : `${formatGEL(pricePerM2(p))}/${t.design.finishPerM2}`}
+              price={finishPriceLabel(t, p, surface)}
               textureUrl={trim ? p.imageUrl : p.textureUrl}
               colorHex={p.colorHex}
               active={currentId === p.id}
               onClick={() => onPick(p)}
             />
           ))}
-          {options.length === 0 && <p className="py-3 text-xs text-ink-muted">{t.design.noAlternatives}</p>}
+          {swatches.length === 0 && <p className="py-3 text-xs text-ink-muted">{options.length === 0 ? t.design.noAlternatives : t.design.noMatches}</p>}
         </ScrollRow>
-        <p className="truncate text-[10px] leading-snug text-ink-muted">{painting ? (currentId === undefined ? t.build.paintBrushNone : t.build.paintHint) : trim ? t.design.trimHint : t.design.finishHint}</p>
+        {/* What the tool does, and the room and area a pick goes on. */}
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-[10px] leading-snug text-ink-muted">{painting ? (currentId === undefined ? t.build.paintBrushNone : t.build.paintHint) : trim ? t.design.trimHint : t.design.finishHint}</p>
+          <span className="max-w-[45%] shrink-0 truncate text-[10px] font-medium text-ink-soft">
+            {roomName ?? t.design.finishForAllRooms}
+            {areaLabel ? ` · ${areaLabel}` : ''}
+          </span>
+        </div>
       </div>
     </div>
   );

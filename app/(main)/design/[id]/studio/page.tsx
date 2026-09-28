@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Eraser, LayoutGrid, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Eraser, LayoutGrid, Loader2, PaintBucket, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -20,8 +20,10 @@ import { ElementInspector } from '@/components/plan/ElementInspector';
 import { CategoryRail, Tray, type StudioCategory } from '@/components/studio/BuildBar';
 import { FurnitureTray, FURNITURE_DRAG_TYPE } from '@/components/studio/FurnitureTray';
 import { CatalogBrowser } from '@/components/studio/CatalogBrowser';
+import { FinishCatalog } from '@/components/studio/FinishCatalog';
 import { OwnModelDialog } from '@/components/studio/OwnModelDialog';
 import { initialCatalogBrowserState, type CatalogBrowserState } from '@/lib/design/catalogBrowser';
+import { finishOptions, initialFinishBrowserState, type FinishBrowserState } from '@/lib/design/finishBrowser';
 import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { toolHint } from '@/components/plan/PlanToolbar';
@@ -48,8 +50,8 @@ import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
-import { isStyleFinish, surfaceOptions } from '@/lib/design/surfaces';
-import { isTrimSurface, trimFor, trimLengthM, trimOptions } from '@/lib/design/trims';
+import { isStyleFinish } from '@/lib/design/surfaces';
+import { isTrimSurface, trimFor, trimLengthM } from '@/lib/design/trims';
 import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
@@ -201,6 +203,10 @@ export default function StudioPage() {
   const [catalogBrowser, setCatalogBrowser] = useState<'closed' | 'open' | 'minimized'>('closed');
   const [catalogState, setCatalogState] = useState<CatalogBrowserState>(initialCatalogBrowserState);
   const [catalogLast, setCatalogLast] = useState<CatalogProduct | null>(null);
+  // The finishes catalogue, the same way: folded to a chip while its pick is laid or painted.
+  const [finishCatalog, setFinishCatalog] = useState<'closed' | 'open' | 'minimized'>('closed');
+  const [finishCatalogState, setFinishCatalogState] = useState<FinishBrowserState>(initialFinishBrowserState);
+  const [finishCatalogLast, setFinishCatalogLast] = useState<CatalogProduct | null>(null);
   /** The dialog for a piece of the person's own. */
   const [ownDialogOpen, setOwnDialogOpen] = useState(false);
   const hoverCard = useRef<HoverCardHandle>(null);
@@ -434,9 +440,9 @@ export default function StudioPage() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)) return;
-      // The catalogue modal has the keyboard while it is open: Delete there must not take
-      // the selected piece out of the room behind it, and Escape is its own to close with.
-      if (catalogBrowser === 'open') return;
+      // A catalogue modal has the keyboard while it is open: Delete there must not take the
+      // selected piece out of the room behind it, and Escape is its own to close with.
+      if (catalogBrowser === 'open' || finishCatalog === 'open') return;
       const code = event.code;
       if (event.metaKey || event.ctrlKey) {
         if (code === 'KeyZ' && !event.shiftKey) {
@@ -495,7 +501,7 @@ export default function StudioPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view, putToolsDown, catalogBrowser]);
+  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view, putToolsDown, catalogBrowser, finishCatalog]);
 
   /** How many technical points of each kind stand on the plan, for the tray's tiles. */
   const technicalCounts = useMemo(() => {
@@ -561,6 +567,8 @@ export default function StudioPage() {
     setTechnicalArmed(false);
     if (next !== 'build') setBuildTool('select');
     if (next === 'build' || next === 'electric' || next === 'technical') store.selectItem(null);
+    // The finishes catalogue's chip is a way back to the brush's shelf; elsewhere it means nothing.
+    if (next !== 'finishes') setFinishCatalog((s) => (s === 'minimized' ? 'closed' : s));
     // The technical points are placed on the board, where the plan is: the 3D view has no
     // way to show a pipe run or a panel, so the studio switches for them.
     if (next === 'technical' && view !== '2d') setView('2d');
@@ -740,6 +748,29 @@ export default function StudioPage() {
     store.setFinish([room.id], surface, product, products);
   };
 
+  /**
+   * What is being finished, from the tray's tabs or the catalogue's. The brush goes with the
+   * surface (a floor laminate does not paint a wall), and each surface opens on its first
+   * chip, the smallest piece; a moulding has only the room.
+   */
+  const chooseFinishSurface = (surface: FinishSurface) => {
+    setFinishSurface(surface);
+    setFinishScope(surface === 'wall' ? (finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
+    setBrush(undefined);
+  };
+
+  /**
+   * A finish picked in the catalogue does what its swatch on the shelf does — the brush in a
+   * painting scope, laid on the room or the wall otherwise — and the modal folds to a chip so
+   * the room is in view to paint or to look at.
+   */
+  const pickFromFinishCatalog = (product: CatalogProduct) => {
+    pickFinish(finishSurface, product);
+    setFinishCatalogLast(product);
+    setFinishCatalog('minimized');
+    setTrayOpen(true);
+  };
+
   const inspectorActions = {
     updateWall: store.updateWall,
     resizeWall: store.resizeWall,
@@ -793,7 +824,7 @@ export default function StudioPage() {
   // The finishes shelf: the room it applies to, what that surface has now, and the options.
   const finishRoom = plan.rooms.find((r) => r.id === (selectedSurface?.roomId ?? focusRoomId)) ?? null;
   const trimSurface = isTrimSurface(finishSurface) ? finishSurface : null;
-  const finishOptions = trimSurface ? trimOptions(products, trimSurface, styleId) : surfaceOptions(products, finishSurface === 'wall' ? 'wall' : 'floor', finishRoom, styleId);
+  const finishShelfOptions = finishOptions(products, finishSurface, finishRoom, styleId);
   // The style's own finish — a product too, the one its look is — is the "style default" swatch.
   const baseFinishId = (roomId: string) => {
     const base = trimSurface ? trimFor(finishes, roomId, trimSurface) : finishes.find((f) => f.roomId === roomId && f.surface === finishSurface && isBaseFinish(f));
@@ -817,6 +848,7 @@ export default function StudioPage() {
     return baseFinishId(finishRoom.id);
   })();
   const canClearPartial = !!finishRoom && !trimSurface && finishes.some((f) => f.roomId === finishRoom.id && f.surface === finishSurface && !isBaseFinish(f));
+  const hasSelectedWall = selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null;
   const finishArea = painting
     ? null
     : finishRoom && trimSurface
@@ -955,8 +987,8 @@ export default function StudioPage() {
           nextLabel={category === 'finishes' ? (nextStep(6, homeState, mode) === 3 ? t.design.step3 : t.build.budgetTitle) : t.design.step6}
         />
 
-        {/* ---- the catalogue modal, folded to a chip while a piece from it is placed ---- */}
-        {catalogBrowser === 'minimized' && (
+        {/* ---- the catalogue modal, folded to a chip while a piece from it is placed (the finishes' chip has the spot in its category) ---- */}
+        {catalogBrowser === 'minimized' && !(finishCatalog === 'minimized' && category === 'finishes') && (
           <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-[12px] bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur" data-tour="catalog-chip">
             <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold">{t.design.catalogMinimized}</span>
@@ -965,6 +997,19 @@ export default function StudioPage() {
               {t.design.catalogReopen}
             </button>
             <button type="button" onClick={() => setCatalogBrowser('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-[8px] transition-colors hover:bg-white/15">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {finishCatalog === 'minimized' && category === 'finishes' && (
+          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-[12px] bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur">
+            <PaintBucket className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="text-[11px] font-semibold">{t.design.catalogMinimized}</span>
+            {finishCatalogLast && <span className="max-w-[180px] truncate text-[11px] text-white/70">· {localizedName(locale, finishCatalogLast)}</span>}
+            <button type="button" onClick={() => setFinishCatalog('open')} className="ml-1 h-6 rounded-[8px] bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
+              {t.design.catalogReopen}
+            </button>
+            <button type="button" onClick={() => setFinishCatalog('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-[8px] transition-colors hover:bg-white/15">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1143,24 +1188,20 @@ export default function StudioPage() {
                   {category === 'finishes' && (
                     <FinishesTray
                       surface={finishSurface}
-                      onSurface={(surface) => {
-                        setFinishSurface(surface);
-                        // The brush goes with the surface: a floor laminate does not paint a wall.
-                        // Each surface opens on its first chip, the smallest piece; a trim has only the room.
-                        setFinishScope(surface === 'wall' ? (painting && finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
-                        setBrush(undefined);
-                      }}
+                      onSurface={chooseFinishSurface}
                       scope={finishScope}
                       onScope={setFinishScope}
-                      hasWall={selectedSurface?.surface === 'wall' && selectedSurface.wallIndex != null}
+                      hasWall={hasSelectedWall}
                       roomName={finishRoom?.name ?? null}
                       areaLabel={finishArea}
-                      options={finishOptions}
+                      options={finishShelfOptions}
                       currentId={currentFinishId}
                       onPick={(product) => pickFinish(finishSurface, product)}
                       canClear={canClearPartial}
                       onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
                       flat={view === '2d'}
+                      styleId={styleId}
+                      onOpenCatalog={() => setFinishCatalog('open')}
                     />
                   )}
                   {category === 'budget' && cost && <BudgetTray cost={cost} />}
@@ -1233,6 +1274,26 @@ export default function StudioPage() {
         placeMode={view}
         onPlace={placeFromCatalog}
         onAddOwn={() => setOwnDialogOpen(true)}
+      />
+
+      <FinishCatalog
+        open={finishCatalog === 'open'}
+        onOpenChange={(next) => setFinishCatalog(next ? 'open' : 'closed')}
+        catalog={products}
+        shelf={shelf}
+        styleId={styleId}
+        surface={finishSurface}
+        onSurface={chooseFinishSurface}
+        scope={finishScope}
+        onScope={setFinishScope}
+        hasWall={hasSelectedWall}
+        flat={view === '2d'}
+        room={finishRoom}
+        areaLabel={finishArea}
+        currentId={currentFinishId}
+        state={finishCatalogState}
+        onState={setFinishCatalogState}
+        onPick={pickFromFinishCatalog}
       />
 
       <OwnModelDialog

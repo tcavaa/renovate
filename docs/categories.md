@@ -136,8 +136,16 @@ and a category deleted leaves the rooms that listed it.
 
 ## The admin (`/admin/categories`)
 
-Two tabs. **The tree**: every category under its parent, folded below the second level
-(expand/collapse all), with its icon, name and slug, where it shows (hidden from the catalogue,
+Two tabs. **The tree**: every category under its parent, folded below the second level the first
+time (expand/collapse all) and **then as it was left**: the folds are kept in the browser
+(`localStorage`, `renovate-admin-category-tree`, read through `storedValue` — the server renders
+the default and the browser's own folds follow on hydration), so editing a category and coming
+back by the breadcrumbs, the tree's tab or a save finds the tree folded the same way. A search or
+a filter unfolds everything it found, and its folds are its own: the page keys the tree on the
+search (`key`), and clearing the search brings the kept folds back. The tree's tab and the
+breadcrumbs also come back to the search and filter it was left with (`lib/admin/listMemory`,
+[partners-and-admin.md](partners-and-admin.md#admin-lists-filters-sort-and-paging-live-in-the-url)).
+Each category shows its icon, name and slug, where it shows (hidden from the catalogue,
 a calculator tab, its 3D kind, the studio rooms that list it — each a link), how many products
 it holds (and how many directly, when it has children — a link to the product list filtered to
 its subtree), and its buttons: up and down among its siblings, "+" for a subcategory (not on the
@@ -145,6 +153,10 @@ third level), edit. A search and a filter (empty, hidden, calculator tabs, in st
 a 3D kind) keep what answers and the categories above it, for context; the dashboard's "empty
 categories" links to `?show=empty` (a category with no products and no subcategories). A folded
 "How does the tree work?" says the rules above in five lines.
+
+**A category's page** has its whole path as breadcrumbs — the dashboard, categories, then each
+category above it, each a link to its own page — with a back button to its parent; the new
+category and the studio-room pages have theirs too.
 
 **The category form**: its parent (the tree as an indented select, only the places it may go,
 "level N of 3" under it), names, slug (following the English name until typed), icon

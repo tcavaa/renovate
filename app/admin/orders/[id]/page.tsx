@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { loadOrderView, orderEventsFor } from '@/lib/finance/orders';
 import { orderData, orderEventData } from '@/lib/finance/view';
@@ -11,6 +11,8 @@ import { fill } from '@/lib/admin/list';
 import { canAdmin } from '@/lib/auth/roles';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminCrumbs } from '@/components/admin/AdminCrumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,12 +35,9 @@ export default async function AdminOrderPage(props: { params: Promise<{ id: stri
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/admin/orders" className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand">
-          <ArrowLeft className="h-4 w-4" />
-          {o.backToAll}
-        </Link>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+      <div className="space-y-4">
+        <AdminCrumbs trail={[sectionCrumb(ka, 'orders'), { label: `#${data.id}` }]} />
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <h1 className="font-serif text-3xl font-bold">
             {fill(o.title, {})} <span className="text-ink-muted">#{data.id}</span>
           </h1>

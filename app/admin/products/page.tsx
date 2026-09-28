@@ -13,6 +13,7 @@ import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/c
 import { getT, getLocale } from '@/lib/i18n/server';
 import { unitLabel, pickLocalizedName, styleLabel } from '@/lib/i18n/labels';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { STYLE_IDS } from '@/lib/design/styles';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
@@ -103,6 +104,7 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
   return (
     <div className="space-y-5">
       <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'products', true)]}
         title={ka.admin.products}
         subtitle={`${total} ${ka.admin.cols.products}`}
         actions={
@@ -116,16 +118,15 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', placeholder: `${f.search} (${ka.admin.forms.nameKa}, SKU, ${ka.admin.forms.brand})`, className: 'w-72' },
+          { name: 'q', type: 'search', placeholder: `${f.search} (${ka.admin.forms.nameKa}, SKU, ${ka.admin.forms.brand})` },
           { name: 'category', type: 'select', label: f.category, options: treeOptions(tree, (c) => pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)) },
           { name: 'store', type: 'select', label: f.store, options: [{ value: 'none', label: f.noStore }, ...storeRows.map((s) => ({ value: String(s.id), label: s.nameKa }))] },
           { name: 'style', type: 'select', label: f.style, options: STYLE_IDS.map((id) => ({ value: id, label: styleLabel(ka, id) })) },
           { name: 'status', type: 'select', label: f.status, options: [{ value: 'active', label: f.active }, { value: 'inactive', label: f.inactive }] },
           { name: 'model', type: 'select', label: f.model, options: [{ value: 'has', label: f.has3d }, { value: 'none', label: f.no3d }] },
           { name: 'photo', type: 'select', label: ka.partnerProducts.photo, options: [{ value: 'has', label: ka.partnerProducts.withPhoto }, { value: 'none', label: ka.staffDashboard.noPhoto }] },
+          { type: 'range', label: f.price, min: 'priceMin', max: 'priceMax', unit: '₾' },
           { name: 'featured', type: 'select', label: f.featured, options: [{ value: '1', label: f.featuredOnly }] },
-          { name: 'priceMin', type: 'number', placeholder: f.priceFrom, min: 0 },
-          { name: 'priceMax', type: 'number', placeholder: f.priceTo, min: 0 },
         ]}
         sorts={[
           { value: 'newest', label: f.sortNewest },

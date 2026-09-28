@@ -12,6 +12,7 @@ import { ImageUploader } from '@/components/admin/ImageUploader';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Store } from '@/lib/db/schema';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 /**
  * A partner store's details. The commission is money, and money is admin's: a catalogue agent
@@ -65,7 +66,7 @@ export function StoreForm({ store, canEditCommission = false, canDelete = false 
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/stores');
+    router.push(rememberedListHref('/admin/stores'));
     router.refresh();
   };
 
@@ -80,7 +81,7 @@ export function StoreForm({ store, canEditCommission = false, canDelete = false 
       setError(apiErrorMessage(ka, json.error));
       return;
     }
-    router.push('/admin/stores');
+    router.push(rememberedListHref('/admin/stores'));
     router.refresh();
   };
 

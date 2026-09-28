@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage, workerSpecialtyLabel } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
+import { rememberedListHref } from '@/lib/admin/listMemory';
 
 export interface TeamFormValue {
   id?: number;
@@ -76,7 +77,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
         setError(apiErrorMessage(t, json.error));
         return;
       }
-      router.push('/admin/teams');
+      router.push(rememberedListHref('/admin/teams'));
       router.refresh();
     } catch {
       setError(apiErrorMessage(t, null));
@@ -88,7 +89,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
   const remove = async () => {
     if (!team.id || !confirm(t.admin.actions.delete)) return;
     await fetch(`/api/teams/${team.id}`, { method: 'DELETE' });
-    router.push('/admin/teams');
+    router.push(rememberedListHref('/admin/teams'));
     router.refresh();
   };
 

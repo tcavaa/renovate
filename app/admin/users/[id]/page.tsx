@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { desc, eq } from 'drizzle-orm';
-import { ArrowLeft, Calendar, ChevronRight, LogIn, Mail, Shield } from 'lucide-react';
+import { Calendar, ChevronRight, LogIn, Mail, Shield } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { projects, stores, teams, users, workers } from '@/lib/db/schema';
@@ -18,6 +18,8 @@ import {
 } from '@/lib/i18n/labels';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,18 +79,14 @@ export default async function AdminUserDetailPage(
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/admin/users"
-          className="inline-flex items-center gap-1 text-sm text-ink-muted hover:text-brand"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {ka.admin.users}
-        </Link>
-        <h1 className="mt-2 font-serif text-3xl font-bold">
-          {user.name} <span className="text-ink-muted">#{user.id}</span>
-        </h1>
-      </div>
+      <AdminPageHeader
+        crumbs={[sectionCrumb(ka, 'users'), { label: user.name }]}
+        title={
+          <>
+            {user.name} <span className="text-ink-muted">#{user.id}</span>
+          </>
+        }
+      />
 
       <Card>
         <CardContent className="flex flex-wrap items-center gap-5 p-5">

@@ -9,6 +9,8 @@ import { getT, getLocale } from '@/lib/i18n/server';
 import { loadProjectSheets } from '@/lib/projects/sheets';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
+import { AdminCrumbs } from '@/components/admin/AdminCrumbs';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { ProjectRenders } from '@/components/projects/ProjectRenders';
 import { ProjectOrdersReview } from '@/components/orders/ProjectOrdersReview';
 import { requireAdminPage } from '@/lib/admin/guard';
@@ -50,8 +52,7 @@ export default async function AdminProjectDetailPage(props: { params: Promise<{ 
       sheets={sheets}
       t={ka}
       locale={locale}
-      backHref="/admin/projects"
-      backLabel={ka.admin.projectsList.backToAll}
+      crumbs={<AdminCrumbs trail={[sectionCrumb(ka, 'projects'), { label: project.nameKa ?? `#${project.id}` }]} />}
       actions={
         waiting > 0 ? (
           <Button asChild variant="ink">

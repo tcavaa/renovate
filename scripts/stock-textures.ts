@@ -21,12 +21,13 @@
 import './lib/loadEnv';
 
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
+import { colorsOfImage } from '../lib/uploads/textureColors';
 import { humanizeSlug } from './lib/translations';
 import type { StyleId } from '../lib/design/types';
 
@@ -241,6 +242,8 @@ async function upsert(
   const categoryId = categoryBySlug.get(entry.categorySlug);
   if (!categoryId) throw new Error(`no category ${entry.categorySlug}`);
   const existing = await db.select().from(products).where(eq(products.slug, entry.slug)).limit(1);
+  // The colours the studio's filter finds the finish under, read off its texture.
+  const colors = await colorsOfImage(new Uint8Array(await readFile(path.join(ROOT, 'public', maps.diffuse))));
   const specs = {
     ...((existing[0]?.specs as Record<string, unknown> | null) ?? {}),
     surfaces: entry.surfaces,
@@ -250,6 +253,7 @@ async function upsert(
     roughnessUrl: maps.rough,
     source: entry.source,
     license: 'CC0',
+    ...(colors.length ? { colors } : {}),
   };
   const shared = {
     textureUrl: maps.diffuse,

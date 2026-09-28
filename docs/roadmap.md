@@ -40,6 +40,9 @@ runtime yet.
 - **Partners manage more themselves**: reviews and portfolios are seeded, not partner-managed; a
   brigade's rating and completed jobs are not computed from orders; new products of an approved
   store go live with no moderation step ([partners-and-admin.md](partners-and-admin.md)).
+- **Finishes from partners**: the product form takes a texture's colour map only (no normal or
+  roughness map); production needs `pnpm textures:colors` once for the finishes it already has
+  ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Catalogue coverage**: more partner furniture (MODERN has none), curtains (no model anywhere),
   an air-conditioner model, a real radiator range, more moulding profiles
   ([3d-assets.md](3d-assets.md#known-gaps), [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).

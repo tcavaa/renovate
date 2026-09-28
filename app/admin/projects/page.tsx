@@ -12,6 +12,7 @@ import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
 import { HOME_STATE_VALUES, type HomeState } from '@/lib/calculator/types';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,18 +78,16 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
 
   return (
     <div className="space-y-5">
-      <AdminPageHeader title={ka.admin.projects} subtitle={`${total}`} />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'projects', true)]} title={ka.admin.projects} subtitle={`${total}`} />
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', className: 'w-72' },
+          { name: 'q', type: 'search' },
           { name: 'kind', type: 'select', label: f.kind, options: [{ value: 'calculator', label: f.calculatorKind }, { value: 'design', label: f.designKind }] },
           { name: 'status', type: 'select', label: f.status, options: (['draft', 'saved', 'submitted'] as const).map((s) => ({ value: s, label: statusLabel(ka, s) })) },
           { name: 'homeState', type: 'select', label: f.homeState, options: HOME_STATE_VALUES.map((s) => ({ value: s, label: homeStateShortLabel(ka, s) })) },
-          { name: 'dateFrom', type: 'date', label: f.dateFrom },
-          { name: 'dateTo', type: 'date', label: f.dateTo },
-          { name: 'costMin', type: 'number', placeholder: f.costFrom, min: 0 },
-          { name: 'costMax', type: 'number', placeholder: f.costTo, min: 0 },
+          { type: 'dateRange', label: f.date, from: 'dateFrom', to: 'dateTo' },
+          { type: 'range', label: f.cost, min: 'costMin', max: 'costMax', unit: '₾' },
         ]}
         sorts={[
           { value: 'newest', label: f.sortNewest },

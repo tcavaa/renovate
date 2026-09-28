@@ -70,6 +70,11 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   architect's drawing — black walls, white floors, red doors, blue windows — and the board's
   colours, the room-type swatches, origin colours (existing ink / changed terracotta / generated
   teal) and technical-system colours live in `components/plan/palette.ts`. The editorial site outside the flow keeps sharp corners.
+- **Admin pages** keep the editorial look (hairline borders, square corners): each opens with
+  breadcrumbs and a back button (`AdminCrumbs`), and a list's filters are one framed bar — search
+  and sort on top, a row of filter buttons that turn ink-dark with their own × when set, their
+  choices in a panel under them (`FilterBar`); a list's views are one segmented control
+  (`SegmentedLinks`). Details in [partners-and-admin.md](partners-and-admin.md#admin-lists-filters-sort-and-paging-live-in-the-url).
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
 - **Corners are sharp outside the build mode.** The Tailwind radius scale is collapsed to

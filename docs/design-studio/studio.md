@@ -21,7 +21,8 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `app/(main)/design/[id]/studio/page.tsx` | the page: view switch, categories (`CATEGORY_MODE`, `CATEGORY_TOOLS`), key handling, carry/drag/drop wiring (`pickProduct`, `onDragProduct`), the right-hand panels, hints, photos, versions |
 | `components/design/Viewer3D.tsx` | the R3F viewer and its `ViewerApi` ([3d-engine.md](3d-engine.md)) |
 | `components/studio/BuildBar.tsx` | `CategoryRail` (the six categories down the left: build, furniture, electric, technical, finishes, budget) and `Tray` (the open category along the bottom) |
-| `components/studio/Trays.tsx` | `BuildTray`, `ElectricTray`, `TechnicalTray`, `FinishesTray`, `BudgetTray` |
+| `components/studio/Trays.tsx` | `BuildTray`, `ElectricTray`, `TechnicalTray`, `FinishesTray` (with `StylePicker.tsx`), `BudgetTray` |
+| `components/studio/FinishCatalog.tsx` + `lib/design/finishBrowser.ts` | every finish as a modal, the finishes tray's "catalogue" ([finishes.md](finishes.md#browsing-finishes-the-shelfs-filters-and-the-catalogue-libdesignfinishbrowserts)) |
 | `components/studio/FurnitureTray.tsx` | the furniture shelf: admin's studio rooms → their categories (→ subcategories) → tiles, colour swatches, style chips (`lib/design/shelf.ts`, [../categories.md](../categories.md#the-studios-rooms-shelf_rooms-shelf_room_categories)) |
 | `components/studio/CatalogBrowser.tsx` + `lib/design/catalogBrowser.ts` | the whole catalogue as a modal (search, filters with counts, details, "place") |
 | `components/studio/OwnModelDialog.tsx` | adding a person's own furniture ([../catalog.md](../catalog.md)) |
@@ -53,8 +54,9 @@ the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D
 radiators at a click, the works checklist one link away — the technical step opened on its
 works check, `technicalCheckHref`), finishes (the same kind of shelf:
 floor · walls · skirting · cornice, then where it goes — a square metre, a 1 m strip, this
-wall, the whole room ([finishes.md](finishes.md#what-the-studio-offers)) — then the swatches,
-the style default first), budget (totals at a glance). **"Empty the rooms"** (`clearDesign`,
+wall, the whole room ([finishes.md](finishes.md#what-the-studio-offers)) — with the colour
+swatches, the style picker and the "catalogue" button on that line, then the swatches, the
+style default first ([finishes.md](finishes.md#browsing-finishes-the-shelfs-filters-and-the-catalogue-libdesignfinishbrowserts))), budget (totals at a glance). **"Empty the rooms"** (`clearDesign`,
 `build.emptyRooms`, in the view controls, behind a confirmation) takes out the furniture,
 fittings and chosen finishes and leaves the flat.
 Dragging from a tray is shown live and the tile's own picture is never dragged
@@ -187,11 +189,13 @@ in view to set the piece down in, a click sets it down, Escape gives it up, and 
 the top of the canvas opens the modal again with the search, the filters and the open product
 exactly as they were, because the modal's state (`CatalogBrowserState`) lives in the studio
 page and not in the modal (Radix unmounts a closed dialog). While the modal is open the
-studio's own keys are off (`if (catalogBrowser === 'open') return` in the key handler — a
-Delete there must not take the selected piece out of the room behind it), and its Escape is
-its own: `onEscapeKeyDown` stops the event while `open` is true, and only then, because Radix
-keeps the layer for the beat of its closing animation and an Escape in that beat has to reach
-the studio to give up the piece just placed. `isFurnitureProduct` is the one rule for what
+studio's own keys are off (`if (catalogBrowser === 'open' || finishCatalog === 'open') return`
+in the key handler — a Delete there must not take the selected piece out of the room behind
+it), and its Escape is its own: `onEscapeKeyDown` stops the event while `open` is true, and
+only then, because Radix keeps the layer for the beat of its closing animation and an Escape
+in that beat has to reach the studio to give up the piece just placed. The finishes tray has a
+catalogue of its own built the same way (`FinishCatalog`, its chip shown in the finishes
+category only — [finishes.md](finishes.md#browsing-finishes-the-shelfs-filters-and-the-catalogue-libdesignfinishbrowserts)). `isFurnitureProduct` is the one rule for what
 is furniture (a model, and neither a fitting, a door or window, nor a radiator); the shelf
 uses it too.
 
@@ -350,7 +354,7 @@ screenshot now and of the render once `renderUrl` is set (`GET /api/design/rende
 
 `tests/unit/design/manipulate.test.ts` (rotation, validity, `placeAdditional`, rugs, footprint
 masks, `fitSwapped`, `hangOnWall`), `tests/unit/design/clearance.test.ts`,
-`tests/unit/design/catalogBrowser.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
+`tests/unit/design/catalogBrowser.test.ts`, `tests/unit/design/finishBrowser.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/store/designStore.test.ts` (carry and swap as one history step, `beginAdd` giving a
 carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-studio.spec.ts`
 (a furnished studio with a price). The page, the trays and `ScrollRow` have no tests.

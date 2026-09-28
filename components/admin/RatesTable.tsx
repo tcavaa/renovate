@@ -14,10 +14,11 @@
  */
 
 import { Fragment, useMemo, useState } from 'react';
-import { Check, Loader2, Plus, Search, X } from 'lucide-react';
+import { Check, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
+import { FilterFrame, FilterMenu, FilterSearch } from '@/components/admin/FilterBar';
 import { useT } from '@/lib/i18n/client';
 import { MATERIAL_BASES, PHASE_NAMES } from '@/lib/calculator/constants';
 import { invalidateRateBook } from '@/hooks/useRateBook';
@@ -266,23 +267,20 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
   return (
     <div className="space-y-6">
       {rows.some((r) => r.id < 0) && <p className="text-sm text-ink-muted">{t.admin.rateDefaultsHint}</p>}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg-surface p-3">
-        <div className="relative w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <Input type="search" value={filterQ} onChange={(e) => setFilterQ(e.target.value)} placeholder={t.admin.filters.search} aria-label={t.admin.filters.search} className="h-9 pl-9" />
-        </div>
-        <select value={filterPhase} onChange={(e) => setFilterPhase(e.target.value)} aria-label={t.admin.filters.phase} className="h-9 rounded-md border border-line bg-bg-surface px-2.5 text-sm">
-          <option value="">{t.admin.filters.phase}: {t.admin.filters.all}</option>
-          {phaseOptions.map((ph) => (
-            <option key={ph} value={String(ph)}>{ph} — {phaseName(ph)}</option>
-          ))}
-        </select>
-        {(filterQ || filterPhase) && (
-          <Button type="button" variant="ghost" size="sm" className="text-ink-muted" onClick={() => { setFilterQ(''); setFilterPhase(''); }}>
-            <X className="h-4 w-4" /> {t.admin.filters.reset}
-          </Button>
-        )}
-      </div>
+      {/* The admin lists' filter bar, filtering here in the browser: every row is a form. */}
+      <FilterFrame
+        search={<FilterSearch value={filterQ} placeholder={t.admin.filters.search} onCommit={setFilterQ} className="min-w-[14rem] max-w-2xl flex-1" />}
+        filters={[<FilterMenu key="phase" label={t.admin.filters.phase} options={phaseOptions.map((ph) => ({ value: String(ph), label: `${ph} — ${phaseName(ph)}` }))} value={filterPhase} onChange={setFilterPhase} allLabel={t.admin.filters.all} />]}
+        setCount={filterPhase ? 1 : 0}
+        onReset={
+          filterQ || filterPhase
+            ? () => {
+                setFilterQ('');
+                setFilterPhase('');
+              }
+            : undefined
+        }
+      />
       {renderGroup('material', groups.material)}
       {renderGroup('labour', groups.labour)}
 

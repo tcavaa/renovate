@@ -18,6 +18,7 @@ import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
 import { formatGEL } from '@/lib/utils';
 import { canAdmin, type AdminSection } from '@/lib/auth/roles';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { AdminCrumbs } from '@/components/admin/AdminCrumbs';
 import { subtreeOfSlugs } from '@/lib/catalog/tree';
 import { loadCategoryTree } from '@/lib/catalog/queries';
 
@@ -186,6 +187,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <AdminCrumbs trail={[]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-serif text-3xl font-bold">{ka.admin.dashboard}</h1>

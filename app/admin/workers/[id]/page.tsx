@@ -6,6 +6,8 @@ import { WorkerForm } from '@/components/admin/WorkerForm';
 import { PartnerApproval } from '@/components/admin/PartnerApproval';
 import { getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +26,7 @@ export default async function EditWorkerPage(
 
   return (
     <div className="space-y-6">
-      <h1 className="font-serif text-3xl font-bold">{ka.admin.actions.edit}</h1>
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'workers'), { label: rows[0].nameKa }]} eyebrow={ka.admin.actions.edit} title={rows[0].nameKa} />
       <PartnerApproval kind="worker" id={rows[0].id} status={rows[0].approvalStatus} />
       <WorkerForm worker={rows[0]} />
     </div>

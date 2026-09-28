@@ -23,7 +23,8 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
 | `pnpm models:photos` | `scripts/model-photos.ts` | a product photo per fixture and radiator, rendered from the model in Playwright's Chromium |
 | `pnpm models:colors [--force]` | `scripts/model-colors.ts` (+ `scripts/lib/modelColor.ts`) | each furniture model's colours read off its triangles into the manifests |
-| `pnpm textures:stock` | `scripts/stock-textures.ts` | ~35 floor/wall finish textures (partner drop, Poly Haven, ambientCG) written straight to the database as surface products, thumbnails in `public/uploads/products/` |
+| `pnpm textures:stock` | `scripts/stock-textures.ts` | ~35 floor/wall finish textures (partner drop, Poly Haven, ambientCG) written straight to the database as surface products, thumbnails in `public/uploads/products/`, each finish's colours read off its texture into `specs.colors` |
+| `pnpm textures:colors [--force]` | `scripts/texture-colors.ts` (+ `lib/uploads/textureColors.ts`) | every textured product's colours read off its texture into `specs.colors`, for the finishes' colour filter — only what is missing unless `--force`; the textures the product form uploads get theirs as they arrive |
 | `pnpm models:seed` | `scripts/seed-models.ts` | the catalogue made to match the manifests (below) |
 | `pnpm deploy:bundle-seed` | esbuild | `models:seed` as one plain-node file beside the standalone server (the cPanel deploy runs it) |
 

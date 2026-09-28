@@ -9,9 +9,10 @@
  * pieces have no textures at all, only flat materials, and an atlas-textured model uses a
  * corner of its image — the average of the whole image is the colour of nothing.
  *
- * The triangles are sorted into the families of `lib/design/colors`, by area. A family that
- * covers an eighth of the piece is one of its colours (three at most, the largest first), and
- * its hex is the mean of what fell into it — so "brown" comes back as *this* walnut.
+ * The triangles are sorted into the families of `lib/design/colors`, by area (`colorTally`,
+ * which the finishes' textures go through too). A family that covers an eighth of the piece is
+ * one of its colours (three at most, the largest first), and its hex is the mean of what fell
+ * into it — so "brown" comes back as *this* walnut.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -19,11 +20,8 @@ import sharp from 'sharp';
 import { NodeIO, type Document, type Texture } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
-import { familyOfRgb, toHex, type ColorFamily } from '../../lib/design/colors';
+import { colorTally } from '../../lib/design/colors';
 
-/** A family has to cover this much of the piece to count as one of its colours. */
-const MIN_SHARE = 0.12;
-const MAX_COLORS = 3;
 /** Triangles looked at per primitive; a woven rattan chair has a quarter of a million. */
 const MAX_SAMPLES = 20000;
 const TEXTURE_PX = 128;
@@ -63,9 +61,8 @@ async function pixelsOf(texture: Texture, cache: Map<Texture, Pixels | null>): P
 }
 
 export async function colorsOfDocument(doc: Document): Promise<string[]> {
-  const buckets = new Map<ColorFamily, { area: number; r: number; g: number; b: number }>();
+  const tally = colorTally();
   const textures = new Map<Texture, Pixels | null>();
-  let total = 0;
 
   for (const node of doc.getRoot().listNodes()) {
     const mesh = node.getMesh();
@@ -133,25 +130,12 @@ export async function colorsOfDocument(doc: Document): Promise<string[]> {
           bl = (pixels.data[at + 2] * bl) / 255;
         }
 
-        const family = familyOfRgb(r, g, bl);
-        const bucket = buckets.get(family) ?? { area: 0, r: 0, g: 0, b: 0 };
-        bucket.area += area;
-        bucket.r += r * area;
-        bucket.g += g * area;
-        bucket.b += bl * area;
-        buckets.set(family, bucket);
-        total += area;
+        tally.add(r, g, bl, area);
       }
     }
   }
 
-  if (total <= 0) return [];
-  const ranked = [...buckets.values()].sort((x, y) => y.area - x.area);
-  // The largest always counts — a piece in five colours still has one that is most of it.
-  return ranked
-    .filter((bucket, index) => index === 0 || bucket.area / total >= MIN_SHARE)
-    .slice(0, MAX_COLORS)
-    .map((bucket) => toHex(bucket.r / bucket.area, bucket.g / bucket.area, bucket.b / bucket.area));
+  return tally.colors();
 }
 
 /** The colours of a GLB on disk, the largest first; empty when it cannot be read. */

@@ -5,6 +5,8 @@ import { ratesForAdmin } from '@/lib/calculator/rates';
 import { RatesTable } from '@/components/admin/RatesTable';
 import { getT } from '@/lib/i18n/server';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
+import { AdminPageHeader } from '@/components/admin/AdminList';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,10 +21,7 @@ export default async function AdminRatesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-serif text-3xl font-bold">{ka.admin.rates}</h1>
-        <p className="mt-1 max-w-2xl text-sm text-ink-muted">{ka.admin.ratesSubtitle}</p>
-      </div>
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'rates', true)]} title={ka.admin.rates} subtitle={<span className="block max-w-2xl">{ka.admin.ratesSubtitle}</span>} />
       <RatesTable
         // Every rate the estimate uses: the table's rows, and the shipped defaults it has no row
         // for yet (negative ids — saving one creates it). Retired keys are left out.

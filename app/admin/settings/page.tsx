@@ -6,6 +6,7 @@ import { SettingsForm } from '@/components/admin/SettingsForm';
 import { getT } from '@/lib/i18n/server';
 import { loadPlatformSettings } from '@/lib/finance/settings';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,7 @@ export default async function AdminSettingsPage() {
   ]);
   return (
     <div className="space-y-6">
-      <AdminPageHeader title={ka.admin.settings.title} subtitle={ka.admin.settings.subtitle} />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'settings', true)]} title={ka.admin.settings.title} subtitle={ka.admin.settings.subtitle} />
       <SettingsForm initial={{ ...settings, updatedAt: settings.updatedAt ? settings.updatedAt.toISOString() : null }} stores={storeRows} />
     </div>
   );

@@ -3,13 +3,13 @@ import { and, asc, count, desc, eq, gte, isNotNull, isNull, like, lte, notInArra
 import { db } from '@/lib/db';
 import { orders, stores, teams, workers } from '@/lib/db/schema';
 import { FilterBar } from '@/components/admin/FilterBar';
-import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
+import { AdminPageHeader, AdminTable, EmptyRow, Pager, SegmentedLinks, THead, Th, Tr } from '@/components/admin/AdminList';
+import { sectionCrumb } from '@/lib/admin/crumbs';
 import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { hrefWith, parseListParams, type SearchParams } from '@/lib/admin/list';
 import { orderStage } from '@/lib/finance/orderFlow';
-import { cn } from '@/lib/utils';
 import { ORDER_STATUSES, type OrderStatus } from '@/lib/finance/money';
 import { orderStatusLabel } from '@/lib/i18n/labels';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
@@ -102,35 +102,32 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
 
   return (
     <div className="space-y-6">
-      <AdminPageHeader title={o.title} subtitle={o.subtitle} />
+      <AdminPageHeader crumbs={[sectionCrumb(ka, 'orders', true)]} title={o.title} subtitle={o.subtitle} />
 
       {/* The queue first: what the orders agent has to confirm today. */}
-      <nav className="flex flex-wrap gap-1.5" aria-label={ka.orderReview.queueTitle}>
-        {[
+      <SegmentedLinks
+        label={ka.orderReview.queueTitle}
+        items={[
           { key: 'pending', label: `${ka.orderReview.awaitingFilter} (${Number(pending)})` },
           { key: '', label: ka.orderReview.allOrders },
-        ].map((tab) => (
-          <Link
-            key={tab.key || 'all'}
-            href={hrefWith(PATH, p.raw, { review: tab.key || undefined, page: undefined })}
-            className={cn('border px-3 py-1.5 text-xs font-medium transition-colors', review === tab.key || (!review && !tab.key) ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink', tab.key === 'pending' && Number(pending) > 0 && review !== 'pending' && 'border-warning text-warning')}
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </nav>
+        ].map((tab) => ({
+          href: hrefWith(PATH, p.raw, { review: tab.key || undefined, page: undefined }),
+          label: tab.label,
+          active: review === tab.key || (!review && !tab.key),
+          attention: tab.key === 'pending' && Number(pending) > 0,
+        }))}
+      />
 
       <FilterBar
         fields={[
-          { name: 'q', type: 'search', className: 'w-72' },
+          { name: 'q', type: 'search' },
           { name: 'status', type: 'select', label: f.status, options: ORDER_STATUSES.map((s) => ({ value: s, label: orderStatusLabel(ka, s) })) },
           { name: 'type', type: 'select', label: o.partnerFilter, options: [{ value: 'store', label: o.kindStore }, { value: 'team', label: ka.orderReview.kindTeam }, { value: 'worker', label: o.kindWorker }] },
           { name: 'store', type: 'select', label: f.store, options: storeOptions.map((s) => ({ value: String(s.id), label: s.name })) },
           { name: 'team', type: 'select', label: ka.orderReview.kindTeam, options: teamOptions.map((g) => ({ value: String(g.id), label: g.name })) },
           { name: 'worker', type: 'select', label: o.kindWorker, options: workerOptions.map((w) => ({ value: String(w.id), label: w.name })) },
           { name: 'unread', type: 'select', label: o.unread, options: [{ value: 'yes', label: o.notViewed }] },
-          { name: 'dateFrom', type: 'date', label: f.dateFrom },
-          { name: 'dateTo', type: 'date', label: f.dateTo },
+          { type: 'dateRange', label: f.date, from: 'dateFrom', to: 'dateTo' },
         ]}
         sorts={[
           { value: 'newest', label: f.sortNewest },
