@@ -84,8 +84,9 @@ action anywhere can write one project's work over another's.**
    with rooms and no calculation; design hub: a calculation that is started and ready, with no
    design) and opens this product's half of one.
 4. **The person's projects** as a grid of cards, most recently changed first
-   (`lib/projects/hub.ts`: `updatedAt desc, id desc`; a small serialisable `HubProject`, the scene
-   read for its progress only, versions never). A card: a `PlanSketch` thumbnail
+   (`lib/projects/hub.ts`: `updatedAt desc, id desc`, sorted in code, not by MySQL —
+   [data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json);
+   a small serialisable `HubProject`, the scene read for its progress only, versions never). A card: a `PlanSketch` thumbnail
    (`labels={false}`), the name, the status, where it stands (`whereItStands`: "not calculated
    yet · step n of 6 · <label>", "not generated yet · step n of 8 · <label>" with n the walking
    position, "not calculated yet" alone for a design-first project in the calculator hub, or the

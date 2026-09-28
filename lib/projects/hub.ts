@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { calculatorProgress, designProgress, projectKind, type CalculatorProgress, type ProjectKind } from '@/lib/projects/saved';
@@ -74,8 +74,12 @@ export async function loadHubProjects(userId: number): Promise<HubProject[]> {
       sceneItems: sql<number | null>`json_length(${projects.scene}, '$.items')`,
     })
     .from(projects)
-    .where(eq(projects.userId, userId))
-    .orderBy(desc(projects.updatedAt), desc(projects.id));
+    .where(eq(projects.userId, userId));
+  // Most recently changed first — sorted here, not by MySQL. No index gives that order, and a
+  // sort carries every column the select reads through the server's sort buffer: the scene and
+  // the board whole, for the expressions above. A project with a furnished design passed the
+  // 256 KB default and the hubs failed with "Out of sort memory". A person has a few dozen rows.
+  rows.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || b.id - a.id);
 
   return rows.map((p) => {
     const progress = json<DesignProgress>(p.sceneProgress);

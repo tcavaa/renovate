@@ -120,6 +120,20 @@ uncorrelated. Use `leftJoin` + `groupBy` + `count()` instead (`app/admin/stores/
 with a comment). A correlated `NOT EXISTS (…)` inside `.where()` is in use on the admin
 dashboard (`app/admin/page.tsx`); check the result of any new correlated subquery by hand.
 
+## MySQL "Out of sort memory": don't sort rows that carry big JSON
+
+When no index gives an `ORDER BY` its order, MySQL 8 sorts the rows in its sort buffer
+(`sort_buffer_size`, 256 KB by default) and carries through it every column the select reads —
+a JSON column whole, even when the select only takes `json_extract(…)`, `json_length(…)` or
+`… IS NOT NULL` of it. A row bigger than the buffer fails the query (`ER_OUT_OF_SORTMEMORY`,
+1038). A project's `scene`, `versions` and `calculator_board` reach hundreds of kilobytes once a
+design is furnished: the hubs' query (`loadHubProjects`, ordered by `updatedAt`) broke that way
+on a project with a 192 KB scene, and now sorts in code. A query that orders `projects` should
+sort in code, select only small columns, or order by an index — the profile's
+`userId` + `createdAt` has one (`projects_user_created_idx`). The admin's project lists still
+sort with `plan` and `selected_products` carried (for `isDesign` and `hasCalculator`): a plan
+near the buffer's size would break them the same way.
+
 ## Tests
 
 The schema itself has no tests; `tests/integration/save-routes.test.ts` mocks `@/lib/db` to test
