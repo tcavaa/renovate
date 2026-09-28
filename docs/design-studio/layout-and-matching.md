@@ -60,6 +60,23 @@ only just pokes out — against the polygon and the other pieces. A product that
 gives way to the next-best that does; when nothing fits the slot stays empty. Before this a
 3.2 m sofa in a 2.4 m room sat through the window.
 
+## Nothing stands through a wall
+
+Every spot a layout rule tries is judged by `fitsInRoom`, which is `boxInPolygon`
+(`lib/design/planGeometry.ts`): every corner of the piece's box in the room's outline, and no edge
+of the outline running through the box (a wall it only touches does not count: 5 mm of slack,
+`wallsEnterBox`). This covers the wall, the wall run, the centre, the corner, the pieces placed
+off another (the TV unit, the coffee table, the chairs round a table), the rug under a piece and
+any free floor. The matcher checks a product's real footprint at its slot the same way
+(`placeFitting` → `footprintInRoom`). Corners alone let the end of a partial wall stand inside a
+box whose four corners were all on the floor. In test project #219 the living room's TV unit,
+placed 3 m off the sofa and nudged sideways, stood on the tip of a diagonal partial wall with the
+rug under it; with the wall test it takes the next spot along. The corners are still tested
+exactly. Giving them the same slack as the walls let pieces into spots just past the outline
+that the engine never took, and changed the layout of about a hundred local rooms; comparing
+every local plan before and after, the wall test alone changed only #219's living room and its
+copy.
+
 ## Tight passages (`lib/design/clearance.ts`)
 
 `tightSpots` flags a piece a person could not get past: a big piece (≥ 0.8 m², ≥ 1.2 m
@@ -77,7 +94,10 @@ rule: the layout is still saved as arranged.
 ## Tests
 
 `tests/unit/design/matcher.test.ts` (same product per kind per room, rotation between rooms,
-fit with rooms, the model filter), `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
+fit with rooms, not through the end of a partial wall, the model filter),
+`tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — and
+nothing of a layout standing through a wall, on project 219's corner),
+`tests/unit/design/studio.test.ts` (`layoutRoom` for studio
 parts), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes),
 `tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`. The sample plan
 `public/samples/plan-2br.png` run through `layoutPlan` is the manual check for the layout as a
@@ -85,12 +105,6 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
-- The layout engine can stand a piece through the end of a partial wall. It tests a spot by the
-  four corners of its box, and a wall's end can lie inside a box whose corners are all in the
-  room. Seen in local test project #219: the style's TV unit stands on the tip of the diagonal
-  partial wall. The studio's placement test on a floor joined across separators
-  (`footprintOnFloor`, [studio.md](studio.md#direct-manipulation-libdesignmanipulatets)) sees
-  it, so the piece is outlined red when selected; the engine does not.
 - A model's real footprint (`footprintMasks`) is known only once the 3D view has loaded that
   file in this session; the 2D board still draws every piece as its box, and the layout
   engine, the matcher's fit check and the tight-passage warning all use the box.

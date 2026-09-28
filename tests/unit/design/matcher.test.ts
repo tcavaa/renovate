@@ -144,4 +144,24 @@ describe('matchProducts with rooms', () => {
     const [dropped] = matchProducts([sofa], [huge], { styleId: 'scandinavian', rooms: [room] });
     expect(dropped.product).toBeNull();
   });
+
+  it('does not stand a product through the end of a partial wall, where every corner of it is on the floor', async () => {
+    const { matchProducts } = await import('@/lib/design/matcher');
+    const { pointInPolygon } = await import('@/lib/design/planGeometry');
+    const { rebuildRooms } = await import('@/lib/design/walls');
+    // Test project 219's corner: a diagonal partial wall ending at (3, 2.5), a separator on from it.
+    const w = (id: string, a: [number, number], b: [number, number], extra: object = {}) => ({ id, a: { x: a[0], z: a[1] }, b: { x: b[0], z: b[1] }, thicknessM: 0.12, origin: 'existing' as const, ...extra });
+    const plan = rebuildRooms({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, [
+      w('top', [0, 0], [6.82, 0]), w('right', [6.82, 0], [6.82, 7.87]), w('bottom', [6.82, 7.87], [0, 7.87]), w('left', [0, 7.87], [0, 0]),
+      w('bed-top', [4.26, 3.73], [6.82, 3.73]), w('bed-left', [4.26, 3.73], [4.26, 7.87]),
+      w('diagonal', [4.26, 3.73], [3, 2.5]), w('diagonal-sep', [3, 2.5], [0, 3.73], { thicknessM: 0, separator: true }),
+    ]);
+    const living = plan.rooms.find((r) => pointInPolygon({ x: 1, z: 1 }, r.polygon))!;
+    const tv = catalogProduct(903, { model3dKind: 'tv_unit', categorySlug: 'storage', widthCm: 180, depthCm: 58, heightCm: 50 });
+    const atTip = { ...slot('tv', living.id, 'tv_unit', 'tv_unit'), position: { x: 2.96, z: 2.52 }, rotation: Math.PI, size: { width: 1.8, depth: 0.42, height: 0.5 } };
+    const [onTip] = matchProducts([atTip], [tv], { styleId: 'scandinavian', rooms: [living] });
+    expect(onTip.product).toBeNull();
+    const [clear] = matchProducts([{ ...atTip, position: { x: 4.31, z: 2.52 } }], [tv], { styleId: 'scandinavian', rooms: [living] });
+    expect(clear.product?.productId).toBe(903);
+  });
 });

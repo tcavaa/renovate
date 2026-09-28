@@ -277,10 +277,11 @@ wall a separator carries on from still holds it back). The pieces in all of the 
 are in its way. It squares up to and snaps flush against only the walls of the room it is in:
 near the end of a partial wall both faces are within reach, and with the whole floor's walls a
 coffee table jumped through to the far face. A piece belongs to the room its centre is in (the
-drag already re-homed it by the point under the pointer). A room with no separator is judged as
-before, all four corners in its polygon (`footprintInRoom`). The floor test is stricter than
-that: a box with every corner in the room can still have a wall's end inside it, which the
-corner test let through (see [layout-and-matching.md](layout-and-matching.md#known-gaps)).
+drag already re-homed it by the point under the pointer). A room with no separator is judged by
+`footprintInRoom`, which is `boxInPolygon` (`lib/design/planGeometry.ts`): all four corners in
+its polygon *and* no edge of it running through the box. Corners alone let a box stand across
+the end of a partial wall or the gap of a U with every corner on the floor. The layout engine and
+the matcher's fit use the same test ([layout-and-matching.md](layout-and-matching.md#nothing-stands-through-a-wall)).
 
 **A rug gets in nothing's way, and nothing gets in a rug's** (`blockersFor`). `blockingItems`
 always left the ghosts (rugs, pendants, artwork, curtains) out of what a dragged piece must

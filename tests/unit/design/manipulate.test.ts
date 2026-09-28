@@ -358,10 +358,10 @@ describe('a room separator is a line on the floor, not a wall', () => {
     const table = piece('table', lounge.id, 1.5, 1.2, 1.2, 1.2, 'coffee_table');
     const dragged = snapPlacement(lounge, table, { position: P(2.7, 2.62), rotation: 0 }, [], corner.rooms);
     expect(Math.hypot(dragged.position.x - 2.7, dragged.position.z - 2.62)).toBeLessThan(0.05);
-    // A TV unit with the wall's end inside its box stands through the wall: every corner of it
-    // is in the room, which is all the one-room test looked at.
+    // A TV unit with the wall's end inside its box stands through the wall, although every
+    // corner of it is in the room — in its room alone or on the floor across the separator.
     const tv = { ...piece('tv', lounge.id, 2.96, 2.52, 1.8, 0.58, 'tv_unit'), rotation: Math.PI };
-    expect(isPlacementValid(lounge, tv, [])).toBe(true);
+    expect(isPlacementValid(lounge, tv, [])).toBe(false);
     expect(isPlacementValid(lounge, tv, [], corner.rooms)).toBe(false);
   });
 

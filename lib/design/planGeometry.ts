@@ -165,6 +165,72 @@ export function wallEdges(room: Pick<PlanRoom, 'polygon' | 'open'>): PlanEdge[] 
   return room.open?.length ? edges.filter((e) => !room.open!.includes(e.index)) : edges;
 }
 
+/** An axis-aligned box in the ground plane: a piece's footprint, a layout slot. */
+export interface GroundBox {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+/** How far into a wall a box may reach and still only touch it, metres: standing flush is not standing in it. */
+const TOUCH_M = 0.005;
+
+/** Whether any part of the segment a–b lies inside the box, its sides not counted (Liang–Barsky). */
+function segmentEntersBox(a: Vec2, b: Vec2, box: GroundBox): boolean {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  let t0 = 0;
+  let t1 = 1;
+  // Each side of the box as p·t < q: where along the segment it is on the inside of that side.
+  const sides: Array<[number, number]> = [
+    [-dx, a.x - box.minX],
+    [dx, box.maxX - a.x],
+    [-dz, a.z - box.minZ],
+    [dz, box.maxZ - a.z],
+  ];
+  for (const [p, q] of sides) {
+    if (Math.abs(p) < 1e-12) {
+      if (q <= 0) return false;
+      continue;
+    }
+    if (p < 0) t0 = Math.max(t0, q / p);
+    else t1 = Math.min(t1, q / p);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}
+
+/** Whether a wall — any of these segments — runs through the box; touching one is not. */
+export function wallsEnterBox(walls: ReadonlyArray<{ a: Vec2; b: Vec2 }>, box: GroundBox): boolean {
+  const inner = { minX: box.minX + TOUCH_M, maxX: box.maxX - TOUCH_M, minZ: box.minZ + TOUCH_M, maxZ: box.maxZ - TOUCH_M };
+  if (inner.minX >= inner.maxX || inner.minZ >= inner.maxZ) return false;
+  return walls.some((wall) => segmentEntersBox(wall.a, wall.b, inner));
+}
+
+/**
+ * Whether a box stands inside a room's outline: every corner in it, and no edge of the outline
+ * running through the box. The corners alone let a box stand across the end of a partial wall,
+ * or span the gap of a U, with all four of them on the floor — the layout engine stood a TV unit
+ * on the tip of a diagonal partial wall that way. What the layout engine, the matcher's fit and
+ * a dragged piece are all judged by.
+ *
+ * The corners are tested exactly, as they always were; only the walls get `TOUCH_M` of slack
+ * (a piece flush against one stands against it). Drawing the corners in too let pieces into
+ * spots a hair past the outline that the layout engine never used to take, and moved the bed
+ * and wardrobe in a hundred generated rooms for no reason of this kind.
+ */
+export function boxInPolygon(box: GroundBox, polygon: Vec2[]): boolean {
+  const corners: Vec2[] = [
+    { x: box.minX, z: box.minZ },
+    { x: box.maxX, z: box.minZ },
+    { x: box.maxX, z: box.maxZ },
+    { x: box.minX, z: box.maxZ },
+  ];
+  if (!corners.every((corner) => pointInPolygon(corner, polygon))) return false;
+  return !wallsEnterBox(polygon.map((a, i) => ({ a, b: polygon[(i + 1) % polygon.length] })), box);
+}
+
 /** How far past an open edge to look for the room on its other side, metres. */
 const ACROSS_M = 0.05;
 

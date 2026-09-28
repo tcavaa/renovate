@@ -11,11 +11,13 @@
  */
 
 import {
+  boxInPolygon,
   floorWalls,
   openFloor,
   pointInPolygon,
   polygonBounds,
   roomEdges,
+  wallsEnterBox,
   type PlanEdge,
 } from './planGeometry';
 import { getArchetype } from './catalog';
@@ -88,15 +90,13 @@ export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = 0.02):
   );
 }
 
-/** Every corner of the footprint has to be inside the room, not just its centre. */
+/**
+ * Inside the room: every corner of the footprint in it, not just its centre, and no wall of it
+ * running through — the end of a partial wall can stand inside a box whose corners are all on
+ * the floor (`boxInPolygon`).
+ */
 export function footprintInRoom(footprint: Footprint, polygon: Vec2[]): boolean {
-  const corners: Vec2[] = [
-    { x: footprint.minX, z: footprint.minZ },
-    { x: footprint.maxX, z: footprint.minZ },
-    { x: footprint.maxX, z: footprint.maxZ },
-    { x: footprint.minX, z: footprint.maxZ },
-  ];
-  return corners.every((corner) => pointInPolygon(corner, polygon));
+  return boxInPolygon(footprint, polygon);
 }
 
 /**
@@ -119,9 +119,6 @@ function floorBounds(floor: readonly PlanRoom[]): Footprint {
   };
 }
 
-/** A piece touching a wall stands against it; this far into the wall it stands in it. */
-const WALL_TOUCH_M = 0.005;
-
 /**
  * Whether a footprint stands on a floor: in its one room (`footprintInRoom`), or — across room
  * separators — on the floor with no wall of it running through (`floorWalls`): over the
@@ -135,35 +132,7 @@ export function footprintOnFloor(footprint: Footprint, floor: readonly PlanRoom[
   const onFloor = [centre, { x: centre.x + 0.001, z: centre.z }, { x: centre.x - 0.001, z: centre.z }, { x: centre.x, z: centre.z + 0.001 }, { x: centre.x, z: centre.z - 0.001 }].some((p) =>
     floor.some((room) => pointInPolygon(p, room.polygon))
   );
-  if (!onFloor) return false;
-  const inner: Footprint = { minX: footprint.minX + WALL_TOUCH_M, maxX: footprint.maxX - WALL_TOUCH_M, minZ: footprint.minZ + WALL_TOUCH_M, maxZ: footprint.maxZ - WALL_TOUCH_M };
-  if (inner.minX >= inner.maxX || inner.minZ >= inner.maxZ) return true;
-  return !walls.some((wall) => segmentEntersBox(wall.a, wall.b, inner));
-}
-
-/** Whether any part of the segment a–b lies inside the box, its sides not counted (Liang–Barsky). */
-function segmentEntersBox(a: Vec2, b: Vec2, box: Footprint): boolean {
-  const dx = b.x - a.x;
-  const dz = b.z - a.z;
-  let t0 = 0;
-  let t1 = 1;
-  // Each side of the box as p·t < q: where along the segment it is on the inside of that side.
-  const sides: Array<[number, number]> = [
-    [-dx, a.x - box.minX],
-    [dx, box.maxX - a.x],
-    [-dz, a.z - box.minZ],
-    [dz, box.maxZ - a.z],
-  ];
-  for (const [p, q] of sides) {
-    if (Math.abs(p) < 1e-12) {
-      if (q <= 0) return false;
-      continue;
-    }
-    if (p < 0) t0 = Math.max(t0, q / p);
-    else t1 = Math.min(t1, q / p);
-    if (t0 >= t1) return false;
-  }
-  return true;
+  return onFloor && !wallsEnterBox(walls, footprint);
 }
 
 /**
