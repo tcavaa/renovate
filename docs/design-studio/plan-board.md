@@ -22,7 +22,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
 | `lib/design/roomNames.ts` | the names the app gives rooms: a kind's name, numbered only when the flat has several (`withRoomNames`, `nextRoomName`, `isAutoRoomName`, `readingOrder`) |
-| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator); `openFloor` / `floorWalls` (the rooms joined across separators, and what holds a piece in on them) |
+| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator); `openFloor` / `floorWalls` (the rooms joined across separators, and what holds a piece in on them); `boxInPolygon` / `wallsEnterBox` (a box inside a room: corners in, no wall through — the layout engine, the matcher and the studio) |
 | `lib/design/types.ts` | `FloorPlan`, `Room`, `Wall`, `Column`, `Beam`, `Opening`, … |
 | `components/plan/PlanEditor.tsx` | the canvas board: tools, gestures, pan/zoom; everything else is callbacks to the store |
 | `components/plan/PlanWorkspace.tsx` | the board wired to a store (the studio's by default, or the calculator's), with toolbar, hint line and undo keys |

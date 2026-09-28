@@ -25,8 +25,8 @@ import {
   type Size3,
 } from './catalog';
 import {
+  boxInPolygon,
   isOpenEdge,
-  pointInPolygon,
   pointOnEdge,
   polygonBounds,
   polygonCentroid,
@@ -876,16 +876,13 @@ function overlapsAny(box: Box, boxes: Box[]): boolean {
   return boxes.some((other) => overlaps(box, other));
 }
 
-/** Every corner of the footprint must be inside the room, not just its centre. */
+/**
+ * Every corner of the footprint inside the room, not just its centre, and no wall running
+ * through it (`boxInPolygon`). The corners alone stood a TV unit on the tip of a diagonal
+ * partial wall, and a rug under it: all four corners were on the floor.
+ */
 function fitsInRoom(pose: Pose, polygon: Vec2[]): boolean {
-  const box = boxFor(pose);
-  const corners: Vec2[] = [
-    { x: box.minX, z: box.minZ },
-    { x: box.maxX, z: box.minZ },
-    { x: box.maxX, z: box.maxZ },
-    { x: box.minX, z: box.maxZ },
-  ];
-  return corners.every((c) => pointInPolygon(c, polygon));
+  return boxInPolygon(boxFor(pose), polygon);
 }
 
 /** Blocks the approach to every door so furniture never lands in a doorway. */
