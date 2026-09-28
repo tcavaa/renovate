@@ -1093,6 +1093,8 @@ export const en: Dictionary = {
     meshes: '{n} parts',
     textures: '{n} textures',
     fileSize: '{mb} MB',
+    optimizing: 'Optimizing the model…',
+    optimizedSize: 'Optimized: {from} MB → {mb} MB',
     noTextures: 'No textures — the model will render in a flat colour',
     heavy: 'Heavy model — the studio may slow down',
     unitsCm: 'The model appears to be in centimetres — dimensions were converted; the studio scales it to the product size anyway',

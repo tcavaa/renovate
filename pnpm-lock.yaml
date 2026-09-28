@@ -17,6 +17,15 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.1127.0
         version: 3.1127.0
+      '@gltf-transform/core':
+        specifier: ^4.1.0
+        version: 4.5.0
+      '@gltf-transform/extensions':
+        specifier: ^4.1.0
+        version: 4.5.0
+      '@gltf-transform/functions':
+        specifier: ^4.1.0
+        version: 4.5.0(@types/node@22.19.17)
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.73.1(react@19.2.8))
@@ -62,6 +71,9 @@ importers:
       lucide-react:
         specifier: ^0.469.0
         version: 0.469.0(react@19.2.8)
+      meshoptimizer:
+        specifier: ^0.22.0
+        version: 0.22.0
       mysql2:
         specifier: ^3.11.5
         version: 3.22.2(@types/node@22.19.17)
@@ -108,15 +120,6 @@ importers:
         specifier: ^5.0.2
         version: 5.0.12(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
     devDependencies:
-      '@gltf-transform/core':
-        specifier: ^4.1.0
-        version: 4.5.0
-      '@gltf-transform/extensions':
-        specifier: ^4.1.0
-        version: 4.5.0
-      '@gltf-transform/functions':
-        specifier: ^4.1.0
-        version: 4.5.0(@types/node@22.19.17)
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
@@ -165,9 +168,6 @@ importers:
       jpeg-js:
         specifier: ^0.4.4
         version: 0.4.4
-      meshoptimizer:
-        specifier: ^0.22.0
-        version: 0.22.0
       obj2gltf:
         specifier: ^3.1.6
         version: 3.2.0

@@ -12,7 +12,9 @@ import { cn } from '@/lib/utils';
 /**
  * Upload a furniture GLB for the studio and see it before saving.
  *
- * The file goes to `/api/upload/model` (bytes checked server-side), the returned URL becomes
+ * The file is optimized in the browser first (`optimizeModelForUpload`: WebP textures, meshopt
+ * geometry — a 5–10 MB export comes out under 1 MB), goes to `/api/upload/model` (bytes checked
+ * and optimized again if the browser could not), the returned URL becomes
  * `products.model3dUrl`, and the same URL is then loaded here with the studio's own loader —
  * so what the preview shows is exactly what a room will get. From the geometry the uploader
  * reads the real size (cm) to prefill the product's dimensions, counts triangles and
@@ -56,6 +58,22 @@ export type PreviewHandle = {
   snapshot: () => Promise<Blob | null>;
 };
 
+/**
+ * The picked GLB made small in this browser before it is sent (`glbOptimizeBrowser`): a
+ * quicker upload, and one that fits the 4.5 MB a Vercel function accepts. The libraries load
+ * only now; if anything fails the file goes as it was, and the server's pass does the work.
+ * Shared with the studio's own-model dialog.
+ */
+export async function optimizeModelForUpload(file: File): Promise<File> {
+  try {
+    const { optimizeModelFile } = await import('@/lib/uploads/glbOptimizeBrowser');
+    return (await optimizeModelFile(file)).file;
+  } catch (e) {
+    console.error(e);
+    return file;
+  }
+}
+
 export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperText }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -73,6 +91,9 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
   /** What the preview knows about the URL it last tried; derived flags below key on the URL. */
   const [result, setResult] = useState<{ url: string; measured: ModelMeasurement | null; error: boolean } | null>(null);
   const [bytes, setBytes] = useState<number | null>(null);
+  /** The size of the file as picked, before the browser and the server optimized it. */
+  const [pickedBytes, setPickedBytes] = useState<number | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
   const [snapshotting, setSnapshotting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -115,17 +136,21 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
     };
   }, [previewUrl]);
 
-  const upload = (file: File) => {
+  const upload = async (picked: File) => {
     setError(null);
     setNotice(null);
-    if (!/\.glb$/i.test(file.name) && file.type !== 'model/gltf-binary') {
+    if (inputRef.current) inputRef.current.value = '';
+    if (!/\.glb$/i.test(picked.name) && picked.type !== 'model/gltf-binary') {
       setError(t.modelUploader.invalidFile);
       return;
     }
-    if (file.size > MAX_MB * 1024 * 1024) {
+    if (picked.size > MAX_MB * 1024 * 1024) {
       setError(fill(t.modelUploader.tooLarge, { mb: MAX_MB }));
       return;
     }
+    setOptimizing(true);
+    const file = await optimizeModelForUpload(picked);
+    setOptimizing(false);
     setProgress(0);
     const body = new FormData();
     body.append('file', file);
@@ -145,6 +170,7 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
           return;
         }
         setBytes(json.data.size);
+        setPickedBytes(picked.size);
         onChange(json.data.url);
       } catch {
         setError(t.modelUploader.uploadError);
@@ -155,7 +181,6 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
       setError(t.modelUploader.uploadError);
     };
     xhr.send(body);
-    if (inputRef.current) inputRef.current.value = '';
   };
 
   const snapshot = async () => {
@@ -182,18 +207,20 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
   };
 
   const uploading = progress != null;
+  const busy = optimizing || uploading;
+  const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
 
   return (
     <div className="space-y-3">
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploading}>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {uploading ? fill(t.modelUploader.uploading, { pct: progress }) : t.modelUploader.upload}
+            <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {optimizing ? t.modelUploader.optimizing : uploading ? fill(t.modelUploader.uploading, { pct: progress }) : t.modelUploader.upload}
             </Button>
             {value && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => onChange('')} disabled={uploading}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => onChange('')} disabled={busy}>
                 <X className="h-4 w-4" />
                 {t.modelUploader.remove}
               </Button>
@@ -210,7 +237,7 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
               <div className="h-1 bg-ink transition-[width]" style={{ width: `${progress}%` }} />
             </div>
           )}
-          <Input placeholder={t.modelUploader.urlPlaceholder} value={value} onChange={(e) => onChange(e.target.value)} disabled={uploading} />
+          <Input placeholder={t.modelUploader.urlPlaceholder} value={value} onChange={(e) => onChange(e.target.value)} disabled={busy} />
           {helperText && <p className="text-xs text-ink-muted">{helperText}</p>}
 
           {measured && (
@@ -233,7 +260,9 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
                 <span>{fill(t.modelUploader.triangles, { n: measured.triangles.toLocaleString('en-US') })}</span>
                 <span>{fill(t.modelUploader.meshes, { n: measured.meshes })}</span>
                 <span>{fill(t.modelUploader.textures, { n: measured.textures })}</span>
-                {bytes != null && <span>{fill(t.modelUploader.fileSize, { mb: (bytes / 1024 / 1024).toFixed(1) })}</span>}
+                {bytes != null && (
+                  <span>{pickedBytes != null && pickedBytes > bytes * 1.05 ? fill(t.modelUploader.optimizedSize, { from: mb(pickedBytes), mb: mb(bytes) }) : fill(t.modelUploader.fileSize, { mb: mb(bytes) })}</span>
+                )}
               </p>
               {measured.normalised && <p className="text-warning">{t.modelUploader.normalised}</p>}
               {!measured.normalised && measured.units !== 'm' && <p className="text-warning">{measured.units === 'cm' ? t.modelUploader.unitsCm : t.modelUploader.unitsMm}</p>}

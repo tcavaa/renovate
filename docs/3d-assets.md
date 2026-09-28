@@ -3,7 +3,8 @@
 Where every model and texture the studio uses comes from, the scripts that produce them, the
 conventions a file must meet to be placed, and how `pnpm models:seed` turns the manifests into
 products. Read this before touching `scripts/` (the model/texture pipelines), anything under
-`public/models/` or `public/textures/`, the GLB upload route, or `lib/design3d/modelLoader.ts`.
+`public/models/` or `public/textures/`, the GLB upload routes and their optimizer
+(`lib/uploads/glbOptimize*.ts`), or `lib/design3d/modelLoader.ts`.
 
 Related: [catalog.md](catalog.md) (products and the admin form) ·
 [design-studio/3d-engine.md](design-studio/3d-engine.md) (how models are loaded and placed) ·
@@ -70,7 +71,62 @@ wrong units still renders at the right size; what it cannot fix is orientation �
 of a piece has to face +Z with Y up, which is what `pnpm models:convert` produces and what
 the uploader's arrow shows. The upload route also refuses a GLB that *requires* Draco or
 Basis (`lib/uploads/glb.ts`): the studio's loader has neither decoder, and such a file would
-upload fine and then render as nothing. Meshopt is fine.
+upload fine and then render as nothing. Meshopt is fine. What is stored is not the file as it
+was picked but its optimized copy (next section).
+
+## Uploads are optimized
+
+A model uploaded in the product form or as a person's own furniture never goes through the
+import scripts, so it arrives the way its tool exported it: a Meshy export is three 2048-pixel
+JPEGs (4–5 MB) beside 1–4 MB of 32-bit geometry with tangents, nothing compressed — 5–10 MB for
+a sideboard a converted partner model would carry in 0.8. Both upload paths therefore run one
+recipe (`glbOptimize.ts`, isomorphic):
+
+- **Geometry**: `dedup` (keeping uniquely named parts), `dequantize` (a converted model sent
+  again is quantised; welding and simplifying want floats), `weld`, then `simplify` only as
+  far as 0.01 % of the model's size — coplanar triangles merge, nothing visible moves. A model
+  still over **100 000 triangles** is taken down to that in steps of 0.05 %, 0.1 % and 0.2 % of
+  its size and no further. `prune` keeps empty nodes (a model's named parts are its own
+  business), and `meshopt` (level `high`) quantises and compresses, which the studio's
+  `MeshoptDecoder` already reads. No `flatten` and no `join`: the node tree stays as uploaded.
+- **Textures**: WebP (`EXT_texture_webp`, required — three's loader reads it natively). The
+  **colour map keeps up to 2048 px**; normal, metallic-roughness and occlusion maps go to
+  1024 px (`getTextureColorSpace` tells them apart). Shrinking the colour map too was tried
+  and dropped: AI-made models pack it into hundreds of patches edge to edge with no gutter,
+  and at half the size neighbouring patches bleed into each other — green and pink triangles
+  across a wooden drawer front, at any resampling filter. A texture already WebP within its
+  size is left alone; a conversion that is not smaller is not kept (a resize always is — it is
+  GPU memory as much as download).
+- **A file that already meets all of it is kept byte for byte**, and so is one the recipe
+  cannot read or would not make smaller (`status: 'kept'`, with `already-optimized`,
+  `failed` or `not-smaller`) — the upload then goes on exactly as it did before there was a
+  recipe. Nothing here ever refuses a file.
+
+**Where it runs.** First in the uploader's browser — `optimizeModelForUpload`
+(`components/admin/ModelUploader.tsx`, shared by `components/studio/OwnModelDialog.tsx`)
+imports `glbOptimizeBrowser.ts` on demand (one lazy chunk, ~300 kB, 83 kB gzipped, never in
+the pages' initial JavaScript) and re-encodes textures through a canvas; the uploader shows
+"optimizing…" and then the size it went from and to. This is what lets a typical upload fit
+the 4.5 MB a Vercel function accepts. A browser that cannot write WebP (Safari: `convertToBlob`
+quietly answers with a PNG) shrinks an oversized JPEG as a JPEG and leaves the rest — the
+geometry is still compressed, and the three uploads below came to 1.8–3.6 MB that way. Then in
+the route — `optimizeUploadedModel` (`glbOptimizeServer.ts`, sharp, Lanczos) in
+`/api/upload/model` and `/api/design/models` — which keeps a browser-optimized file as it is
+and finishes any other: a Safari upload, a failed browser pass, a script posting straight to
+the route. The log says which: `model uploaded` (and `own model added`) carries
+`optimized: server | already-optimized | not-smaller | failed` beside the bytes received, and
+`model optimized` the bytes, triangles and time of a pass the route did itself.
+
+**What it measured** (Apple M4, the admin uploads it was written for): a 5.70 MB sideboard →
+0.36 MB (44 042 → 25 792 triangles) in 0.4 s; an 8.41 MB figure → 0.85 MB in 0.4 s; a 21.3 MB
+scan of 489 062 triangles → 1.16 MB at the 100 000 cap in 0.8 s, the server process peaking
+around 500 MB. Renders of the originals and the optimized files through the studio's loader
+differ in 0.1 % of pixels at room distance and 0.3–1 % in close-ups. GPU memory for the three
+textures halves (67 → 34 MB: a decoded 2048-pixel map is 22 MB with its mipmaps, whatever its
+file format). The browser pass took about 1.2 s for each of them in Chrome on the same
+machine, the 21 MB scan included, plus the chunk's download the first time; expect a slower
+laptop or a phone to take several times that. In the dev server the route's pass is slower
+too (about 1.5 s for the figure).
 
 ## Every object is a GLB
 
@@ -187,13 +243,25 @@ before; nobody was going to type in the rest.
 
 ## Tests
 
-`tests/unit/api/sniff.test.ts` (GLB sniffing and inspection), `tests/unit/design/colors.test.ts`
-(colour families), `tests/unit/design3d/footprintFromModel.test.ts` (a real Kenney GLB). Nothing
+`tests/unit/api/sniff.test.ts` (GLB sniffing and inspection), `tests/unit/api/glbOptimize.test.ts`
+(the upload recipe on generated files: meshopt and WebP, each map at its own size, the outline
+kept, the triangle cap, an optimized file and an unreadable one kept as they came),
+`tests/unit/design/colors.test.ts`
+(colour families), `tests/unit/design3d/footprintFromModel.test.ts` (a real Kenney GLB). The
+browser half (`glbOptimizeBrowser.ts`, the canvas) has no unit test — it was checked by
+uploading through the admin form and the own-furniture dialog. Nothing
 tests the converters, `stock-models`, `seed-models`, `modelColor`, `objGroups` or
 `textureClassify`; check a run's printed report and the manifest diff.
 
 ## Known gaps
 
+- Models uploaded before uploads were optimized are stored as they came (locally products #500
+  and #503, 5.7 and 8.4 MB); uploading the file again in the product form replaces it with an
+  optimized copy. Nothing re-optimizes stored files in bulk.
+- The optimizer keeps texture resolution for colour maps, so an upload's textures still take
+  about 34 MB of GPU memory against 17 MB for a converted model. KTX2 (Basis) would keep 2048
+  pixels at a fraction of that, but needs a transcoder in the studio and an encoder on the
+  server, and the upload route refuses Basis today.
 - The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
   reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**

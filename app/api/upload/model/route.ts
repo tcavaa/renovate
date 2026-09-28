@@ -3,6 +3,7 @@ import { API_ERRORS, fail, handle, ok, requireCatalogEditor } from '@/lib/api/ro
 import { safeKey, storage } from '@/lib/storage';
 import { MODEL_EXTENSION, sniffModel } from '@/lib/uploads/sniff';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
+import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -18,7 +19,8 @@ export const MAX_MODEL_BYTES = 40 * 1024 * 1024;
 /**
  * Upload of a furniture model for the studio, by admin or a store for its own products. GLB only, identified by its bytes: the
  * product form stores the returned URL in `products.model3dUrl`, which is what makes a
- * product placeable at all.
+ * product placeable at all. What is stored is the optimized file (`glbOptimizeServer`) —
+ * usually the one the form's browser already optimized, kept as it came.
  */
 export const POST = handle('POST /api/upload/model', 'Upload failed', async (req) => {
   const admin = await requireCatalogEditor();
@@ -40,8 +42,9 @@ export const POST = handle('POST /api/upload/model', 'Upload failed', async (req
     return fail(API_ERRORS.MODEL_UNSUPPORTED_COMPRESSION, 400);
   }
 
+  const { body, result } = await optimizeUploadedModel(bytes);
   const key = safeKey('models', `${Date.now()}-${randomBytes(6).toString('hex')}.${MODEL_EXTENSION}`);
-  const stored = await storage.put(key, bytes, mime);
-  log.info('model uploaded', { key, bytes: stored.size, by: admin.session.user.id, generator: info.generator, meshes: info.meshes, images: info.images });
+  const stored = await storage.put(key, body, mime);
+  log.info('model uploaded', { key, bytes: stored.size, received: bytes.length, optimized: result.status === 'optimized' ? 'server' : result.reason, by: admin.session.user.id, generator: info.generator, meshes: info.meshes, images: info.images });
   return ok({ url: stored.url, filename: key.split('/').pop(), size: stored.size });
 });

@@ -137,7 +137,7 @@ lib/
   db/          schema.ts, index.ts (pool + drizzle), json.ts, migrations/
   i18n/        ka.ts (source of the Dictionary type) en.ts ru.ts, client.tsx, server.ts, labels.ts
   storage/     local | s3 upload drivers; removing files nothing uses (cleanup, uploadKeys)
-  uploads/     byte sniffing (images, GLB)
+  uploads/     byte sniffing (images, GLB), a texture's colours, GLB optimization (browser + server)
   validations/ zod schemas per payload
   env.ts log.ts email.ts features.ts utils.ts
 store/         calculatorStore.ts designStore.ts projectScope.ts

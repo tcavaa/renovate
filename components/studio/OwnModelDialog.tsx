@@ -2,7 +2,8 @@
 
 /**
  * A piece of the person's own furniture, for their flats: the wardrobe they are keeping,
- * the table they already own. Two ways in — a GLB model, placeable at once, shown on the
+ * the table they already own. Two ways in — a GLB model, placeable at once, optimized in the
+ * browser as it is picked (the admin uploader's `optimizeModelForUpload`) and shown on the
  * turntable the admin's uploader uses so its size can be read off it and a photo rendered
  * from it; or a photo, which goes in as a product waiting for its model (the conversion
  * comes later; until then the item stands under "my items" and cannot be placed). Either
@@ -19,7 +20,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { mountPreview, type PreviewHandle } from '@/components/admin/ModelUploader';
+import { mountPreview, optimizeModelForUpload, type PreviewHandle } from '@/components/admin/ModelUploader';
+import { fill } from '@/lib/admin/list';
 import { ARCHETYPES, archetypeLabel } from '@/lib/design/catalog';
 import { isFixtureProductKind } from '@/lib/design/electrical';
 import { isOpeningProductKind } from '@/lib/design/openings';
@@ -36,6 +38,9 @@ const FURNITURE_KINDS = Object.values(ARCHETYPES)
 
 type Dims = { widthCm: string; depthCm: string; heightCm: string };
 
+/** A file size as the admin uploader shows it. */
+const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
+
 /** The kind's standard size, in whole centimetres. */
 function kindDims(kind: string): Dims {
   const size = ARCHETYPES[kind]?.size;
@@ -49,7 +54,12 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
   // Back to the page the dialogue was opened on (the studio of this project) once signed in.
   const pathname = usePathname();
   const [mode, setMode] = useState<'model' | 'photo'>('model');
+  /** The file as picked; `file` is what is shown and sent — for a model, the optimized one. */
+  const [picked, setPicked] = useState<File | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  /** Bumped by every pick, so a slow optimization of an earlier file cannot land after a later one. */
+  const pickRef = useRef(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [kind, setKind] = useState(FURNITURE_KINDS[0]);
@@ -107,8 +117,33 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
   const loading = mode === 'model' && !!previewUrl && loaded?.url !== previewUrl;
   const loadFailed = mode === 'model' && !!previewUrl && loaded?.url === previewUrl && !loaded.ok;
 
-  const reset = () => {
+  const clearFile = () => {
+    pickRef.current++;
+    setPicked(null);
     setFile(null);
+    setOptimizing(false);
+  };
+
+  /** A model is optimized here before it is shown and sent (`optimizeModelForUpload`); a photo goes as it is. */
+  const pick = async (next: File | null) => {
+    const token = ++pickRef.current;
+    setPicked(next);
+    setError(null);
+    if (!next || mode !== 'model') {
+      setOptimizing(false);
+      setFile(next);
+      return;
+    }
+    setFile(null);
+    setOptimizing(true);
+    const optimized = await optimizeModelForUpload(next);
+    if (token !== pickRef.current) return;
+    setOptimizing(false);
+    setFile(optimized);
+  };
+
+  const reset = () => {
+    clearFile();
     setName('');
     setError(null);
     setDimsFrom('kind');
@@ -187,7 +222,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
                   aria-selected={mode === tab.id}
                   onClick={() => {
                     setMode(tab.id);
-                    setFile(null);
+                    clearFile();
                     setError(null);
                   }}
                   className={cn('flex items-start gap-3 rounded-[12px] border p-3 text-left transition-colors', mode === tab.id ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
@@ -202,21 +237,28 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
             </div>
 
             {/* The file, and what it looks like. */}
-            <label className={cn('flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed p-5 text-center transition-colors', file ? 'border-line bg-bg-base' : 'border-ink/30 bg-bg-base hover:border-ink')}>
+            <label className={cn('flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed p-5 text-center transition-colors', picked ? 'border-line bg-bg-base' : 'border-ink/30 bg-bg-base hover:border-ink')}>
               <input
                 type="file"
                 accept={mode === 'model' ? '.glb,model/gltf-binary' : 'image/png,image/jpeg,image/webp'}
                 className="sr-only"
                 onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null);
-                  setError(null);
+                  const next = e.target.files?.[0] ?? null;
                   e.target.value = '';
+                  void pick(next);
                 }}
               />
               <Upload className="h-5 w-5 text-ink-muted" />
-              <span className="text-sm font-medium text-ink">{file ? file.name : mode === 'model' ? t.design.ownDropModel : t.design.ownDropPhoto}</span>
+              <span className="text-sm font-medium text-ink">{picked ? picked.name : mode === 'model' ? t.design.ownDropModel : t.design.ownDropPhoto}</span>
               <span className="text-xs text-ink-muted">{mode === 'model' ? t.design.ownDropModelNote : t.design.ownDropPhotoNote}</span>
             </label>
+            {mode === 'model' && optimizing && (
+              <p className="flex items-center gap-2 text-xs text-ink-muted">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t.modelUploader.optimizing}
+              </p>
+            )}
+            {mode === 'model' && picked && file && picked.size > file.size * 1.05 && <p className="text-xs text-ink-muted">{fill(t.modelUploader.optimizedSize, { from: megabytes(picked.size), mb: megabytes(file.size) })}</p>}
 
             {previewUrl && mode === 'model' && (
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">

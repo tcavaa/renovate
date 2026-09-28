@@ -31,10 +31,14 @@ runtime yet.
 - **Realistic renders**: `project_renders` rows wait in `queued`; a worker that calls an image
   model with the screenshot and scene, writes `renderUrl` and flips the status is not built
   ([design-studio/studio.md](design-studio/studio.md#known-gaps)).
-- **Uploads on Vercel**: request bodies are capped at 4.5 MB, so large GLBs, plan images and
-  photos need a direct-to-bucket upload (a presigned PUT, then the byte sniff and the record);
-  the planned storage driver writing to the cPanel box over WebDAV is not built either
+- **Uploads on Vercel**: request bodies are capped at 4.5 MB, so plan images, photos and the
+  rare GLB still over it after the browser's optimization need a direct-to-bucket upload (a
+  presigned PUT, then the byte sniff, the GLB optimization and the record); the planned
+  storage driver writing to the cPanel box over WebDAV is not built either
   ([operations.md](operations.md)).
+- **Models uploaded before optimization** stay as they came (locally #500 and #503); nothing
+  re-optimizes stored files in bulk — re-upload them in the product form
+  ([3d-assets.md](3d-assets.md#known-gaps)).
 - **The Claude plan reader has not met a real plan with a real key**; expect prompt and
   label-parsing tuning at first contact ([design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps)).
 - **Partners manage more themselves**: reviews and portfolios are seeded, not partner-managed; a
