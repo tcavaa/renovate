@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { fitSwapped, hangOnWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
+import { fitSwapped, footprintOf, footprintsOverlap, hangOnWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
+import { getArchetype } from '@/lib/design/catalog';
 import { withPartialWallSeparators, withSplitRoomTypes } from '@/lib/design/separators';
 import { rebuildRooms } from '@/lib/design/walls';
 import { clearFootprintMasks, maskFromGrid, registerFootprintMask } from '@/lib/design/footprintMasks';
 import { floorWalls, openFloor, pointInPolygon, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
-import type { FloorPlan, PlacedItem, PlanRoom, Vec2, Wall } from '@/lib/design/types';
+import type { FloorPlan, Opening, PlacedItem, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
 const room: PlanRoom = refreshRoom({
   id: 'r1',
@@ -114,6 +115,111 @@ describe('a rug gets in nothing’s way, and nothing gets in a rug’s', () => {
 
   it('still keeps it inside the room', () => {
     expect(isPlacementValid(room, { ...rug, position: { x: 3.8, z: 2.4 } }, [sofa])).toBe(false);
+  });
+});
+
+describe('a piece flush against a wall stands in the room, whichever wall it is', () => {
+  it('drags a sofa edge-on into each of the four walls and lets it stand there', () => {
+    const sofa = item('sofa', 2, 1.5, 2, 0.9);
+    const pushed = [
+      snapPlacement(room, sofa, { position: { x: 0.5, z: 1.5 }, rotation: 0 }, []),
+      snapPlacement(room, sofa, { position: { x: 3.5, z: 1.5 }, rotation: 0 }, []),
+      snapPlacement(room, sofa, { position: { x: 2, z: 0.5 }, rotation: Math.PI / 2 }, []),
+      snapPlacement(room, sofa, { position: { x: 2, z: 2.5 }, rotation: Math.PI / 2 }, []),
+    ];
+    // West, east, north, south: clamped flush against the wall, and fine on every side. The ray
+    // cast counts a point on the east or south wall as outside, and those two were outlined red.
+    expect(pushed.map(({ position, valid }) => ({ position, valid }))).toEqual([
+      { position: { x: 1, z: 1.5 }, valid: true },
+      { position: { x: 3, z: 1.5 }, valid: true },
+      { position: { x: 2, z: 1 }, valid: true },
+      { position: { x: 2, z: 2 }, valid: true },
+    ]);
+  });
+
+  it('lets a piece stand in any corner, and not a centimetre past any wall', () => {
+    const at = (x: number, z: number) => isPlacementValid(room, item('a', x, z, 1, 1), []);
+    expect([at(0.5, 0.5), at(3.5, 0.5), at(3.5, 2.5), at(0.5, 2.5)]).toEqual([true, true, true, true]);
+    expect([at(0.49, 1.5), at(3.51, 1.5), at(2, 0.49), at(2, 2.51)]).toEqual([false, false, false, false]);
+  });
+});
+
+describe('a dining chair tucks under its table', () => {
+  const table = (x: number, z: number): PlacedItem => ({ ...item('table', x, z, 1.6, 0.9), slot: 'dining_table', kind: 'dining_table' });
+  const chair = (id: string, x: number, z: number, rotation = 0): PlacedItem => ({ ...item(id, x, z, 0.46, 0.5, rotation), slot: 'dining_chair', kind: 'dining_chair' });
+
+  it('lets a chair stand half under the table, and the table over the chair', () => {
+    // The table across the middle of the room (z 1.05 → 1.95), the chair facing it with its seat 15 cm under the edge.
+    const t = table(2, 1.5);
+    const c = chair('c', 2, 0.95);
+    expect(isPlacementValid(room, c, [t])).toBe(true);
+    expect(isPlacementValid(room, t, [c])).toBe(true);
+  });
+
+  it('keeps both out of everything else’s way, and the chairs out of each other’s', () => {
+    const sofa = item('sofa', 2, 0.5, 2, 0.9);
+    expect(isPlacementValid(room, chair('c', 2, 1.1), [sofa])).toBe(false);
+    expect(isPlacementValid(room, table(2, 1.3), [sofa])).toBe(false);
+    expect(isPlacementValid(room, chair('c', 1.8, 2.3), [chair('d', 2.1, 2.3)])).toBe(false);
+  });
+
+  it('drags a chair in under the table, and turns the table where it stands among its chairs', () => {
+    const t = table(2, 1.5);
+    const chairs = [chair('n', 2.4, 0.95), chair('s', 2, 2.05, Math.PI)];
+    const dragged = snapPlacement(room, chair('c', 0.6, 0.6), { position: { x: 1.45, z: 0.95 }, rotation: 0 }, [t, ...chairs]);
+    expect(dragged.valid).toBe(true);
+    expect(dragged.position.z).toBeCloseTo(0.95, 6);
+    // A quarter turn puts the table over both chairs: it turns where it is instead of being refused.
+    const turned = rotateItem(room, t, 2, chairs);
+    expect(turned.valid).toBe(true);
+    expect(turned.position).toEqual(t.position);
+  });
+});
+
+describe('footprintOf', () => {
+  it('is exact at a right angle: a bed turned −π/2 flush against a wall starts on it, not 1e-16 m past it', () => {
+    // Math.cos(−π/2) is 6e-17, which used to put the box's edge a hair outside z = 0.
+    const box = footprintOf({ x: 2.635, z: 0.8 }, { width: 1.6, depth: 2.05 }, -Math.PI / 2);
+    expect(box.minZ).toBe(0);
+    expect(box.maxZ).toBe(1.6);
+    expect(footprintOf({ x: 1, z: 1 }, { width: 1.6, depth: 2.05 }, Math.PI * 1.5)).toEqual(footprintOf({ x: 1, z: 1 }, { width: 1.6, depth: 2.05 }, -Math.PI / 2));
+    // At an odd angle it is still the box round the turned rectangle.
+    expect(footprintOf({ x: 0, z: 0 }, { width: 2, depth: 1 }, Math.PI / 6).maxX).toBeCloseTo(Math.cos(Math.PI / 6) + Math.sin(Math.PI / 6) / 2, 12);
+  });
+});
+
+describe('the studio lets stand what the layout engine placed', () => {
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const opening = (id: string, kind: Opening['kind'], wallIndex: number, t: number, widthM: number, heightM: number, sillM: number): Opening => ({ id, kind, wallIndex, t, widthM, heightM, sillM, roomId: 'r', exterior: kind === 'window' });
+  const at = (type: PlanRoom['type'], polygon: Vec2[], openings: Opening[]): PlanRoom => refreshRoom({ id: 'r', type, name: type, polygon, heightM: 2.8, areaM2: 0, perimeterM: 0, openings });
+  /** How the studio judges each piece the engine stood on the floor. */
+  const judged = (r: PlanRoom, items: PlacedItem[]) =>
+    items
+      .filter((i) => !['ceiling', 'wall-mounted', 'window'].includes(getArchetype(i.kind)?.placement.type ?? ''))
+      .map((i) => ({ id: i.id, valid: isPlacementValid(r, i, items) }));
+  const box = (i: PlacedItem) => footprintOf(i.position, i.size, i.rotation);
+
+  it('a tight kitchen’s chair tucked under its table, and the table', async () => {
+    const { layoutRoom } = await import('@/lib/design/autoLayout');
+    // A local project's kitchen, 3.4 × 4.21: the fridge on the north wall leaves the end chair no
+    // room until the engine pushes it 12 cm in, 3 cm under the table.
+    const kitchen = at('kitchen', [P(0, 0), P(3.4, 0), P(3.4, 4.21), P(0, 4.21)], [opening('a', 'archway', 3, 0.63, 1.6, 2.2, 0), opening('w', 'window', 1, 0.5, 1.8, 1.4, 0.9)]);
+    const items = layoutRoom(kitchen);
+    const table = items.find((i) => i.kind === 'dining_table')!;
+    expect(items.some((i) => i.kind === 'dining_chair' && footprintsOverlap(box(i), box(table)))).toBe(true);
+    for (const piece of judged(kitchen, items)) expect(piece).toEqual({ id: piece.id, valid: true });
+  });
+
+  it('a bed pushed flush into a corner at −π/2', async () => {
+    const { layoutRoom } = await import('@/lib/design/autoLayout');
+    // A local project's bedroom, 3.68 × 2.84: the bed against the east wall, its side in the north-east corner.
+    const bedroom = at('bedroom', [P(0, 0), P(3.68, 0), P(3.68, 2.84), P(0, 2.84)], [opening('d', 'door', 2, 0.5, 0.85, 2.05, 0), opening('w', 'window', 0, 0.5, 1.4, 1.4, 0.9)]);
+    const items = layoutRoom(bedroom);
+    const bed = items.find((i) => i.kind === 'bed_double')!;
+    expect(bed.rotation).toBe(-Math.PI / 2);
+    // Turned a quarter, its width runs along z: its side is exactly on the wall at z = 0.
+    expect(bed.position.z - bed.size.width / 2).toBe(0);
+    for (const piece of judged(bedroom, items)) expect(piece).toEqual({ id: piece.id, valid: true });
   });
 });
 
@@ -250,6 +356,17 @@ describe('hangOnWall', () => {
     const hung = hangOnWall(room, clock(), 0, { x: 1.5, z: 0 }, 1.5, [], { along: 0.08, up: 0.1 })!;
     expect(hung.position.x).toBeCloseTo(1.6, 6);
     expect(hung.elevationM).toBeCloseTo(1.6 - 0.16, 6);
+  });
+
+  it('hangs a piece at either end of every wall — the east and south ends used to be refused', () => {
+    // Pushed to each end, the clock is kept off it by half its width: its side on the wall across.
+    const ends: Array<[number, Vec2]> = [
+      [0, { x: 0.01, z: 0 }], [0, { x: 3.99, z: 0 }],
+      [1, { x: 4, z: 0.01 }], [1, { x: 4, z: 2.99 }],
+      [2, { x: 3.99, z: 3 }], [2, { x: 0.01, z: 3 }],
+      [3, { x: 0, z: 2.99 }], [3, { x: 0, z: 0.01 }],
+    ];
+    expect(ends.map(([wall, at]) => hangOnWall(room, clock(), wall, at, 1.5, [])!.valid)).toEqual(new Array(8).fill(true));
   });
 
   it('centres a piece wider than its wall, and answers null for a wall the room has not got', () => {

@@ -52,25 +52,46 @@ const WALL_SNAP_M = 0.35;
 const ANGLE_SNAP_RAD = (14 * Math.PI) / 180;
 /** Dragged positions land on a 5 cm grid, which is how furniture is actually measured. */
 const GRID_M = 0.05;
+/** A rotation's cosine or sine this small is a right angle's floating-point noise, not a turn. */
+const RIGHT_ANGLE_EPS = 1e-9;
+/** How far past its room's outline a piece may reach and still be in it: floating-point noise, not a wall. */
+const OUTLINE_NOISE_M = 1e-9;
 
 // ---------------------------------------------------------------------------
 // Footprints and collision
 // ---------------------------------------------------------------------------
 
 /**
+ * The cosine and sine of a rotation, exact at the right angles furniture stands at.
+ * `Math.cos(-Math.PI / 2)` is 6e-17, not 0: a bed the layout engine had pushed flush into a
+ * corner at −π/2 got a box reaching 1e-16 m past the wall, and `boxInPolygon`'s exact corner
+ * test called it outside the room. The engine's own box (`boxFor`) squares the rotation and
+ * never had the error.
+ */
+function trigOf(rotation: number): { cos: number; sin: number } {
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  if (Math.abs(cos) < RIGHT_ANGLE_EPS) return { cos: 0, sin: Math.sign(sin) };
+  if (Math.abs(sin) < RIGHT_ANGLE_EPS) return { cos: Math.sign(cos), sin: 0 };
+  return { cos, sin };
+}
+
+/**
  * World-space footprint of an item.
  *
  * Rooms are rectilinear and everything ends up square to a wall, so an axis-aligned box is
- * exact for the usual case. At an odd angle it is the bounding box of the rotated rectangle,
- * which is conservative — it will refuse a placement slightly before things actually touch.
+ * exact for the usual case — to the last bit, as the layout engine's is (`trigOf`). At an odd
+ * angle it is the bounding box of the rotated rectangle, which is conservative — it will
+ * refuse a placement slightly before things actually touch.
  */
 export function footprintOf(
   position: Vec2,
   size: { width: number; depth: number },
   rotation: number
 ): Footprint {
-  const cos = Math.abs(Math.cos(rotation));
-  const sin = Math.abs(Math.sin(rotation));
+  const trig = trigOf(rotation);
+  const cos = Math.abs(trig.cos);
+  const sin = Math.abs(trig.sin);
   const halfX = (size.width * cos + size.depth * sin) / 2;
   const halfZ = (size.width * sin + size.depth * cos) / 2;
   return {
@@ -81,7 +102,10 @@ export function footprintOf(
   };
 }
 
-export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = 0.02): boolean {
+/** How far two pieces may reach into each other and still only touch. */
+export const PIECE_TOUCH_M = 0.02;
+
+export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = PIECE_TOUCH_M): boolean {
   return (
     a.minX < b.maxX - tolerance &&
     a.maxX > b.minX + tolerance &&
@@ -93,10 +117,22 @@ export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = 0.02):
 /**
  * Inside the room: every corner of the footprint in it, not just its centre, and no wall of it
  * running through — the end of a partial wall can stand inside a box whose corners are all on
- * the floor (`boxInPolygon`).
+ * the floor (`boxInPolygon`) — judged a nanometre in from the box's sides (`OUTLINE_NOISE_M`).
+ * What a piece a person moves or hangs is judged by, and a product the matcher fits to a slot.
+ *
+ * The corner test is exact, and its ray cast counts a point on an east or south wall (the larger
+ * x or z) as outside the room and one on a west or north wall as inside. A piece clamped flush
+ * against a wall (`clampInside`, the matcher's `clampInsideRoom`) stands exactly on it, so on
+ * two sides of every room it was out: a sofa pushed edge-on into the east wall was outlined red
+ * where the same push into the west wall was fine, a clock at the east or south end of a wall
+ * was refused, and the matcher gave a product flush against those walls a next-best — a smaller
+ * plant in the corner, another wardrobe. The nanometre also takes up a clamp's rounding
+ * (`wall + half − half` need not be the wall). The layout engine keeps the exact test
+ * (`boxInPolygon`): its spots are chosen by it, and slack there moves them.
  */
 export function footprintInRoom(footprint: Footprint, polygon: Vec2[]): boolean {
-  return boxInPolygon(footprint, polygon);
+  const e = OUTLINE_NOISE_M;
+  return boxInPolygon({ minX: footprint.minX + e, maxX: footprint.maxX - e, minZ: footprint.minZ + e, maxZ: footprint.maxZ - e }, polygon);
 }
 
 /**
@@ -158,9 +194,26 @@ export function blockingItems(items: PlacedItem[], roomId: string | readonly str
  * way, and nothing gets in a rug's. It only ran one way — the layout engine laid the rug
  * under the sofa, and the moment a person picked that rug up there was no floor in the room
  * it could be put down on again, because every spot worth a rug has furniture standing on it.
+ *
+ * A dining chair and a dining table are not in each other's way either (`tucksUnder`): the
+ * layout engine seats chairs part-way under their table when the room is tight, testing a seat
+ * against everything but the table (`placeSeatAroundTable`), and the studio outlined the chair
+ * and the table it had tucked it under red — nor could a person push a chair in themselves.
  */
 function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly PlanRoom[]): PlacedItem[] {
-  return getArchetype(item.kind)?.ghost ? [] : blockingItems(others, floor.map((room) => room.id), item.id);
+  if (getArchetype(item.kind)?.ghost) return [];
+  return blockingItems(others, floor.map((room) => room.id), item.id).filter((other) => !tucksUnder(item, other));
+}
+
+/**
+ * A dining chair and a dining table, either way round: the chair's seat slides under the table's
+ * top. The studio lets such a pair overlap freely; the matcher, which puts real products of other
+ * sizes into the engine's slots, only for a chair the engine tucked under its table, and only up
+ * to half the chair (`placeFitting`).
+ */
+export function tucksUnder(a: Pick<PlacedItem, 'kind'>, b: Pick<PlacedItem, 'kind'>): boolean {
+  const slots = [getArchetype(a.kind)?.slot, getArchetype(b.kind)?.slot];
+  return slots.includes('dining_chair') && slots.includes('dining_table');
 }
 
 /**
@@ -174,8 +227,7 @@ export function itemFootprints(item: Pick<PlacedItem, 'position' | 'size' | 'rot
   const rotation = pose?.rotation ?? item.rotation;
   const mask = footprintMaskFor(item.product?.model3dUrl);
   if (!mask) return [footprintOf(position, item.size, rotation)];
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
+  const { cos, sin } = trigOf(rotation);
   return mask.map((rect) => {
     // A mirrored piece is the same model flipped across its facing axis.
     const x0 = item.mirrored ? 1 - rect.x1 : rect.x0;

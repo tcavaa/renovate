@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applySwap, candidatesFor, matchProducts, quantityFor, toSceneProduct, type CatalogProduct } from '@/lib/design/matcher';
+import { refreshRoom } from '@/lib/design/planGeometry';
 import type { PlacedItem } from '@/lib/design/types';
 
 function catalogProduct(id: number, overrides: Partial<CatalogProduct> = {}): CatalogProduct {
@@ -163,5 +164,48 @@ describe('matchProducts with rooms', () => {
     expect(onTip.product).toBeNull();
     const [clear] = matchProducts([{ ...atTip, position: { x: 4.31, z: 2.52 } }], [tv], { styleId: 'scandinavian', rooms: [living] });
     expect(clear.product?.productId).toBe(903);
+  });
+});
+
+describe('matchProducts against every wall alike', () => {
+  it('fits a product flush in any corner of the room — on the east and south walls it used to give way', () => {
+    const room = refreshRoom({ id: 'room', type: 'living_room', name: 'room', polygon: [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3 }, { x: 0, z: 3 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+    const plant = catalogProduct(40, { model3dKind: 'plant', categorySlug: 'decor', widthCm: 100, depthCm: 100, heightCm: 120 });
+    const corner = (id: string, x: number, z: number): PlacedItem => ({ ...slot(id, 'room', 'plant', 'plant'), position: { x, z }, size: { width: 1, depth: 1, height: 1.2 } });
+    // North-west, north-east, south-east, south-west: each 1 m product exactly in its corner.
+    const items = matchProducts([corner('nw', 0.5, 0.5), corner('ne', 3.5, 0.5), corner('se', 3.5, 2.5), corner('sw', 0.5, 2.5)], [plant], { styleId: 'scandinavian', rooms: [room] });
+    expect(items.map((i) => i.product?.productId ?? null)).toEqual([40, 40, 40, 40]);
+  });
+});
+
+describe('matchProducts with a chair the engine tucked under its table', () => {
+  const kitchen = refreshRoom({ id: 'kitchen', type: 'kitchen', name: 'kitchen', polygon: [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3 }, { x: 0, z: 3 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+  /** The table's slot across the middle of the room, its north edge at z 1.05. */
+  const table: PlacedItem = { ...slot('table', 'kitchen', 'dining_table', 'dining_table'), position: { x: 2, z: 1.5 }, size: { width: 1.6, depth: 0.9, height: 0.76 } };
+  /** A chair's slot facing the table from the north, its front `under` metres past the table's edge. */
+  const chair = (under: number): PlacedItem => ({ ...slot('chair', 'kitchen', 'dining_chair', 'dining_chair'), position: { x: 2, z: 1.05 + under - 0.25 }, size: { width: 0.46, depth: 0.5, height: 0.92 } });
+  const tableProduct = (id: number, depthCm: number, pricePerUnit: number) => catalogProduct(id, { model3dKind: 'dining_table', categorySlug: 'tables', widthCm: 160, depthCm, heightCm: 76, pricePerUnit });
+  const chairProduct = (id: number, depthCm: number) => catalogProduct(id, { model3dKind: 'dining_chair', categorySlug: 'chairs', widthCm: 46, depthCm, heightCm: 92 });
+  const match = (items: PlacedItem[], catalog: CatalogProduct[]) => matchProducts(items, catalog, { styleId: 'scandinavian', rooms: [kitchen] });
+
+  it('gives the table and a chair tucked 3 cm under it both their products — both used to be dropped', () => {
+    const [t, c] = match([table, chair(0.03)], [tableProduct(1, 90, 1200), chairProduct(2, 50)]);
+    expect(t.product?.productId).toBe(1);
+    expect(c.product?.productId).toBe(2);
+    // A chair deeper than its slot, in the same place, has only its seat further under: it fits too.
+    expect(match([table, chair(0.03)], [tableProduct(1, 90, 1200), chairProduct(3, 58)])[1].product?.productId).toBe(3);
+  });
+
+  it('never stands a table product over more than half of that chair', () => {
+    // 1.5 m deep, the table would cover 33 cm of the 50 cm chair: the next table that fits takes the slot.
+    const [t] = match([table, chair(0.03)], [tableProduct(4, 150, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);
+    expect(t.product?.productId).toBe(1);
+  });
+
+  it('keeps a chair the engine left clear of its table in the table’s way, as before', () => {
+    // Seated 9 cm off the edge, as the engine seats a chair it did not tuck in: a 1.18 m deep
+    // table would reach 5 cm into it, more than two pieces may touch.
+    const [t] = match([table, chair(-0.09)], [tableProduct(5, 118, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);
+    expect(t.product?.productId).toBe(1);
   });
 });
