@@ -29,7 +29,7 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `lib/uploads/textureColors.ts`, `app/api/upload/route.ts` | an image upload; a texture (`folder: textures`) comes back with the colours read off it (`colorsOfImage`) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
 | `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
-| `app/api/upload/model/route.ts`, `lib/uploads/glb.ts` | GLB upload and inspection (`sniffModel`, `inspectGlb`) |
+| `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload, inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `app/api/design/models/**`, `components/studio/OwnModelDialog.tsx`, `components/profile/MyModels.tsx` | a person's own furniture |
 | `app/(main)/catalog/page.tsx`, `[slug]/page.tsx`, `components/catalog/*` | the public catalogue (sidebar, filters, grid) and the product page (`ProductModelDrawer`) |
 | `lib/validations/product.schema.ts`, `store.schema.ts`, `category.schema.ts` | payloads |
@@ -95,11 +95,15 @@ only, which is why nothing could send a finish's settings.
 **Only products with a `model3dUrl` are ever placed.** `matchProducts` drops everything
 without one before it looks at archetype or style. There are two ways a product gets one:
 
-- **Upload a GLB in the product form** (`components/admin/ModelUploader.tsx`). The file goes
+- **Upload a GLB in the product form** (`components/admin/ModelUploader.tsx`). The file is
+  optimized in the browser first (`optimizeModelForUpload`: WebP textures, meshopt geometry —
+  a 5–10 MB export comes out under 1 MB; the button says so while it works), goes
   to `POST /api/upload/model` (admin, catalogue agents and linked stores —
   `requireCatalogEditor`; bytes checked by `sniffModel`: `glTF` magic, container version 2,
-  JSON first chunk; 40 MB cap; a file that requires Draco or Basis, or has no mesh, is refused)
-  and lands under `models/` in storage (`/uploads/models/…` locally). The form then loads that
+  JSON first chunk; 40 MB cap; a file that requires Draco or Basis, or has no mesh, is refused;
+  optimized again if the browser could not — [3d-assets.md](3d-assets.md#uploads-are-optimized))
+  and lands under `models/` in storage (`/uploads/models/…` locally); the form shows the size
+  it went from and to. The form then loads that
   URL with a GLTFLoader and meshopt decoder like the studio's (`mountPreview`) and shows it on a turntable with a grid and an arrow for the front (+Z), reads the real
   size from the geometry to prefill width/depth/height (a file in cm or mm is recognised by
   its size and converted), counts triangles and textures, and can render a PNG of the model
@@ -149,8 +153,11 @@ already have: the "+" on the furniture shelf (and in the catalogue modal) takes 
 photo and makes a *product* of it — a real row, so the layout, the carry, the budget and
 the saves all work unchanged — owned by that person (`ownerUserId`), priced at nothing,
 sold by nobody, in the archetype's category (`ARCHETYPES[kind].categorySlug`). A GLB is
-inspected like a partner's (`sniffModel`, `inspectGlb`, no Draco/Basis), shown on the
-admin uploader's turntable (`mountPreview`, exported from `ModelUploader`) so its size is
+optimized in the browser as it is picked (the admin uploader's `optimizeModelForUpload`; the
+dialog shows the size it went from and to), inspected and optimized by the route like a
+partner's (`sniffModel`, `inspectGlb`, no Draco/Basis, `optimizeUploadedModel`), shown on the
+admin uploader's turntable (`mountPreview`, exported from `ModelUploader`) — the optimized
+file, so what the person sees is what the studio will place — so its size is
 read off it and a photo rendered for the tile, and is placeable at once — the studio puts
 it on the pointer. A photo goes in with `model3dStatus: 'pending'`: listed under "my
 items" with a badge, not placeable, waiting for the conversion that is not built yet (AI,
@@ -231,6 +238,8 @@ bulk: admin's, a store's own products, never the catalogue agent's),
 `tests/unit/admin/categoryIcons.test.ts` (icon names, search, drawings), the category tree's
 tests ([categories.md](categories.md#tests)),
 `tests/unit/api/sniff.test.ts` (image and GLB sniffing, Draco/Basis refusal),
+`tests/unit/api/glbOptimize.test.ts` (an uploaded GLB optimized: meshopt, WebP at each map's
+size, the triangle cap, a file already optimized or unreadable kept as it came),
 `tests/unit/api/uploadKeys.test.ts` (which stored files may be deleted, what an edit let go
 of), `tests/unit/api/publicPartners.test.ts` (a store's public face),
 `tests/unit/design/matcher.test.ts` (only products with a model are placed),

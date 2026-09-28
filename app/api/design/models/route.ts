@@ -13,6 +13,7 @@ import { isRadiatorProductKind } from '@/lib/design/radiators';
 import { safeKey, storage } from '@/lib/storage';
 import { IMAGE_EXTENSION, MODEL_EXTENSION, sniffImage, sniffModel } from '@/lib/uploads/sniff';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
+import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 import { slugify } from '@/lib/utils';
 import { log } from '@/lib/log';
 
@@ -79,6 +80,8 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
   let modelUrl: string | null = null;
   let imageUrl: string | null = null;
   let status: 'ready' | 'pending';
+  /** For the log: whether the route optimized the model, or why it kept it as it came. */
+  let optimized: string | undefined;
 
   if (modelMime) {
     if (bytes.length > MAX_MODEL_BYTES) return fail(API_ERRORS.MODEL_TOO_LARGE, 400);
@@ -86,7 +89,11 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     if (!info || info.meshes === 0) return fail(API_ERRORS.MODEL_INVALID, 400);
     const blocked = unsupportedExtension(info);
     if (blocked) return fail(API_ERRORS.MODEL_UNSUPPORTED_COMPRESSION, 400);
-    modelUrl = (await storage.put(safeKey('models', `${stamp}.${MODEL_EXTENSION}`), bytes, modelMime)).url;
+    // Stored optimized, like a partner's (`glbOptimizeServer`); the dialog's browser has
+    // usually done it already.
+    const { body, result } = await optimizeUploadedModel(bytes);
+    optimized = result.status === 'optimized' ? 'server' : result.reason;
+    modelUrl = (await storage.put(safeKey('models', `${stamp}.${MODEL_EXTENSION}`), body, modelMime)).url;
     status = 'ready';
     // The dialog renders a photo of the model on its turntable, so the tile has a picture.
     const photo = form.get('photo');
@@ -129,7 +136,7 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     isFeatured: false,
   });
   const id = Number(inserted[0].insertId);
-  log.info('own model added', { id, userId, kind: archetype.kind, status, bytes: bytes.length });
+  log.info('own model added', { id, userId, kind: archetype.kind, status, bytes: bytes.length, optimized });
 
   const product = (await loadOwnProducts(userId)).find((p) => p.id === id);
   if (!product) return fail(API_ERRORS.NOT_FOUND, 500);

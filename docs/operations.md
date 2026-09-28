@@ -23,6 +23,7 @@ Related: [testing.md](testing.md) (what CI runs) · [data-model.md](data-model.m
 | `app/api/health/route.ts` | `GET /api/health` |
 | `lib/storage/index.ts`, `local.ts`, `s3.ts` | uploads: `STORAGE_DRIVER=local|s3` |
 | `lib/uploads/sniff.ts`, `glb.ts` | uploads identified by their bytes, never the declared type |
+| `lib/uploads/glbOptimize.ts`, `glbOptimizeServer.ts`, `glbOptimizeBrowser.ts` | uploaded GLBs optimized — in the uploader's browser, then in the route with sharp ([3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `lib/email.ts` | `MAIL_DRIVER=log|smtp` |
 | `next.config.mjs` | security headers and the CSP, `output: 'standalone'` (off on Vercel), `NEXT_DIST_DIR`, image patterns |
 | `scripts/migrate.ts`, `deploy/migrate.cjs` | migrations (tsx locally, plain node in the cPanel release) |
@@ -117,9 +118,12 @@ Everything the app needs to run unattended, and where each piece lives.
   `scripts/migrate.ts` and `drizzle.config.ts` all honour it). Migrations run from a laptop
   against that database (`pnpm db:migrate` with the production variables), not in the
   build, so a preview branch never migrates production. Every request to a
-  Vercel function is capped at 4.5 MB, which `/api/upload/model` and `/api/design/models`
-  (40 MB GLBs), `/api/design/upload-plan` (12 MB), `/api/upload` and the photo and render routes
-  (8 MB) exceed — see the roadmap. The in-memory rate limiter and login lockout are per instance there.
+  Vercel function is capped at 4.5 MB, which `/api/design/upload-plan` (12 MB), `/api/upload`
+  and the photo and render routes (8 MB) exceed. A GLB (40 MB allowed) is optimized in the
+  uploader's browser before it is sent, and a typical 5–10 MB export arrives under 1 MB
+  (1.8–3.6 MB from Safari, whose canvas cannot write WebP and leaves the colour maps as JPEG
+  for the route to convert); one still over 4.5 MB after that — a browser pass that failed, an
+  export with many large colour maps — is refused there. See the roadmap. The in-memory rate limiter and login lockout are per instance there.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
@@ -131,7 +135,11 @@ Everything the app needs to run unattended, and where each piece lives.
 - **Uploads** go through `lib/storage` (`STORAGE_DRIVER=local|s3`). Keys look like
   `plans/<file>`; the local driver writes under `public/uploads`, the S3 driver to any
   S3-compatible bucket (R2, MinIO) served from `S3_PUBLIC_URL`. Every upload is identified
-  by its bytes (`lib/uploads/sniff.ts`), never by the declared type.
+  by its bytes (`lib/uploads/sniff.ts`), never by the declared type. A GLB is stored
+  optimized (`lib/uploads/glbOptimizeServer.ts`): the routes run the recipe in process with
+  sharp — about 0.4 s and a few hundred MB for a typical upload, 0.8 s and ~500 MB for a
+  21 MB scan (Apple M4) — which matters on a memory-capped host; a file the browser already
+  optimized costs only the read.
   `pnpm uploads:cleanup` (nightly cron) deletes plans no project references.
 - **Mail** goes through `lib/email.ts` (`MAIL_DRIVER=log|smtp`). With `log`, the reset and
   verification links are written to the app log — that is how to find them in development.
@@ -144,10 +152,11 @@ Everything the app needs to run unattended, and where each piece lives.
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
   Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget
   sheet. No SMS.
-- On Vercel a request body is capped at 4.5 MB, so a GLB, a large plan image or a studio
-  photo above that is refused with 413 before the route runs. The fix is a direct upload
-  into the bucket (a presigned PUT handed out by `/api/upload/*`, the byte sniff and the
-  record afterwards); not built.
+- On Vercel a request body is capped at 4.5 MB, so a large plan image, a studio photo, or a
+  GLB still above it after the browser's optimization (when that pass failed, or an export
+  with many large colour maps) is refused with 413 before the route runs. The fix is a direct upload into the bucket (a
+  presigned PUT handed out by `/api/upload/*`, then the byte sniff, the GLB optimization and
+  the record); not built.
 - `lib/log.ts` reads `LOG_FILE`, `LOG_STDOUT` and `LOG_LEVEL` straight from `process.env`
   (not through `env`), and a few other places do too (`lib/design/aiPlan.ts` for
   `ANTHROPIC_API_KEY`, the health route for `APP_VERSION`, `lib/auth/social.ts`,
