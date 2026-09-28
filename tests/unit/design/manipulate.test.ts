@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { fitSwapped, hangOnWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
+import { withPartialWallSeparators, withSplitRoomTypes } from '@/lib/design/separators';
+import { rebuildRooms } from '@/lib/design/walls';
 import { clearFootprintMasks, maskFromGrid, registerFootprintMask } from '@/lib/design/footprintMasks';
-import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
-import type { PlacedItem, PlanRoom } from '@/lib/design/types';
+import { floorWalls, openFloor, pointInPolygon, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
+import type { FloorPlan, PlacedItem, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
 const room: PlanRoom = refreshRoom({
   id: 'r1',
@@ -254,5 +256,135 @@ describe('hangOnWall', () => {
     const wide = { ...clock(), size: { width: 5, depth: 0.05, height: 0.7 } };
     expect(hangOnWall(room, wide, 0, { x: 3.5, z: 0 }, 1.5, [])!.position.x).toBeCloseTo(2, 6);
     expect(hangOnWall(room, clock(), 7, { x: 1, z: 0 }, 1.5, [])).toBeNull();
+  });
+});
+
+describe('a room separator is a line on the floor, not a wall', () => {
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const wall = (id: string, a: Vec2, b: Vec2, extra: Partial<Wall> = {}): Wall => ({ id, a, b, thicknessM: 0.12, origin: 'existing', ...extra });
+  const base: FloorPlan = { rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] };
+  const roomAt = (plan: FloorPlan, p: Vec2): PlanRoom => plan.rooms.find((r) => pointInPolygon(p, r.polygon))!;
+  const piece = (id: string, roomId: string, x: number, z: number, width: number, depth: number, kind = 'sofa_3seat'): PlacedItem => ({ ...item(id, x, z, width, depth), roomId, kind });
+
+  /**
+   * The separators suite's corner of a flat: a partial wall (x 2 → 4.26 along z 3.73) carried on
+   * to the left wall by the app's separator (x 0 → 2), dividing the living room from a kitchen
+   * that opens onto it.
+   */
+  const plan = (() => {
+    const walls = [
+      wall('top', P(0, 0), P(6.82, 0)),
+      wall('right', P(6.82, 0), P(6.82, 7.87)),
+      wall('bottom', P(6.82, 7.87), P(0, 7.87)),
+      wall('left', P(0, 7.87), P(0, 0)),
+      wall('bed-top', P(4.26, 3.73), P(6.82, 3.73)),
+      wall('bed-left', P(4.26, 3.73), P(4.26, 7.87)),
+      wall('stub', P(2, 3.73), P(4.26, 3.73)),
+    ];
+    const built = rebuildRooms(base, walls);
+    // A living room is what the app divides along a partial wall; the bedroom stays whole.
+    const typed: FloorPlan = { ...built, rooms: built.rooms.map((r) => ({ ...r, type: pointInPolygon(P(5.5, 6), r.polygon) ? 'bedroom' : 'living_room' })) };
+    return withSplitRoomTypes(typed.rooms, withPartialWallSeparators(typed));
+  })();
+  const living = roomAt(plan, P(1, 1));
+  const kitchen = roomAt(plan, P(1, 6));
+  const bedroom = roomAt(plan, P(5.5, 6));
+
+  it('joins the rooms a separator divides into one floor, and no others', () => {
+    expect(openFloor(living, plan.rooms).map((r) => r.id).sort()).toEqual([living.id, kitchen.id].sort());
+    expect(openFloor(kitchen, plan.rooms).map((r) => r.id).sort()).toEqual([living.id, kitchen.id].sort());
+    expect(openFloor(bedroom, plan.rooms)).toEqual([bedroom]);
+    // The separator's line is open; the partial wall it carries on from still holds a piece in.
+    const walls = floorWalls([living, kitchen]);
+    expect(walls.some((e) => Math.abs(e.a.z - 3.73) < 1e-6 && Math.abs(e.b.z - 3.73) < 1e-6 && Math.max(e.a.x, e.b.x) <= 2 + 1e-6)).toBe(false);
+    expect(walls.filter((e) => Math.min(e.a.x, e.b.x) >= 2 - 1e-6 && Math.abs(e.a.z - e.b.z) < 1e-6 && Math.abs(e.a.z - 3.73) < 0.1)).toHaveLength(2);
+  });
+
+  it('lets a sofa stand over the line — it was refused in both rooms', () => {
+    const sofa = piece('sofa', living.id, 1, 3.73, 1.4, 0.9);
+    expect(isPlacementValid(living, sofa, [], plan.rooms)).toBe(true);
+    expect(isPlacementValid(kitchen, { ...sofa, roomId: kitchen.id }, [], plan.rooms)).toBe(true);
+    // Judged against its own room alone, as before: poking into the kitchen is poking out.
+    expect(isPlacementValid(living, sofa, [])).toBe(false);
+  });
+
+  it('drags across the line instead of being held back at it', () => {
+    const sofa = piece('sofa', living.id, 1, 2, 1.4, 0.9);
+    const across = snapPlacement(living, sofa, { position: P(1, 3.8), rotation: 0 }, [], plan.rooms);
+    expect(across.valid).toBe(true);
+    expect(across.position.z).toBeCloseTo(3.8, 6);
+    // Without the plan's rooms it stops against the line as if it were a wall.
+    expect(snapPlacement(living, sofa, { position: P(1, 3.8), rotation: 0 }, []).position.z).toBeLessThan(3.73 - 0.44);
+  });
+
+  it('never lets a piece through the partial wall the separator carries on from', () => {
+    expect(isPlacementValid(living, piece('sofa', living.id, 3, 3.73, 1.4, 0.9), [], plan.rooms)).toBe(false);
+    // Nor through the room's other walls: the floor is the two rooms, not their box.
+    expect(isPlacementValid(living, piece('sofa', living.id, 4.5, 3.73, 1.4, 0.9), [], plan.rooms)).toBe(false);
+  });
+
+  it('keeps pieces on either side of the line out of each other’s way', () => {
+    const table = piece('table', kitchen.id, 1, 4.4, 1.2, 0.8, 'dining_table');
+    const sofa = piece('sofa', living.id, 1, 3.73, 1.4, 0.9);
+    expect(isPlacementValid(living, sofa, [table], plan.rooms)).toBe(false);
+    expect(snapPlacement(living, sofa, { position: P(1, 3.8), rotation: 0 }, [table], plan.rooms).valid).toBe(false);
+    expect(isPlacementValid(living, { ...sofa, position: P(1, 3.4) }, [table], plan.rooms)).toBe(true);
+  });
+
+  it('turns a piece where it stands over the line', () => {
+    const chair = piece('chair', living.id, 1, 3.73, 0.6, 0.6, 'armchair');
+    const turned = rotateItem(living, chair, 1, [], plan.rooms);
+    expect(turned.valid).toBe(true);
+    expect(turned.position).toEqual(chair.position);
+  });
+
+  it('squares up to its own room at the end of a partial wall, never jumping through to the far face', () => {
+    // Project 219's corner: a diagonal partial wall from the bedroom's corner to (3, 2.5), carried
+    // on by a separator to the left wall. Near the wall's end both of its faces are within reach.
+    const walls = [
+      wall('top', P(0, 0), P(6.82, 0)),
+      wall('right', P(6.82, 0), P(6.82, 7.87)),
+      wall('bottom', P(6.82, 7.87), P(0, 7.87)),
+      wall('left', P(0, 7.87), P(0, 0)),
+      wall('bed-top', P(4.26, 3.73), P(6.82, 3.73)),
+      wall('bed-left', P(4.26, 3.73), P(4.26, 7.87)),
+      wall('diagonal', P(4.26, 3.73), P(3, 2.5), { origin: 'user' }),
+      wall('diagonal-sep', P(3, 2.5), P(0, 3.73), { thicknessM: 0, separator: true, origin: 'generated' }),
+    ];
+    const corner = rebuildRooms(base, walls);
+    const lounge = roomAt(corner, P(1, 1));
+    const nook = roomAt(corner, P(1, 6));
+    expect(openFloor(lounge, corner.rooms).map((r) => r.id).sort()).toEqual([lounge.id, nook.id].sort());
+    const table = piece('table', lounge.id, 1.5, 1.2, 1.2, 1.2, 'coffee_table');
+    const dragged = snapPlacement(lounge, table, { position: P(2.7, 2.62), rotation: 0 }, [], corner.rooms);
+    expect(Math.hypot(dragged.position.x - 2.7, dragged.position.z - 2.62)).toBeLessThan(0.05);
+    // A TV unit with the wall's end inside its box stands through the wall: every corner of it
+    // is in the room, which is all the one-room test looked at.
+    const tv = { ...piece('tv', lounge.id, 2.96, 2.52, 1.8, 0.58, 'tv_unit'), rotation: Math.PI };
+    expect(isPlacementValid(lounge, tv, [])).toBe(true);
+    expect(isPlacementValid(lounge, tv, [], corner.rooms)).toBe(false);
+  });
+
+  it('lets furniture over a diagonal separator too', () => {
+    // A 6 m square cut corner to corner-ish, like the plan in the report: from the left wall at
+    // z 2 to the bottom wall at x 4.
+    const walls = [
+      wall('top', P(0, 0), P(6, 0)),
+      wall('right', P(6, 0), P(6, 6)),
+      wall('bottom', P(6, 6), P(0, 6)),
+      wall('left', P(0, 6), P(0, 0)),
+      wall('line', P(0, 2), P(4, 6), { thicknessM: 0, separator: true }),
+    ];
+    const split = rebuildRooms(base, walls);
+    expect(split.rooms).toHaveLength(2);
+    const upper = roomAt(split, P(4, 2));
+    const chair = piece('chair', upper.id, 2, 4, 0.6, 0.6, 'armchair');
+    expect(isPlacementValid(upper, chair, [], split.rooms)).toBe(true);
+    expect(isPlacementValid(upper, chair, [])).toBe(false);
+    const dragged = snapPlacement(upper, chair, { position: P(1.6, 4.4), rotation: 0 }, [], split.rooms);
+    expect(dragged.valid).toBe(true);
+    expect(dragged.position).toEqual(P(1.6, 4.4));
+    // The outer walls still hold it in.
+    expect(isPlacementValid(upper, { ...chair, position: P(0.1, 4) }, [], split.rooms)).toBe(false);
   });
 });

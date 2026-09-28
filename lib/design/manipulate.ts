@@ -11,6 +11,8 @@
  */
 
 import {
+  floorWalls,
+  openFloor,
   pointInPolygon,
   polygonBounds,
   roomEdges,
@@ -98,15 +100,84 @@ export function footprintInRoom(footprint: Footprint, polygon: Vec2[]): boolean 
 }
 
 /**
- * Items that a dragged piece has to avoid.
+ * The floor a piece in `room` may stand on: the room, and — given the plan's rooms — every room
+ * joined to it across room separators (`openFloor`). A separator is a line on the floor, not a
+ * wall: a sofa may stand over the line between a living room and the kitchen it opens onto.
+ */
+function floorOf(room: PlanRoom, rooms?: readonly PlanRoom[]): PlanRoom[] {
+  return rooms ? openFloor(room, rooms) : [room];
+}
+
+/** The box around a floor's rooms: how far a dragged piece may go before the walls judge it. */
+function floorBounds(floor: readonly PlanRoom[]): Footprint {
+  const boxes = floor.map((room) => polygonBounds(room.polygon));
+  return {
+    minX: Math.min(...boxes.map((b) => b.minX)),
+    maxX: Math.max(...boxes.map((b) => b.maxX)),
+    minZ: Math.min(...boxes.map((b) => b.minZ)),
+    maxZ: Math.max(...boxes.map((b) => b.maxZ)),
+  };
+}
+
+/** A piece touching a wall stands against it; this far into the wall it stands in it. */
+const WALL_TOUCH_M = 0.005;
+
+/**
+ * Whether a footprint stands on a floor: in its one room (`footprintInRoom`), or — across room
+ * separators — on the floor with no wall of it running through (`floorWalls`): over the
+ * separator's line, never through a wall, the partial wall a separator carries on from included.
+ */
+export function footprintOnFloor(footprint: Footprint, floor: readonly PlanRoom[], walls: PlanEdge[] = floorWalls(floor)): boolean {
+  if (floor.length === 1) return footprintInRoom(footprint, floor[0].polygon);
+  const centre = { x: (footprint.minX + footprint.maxX) / 2, z: (footprint.minZ + footprint.maxZ) / 2 };
+  // A centre exactly on a separator's line is in neither room by the polygon test; a millimetre
+  // either way it is in one of them.
+  const onFloor = [centre, { x: centre.x + 0.001, z: centre.z }, { x: centre.x - 0.001, z: centre.z }, { x: centre.x, z: centre.z + 0.001 }, { x: centre.x, z: centre.z - 0.001 }].some((p) =>
+    floor.some((room) => pointInPolygon(p, room.polygon))
+  );
+  if (!onFloor) return false;
+  const inner: Footprint = { minX: footprint.minX + WALL_TOUCH_M, maxX: footprint.maxX - WALL_TOUCH_M, minZ: footprint.minZ + WALL_TOUCH_M, maxZ: footprint.maxZ - WALL_TOUCH_M };
+  if (inner.minX >= inner.maxX || inner.minZ >= inner.maxZ) return true;
+  return !walls.some((wall) => segmentEntersBox(wall.a, wall.b, inner));
+}
+
+/** Whether any part of the segment a–b lies inside the box, its sides not counted (Liang–Barsky). */
+function segmentEntersBox(a: Vec2, b: Vec2, box: Footprint): boolean {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  let t0 = 0;
+  let t1 = 1;
+  // Each side of the box as p·t < q: where along the segment it is on the inside of that side.
+  const sides: Array<[number, number]> = [
+    [-dx, a.x - box.minX],
+    [dx, box.maxX - a.x],
+    [-dz, a.z - box.minZ],
+    [dz, box.maxZ - a.z],
+  ];
+  for (const [p, q] of sides) {
+    if (Math.abs(p) < 1e-12) {
+      if (q <= 0) return false;
+      continue;
+    }
+    if (p < 0) t0 = Math.max(t0, q / p);
+    else t1 = Math.min(t1, q / p);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}
+
+/**
+ * Items that a dragged piece has to avoid — in its room, or in any of the rooms given (a floor
+ * that runs on across room separators).
  *
  * Rugs, pendants, artwork and curtains are excluded: a rug is *meant* to sit under the coffee
  * table, and a ceiling light shares its floor space with everything below it.
  */
-export function blockingItems(items: PlacedItem[], roomId: string, ignoreId: string) {
+export function blockingItems(items: PlacedItem[], roomId: string | readonly string[], ignoreId: string) {
+  const inRoom = (id: string) => (typeof roomId === 'string' ? id === roomId : roomId.includes(id));
   return items.filter(
     (item) =>
-      item.roomId === roomId &&
+      inRoom(item.roomId) &&
       item.id !== ignoreId &&
       !getArchetype(item.kind)?.ghost &&
       item.elevationM < 0.05
@@ -119,8 +190,8 @@ export function blockingItems(items: PlacedItem[], roomId: string, ignoreId: str
  * under the sofa, and the moment a person picked that rug up there was no floor in the room
  * it could be put down on again, because every spot worth a rug has furniture standing on it.
  */
-function blockersFor(item: PlacedItem, others: PlacedItem[], roomId: string): PlacedItem[] {
-  return getArchetype(item.kind)?.ghost ? [] : blockingItems(others, roomId, item.id);
+function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly PlanRoom[]): PlacedItem[] {
+  return getArchetype(item.kind)?.ghost ? [] : blockingItems(others, floor.map((room) => room.id), item.id);
 }
 
 /**
@@ -172,14 +243,24 @@ function coverOverlaps(a: Footprint[], b: Footprint[]): boolean {
  *
  * Order matters: square the rotation first, because whether an item can sit flush against a
  * wall depends on which way it is facing.
+ *
+ * Given the plan's `rooms`, the piece may go over a room separator into the rooms across it
+ * (`floorOf`), and the pieces there are in its way as much as those in its own room. It squares
+ * up to and snaps against the walls of the room it is in (`room`, the one under the pointer) —
+ * never the separator's line, which is no wall, and never the far face of a partial wall: near
+ * the end of one, both faces are within reach, and snapping to the other side was a jump
+ * through the wall.
  */
 export function snapPlacement(
   room: PlanRoom,
   item: PlacedItem,
   desired: Placement,
-  others: PlacedItem[]
+  others: PlacedItem[],
+  rooms?: readonly PlanRoom[]
 ): SnapResult {
-  const edges = roomEdges(room.polygon);
+  const floor = floorOf(room, rooms);
+  const walls = floorWalls(floor);
+  const edges = floorWalls(floor, [room]);
   const rotation = snapAngle(desired.rotation, edges);
 
   let position = { x: snapToGrid(desired.position.x), z: snapToGrid(desired.position.z) };
@@ -196,14 +277,14 @@ export function snapPlacement(
     snappedToWall = true;
   }
 
-  position = clampInsideRoom(room, position, item.size, flush?.rotation ?? rotation);
+  position = clampInside(floorBounds(floor), position, item.size, flush?.rotation ?? rotation);
   const finalRotation = flush?.rotation ?? rotation;
 
   // The walls are tested against the whole box — the outside of an L is the outside of its
   // box — and the other pieces against the floor each really covers.
   const footprint = footprintOf(position, item.size, finalRotation);
   const cover = itemFootprints(item, { position, rotation: finalRotation });
-  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  const valid = footprintOnFloor(footprint, floor, walls) && !blockersFor(item, others, floor).some((other) => coverOverlaps(cover, itemFootprints(other)));
 
   return { position, rotation: finalRotation, valid, snappedToWall };
 }
@@ -245,7 +326,7 @@ export function hangOnWall(room: PlanRoom, item: PlacedItem, wallIndex: number, 
   const elevationM = clamp(Math.round((y - item.size.height / 2) * 100) / 100, 0, Math.max(0, room.heightM - item.size.height));
   const footprint = footprintOf(position, item.size, rotation);
   const cover = itemFootprints(item, { position, rotation });
-  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, [room]).some((other) => coverOverlaps(cover, itemFootprints(other)));
   return { position, rotation, elevationM, valid, snappedToWall: true };
 }
 
@@ -319,7 +400,16 @@ export function clampInsideRoom(
   size: { width: number; depth: number },
   rotation: number
 ): Vec2 {
-  const bounds = polygonBounds(room.polygon);
+  return clampInside(polygonBounds(room.polygon), position, size, rotation);
+}
+
+/** Keeps the footprint inside a box — a room's, or a floor's that runs on across separators. */
+function clampInside(
+  bounds: Footprint,
+  position: Vec2,
+  size: { width: number; depth: number },
+  rotation: number
+): Vec2 {
   const footprint = footprintOf(position, size, rotation);
   const halfX = (footprint.maxX - footprint.minX) / 2;
   const halfZ = (footprint.maxZ - footprint.minZ) / 2;
@@ -495,18 +585,23 @@ export function rotateItem(
   room: PlanRoom,
   item: PlacedItem,
   steps: number,
-  others: PlacedItem[]
+  others: PlacedItem[],
+  rooms?: readonly PlanRoom[]
 ): SnapResult {
   const rotation = item.rotation + steps * ROTATE_STEP_RAD;
-  const blockers = blockersFor(item, others, room.id).map((other) => itemFootprints(other));
-  const bounds = polygonBounds(room.polygon);
-  const centre = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+  const floor = floorOf(room, rooms);
+  const walls = floorWalls(floor);
+  const blockers = blockersFor(item, others, floor).map((other) => itemFootprints(other));
+  const bounds = floorBounds(floor);
+  // Nudged towards the middle of its own room, not of a floor that runs on across separators.
+  const own = polygonBounds(room.polygon);
+  const centre = { x: (own.minX + own.maxX) / 2, z: (own.minZ + own.maxZ) / 2 };
 
   const toCentre = normalise({ x: centre.x - item.position.x, z: centre.z - item.position.z });
 
   for (const nudge of [0, 0.1, 0.2, 0.35, 0.5, 0.7]) {
-    const candidate = clampInsideRoom(
-      room,
+    const candidate = clampInside(
+      bounds,
       { x: item.position.x + toCentre.x * nudge, z: item.position.z + toCentre.z * nudge },
       item.size,
       rotation
@@ -514,24 +609,26 @@ export function rotateItem(
     const footprint = footprintOf(candidate, item.size, rotation);
     const cover = itemFootprints(item, { position: candidate, rotation });
 
-    const fits = footprintInRoom(footprint, room.polygon) && !blockers.some((other) => coverOverlaps(cover, other));
+    const fits = footprintOnFloor(footprint, floor, walls) && !blockers.some((other) => coverOverlaps(cover, other));
 
     if (fits) return { position: candidate, rotation, valid: true, snappedToWall: false };
   }
 
-  const turned = clampInsideRoom(room, item.position, item.size, rotation);
+  const turned = clampInside(bounds, item.position, item.size, rotation);
   return { position: turned, rotation, valid: false, snappedToWall: false };
 }
 
 /**
  * Does the item, as it stands, fit — inside its room and clear of everything else? What the
- * selection outline turns red on, and what a drop is judged by.
+ * selection outline turns red on, and what a drop is judged by. Given the plan's `rooms`, the
+ * rooms across its room's separators are floor it may stand on too (`floorOf`).
  */
-export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[]): boolean {
+export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[], rooms?: readonly PlanRoom[]): boolean {
+  const floor = floorOf(room, rooms);
   const footprint = footprintOf(item.position, item.size, item.rotation);
-  if (!footprintInRoom(footprint, room.polygon)) return false;
+  if (!footprintOnFloor(footprint, floor)) return false;
   const cover = itemFootprints(item);
-  return !blockersFor(item, others, room.id).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  return !blockersFor(item, others, floor).some((other) => coverOverlaps(cover, itemFootprints(other)));
 }
 
 /**
@@ -545,8 +642,8 @@ export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: Place
  * the person chose where the sofa goes, and a sofa that no longer fits there is theirs to
  * put somewhere else (the studio hands it to the pointer).
  */
-export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedItem[]): PlacedItem | null {
-  const snapped = snapPlacement(room, swapped, { position: swapped.position, rotation: swapped.rotation }, others);
+export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedItem[], rooms?: readonly PlanRoom[]): PlacedItem | null {
+  const snapped = snapPlacement(room, swapped, { position: swapped.position, rotation: swapped.rotation }, others, rooms);
   const eased = { ...swapped, position: snapped.position, rotation: snapped.rotation };
   if (snapped.valid && snapped.snappedToWall) {
     // Only the step towards or away from the wall is wanted. The snap also rounds the place
@@ -555,9 +652,9 @@ export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedIt
     const n = { x: Math.sin(snapped.rotation), z: Math.cos(snapped.rotation) };
     const step = (snapped.position.x - swapped.position.x) * n.x + (snapped.position.z - swapped.position.z) * n.z;
     const straight = { ...eased, position: { x: swapped.position.x + n.x * step, z: swapped.position.z + n.z * step } };
-    return isPlacementValid(room, straight, others) ? straight : eased;
+    return isPlacementValid(room, straight, others, rooms) ? straight : eased;
   }
-  if (isPlacementValid(room, swapped, others)) return swapped;
+  if (isPlacementValid(room, swapped, others, rooms)) return swapped;
   return snapped.valid ? eased : null;
 }
 

@@ -1,5 +1,5 @@
 import { blockingItems, footprintOf, type Footprint } from './manipulate';
-import { pointOnEdge, polygonBounds, roomEdges } from './planGeometry';
+import { openFloor, pointOnEdge, polygonBounds, roomEdges } from './planGeometry';
 import type { PlacedItem, PlanRoom } from './types';
 
 /**
@@ -27,10 +27,22 @@ export interface TightSpot {
   against: string;
 }
 
-export function tightSpots(room: PlanRoom, items: PlacedItem[]): TightSpot[] {
-  const floorItems = blockingItems(items, room.id, '');
+/**
+ * The tight spots of a room — given the plan's `rooms`, of the whole floor it opens onto across
+ * room separators (`openFloor`): a separator is no wall to be squeezed against, and a sofa over
+ * the line, or facing a wardrobe across it, is judged with everything on that floor.
+ */
+export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly PlanRoom[]): TightSpot[] {
+  const floor = rooms ? openFloor(room, rooms) : [room];
+  const floorItems = blockingItems(items, floor.map((r) => r.id), '');
   const boxes = floorItems.map((item) => ({ item, box: footprintOf(item.position, item.size, item.rotation), large: isLarge(item) }));
-  const bounds = polygonBounds(room.polygon);
+  const roomBounds = floor.map((r) => polygonBounds(r.polygon));
+  const bounds = {
+    minX: Math.min(...roomBounds.map((b) => b.minX)),
+    maxX: Math.max(...roomBounds.map((b) => b.maxX)),
+    minZ: Math.min(...roomBounds.map((b) => b.minZ)),
+    maxZ: Math.max(...roomBounds.map((b) => b.maxZ)),
+  };
   const worst = new Map<string, TightSpot>();
   const note = (itemId: string, gapM: number, against: string) => {
     const current = worst.get(itemId);
@@ -38,16 +50,18 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[]): TightSpot[] {
   };
 
   // Doorways: a person just inside the door needs the floor there.
-  const edges = roomEdges(room.polygon);
-  const doorPoints = room.openings
-    .filter((o) => o.kind !== 'window')
-    .map((o) => {
-      const edge = edges.find((e) => e.index === o.wallIndex);
-      if (!edge) return null;
-      const on = pointOnEdge(edge, o.t);
-      return { x: on.x + edge.inward.x * 0.45, z: on.z + edge.inward.z * 0.45 };
-    })
-    .filter((p): p is { x: number; z: number } => p != null);
+  const doorPoints = floor.flatMap((r) => {
+    const edges = roomEdges(r.polygon);
+    return r.openings
+      .filter((o) => o.kind !== 'window')
+      .map((o) => {
+        const edge = edges.find((e) => e.index === o.wallIndex);
+        if (!edge) return null;
+        const on = pointOnEdge(edge, o.t);
+        return { x: on.x + edge.inward.x * 0.45, z: on.z + edge.inward.z * 0.45 };
+      })
+      .filter((p): p is { x: number; z: number } => p != null);
+  });
   for (const { item, box } of boxes) {
     for (const p of doorPoints) {
       const dx = Math.max(box.minX - p.x, 0, p.x - box.maxX);
@@ -92,11 +106,14 @@ export function gapBetween(a: Footprint, b: Footprint): number | null {
   return null;
 }
 
-/** Every tight spot in the flat, keyed by item. */
+/** Every tight spot in the flat, keyed by item — a floor joined across room separators judged once, as one. */
 export function tightSpotsByItem(rooms: PlanRoom[], items: PlacedItem[]): Map<string, TightSpot> {
   const map = new Map<string, TightSpot>();
+  const judged = new Set<string>();
   for (const room of rooms) {
-    for (const spot of tightSpots(room, items.filter((i) => i.roomId === room.id))) map.set(spot.itemId, spot);
+    if (judged.has(room.id)) continue;
+    for (const r of openFloor(room, rooms)) judged.add(r.id);
+    for (const spot of tightSpots(room, items, rooms)) map.set(spot.itemId, spot);
   }
   return map;
 }

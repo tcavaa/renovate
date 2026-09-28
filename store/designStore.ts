@@ -1454,7 +1454,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const swapped = applySwap([original], itemId, product)[0];
           // Where the old one stood — its back kept on the wall it stood against — if the new
           // one fits there (`fitSwapped`).
-          const placed = fitSwapped(room, swapped, others);
+          const placed = fitSwapped(room, swapped, others, state.plan?.rooms);
           if (placed || !options.carry) {
             // No room and nobody to carry it (the 2D board): it goes in as it is, outlined red,
             // for the person to drag — which is what a swap always did.
@@ -1495,7 +1495,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const source = items.find((i) => i.id === itemId);
           const room = source ? plan?.rooms.find((r) => r.id === source.roomId) : null;
           if (!source || !room) return null;
-          const copy = besideCopy(room, source, items);
+          const copy = besideCopy(room, source, items, plan?.rooms);
           commit(() => ({ items: [...items, copy], selectedItemId: copy.id }));
           return copy.id;
         },
@@ -1505,7 +1505,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (!clipboard || !plan) return null;
           const room = plan.rooms.find((r) => r.id === (roomId ?? clipboard.roomId)) ?? plan.rooms.find((r) => r.id === clipboard.roomId);
           if (!room) return null;
-          const copy = besideCopy(room, { ...clipboard, roomId: room.id }, items);
+          const copy = besideCopy(room, { ...clipboard, roomId: room.id }, items, plan.rooms);
           commit(() => ({ items: [...items, copy], selectedItemId: copy.id }));
           return copy.id;
         },
@@ -1815,7 +1815,7 @@ function repriceWall(room: PlanRoom, wallIndex: number, finish: SurfaceFinish): 
 }
 
 /** A copy of an item beside the original, on free floor, or half a metre over when there is none. */
-function besideCopy(room: PlanRoom, source: PlacedItem, items: PlacedItem[]): PlacedItem {
+function besideCopy(room: PlanRoom, source: PlacedItem, items: PlacedItem[], rooms?: readonly PlanRoom[]): PlacedItem {
   const id = `${source.id}-copy-${Date.now().toString(36)}`;
   const spot = placeAdditional(room, source.kind, items, source.size);
   const base: PlacedItem = { ...source, id, roomId: room.id, pinned: true, origin: 'studio', locked: false };
@@ -1824,7 +1824,7 @@ function besideCopy(room: PlanRoom, source: PlacedItem, items: PlacedItem[]): Pl
   const right = { x: forward.z, z: -forward.x };
   for (const step of [source.size.width + 0.1, -(source.size.width + 0.1), source.size.depth + 0.4]) {
     const candidate = { ...base, position: { x: source.position.x + right.x * step, z: source.position.z + right.z * step } };
-    if (isPlacementValid(room, candidate, items)) return candidate;
+    if (isPlacementValid(room, candidate, items, rooms)) return candidate;
   }
   return { ...base, position: { x: source.position.x + 0.5, z: source.position.z + 0.5 } };
 }

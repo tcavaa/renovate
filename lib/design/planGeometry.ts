@@ -165,6 +165,51 @@ export function wallEdges(room: Pick<PlanRoom, 'polygon' | 'open'>): PlanEdge[] 
   return room.open?.length ? edges.filter((e) => !room.open!.includes(e.index)) : edges;
 }
 
+/** How far past an open edge to look for the room on its other side, metres. */
+const ACROSS_M = 0.05;
+
+/** Whether some room of `rooms` other than `room` lies just past this edge of it. */
+function roomAcross(room: PlanRoom, edge: PlanEdge, rooms: readonly PlanRoom[]): PlanRoom | null {
+  // Three points along the edge, not one: a separator can end on another part-way along.
+  for (const t of [0.25, 0.5, 0.75]) {
+    const probe = { x: edge.a.x + (edge.b.x - edge.a.x) * t - edge.inward.x * ACROSS_M, z: edge.a.z + (edge.b.z - edge.a.z) * t - edge.inward.z * ACROSS_M };
+    const other = rooms.find((r) => r !== room && pointInPolygon(probe, r.polygon));
+    if (other) return other;
+  }
+  return null;
+}
+
+/**
+ * A room and every room joined to it across room separators, however many in a row: one open
+ * space the plan divides into rooms for their names, finishes and budgets. A separator is a line
+ * on the floor, not a wall — furniture stands over it (`lib/design/manipulate`) and a passage
+ * runs on across it (`lib/design/clearance`). Just the room when it has no open edge.
+ */
+export function openFloor(room: PlanRoom, rooms: readonly PlanRoom[]): PlanRoom[] {
+  if (!room.open?.length) return [room];
+  const floor = [room];
+  for (let i = 0; i < floor.length; i++) {
+    const current = floor[i];
+    for (const edge of roomEdges(current.polygon)) {
+      if (!isOpenEdge(current, edge.index)) continue;
+      const other = roomAcross(current, edge, rooms);
+      if (other && !floor.includes(other)) floor.push(other);
+    }
+  }
+  return floor;
+}
+
+/**
+ * The edges that hold a piece in on a floor (`openFloor`): every edge of its rooms but an open
+ * one with more of the floor across it. The rooms' walls, a partial wall that a separator carries
+ * on from included — only the separator's own line is open. `of` narrows it to some of the
+ * floor's rooms (a piece squares up to the walls of the room it is in, not to the far face of a
+ * partial wall it happens to be near the end of).
+ */
+export function floorWalls(floor: readonly PlanRoom[], of: readonly PlanRoom[] = floor): PlanEdge[] {
+  return of.flatMap((room) => roomEdges(room.polygon).filter((edge) => !isOpenEdge(room, edge.index) || !roomAcross(room, edge, floor)));
+}
+
 /** Metres of a room's outline that are walls: its perimeter less the edges on a room separator. */
 export function wallPerimeterM(room: Pick<PlanRoom, 'polygon' | 'open' | 'perimeterM'>): number {
   if (!room.open?.length) return room.perimeterM;
