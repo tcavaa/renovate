@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, isNotNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +7,7 @@ import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateShortLabel, statusLabel } from '@/lib/i18n/labels';
-import { parseListParams, type SearchParams } from '@/lib/admin/list';
+import { inIdOrder, parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { formatGEL } from '@/lib/utils';
 import { HOME_STATE_VALUES, type HomeState } from '@/lib/calculator/types';
@@ -48,22 +48,11 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
         ? [p.dir === 'asc' ? asc(projects.totalM2) : desc(projects.totalM2)]
         : [p.dir === 'asc' ? asc(projects.createdAt) : desc(projects.createdAt)];
 
-  const [rows, [{ total }]] = await Promise.all([
+  // The page is sorted and cut on the ids alone, then its rows are read by id (`inIdOrder`):
+  // `isDesign` and `hasCalculator` read the plan and the picks, and a sort carries them whole.
+  const [page, [{ total }]] = await Promise.all([
     db
-      .select({
-        id: projects.id,
-        nameKa: projects.nameKa,
-        homeState: projects.homeState,
-        totalM2: projects.totalM2,
-        totalCost: projects.totalCost,
-        status: projects.status,
-        createdAt: projects.createdAt,
-        styleId: projects.styleId,
-        isDesign: isNotNull(projects.plan),
-        hasCalculator: sql<number>`(${projects.selectedProducts} IS NOT NULL OR ${projects.mode} = 'full')`,
-        userName: users.name,
-        userEmail: users.email,
-      })
+      .select({ id: projects.id })
       .from(projects)
       .leftJoin(users, eq(projects.userId, users.id))
       .where(filter)
@@ -72,6 +61,30 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
       .offset((p.page - 1) * p.pageSize),
     db.select({ total: count() }).from(projects).leftJoin(users, eq(projects.userId, users.id)).where(filter),
   ]);
+  const ids = page.map((row) => row.id);
+  const rows = ids.length
+    ? inIdOrder(
+        ids,
+        await db
+          .select({
+            id: projects.id,
+            nameKa: projects.nameKa,
+            homeState: projects.homeState,
+            totalM2: projects.totalM2,
+            totalCost: projects.totalCost,
+            status: projects.status,
+            createdAt: projects.createdAt,
+            styleId: projects.styleId,
+            isDesign: isNotNull(projects.plan),
+            hasCalculator: sql<number>`(${projects.selectedProducts} IS NOT NULL OR ${projects.mode} = 'full')`,
+            userName: users.name,
+            userEmail: users.email,
+          })
+          .from(projects)
+          .leftJoin(users, eq(projects.userId, users.id))
+          .where(inArray(projects.id, ids))
+      )
+    : [];
 
   const f = ka.admin.filters;
   const dateLocale = dateLocaleFor(locale);
