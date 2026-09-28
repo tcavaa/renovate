@@ -12,8 +12,8 @@ what is *not* done; what *is* done lives in the topic documents; history lives i
 
 ## Bugs found and not yet fixed
 
-Found by reading the code while the docs were verified; none has been fixed or reproduced at
-runtime yet.
+Most were found by reading the code while the docs were verified and have not been reproduced
+at runtime yet; none has been fixed.
 
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
@@ -22,6 +22,9 @@ runtime yet.
 - Studio: Shift does not speed up keyboard panning; the walk-through's hint never shows; the
   hover card's phone line never renders — [design-studio/studio.md](design-studio/studio.md#known-gaps).
 - Floor zones can no longer be created from the UI — [design-studio/finishes.md](design-studio/finishes.md#known-gaps).
+- The layout engine can stand a piece through the end of a partial wall (the style's TV unit in
+  test project #219); the studio outlines it red when selected —
+  [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - The calculator's summary lines have no product link (`slug: ''`) — [budget.md](budget.md#known-gaps).
 
 ## Next features

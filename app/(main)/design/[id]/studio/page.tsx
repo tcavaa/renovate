@@ -389,7 +389,7 @@ export default function StudioPage() {
       }
       const room = plan.rooms.find((r) => r.id === selected.roomId);
       if (!room) return;
-      const result = rotatePlacement(room, selected, steps, items);
+      const result = rotatePlacement(room, selected, steps, items, plan.rooms);
       setRotateBlocked(!result.valid);
       store.placeItem(selected.id, result.position, result.rotation, room.id);
     },
@@ -409,7 +409,7 @@ export default function StudioPage() {
       const room = plan.rooms.find((r) => r.id === selected.roomId);
       if (!room) return;
       store.placeItem(selected.id, selected.position, radians, room.id);
-      setRotateBlocked(!isPlacementValid(room, { ...selected, rotation: radians }, items));
+      setRotateBlocked(!isPlacementValid(room, { ...selected, rotation: radians }, items, plan.rooms));
     },
     [selected, plan, items, store]
   );

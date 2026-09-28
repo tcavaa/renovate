@@ -548,7 +548,7 @@ function SceneContent({
     // A turn that left the piece overlapping something is shown in red until it is dragged
     // somewhere it fits — the same colour a refused drop uses, so it reads as one rule.
     const room = selected ? plan.rooms.find((r) => r.id === selected.roomId) : undefined;
-    const fits = !selected || !room || isPlacementValid(room, selected, scene.items);
+    const fits = !selected || !room || isPlacementValid(room, selected, scene.items, plan.rooms);
     applyOutline(outlines.active, selected ?? null, fits ? 0xe85d26 : 0xef4444);
     applyOutline(
       outlines.hover,
@@ -574,7 +574,7 @@ function SceneContent({
       carryRef.current = null;
       return;
     }
-    const initial = snapPlacement(room, item, { position: item.position, rotation: item.rotation }, scene.items);
+    const initial = snapPlacement(room, item, { position: item.position, rotation: item.rotation }, scene.items, plan.rooms);
     carryRef.current = { itemId: carryingItemId, room, result: initial };
     applyOutline(outlines.active, { ...item, position: initial.position, rotation: initial.rotation }, initial.valid ? 0x22c55e : 0xef4444);
     outlines.hover.visible = false;
@@ -1250,7 +1250,7 @@ function SceneContent({
         if (!ground) return;
         // Carrying into a neighbouring room re-homes the item there, like a drag does.
         room = roomAtPoint(plan.rooms, ground) ?? carry.room;
-        result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items);
+        result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items, plan.rooms);
       }
       carry.room = room;
       carry.result = result;
@@ -1378,7 +1378,7 @@ function SceneContent({
         const desired = hung ? ground : { x: ground.x + drag.grab.x, z: ground.z + drag.grab.z };
         // Dragging into a neighbouring room re-homes the item there.
         room = roomAtPoint(plan.rooms, desired) ?? drag.room;
-        result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items);
+        result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items, plan.rooms);
       }
       drag.room = room;
       drag.result = result;

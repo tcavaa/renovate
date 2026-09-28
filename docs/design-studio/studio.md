@@ -264,6 +264,24 @@ position to a 5 cm grid, pushes the item flush if it was shoved against a wall, 
 inside the room and reports whether it collides. An invalid drop is refused and the item
 returns to where it came from, outlined in red on the way.
 
+**A room separator is a line on the floor, not a wall: furniture stands over it.** The rooms a
+separator divides (a living room and the kitchen it opens onto) are one floor for placing
+things. `snapPlacement`, `isPlacementValid`, `rotateItem` and `fitSwapped` take the plan's rooms
+as a last argument, and every caller passes them (the 3D drag and carry, the selection outline,
+the card's turn and angle, the swap, duplicate and paste, the 2D board). They then work on
+`openFloor(room, rooms)` (`lib/design/planGeometry.ts`): the room and every room joined to it
+across separators, however many in a row. A piece is clamped to that floor's box rather than
+its room's. It is valid when its centre is on the floor and no wall of the floor runs through
+it (`footprintOnFloor` against `floorWalls`: every edge but a separator's line, so the partial
+wall a separator carries on from still holds it back). The pieces in all of the floor's rooms
+are in its way. It squares up to and snaps flush against only the walls of the room it is in:
+near the end of a partial wall both faces are within reach, and with the whole floor's walls a
+coffee table jumped through to the far face. A piece belongs to the room its centre is in (the
+drag already re-homed it by the point under the pointer). A room with no separator is judged as
+before, all four corners in its polygon (`footprintInRoom`). The floor test is stricter than
+that: a box with every corner in the room can still have a wall's end inside it, which the
+corner test let through (see [layout-and-matching.md](layout-and-matching.md#known-gaps)).
+
 **A rug gets in nothing's way, and nothing gets in a rug's** (`blockersFor`). `blockingItems`
 always left the ghosts (rugs, pendants, artwork, curtains) out of what a dragged piece must
 avoid, but the rule ran one way: the layout engine laid the rug under the sofa, and once a
@@ -353,7 +371,9 @@ screenshot now and of the render once `renderUrl` is set (`GET /api/design/rende
 ## Tests
 
 `tests/unit/design/manipulate.test.ts` (rotation, validity, `placeAdditional`, rugs, footprint
-masks, `fitSwapped`, `hangOnWall`), `tests/unit/design/clearance.test.ts`,
+masks, `fitSwapped`, `hangOnWall`, furniture over a room separator — straight and diagonal, the
+partial wall it carries on from, pieces across the line, no snap through a wall's end),
+`tests/unit/design/clearance.test.ts` (with passages across a separator),
 `tests/unit/design/catalogBrowser.test.ts`, `tests/unit/design/finishBrowser.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/store/designStore.test.ts` (carry and swap as one history step, `beginAdd` giving a
 carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-studio.spec.ts`

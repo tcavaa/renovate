@@ -22,7 +22,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
 | `lib/design/roomNames.ts` | the names the app gives rooms: a kind's name, numbered only when the flat has several (`withRoomNames`, `nextRoomName`, `isAutoRoomName`, `readingOrder`) |
-| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator) |
+| `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator); `openFloor` / `floorWalls` (the rooms joined across separators, and what holds a piece in on them) |
 | `lib/design/types.ts` | `FloorPlan`, `Room`, `Wall`, `Column`, `Beam`, `Opening`, … |
 | `components/plan/PlanEditor.tsx` | the canvas board: tools, gestures, pan/zoom; everything else is callbacks to the store |
 | `components/plan/PlanWorkspace.tsx` | the board wired to a store (the studio's by default, or the calculator's), with toolbar, hint line and undo keys |
@@ -130,7 +130,9 @@ open onto each other, and neither counts as sealed in), sockets, radiators, the 
 points, the paint brush, and the layout engine's furniture against a wall, along a run or on
 the wall. It is never a partition (`partitionArea`), never built in 3D (`planEdgeWalls` and
 `buildRoomScene` skip open edges), and on the board it is a dashed line drawn under the walls it
-ends against. `addWalls` keeps a wall and a separator from standing on one line: a separator
+ends against. Furniture stands over it: for placing things and for the tight-passage warning,
+the rooms it divides are one floor (`openFloor` — see
+[studio.md](studio.md#direct-manipulation-libdesignmanipulatets)). `addWalls` keeps a wall and a separator from standing on one line: a separator
 gives way to any wall, and a wall drawn over a separator takes its place. Where a wall runs on
 in line as a separator the 6 cm jog between their faces belongs to the wall (`innerPolygon`).
 

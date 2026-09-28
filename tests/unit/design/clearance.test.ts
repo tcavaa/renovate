@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { gapBetween, tightSpots } from '@/lib/design/clearance';
-import { refreshRoom } from '@/lib/design/planGeometry';
-import type { PlacedItem, PlanRoom } from '@/lib/design/types';
+import { gapBetween, tightSpots, tightSpotsByItem } from '@/lib/design/clearance';
+import { rebuildRooms } from '@/lib/design/walls';
+import { pointInPolygon, refreshRoom } from '@/lib/design/planGeometry';
+import type { PlacedItem, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
 const room: PlanRoom = refreshRoom({ id: 'r', type: 'bedroom', name: 'r', polygon: [{ x: 0, z: 0 }, { x: 6, z: 0 }, { x: 6, z: 4 }, { x: 0, z: 4 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
 const item = (id: string, x: number, z: number, width: number, depth: number, kind = 'bed_double'): PlacedItem => ({ id, roomId: 'r', slot: 'bed', kind, position: { x, z }, elevationM: 0, rotation: 0, size: { width, depth, height: 0.5 }, product: null });
@@ -47,5 +48,35 @@ describe('tightSpots', () => {
     expect(gapBetween({ minX: 0, maxX: 1, minZ: 0, maxZ: 1 }, { minX: 1.3, maxX: 2, minZ: 0.5, maxZ: 1.5 })).toBeCloseTo(0.3, 6);
     expect(gapBetween({ minX: 0, maxX: 1, minZ: 0, maxZ: 1 }, { minX: 2, maxX: 3, minZ: 2, maxZ: 3 })).toBeNull();
     expect(gapBetween({ minX: 0, maxX: 1, minZ: 0, maxZ: 1 }, { minX: 0.5, maxX: 1.5, minZ: 0.5, maxZ: 1.5 })).toBeNull();
+  });
+});
+
+describe('tight passages across a room separator', () => {
+  // A 6 m square divided by a separator along z 3: two rooms, one open floor.
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const wall = (id: string, a: Vec2, b: Vec2, extra: Partial<Wall> = {}): Wall => ({ id, a, b, thicknessM: 0.12, origin: 'existing', ...extra });
+  const plan = rebuildRooms({ rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] }, [
+    wall('top', P(0, 0), P(6, 0)),
+    wall('right', P(6, 0), P(6, 6)),
+    wall('bottom', P(6, 6), P(0, 6)),
+    wall('left', P(0, 6), P(0, 0)),
+    wall('line', P(0, 3), P(6, 3), { thicknessM: 0, separator: true }),
+  ]);
+  const upper = plan.rooms.find((r) => pointInPolygon(P(3, 1), r.polygon))!;
+  const lower = plan.rooms.find((r) => pointInPolygon(P(3, 5), r.polygon))!;
+  const at = (id: string, roomId: string, x: number, z: number, width: number, depth: number, kind = 'sofa_3seat'): PlacedItem => ({ ...item(id, x, z, width, depth, kind), roomId });
+
+  it('does not take the separator for a wall to squeeze past', () => {
+    // A sofa's long side 8 cm short of the line: judged in its room alone, that is a wall.
+    const sofa = at('sofa', upper.id, 3, 2.47, 1.8, 0.9);
+    expect(tightSpots(upper, [sofa]).map((s) => s.against)).toEqual(['wall']);
+    expect(tightSpots(upper, [sofa], plan.rooms)).toHaveLength(0);
+    expect(tightSpotsByItem(plan.rooms, [sofa]).has('sofa')).toBe(false);
+  });
+
+  it('sees a sliver between two pieces on either side of the line', () => {
+    const a = at('a', upper.id, 3, 2.5, 1.4, 1, 'wardrobe');
+    const b = at('b', lower.id, 3, 3.7, 1.4, 1, 'wardrobe');
+    expect([...tightSpotsByItem(plan.rooms, [a, b]).keys()].sort()).toEqual(['a', 'b']);
   });
 });

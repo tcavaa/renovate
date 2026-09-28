@@ -212,7 +212,7 @@ interface CarryPose {
 function carryPoseAt(rooms: PlanRoom[], items: PlacedItem[], item: PlacedItem, at: Vec2): CarryPose | null {
   const room = roomAtPoint(rooms, at) ?? rooms.find((r) => r.id === item.roomId) ?? null;
   if (!room) return null;
-  const result = snapPlacement(room, item, { position: at, rotation: item.rotation }, items);
+  const result = snapPlacement(room, item, { position: at, rotation: item.rotation }, items, rooms);
   return { position: result.position, rotation: result.rotation, roomId: room.id, valid: result.valid };
 }
 
@@ -1232,7 +1232,7 @@ export function PlanEditor(props: PlanEditorProps) {
           const desired = { x: world.x + gesture.grab.x, z: world.z + gesture.grab.z };
           const room = roomAt(desired) ?? plan.rooms.find((r) => r.id === gesture.roomId) ?? null;
           if (!room) return;
-          const result = snapPlacement(room, gesture.item, { position: desired, rotation: gesture.item.rotation }, items);
+          const result = snapPlacement(room, gesture.item, { position: desired, rotation: gesture.item.rotation }, items, plan.rooms);
           gesture.position = result.position;
           gesture.roomId = room.id;
           gesture.valid = result.valid;

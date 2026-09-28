@@ -67,7 +67,10 @@ long) with less than 60 cm between its long side and a wall, two big pieces less
 apart, or anything within 30 cm of a doorway's inside point. Small things (chairs, a
 nightstand), the short ends of big ones, touching pieces and floating ones do not count —
 the first version flagged half the flat. The gap to a wall is measured to the room's bounding
-box, and a doorway's inside point is 45 cm into the room. The viewer draws an amber outline
+box, and a doorway's inside point is 45 cm into the room. Rooms a room separator divides are
+judged as one floor (`openFloor`; `tightSpotsByItem` takes each floor once). The box is the
+floor's, so a separator is no wall to be squeezed against, and two pieces facing each other
+across the line are a passage like any other. The viewer draws an amber outline
 around every flagged item and a generic warning floats above the tray. It is a warning, not a
 rule: the layout is still saved as arranged.
 
@@ -82,6 +85,12 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
+- The layout engine can stand a piece through the end of a partial wall. It tests a spot by the
+  four corners of its box, and a wall's end can lie inside a box whose corners are all in the
+  room. Seen in local test project #219: the style's TV unit stands on the tip of the diagonal
+  partial wall. The studio's placement test on a floor joined across separators
+  (`footprintOnFloor`, [studio.md](studio.md#direct-manipulation-libdesignmanipulatets)) sees
+  it, so the piece is outlined red when selected; the engine does not.
 - A model's real footprint (`footprintMasks`) is known only once the 3D view has loaded that
   file in this session; the 2D board still draws every piece as its box, and the layout
   engine, the matcher's fit check and the tight-passage warning all use the box.
