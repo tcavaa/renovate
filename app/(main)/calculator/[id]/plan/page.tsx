@@ -15,7 +15,7 @@ import { ElectricTray, TechnicalTray } from '@/components/studio/Trays';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
-import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
+import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowPanel, FlowPanelOverlay, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
@@ -43,7 +43,7 @@ import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
  *
  * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
  * tools floating down its left, the rooms in a panel down its right, and whatever is picked on
- * the board in a card of its own beside that panel, with its ✕.
+ * the board in a card of its own laid over that panel, with its ✕.
  */
 export default function CalculatorPlanPage() {
   const router = useRouter();
@@ -130,7 +130,7 @@ export default function CalculatorPlanPage() {
         <ElectricTray kind={electricalKind} onKind={setElectricalKind} armed={armed} onArm={setArmed} onSuggest={() => actions.suggestElectrical(catalog)} onClear={actions.clearElectrical} counts={electricalCounts} hint={t.build.hintElectrical} />
       </Tray>
     ) : null;
-  // Whatever is picked on the board but a room (the rooms panel has those): a card of its own.
+  // Whatever is picked on the board but a room (the rooms panel has those): a card of its own, over the rooms panel.
   const inspected = selection && selection.kind !== 'room' ? selection : null;
 
   const start = () => {
@@ -195,7 +195,7 @@ export default function CalculatorPlanPage() {
             onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
           />
           {inspected && (
-            <div className="mt-6 animate-fade-in lg:absolute lg:right-[368px] lg:top-[5.5rem] lg:z-30 lg:mt-0 lg:max-h-[calc(100%-7rem)] lg:w-[330px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-[14px] lg:shadow-float">
+            <FlowPanelOverlay>
               <InspectorClose.Provider value={() => actions.selectElement(null)}>
                 <ElementInspector
                   roomPart={actions.selectedRoomPart}
@@ -232,7 +232,7 @@ export default function CalculatorPlanPage() {
                   styleId={styleId}
                 />
               </InspectorClose.Provider>
-            </div>
+            </FlowPanelOverlay>
           )}
           <FlowPanel className="mt-6 lg:mt-0">
             <RoomsPanel

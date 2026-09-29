@@ -122,7 +122,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   `useCalculatorBoardProducts` makes every door, window, radiator and fitting on it a catalogue
   product (`ensureBoardProducts`).
 - **What is picked on the board has a card of its own**: a wall, a door or window, a technical
-  point or a fitting opens the inspector in a card beside the rooms panel, not in it, with its
+  point or a fitting opens the inspector in a card laid over the rooms panel (`FlowPanelOverlay`), not in it, with its
   delete and a ✕ (`InspectorClose`); the rooms panel lists the rooms only.
 - **"გამოთვლის დაწყება" asks first** when the board has neither a technical point nor a
   fitting: place them all by the standards (`placeByStandards(catalog)`: the three above and

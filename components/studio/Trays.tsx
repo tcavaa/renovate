@@ -33,7 +33,7 @@ import type { EditorTool } from '@/components/plan/PlanEditor';
 import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
-/** A room and a room separator are shapes of the wall tool — a line, a square, a dashed line — not tiles of their own. */
+/** A room and a room separator are shapes of the wall tool — a square, a line, a dashed line — not tiles of their own. */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
   { id: 'pan', icon: Hand },
@@ -51,18 +51,21 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1" role="toolbar">
         {BUILD_TOOLS.map(({ id, icon: Icon }) => {
-          const active = id === 'wall' ? drawing : tool === id;
+          // The drawing tile is called "room" and picks the room up first; the shapes follow.
+          const draw = id === 'wall';
+          const active = draw ? drawing : tool === id;
+          const label = toolLabel(t, draw ? 'room' : id);
           return (
-            <button key={id} type="button" onClick={() => onTool(id)} aria-pressed={active} title={toolLabel(t, id)} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+            <button key={id} type="button" onClick={() => onTool(draw ? (drawing ? tool : 'room') : id)} aria-pressed={active} title={label} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
               <Icon className="h-5 w-5" />
-              <span className="truncate px-1">{toolLabel(t, id)}</span>
+              <span className="truncate px-1">{label}</span>
             </button>
           );
         })}
       </div>
       {drawing && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
-          {(['wall', 'room', 'divider'] as const).map((id) => {
+          {(['room', 'wall', 'divider'] as const).map((id) => {
             const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
             return (
               <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>

@@ -187,6 +187,20 @@ export function FlowPanel({ children, className }: { children: React.ReactNode; 
   );
 }
 
+/**
+ * What is picked on the board, with its ✕, laid over `FlowPanel` from `lg` up: the same frame
+ * in the same place, opaque, so while it is open it stands in for the panel instead of
+ * crowding the sheet beside it (a card only as tall as its fields let the panel's list show
+ * underneath). Below `lg` it stands in the flow above the panel.
+ */
+export function FlowPanelOverlay({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cn('mt-6 animate-fade-in lg:absolute lg:bottom-4 lg:right-4 lg:top-[5.5rem] lg:z-30 lg:mt-0 lg:w-[340px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-[18px] lg:border lg:border-line/70 lg:bg-bg-base lg:p-3 lg:shadow-float', className)}>
+      {children}
+    </div>
+  );
+}
+
 /** A refusal that has to be seen: under the bar of a full-screen step, near the top of the window below `lg`. */
 export function FlowAlert({ children }: { children: React.ReactNode }) {
   return (
