@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
+import type { CalculationInput } from '@/lib/summary/calculatorSheet';
+import { planFromCalculatorRooms } from '@/lib/design/planGeometry';
 import type { DesignCost, FloorPlan } from '@/lib/design/types';
 
 const room = (id: string, nameKa: string): Room => ({
@@ -30,36 +32,35 @@ const pick = (productId: number, extra: Partial<SelectedProduct> = {}): Selected
 
 describe('calculatorCheckoutPart', () => {
   const rooms = [room('r1', 'მისაღები'), room('r2', 'საძინებელი')];
+  const input = (selectedProducts: Record<string, SelectedProduct>, selectedFurniture: Record<string, SelectedProduct[]>, extra: Partial<CalculationInput> = {}): CalculationInput => ({ rooms, homeState: 'white_frame', picks: { selectedProducts, selectedFurniture }, board: null, electrical: [], ...extra });
 
-  it('leaves out what was ticked off the order, and names the room of what stays', () => {
+  it('lists the priced calculation’s product lines still ticked, and names the room of each', () => {
     const part = calculatorCheckoutPart(
-      rooms,
-      { floor_global: pick(1), tiles_room: pick(2, { roomId: 'r2', excluded: true }) },
-      { r1: [pick(3), pick(4, { excluded: true })] },
+      input({ sanitary_global: pick(1, { categorySlug: 'sanitary' }), 'laminate_room:r2': pick(2, { roomId: 'r2', surface: 'floor', unit: 'm2', categorySlug: 'laminate' }) }, { r1: [pick(3), pick(4, { excluded: true })] }),
       2,
       'ka'
     );
-    expect(part.lines.map((l) => l.productId)).toEqual([1, 3]);
-    expect(part.lines.map((l) => l.where)).toEqual([null, 'მისაღები']);
+    expect(part.lines.map((l) => l.productId).sort()).toEqual([1, 2, 3]);
+    expect(part.lines.find((l) => l.productId === 3)?.where).toBe('მისაღები');
+    expect(part.lines.find((l) => l.productId === 2)?.where).toBe('საძინებელი');
     expect(part.totalM2).toBe(24);
     expect(part.feePerM2).toBe(2);
   });
 
   it('lists what the summary left in the order: a line ticked off is out, a changed quantity is the quantity', () => {
-    const part = calculatorCheckoutPart(rooms, { floor_global: pick(1, { qty: 10, totalPrice: 1000 }) }, { r1: [pick(3), pick(3)] }, 2, 'ka', {
-      excluded: ['furniture:r1:3:1'],
-      quantities: { 'pick:floor_global': 8 },
-    });
+    const part = calculatorCheckoutPart(input({ sanitary_global: pick(1, { categorySlug: 'sanitary' }) }, { r1: [pick(3), pick(3)] }, { edits: { excluded: ['furniture:r1:3:1'], quantities: { 'pick:sanitary_global': 3 } } }), 2, 'ka');
     expect(part.lines.map((l) => [l.productId, l.qty, l.total])).toEqual([
-      [1, 8, 800],
+      [1, 3, 300],
       [3, 1, 100],
     ]);
   });
 
-  it('keeps a per-room material line under its own room', () => {
-    const part = calculatorCheckoutPart(rooms, { tiles_room: pick(9, { roomId: 'r2' }) }, {}, 2, 'ka');
-    expect(part.lines).toHaveLength(1);
-    expect(part.lines[0].where).toBe('საძინებელი');
+  it('orders the doors on the board in the door picked for the whole flat — one door for its two halves', () => {
+    const board = planFromCalculatorRooms([{ ...rooms[0], x: 0, z: 0 }, { ...rooms[1], x: 4, z: 0 }]);
+    const part = calculatorCheckoutPart(input({ doors_global: pick(21, { categorySlug: 'doors', model3dKind: 'door' }) }, {}, { board }), 2, 'ka');
+    const doors = board.rooms.reduce((n, r) => n + r.openings.filter((o) => o.kind === 'door' && !o.exterior && (!o.connectsToRoomId || r.id < o.connectsToRoomId)).length, 0);
+    expect(doors).toBeGreaterThan(0);
+    expect(part.lines.find((l) => l.productId === 21)?.qty).toBe(doors);
   });
 });
 

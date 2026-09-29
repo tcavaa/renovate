@@ -16,7 +16,7 @@ import type { CatalogProduct } from './matcher';
 import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
-import { wallPerimeterM } from './planGeometry';
+import { roomWallAreaM2 } from './planGeometry';
 import type { ItemOrigin, PlanRoom, StyleId, StyleSurface, SurfaceFinish } from './types';
 
 export type Surface = 'floor' | 'wall';
@@ -77,11 +77,13 @@ export function pricePerM2(product: CatalogProduct): number {
   return product.pricePerUnit / Math.max(coverage, 0.01);
 }
 
-/** Wall area to cover: the walled perimeter (not the edges on a room separator) times the height, less the doors and windows. */
+/**
+ * Wall area to cover: the walled perimeter (not the edges on a room separator) at the room's
+ * height, less the doors, windows and openings — the one figure the renovation's plaster and
+ * paint are counted by too, in the design and in the calculator (`roomWallAreaM2`).
+ */
 export function wallAreaM2(room: PlanRoom): number {
-  const gross = wallPerimeterM(room) * room.heightM;
-  const openings = room.openings.reduce((sum, o) => sum + o.widthM * o.heightM, 0);
-  return Math.max(1, Math.round((gross - openings) * 10) / 10);
+  return roomWallAreaM2(room);
 }
 
 /** The style's own finish for this surface in this room — tiles in a bathroom. */
@@ -111,7 +113,11 @@ export function defaultFinish(room: PlanRoom, surface: SurfaceFinish['surface'],
   };
 }
 
-/** The finish a chosen product gives this room, priced by the area it covers. */
+/**
+ * The finish a chosen product gives this room, priced by the area it covers — per square metre,
+ * with what the product is sold by kept beside it (`SceneProduct.sale`) for the budget, which
+ * buys whole tins and the cutting waste.
+ */
 export function finishFromProduct(
   room: PlanRoom,
   surface: Surface,
@@ -119,7 +125,7 @@ export function finishFromProduct(
   origin: ItemOrigin = 'studio'
 ): SurfaceFinish {
   const specs = surfaceSpecs(product);
-  const qty = surface === 'floor' ? Math.round(room.areaM2 * 10) / 10 : wallAreaM2(room);
+  const qty = surface === 'floor' ? Math.round(room.areaM2 * 100) / 100 : wallAreaM2(room);
   return {
     roomId: room.id,
     surface,
@@ -128,7 +134,7 @@ export function finishFromProduct(
     textureScaleM: specs.textureScaleM ?? 1.5,
     normalUrl: specs.normalUrl ?? null,
     roughnessUrl: specs.roughnessUrl ?? null,
-    product: toSceneProduct({ ...product, pricePerUnit: pricePerM2(product), unit: 'm2' }, qty),
+    product: { ...toSceneProduct({ ...product, pricePerUnit: pricePerM2(product), unit: 'm2' }, qty), sale: { unit: product.unit, pricePerUnit: product.pricePerUnit, coveragePerUnit: product.coveragePerUnit ?? null } },
     origin,
   };
 }

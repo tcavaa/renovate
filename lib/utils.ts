@@ -41,22 +41,6 @@ export function formatNumber(value: number, fractionDigits = 2): string {
   return groupDigits(rounded, decimals);
 }
 
-export function formatUnit(unit: string): string {
-  const map: Record<string, string> = {
-    m2: 'მ²',
-    linear_m: 'გრძ.მ',
-    m: 'მ',
-    section: 'სექცია',
-    piece: 'ცალი',
-    liter: 'ლ',
-    kg: 'კგ',
-    m3: 'მ³',
-    pack: 'პაკეტი',
-    set: 'ნაკრები',
-  };
-  return map[unit] ?? unit;
-}
-
 export function slugify(text: string): string {
   return text
     .toString()

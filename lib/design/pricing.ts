@@ -24,15 +24,11 @@
  */
 
 import type { RateBook } from '@/lib/calculator/rates';
-import {
-  buildProjectSummary,
-  calculateMaterials,
-  calculateWorkerCosts,
-  estimateMaterialsCost,
-  type EstimateCounts,
-  type EstimateOptions,
-} from '@/lib/calculator/materials';
-import type { HomeState, Room, WorkChoices } from '@/lib/calculator/types';
+import { calculateMaterials, calculateWorkerCosts, type EstimateCounts, type EstimateOptions } from '@/lib/calculator/materials';
+import type { HomeState, MaterialItem, Room, SelectedProduct, WorkChoices, WorkerCost } from '@/lib/calculator/types';
+import { CONTINGENCY_PCT } from '@/lib/calculator/constants';
+import { finishPickQuantity } from '@/lib/calculator/quantities';
+import { countDoors } from './openings';
 import { partitionArea } from './partitions';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
@@ -79,6 +75,19 @@ export interface PriceOptions {
   existing?: readonly string[] | null;
   /** Laminate or parquet, plasterboard or a stretch ceiling; the plan's own when omitted. */
   choices?: Partial<WorkChoices> | null;
+  /**
+   * Product lines of the caller's own, priced with everything else — ticked, basketed and
+   * charged delivery with the rest (`bucket` 'products' or 'furniture'): the calculator's picks
+   * that are neither a room's floor or walls nor a door, a window, a fitting or a radiator on
+   * its board (sanitary ware, a pendant), and its furniture, which is picked, not placed.
+   */
+  extraLines?: BudgetLine[];
+  /**
+   * Counts that replace what the plan says, where the caller knows the plan says nothing: the
+   * calculator estimates the doors, the partitions and the points from its rooms when its board
+   * has none drawn (`lib/calculator/boardCounts`). The design passes none.
+   */
+  counts?: Partial<EstimateCounts> | null;
 }
 
 export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling' | 'skirting' | 'cornice', string>;
@@ -297,7 +306,13 @@ export function priceScene(
     if (!surfaces.includes(finish.surface)) surfaces.push(finish.surface);
     surfacesOf.set(finish.product.productId, surfaces);
   }
+  // Bought the way a shop sells it (`finishPurchase`): tiles and laminate with the cutting waste,
+  // paint in whole tins by what one covers — over every room a product is on, so a paint over
+  // five rooms is its tins rounded up once. The calculator buys its picks the same way.
+  const finishArea = new Map<number, number>();
   for (const entry of finishCoverage(priced)) {
+    finishArea.set(entry.product.productId, entry.areaM2);
+    const bought = finishPurchase(entry);
     raw.push({
       section: 'finishes',
       bucket: 'finishes',
@@ -305,12 +320,12 @@ export function priceScene(
       tick: tickFor.finish(entry.product.productId),
       name: localizedName(entry.product, locale),
       roomName: entry.rooms.map((id) => roomName.get(id) ?? id).join(', '),
-      qty: entry.areaM2,
-      unit: entry.unit === 'linear_m' ? 'm' : 'm2',
-      unitPrice: entry.product.pricePerUnit,
-      total: entry.total,
+      qty: bought.qty,
+      unit: bought.unit,
+      unitPrice: bought.unitPrice,
+      total: bought.total,
       estimated: false,
-      product: lineProduct(entry.product, entry.areaM2, entry.total),
+      product: { ...lineProduct(entry.product, bought.qty, bought.total), unit: bought.productUnit, pricePerUnit: bought.unitPrice },
       item: (surfacesOf.get(entry.product.productId) ?? []).map((surface) => options.surfaceLabels?.[surface] ?? DEFAULT_SURFACE_LABELS[surface]).join(', '),
     });
   }
@@ -332,16 +347,11 @@ export function priceScene(
   // plumber's, the radiators — so the estimate's lines and the points' own are one and the same.
   const technical = technicalWork(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels);
   if (full && phases.length > 0) {
-    const rooms: Room[] = planToCalculatorRooms(plan);
-    const estimate: EstimateOptions = {
-      phases,
-      choices: options.choices ?? plan.technical?.choices ?? null,
-      counts: { ...technical.counts, doors: countDoors(plan), ...partitionArea(plan) },
-    };
-    for (const m of calculateMaterials(rooms, homeState, options.book, estimate)) {
+    const { materials, workerCosts } = engineEstimate(plan, homeState, phases, technical.counts, options);
+    for (const m of materials) {
       raw.push({ section: 'materials', bucket: 'materials', key: m.key, tick: tickFor.material(m.key), name: m.labelKa, qty: m.qty, unit: m.unit, unitPrice: m.estimatedPriceGEL ?? 0, total: round2(m.qty * (m.estimatedPriceGEL ?? 0)), estimated: true });
     }
-    for (const w of calculateWorkerCosts(rooms, homeState, options.book, estimate)) {
+    for (const w of workerCosts) {
       raw.push({ section: 'labour', bucket: 'labour', key: w.key, tick: tickFor.labour(w.key), name: w.labelKa, qty: w.qty, unit: w.qtyUnit, unitPrice: w.pricePerQty, total: w.totalGEL, estimated: true });
     }
   }
@@ -349,6 +359,8 @@ export function priceScene(
   // --- doors and windows, sockets, lights, pipes ---
   if (!have.has('openings')) raw.push(...priceOpenings(plan, full, phases, roomName, locale, productLabels));
   raw.push(...technical.lines);
+  // --- the caller's own products: the calculator's other picks, its furniture ---
+  raw.push(...(options.extraLines ?? []));
 
   // --- the person's edits, and everything that is counted, counted off the result ---
   const isOut = tickedOff(scene.excluded);
@@ -363,6 +375,11 @@ export function priceScene(
   const labourTotal = sumOf('labour');
   const openingsTotal = sumOf('openings');
   const technicalTotal = sumOf('technical');
+  const productsTotal = sumOf('products');
+  // Unforeseen costs belong to the renovation, not to what is bought: a share of the bulk
+  // materials and the labour, in a renovation only — never of the furniture or the products.
+  const renovationWork = full ? counted.reduce((s, l) => s + (l.section === 'materials' || l.section === 'labour' ? l.total : 0), 0) : 0;
+  const contingencyTotal = round2((renovationWork * CONTINGENCY_PCT) / 100);
   // What is being bought, for the "m² per material" list: the finishes still ticked.
   const finishOut = new Set(lines.filter((l) => l.bucket === 'finishes' && l.excluded).map((l) => l.product?.productId));
   const coverage = finishCoverage(priced.filter((f) => !f.product || !finishOut.has(f.product.productId)));
@@ -375,15 +392,16 @@ export function priceScene(
   };
   const byName = new Map([...roomName.entries()].map(([id, name]) => [name, id]));
   for (const line of counted) {
-    if (line.bucket === 'furniture') credit(roomOf.get(line.tick ?? ''), line.total);
-    else if (line.bucket === 'openings' || line.bucket === 'technical') credit(line.roomName ? byName.get(line.roomName) : undefined, line.total);
+    if (line.bucket === 'furniture') credit(roomOf.get(line.tick ?? '') ?? (line.roomName ? byName.get(line.roomName) : undefined), line.total);
+    else if (line.bucket === 'openings' || line.bucket === 'technical' || line.bucket === 'products') credit(line.roomName ? byName.get(line.roomName) : undefined, line.total);
   }
+  // A finish's line is shared by the rooms it lies in, by the area it covers in each.
   for (const finish of priced) {
     if (!finish.product) continue;
     const line = counted.find((l) => l.bucket === 'finishes' && l.product?.productId === finish.product!.productId);
-    if (!line) continue;
-    const ratio = line.originalQty != null && line.originalQty > 0 ? line.qty / line.originalQty : 1;
-    credit(finish.roomId, finish.product.totalPrice * ratio);
+    const area = finishArea.get(finish.product.productId) ?? 0;
+    if (!line || area <= 0) continue;
+    credit(finish.roomId, (line.total * finish.product.qty) / area);
   }
 
   // --- the baskets: what each store is asked for ---
@@ -414,7 +432,7 @@ export function priceScene(
     }
   }
 
-  const grandTotal = round2(furnitureTotal + finishesTotal + materialsTotal + labourTotal + deliveryTotal + openingsTotal + technicalTotal);
+  const grandTotal = round2(furnitureTotal + finishesTotal + materialsTotal + labourTotal + deliveryTotal + openingsTotal + technicalTotal + productsTotal);
 
   return {
     furnitureTotal,
@@ -425,7 +443,9 @@ export function priceScene(
     deliveryTotal: round2(deliveryTotal),
     openingsTotal,
     technicalTotal,
+    productsTotal,
     grandTotal,
+    contingencyTotal,
     perRoom: plan.rooms.map((room) => ({
       roomId: room.id,
       roomName: room.name,
@@ -436,6 +456,20 @@ export function priceScene(
     coverage,
     kitchens,
   };
+}
+
+/**
+ * What a finish's area is bought as: whole units of what the product is sold by, with the
+ * cutting waste — the calculator's rule (`finishPickQuantity`), so both buy a product the same
+ * way. A moulding is bought by the metre as it is; a snapshot from before `sale` by the m².
+ */
+export function finishPurchase(entry: Pick<FinishCoverage, 'product' | 'areaM2' | 'unit' | 'total'>): { qty: number; unit: string; productUnit: string; unitPrice: number; total: number } {
+  const product = entry.product;
+  if (entry.unit === 'linear_m') return { qty: entry.areaM2, unit: 'm', productUnit: product.unit, unitPrice: product.pricePerUnit, total: entry.total };
+  const sale = product.sale;
+  if (!sale) return { qty: entry.areaM2, unit: 'm2', productUnit: product.unit, unitPrice: product.pricePerUnit, total: entry.total };
+  const qty = finishPickQuantity({ unit: sale.unit as SelectedProduct['unit'], categorySlug: product.categorySlug ?? undefined, coveragePerUnit: sale.coveragePerUnit }, entry.areaM2);
+  return { qty, unit: sale.unit === 'linear_m' ? 'm' : sale.unit, productUnit: sale.unit, unitPrice: sale.pricePerUnit, total: round2(qty * sale.pricePerUnit) };
 }
 
 function localizedName(row: { nameKa: string; nameEn?: string | null; nameRu?: string | null }, locale: 'ka' | 'en' | 'ru'): string {
@@ -537,27 +571,6 @@ const PHASES_ALREADY_DONE: Partial<Record<ExistingKey, number[]>> = {
 function withoutExisting(phases: number[], have: AlreadyHave): number[] {
   const done = new Set(EXISTING_KEYS.flatMap((key) => (have.has(key) ? PHASES_ALREADY_DONE[key] ?? [] : [])));
   return phases.filter((phase) => !done.has(phase));
-}
-
-/** The flat's doors, an interior door's two halves once: what the doors phase hangs. */
-export function countDoors(plan: FloorPlan): number {
-  const seen = new Set<string>();
-  let doors = 0;
-  for (const room of plan.rooms) {
-    const ordinal = new Map<string, number>();
-    for (const opening of room.openings) {
-      if (opening.kind !== 'door') continue;
-      if (opening.connectsToRoomId) {
-        const pairKey = [room.id, opening.connectsToRoomId].sort().join('|');
-        const n = ordinal.get(pairKey) ?? 0;
-        ordinal.set(pairKey, n + 1);
-        if (seen.has(`${pairKey}|${n}`)) continue;
-        seen.add(`${pairKey}|${n}`);
-      }
-      doors += 1;
-    }
-  }
-  return doors;
 }
 
 /**
@@ -684,6 +697,32 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
 }
 
 /**
+ * The renovation's bulk materials and labour for a plan, as a renovation budget has them: the
+ * rate book's phases — the ticked works, else the home state's, less what the flat already has —
+ * over the plan's rooms (`planToCalculatorRooms`), counted from what the plan holds (the points
+ * its phases own, `countDoors`, `partitionArea`) or the caller's own counts where it knows the
+ * plan says nothing. The part of `priceScene` the calculator's materials step shows on its own.
+ */
+export function renovationEstimate(plan: FloorPlan, electrical: ElectricalPoint[], options: Pick<PriceOptions, 'homeState' | 'book' | 'works' | 'existing' | 'choices' | 'counts'> = {}): { phases: number[]; materials: MaterialItem[]; workerCosts: WorkerCost[] } {
+  const homeState = options.homeState ?? 'white_frame';
+  const have = alreadyHave(options.existing ?? plan.technical?.existing ?? defaultExistingForHomeState(homeState));
+  const phases = withoutExisting(effectivePhases(homeState, options.works ?? plan.technical?.works ?? null), have);
+  if (phases.length === 0) return { phases, materials: [], workerCosts: [] };
+  const { counts } = technicalWork(plan, electrical, true, phases, options.book, new Map(), 'ka', have, DEFAULT_PRODUCT_LABELS);
+  return { phases, ...engineEstimate(plan, homeState, phases, counts, options) };
+}
+
+function engineEstimate(plan: FloorPlan, homeState: HomeState, phases: number[], pointCounts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'>, options: Pick<PriceOptions, 'book' | 'choices' | 'counts'>): { materials: MaterialItem[]; workerCosts: WorkerCost[] } {
+  const rooms: Room[] = planToCalculatorRooms(plan);
+  const estimate: EstimateOptions = {
+    phases,
+    choices: options.choices ?? plan.technical?.choices ?? null,
+    counts: { ...pointCounts, doors: countDoors(plan), ...partitionArea(plan), ...options.counts },
+  };
+  return { materials: calculateMaterials(rooms, homeState, options.book, estimate), workerCosts: calculateWorkerCosts(rooms, homeState, options.book, estimate) };
+}
+
+/**
  * Delivery is charged once per store, and waived above a threshold — which is both how
  * Georgian furniture retail actually works and a real reason for the summary to group the
  * basket by partner rather than showing one flat list.
@@ -718,48 +757,6 @@ export function budgetSummary(cost: DesignCost): { materials: number; products: 
 }
 
 export type { FinishCoverage };
-
-/**
- * The full calculator summary, for `full`-mode projects that continue into the materials and
- * labour steps. Reuses the existing engine rather than duplicating any of its rates.
- */
-export function fullProjectSummary(
-  plan: FloorPlan,
-  scene: DesignScene,
-  homeState: HomeState,
-  book?: RateBook
-) {
-  const rooms = planToCalculatorRooms(plan);
-  const furniture = scene.items
-    .map((item) => item.product)
-    .filter((p): p is NonNullable<typeof p> => !!p)
-    .map((p) => ({
-      productId: p.productId,
-      nameKa: p.nameKa,
-      pricePerUnit: p.pricePerUnit,
-      unit: p.unit as never,
-      qty: p.qty,
-      totalPrice: p.totalPrice,
-      imageUrl: p.imageUrl,
-      categorySlug: p.categorySlug ?? undefined,
-    }));
-
-  const finishes = scene.finishes
-    .map((f) => f.product)
-    .filter((p): p is NonNullable<typeof p> => !!p)
-    .map((p) => ({
-      productId: p.productId,
-      nameKa: p.nameKa,
-      pricePerUnit: p.pricePerUnit,
-      unit: p.unit as never,
-      qty: p.qty,
-      totalPrice: p.totalPrice,
-      imageUrl: p.imageUrl,
-      categorySlug: p.categorySlug ?? undefined,
-    }));
-
-  return buildProjectSummary(rooms, homeState, finishes, furniture, book, { phases: effectivePhases(homeState, plan.technical?.works ?? null), choices: plan.technical?.choices ?? null });
-}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

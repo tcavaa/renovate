@@ -135,104 +135,147 @@ function alongBack(item: PlacedItem, wall: { edge: PlanEdge; t: number }, latera
 }
 
 /**
- * Sockets, switches and lights for every room, from the furniture standing in it. Rooms that
- * already carry points the person made keep them; only rooms without any are filled in.
+ * What a suggestion leaves as it is: a room the person has wired by hand, whole — their points
+ * and the ones the app gave it alike. Adding one socket to a room must not cost it the ceiling
+ * light and the switches it already had (they used to go, and the calculation's board and the
+ * design made from it then counted that room differently). Every other room is filled in again.
+ */
+function wiredByHand(existing: ElectricalPoint[]): { kept: ElectricalPoint[]; skip: Set<string> } {
+  const skip = new Set(existing.filter((p) => p.origin !== 'generated').map((p) => p.roomId));
+  return { kept: existing.filter((p) => skip.has(p.roomId)), skip };
+}
+
+/**
+ * Sockets, switches and lights for every room: the standard ones every room of its kind gets
+ * (`standardElectrical`), then what the furniture standing in it calls for. A room the person
+ * has wired by hand is kept as it is (`wiredByHand`); only the others are filled in.
  */
 export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = []): ElectricalPoint[] {
   let counter = existing.length;
   const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
-  const kept = existing.filter((p) => p.origin !== 'generated');
-  const skip = new Set(kept.map((p) => p.roomId));
+  const { kept, skip } = wiredByHand(existing);
 
   for (const room of plan.rooms) {
     if (skip.has(room.id)) continue;
-    const edges = wallEdges(room);
-    if (edges.length === 0) continue;
-    const here = items.filter((i) => i.roomId === room.id);
-    const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
-
-    // Every room: a main light and a switch on the handle side of each door.
-    make(b, room, 'light_ceiling', centre);
-    for (const door of room.openings.filter((o) => o.kind !== 'window')) {
-      const edge = edges.find((e) => e.index === door.wallIndex);
-      if (!edge) continue;
-      const side = door.hinge === 'right' ? -1 : 1;
-      const t = door.t + (side * (door.widthM / 2 + 0.2)) / edge.length;
-      if (t <= 0.02 || t >= 0.98) makeOnWall(b, room, 'switch', edge, door.t - (side * (door.widthM / 2 + 0.2)) / edge.length);
-      else makeOnWall(b, room, 'switch', edge, t);
-    }
-
-    const beds = here.filter((i) => i.slot === 'bed');
-    for (const bed of beds) {
-      const wall = backWall(room, bed);
-      if (!wall) continue;
-      for (const side of [-1, 1]) {
-        const t = alongBack(bed, wall, side * (bed.size.width / 2 + 0.25));
-        makeOnWall(b, room, 'socket_double', wall.edge, t, { elevationM: BEDSIDE_SOCKET_M });
-        makeOnWall(b, room, 'light_wall', wall.edge, t, { elevationM: 1.45, category: 'bedside' });
-      }
-    }
-
-    const tv = here.find((i) => i.slot === 'tv_unit');
-    if (tv) {
-      const wall = backWall(room, tv);
-      if (wall) {
-        makeOnWall(b, room, 'tv', wall.edge, wall.t, { elevationM: TV_SOCKET_M });
-        makeOnWall(b, room, 'socket_double', wall.edge, alongBack(tv, wall, 0.3), { elevationM: TV_SOCKET_M });
-        makeOnWall(b, room, 'internet', wall.edge, alongBack(tv, wall, -0.3), { elevationM: TV_SOCKET_M });
-        for (const side of [-1, 1]) makeOnWall(b, room, 'socket_high', wall.edge, alongBack(tv, wall, side * 0.7), { elevationM: HIGH_SOCKET_M });
-      }
-    }
-
-    const sofa = here.find((i) => i.slot === 'sofa');
-    if (sofa) {
-      const wall = backWall(room, sofa);
-      if (wall) makeOnWall(b, room, 'socket_double', wall.edge, alongBack(sofa, wall, sofa.size.width / 2 + 0.2));
-    }
-
-    const desk = here.find((i) => i.slot === 'desk');
-    if (desk) {
-      const wall = backWall(room, desk);
-      if (wall) {
-        makeOnWall(b, room, 'socket_double', wall.edge, alongBack(desk, wall, 0.25), { elevationM: 0.75 });
-        makeOnWall(b, room, 'internet', wall.edge, alongBack(desk, wall, -0.25), { elevationM: 0.75 });
-      }
-    }
-
-    const run = here.find((i) => i.slot === 'kitchen_run');
-    if (run) {
-      const wall = backWall(room, run);
-      if (wall) {
-        const spread = run.size.width / 2 - 0.35;
-        for (const lateral of [-spread, 0, spread]) makeOnWall(b, room, 'socket_kitchen', wall.edge, alongBack(run, wall, lateral), { elevationM: KITCHEN_SOCKET_M });
-        makeOnWall(b, room, 'light_furniture', wall.edge, wall.t, { elevationM: 1.5, lengthM: Math.min(run.size.width, wall.edge.length - 0.2), category: 'furniture' });
-      }
-    }
-    const fridge = here.find((i) => i.slot === 'fridge');
-    if (fridge) {
-      const wall = backWall(room, fridge);
-      if (wall) makeOnWall(b, room, 'socket', wall.edge, wall.t, { elevationM: 0.3 });
-    }
-
-    const sink = here.find((i) => i.slot === 'sink');
-    if (sink && (room.type === 'bathroom' || room.type === 'toilet')) {
-      const wall = backWall(room, sink);
-      if (wall) {
-        makeOnWall(b, room, 'socket', wall.edge, alongBack(sink, wall, sink.size.width / 2 + 0.2), { elevationM: 1.1 });
-        makeOnWall(b, room, 'light_wall', wall.edge, wall.t, { elevationM: 1.95, category: 'secondary' });
-      }
-    }
-
-    // Living rooms and bedrooms: a general socket on each long free wall, at 45 cm.
-    if (['living_room', 'bedroom', 'office', 'hallway', 'kitchen', 'studio'].includes(room.type)) {
-      const used = new Set(b.points.filter((p) => p.roomId === room.id && p.wallIndex != null).map((p) => p.wallIndex));
-      const free = edges.filter((e) => e.length >= 1.6 && !used.has(e.index)).sort((p, q) => q.length - p.length);
-      const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
-      for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
-    }
+    if (wallEdges(room).length === 0) continue;
+    standardFor(b, room);
+    furnitureFor(b, room, items.filter((i) => i.roomId === room.id));
   }
 
   return [...kept, ...b.points];
+}
+
+/**
+ * The fittings every room gets by the standard rules, whatever furniture it will hold: a main
+ * light, a switch on the handle side of each door, and a general socket at 45 cm on the long
+ * walls of the rooms people live in. What the calculator places on its board — it has no
+ * furniture — and the part of a design's fittings the calculator's estimate is the same as;
+ * the design's furniture then adds its own (`suggestElectrical`). A room the person has wired
+ * by hand is kept as it is (`wiredByHand`).
+ */
+export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] = []): ElectricalPoint[] {
+  let counter = existing.length;
+  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
+  const { kept, skip } = wiredByHand(existing);
+  for (const room of plan.rooms) {
+    if (skip.has(room.id) || wallEdges(room).length === 0) continue;
+    standardFor(b, room);
+  }
+  return [...kept, ...b.points];
+}
+
+/**
+ * One room's standard fittings. Decided by the room alone — never by the furniture — so the
+ * calculator, which has none, places exactly what the design does before its furniture adds
+ * its own: the general sockets keep off the walls the switches are on, and nothing else.
+ */
+function standardFor(b: Builder, room: PlanRoom): void {
+  const edges = wallEdges(room);
+  const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
+  const before = b.points.length;
+
+  // Every room: a main light and a switch on the handle side of each door.
+  make(b, room, 'light_ceiling', centre);
+  for (const door of room.openings.filter((o) => o.kind !== 'window')) {
+    const edge = edges.find((e) => e.index === door.wallIndex);
+    if (!edge) continue;
+    const side = door.hinge === 'right' ? -1 : 1;
+    const t = door.t + (side * (door.widthM / 2 + 0.2)) / edge.length;
+    if (t <= 0.02 || t >= 0.98) makeOnWall(b, room, 'switch', edge, door.t - (side * (door.widthM / 2 + 0.2)) / edge.length);
+    else makeOnWall(b, room, 'switch', edge, t);
+  }
+
+  // The rooms people live in: a general socket on each long free wall, at 45 cm.
+  if (['living_room', 'bedroom', 'office', 'hallway', 'kitchen', 'studio'].includes(room.type)) {
+    const used = new Set(b.points.slice(before).filter((p) => p.wallIndex != null).map((p) => p.wallIndex));
+    const free = edges.filter((e) => e.length >= 1.6 && !used.has(e.index)).sort((p, q) => q.length - p.length);
+    const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
+    for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
+  }
+}
+
+/** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the basin. */
+function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[]): void {
+  const beds = here.filter((i) => i.slot === 'bed');
+  for (const bed of beds) {
+    const wall = backWall(room, bed);
+    if (!wall) continue;
+    for (const side of [-1, 1]) {
+      const t = alongBack(bed, wall, side * (bed.size.width / 2 + 0.25));
+      makeOnWall(b, room, 'socket_double', wall.edge, t, { elevationM: BEDSIDE_SOCKET_M });
+      makeOnWall(b, room, 'light_wall', wall.edge, t, { elevationM: 1.45, category: 'bedside' });
+    }
+  }
+
+  const tv = here.find((i) => i.slot === 'tv_unit');
+  if (tv) {
+    const wall = backWall(room, tv);
+    if (wall) {
+      makeOnWall(b, room, 'tv', wall.edge, wall.t, { elevationM: TV_SOCKET_M });
+      makeOnWall(b, room, 'socket_double', wall.edge, alongBack(tv, wall, 0.3), { elevationM: TV_SOCKET_M });
+      makeOnWall(b, room, 'internet', wall.edge, alongBack(tv, wall, -0.3), { elevationM: TV_SOCKET_M });
+      for (const side of [-1, 1]) makeOnWall(b, room, 'socket_high', wall.edge, alongBack(tv, wall, side * 0.7), { elevationM: HIGH_SOCKET_M });
+    }
+  }
+
+  const sofa = here.find((i) => i.slot === 'sofa');
+  if (sofa) {
+    const wall = backWall(room, sofa);
+    if (wall) makeOnWall(b, room, 'socket_double', wall.edge, alongBack(sofa, wall, sofa.size.width / 2 + 0.2));
+  }
+
+  const desk = here.find((i) => i.slot === 'desk');
+  if (desk) {
+    const wall = backWall(room, desk);
+    if (wall) {
+      makeOnWall(b, room, 'socket_double', wall.edge, alongBack(desk, wall, 0.25), { elevationM: 0.75 });
+      makeOnWall(b, room, 'internet', wall.edge, alongBack(desk, wall, -0.25), { elevationM: 0.75 });
+    }
+  }
+
+  const run = here.find((i) => i.slot === 'kitchen_run');
+  if (run) {
+    const wall = backWall(room, run);
+    if (wall) {
+      const spread = run.size.width / 2 - 0.35;
+      for (const lateral of [-spread, 0, spread]) makeOnWall(b, room, 'socket_kitchen', wall.edge, alongBack(run, wall, lateral), { elevationM: KITCHEN_SOCKET_M });
+      makeOnWall(b, room, 'light_furniture', wall.edge, wall.t, { elevationM: 1.5, lengthM: Math.min(run.size.width, wall.edge.length - 0.2), category: 'furniture' });
+    }
+  }
+  const fridge = here.find((i) => i.slot === 'fridge');
+  if (fridge) {
+    const wall = backWall(room, fridge);
+    if (wall) makeOnWall(b, room, 'socket', wall.edge, wall.t, { elevationM: 0.3 });
+  }
+
+  const sink = here.find((i) => i.slot === 'sink');
+  if (sink && (room.type === 'bathroom' || room.type === 'toilet')) {
+    const wall = backWall(room, sink);
+    if (wall) {
+      makeOnWall(b, room, 'socket', wall.edge, alongBack(sink, wall, sink.size.width / 2 + 0.2), { elevationM: 1.1 });
+      makeOnWall(b, room, 'light_wall', wall.edge, wall.t, { elevationM: 1.95, category: 'secondary' });
+    }
+  }
 }
 
 /** A point the person places by hand, on the nearest wall of its room where the kind wants a wall. */

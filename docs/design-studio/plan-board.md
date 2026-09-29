@@ -186,7 +186,8 @@ ticked works); an outer wall says it is not priced; a separator is not a wall at
 wall is drawn grey on the board (`EDITOR.wallBuilt`), and the sheet's corner carries a small
 legend above the area plate. `partitionArea` sums the partitions not built, at each wall's own
 height; the studio prices from it (`priceScene`), and the calculator from its own board
-(`boardPartitionCounts` — see [../calculator.md](../calculator.md)).
+(`boardPartitionCounts`, which `boardCounts` passes on with the board's doors — see
+[../calculator.md](../calculator.md)).
 
 ## A studio is one room in two parts (`lib/design/studio.ts`)
 
@@ -224,7 +225,10 @@ windows (`EDITOR` in `palette.ts`; `drawRoom`, `drawWall`, `drawOpening`). A roo
 label, not a tint — the rooms panel and a studio's part fields keep a swatch per type — and the
 room picked out is a pale warm tint with the dashed outline. A room separator is a dashed black
 line; a wall already built in a black frame is grey. The PDF (`planPdfExport`) and the project
-page's sketch (`PlanSketch`) draw the same way.
+page's sketch (`PlanSketch`) draw the same way. **The floors stay white paper** wherever the plan
+is read rather than dressed: the room finishes are the `zones` layer, off on the existing-flat
+and technical steps, the calculator's board and the project page's viewer, and on in the
+studio's 2D view only while the finishes tray is open.
 
 One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with three shapes: a line,
 a square and a room separator** (`room` is the square: a rectangle whose inside is exactly what
@@ -274,7 +278,13 @@ wires it to the store with the toolbar and the hint line; the design flow's step
 the studio's 2D view and the calculator's plan step (2) (`useCalculatorPlan` keeps the
 calculator's `rooms` read off the plan) all use it. (`EditorTool` also has `zone` and `paint`;
 no page currently offers `zone` — [finishes.md](finishes.md#known-gaps).) The transform is exposed on the canvas
-as `data-scale` / `data-offset-x/y` for tests.
+as `data-scale` / `data-offset-x/y` for tests. A page that drives the tool (`tool` / `onTool`)
+keeps it after a point is set down — uncontrolled, a one-shot tool falls back to "select" —
+and may set the tool the sheet works with apart from the one the rail lights (`boardTool`: a
+tray of kinds open with none in hand); `onEscape` is the page's Escape once the board has
+nothing of its own to end, and `catalog` makes a fitting set down a product at once. The
+technical and electrical points are drawn with their icons
+([technical-and-fittings.md](technical-and-fittings.md)).
 
 **The board carries too.** A tile clicked or dragged off the studio's shelf goes on the
 pointer on the 2D board exactly as in 3D (`PlanEditor.carryingItemId`, wired by
@@ -330,7 +340,7 @@ walls give the overall width under the bottom chain and the overall depth beside
 one; a wall with rooms on both sides is interior and in no chain. The board fits the plan
 with a hundred pixels of margin when the layer is on, and a blank sheet opens two and a half
 metres in from the corner so the first room's chain is not under the totals plate. The room's
-own edge lengths stay inside, as before. **What the rooms wear is on the board too**
+own edge lengths stay inside, as before. **What the rooms wear is the `zones` layer**
 (`drawBaseFinishes`): a room's base floor finish as a fill in its product's colour, its base
 wall finish as a band along every edge, under the strips, squares and zones — only finishes
 somebody chose; the style's own is the room's ordinary paper, although it is a product too
@@ -386,8 +396,10 @@ hand. The sheet carries a heading large enough to be read first with a subtitle 
 (the style and the date, or the home's condition), the dimension chains outside the walls
 with room reserved for them, every door and window with its width × height
 (`drawOpeningSize` — an interior door once, on the half that draws the leaf, not on each of
-its twins), the furniture footprints with the kind of each piece (`itemLabel`), and what
-each room wears (`finishes`). Everything written on the sheet is written at print scale
+its twins), the technical points and the fittings, and the furniture footprints with the kind
+of each piece (`itemLabel`). **It is black on white**: white rooms, and every wall a solid black
+band (`drawWall`'s `solid` — the board's hatch line along a thick wall's middle is left off),
+with no finish drawn on the floors. Everything written on the sheet is written at print scale
 (`ui: SCALE` on the routines that take it — the room labels, the furniture, the openings'
 sizes, the chains): the board's 9–14 px type is a smudge at 200 dpi. The room names go on
 last, on a white plate (`drawRoomLabel`, split out of `drawRoom` for that), because a name
@@ -396,8 +408,8 @@ each room (`dimensions`) are left off the sheet, since the chains carry every si
 small figures at the walls' middles only collided with the radiators there. A furniture
 label is shortened until it fits its piece — turned along a piece deeper than wide — or
 left off, on the sheet and on the board alike: a name spilling past the edge read as the
-neighbour's. The calculator's summary exports its own board the same way (its plan and the
-laid finishes, no furniture): a vector page would have meant embedding and subsetting a font
+neighbour's. The calculator's summary exports its own board the same way (its plan, its
+technical points and fittings, no furniture). A vector page would have meant embedding and subsetting a font
 for the Georgian room names, while a JPEG goes into a PDF as it is (`/DCTDecode`). The
 cross-reference table is the only fiddly part and `tests/unit/design/planPdfExport.test.ts`
 parses the result back with pdf.js.

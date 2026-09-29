@@ -85,9 +85,11 @@ materials, UI); the names and blurbs are dictionary keys (`lib/i18n/ka.ts` and t
   every floor and wall the flat is shown in (the style's own products as much as chosen ones —
   a surface the person keeps is ticked off on the summary), delivery, and anything the person
   added (`origin: 'user'` sockets, doors, radiators…) are costed.
-- `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine;
-  the floors and walls are bought whatever the home state ([finishes.md](finishes.md),
-  [../budget.md](../budget.md)).
+- `mode: 'full'` — also folds in bulk materials and labour from the existing calculator engine,
+  and a 15 % contingency on those works (never on what is bought); the floors and walls are
+  bought whatever the home state ([finishes.md](finishes.md), [../budget.md](../budget.md)). The
+  calculator prices a calculation with this same function, so a design made from one is the
+  calculation plus its furniture ([../calculator.md](../calculator.md)).
 
 ## Two products, two boards (`store/designStore.ts`, `hooks/useCalculatorPlan.ts`)
 

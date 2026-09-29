@@ -80,6 +80,13 @@ export interface Room {
    * sides of its rectangle (`roomWalls`).
    */
   walls?: number[];
+  /**
+   * Each of `walls` as the estimate counts it, m²: its length at the room's height less every
+   * door, window and opening in it (`edgeWallAreaM2` — the design's own figure), in the same
+   * order. Read off the plan with the walls; a room without it counts its walls gross
+   * (`roomWallAreasM2`).
+   */
+  wallsM2?: number[];
 }
 
 export interface MaterialItem {
@@ -126,6 +133,14 @@ export interface SelectedProduct {
   colorHex?: string | null;
   coveragePerUnit?: number | null;
   specs?: unknown;
+  /**
+   * What the product is on a plan (`products.model_3d_kind`) and its model: a door, an entrance
+   * door, a window, a radiator, a kind of socket or light. A product chosen for the whole flat
+   * that is one of these is put on every one of them on the board (`boardWithPicks`) — priced
+   * as the design prices it, and carried into 3D on them.
+   */
+  model3dKind?: string | null;
+  model3dUrl?: string | null;
   /**
    * Ticked off the order on the summary: still part of the estimate — it is what the work
    * costs — but not something the person is buying through the platform. The budget, the

@@ -24,6 +24,9 @@ export const selectedProductSchema = z.object({
   colorHex: z.string().max(16).nullable().optional(),
   coveragePerUnit: z.number().nullable().optional(),
   specs: z.unknown().optional(),
+  /** What the product is on a plan, and its model (see `SelectedProduct`). */
+  model3dKind: z.string().max(64).nullable().optional(),
+  model3dUrl: z.string().max(1024).nullable().optional(),
 });
 
 /**

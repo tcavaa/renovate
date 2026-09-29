@@ -8,9 +8,10 @@
  * and left out of the price.
  *
  * The studio prices from these (`lib/design/pricing.ts`). The calculator prices from its own
- * board's (`boardPartitionCounts`) when the board is a flat drawn joined up; rooms typed by
- * size stand apart on the sheet, share no wall and would come to nothing, so those are still
- * estimated from the rooms (`estimateCounts` in `lib/calculator/materials.ts`).
+ * board's (`boardPartitionCounts`, with the board's doors in `lib/calculator/boardCounts.ts`)
+ * when the board is a flat drawn joined up; rooms typed by size stand apart on the sheet, share
+ * no wall and would come to nothing, so those are still estimated from the rooms
+ * (`estimateCounts` in `lib/calculator/materials.ts`).
  *
  * Pure; tested in `tests/unit/design/partitions.test.ts`.
  */
@@ -92,9 +93,8 @@ export function partitionArea(plan: FloorPlan): Pick<Partial<EstimateCounts>, 'p
  * the board is a flat drawn joined up — at least one wall between two rooms, or a single room.
  * Rooms typed by size stand apart on the sheet (`findFreeSpot`), share no wall, and measured
  * they would come to nothing, so those — and a calculation without a board — are left to the
- * estimate from the rooms (an empty answer). Every place that prices a calculation passes this
- * as its `counts`: the materials and summary steps, the save route, the project page and the
- * orders.
+ * estimate from the rooms (an empty answer). Every place that prices a calculation passes this,
+ * with the board's doors, as its `counts` (`boardCounts` in `lib/calculator/boardCounts.ts`).
  */
 export function boardPartitionCounts(plan: FloorPlan | null | undefined): Pick<Partial<EstimateCounts>, 'partitionM2'> {
   if (!plan || plan.rooms.length === 0 || (plan.walls ?? []).length === 0) return {};

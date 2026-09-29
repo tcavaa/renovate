@@ -73,21 +73,27 @@ column, as the flow uses it, is [project-flow.md §6](project-flow.md); in short
   `POST /api/projects/create`, changed only by `PATCH /api/projects/[id]`), status (`draft` =
   in progress / `saved` = confirmed with the save button or the checkout / `submitted` =
   ordered), createdAt, updatedAt;
-- the calculation: `homeState` (NULL until chosen — migration 0011), totalM2, `rooms`,
-  `selectedProducts`, `selectedFurniture`, **`calculatorEdits`** (`{ excluded, quantities,
-  choices, progress }` — migration 0009), **`calculatorBoard`** (`{ plan, floorPlanUrl,
-  finishes }` — 0011);
+- the calculation: `homeState` (NULL until chosen — migration 0011), totalM2, `rooms` (each
+  with its walls one by one, `walls` — lengths — and `wallsM2` — net of doors and windows, JSON,
+  no migration), `selectedProducts` (a pick may carry the product's `model3dKind` /
+  `model3dUrl`: what it goes on on the board), `selectedFurniture`, **`calculatorEdits`**
+  (`{ excluded, quantities, choices, progress }` — migration 0009), **`calculatorBoard`**
+  (`{ plan, floorPlanUrl, finishes, electrical }` — 0011; `electrical`, the board's sockets,
+  switches and lights, is JSON without a migration);
 - the design: `mode`, `styleId`, `budgetGel`, `floorPlanUrl`, **`plan`** (rooms + walls,
   columns, beams, technical — a wall may be `built` (already standing in a black frame) or a
   room `separator` (thickness 0, not a wall); a room carries its `open` edges and `keepWhole`;
   all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`** (items, finishes
-  incl. per-wall and zones, electrical, style profile, excluded, quantities, progress),
+  incl. per-wall and zones — a base floor two products share carries each one's `share` —
+  electrical, style profile, excluded, quantities, progress; a finish's product snapshot carries
+  how it is sold, `sale`),
   **`versions`** (`DesignVersion[]` — 0006);
 - concurrency: **`calculatorRev` / `designRev`** (each half's revision; a save from an older one
   is refused with 409 — 0012) and **`calculatorSaveId` / `designSaveId`** (the id of each
   half's last save — 0013);
 - cost columns (`totalMaterialsCost`, `totalFurnitureCost`, `totalWorkersCost`, `totalCost`),
-  stored **as edited** (ticks and quantities applied).
+  stored **as edited** (ticks and quantities applied); a renovation's `totalCost` includes its
+  15 % contingency ([budget.md](budget.md)).
 
 Which half a project has is `projectKind` (`lib/projects/saved.ts`): a calculation is
 `selectedProducts IS NOT NULL OR mode = 'full'`, a design is `plan IS NOT NULL`; a project can

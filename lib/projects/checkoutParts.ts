@@ -1,34 +1,26 @@
-import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignCost, FloorPlan } from '@/lib/design/types';
 import type { CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { orderedLines } from '@/lib/design/pricing';
 import { localizedName, type Locale } from '@/lib/i18n/labels';
-import { orderedPickLines, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import { orderedCalculationLines, type CalculationInput } from '@/lib/summary/calculatorSheet';
 
 /**
  * The two halves of a project as the checkout dialog summarises them. Both summary pages
  * build the same shapes, so a project ordered from either end shows the same quick summary.
  */
-export function calculatorCheckoutPart(
-  rooms: Room[],
-  selectedProducts: Record<string, SelectedProduct>,
-  selectedFurniture: Record<string, SelectedProduct[]>,
-  feePerM2: number,
-  locale: Locale,
-  /** What the person made of the estimate on the summary: lines ticked off, quantities of their own. */
-  edits?: CalculatorEdits | null
-): CheckoutPart {
+export function calculatorCheckoutPart(input: CalculationInput, feePerM2: number, locale: Locale): CheckoutPart {
   return {
     kind: 'calculator',
-    totalM2: rooms.reduce((s, r) => s + r.floorM2, 0),
+    totalM2: input.rooms.reduce((s, r) => s + r.floorM2, 0),
     feePerM2,
-    // Read off the same edited lines the orders are (`orderedPickLines`), so the dialogue
-    // lists what the stores will be sent — at the quantity on the sheet, not the pick's own.
-    lines: orderedPickLines({ selectedProducts, selectedFurniture }, rooms, edits).map((line) => ({
-      key: line.tick!,
-      productId: line.product!.productId,
-      name: localizedName(locale, line.product!),
+    // Read off the same priced, edited lines the orders are (`orderedCalculationLines`), so the
+    // dialogue lists what the stores will be sent — the picks and the doors, fittings and
+    // radiators on the board, at the quantity on the sheet.
+    lines: orderedCalculationLines(input).map((line, i) => ({
+      key: line.tick ?? `p-${line.product.productId}-${i}`,
+      productId: line.product.productId,
+      name: localizedName(locale, line.product),
       qty: line.qty,
       unitPrice: line.unitPrice,
       total: line.total,

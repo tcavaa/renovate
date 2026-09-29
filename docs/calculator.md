@@ -18,7 +18,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 
 | File | Responsibility |
 |---|---|
-| `lib/calculator/materials.ts` | the pure engine: `computeRoomAreas`, `aggregateRoomTotals`, `calculateMaterials`, `calculateWorkerCosts`, `buildProjectSummary`, `expandStudios`, `estimateCounts` |
+| `lib/calculator/materials.ts` | the pure engine: `computeRoomAreas`, `aggregateRoomTotals`, `calculateMaterials`, `calculateWorkerCosts`, `expandStudios`, `estimateCounts`; `buildProjectSummary` (only the landing page's sample now — the sheet is `calculationCost`) |
 | `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, wet rooms), `ROOM_POINTS`, `RETIRED_RATE_KEYS`, `PHASE_NAMES` |
 | `lib/calculator/rates.ts` | rows of the `rates` table → a `RateBook` (`rateBookFromRows`, `defaultRateRows`, `DEFAULT_RATE_BOOK`, `LABOUR_PHASE`) |
 | `lib/calculator/types.ts` | `HomeState`, `Room`, `SelectedProduct`, `WorkChoices`, … |
@@ -26,9 +26,13 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/calculator/roomFinishes.ts` | each room's floor and walls: `roomFinishesOf`, `withRoomFinish`, `withFloorProduct`, `withFloorShare`, `withWallProduct`, `withWallsOneByOne`, `withSameFinish`, `normalizeRoomFinishes`, `withRoomFinishQuantities`, `roomsLike`, `migrateFinishPicks`, `boardFinishesFromPicks` / `calculatorSurfaceFinishes` |
 | `lib/calculator/steps.ts` | step URLs (`calculatorStepHref`, `calculatorEntryHref`, `calculatorStepFromPath`), `fromSevenSteps` |
 | `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`); `withBoardWalls` for rooms saved without their walls |
+| `lib/calculator/boardCounts.ts` | what the calculator counts off the board (`boardCounts`): the partition walls (`boardPartitionCounts`), the doors (`boardDoorCounts`) and the windows (`boardWindowCounts`) — every place that prices a calculation passes it as `counts` |
 | `lib/calculator/layout.ts` | `findFreeSpot` for rooms typed by size |
 | `lib/calculator/saveProject.ts` | the client save (`saveCalculatorProject`: queue, `baseRev`, save ids, board finishes) |
-| `lib/summary/calculatorSheet.ts`, `lib/summary/quantity.ts` | the estimate and picks as `BudgetLine`s with the person's edits; the quantity dropdown |
+| `lib/summary/calculatorSheet.ts`, `lib/summary/quantity.ts` | the calculation priced as a design: `calculationCost` (the board dressed in the picks → `priceScene`), `calculationEstimate` (its works, for the materials step), `calculatorSheet`, `orderedCalculationLines`, `boardWithPicks` / `placedQuantity`; the quantity dropdown |
+| `lib/design/boardPicks.ts` | `dressBoard` / `pickTarget`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind, a moulding round every room — one rule for the calculator's board and the design (`applyBoardPicks`) |
+| `lib/projects/saved.ts` | `calculationInput(project)`: a saved calculation as `calculationCost`'s input (its board, fittings, picks, edits) — the project page, the orders and the checkout price it from this |
+| `hooks/useCalculatorBoardProducts.ts` | the design catalogue for the board: every door, window, radiator and fitting on it a product (`ensureBoardProducts`), as the design has them |
 | `store/calculatorStore.ts` | rooms, home state, picks, furniture, edits (`excluded`, `quantities`), `choices`, progress; persist version 4 (`migratePersisted`, `liftFlags`) |
 | `hooks/useRateBook.ts` / `lib/api/rateBook.ts` | the rate book on the client / server (`loadRateBook`) |
 | `hooks/usePickStores.ts` | who sells each pick (for the summary's shop cards) |
@@ -47,21 +51,26 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 2. `start/` — `setHomeState`; an uploaded plan → `replaceRooms(calculatorRoomsFromPlan(plan))` +
    the board's `setPlan`.
 3. `plan/` — `PlanWorkspace` on the calculator's own board store; `useCalculatorPlan` →
-   `reconcileCalculatorPlan` → `setRooms` after every edit; "გამოთვლის დაწყება" → `setCalculated`.
-4. `materials/` — `useRateBook()` → `calculateMaterials` / `calculateWorkerCosts` with the
-   person's `choices` (`WorkChoicesPicker` → `setChoices`).
+   `reconcileCalculatorPlan` → `setRooms` after every edit; the technical setup (below);
+   "გამოთვლის დაწყება" → `setCalculated`.
+4. `materials/` — `useRateBook()` → `calculationEstimate` (the works of the sheet: the board,
+   its points and fittings, the person's `choices` — `WorkChoicesPicker` → `setChoices`).
 5. `catalog/` — a room's floor through `setFloorProduct` / `setFloorShare`, its walls through
    `setRoomFinish` (the whole room) or `setWallProduct` / `setWallsOneByOne` (wall by wall);
-   `selectProduct('<slug>_global', suggestedQuantity)` for whole-flat products. `furniture/` —
-   `addFurniture` per room.
-6. `summary/` — `buildProjectSummary(…, book, { choices })` → `calculatorSheet(…, { rooms, edits,
-   storeOf })` → `BudgetSheet`; save, order (`CheckoutDialog`), plan PDF, "see it in 3D".
+   `selectProduct('<slug>_global', qty)` for whole-flat products, `qty` being what the board has
+   of its kind (`placedQuantity`) or else `suggestedQuantity`. `furniture/` — `addFurniture` per
+   room.
+6. `summary/` — `calculatorSheet({ rooms, homeState, picks, board, electrical, edits, book,
+   storeOf, … })` → `BudgetSheet`; save, order (`CheckoutDialog`, `calculatorCheckoutPart`),
+   plan PDF, "see it in 3D".
 7. `CalculatorAutosave` (drafts) and the summary's save → `saveCalculatorProject` →
-   `POST /api/projects`: revision check → `repriceCalculatorPicks` → `buildProjectSummary` with
-   the server's rate book → `calculatorSheet` → cost columns (as edited), `calculatorEdits`,
-   `calculatorBoard`, `calculatorRev + 1`.
-8. Read back: `loadProjectSheets` (`lib/projects/sheets.ts`) for the project page;
-   `orderedPickLines` for the checkout and the orders.
+   `POST /api/projects`: revision check → the board's doors, windows, radiators and fittings
+   repriced (`repricePlan`) → `repriceCalculatorPicks` → `calculatorSheet` with the server's rate
+   book → cost columns (as edited, the contingency in `totalCost`), `calculatorEdits`,
+   `calculatorBoard` (repriced), `calculatorRev + 1`; it answers `{ id, sheet, rev }`.
+8. Read back: `loadProjectSheets` (`lib/projects/sheets.ts`) for the project page, and the
+   checkout and the orders (`calculationLinesByStore`, `projectSheetLines`), all through
+   `calculationInput`.
 
 ## The six steps
 
@@ -81,7 +90,44 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   board, steps 1 and 2 are open to each other.
 - **The board** (`PlanWorkspace` with the calculator's own store) reads the calculator's rooms
   off the plan after every edit (`calculatorRoomsFromPlan`: width and depth from the outline,
-  `x`/`z` from its corner).
+  `x`/`z` from its corner, the floor its polygon's area, the walls less the doors and windows in
+  them — below).
+- **A door and a window both take their area off the walls, and both are priced** — as the
+  hub's tips (`tipsCalculator`) tell the person drawing. The design measures a wall the same way
+  (`edgeWallAreaM2` / `roomWallAreaM2`, `lib/design/planGeometry.ts`): its length × the room's
+  height, less every door, window and archway in it — an interior door in the walls of both
+  rooms. The room keeps each wall's net area (`Room.wallsM2`, the board's order; an open edge 0)
+  and their sum as `wallM2`, a studio's parts theirs; so the plaster, the paint, the tiles and
+  the strip-out are all counted without the openings, in the calculator and the design alike,
+  and so is a wall chosen on its own on the catalogue step. An opening on a room separator's
+  open edge counts for nothing (there is no wall). The sample plan's eight windows, three doors
+  and archway take 37.1 m² off its 233.35 m² of wall (196.25 m² to plaster and paint).
+- **The technical part is set up on the board too, with the studio's own trays.** The tool
+  rail's technical and electrical tools open, along the bottom of the sheet, the studio's
+  `TechnicalTray` and `ElectricTray` (`components/studio/Trays.tsx`, in its `Tray`): the same
+  kinds (the ten technical ones; power · lighting), each tile with how many of it the plan
+  holds, and the same buttons — the technical points the rooms imply (`suggestTechnical`,
+  `lib/design/autoTechnical.ts`: water, waste, gas, the panel, the extractor, the air
+  conditioners, the boiler), the radiators each room's heat calls for under its outside windows
+  (`suggestRadiators`, in the style's radiator product), the fittings (`suggestElectrical`,
+  which with no furniture is `standardElectrical`: a ceiling light per room, a switch by each
+  door, general sockets), and clearing them. A fitting set down is its catalogue product at once
+  (`PlanWorkspace`'s `catalog`), as in the studio.
+  **A tray opens with its last kind in hand, and it stays in hand**: every click on the sheet
+  sets down another (the page drives the tool — `tool`, `boardTool` — so the board does not go
+  back to "select" after one). The tile again, or Escape, puts the kind down and the tray stays,
+  the sheet selecting; Escape once more puts the tray away; with something selected, Escape lets
+  go of that first. A room the person has wired by hand is kept as it is. The board is the
+  design's store (`useCalculatorPlanStore`), its style the design's default (scandinavian), and
+  `useCalculatorBoardProducts` makes every door, window, radiator and fitting on it a catalogue
+  product (`ensureBoardProducts`).
+- **What is picked on the board has a card of its own**: a wall, a door or window, a technical
+  point or a fitting opens the inspector in a card beside the rooms panel, not in it, with its
+  delete and a ✕ (`InspectorClose`); the rooms panel lists the rooms only.
+- **"გამოთვლის დაწყება" asks first** when the board has neither a technical point nor a
+  fitting: place them all by the standards (`placeByStandards(catalog)`: the three above and
+  every door and window a product, one step of the history, then on), or carry on without — the
+  points are then estimated from the room types (`ROOM_POINTS`), as below.
 - **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free
   spot (`findFreeSpot`, `lib/calculator/layout.ts`). Sizes are exact to the centimetre; a
   dragged room snaps wall to wall exactly as on the design's board (`snapRoomMove`,
@@ -148,7 +194,15 @@ the rooms. So:
 - The "chosen" column names where each pick goes: the room, and its walls ("walls 1, 3, 4") or
   its share of the floor ("floor 70%").
 - "Other products" (sockets, lights, sanitary ware, doors, windows…) are one product for the
-  whole flat, as before (`<slug>_global`, `suggestedQuantity`).
+  whole flat (`<slug>_global`). One the board has a place for goes **on every one of its kind on
+  the board** (`boardWithPicks` → `dressBoard`, `lib/design/boardPicks.ts`; what it goes on is
+  `pickTarget`: the product's 3D kind, else its tab): a door on every interior door (an entrance
+  door on the front door), a window on every window, a radiator on every radiator — its
+  sections counted from its room — a socket, switch or light on every fitting of its kind, a
+  skirting board or cornice round every room. It is bought for what it is on (`placedQuantity`):
+  the sample plan's 3 doors and 8 windows, a radiator's sections over all six radiators, a
+  moulding's metres. The rest (sanitary ware, a pendant) is a line of its own at
+  `suggestedQuantity`, as is one whose kind the board has none of.
 
 **How a room's picks are kept.**
 - Under the room's own key, `<slug>_room:<roomId>` (`selectionKey`), with `roomId` and
@@ -174,19 +228,25 @@ the rooms. So:
 - Each wall's length, metres, in the order of the room's outline on the calculator's board —
   the `wallIndex` the board and the studio know that wall by — read off the board with the rest
   of the room (`calculatorRoomsFromPlan` → `edgeLengthsM`), so it reaches the server with the
-  rooms; `sameCalculatorRooms` compares it, so the plan step writes it in.
-- A room saved before it carried them reads them off the board when the project opens
-  (`withBoardWalls`, in the loader's `normalizeFinishPicks`). That is worked out, not work: it
-  is not marked unsaved, and the next save carries it. A room with none at all is the four
-  sides of its rectangle (`roomWalls`).
+  rooms; `sameCalculatorRooms` compares it, so the plan step writes it in. Each wall's net area
+  comes with them (`Room.wallsM2`, m², the same order: the length × the height less the doors,
+  windows and archways in it, `edgeWallAreaM2`), compared and carried the same way, and the room
+  schema keeps it (`room.schema.ts`).
+- A room saved before it carried its walls reads their lengths off the board when the project
+  opens (`withBoardWalls`, in the loader's `normalizeFinishPicks`). That is worked out, not work:
+  it is not marked unsaved, and the next save carries it. A room with none at all is the four
+  sides of its rectangle (`roomWalls`); either way, without net areas beside the walls they were
+  read with, a wall counts whole (`roomWallAreasM2`) until the plan step reads the room again.
 
 **The quantity is the room's** (`roomFinishQuantity` in `lib/calculator/quantities.ts`).
 - The area the pick covers (`roomFinishAreaM2`): the room's floor m² times its share; its wall
-  m² — the estimate's own figure, perimeter × height, doors and windows not taken off; or, wall
-  by wall, the sum of its walls, each its length × the room's height (`roomWallAreasM2`, gross
-  like the rest). Then in the product's units (`finishPickQuantity`): m² plus a tenth of cutting
-  waste for laminate and tiles, tins of paint by the product's coverage (8 m²/L when the row
-  says nothing), one unit per m² otherwise.
+  m² — the estimate's own figure, less the doors and the windows; or, wall by wall, the sum of
+  its walls' net areas (`roomWallAreasM2` → `Room.wallsM2`). Then in the product's units
+  (`finishPickQuantity`): m² plus a tenth of cutting waste for laminate and tiles, whole litres
+  of paint by the product's coverage (8 m²/L when the row says nothing), one unit per m²
+  otherwise. **The sheet buys the same way**, folded per product over the flat
+  (`finishPurchase` in `pricing.ts`, for the design too — [budget.md](budget.md)): a paint on
+  three rooms is its litres rounded up once.
 - The server uses **the same functions** with the catalogue's own unit and coverage
   (`lib/api/projectSave.ts`, `repriceCalculatorPicks`): it puts each pick on the surface its
   category is for (`SURFACE_OF_SLUG` for the seeded categories, the pick's own for one made in
@@ -200,14 +260,18 @@ the rooms. So:
 **Where the finishes go.**
 - **The board wears them without being told** (`boardFinishesFromPicks` →
   `calculatorSurfaceFinishes`): each room in its floor and walls, a wall chosen on its own as
-  that wall's finish (`wallIndex`). A floor two products share is drawn in the one with the
-  larger share (see Known gaps). The summary's PDF draws them, and the save stores them as the
-  board's finishes. Nothing is laid by hand any more.
+  that wall's finish (`wallIndex`), a floor two products share as both, each with its `share`
+  (the larger first — it is the one drawn over the floor; see Known gaps). The save stores them
+  as the board's finishes, and the sheet prices them. Nothing is laid by hand any more. The
+  board and its PDF draw white paper: the finishes are its "zones" layer, off by default.
 - **Into 3D.** Per-room picks travel as `roomProducts` with their surface, `share` and `walls`
   (`picksFromCalculator`), and `applyFinishPicks` lays them with the same
   `calculatorSurfaceFinishes`: on the surface they were chosen for only (a wall tile that could
   also be laid on a floor used to land on the floor too), a wall chosen on its own on that wall
-  and bought by its own area, a shared floor in its larger product.
+  and bought by its own area, a shared floor in both products by their shares. A skirting board
+  or a cornice chosen for the whole flat goes round every room. The doors, windows, radiators
+  and fittings chosen for the whole flat go on the design with them (`applyBoardPicks`,
+  [project-flow.md](project-flow.md)).
 - **Studios** (kitchen + living room in one room) can take two floor products and a split, but
   the split is a share of the floor, not the studio's parts — a known gap.
 
@@ -244,11 +308,14 @@ one more of it.
 
 - `computeRoomAreas({ id, nameKa, type, width, length, height, … })` → a `Room` with floorM2,
   wallM2, ceilingM2, perimeterM, isWetRoom
-- `aggregateRoomTotals(rooms)` → totals incl. wet-room m², door/window counts
+- `aggregateRoomTotals(rooms, counts?)` → totals incl. wet-room m², door/window counts (a door a
+  room and a window a room that usually has one, unless `counts.doors` / `counts.windows` — the
+  board's, `OpeningCounts` — are given)
 - `calculateMaterials(rooms, homeState, book?, options?)` → `MaterialItem[]` from the rate book
 - `calculateWorkerCosts(rooms, homeState, book?, options?)` → labour per phase from the rate book
 - `buildProjectSummary(rooms, homeState, products, furniture, book?, options?)` → subtotals +
-  grandTotal + 15 % contingency
+  grandTotal + 15 % contingency — the landing page's sample only; a calculation is priced by
+  `calculationCost` (below)
 - `options: EstimateOptions = { phases?, choices?, counts? }` — a phase list that replaces the
   home state's (the studio's ticked works), the `WorkChoices`, and the `EstimateCounts`
 - `expandStudios` prices a studio room's two parts separately (a room saved without parts gets
@@ -295,17 +362,43 @@ Where the team gave a range the middle is used. **"Bathroom" is `bathroom` + `to
 Laminate/parquet and plasterboard/stretch ceiling are `WorkChoices` — the calculator's store
 (`choices`, saved in `calculatorEdits.choices`) and the plan (`plan.technical.choices`), picked
 on the materials step and the technical step (`WorkChoicesPicker`). The counts the phases
-multiply by (`EstimateCounts`: points, radiators, doors, partition m²) come from the room types
-in the calculator (`ROOM_POINTS`, `estimateCounts`) and from the plan in the studio: the points
-placed, `countDoors`, `partitionArea` (`lib/design/partitions.ts`: walls with a room on both
-sides — a partial wall has its room on both — or none, never a room separator, less the ones
-marked already built). **The calculator's partition walls are measured off its own board**
-(`boardPartitionCounts`) once the board is a flat drawn joined up — a wall between two rooms, or
-a single room; rooms typed by size stand apart, share no wall, and are still estimated from the
-rooms. Every place that prices a calculation passes it as `counts`: the materials and summary
-steps (from the board store), the save route (the board it carries, else the row's), the
-project page (`loadProjectSheets`) and the orders (`projectSheetLines`), through
-`calculatorBoardPlan`. **A point's
+multiply by (`EstimateCounts`: points, radiators, doors, partition m²) come from the plan: the
+points placed, `countDoors` (`lib/design/openings.ts`: an interior door's two halves once),
+`partitionArea` (`lib/design/partitions.ts`: walls with a room on both sides — a partial wall
+has its room on both — or none, never a room separator, less the ones marked already built).
+**The calculator counts off its own board** where the board can say, and from the room types
+where it cannot (`missingCounts` in `calculatorSheet.ts`; the same rules as `boardCounts`,
+`lib/calculator/boardCounts.ts`):
+- the partition walls (`boardPartitionCounts`) once the board is a flat drawn joined up — a wall
+  between two rooms, or a single room; rooms typed by size stand apart, share no wall, and are
+  still estimated from the rooms;
+- the doors (`boardDoorCounts` → `countDoors`) once the board has its doorways drawn — a door or
+  an archway anywhere on it. A plan read from an upload has them (the doors read off it, or
+  inferred by `deriveOpenings`, and checked on the plan step): the sample plan's board has three
+  doors and an archway, and "კარის დაყენება" is 3, not the 5 of a door a room. A board drawn by
+  hand, or rooms typed by size, usually has no doorway at all, and none drawn is not no doors:
+  those are still a door a room. Only archways drawn is no door to hang;
+- the windows (`boardWindowCounts` → `countWindows`) once the board has any: the sample plan's
+  eight, where the rooms would say five. The estimate itself hangs no window; they are what a
+  window for the whole flat is bought for;
+- the points (`ROOM_POINTS`, `estimateCounts`) only while the board has neither a technical point
+  nor a fitting — the start dialog above offers to place them first.
+
+**The calculation is priced as a design** (`calculationCost`, `lib/summary/calculatorSheet.ts`).
+Its board — or, for rooms that never reached one, the rooms as rectangles with no doorways
+(`calculationBoard`) — is dressed in the whole-flat picks (`boardWithPicks`), the rooms' floors
+and walls laid on it (`boardFinishesFromPicks`) with the mouldings, and the whole thing priced
+by the design's own `priceScene` in `full` mode with no furniture: the same works, the same
+counts, the same fittings as products, the same finishes bought the same way, the same
+contingency. What the board has no place for (sanitary ware, a pendant) and the calculator's
+furniture come in as lines of their own (`extraLines`), and the counts the board cannot give as
+`missingCounts`. Every place that prices a calculation goes through it: the materials step
+(`calculationEstimate`, the works alone), the summary, the save route (the board it carries,
+else the row's), the project page (`loadProjectSheets`), the checkout (`calculatorCheckoutPart`)
+and the orders (`calculationLinesByStore`, `projectSheetLines`), the last three through
+`calculationInput`. So **the calculation and a design of the same flat with the same products
+come to the same sheet, line for line, the design's placed furniture aside**
+(`tests/unit/summary/calculatorSheet.test.ts`). **A point's
 labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the phase when that
 phase runs (it counts every point the plan holds), to the point's own line when it does not —
 never both. The book before the team's is `RETIRED_RATE_KEYS`: `rateBookFromRows` never reads a
@@ -323,9 +416,10 @@ and `radiator_mount` phase 2); `WORKER_RATES` also carries three keys only the s
 [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md)).
 
 **The Design Studio reuses this engine unchanged** — it feeds it the plan's rooms
-(`planToCalculatorRooms`) plus `options`: the phases (`effectivePhases` less what the flat
-already has), the choices (`plan.technical.choices`) and the counts (points placed,
-`countDoors`, `partitionArea`) — `lib/design/pricing.ts`.
+(`planToCalculatorRooms`, the same `calculatorRoomsFromPlan` the calculator reads its rooms with)
+plus `options`: the phases (`effectivePhases` less what the flat already has), the choices
+(`plan.technical.choices`) and the counts (points placed, `countDoors`, `partitionArea`, and
+whatever `options.counts` adds) — `renovationEstimate` in `lib/design/pricing.ts`.
 
 ## Selection keys
 
@@ -356,36 +450,59 @@ rooms when the project is loaded (see "Picks from before" above).
   groups, the migration of old picks, the board's finishes.
 - `tests/unit/calculator/planSync.test.ts`, `layout.test.ts` — rooms ⇄ board, the walls read
   off it and filled in for rooms saved without them; free spots.
-- `tests/unit/summary/calculatorSheet.test.ts`, `quantity.test.ts` — the sheet and its edits.
+- `tests/unit/calculator/boardCounts.test.ts` — `countDoors` (twins once), `countWindows`, the
+  board's doors and windows and when it has none drawn, the counts together, and the sample plan
+  read the way step 1 reads it: three doors ("კარის დაყენება" 3), eight windows, its walls
+  painted without the doors and windows (196.25 m², not 233.35).
+- `tests/unit/calculator/planSync.test.ts` also takes the doors and windows off the walls read
+  off the board — one by one and together, never on a room separator's open edge, a studio's in
+  the part they are in; `roomFinishes.test.ts` counts a wall chosen on its own without them.
+- `tests/unit/summary/calculatorSheet.test.ts` — the calculation and a design of the same flat
+  come to the same sheet, line for line, the design handed the board without the shops and
+  given them back from the catalogue (`applyBoardPicks`); a whole-flat pick on every one of its
+  kind and bought for them; own lines; the contingency; the counts the board cannot give; ticks
+  and quantities; `quantity.test.ts` — the quantity dropdown.
 - `tests/unit/store/calculatorStore.test.ts` — the seven-to-six step migration, re-counting
   finishes when rooms change, the floor and wall actions.
 - `tests/unit/design/fromCalculator.test.ts` — the picks in 3D on their surface, their walls
-  and the larger share of a floor.
+  and a floor two products share; `tests/unit/design/electrical.test.ts` — the standard
+  fittings, and a room wired by hand kept whole.
 - `tests/integration/save-routes.test.ts` (`POST /api/projects`) — ownership, pending saves,
   repricing, per-room quantities on the server (shares and walls one by one included, forged
-  ones put in shape), revisions, unknown products, throttling.
+  ones put in shape), the doors on the board it carries (the labour and a door for the whole
+  flat), the windows (the rooms' walls less them, a wall chosen on its own, a window for the
+  whole flat by the board's), the sheet it answers with, revisions, unknown products,
+  throttling.
 - `lib/calculator/**` is in the coverage gate ([testing.md](testing.md)).
 
 ## Known gaps
 
-- A floor in two products says how much of the floor each covers, not where: the board, the
-  PDF and 3D lay the one with the larger share over the whole floor, so a design made from the
-  calculation buys only that one until the person lays the other in the studio. A studio's
-  split is a share like any other room's, not its two parts (the engine prices the parts
-  separately, `expandStudios`; the picks do not).
+- A floor in two products says how much of the floor each covers, not where: both are bought,
+  by their shares, in the calculation and the design alike, but the board, the PDF and 3D show
+  the one with the larger share over the whole floor. A studio's split is a share like any other
+  room's, not its two parts (the engine prices the parts separately, `expandStudios`; the picks
+  do not).
 - Walls are chosen whole; a strip of a wall, a square metre or a tiled splashback is the
   studio's job.
 - The summary, the checkout and the order lines name a pick's room, not its walls or its share
   of the floor (the catalogue step's "chosen" column does).
-- The calculator's wall area is gross (doors and windows not taken off) — the engine's figure,
-  and the only one the server has; the studio's is net. The walls one by one are gross too.
+- A design made from the calculation is the calculation plus its furniture — and what the
+  furniture brings: its lamps, the sockets beside the bed, the television and the worktop, and
+  their wiring in the electrician's points (`suggestElectrical`). A room the person wired by
+  hand keeps exactly its points and gets none for its furniture. The shops' free delivery
+  (2 000 ₾ a basket) can then change with the furniture's baskets. Nothing else differs.
+- "See it in 3D" again, onto a design already laid out, puts the calculation's doors, windows,
+  radiators and fittings for the whole flat over the design's (`applyPendingPicks`) — also over
+  one chosen in the studio since, which a floor or a wall chosen in the studio is protected
+  from (`origin: 'studio'`); a door or a socket has no such mark yet.
 - The calculator's rooms are read off its board only on its plan step, so a project saved
-  before room separators existed keeps its rooms as they were until that step is opened again;
-  and a partition marked already built counts only once the board holds the flat joined up.
-- A room read off the board with more than four corners (an L-shape) is priced as the rectangle
-  of the same width and area (`calculatorRoomsFromPlan` takes length = area ÷ width), so its
-  perimeter and wall area are approximate — while its walls one by one are their true lengths,
-  so there its walls chosen one by one can come to more than its whole-room wall area.
+  before room separators existed keeps its rooms as they were until that step is opened again —
+  and one saved before the doors and windows came off the walls keeps them in (its wall-by-wall
+  areas, `wallsM2`, are missing and its walls count whole, `roomWallAreasM2`); a partition marked
+  already built counts only once the board holds the flat joined up.
+- A room read off the board with more than four corners (an L-shape) shows as the rectangle of
+  the same width and area (`calculatorRoomsFromPlan` takes length = area ÷ width); its floor, its
+  walls and its perimeter are the outline's own, as the design measures them.
 - The rate API accepts a new `labour` row with any key (`rate.schema.ts`) although the engine
   only knows fixed labour keys; such a row is ignored. The admin UI only creates material rows.
 - Dead code: `components/calculator/RoomForm.tsx` and `RoomList.tsx` have no importers, and

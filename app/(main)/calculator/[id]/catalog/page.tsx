@@ -16,6 +16,9 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCategories, useProducts } from '@/hooks/useProducts';
 import { aggregateRoomTotals } from '@/lib/calculator/materials';
+import { boardCounts } from '@/lib/calculator/boardCounts';
+import { placedQuantity } from '@/lib/summary/calculatorSheet';
+import { useCalculatorBoardProducts } from '@/hooks/useCalculatorBoardProducts';
 import { roomFinishEntry, roomFinishesOf, roomsLike, surfaceOfCategory, usualFinishCategory, type FinishSurface } from '@/lib/calculator/roomFinishes';
 import { BATH_ROOM_TYPES } from '@/lib/calculator/constants';
 import { useT, useLocale } from '@/lib/i18n/client';
@@ -48,6 +51,8 @@ function snapshotOf(p: Product, categorySlug: string): SelectedProduct {
     colorHex: p.colorHex,
     coveragePerUnit: p.coveragePerUnit == null ? null : Number(p.coveragePerUnit),
     specs: p.specs,
+    model3dKind: p.model3dKind ?? null,
+    model3dUrl: p.model3dUrl ?? null,
   };
 }
 
@@ -62,8 +67,8 @@ const isWetProduct = (p: Product) => !!(p.specs as { wet?: boolean } | null | un
  * from the categories its kind of work is done in first (tiles in the bathroom, laminate in the
  * bedroom), and a choice can be copied to the rooms like it that have none yet. Everything else
  * — sockets, lights, sanitary ware, doors, windows — is one product for the whole flat, counted
- * from the rooms as before. Nothing is required: with nothing chosen the estimate is the
- * renovation alone.
+ * from the rooms as before, the doors and windows off the board where it has them. Nothing is
+ * required: with nothing chosen the estimate is the renovation alone.
  */
 export default function CatalogStepPage() {
   const t = useT();
@@ -72,6 +77,9 @@ export default function CatalogStepPage() {
   const { rooms, homeState, selectedProducts, selectProduct, setRoomFinish, setFloorProduct, setFloorShare, setWallProduct, setWallsOneByOne, copyRoomFinish, removeProduct } = useCalculatorStore();
   // The calculator's own board: the rooms where they lie, and each one's outline for the little drawing beside each of its walls.
   const boardPlan = useCalculatorPlanStore((s) => s.plan);
+  const boardElectrical = useCalculatorPlanStore((s) => s.electrical);
+  // Every door, window, radiator and fitting on the board a product, as in a design.
+  useCalculatorBoardProducts();
   const { items: categories, loading: catLoading } = useCategories(false);
 
   /** What the middle shows: a room (`room:<id>`) or a category for the whole flat (`cat:<slug>`). */
@@ -122,7 +130,8 @@ export default function CatalogStepPage() {
   // A bathroom's tiles are made for the wet: those first.
   const shown = bath ? [...products].sort((a, b) => Number(isWetProduct(b)) - Number(isWetProduct(a))) : products;
 
-  const totals = useMemo(() => aggregateRoomTotals(rooms), [rooms]);
+  // A door or a window chosen for the whole flat is bought for the doors or windows on the board (`boardCounts`).
+  const totals = useMemo(() => aggregateRoomTotals(rooms, boardCounts(boardPlan)), [rooms, boardPlan]);
   const chosen = useMemo(() => Object.entries(selectedProducts), [selectedProducts]);
   const totalSelected = useMemo(() => chosen.reduce((s, [, p]) => s + p.totalPrice, 0), [chosen]);
 
@@ -153,8 +162,12 @@ export default function CatalogStepPage() {
       removeProduct(key);
       return;
     }
-    const qty = suggestedQuantity(category.slug, totals) || 1;
-    selectProduct(key, { ...snapshotOf(p, category.slug), qty, totalPrice: Math.round(Number(p.pricePerUnit) * qty * 100) / 100 });
+    // A door, a window, a radiator, a fitting or a moulding goes on every one of them on the
+    // board, and is bought for them (`placedQuantity`) — as the summary prices it; anything
+    // else is bought for the flat as the rooms suggest.
+    const snapshot = snapshotOf(p, category.slug);
+    const qty = placedQuantity(boardPlan, boardElectrical, key, snapshot) ?? (suggestedQuantity(category.slug, totals) || 1);
+    selectProduct(key, { ...snapshot, qty, totalPrice: Math.round(Number(p.pricePerUnit) * qty * 100) / 100 });
   };
   const isChosen = (p: Product): boolean => (room ? aimed?.productId === p.id : !!category && selectedProducts[selectionKey(category.slug)]?.productId === p.id);
 

@@ -341,6 +341,8 @@ const selectedProductSchema = z.object({
   colorHex: z.string().nullable().optional(),
   coveragePerUnit: z.number().nullable().optional(),
   specs: z.unknown().optional(),
+  model3dKind: z.string().nullable().optional(),
+  model3dUrl: z.string().nullable().optional(),
 });
 
 const persistedSchema = z.object({

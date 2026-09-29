@@ -509,6 +509,11 @@ export default function StudioPage() {
     for (const point of plan?.technical?.points ?? []) counts[point.kind] = (counts[point.kind] ?? 0) + 1;
     return counts;
   }, [plan]);
+  const electricalCounts = useMemo(() => {
+    const counts: Partial<Record<ElectricalKind, number>> = {};
+    for (const point of electrical) counts[point.kind] = (counts[point.kind] ?? 0) + 1;
+    return counts;
+  }, [electrical]);
 
   const itemsPerRoom = useMemo(() => {
     const counts = new Map<string, number>();
@@ -920,7 +925,9 @@ export default function StudioPage() {
               wallBuilding={wallBuilding}
               electricalKind={electricalKind}
               technicalKind={technicalKind}
-              layers={{ furniture: true, dimensions: category === 'build' }}
+              catalog={products}
+              // The plan is white paper: the finishes show only while they are being laid.
+              layers={{ furniture: true, dimensions: category === 'build', zones: category === 'finishes' }}
               height="100%"
               className="h-full"
               onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
@@ -1163,6 +1170,7 @@ export default function StudioPage() {
                       onSuggest={() => store.suggestElectrical(products)}
                       onClear={store.clearElectrical}
                       lightsOn={lightsOn}
+                      counts={electricalCounts}
                       onDragKind={(kind) => {
                         setDraggingKind(kind);
                         if (!kind) viewerApi?.clearElectricalPreview();

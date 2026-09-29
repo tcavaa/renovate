@@ -13,6 +13,7 @@
  * in another tab is never written over by a calculator merely looking at it.
  */
 
+import { boardWithPicks } from '@/lib/summary/calculatorSheet';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
@@ -97,7 +98,7 @@ export function loadCalculatorHalf(project: SavedProjectInput): LoadedFrom {
     // The board as the calculator saved it; a calculation from before the board was saved
     // draws the design's plan when there is one (the same flat), and otherwise is rebuilt
     // from its rooms on the plan step (`useCalculatorPlan`).
-    if (saved?.plan) board.getState().openBoard({ projectId: id, plan: saved.plan, floorPlanUrl: saved.floorPlanUrl, finishes: saved.finishes });
+    if (saved?.plan) board.getState().openBoard({ projectId: id, plan: saved.plan, floorPlanUrl: saved.floorPlanUrl, finishes: saved.finishes, electrical: saved.electrical ?? [] });
     else if (rescue) {
       board.getState().setProjectId(id);
       rescued = true;
@@ -210,13 +211,17 @@ export function handOffToDesign(id: number): 'studio' | 'style' | 'resume' | nul
   if (!calculatorReady(id)) return null;
   const calc = useCalculatorStore.for(id).getState();
   const board = useCalculatorPlanStore.for(id).getState();
+  // The drawing as the calculation priced it: its doors, windows, radiators and fittings in the
+  // products picked for the whole flat (`boardWithPicks`), so the design starts from the same flat.
+  const dressed = board.plan ? boardWithPicks(board.plan, board.electrical, calc.selectedProducts) : null;
   const landing = useDesignStore.for(id).getState().startFromCalculator({
     rooms: calc.rooms,
     homeState: calc.homeState!,
     selectedProducts: calc.selectedProducts,
     selectedFurniture: calc.selectedFurniture,
     projectId: id,
-    plan: board.plan,
+    plan: dressed?.plan ?? board.plan,
+    electrical: dressed?.electrical ?? board.electrical,
     floorPlanUrl: board.floorPlanUrl,
     choices: calc.choices,
   });

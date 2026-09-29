@@ -59,7 +59,7 @@ export function saveCalculatorProject(options: { draft: boolean; projectId?: num
         edits: { excluded: s.excluded, quantities: s.quantities, choices: s.choices, progress: { step: s.step, calculated: s.calculated, at: s.at, steps: CALCULATOR_STEPS } },
         // The drawing board — walls, doors, windows — so the project reopens as drawn, on any
         // computer; and each room in the floor and walls chosen for it, as the PDF draws it.
-        board: { plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: boardFinishesFromPicks(board.plan, s.selectedProducts) },
+        board: { plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: boardFinishesFromPicks(board.plan, s.selectedProducts), electrical: board.electrical },
         draft: options.draft,
       }),
     });

@@ -17,11 +17,9 @@ import {
   type Worker,
   type Team,
 } from '@/lib/db/schema';
-import { buildProjectSummary } from '@/lib/calculator/materials';
-import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
+import type { SelectedProduct } from '@/lib/calculator/types';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { orderedLines, priceScene } from '@/lib/design/pricing';
-import { boardPartitionCounts } from '@/lib/design/partitions';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { ka } from '@/lib/i18n/ka';
 import { en } from '@/lib/i18n/en';
@@ -29,7 +27,7 @@ import { ru } from '@/lib/i18n/ru';
 import { log } from '@/lib/log';
 import {
   buildStoreOrders,
-  calculatorLinesByStore,
+  calculationLinesByStore,
   costLinesByStore,
   effectiveCommissionPct,
   feePerM2For,
@@ -50,8 +48,9 @@ import {
 import { awaitsConfirmation, summariseEdit } from './orderFlow';
 import { notifyCustomerCheckout, notifyCustomerOrderUpdate, notifyPartnerNewOrder, type CustomerContact } from './notify';
 import { loadPlatformSettings } from './settings';
-import { calculatorBoardPlan, projectKind } from '@/lib/projects/saved';
-import { calculatorSheet, sheetLabour, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import { calculationInput, projectKind } from '@/lib/projects/saved';
+import { calculatorSheet, sheetLabour } from '@/lib/summary/calculatorSheet';
+import { planProductIds } from '@/lib/api/productPrices';
 import type { BudgetLine } from '@/lib/design/pricing';
 
 /**
@@ -167,13 +166,19 @@ async function storeLookup(productIds: number[]): Promise<(id: number) => number
   return (id) => map.get(id) ?? null;
 }
 
-/** The calculator's picks by store, or null when the project has no calculator half. */
+/**
+ * The calculation's products by store, or null when the project has no calculator half: the
+ * product lines of its priced sheet (`calculationLinesByStore`) — its picks, and the doors,
+ * windows, fittings and radiators on its board — priced against its own home state.
+ */
 async function calculatorLinesOf(project: Project): Promise<LinesByStore | null> {
   if (project.selectedProducts == null) return null;
+  const input = calculationInput(project, { book: await loadRateBook() });
+  if (!input) return null;
   const selectedProducts = project.selectedProducts as Record<string, SelectedProduct>;
   const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-  const ids = [...Object.values(selectedProducts).map((p) => p.productId), ...Object.values(selectedFurniture).flat().map((p) => p.productId)];
-  return calculatorLinesByStore(selectedProducts, selectedFurniture, (project.rooms ?? []) as Room[], await storeLookup(ids), (project.calculatorEdits ?? null) as CalculatorEdits | null);
+  const ids = [...Object.values(selectedProducts).map((p) => p.productId), ...Object.values(selectedFurniture).flat().map((p) => p.productId), ...planProductIds(input.board, input.electrical ?? [])];
+  return calculationLinesByStore(input, await storeLookup(ids));
 }
 
 /**
@@ -379,11 +384,8 @@ async function projectSheetLines(project: Project): Promise<BudgetLine[]> {
   const calculatorReady = !kind.calculatorPending && project.homeState != null && (project.selectedProducts != null || project.plan == null);
   if (designReady) return priceScene(project.plan as FloorPlan, project.scene as DesignScene, { homeState: project.homeState ?? undefined, book }).lines;
   if (!calculatorReady) return [];
-  const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
-  const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-  const rooms = (project.rooms ?? []) as Room[];
-  const summary = buildProjectSummary(rooms, project.homeState as HomeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices, counts: boardPartitionCounts(calculatorBoardPlan(project)) });
-  return calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null }).lines;
+  const input = calculationInput(project, { book });
+  return input ? calculatorSheet(input).lines : [];
 }
 
 /** The work a project asks for: the labour lines of its sheet — what a brigade or a worker is sent. */

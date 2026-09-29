@@ -61,9 +61,10 @@ export function computeRoomAreas(input: {
 }
 
 /**
- * The counts the estimate multiplies by: points, radiators, doors and the partition walls. The
- * calculator has no plan to count from, so it takes the usual figures for each room type
- * (`ROOM_POINTS`); the studio passes what its plan actually holds (`EstimateOptions.counts`).
+ * The counts the estimate multiplies by: points, radiators, doors and the partition walls. From
+ * the rooms alone they are the usual figures for each room type (`ROOM_POINTS`, a door a room —
+ * `estimateCounts`); a caller that knows better passes its own (`EstimateOptions.counts`): the
+ * studio what its plan actually holds, the calculator what its board gives (`boardCounts`).
  */
 export interface EstimateCounts {
   /** Sockets, switches and lights — one electrician's point each. */
@@ -86,12 +87,26 @@ export interface EstimateOptions {
 }
 
 /**
+ * Doors and windows a caller counted off the plan (the calculator's board, `boardCounts`), in
+ * place of the rooms' estimate: what a door or a window chosen for the whole flat is bought for.
+ */
+export interface OpeningCounts {
+  doors?: number | null;
+  windows?: number | null;
+}
+
+/** A count the caller gave, or the rooms' own when it gave none that is a count. */
+const countOr = (given: number | null | undefined, fallback: number): number => (typeof given === 'number' && Number.isFinite(given) ? Math.max(0, given) : fallback);
+
+/**
  * Aggregate room totals (used by both materials and labor calculation). The areas are split
  * the way the renovation team prices them: bathrooms and toilets (tiled floor to ceiling,
  * their own screed) apart from the rest; the kitchen's and the balcony's floor (tiled) apart
- * from the floors that get laminate or parquet.
+ * from the floors that get laminate or parquet. The doors are a door a room and the windows a
+ * window a room that usually has one, unless the caller counted them off the plan (`counts` —
+ * the calculator's board, `boardCounts`).
  */
-export function aggregateRoomTotals(input: Room[]) {
+export function aggregateRoomTotals(input: Room[], counts?: OpeningCounts | null) {
   // A studio's areas are its parts': the kitchen half tiled, the living half laid with wood.
   // Doors and windows belong to the room as a whole, so they are counted off the input.
   const rooms = expandStudios(input);
@@ -105,10 +120,8 @@ export function aggregateRoomTotals(input: Room[]) {
   const bathFloorM2 = sum(bath.map((r) => r.floorM2));
   const bathWallM2 = sum(bath.map((r) => r.wallM2));
   const tiledFloorM2 = sum(rooms.filter((r) => TILED_FLOOR_ROOM_TYPES.includes(r.type)).map((r) => r.floorM2));
-  const doorCount = input.length;
-  const windowCount = input.filter(
-    (r) => !['bathroom', 'toilet', 'hallway', 'storage', 'closet'].includes(r.type)
-  ).length;
+  const doorCount = countOr(counts?.doors, input.length);
+  const windowCount = countOr(counts?.windows, input.filter((r) => !['bathroom', 'toilet', 'hallway', 'storage', 'closet'].includes(r.type)).length);
   return {
     totalFloorM2: round2(totalFloorM2),
     totalWallM2: round2(totalWallM2),
@@ -193,6 +206,8 @@ function resolve(rooms: Room[], homeState: HomeState, options: EstimateOptions) 
   const phases = options.phases && options.phases.length > 0 ? options.phases : HOME_STATES[homeState].includedPhases;
   const counts: EstimateCounts = { ...estimateCounts(rooms) };
   for (const [key, value] of Object.entries(options.counts ?? {})) {
+    // Only the counts the estimate multiplies by: the board's also carry its windows.
+    if (!(key in counts)) continue;
     if (typeof value === 'number' && Number.isFinite(value)) counts[key as keyof EstimateCounts] = Math.max(0, value);
   }
   return { phases, counts, choices: workChoices(options.choices), totals: aggregateRoomTotals(rooms) };

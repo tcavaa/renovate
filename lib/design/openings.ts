@@ -12,7 +12,7 @@
  */
 import { roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
-import type { Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
+import type { FloorPlan, Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
 
 export const OPENING_DEFAULTS: Record<OpeningKind, { widthM: number; heightM: number; sillM: number }> = {
   door: { widthM: 0.9, heightM: 2.05, sillM: 0 },
@@ -97,6 +97,37 @@ export function twinOf(rooms: PlanRoom[], opening: Opening): { room: PlanRoom; o
   const twinId = `${room.id}-${opening.roomId}-d`;
   const twin = room.openings.find((o) => o.id === twinId || (o.connectsToRoomId === opening.roomId && o.kind === opening.kind && Math.abs(o.widthM - opening.widthM) < 0.01));
   return twin ? { room, opening: twin } : null;
+}
+
+/** The flat's openings of one kind, an interior one's two halves once. */
+function countOpenings(plan: FloorPlan, kind: OpeningKind): number {
+  const seen = new Set<string>();
+  let count = 0;
+  for (const room of plan.rooms) {
+    const ordinal = new Map<string, number>();
+    for (const opening of room.openings) {
+      if (opening.kind !== kind) continue;
+      if (opening.connectsToRoomId) {
+        const pairKey = [room.id, opening.connectsToRoomId].sort().join('|');
+        const n = ordinal.get(pairKey) ?? 0;
+        ordinal.set(pairKey, n + 1);
+        if (seen.has(`${pairKey}|${n}`)) continue;
+        seen.add(`${pairKey}|${n}`);
+      }
+      count += 1;
+    }
+  }
+  return count;
+}
+
+/** The flat's doors, an interior door's two halves once: what the doors phase hangs. */
+export function countDoors(plan: FloorPlan): number {
+  return countOpenings(plan, 'door');
+}
+
+/** The flat's windows: what a window chosen for the whole flat is bought for. */
+export function countWindows(plan: FloorPlan): number {
+  return countOpenings(plan, 'window');
 }
 
 /**

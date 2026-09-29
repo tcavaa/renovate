@@ -129,10 +129,10 @@ export function ProjectDetail({
             <Figure label={t.summary.materials} value={formatGEL(calculator.subtotalMaterials + calculator.subtotalProducts)} />
             <Figure label={t.summary.furniture} value={formatGEL(calculator.subtotalFurniture)} />
             <Figure label={t.summary.workers} value={formatGEL(calculator.subtotalWorkers)} />
-            {design ? <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(calculator.grandTotalWithMargin)} emphasis />}
+            {design ? <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal + design.contingency)} emphasis /> : <Figure label={t.summary.grandTotalWithMargin} value={formatGEL(calculator.grandTotalWithMargin)} emphasis />}
           </>
         ) : (
-          design && <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal)} emphasis />
+          design && <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal + design.contingency)} emphasis />
         )}
       </div>
 
@@ -194,7 +194,7 @@ export function ProjectDetail({
         )}
 
         {design && design.lines.length > 0 && (
-          <FoldSection title={t.profile.sheetDesign} count={design.lines.length} aside={<SheetAside total={design.grandTotal} original={design.originalGrandTotal} />} defaultOpen={!calculator}>
+          <FoldSection title={t.profile.sheetDesign} count={design.lines.length} aside={<SheetAside total={design.grandTotal + design.contingency} original={design.originalGrandTotal != null ? design.originalGrandTotal + (design.originalContingency ?? 0) : null} />} defaultOpen={!calculator}>
             <p className="mb-4 text-sm text-ink-muted">{design.originalGrandTotal != null ? fill(t.profile.sheetEdited, { out: design.excludedCount, changed: design.changedCount }) : t.profile.sheetUnedited}</p>
             <BudgetSheet lines={design.lines} />
           </FoldSection>
@@ -236,9 +236,15 @@ export function ProjectDetail({
               <div className="border border-line bg-bg-surface p-5 md:p-6">
                 <p className="eyebrow mb-3">{t.profile.sheetDesign}</p>
                 {design.originalGrandTotal != null && <EditsRows t={t} original={design.originalGrandTotal} edited={design.grandTotal} flush />}
-                <div className={cn('flex items-baseline justify-between', design.originalGrandTotal != null && 'mt-4 border-t-2 border-ink pt-4')}>
-                  <span className="font-serif text-lg font-semibold text-ink">{t.profile.designBudgetTotal}</span>
-                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(design.grandTotal)}</span>
+                {design.contingency > 0 && (
+                  <div className="space-y-1.5">
+                    <MoneyRow label={t.summary.grandTotal} value={design.grandTotal} bold />
+                    <MoneyRow label={t.summary.contingency} value={design.contingency} muted />
+                  </div>
+                )}
+                <div className={cn('flex items-baseline justify-between', (design.originalGrandTotal != null || design.contingency > 0) && 'mt-4 border-t-2 border-ink pt-4')}>
+                  <span className="font-serif text-lg font-semibold text-ink">{design.contingency > 0 ? t.summary.grandTotalWithMargin : t.profile.designBudgetTotal}</span>
+                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(design.grandTotal + design.contingency)}</span>
                 </div>
               </div>
             )}

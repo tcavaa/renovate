@@ -22,7 +22,7 @@ import { z } from 'zod';
 import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
 import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
 import { finishQuantity } from '@/lib/design/finishQuantity';
-import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
+import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
@@ -61,7 +61,7 @@ import {
   wallsForRectangle,
   withBounds,
 } from '@/lib/design/walls';
-import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
+import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, standardElectrical, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
 import { technicalAnchors, technicalElevation, TECHNICAL_KINDS, type TechnicalCheck } from '@/lib/design/technical';
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
@@ -249,7 +249,7 @@ interface DesignActions {
    * plan, the image it was read from, and the finishes laid on it. Only used on the board
    * store; nothing else of a design is on a board.
    */
-  openBoard: (input: { projectId: number; plan: FloorPlan | null; floorPlanUrl: string | null; finishes: SurfaceFinish[] }) => void;
+  openBoard: (input: { projectId: number; plan: FloorPlan | null; floorPlanUrl: string | null; finishes: SurfaceFinish[]; electrical?: ElectricalPoint[] }) => void;
   setStyle: (styleId: StyleId, catalog: CatalogProduct[]) => void;
   setStyleProfile: (profile: StyleProfile | null) => void;
   /** Puts one budget line in or out of the order; the budget and the checkout follow. */
@@ -325,6 +325,15 @@ interface DesignActions {
   // --- electrical ---
   /** Sockets, switches and lights from the furniture; with the catalogue, each becomes a product. */
   suggestElectrical: (catalog?: CatalogProduct[]) => void;
+  /**
+   * Everything the standards place on a plan with no furniture, as one step of history: the
+   * technical points (`suggestTechnical`), a radiator under the windows of every heated room
+   * (`suggestRadiators`) and each room's standard fittings (`standardElectrical`) — the
+   * calculator's automatic placement. With the catalogue each is a product. Returns what went in.
+   */
+  placeByStandards: (catalog?: CatalogProduct[]) => { technical: number; radiators: number; electrical: number };
+  /** Gives every door, window, radiator and fitting without a product the catalogue's best — no history entry (the calculator's board, priced like a design). */
+  ensureBoardProducts: (catalog: CatalogProduct[]) => void;
   addElectricalPoint: (kind: ElectricalKind, position: Vec2, roomId: string, catalog?: CatalogProduct[]) => string | null;
   updateElectricalPoint: (id: string, patch: Partial<Omit<ElectricalPoint, 'id'>>) => void;
   /** Another kind of fitting: the usual height for it, and a product of that kind when the catalogue has one. */
@@ -362,8 +371,10 @@ interface DesignActions {
     selectedFurniture: Record<string, SelectedProduct[]>;
     /** The project, whose design this is. */
     projectId: number;
-    /** The calculator's own drawing, which is the one the person has just been editing. */
+    /** The calculator's own drawing, which is the one the person has just been editing — dressed in its picks (`boardWithPicks`). */
     plan?: FloorPlan | null;
+    /** The fittings on that drawing, as the calculation priced them. */
+    electrical?: ElectricalPoint[];
     floorPlanUrl?: string | null;
     /** Laminate or parquet, plasterboard or a stretch ceiling, as the calculator priced them. */
     choices?: Partial<WorkChoices>;
@@ -609,13 +620,14 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         setProjectId: (projectId) => set({ projectId }),
         setAt: (at) => set((s) => (s.at === at ? s : { at })),
         setCalculatorPicks: (calculatorPicks) => set({ calculatorPicks }),
-        openBoard: ({ projectId, plan, floorPlanUrl, finishes }) =>
+        openBoard: ({ projectId, plan, floorPlanUrl, finishes, electrical = [] }) =>
           set((s) => ({
             ...initial,
             projectId,
             plan: plan ? ensureWalls(plan) : null,
             floorPlanUrl,
             finishes,
+            electrical,
             loadSerial: s.loadSerial + 1,
             planSerial: s.planSerial + 1,
             history: emptyHistory(),
@@ -1002,6 +1014,35 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
 
         // --- electrical ---
         suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId) } : null)),
+        placeByStandards: (catalog = []) => {
+          const placed = { technical: 0, radiators: 0, electrical: 0 };
+          commit((s) => {
+            if (!s.plan) return null;
+            let n = 0;
+            const nextId = () => `${uid('t')}${n++}`;
+            const points = suggestTechnicalIn(s.plan, s.items, nextId).points;
+            let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
+            const radiators = suggestRadiators(plan, nextId);
+            plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
+            const before = s.electrical.filter((p) => p.origin !== 'generated').length;
+            const electrical = withFixtureProducts(standardElectrical(plan, s.electrical), catalog, s.styleId);
+            placed.technical = points.length;
+            placed.radiators = radiators.length;
+            placed.electrical = electrical.length - before;
+            return { plan: { ...plan, rooms: catalog.length > 0 ? withOpeningProducts(plan.rooms, catalog, s.styleId) : plan.rooms }, electrical };
+          });
+          return placed;
+        },
+        ensureBoardProducts: (catalog) => {
+          const { plan, electrical, styleId } = get();
+          if (!plan || catalog.length === 0) return;
+          const withRadiators = withRadiatorProducts(plan, catalog, styleId);
+          const rooms = withOpeningProducts(withRadiators.rooms, catalog, styleId);
+          const nextPlan = rooms !== withRadiators.rooms ? { ...withRadiators, rooms } : withRadiators;
+          const nextElectrical = withFixtureProducts(electrical, catalog, styleId);
+          const changedElectrical = nextElectrical.some((p, i) => p !== electrical[i]);
+          if (nextPlan !== plan || changedElectrical) set({ ...(nextPlan !== plan ? { plan: nextPlan } : {}), ...(changedElectrical ? { electrical: nextElectrical } : {}) });
+        },
         addElectricalPoint: (kind, position, roomId, catalog = []) => {
           const id = uid('e');
           let ok = false;
@@ -1084,15 +1125,21 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
             }
-            // The wiring follows the furniture; what the person wired by hand is kept. Every
-            // fitting is bought as a product where the catalogue has one — and so is every
-            // door and window.
-            const electrical = withFixtureProducts(suggestElectrical(plan, items, s.electrical.filter((p) => p.origin === 'user')), catalog, styleId);
+            // The wiring follows the furniture; a room the person wired by hand — on this
+            // board or on the calculation's — is kept whole. Points from before origins were
+            // recorded go, as they always did. Every fitting is bought as a product where the
+            // catalogue has one — and so is every door and window.
+            const known = s.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
+            const wired = withFixtureProducts(suggestElectrical(plan, items, known), catalog, styleId);
             const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
+            const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
+            // A door, a window, a radiator, a socket or a light the calculation chose for the
+            // whole flat stays its choice — the catalogue's product, from its shop.
+            const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
             return {
               items,
               finishes,
-              electrical,
+              electrical: dressed.electrical,
               // The studio opens on the whole flat. A room picked out on the plan or the
               // technical board is that board's selection; kept, it showed the new layout one
               // room at a time.
@@ -1102,7 +1149,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               selectedElement: null,
               carryingItemId: null,
               carryRestore: null,
-              ...(rooms !== plan.rooms ? { plan: { ...plan, rooms } } : {}),
+              ...(dressed.plan !== plan ? { plan: dressed.plan } : {}),
               generated: true,
               versions: [],
               history: emptyHistory(),
@@ -1121,7 +1168,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             carryRestore: null,
           })),
 
-        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId, plan: fromCalculator = null, floorPlanUrl = null, choices }) => {
+        startFromCalculator: ({ rooms, homeState, selectedProducts, selectedFurniture, projectId, plan: fromCalculator = null, electrical: fromCalculatorElectrical = [], floorPlanUrl = null, choices }) => {
           let landing: 'studio' | 'style' | 'resume' = 'style';
           set((s) => {
             // A plan uploaded or drawn in the calculator keeps its real walls; rooms typed by
@@ -1185,7 +1232,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               calculatorPicks,
               pendingPicks: false,
               items: [],
-              electrical: [],
+              // The calculation's fittings on its own drawing; generating re-wires the flat for its furniture.
+              electrical: current === fromCalculator ? fromCalculatorElectrical : [],
               finishes: defaultFinishes(plan, s.styleId),
               focusRoomId: null,
               selectedItemId: null,
@@ -1202,15 +1250,19 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
 
         applyPendingPicks: (catalog) => {
-          const { plan, items, finishes, calculatorPicks, pendingPicks } = get();
+          const { plan, items, finishes, electrical, calculatorPicks, pendingPicks } = get();
           if (!pendingPicks) return;
           if (!plan || !calculatorPicks) {
             set({ pendingPicks: false });
             return;
           }
+          // The doors, windows, radiators and fittings too, as the calculation priced them.
+          const dressed = applyBoardPicks(plan, electrical, calculatorPicks, catalog);
           set({
             items: placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog)),
             finishes: applyFinishPicks(finishes, plan, calculatorPicks, catalog),
+            ...(dressed.plan !== plan ? { plan: dressed.plan } : {}),
+            ...(dressed.electrical !== electrical ? { electrical: dressed.electrical } : {}),
             pendingPicks: false,
           });
         },

@@ -151,6 +151,12 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
 - Floor-plan parsing has two paths: Claude reads the drawing when `ANTHROPIC_API_KEY` is set,
   and the deterministic CV parser takes over when it is not. The CV path cannot read
   dimensions, so it still asks the user for the total floor area.
+- A plan whose doors are inferred can come with no front door: `deriveOpenings` places the
+  windows before the front door, and an entry room whose outside walls have all taken a window
+  has no wall left for it. The sample plan read the CV way is one — its living room's two
+  outside walls both get a window, so the flat has three interior doors, an archway and no
+  entrance (the drawing has one, in the bottom-left room's outer wall, which the CV path cannot
+  see).
 - The AI path has not yet met a real plan with a real key. Everything around the call is
   done — `pnpm plan:ai <file>` runs one drawing through the reader and prints the reading,
   the parsed labels, the solved walls and the residuals; `--save reading.json` keeps the raw

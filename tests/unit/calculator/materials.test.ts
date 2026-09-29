@@ -51,6 +51,15 @@ describe('aggregateRoomTotals', () => {
     expect(totals.windowCount).toBe(1); // bathroom and hallway are excluded
   });
 
+  it('takes the doors counted off the plan when the caller has them, and nothing that is not a count', () => {
+    expect(aggregateRoomTotals(rooms, { doors: 1 }).doorCount).toBe(1);
+    expect(aggregateRoomTotals(rooms, { doors: 0 }).doorCount).toBe(0);
+    expect(aggregateRoomTotals(rooms, { doors: -2 }).doorCount).toBe(0);
+    expect(aggregateRoomTotals(rooms, { doors: Number.NaN }).doorCount).toBe(3);
+    expect(aggregateRoomTotals(rooms, {}).doorCount).toBe(3);
+    expect(aggregateRoomTotals(rooms, null).doorCount).toBe(3);
+  });
+
   it('counts the wet rooms', () => {
     expect(totals.wetRoomCount).toBe(1);
     expect(aggregateRoomTotals([bedroom, hallway]).wetRoomCount).toBe(0);

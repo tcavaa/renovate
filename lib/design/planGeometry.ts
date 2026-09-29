@@ -8,10 +8,9 @@
  * *left* of each directed edge and the inward normal of edge (dx, dz) is (-dz, dx).
  */
 
-import type { Room, RoomType } from '@/lib/calculator/types';
+import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
 import { ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
-import { computeRoomAreas } from '@/lib/calculator/materials';
-import { effectiveSplit, roomPartsFor } from './studio';
+import { effectiveSplit, partAt, roomPartsFor } from './studio';
 import { roomTypeName, withRoomNames } from './roomNames';
 import type {
   FloorPlan,
@@ -755,37 +754,37 @@ export function isSharedWithAnyRoom(
 // ---------------------------------------------------------------------------
 
 /**
- * Converts plan rooms into the `Room` shape the materials/labour engine already consumes.
- *
- * The engine models rooms as width × length boxes, so `width`/`length` come from the bounding
- * box — but the *derived* areas are taken from the true polygon, so an L-shaped room is
- * costed on its real floor area rather than its bounding rectangle.
+ * One wall of a room as every estimate counts it — the design's finishes and renovation and the
+ * calculator's alike: the edge's length at the room's height, less every door, window and
+ * opening cut into it. An edge on a room separator is no wall and measures nothing.
+ */
+export function edgeWallAreaM2(room: Pick<PlanRoom, 'polygon' | 'heightM' | 'openings' | 'open'>, index: number): number {
+  return round2(edgeWallAreaRaw(room, index));
+}
+
+/**
+ * A room's walls together, as every estimate counts them (`edgeWallAreaM2`, summed before it is
+ * rounded): what is plastered, painted or tiled, and what a finish over all of them covers.
+ */
+export function roomWallAreaM2(room: Pick<PlanRoom, 'polygon' | 'heightM' | 'openings' | 'open'>): number {
+  return round2(room.polygon.reduce((sum, _, i) => sum + edgeWallAreaRaw(room, i), 0));
+}
+
+function edgeWallAreaRaw(room: Pick<PlanRoom, 'polygon' | 'heightM' | 'openings' | 'open'>, index: number): number {
+  if (isOpenEdge(room, index)) return 0;
+  const edge = roomEdges(room.polygon).find((e) => e.index === index);
+  if (!edge) return 0;
+  const cut = room.openings.reduce((sum, o) => sum + (o.wallIndex === index ? o.widthM * o.heightM : 0), 0);
+  return Math.max(0, edge.length * room.heightM - cut);
+}
+
+/**
+ * The plan's rooms in the `Room` shape the materials and labour engine consumes — the design's
+ * and the calculator's the same rooms, so the two estimates of one flat are the same estimate
+ * (`calculatorRoomsFromPlan`).
  */
 export function planToCalculatorRooms(plan: FloorPlan): Room[] {
-  return plan.rooms.map((r) => {
-    const b = polygonBounds(r.polygon);
-    const floorM2 = round2(r.areaM2);
-    // What is walled: an edge on a room separator is open onto the next room, and no wall is plastered or painted there.
-    const perimeterM = round2(wallPerimeterM(r));
-    return {
-      id: r.id,
-      type: r.type,
-      nameKa: r.name,
-      width: round2(b.width),
-      length: round2(b.depth),
-      height: r.heightM,
-      floorM2,
-      wallM2: round2(perimeterM * r.heightM),
-      ceilingM2: floorM2,
-      perimeterM,
-      isWetRoom: WET_ROOM_TYPES.includes(r.type),
-      // Where the room sits on the plan, so the calculator's layout editor shows the flat as
-      // drawn rather than a strip of rectangles.
-      x: round2(b.minX),
-      z: round2(b.minZ),
-      ...studioFields(r),
-    };
-  });
+  return calculatorRoomsFromPlan(plan);
 }
 
 /** A studio's line and its two parts as measured on the plan, for the calculator's room. */
@@ -794,12 +793,16 @@ function studioFields(room: PlanRoom): Pick<Room, 'split' | 'parts'> {
   return { split: effectiveSplit(room), parts: roomPartsFor(room) };
 }
 
-/** Builds a plan from rooms already entered in the calculator, laid out in a simple strip. */
 /**
- * The calculator's rooms, read off a plan: width and depth from the outline (an L-shape
- * keeps its width and takes the depth that gives the right area), height and type as drawn.
- * Room ids are kept, so furniture picked per room in the calculator lands in the same room
- * in 3D.
+ * The rooms of a plan as every estimate counts them — the calculator's, and the design's through
+ * `planToCalculatorRooms`: the floor as drawn (`areaM2`), the walls round the walled perimeter (a
+ * room separator's open edges are no wall) less every door, window and opening in them
+ * (`roomWallAreaM2`), and a studio's two parts the same way, each opening in the part its middle
+ * is in. `width` and `length` are the outline's (an L-shape keeps its width and takes the length
+ * that gives its area), `x`/`z` its corner; `walls` each edge's length and `wallsM2` each edge's
+ * wall as counted (`edgeWallAreaM2`), in the board's order, which is how the catalogue step lists
+ * them and a wall chosen on its own is bought. Room ids are kept, so furniture picked per room in
+ * the calculator lands in the same room in 3D.
  */
 export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
   return plan.rooms.map((room) => {
@@ -807,27 +810,41 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
     const zs = room.polygon.map((p) => p.z);
     const width = round2(Math.max(...xs) - Math.min(...xs));
     const depth = round2(Math.max(...zs) - Math.min(...zs));
-    const length = room.polygon.length > 4 ? round2(room.areaM2 / Math.max(width, 0.1)) : depth;
-    const areas = computeRoomAreas({
+    const floorM2 = round2(room.areaM2);
+    const studio = studioFields(room);
+    return {
       id: room.id,
       type: room.type,
       nameKa: room.name,
       width,
-      length,
+      length: room.polygon.length > 4 ? round2(room.areaM2 / Math.max(width, 0.1)) : depth,
       height: room.heightM,
-    });
-    // An edge on a room separator is open onto the next room: no wall there to plaster, paint or tile.
-    const open = round2(room.perimeterM - wallPerimeterM(room));
-    return {
-      ...areas,
-      ...(open > 0 ? { perimeterM: round2(Math.max(0, areas.perimeterM - open)), wallM2: round2(Math.max(0, areas.wallM2 - open * room.heightM)) } : {}),
+      floorM2,
+      wallM2: roomWallAreaM2(room),
+      ceilingM2: floorM2,
+      perimeterM: round2(wallPerimeterM(room)),
+      isWetRoom: WET_ROOM_TYPES.includes(room.type),
+      // Where the room sits on the plan, so the calculator's board shows the flat as drawn.
       x: round2(Math.min(...xs)),
       z: round2(Math.min(...zs)),
-      ...studioFields(room),
-      // The walls one by one, as the board has them — what the catalogue step lists; an open edge measures nothing.
+      ...studio,
+      ...(studio.parts ? { parts: partsLessOpenings(room, studio.parts) } : {}),
       walls: edgeLengthsM(room.polygon).map((l, i) => (isOpenEdge(room, i) ? 0 : l)),
+      wallsM2: room.polygon.map((_, i) => edgeWallAreaM2(room, i)),
     };
   });
+}
+
+/** A studio's parts with every door, window and opening off the walls of the part its middle is in. */
+function partsLessOpenings(room: PlanRoom, parts: RoomPart[]): RoomPart[] {
+  const edges = roomEdges(room.polygon);
+  const off = parts.map(() => 0);
+  for (const opening of room.openings) {
+    const edge = edges.find((e) => e.index === opening.wallIndex);
+    if (!edge || isOpenEdge(room, opening.wallIndex)) continue;
+    off[partAt(room, pointOnEdge(edge, opening.t))] += opening.widthM * opening.heightM;
+  }
+  return parts.map((part, i) => (off[i] > 0 ? { ...part, wallM2: round2(Math.max(0, part.wallM2 - off[i])) } : part));
 }
 
 /**

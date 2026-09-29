@@ -14,6 +14,8 @@ import type { RoomType } from '@/lib/calculator/types';
 import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 import type { SnapGuide } from '@/lib/design/drawing';
 import { EDITOR, ELECTRICAL_COLOR, ORIGIN_COLOR, TECHNICAL_COLOR } from './palette';
+import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
+import { strokeIcon } from './iconPaths';
 
 export interface Transform {
   /** CSS pixels per metre. */
@@ -230,6 +232,8 @@ export interface WallDrawOptions {
   /** How far past each end the body is drawn, metres, so it meets the wall it turns into (`wallEndExtensions`). */
   extendA?: number;
   extendB?: number;
+  /** Solid black, no hatch line down the middle: the printed sheet (`planPdfExport`). */
+  solid?: boolean;
 }
 
 /**
@@ -313,8 +317,9 @@ export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall
   ctx.moveTo(a.x, a.y);
   ctx.lineTo(b.x, b.y);
   ctx.stroke();
-  // A hatch line down the middle so a wall reads as a wall, not a fat stroke.
-  if (thickness >= 6) {
+  // A hatch line down the middle so a wall reads as a wall, not a fat stroke — on the screen;
+  // on paper a wall is solid black.
+  if (thickness >= 6 && !options.solid) {
     ctx.strokeStyle = 'rgba(255,255,255,0.28)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -479,6 +484,7 @@ export function drawBeam(ctx: CanvasRenderingContext2D, t: Transform, beam: Beam
   ctx.setLineDash([]);
 }
 
+/** What a point is written as where its icon cannot be drawn (`strokeIcon` said no). */
 const TECHNICAL_GLYPH: Record<TechnicalPoint['kind'], string> = {
   water_supply: 'W',
   sewer: 'S',
@@ -502,6 +508,8 @@ export function drawTechnical(ctx: CanvasRenderingContext2D, t: Transform, point
   ctx.lineWidth = state.selected ? 3 : 2;
   ctx.strokeStyle = state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : '#FFFFFF';
   ctx.stroke();
+  // The icon the technical tray and the inspector show the kind by, white on its colour.
+  if (strokeIcon(ctx, TECHNICAL_ICON[point.kind], s.x, s.y, 13, '#FFFFFF', 2.2)) return;
   ctx.fillStyle = '#FFFFFF';
   ctx.font = '700 10px system-ui, sans-serif';
   ctx.textAlign = 'center';
@@ -513,57 +521,49 @@ export function drawElectrical(ctx: CanvasRenderingContext2D, t: Transform, poin
   const s = toScreen(t, point.position);
   const info = ELECTRICAL_KINDS[point.kind];
   const ring = state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : null;
-  if (info.light) {
-    const on = point.on !== false;
-    const r = point.kind === 'light_ceiling' ? 9 : 7;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = on ? ELECTRICAL_COLOR.lightOn : ELECTRICAL_COLOR.lightOff;
-    ctx.fill();
-    ctx.strokeStyle = ring ?? '#FFFFFF';
-    ctx.lineWidth = ring ? 3 : 1.5;
-    ctx.stroke();
-    if (on) {
-      ctx.strokeStyle = ELECTRICAL_COLOR.lightOn;
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(s.x + Math.cos(angle) * (r + 2), s.y + Math.sin(angle) * (r + 2));
-        ctx.lineTo(s.x + Math.cos(angle) * (r + 5), s.y + Math.sin(angle) * (r + 5));
-        ctx.stroke();
-      }
-    }
-    if (point.kind === 'light_strip' || point.kind === 'light_furniture') {
-      const len = (point.lengthM ?? 1.5) * t.scale;
-      ctx.strokeStyle = on ? ELECTRICAL_COLOR.lightOn : ELECTRICAL_COLOR.lightOff;
-      ctx.lineWidth = 3;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.moveTo(s.x - len / 2, s.y);
-      ctx.lineTo(s.x + len / 2, s.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    return;
-  }
-  // Sockets and switches: a small plate with a glyph.
+  const on = point.on !== false;
   const isData = point.kind === 'tv' || point.kind === 'internet';
-  const color = point.kind === 'switch' ? ELECTRICAL_COLOR.switch : isData ? ELECTRICAL_COLOR.data : ELECTRICAL_COLOR.socket;
+  const color = info.light ? (on ? ELECTRICAL_COLOR.lightOn : ELECTRICAL_COLOR.lightOff) : point.kind === 'switch' ? ELECTRICAL_COLOR.switch : isData ? ELECTRICAL_COLOR.data : ELECTRICAL_COLOR.socket;
+  const r = point.kind === 'light_ceiling' ? 10 : 9;
+  // A strip or a furniture light runs along its length, under the disc that marks its middle.
+  if (point.kind === 'light_strip' || point.kind === 'light_furniture') {
+    const len = (point.lengthM ?? 1.5) * t.scale;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(s.x - len / 2, s.y);
+    ctx.lineTo(s.x + len / 2, s.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // A light that is on shines.
+  if (info.light && on) {
+    ctx.strokeStyle = ELECTRICAL_COLOR.lightOn;
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(s.x + Math.cos(angle) * (r + 2), s.y + Math.sin(angle) * (r + 2));
+      ctx.lineTo(s.x + Math.cos(angle) * (r + 5), s.y + Math.sin(angle) * (r + 5));
+      ctx.stroke();
+    }
+  }
+  // A disc in the family's colour — power, a switch, data, a light — with the kind's own icon
+  // on it, the one the electric tray and the inspector show.
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
   ctx.fillStyle = color;
+  ctx.fill();
   ctx.strokeStyle = ring ?? '#FFFFFF';
   ctx.lineWidth = ring ? 3 : 1.5;
-  const w = 14;
-  const h = 10;
-  ctx.beginPath();
-  ctx.rect(s.x - w / 2, s.y - h / 2, w, h);
-  ctx.fill();
   ctx.stroke();
+  if (strokeIcon(ctx, ELECTRICAL_ICON[point.kind], s.x, s.y, r * 1.25, '#FFFFFF', 2.2)) return;
   ctx.fillStyle = '#FFFFFF';
   ctx.font = '700 8px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const glyph = point.kind === 'switch' ? '/' : point.kind === 'tv' ? 'TV' : point.kind === 'internet' ? 'NET' : point.count && point.count > 1 ? '••' : '•';
+  const glyph = info.light ? '' : point.kind === 'switch' ? '/' : point.kind === 'tv' ? 'TV' : point.kind === 'internet' ? 'NET' : point.count && point.count > 1 ? '••' : '•';
   ctx.fillText(glyph, s.x, s.y + 0.5);
 }
 

@@ -112,8 +112,9 @@ phone, area, the booking's stage) and `/partner/projects/[id]` opens one — the
 (`ProjectDetail`: figures, the customer's name and phone, layout and rooms, the calculator's and
 the design's budget sheets as the customer left them, photos and renders) with a viewer on top
 (`ProjectViewer`: the 2D plan on the board with its layers — furniture, electrical, technical
-points, zones, dimensions — the furnished 3D model, and the walk-through; the uploaded plan
-file and the plan as a PDF). Nothing there writes: the board only pans and zooms (the `pan`
+points, zones (off to start with: white floors), dimensions — the furnished 3D model, and the
+walk-through; the uploaded plan file and the plan as a PDF). A project with no design shows the
+calculator's board, its technical points and its fittings (`calculatorBoard.electrical`). Nothing there writes: the board only pans and zooms (the `pan`
 tool, locked, nothing selectable), `Viewer3D` takes `readOnly` (no hover, no picking, no drag),
 and the sheets are the read-only `BudgetSheet`. The project opens only while the brigade has a
 sent, not-cancelled booking for it (`teamMaySeeProject`; a turned-down booking closes it again);

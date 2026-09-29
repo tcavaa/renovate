@@ -481,8 +481,9 @@ function coveringArea(finish: SurfaceFinish, areaM2: number): SurfaceFinish {
 
 /**
  * The finishes a room's surface is laid in from the calculator's picks of it: the walls in
- * their product, or wall by wall; the floor in its product — of two sharing it, the one with
- * the larger share, since the picks say how much of the floor each covers, not where.
+ * their product, or wall by wall; the floor in its product — two sharing it as two floor
+ * finishes, each with its `share` and bought for that part, the larger first: the picks say how
+ * much of the floor each covers, not where, so the board and 3D draw the larger over the floor.
  */
 export function calculatorSurfaceFinishes(room: PlanRoom, surface: FinishSurface, laid: LaidFinish[], origin: ItemOrigin = 'calculator'): SurfaceFinish[] {
   if (laid.length === 0) return [];
@@ -491,8 +492,11 @@ export function calculatorSurfaceFinishes(room: PlanRoom, surface: FinishSurface
     if (byWall.length === 0) return [finishFromProduct(room, 'wall', laid[0].product, origin)];
     return byWall.flatMap((l) => l.walls!.filter((i) => i >= 0 && i < room.polygon.length).map((wallIndex) => coveringArea({ ...finishFromProduct(room, 'wall', l.product, origin), wallIndex }, wallEdgeAreaM2(room, wallIndex))));
   }
-  const main = [...laid].sort((a, b) => (b.share ?? 1) - (a.share ?? 1))[0];
-  return [finishFromProduct(room, 'floor', main.product, origin)];
+  const floors = [...laid].sort((a, b) => (b.share ?? 1) - (a.share ?? 1));
+  if (floors.length > 1 && floors.every((l) => l.share != null)) {
+    return floors.map((l) => coveringArea({ ...finishFromProduct(room, 'floor', l.product, origin), share: l.share }, round2(room.areaM2 * Math.min(1, Math.max(0, l.share ?? 0)))));
+  }
+  return [finishFromProduct(room, 'floor', floors[0].product, origin)];
 }
 
 /**
@@ -531,8 +535,8 @@ export function catalogProductFromPick(pick: SelectedProduct): CatalogProduct {
     imageUrl: pick.imageUrl,
     colorHex: pick.colorHex ?? null,
     textureUrl: pick.textureUrl ?? null,
-    model3dKind: null,
-    model3dUrl: null,
+    model3dKind: pick.model3dKind ?? null,
+    model3dUrl: pick.model3dUrl ?? null,
     widthCm: null,
     depthCm: null,
     heightCm: null,

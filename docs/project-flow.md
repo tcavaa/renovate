@@ -287,12 +287,16 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 - `enqueueSave` sends one save at a time per half.
 - Each save carries `baseRev` (the store's), a fresh `saveId` (`newSaveId`), and `prevSaveId`
   (the store's `pendingSaveId`: a save sent whose answer has not arrived) and `force`.
-- The calculator sends its board: the plan, `floorPlanUrl`, and each room in its chosen floor
-  and walls (`boardFinishesFromPicks`). It also sends `progress` with `steps: 6`.
+- The calculator sends its board: the plan (its doors, windows and technical points, each a
+  product), its fittings (`electrical`), `floorPlanUrl`, and each room in its chosen floor and
+  walls (`boardFinishesFromPicks`). It also sends `progress` with `steps: 6`. The route reprices
+  the board's products from the catalogue (`repricePlan`, as the design's save does) and stores
+  the board repriced.
 
 **Answers.**
-- **Success** returns `{ id, rev }`: `baseRev = rev`, `pendingSaveId = null`, no problem, and
-  the half is marked clean if the store did not change while the write was on its way.
+- **Success** returns `{ id, rev }` (the calculation's save adds its `sheet`: lines, total,
+  contingency): `baseRev = rev`, `pendingSaveId = null`, no problem, and the half is marked
+  clean if the store did not change while the write was on its way.
 - **409 `PROJECT_CHANGED`** becomes `ProjectChangedError`, raised as the *conflict* problem.
 - **Other problems** (`useSaveProblems`, shown by `SaveProblemBanner`): `error` (retry),
   `unknown-product` (a product the catalogue no longer has), and `gone` (the row was deleted:
@@ -463,12 +467,15 @@ simply resumes it, carrying no picks. The handoff:
   a renovation (`mode: 'full'`, `modeChosen: true`, `emptyStart: false`) with the calculation's
   home state and floor/ceiling choices (merged into `plan.technical.choices`), lands where it
   was when it was not generated yet, and the calculator's picks are put into it: applied by the studio once the catalogue is in
-  (`pendingPicks` → `applyPendingPicks`) when it is laid out, by the generation when it is not.
-  A pick the room already holds is not placed twice (`applyFurniturePicks` counts per room and
-  product).
-- **An empty design** is laid out from the calculation: the calculator's drawing (or typed rooms
-  as rectangles), `mode: 'full'`, the home state, the choices, the picks, landing on the
-  **style step** with steps 1–2 shut (`planFromCalculator`).
+  (`pendingPicks` → `applyPendingPicks`: the furniture, the floors and walls, and the doors,
+  windows, radiators and fittings for the whole flat — `applyBoardPicks`) when it is laid out, by
+  the generation when it is not. A pick the room already holds is not placed twice
+  (`applyFurniturePicks` counts per room and product).
+- **An empty design** is laid out from the calculation: the calculator's drawing — dressed in
+  its whole-flat picks as the calculation priced it (`boardWithPicks`: its doors, windows and
+  radiators in the products chosen for them), with its technical points and its fittings — or
+  typed rooms as rectangles, `mode: 'full'`, the home state, the choices, the picks, landing on
+  the **style step** with steps 1–2 shut (`planFromCalculator`).
 - **The calculation's own copy that was never laid out** (`planFromCalculator`, not generated,
   nothing placed) is rebuilt from the calculation as it is now, keeping the technical points whose
   rooms survive and the versions — its plan steps are shut, so a room added in the calculator
@@ -479,9 +486,20 @@ simply resumes it, carrying no picks. The handoff:
   kind (placing an extra item when there is no such slot), and fixtures picked in the catalogue
   (a toilet, a pendant) take every slot of their kind; `applyFinishPicks` lays each room's floor
   and walls on their surface — walls chosen one by one on those walls, a floor two products
-  share in the one with the larger share — and a whole-flat finish (from before) by wetness. Everything the
-  person chose is `origin: 'calculator'`; the matcher's own picks `style`; swaps in the studio
-  `studio` — and a studio choice always outranks a calculator one.
+  share in both by their shares — the mouldings round every room, and a whole-flat finish (from
+  before) by wetness. The wiring keeps the calculation's rooms wired by hand whole and wires the
+  rest by the standards plus the furniture (`suggestElectrical`), and `applyBoardPicks` puts the
+  whole-flat doors, windows, radiators and fittings on again **as the catalogue's products** —
+  the board handed over knows the product but not its shop (a calculator pick records none),
+  and a door with no shop was ordered from nobody and left its shop's basket, and its free
+  delivery, short of the calculation's. Everything the person chose is `origin: 'calculator'`;
+  the matcher's own picks `style`; swaps in the studio `studio` — and a studio choice always
+  outranks a calculator one (a floor or a wall; a door or a fitting has no such mark yet —
+  [calculator.md](calculator.md#known-gaps)).
+- **The design made so is the calculation plus its furniture**: its budget has the
+  calculation's lines, line for line, and the furniture with what it brings — its lamps, its
+  sockets and their wiring, and the shops' free delivery its baskets reach
+  ([budget.md](budget.md)).
 
 A project with both halves: the calculator's summary reads the design as it was when the
 calculator was opened (the row's snapshot); two tabs do not update each other live — the second
@@ -583,7 +601,7 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
 - Projects saved before September 2026 by the old autosave ("one draft per flat") are still in
   the profiles and hubs, named after the date or "my project"; they are deleted one by one.
 - A project made on a hub and never touched stays until deleted.
-- The calculator's own gaps (studio rooms taking one floor, whole-room finishes only, gross wall
-  areas) are in [calculator.md](calculator.md#known-gaps).
+- The calculator's own gaps (studio rooms taking one floor, whole-room finishes only, wall
+  areas counted unlike the studio's) are in [calculator.md](calculator.md#known-gaps).
 - The design's version 01 and "empty the rooms" are the only ways back inside a project; there is
   no project-level undo across sessions beyond the versions.

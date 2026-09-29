@@ -35,9 +35,9 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
   store/calculatorStore + calculator board      pricing) · lib/design3d · store/designStore
           │  "see it in 3D": handOffToDesign ──────────────▶│
           ▼                                                  ▼
-  lib/summary/calculatorSheet ──▶ BudgetLine[] ◀── lib/design/pricing (priceScene)
+  lib/summary/calculatorSheet ──priceScene──▶ BudgetLine[] ◀── lib/design/pricing (priceScene)
                                   components/budget/BudgetSheet   (docs/budget.md)
-                                         │ orderedLines / orderedPickLines
+                                         │ orderedLines
                                          ▼
                     lib/finance (checkout, orders, bookings) → partners (docs/marketplace.md)
   catalogue (products, stores, categories — docs/catalog.md) feeds both: the calculator's
@@ -46,7 +46,10 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
 ```
 
 - The **calculator engine** (`lib/calculator/materials.ts`) is reused unchanged by the studio
-  for materials and labour in a renovation (`mode: 'full'`).
+  for materials and labour in a renovation (`mode: 'full'`), and **the studio's pricing is the
+  calculator's**: a calculation is its board dressed in its picks, priced by `priceScene`
+  (`calculationCost`), so both products count the same flat the same way
+  ([calculator.md](calculator.md)).
 - The **2D board** (`components/plan/`, `lib/design/walls.ts`) is used by both products: the
   calculator's plan step (with its own store, `useCalculatorPlanStore`) and the design's plan,
   technical and studio steps.

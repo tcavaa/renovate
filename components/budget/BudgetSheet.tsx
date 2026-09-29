@@ -19,10 +19,10 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { MapPin, Pencil, Phone, Truck } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { localizedName } from '@/lib/i18n/labels';
+import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { quantityOptions } from '@/lib/summary/quantity';
-import { cn, formatGEL, formatNumber, formatUnit } from '@/lib/utils';
+import { cn, formatGEL, formatNumber } from '@/lib/utils';
 import type { BudgetLine, BudgetSection } from '@/lib/design/pricing';
 import type { SceneStore } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
@@ -265,7 +265,7 @@ export function QuantityCell({ line, onChange }: { line: BudgetLine; onChange?: 
   const t = useT();
   const [open, setOpen] = useState(false);
   const original = line.originalQty ?? line.qty;
-  const unit = formatUnit(line.unit);
+  const unit = unitLabel(t, line.unit);
   const edited = line.originalQty != null;
 
   if (open && onChange) {

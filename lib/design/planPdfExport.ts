@@ -15,9 +15,9 @@
  * Browser-only: it touches `document` and `canvas`.
  */
 
-import type { ElectricalPoint, FloorPlan, PlacedItem, SurfaceFinish } from './types';
+import type { ElectricalPoint, FloorPlan, PlacedItem } from './types';
 import { leafOnOtherSide } from './openings';
-import { drawBaseFinishes, drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from '@/components/plan/draw';
+import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from '@/components/plan/draw';
 
 /** A4 at 72 points to the inch. */
 const A4 = { short: 595.28, long: 841.89 };
@@ -39,8 +39,6 @@ export interface PlanPdfOptions {
   unitM?: string;
   items?: PlacedItem[];
   electrical?: ElectricalPoint[];
-  /** The finishes chosen for the rooms: a floor in its product's colour, the walls as bands. */
-  finishes?: SurfaceFinish[];
   /** Draw the furniture footprints too. */
   furniture?: boolean;
   /** What a piece of furniture is called on the sheet (its kind, in the reader's language). */
@@ -90,19 +88,19 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
 
   drawTitleBlock(ctx, options, pageW);
 
-  // The rooms' tints; their names come last, over the furniture. The edge lengths inside the
+  // The sheet is an architect's: white rooms and solid black walls. No floor is tinted in its
+  // finish and no wall carries a band of one along its face — those read as lines inside the
+  // walls on paper. Their names come last, over the furniture. The edge lengths inside the
   // rooms are left off the sheet: the chains outside the walls carry every size at print
   // size, and the small figures at the walls' middles only collided with the fittings there.
   for (const room of plan.rooms) {
     drawRoom(ctx, transform, room, { selected: false, hovered: false, labels: false, dimensions: false, unitM2: options.unitM2 });
   }
-  // What each room wears, as chosen — the calculator's placement or the studio's finishes.
-  if (options.finishes) drawBaseFinishes(ctx, transform, plan, options.finishes);
-  // Walls with their corners closed, like the board.
+  // Walls with their corners closed, like the board, and solid: no hatch line down the middle.
   const extensions = wallEndExtensions(plan.walls ?? []);
   // Room separators first, dashed, so the walls they end against are drawn over their ends.
   const walls = [...(plan.walls ?? []).filter((w) => w.separator), ...(plan.walls ?? []).filter((w) => !w.separator)];
-  for (const wall of walls) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b });
+  for (const wall of walls) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b, solid: true });
   for (const room of plan.rooms) {
     for (const opening of room.openings) {
       drawOpening(ctx, transform, room, opening, plan.wallThicknessM, {});

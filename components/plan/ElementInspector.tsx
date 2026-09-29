@@ -8,7 +8,8 @@
  * store through the actions it is given.
  */
 
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Square, SquareSplitHorizontal, Trash2 } from 'lucide-react';
+import { createContext, useContext } from 'react';
+import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Square, SquareSplitHorizontal, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -176,7 +177,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
           <>
             <div className="grid grid-cols-2 gap-2">
               <Field label={t.build.hinge}>
-                <div className="flex gap-1">
+                {/* Wrapping: side by side the Georgian labels ran into the other field's. */}
+                <div className="flex flex-wrap gap-1">
                   {(['left', 'right'] as const).map((h) => (
                     <Chip key={h} active={(opening.hinge ?? 'left') === h} onClick={() => actions.updateOpening(room.id, opening.id, { hinge: h })} disabled={locked}>
                       {h === 'left' ? t.build.hingeLeft : t.build.hingeRight}
@@ -185,7 +187,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
                 </div>
               </Field>
               <Field label={t.build.swing}>
-                <div className="flex gap-1">
+                <div className="flex flex-wrap gap-1">
                   {(['in', 'out'] as const).map((s) => (
                     <Chip key={s} active={(opening.swing ?? 'in') === s} onClick={() => actions.updateOpening(room.id, opening.id, { swing: s })} disabled={locked}>
                       {s === 'in' ? t.build.swingIn : t.build.swingOut}
@@ -627,8 +629,15 @@ function RadiatorFields({ plan, point, catalog, styleId, locale, actions }: { pl
   );
 }
 
+/**
+ * The ✕ of a card the inspector stands in by itself, over the board (the calculator's plan
+ * step): given, every section shows it beside its delete, and it lets go of the selection.
+ */
+export const InspectorClose = createContext<(() => void) | null>(null);
+
 export function Section({ title, subtitle, icon, onDelete, className, children }: { title: string; subtitle?: string | null; icon?: React.ReactNode; onDelete?: () => void; className?: string; children: React.ReactNode }) {
   const t = useT();
+  const close = useContext(InspectorClose);
   return (
     <div className={cn('space-y-2 rounded-[14px] border border-line bg-white p-3', className)}>
       <div className="flex items-start justify-between gap-2">
@@ -639,10 +648,19 @@ export function Section({ title, subtitle, icon, onDelete, className, children }
             {subtitle && <p className="truncate text-xs text-ink-muted">{subtitle}</p>}
           </div>
         </div>
-        {onDelete && (
-          <button type="button" onClick={onDelete} aria-label={t.build.deleteElement} title={t.build.deleteElement} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-faint hover:bg-danger/10 hover:text-danger">
-            <Trash2 className="h-4 w-4" />
-          </button>
+        {(onDelete || close) && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {onDelete && (
+              <button type="button" onClick={onDelete} aria-label={t.build.deleteElement} title={t.build.deleteElement} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-faint hover:bg-danger/10 hover:text-danger">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+            {close && (
+              <button type="button" onClick={close} aria-label={t.common.close} title={t.common.close} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-muted hover:bg-sand-light hover:text-ink">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         )}
       </div>
       {children}

@@ -150,6 +150,8 @@ export default function ExistingHousePage() {
           <PlanWorkspace
             tools={['select', 'pan', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam']}
             layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']}
+            // The existing flat on white paper: its finishes are the studio's.
+            layers={{ zones: false }}
             bleed={FLOW_BOARD_BLEED}
             wallBuilding={wallBuilding}
             onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}

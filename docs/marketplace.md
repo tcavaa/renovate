@@ -50,12 +50,13 @@ Related: [budget.md](budget.md) (the lines orders are made from) ·
 1. A summary page (`design/[id]/summary`, `calculator/[id]/summary`) or the project page's
    `OrderProjectButton` builds the `CheckoutPart`s (`lib/projects/checkoutParts.ts`):
    `designCheckoutPart` over `priceScene` → `orderedLines`, `calculatorCheckoutPart` over
-   `orderedPickLines`.
+   `orderedCalculationLines` (the calculation priced as a design, [budget.md](budget.md)).
 2. `CheckoutDialog` reads `GET /api/checkout?projectId=` (`projectOrderState`) to show what is
    already paid or partly ordered, saves the project through the caller's save helper, then
    posts `POST /api/checkout { projectId, customer }` (signed-in owner only).
 3. The route rate-limits, validates, checks the owner and calls `createCheckoutForProject`: the
-   calculator's lines and the design's (`sceneLinesOf` → `costLinesByStore`) are merged with
+   calculator's lines (`calculatorLinesOf` → `calculationLinesByStore`) and the design's
+   (`sceneLinesOf` → `costLinesByStore`) — both the product lines of a `priceScene` — are merged with
    what was ordered before (`mergeLines`), grouped per store, and a fee row is added per unpaid
    half.
 4. One transaction writes the `checkouts`, `orders` (every store's with no `sentAt` — it waits
@@ -101,11 +102,11 @@ collected (there is no payment integration; the fee is shown on the summaries an
 summary → "შეკვეთის გაფორმება" → CheckoutDialog (name, phone, e-mail; the project's owner only)
   → saves the project if it is not saved yet (each summary in its own shape)
   → POST /api/checkout { projectId, customer }
-      lib/finance/money.ts     group what is bought by store (calculator: the picks, by a
-                               products.storeId lookup; design: the *budget's* product lines —
-                               priceScene, see below — by the line's store snapshot, the lookup
-                               filling in), one order per store, delivery per store, commission
-                               at that store's rate, fee = m² × rate
+      lib/finance/money.ts     group what is bought by store (both halves: the *budget's*
+                               product lines — priceScene, see below — by the line's store
+                               snapshot, a products.storeId lookup filling in), one order per
+                               store, delivery per store, commission at that store's rate,
+                               fee = m² × rate
                                + the construction materials to their supplier (projectMaterials)
       lib/finance/orders.ts    one transaction: checkout + orders (unsent) + items; project → 'submitted'
       lib/finance/notify.ts    mail to the customer (MAIL_DRIVER=log in dev → logs/app-*.log);
@@ -321,13 +322,10 @@ exercised by the routes, not by unit tests.
 - A brigade's availability is its open orders against `capacityJobs`, nothing more: no
   calendar, no dates, and an order it never answers keeps it "busy" until somebody closes it.
 - The two halves of a project agree on a product only by its id. The studio inherits the
-  calculator's furniture and finishes, so those are one order line; it does not inherit a door,
-  a window or a socket picked in the calculator (`applyFinishPicks`: "a pick that is not a
-  finish is simply not a finish") and gives every opening and point a product of its own. Now
-  that the studio's doors and fittings are ordered, a project with both halves whose calculator
-  picked door A while the studio hung door B is sent both — the same thing a sofa swapped in
-  the studio has always done to the calculator's sofa. The tick on either summary is the way
-  out until calculator picks of those kinds reach the openings and the points.
+  calculator's furniture, finishes, doors, windows, radiators and fittings (`applyFinishPicks`,
+  `applyBoardPicks`), so those are one order line — until one is swapped in the studio: a door
+  or a sofa changed there after the calculation was carried over is sent alongside the
+  calculator's. The tick on either summary is the way out.
 - The checkout dialogue totals the goods and the fee; the delivery each store will add is on
   the budget (`cost.baskets`) and on the order, not in the dialogue.
 - The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.

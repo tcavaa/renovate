@@ -109,9 +109,9 @@ describe('safeCallbackUrl', () => {
 
 describe('repriceSnapshot', () => {
   const known = new Map<number, KnownPrice>([
-    [1, { pricePerUnit: 100, nameKa: 'sofa', unit: 'piece', coveragePerUnit: null }],
-    [2, { pricePerUnit: 50, nameKa: 'paint', unit: 'liter', coveragePerUnit: 10 }],
-    [3, { pricePerUnit: 30, nameKa: 'tile', unit: 'm2', coveragePerUnit: null }],
+    [1, { pricePerUnit: 100, nameKa: 'sofa', unit: 'piece', coveragePerUnit: null, model3dKind: 'sofa' }],
+    [2, { pricePerUnit: 50, nameKa: 'paint', unit: 'liter', coveragePerUnit: 10, model3dKind: null }],
+    [3, { pricePerUnit: 30, nameKa: 'tile', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
   ]);
   const snapshot = { productId: 1, qty: 2, pricePerUnit: 1, totalPrice: 2, unit: 'piece' };
 
@@ -125,8 +125,8 @@ describe('repriceSnapshot', () => {
     expect(repriceSnapshot(snapshot, known, -5)?.totalPrice).toBe(0);
   });
 
-  it('prices a finish per square metre, dividing paint by its coverage', () => {
-    expect(repriceFinishSnapshot({ ...snapshot, productId: 2 }, known, 20)).toMatchObject({ pricePerUnit: 5, qty: 20, totalPrice: 100, unit: 'm2' });
+  it('prices a finish per square metre, dividing paint by its coverage, and keeps what it is sold by', () => {
+    expect(repriceFinishSnapshot({ ...snapshot, productId: 2 }, known, 20)).toMatchObject({ pricePerUnit: 5, qty: 20, totalPrice: 100, unit: 'm2', sale: { unit: 'liter', pricePerUnit: 50, coveragePerUnit: 10 } });
     expect(repriceFinishSnapshot({ ...snapshot, productId: 3 }, known, 4)).toMatchObject({ pricePerUnit: 30, totalPrice: 120 });
     expect(repriceFinishSnapshot({ ...snapshot, productId: 99 }, known, 4)).toBeNull();
   });

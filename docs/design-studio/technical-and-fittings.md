@@ -22,9 +22,10 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's automatic-placement check and the studio's technical tray; `origin: 'user'`) |
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
-| `lib/design/electrical.ts` | sockets, switches, lights: `suggestElectrical`, `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
+| `lib/design/electrical.ts` | sockets, switches, lights: `standardElectrical` (what every room gets), `suggestElectrical` (that and the furniture's), `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
+| `lib/design/boardPicks.ts` | `dressBoard`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind (the calculator's `boardWithPicks`, the design's `applyBoardPicks`) |
 | `lib/design/radiators.ts` | sections per room, `suggestRadiators`, radiator products (`withRadiatorProducts`, `radiatorCandidates`) |
-| `lib/design/openings.ts` | doors and windows: move, update, remove, add, twins (`alignTwins`, `mirrorHinge` / `mirrorSwing`, `leafOnOtherSide`), `moveOpeningToWall`, products (`openingProductKind`, `withOpeningProducts`, `openingCandidates`) |
+| `lib/design/openings.ts` | doors and windows: move, update, remove, add, twins (`alignTwins`, `mirrorHinge` / `mirrorSwing`, `leafOnOtherSide`), `moveOpeningToWall`, products (`openingProductKind`, `withOpeningProducts`, `openingCandidates`), `countDoors` (an interior door's two halves once — what the doors phase hangs, in the studio and on the calculator's board), `countWindows` (what the calculator buys a window for the whole flat for) |
 | `lib/design/planGeometry.ts` → `deriveOpenings` | doors inferred for a plan read by the CV parser ([plan-reading.md](plan-reading.md)) |
 | `lib/design3d/buildStructure.ts` | fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), `lightsFrom` |
 | `lib/design3d/buildScene.ts` → `buildOpeningTrim` / `attachOpeningModel` | door and window models in their holes |
@@ -40,7 +41,7 @@ Technical points (`water_supply`, `sewer`, `floor_drain`, `electrical_panel`, `g
 `radiator`, `ac_unit`, `extractor`, `boiler`, `heating_pipe`) live in `plan.technical` with
 the works checklist (`WORK_ITEMS`, keyed to the calculator's phases; `effectivePhases`
 replaces the home state's phase list when works are ticked — `calculateMaterials` /
-`calculateWorkerCosts` / `buildProjectSummary` take the override as their last argument).
+`calculateWorkerCosts` take the override as their last argument).
 `technicalAnchors` feeds the layout engine (`LayoutOptions.anchors`): a fixture scores up
 to +40 for standing near the point it needs, and a kitchen run takes the wall the water
 comes to; `LayoutOptions.obstacles` keeps furniture off the columns. `technicalSuggestions`
@@ -64,15 +65,42 @@ keeps the rest of `plan.technical` — the works, what the flat already has, the
 checks. They used to rebuild it from the points and the works, so placing a point or hanging
 the radiators quietly dropped what the flat already has and the floor and ceiling choices.
 
+**On the 2D board each point is its icon** — the one its tile and the inspector show
+(`TECHNICAL_ICON` / `ELECTRICAL_ICON`, `components/plan/icons.ts`) — white on a disc in its
+colour: a technical point in its system's (`TECHNICAL_COLOR`), a fitting in its family's
+(power, a switch, data, a light — a light that is on with its rays, a strip or a furniture
+light along its length). `strokeIcon` (`components/plan/iconPaths.ts`) draws a lucide icon on a
+canvas from the shapes its component renders; where they cannot be read it falls back to the
+letters the board used to write. The board, the studio's 2D view and every plan PDF draw them
+alike.
+
 Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wall +
-position, height, outlets, on/off, a lighting `category`). `suggestElectrical` places them
-from the furniture with the usual heights — 45 cm sockets, 60 cm bedside, 115 cm above a
-90 cm worktop, 170 cm high sockets, 105 cm switches by the handle side of every door, one
-main light per room — and keeps every point that is not `'generated'` (the person's and the
-existing ones), skipping entirely any room that holds one; `generate` re-runs it with the
-person's points. `placeElectrical` snaps a hand-placed point to the nearest wall; `reprojectElectrical`
+position, height, outlets, on/off, a lighting `category`), in two parts with the usual heights.
+**The standard fittings** (`standardElectrical`, decided by the room alone): one main light per
+room, a 105 cm switch by the handle side of every door, general 45 cm sockets on the long walls
+of the rooms people live in, off the walls the switches are on. **The furniture's**
+(`suggestElectrical` = the standard ones + these): 60 cm bedside sockets and lights, 115 cm
+sockets over a 90 cm worktop and the kitchen's under-cabinet light, 170 cm high sockets, the
+television and data points. The calculator's board places the standard ones — it has no
+furniture — so a design of the same flat has exactly the calculator's fittings plus what its
+furniture brings ([../calculator.md](../calculator.md)). **A room the person has wired by hand is
+kept whole** (`wiredByHand`): every point in a room holding one that is not `'generated'` —
+theirs and the app's alike — stays as it is, and the room is not filled in again; the other
+rooms are wired afresh. (It used to keep only the person's points, so adding one socket cost a
+room its light and its switches.) `generate` runs it over the points it knows the origin of —
+the design's, or the calculation's carried in; points from before origins were recorded go.
+`placeElectrical` snaps a hand-placed point to the nearest wall; `reprojectElectrical`
 follows moved walls; `slideAlongWall` moves one along the wall it is on (the card's
 slider and its 5 cm nudges).
+
+**Placed by the standards at a click** (`placeByStandards(catalog)`, one step of the history):
+the technical points (`suggestTechnical`), the radiators (`suggestRadiators`, each given the
+style's radiator product and its sections), the standard fittings (`standardElectrical` +
+`withFixtureProducts`) and, with a catalogue, every door and window a product
+(`withOpeningProducts`). It returns how many of each went in. The calculator's plan step offers
+it (its "ტექნიკური" card, and the question on "გამოთვლის დაწყება"); `ensureBoardProducts`
+(no history) gives the board's doors, windows, radiators and fittings their products once the
+catalogue is in (`useCalculatorBoardProducts`).
 
 **Two fittings may not hold the same piece of wall** (`fittingClashes`). The rule is about
 plates, not points: two argue only when their footprints overlap *both* along the wall and
@@ -293,7 +321,10 @@ Interior at made-up prices.
 ## Tests
 
 `tests/unit/design/technical.test.ts` (with the checks each project is asked),
-`autoTechnical.test.ts`, `electrical.test.ts`, `radiators.test.ts`, `openings.test.ts`,
+`autoTechnical.test.ts`, `electrical.test.ts` (the furniture's fittings, and a room wired by hand
+kept whole by both suggesters), `radiators.test.ts`, `openings.test.ts`,
+`tests/unit/summary/calculatorSheet.test.ts` (the standard fittings and a whole-flat pick on
+them, as the calculator and the design both price them),
 `budget.test.ts` (points, doors and fittings priced, existing),
 `tests/unit/store/designStore.test.ts` (the setup kept when points are added, checks recorded
 once), `tests/integration/save-routes.test.ts` (forged door, socket and radiator prices are
