@@ -42,8 +42,8 @@ export default function DesignStartPage() {
   const projectId = useProjectId();
   const search = useSearchParams();
   const { mode, modeChosen, emptyStart, setMode, chooseEmptyStart, startEmpty, setPlan, homeState, setHomeState, plan, setPlanDefaults } = useDesignStore();
-  // A project that already has a drawing opens on it, whatever the URL says (Back can bring the
-  // hub tile's `?way` along); otherwise the tile's choice (`?way=upload|draw`), else the upload.
+  // A project that already has a drawing opens on it, whatever the URL says; otherwise a link's
+  // `?way=upload|draw`, else the upload (a new project from the hub carries none).
   const [planMode, setPlanMode] = useState<PlanMode>(() => {
     if (hasDrawing(useDesignStore.getState().plan)) return 'scratch';
     return search.get('way') === 'draw' ? 'scratch' : 'upload';

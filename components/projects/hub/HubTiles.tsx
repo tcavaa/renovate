@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowUpRight, Box, Calculator, Loader2, PencilRuler, Upload, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, Box, Calculator, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,9 +11,7 @@ import { Label } from '@/components/ui/label';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designStepHref } from '@/lib/design/steps';
 import { useT } from '@/lib/i18n/client';
-
-/** How step 1 opens (`?way=`): on the upload card, or on a blank sheet to draw on. */
-type Way = 'draw' | 'upload';
+import { cn } from '@/lib/utils';
 
 /** A project the "from the other product" tile offers, with its drawing already rendered on the server. */
 export interface HubPick {
@@ -25,55 +23,32 @@ export interface HubPick {
   thumbnail: ReactNode;
 }
 
-interface Tile {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  /** A new project that opens step 1 this way — or, without one, the picker. */
-  way: Way | null;
-}
-
 /**
- * The ways to start, as tiles: two make a new project (named first, in a dialogue) and open its
- * first step on the upload card or the blank sheet; the third starts this product's half of a
- * project the person already has in the other product, chosen from a list.
+ * The ways to start, as a row of round buttons over the projects: **a new project** — named
+ * first, in a dialogue, then its first step, where the plan is uploaded or drawn (step 1 offers
+ * both) — and this product's half of a project the person already has in the other product,
+ * chosen from a list.
  */
 export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator' | 'design'; defaultName: string; picks: HubPick[] }) {
   const t = useT();
   const router = useRouter();
   const calculator = journey === 'calculator';
-  const [way, setWay] = useState<Way | null>(null);
+  const [naming, setNaming] = useState(false);
   const [picking, setPicking] = useState(false);
   const [name, setName] = useState(defaultName);
   const [creating, setCreating] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const tiles: Tile[] = calculator
-    ? [
-        { icon: PencilRuler, title: t.hub.tileDraw, description: t.hub.tileDrawDesc, way: 'draw' },
-        { icon: Upload, title: t.hub.tileUpload, description: t.hub.tileUploadDesc, way: 'upload' },
-        { icon: Box, title: t.hub.tileFromDesign, description: t.hub.tileFromDesignDesc, way: null },
-      ]
-    : [
-        { icon: Upload, title: t.hub.tileUpload, description: t.hub.tileUploadDesc, way: 'upload' },
-        { icon: PencilRuler, title: t.hub.tileBlank, description: t.hub.tileBlankDesc, way: 'draw' },
-        { icon: Calculator, title: t.hub.tileFromCalc, description: t.hub.tileFromCalcDesc, way: null },
-      ];
-
-  const choose = (tile: Tile) => {
-    if (!tile.way) {
-      setPicking(true);
-      return;
-    }
+  const startNew = () => {
     setName(defaultName);
     setFailed(false);
-    setWay(tile.way);
+    setNaming(true);
   };
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
-    if (!way || !trimmed || creating) return;
+    if (!naming || !trimmed || creating) return;
     setCreating(true);
     setFailed(false);
     try {
@@ -87,7 +62,7 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
       if (!res.ok || !id) throw new Error(json?.error ?? 'create-failed');
       const first = calculator ? calculatorStepHref(id, 1) : designStepHref(id, 1);
       // Still "creating" while the first step loads: a second press would make a second project.
-      router.push(`${first}?way=${way}`);
+      router.push(first);
     } catch {
       setCreating(false);
       setFailed(true);
@@ -96,30 +71,22 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
 
   return (
     <>
-      <div className="mt-10 grid gap-3 sm:grid-cols-3">
-        {tiles.map((tile) => (
-          <button
-            key={tile.title}
-            type="button"
-            onClick={() => choose(tile)}
-            aria-haspopup="dialog"
-            className="group flex items-start gap-4 border border-line bg-bg-surface p-5 text-left transition-colors hover:border-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center bg-sand text-ink transition-colors group-hover:bg-ink group-hover:text-white">
-              <tile.icon className="h-5 w-5" aria-hidden />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-semibold text-ink">{tile.title}</span>
-              <span className="mt-1 block text-sm leading-snug text-ink-muted">{tile.description}</span>
-            </span>
-          </button>
-        ))}
+      <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-5">
+        <RoundAction icon={<Plus className="h-7 w-7" strokeWidth={2.25} />} label={t.hub.createProject} title={calculator ? t.hub.newCalculatorLead : t.hub.newDesignLead} className="bg-brand group-hover:bg-brand-dark" onClick={startNew} />
+        <span className="mt-4 hidden h-9 w-px bg-line sm:block" aria-hidden />
+        <RoundAction
+          icon={calculator ? <Box className="h-6 w-6" /> : <Calculator className="h-6 w-6" />}
+          label={calculator ? t.hub.tileFromDesign : t.hub.tileFromCalc}
+          title={calculator ? t.hub.tileFromDesignDesc : t.hub.tileFromCalcDesc}
+          className="bg-slate-deep group-hover:bg-ink"
+          onClick={() => setPicking(true)}
+        />
       </div>
 
       <Dialog
-        open={way != null}
+        open={naming}
         onOpenChange={(open) => {
-          if (!open && !creating) setWay(null);
+          if (!open && !creating) setNaming(false);
         }}
       >
         <DialogContent>
@@ -148,7 +115,7 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
               </p>
             )}
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setWay(null)} disabled={creating}>
+              <Button type="button" variant="outline" onClick={() => setNaming(false)} disabled={creating}>
                 {t.common.cancel}
               </Button>
               <Button type="submit" variant="ink" disabled={creating || !name.trim()}>
@@ -187,5 +154,15 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** One of the row's round buttons: a coloured circle with its icon, its name under it. */
+function RoundAction({ icon, label, title, className, onClick }: { icon: ReactNode; label: string; title: string; className: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title={title} aria-haspopup="dialog" className="group flex w-36 flex-col items-center gap-2.5 text-center focus-visible:outline-none">
+      <span className={cn('grid h-16 w-16 place-items-center rounded-full text-white shadow-card transition-all group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-brand/50 group-focus-visible:ring-offset-2', className)}>{icon}</span>
+      <span className="text-sm font-medium leading-snug text-ink-soft transition-colors group-hover:text-ink">{label}</span>
+    </button>
   );
 }

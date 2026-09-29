@@ -34,7 +34,7 @@ Related: [budget.md](budget.md) (the lines orders are made from) ·
 | `components/orders/PartnerOrderView.tsx` | a partner's order: read-only lines, the next steps as buttons, the message to the customer |
 | `components/orders/OrderTimeline.tsx` | an order's history and the comments between the platform and the partner |
 | `components/orders/OrderReviewCard.tsx`, `ProjectOrdersReview.tsx` | the admin project page's orders: confirm each store's order right there |
-| `components/orders/ProjectOrders.tsx`, `OrderStatusBadge.tsx` (`OrderStageBadge`), `useOrderActions.ts` | the customer's view on the project page (every change shown against what was ordered); the stage badge; saving and confirming from the client |
+| `components/orders/ProjectOrders.tsx` (`OrderCards`), `OrderStatusBadge.tsx` (`OrderStageBadge`), `useOrderActions.ts` | the customer's view on the project page and on the hubs' orders list (every change shown against what was ordered); the stage badge; saving and confirming from the client |
 | `components/projects/OrderProjectButton.tsx` | ordering a saved project from its page |
 | `app/api/checkout/route.ts` | GET what was ordered before; POST a checkout |
 | `app/api/bookings/route.ts` | GET bookings of a project; POST a brigade booking |
@@ -282,8 +282,10 @@ building-materials supplier). Store and worker forms carry e-mail and commission
 commission for admin only). The dashboard shows each role its own part: the orders agent the
 queue and the orders' progress, admin also this month's revenue.
 
-The customer sees the orders on the project page as above, and can order a saved project from
-there (`OrderProjectButton`, the same dialog built from the row as saved).
+The customer sees the orders on the project page as above — and all of them together, grouped
+by project, under "შეკვეთები" in either hub's sidebar (`HubOrders`, the same `OrderCards`) — and
+can order a saved project from the project page (`OrderProjectButton`, the same dialog built from
+the row as saved).
 
 `tests/unit/finance/money.test.ts` covers the arithmetic — fee, commission, grouping,
 delivery, struck-out lines, report periods — and that a door, a fitting and a radiator each

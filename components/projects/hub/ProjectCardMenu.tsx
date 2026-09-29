@@ -133,7 +133,7 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
   const OtherIcon = other?.label === 'openIn3d' || other?.label === 'createIn3d' ? Box : Calculator;
 
   return (
-    <div ref={rootRef} className="relative -mr-1.5 -mt-1 shrink-0">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         ref={buttonRef}
         type="button"
@@ -143,13 +143,13 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className={cn('flex h-8 w-8 items-center justify-center text-ink-muted transition-colors hover:bg-bg-base hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50', open && 'bg-bg-base text-ink')}
+        className={cn('flex h-9 w-9 items-center justify-center rounded-full bg-sand-light text-ink-muted transition-colors hover:bg-sand hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50', open && 'bg-sand text-ink')}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
 
       {open && (
-        <div ref={menuRef} id={menuId} role="menu" aria-label={t.hub.menuLabel} onKeyDown={moveFocus} className="absolute right-0 top-full z-30 mt-1 w-60 border border-line bg-bg-surface py-1 shadow-card">
+        <div ref={menuRef} id={menuId} role="menu" aria-label={t.hub.menuLabel} onKeyDown={moveFocus} className="absolute right-0 top-full z-30 mt-1.5 w-60 overflow-hidden rounded-[12px] border border-line bg-bg-surface py-1 shadow-cardHover">
           <Link href={openHref} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
             <ArrowUpRight className="h-4 w-4 text-ink-muted" aria-hidden />
             {t.hub.open}

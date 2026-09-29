@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { projects } from '@/lib/db/schema';
+import { orders, projectRenders, projects } from '@/lib/db/schema';
 import { calculatorProgress, designProgress, projectKind, type CalculatorProgress, type ProjectKind } from '@/lib/projects/saved';
 import type { HomeState, Room } from '@/lib/calculator/types';
 import type { DesignMode, DesignProgress, FloorPlan } from '@/lib/design/types';
@@ -113,4 +113,68 @@ export async function loadHubProjects(userId: number): Promise<HubProject[]> {
       thumbnail: { plan, boardPlan: json<FloorPlan>(p.boardPlan), rooms },
     };
   });
+}
+
+/** A photo taken in the studio, and the realistic render made from it, as the hubs' "renders" list them. */
+export interface HubRender {
+  id: number;
+  projectId: number;
+  projectName: string;
+  sourceUrl: string;
+  /** Filled in once the render is made; until then the photo is what there is. */
+  renderUrl: string | null;
+  status: 'queued' | 'processing' | 'ready' | 'failed';
+  roomName: string | null;
+  /** When it was taken (ms). */
+  createdAt: number;
+}
+
+/**
+ * Every render of the user's projects, newest first — the hubs' second list, whichever product
+ * it is opened from (renders are taken in the studio; a project's own page lists its own,
+ * `ProjectRenders`). Small columns only, so the sort never carries a plan or a scene.
+ */
+export async function loadHubRenders(userId: number): Promise<HubRender[]> {
+  const rows = await db
+    .select({
+      id: projectRenders.id,
+      projectId: projectRenders.projectId,
+      projectName: projects.nameKa,
+      sourceUrl: projectRenders.sourceUrl,
+      renderUrl: projectRenders.renderUrl,
+      status: projectRenders.status,
+      roomName: projectRenders.roomName,
+      createdAt: projectRenders.createdAt,
+    })
+    .from(projectRenders)
+    .innerJoin(projects, eq(projects.id, projectRenders.projectId))
+    .where(eq(projects.userId, userId))
+    .orderBy(desc(projectRenders.createdAt))
+    .limit(300);
+  return rows.map((r) => ({ ...r, projectName: r.projectName ?? '', createdAt: new Date(r.createdAt).getTime() }));
+}
+
+/** A project of the user's that has orders, as the hubs' "orders" group them: newest order first. */
+export interface HubOrderProject {
+  id: number;
+  name: string;
+  /** When its latest order was placed (ms). */
+  lastOrderAt: number;
+}
+
+/** The user's projects with orders on them, the one ordered from most recently first. */
+export async function loadHubOrderProjects(userId: number): Promise<HubOrderProject[]> {
+  const rows = await db
+    .select({ id: orders.projectId, name: projects.nameKa, createdAt: orders.createdAt })
+    .from(orders)
+    .innerJoin(projects, eq(projects.id, orders.projectId))
+    .where(eq(projects.userId, userId));
+  const byProject = new Map<number, HubOrderProject>();
+  for (const row of rows) {
+    if (row.id == null) continue;
+    const at = new Date(row.createdAt).getTime();
+    const known = byProject.get(row.id);
+    if (!known || at > known.lastOrderAt) byProject.set(row.id, { id: row.id, name: row.name ?? '', lastOrderAt: at });
+  }
+  return [...byProject.values()].sort((a, b) => b.lastOrderAt - a.lastOrderAt);
 }

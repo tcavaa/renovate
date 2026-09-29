@@ -16,8 +16,9 @@ the design's are [design-studio/overview.md](design-studio/overview.md).
 
 ```
 header "გამომთვლელი" / "დიზაინი"
-  → hub  /calculator · /design            what it does, how to draw a plan, new-project tiles,
-                                           the person's projects (public; guests see how to sign in)
+  → hub  /calculator · /design            a sidebar (projects · renders · orders), "create new
+                                           project", the person's projects (public; guests see
+                                           what it does and how to sign in)
   → "new project" (named in a dialogue)
       POST /api/projects/create { name, journey }  → the row exists before any step
   → entry  /calculator/<id> · /design/<id>  opens the project where it was left (lib/flow/resume)
@@ -51,8 +52,8 @@ action anywhere can write one project's work over another's.**
 ## 3. Routes, sign-in and the proxy
 
 - **The hubs** (`app/(main)/calculator/page.tsx`, `app/(main)/design/page.tsx`) are public. A
-  guest sees the explanation, how the product works and "sign in / create an account"; no tiles,
-  no projects.
+  guest sees the explanation, how the product works and "sign in / create an account"; no
+  sidebar, no projects.
 - **The steps are signed in only.** `auth.config.ts` gates `/^\/(calculator|design)\/\d+(\/|$)/`
   (numeric ids only), and `proxy.ts` matches `/calculator/:path+` and `/design/:path+` — one
   segment or more, never the hubs themselves.
@@ -72,35 +73,48 @@ action anywhere can write one project's work over another's.**
 
 ## 4. The hubs (`components/projects/hub/`)
 
-`ProjectHub` is one server component for both products (`journey` prop). From the top:
+`ProjectHub` is one server component for both products (`journey` prop), laid out as a file
+manager's "my files" is: a sidebar down the left (`HubSidebar`; a row of the same above the
+page below `lg`) with three lists — **the projects**, **the renders** (`?view=renders`) and
+**the orders** (`?view=orders`; `hubView` reads the parameter) — and beside it the product and
+the list as a breadcrumb title ("გამომთვლელი › ჩემი პროექტები"). The projects view, from the top:
 
-1. **What it does** — the introduction.
-2. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
-3. **Tiles** (`HubTiles`, client). Calculator: *draw the plan* (`?way=draw`), *upload a plan*
-   (`?way=upload`), *from a 3D design*. Design: *upload a plan*, *blank sheet*, *from a
-   calculation*. The first two of each ask for a name, create the row and open step 1 on that
-   way in (`?way=` preselects it only when the project has no drawing yet). The third lists the
-   person's projects that have the *other* half and not this one yet (calculator hub: a design
-   with rooms and no calculation; design hub: a calculation that is started and ready, with no
-   design) and opens this product's half of one.
-4. **The person's projects** as a grid of cards, most recently changed first
+1. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
+2. **The ways to start**, a row of round buttons (`HubTiles`, client): **"ახალი პროექტის
+   შექმნა"** asks for a name, creates the row and opens step 1, which offers the upload and the
+   blank sheet itself (no `?way=`; step 1 still honours one, and only on a project with no
+   drawing yet); **"from a 3D design" / "from a calculation"** lists the person's projects that
+   have the *other* half and not this one yet (calculator hub: a design with rooms and no
+   calculation; design hub: a calculation that is started and ready, with no design) and opens
+   this product's half of one.
+3. **The person's projects** as a grid of cards, most recently changed first
    (`lib/projects/hub.ts`: `updatedAt desc, id desc`, sorted in code, not by MySQL —
    [data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json);
-   a small serialisable `HubProject`, the scene read for its progress only, versions never). A card: a `PlanSketch` thumbnail
-   (`labels={false}`), the name, the status, where it stands (`whereItStands`: "not calculated
-   yet · step n of 6 · <label>", "not generated yet · step n of 8 · <label>" with n the walking
-   position, "not calculated yet" alone for a design-first project in the calculator hub, or the
-   figure) and a "…" menu (`ProjectCardMenu`): open, rename, carry into the other product, the
+   a small serialisable `HubProject`, the scene read for its progress only, versions never). A
+   card: a `PlanSketch` thumbnail (`labels={false}`) in a rounded frame, then under it the name,
+   when it changed as a file list says it (`HubDate`, in the browser: "დღეს, 15:06", "3 დღის
+   წინ, 13:21", then the date), where it stands (`whereItStands`: "not calculated yet · step n of
+   6 · <label>", "not generated yet · step n of 8 · <label>" with n the walking position, "not
+   calculated yet" alone for a design-first project in the calculator hub, or the figure and the
+   area) and a round "…" menu (`ProjectCardMenu`): open, rename, carry into the other product, the
    project page, delete (hidden for an ordered project).
-5. **How it works** (`HubGuide`) — the steps in a sentence each (`hub.calculatorSteps`, six;
-   `hub.designSteps`, eight) and how to draw a plan the calculator can count on.
-6. `HubCachePrune` (renders nothing) — drops this browser's caches of projects that no longer
+4. `HubCachePrune` (renders nothing) — drops this browser's caches of projects that no longer
    exist (§9).
+
+**The renders** (`HubRenders`, `loadHubRenders`): every photo taken in the studio and the
+realistic render made from it, across the person's projects, newest first — the render once it
+is ready, the photo until then, its state on it, each opening its project's page, the photo and
+the render downloadable. The same list in both hubs. **The orders** (`HubOrders`,
+`loadHubOrderProjects`): every order of the person's projects, grouped by project — the one
+ordered from most recently first — each group the project's name (to its page) and its orders as
+the project page shows them (`OrderCards`, [marketplace.md](marketplace.md)): the stage in plain
+words, the total with the delivery, what the partner wrote, what changed.
+
+A guest gets the introduction, how the product works (`HubGuide`) and the way to sign in.
 
 **Which hub lists a project** is the same predicate everywhere (`projectKind`,
 `lib/projects/saved.ts`): a calculation is `selectedProducts IS NOT NULL OR mode = 'full'`, a
-design is `plan IS NOT NULL`. A project with both halves is in both hubs, with both tags
-(`ProjectKindTags`).
+design is `plan IS NOT NULL`. A project with both halves is in both hubs.
 
 ## 5. Making a project
 
@@ -586,8 +600,8 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
     renovation only when it has rooms.
 12. **A project that is gone stops saving** (`gone`), rather than retrying for ever.
 13. **Adoption keeps the old work until the new copy is written.**
-14. **The design's `?way=` applies only to a project with no drawing** — or a hub tile could wipe
-    a drawing.
+14. **The design's `?way=` applies only to a project with no drawing** — or a link carrying one
+    could wipe a drawing (the hub sends none now; step 1 still reads it).
 15. **Start over was removed** (§12) — it emptied worked-out halves; don't bring it back without
     the user asking.
 16. **Quantities are computed by one function on both sides** (`roomFinishQuantity`) — the

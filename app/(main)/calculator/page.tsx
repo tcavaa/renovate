@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ProjectHub } from '@/components/projects/hub/ProjectHub';
+import { ProjectHub, hubView } from '@/components/projects/hub/ProjectHub';
 import { getT } from '@/lib/i18n/server';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.hub.calculatorEyebrow, description: t.hub.calculatorLead };
 }
 
-/** The calculator's hub: what it does, the person's calculations, and the way into a new one. */
-export default function CalculatorHubPage() {
-  return <ProjectHub journey="calculator" />;
+/** The calculator's hub: the person's calculations and the way into a new one — or their renders and orders (`?view=`). */
+export default async function CalculatorHubPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const { view } = await searchParams;
+  return <ProjectHub journey="calculator" view={hubView(view)} />;
 }
