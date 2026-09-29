@@ -17,7 +17,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | File | Responsibility |
 |---|---|
 | `lib/design/walls.ts` | walls ⇄ rooms: `roomsFromWalls`, `wallsFromRooms`, `ensureWalls`, `rebuildRooms`, junction splitting, room clusters and moves, clash tests |
-| `lib/design/drawing.ts` | snapping (junction → wall → axis → alignment → grid), hit tests, `snapRoomMove`, `snapRectangle`, `snapWallOffset` |
+| `lib/design/drawing.ts` | snapping (junction → wall → axis → alignment → grid), hit tests, `snapRoomMove`, `snapRectangle`, `snapWallOffset`, `pressMoves` (whether a press with the select tool takes hold of what it landed on, or a drag from there slides the view) |
 | `lib/design/separators.ts` | room separators: the partial walls the app draws one on from (`partialWallIn`, `withPartialWallSeparators`), the type a room cut off takes (`withSplitRoomTypes`), deleting one (`withoutWall`), a room's card (`joinRoom`, `divideAlongPartialWall`), `openNeighbours` |
 | `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
@@ -231,7 +231,7 @@ is read rather than dressed: the room finishes are the `zones` layer, off on the
 and technical steps, the calculator's board and the project page's viewer, and on in the
 studio's 2D view only while the finishes tray is open.
 
-One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with three shapes: a
+One canvas, one tool in hand: `select`, `wall` — **one tile with three shapes: a
 square, a line and a room separator**, in that order; the tile is called ოთახი and picks the
 square up first (a flat is mostly drawn as rooms), and the tile again while drawing keeps the
 shape in hand (`room` is the square: a rectangle whose inside is exactly what
@@ -240,13 +240,33 @@ walls, dashed while drawn, through `onAddSeparator`), `door` / `window` (dropped
 wall edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`. The
 toolbar and the studio's build tray both leave `room` and `divider` out of the tile row and
 offer them as the wall tool's shapes; the shape and the thickness (none for a separator) sit
-side by side in one compact row.
+side by side in one compact row. **There is no pan tool** (no გადაწევა tile): the select tool
+slides the view (below), so a hand tile would have nothing to do. A rail left with nothing to
+choose between is not drawn (`PlanToolTiles` shows nothing for a single tool), and the studio's
+build tray is select, the drawing tile, door, window, column and beam.
 `lib/design/drawing.ts` does the snapping — a junction first, then the axis lock (applied
 before the wall snap so a T-junction still lands on the axis), then a point on a wall, then
 alignment with any junction's x or z, then the 5 cm grid (1 cm with Shift) — and reports the
 guides the board draws (the file's own header comment still gives the older order). The select tool drags a wall sideways, its ends as
 handles, a door along or onto another wall, columns and points freely, and furniture
 footprints with `snapPlacement`; Delete removes the selection.
+
+**The select tool is also the hand.** A press picks what it lands on, exactly one thing, and
+takes hold of it when it can move on this board; **a drag from the empty sheet slides the
+view**, and so does a drag from anything the board keeps still — a beam, a floor zone, a locked
+wall, door or piece of furniture, the structure of a `locked` board (walls, doors and windows,
+columns and rooms; the technical and electrical points, the furniture and a studio's line still
+move there), rooms while the finishes are chosen (`roomsOnly`) or on a board that does not move
+rooms — once the press has picked it. `pressMoves` (`lib/design/drawing.ts`) is the rule, and
+the gesture and the cursor both ask it: `grab` over the empty sheet, `grabbing` while the view
+slides, `move` over a wall, door or window, column, point or piece that a drag moves and
+`pointer` over one it only picks (a room, a zone and a beam keep the plain arrow). A pan the select tool
+falls back on starts only once the pointer has travelled a few pixels (`DRAG_THRESHOLD_PX`), so a
+press let go where it went down is still a click — and a click on the empty sheet lets go of the
+selection, while a drag across it keeps it (the inspector stays open while the person looks
+around). Space or the middle button held, and W/A/S/D or the arrows (matched on `event.code`,
+like the 3D view), slide the view whatever the tool, and the drawing tools are unchanged by any
+of this: a press with them draws.
 
 **Rooms may not lie on top of each other**, drawn (`roomUnderRect`) or dragged
 (`polygonsOverlap`, which is an edge-crossing test because a room is not always convex, and
@@ -255,12 +275,13 @@ traces a crossing as a face, so a room dropped on its neighbour came back as sli
 walls through the middle of them and nothing could be pulled apart again; the preview turns
 red and the drop is refused with its own message.
 
-**Rooms are selected like folders on a desktop**: click one, shift-click to add or take out,
-or drag a rubber band across empty sheet (panning is still space, the middle button, the hand
-tool, and W/A/S/D or the arrows — matched on `event.code`, like the 3D view). The group then drags bodily through `moveRooms`, with a live plate saying how
+**A room is picked one at a time**: a click picks it (the store's `focusRoomId` and the
+selection), a click on the empty sheet lets go of it. There is no rubber band and no
+Shift-click to gather several — a drag on the empty sheet is the view's, and a flat moves as one
+body anyway. The room then drags bodily through `moveRooms`, with a live plate saying how
 far it has travelled — and every room joined to it comes too (the ghost shows all of them and
-their walls; the *selection* stays what was clicked, so Delete does not take the flat with the
-room). **A dragged room snaps wall to wall** (`snapRoomMove`): each axis looks for a wall of the
+their walls; the *selection* stays the room clicked, so Delete takes that room and not the
+flat). **A dragged room snaps wall to wall** (`snapRoomMove`): each axis looks for a wall of the
 travellers and a parallel wall staying behind whose centrelines the move would bring close, and
 closes the distance exactly. A wall that would run *alongside* wins over one that continues it
 end to end, which wins over one merely in line across the sheet; the nearest within a kind; a
@@ -269,14 +290,16 @@ zoomed in. Each snap draws the full-sheet line the two walls now share (and the 
 wall, when it is one) — the "lines room to room" that say what it is squaring up with. A drop
 that would still leave a wall half inside another turns the ghost red and is refused with the
 same message as a room over a room; both boards show it (the calculator's had no banner, so a
-refusal there looked like a drag that had not worked). Delete takes the whole
-selection. **Every gesture that changes a size carries its ruler**: the wall being drawn,
+refusal there looked like a drag that had not worked). **Every gesture that changes a size
+carries its ruler**: the wall being drawn,
 the rectangle being pulled out, a wall dragged sideways (with its offset), a wall stretched
 by an end, and the selected or hovered wall — and a wall's length is an input in the
 inspector (`resizeWall`), not just a figure. `locked` keeps the structure
-pickable but immovable. The editor owns only pan/zoom (wheel zooms about the pointer, Space
-or the middle button pans; the view refits on resize until the person moves it) and the
-gesture in progress — everything else is the store's, through callbacks. `PlanWorkspace`
+pickable but immovable (a drag from it slides the view), and `readOnly` is a board only looked
+at — the project page's viewer (`ProjectViewer`): nothing is hovered or picked, and every drag
+slides the view. The editor owns only the view (wheel zooms about the pointer; a drag on the
+empty sheet, Space or the middle button pans; the view refits on resize until the person moves
+it) and the gesture in progress — everything else is the store's, through callbacks. `PlanWorkspace`
 wires it to the store with the toolbar and the hint line; the design flow's steps 2 and 3,
 the studio's 2D view and the calculator's plan step (2) (`useCalculatorPlan` keeps the
 calculator's `rooms` read off the plan) all use it. (`EditorTool` also has `zone` and `paint`;
@@ -419,7 +442,8 @@ parses the result back with pdf.js.
 
 ## Tests
 
-`tests/unit/design/walls.test.ts`, `drawing.test.ts`, `planDrawing.test.ts`, `studio.test.ts`,
+`tests/unit/design/walls.test.ts`, `drawing.test.ts` (snapping, hit tests, and what a press
+takes hold of — `pressMoves`), `planDrawing.test.ts`, `studio.test.ts`,
 `separators.test.ts` (partial walls, the app's separators following and leaving, kept whole,
 joined and divided from the card, open edges out of every wall measure, no door, no 3D wall,
 drawing over a separator), `partitions.test.ts` (inner, outer and partial walls, built walls,

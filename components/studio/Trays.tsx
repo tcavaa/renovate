@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, Hand, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -33,10 +33,13 @@ import type { EditorTool } from '@/components/plan/PlanEditor';
 import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
-/** A room and a room separator are shapes of the wall tool — a square, a line, a dashed line — not tiles of their own. */
+/**
+ * A room and a room separator are shapes of the wall tool — a square, a line, a dashed line —
+ * not tiles of their own. There is no pan tile: on the board a drag from the empty sheet slides
+ * the view with the select tool in hand.
+ */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
-  { id: 'pan', icon: Hand },
   { id: 'wall', icon: BrickWall },
   { id: 'door', icon: DoorOpen },
   { id: 'window', icon: RectangleHorizontal },

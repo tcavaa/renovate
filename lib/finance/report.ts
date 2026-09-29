@@ -1,12 +1,14 @@
 import { and, desc, eq, gte, lt, ne, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { checkouts, orderItems, orders, products, stores, workers } from '@/lib/db/schema';
+import { checkouts, orderItems, orders, products, projectPayments, stores, workers } from '@/lib/db/schema';
 import { eachDay, round2, type DateRange, type OrderStatus } from './money';
 
 /**
  * The admin's revenue report for one window: what the platform earned (fees + commissions),
  * what moved through it (goods, labour, delivery), and who did the moving. Every figure is
- * a snapshot summed from `checkouts` and `orders`; cancelled orders count for nothing.
+ * a snapshot summed from `project_payments` (the fee each half paid before its hinge),
+ * `checkouts` (the fees charged at checkout before that) and `orders`; cancelled orders count
+ * for nothing.
  */
 export interface RevenueReport {
   fees: { total: number; calculator: number; design: number; count: number; calculatorCount: number; designCount: number; m2: number };
@@ -24,15 +26,27 @@ const num = (v: unknown) => Number(v ?? 0) || 0;
 
 export async function revenueReport(range: DateRange): Promise<RevenueReport> {
   const inCheckoutRange = and(gte(checkouts.createdAt, range.from), lt(checkouts.createdAt, range.to));
+  const inPaymentRange = and(gte(projectPayments.createdAt, range.from), lt(projectPayments.createdAt, range.to));
   const inOrderRange = and(gte(orders.createdAt, range.from), lt(orders.createdAt, range.to));
   const liveOrders = and(inOrderRange, ne(orders.status, 'cancelled'));
 
-  const [feeRows, orderRows, statusRows, feeDays, orderDays, storeRows, workerRows, productRows] = await Promise.all([
+  const [feeRows, paymentRows, paymentDays, orderRows, statusRows, feeDays, orderDays, storeRows, workerRows, productRows] = await Promise.all([
+    // The fees charged at checkout, before they moved to the hinge: only the rows that carry one.
     db
       .select({ kind: checkouts.kind, total: sql<number>`COALESCE(SUM(${checkouts.platformFee}), 0)`, count: sql<number>`COUNT(*)`, m2: sql<number>`COALESCE(SUM(${checkouts.totalM2}), 0)` })
       .from(checkouts)
-      .where(inCheckoutRange)
+      .where(and(inCheckoutRange, sql`${checkouts.platformFee} > 0`))
       .groupBy(checkouts.kind),
+    db
+      .select({ kind: projectPayments.kind, total: sql<number>`COALESCE(SUM(${projectPayments.amount}), 0)`, count: sql<number>`COUNT(*)`, m2: sql<number>`COALESCE(SUM(${projectPayments.totalM2}), 0)` })
+      .from(projectPayments)
+      .where(inPaymentRange)
+      .groupBy(projectPayments.kind),
+    db
+      .select({ day: sql<string>`DATE_FORMAT(${projectPayments.createdAt}, '%Y-%m-%d')`, fees: sql<number>`COALESCE(SUM(${projectPayments.amount}), 0)` })
+      .from(projectPayments)
+      .where(inPaymentRange)
+      .groupBy(sql`DATE_FORMAT(${projectPayments.createdAt}, '%Y-%m-%d')`),
     db
       .select({
         partnerType: orders.partnerType,
@@ -109,7 +123,12 @@ export async function revenueReport(range: DateRange): Promise<RevenueReport> {
       .limit(15),
   ]);
 
-  const feeOf = (kind: 'calculator' | 'design') => feeRows.find((r) => r.kind === kind);
+  // A half's fee is either a payment (now) or a checkout's fee (before): both count.
+  const feeOf = (kind: 'calculator' | 'design') => {
+    const charged = feeRows.find((r) => r.kind === kind);
+    const paid = paymentRows.find((r) => r.kind === kind);
+    return { total: num(charged?.total) + num(paid?.total), count: num(charged?.count) + num(paid?.count), m2: num(charged?.m2) + num(paid?.m2) };
+  };
   const ordersOf = (type: 'store' | 'worker') => orderRows.find((r) => r.partnerType === type);
   const calc = feeOf('calculator');
   const design = feeOf('design');
@@ -120,23 +139,24 @@ export async function revenueReport(range: DateRange): Promise<RevenueReport> {
   for (const row of statusRows) statuses[row.status] = num(row.count);
 
   const feeByDay = new Map(feeDays.map((r) => [r.day, r]));
+  const paidByDay = new Map(paymentDays.map((r) => [r.day, num(r.fees)]));
   const orderByDay = new Map(orderDays.map((r) => [r.day, r]));
   const days = eachDay(range).map((day) => ({
     day,
-    fees: round2(num(feeByDay.get(day)?.fees)),
+    fees: round2(num(feeByDay.get(day)?.fees) + (paidByDay.get(day) ?? 0)),
     checkouts: num(feeByDay.get(day)?.count),
     commissions: round2(num(orderByDay.get(day)?.commissions)),
     orders: num(orderByDay.get(day)?.count),
   }));
 
   const fees = {
-    calculator: round2(num(calc?.total)),
-    design: round2(num(design?.total)),
-    total: round2(num(calc?.total) + num(design?.total)),
-    count: num(calc?.count) + num(design?.count),
-    calculatorCount: num(calc?.count),
-    designCount: num(design?.count),
-    m2: round2(num(calc?.m2) + num(design?.m2)),
+    calculator: round2(calc.total),
+    design: round2(design.total),
+    total: round2(calc.total + design.total),
+    count: calc.count + design.count,
+    calculatorCount: calc.count,
+    designCount: design.count,
+    m2: round2(calc.m2 + design.m2),
   };
   const commissions = {
     stores: round2(num(storeOrders?.commission)),

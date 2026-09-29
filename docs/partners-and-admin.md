@@ -23,7 +23,7 @@ Related: [auth-and-roles.md](auth-and-roles.md) (roles and guards — who may op
 | `lib/admin/crumbs.ts`, `components/admin/AdminCrumbs.tsx` | the breadcrumbs and back button every admin page carries (`sectionCrumb`) |
 | `lib/admin/filters.ts` | what a filter button says: a tree option's plain name, option search, `rangeSummary`, `dateRangeSummary` |
 | `components/admin/FilterBar.tsx`, `AdminList.tsx` (`AdminPageHeader`, `Pager`, `SegmentedLinks`), `RememberList.tsx` | the list chrome: the filter bar (and its pieces, `FilterFrame`, `FilterSearch`, `FilterMenu`, `FilterToggle`, for a list that filters in the browser), the page header with its crumbs, the pager, a list's views as one control |
-| `components/admin/*Form.tsx` | `ProductForm` (+ `ModelUploader`, `ImageUploader`), `StoreForm` (commission for admin only), `CategoryForm`, `WorkerForm`, `TeamForm`, `AccountForm` (accounts — [auth-and-roles.md](auth-and-roles.md#managing-accounts-adminusers-admin-only)), `SettingsForm`, `RatesTable`, `PartnerApproval`, `RevenueChart` |
+| `components/admin/*Form.tsx` | `ProductForm` (+ `ModelUploader`, `ImageUploader`), `StoreForm` (the commission and the building-materials switch for admin only), `CategoryForm`, `WorkerForm`, `TeamForm`, `AccountForm` (accounts — [auth-and-roles.md](auth-and-roles.md#managing-accounts-adminusers-admin-only)), `SettingsForm`, `RatesTable`, `PartnerApproval`, `RevenueChart` |
 | `components/admin/BulkSelect.tsx`, `ProductRowActions.tsx` | ticking rows of a server list and acting on them together (`POST /api/products/bulk`); a product row's edit / hide-show / delete buttons — the admin's product list and a store's own (delete only where `canDelete`) |
 | `lib/admin/icons.ts`, `components/admin/CategoryIcon.tsx`, `IconPicker.tsx` | icon names (`iconLookupKey`, `iconKebabName`, `iconMatches`), the studio's own furniture icons (`STUDIO_ICONS`) and the suggested icons with Georgian / Russian / English search words; an icon from its stored name; the searchable icon window |
 | `app/admin/categories/**`, `components/admin/CategoryTree.tsx`, `CategoryForm.tsx`, `ShelfRoomList.tsx`, `ShelfRoomForm.tsx` | the category tree and the studio's rooms ([categories.md](categories.md#the-admin-admincategories)) |
@@ -57,7 +57,11 @@ section layout calls `requireAdminPage(section)`.
 - **admin** gets all of it, plus this month's revenue, workers, accounts, rates and settings.
 
 The revenue report is only queried for admin. The building-materials supplier sells no
-catalogue products by design and is not flagged as an empty store. The sidebar shows beside a
+catalogue products by design and is not flagged as an empty store; the stores list marks it
+with a badge beside its name, and admin makes a store the supplier on its form ("ამ მაღაზიიდან
+შეიკვეთება სამშენებლო მასალები" — one store for all of them, so ticking it moves them from the
+store that had them, which the form names) or in the settings
+([marketplace.md](marketplace.md#construction-materials-the-materials-supplier)). The sidebar shows beside a
 section what waits on the person looking (`lib/admin/badges.ts`): orders to confirm, stores and
 workers waiting for approval.
 
@@ -114,8 +118,8 @@ the design's budget sheets as the customer left them, photos and renders) with a
 (`ProjectViewer`: the 2D plan on the board with its layers — furniture, electrical, technical
 points, zones (off to start with: white floors), dimensions — the furnished 3D model, and the
 walk-through; the uploaded plan file and the plan as a PDF). A project with no design shows the
-calculator's board, its technical points and its fittings (`calculatorBoard.electrical`). Nothing there writes: the board only pans and zooms (the `pan`
-tool, locked, nothing selectable), `Viewer3D` takes `readOnly` (no hover, no picking, no drag),
+calculator's board, its technical points and its fittings (`calculatorBoard.electrical`). Nothing there writes: the board is `readOnly` and locked (nothing hovered or selectable; every
+drag pans, the wheel zooms), `Viewer3D` takes `readOnly` (no hover, no picking, no drag),
 and the sheets are the read-only `BudgetSheet`. The project opens only while the brigade has a
 sent, not-cancelled booking for it (`teamMaySeeProject`; a turned-down booking closes it again);
 the booking's page, the order list and the dashboard link to it. **No partner changes an

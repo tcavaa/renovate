@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.hub.designEyebrow, description: t.hub.designLead };
 }
 
-/** The 3D studio's hub: the person's designs and the way into a new one — or their renders and orders (`?view=`). */
+/** The 3D studio's hub: the person's designs and the way into a new one — or their renders, orders and own 3D pieces (`?view=`). */
 export default async function DesignHubPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view } = await searchParams;
   return <ProjectHub journey="design" view={hubView(view)} />;

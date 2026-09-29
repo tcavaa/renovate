@@ -91,6 +91,7 @@ components/
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
   motion/      CountUp Marquee RotatingBadge
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief FlowGuard FlowWorkspace
+               HingeDialog (the warning and the fee before a half's hinge)
   calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard
                WorkChoicesPicker AskFurnitureDialog CalculatorAutosave RoomFinishCards PlanGlyphs
                RoomRow
@@ -107,9 +108,9 @@ components/
                PlanDrawing (the plan as the project cards' picture)
                ProjectViewer (read-only 2D / 3D / walk-through)
                ProjectKindTags OpenIn3dButton CalculateCostsButton OrderProjectButton
-               DeleteProjectButton · hub/ (ProjectHub HubTiles ProjectCardMenu LegacyWorkNotice
-               HubCachePrune)
-  checkout/    CheckoutDialog BookingDialog CustomerFields
+               DeleteProjectButton · hub/ (ProjectHub HubShell HubTiles HubRenders HubOrders
+               HubModels HubDate ProjectCardMenu LegacyWorkNotice HubCachePrune)
+  checkout/    CheckoutDialog BookingDialog ContactFields FeePaidNote
   orders/      OrderEditor PartnerOrderView OrderTimeline OrderReviewCard ProjectOrdersReview
                ProjectOrders OrderStatusBadge (OrderStageBadge) useOrderActions.ts
   catalog/     ProductCard ProductGrid CatalogSidebar ProductModelDrawer SortSelect StyleFilter
@@ -125,8 +126,10 @@ lib/
   design3d/    three.js scene building, materials, model loading, lighting
   flow/        per-project caches, sync lines, save queue, loaders, resume, legacy migration
   projects/    row ↔ client shapes, hub query, owner check, sheets, checkout parts
-  finance/     marketplace money, orders, the order flow's rules (orderFlow), notifications,
-               revenue report, settings
+  finance/     marketplace money, orders, the fee paid at the hinge (payments), the order flow's
+               rules (orderFlow), notifications, revenue report, settings
+  account/     a person's contact: the rule an order's contact is built by (contact.ts, pure)
+               and its reads and writes (server.ts)
   teams/       brigade queries
   api/         route helpers (handle, guards), rate limiting, repricing, who sees a product
                (productAccess), what the public sees of a partner (publicPartners), design
@@ -146,7 +149,8 @@ lib/
   env.ts log.ts email.ts features.ts utils.ts
 store/         calculatorStore.ts designStore.ts projectScope.ts
 hooks/         useAutosave useCalculatorPlan useDesignCatalog usePickStores usePlatformFees
-               useProducts (+ useCategories) useRateBook useWorkers
+               useProjectPayments useAccountContact useProducts (+ useCategories) useRateBook
+               useWorkers
 scripts/       seeds, migrate, 3D/texture pipelines, plan tools (see docs/operations.md, docs/3d-assets.md)
 types/         shared API types (ApiResponse, Paginated), calculator/product re-exports
 tests/         unit/<area>/*.test.ts, integration/save-routes.test.ts
@@ -167,8 +171,8 @@ playwright.config.ts drizzle.config.ts vercel.json ecosystem.config.cjs server.c
 | Design | `design/projects` (the design's save) · `design/catalog` · `design/upload-plan` · `design/parse-plan` · `design/renders`, `design/renders/[id]` · `design/models`, `design/models/[id]` (a person's own furniture) |
 | Calculator | `calculator/materials` · `calculator/rates`, `calculator/rates/[id]` |
 | Catalogue | `products`, `products/[id]`, `products/bulk` · `categories`, `categories/[id]`, `categories/reorder` · `shelf-rooms`, `shelf-rooms/[id]`, `shelf-rooms/reorder` · `stores`, `stores/[id]`, `stores/[id]/approval` |
-| People | `workers`, `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` |
-| Marketplace | `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
+| People | `workers`, `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
+| Marketplace | `payments` (the fee at the hinge) · `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
 | Auth | `auth/[...nextauth]` · `auth/register` · `auth/register-partner` · `auth/forgot` · `auth/reset` · `auth/verify` |
 | Uploads | `upload` (images) · `upload/model` (GLB) |
 | Ops | `health` |

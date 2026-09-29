@@ -51,7 +51,7 @@ describe('ticks are per line', () => {
     expect(budgetSummary(cost).products).toBe(3 * 2450);
     // The basket, the dialogue and the order the stores are sent all agree.
     expect(cost.baskets[0].lines).toHaveLength(3);
-    expect(designCheckoutPart(plan, cost, 12, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
+    expect(designCheckoutPart(plan, cost, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
     const sent = sceneLinesByStore(plan, scene({ excluded }));
     expect(sent.groups.get(1)).toHaveLength(3);
   });
@@ -185,7 +185,7 @@ describe('a door, a fitting and a radiator are bought like a sofa is', () => {
 
   it('lists them in the checkout dialogue and sends each store its lines — the same ones', () => {
     const cost = priceScene(fitted, furnished());
-    const part = designCheckoutPart(fitted, cost, 12, 'ka')!;
+    const part = designCheckoutPart(fitted, cost, 'ka')!;
     expect(part.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5', ...ticks.slice(0, 2), tickFor.fixture(9), tickFor.radiator(90)]);
     expect(part.lines.reduce((sum, l) => sum + l.total, 0)).toBe(budgetSummary(cost).products - cost.deliveryTotal);
 
@@ -207,7 +207,7 @@ describe('a door, a fitting and a radiator are bought like a sofa is', () => {
     expect(cost.baskets.map((b) => b.store?.nameKa)).toEqual(['Woody']);
     expect(cost.deliveryTotal).toBe(0);
     expect(full.grandTotal - cost.grandTotal).toBeCloseTo(1100 + 330 + 90 + 120, 2);
-    expect(designCheckoutPart(fitted, cost, 12, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
+    expect(designCheckoutPart(fitted, cost, 'ka')!.lines.map((l) => l.key)).toEqual(['item:bed-b1', 'item:bed-b2', 'item:bed-b3', 'item:bed-b5']);
     expect([...sceneLinesByStore(fitted, furnished(ticks)).groups.keys()]).toEqual([1]);
     for (const key of ['electric_point', 'radiator_mount']) expectLabourKept(cost, full, key);
   });

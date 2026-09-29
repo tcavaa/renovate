@@ -1,71 +1,102 @@
 # Marketplace: checkout, orders, brigades and revenue
 
-How the platform earns (a fee per m² and a commission on every partner order), how a project
-is ordered (checkout → one order per store, the construction materials to their supplier), how
-the orders agent confirms every store order before the store sees it, how a brigade is booked
-for the labour, how partners move their orders along in their portal, and what admin sees of
-the money. Read this before touching `lib/finance/`, `lib/teams/`, the checkout or booking
-dialogues, the order pages and components, or the admin's orders, revenue and settings pages.
+How the platform earns (a fee per m², paid before each half's hinge, and a commission on every
+partner order), how a project is ordered (checkout → one order per store, the construction
+materials to their supplier, all to the customer's address), how the orders agent confirms
+every store order before the store sees it, how a brigade is booked for the labour, how
+partners move their orders along in their portal, and what admin sees of the money. Read this
+before touching `lib/finance/`, `lib/account/`, `lib/teams/`, the payment step, the checkout or
+booking dialogues, the order pages and components, or the admin's orders, revenue and settings
+pages.
 
 Related: [budget.md](budget.md) (the lines orders are made from) ·
 [partners-and-admin.md](partners-and-admin.md) (partner accounts, the portal, admin lists) ·
 [auth-and-roles.md](auth-and-roles.md) (who may edit an order) ·
-[project-flow.md](project-flow.md) (saving before ordering; one project, two halves) ·
-[data-model.md](data-model.md) (`checkouts`, `orders`, `order_items`, `platform_settings`,
-`teams`).
+[project-flow.md](project-flow.md) (saving before ordering; one project, two halves; the
+hinges) · [auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount) (the
+profile's phone and address) · [data-model.md](data-model.md) (`checkouts`, `orders`,
+`order_items`, `project_payments`, `platform_settings`, `teams`).
 
 ## Key files
 
 | File | Responsibility |
 |---|---|
-| `lib/finance/money.ts` | the arithmetic, no DB: fees, commissions (`effectiveCommissionPct`), `mergeLines`, grouping by store (`buildStoreOrders`, `costLinesByStore`), delivery (`deliveryFeeFor`), `lineTotal`, report periods |
-| `lib/finance/orders.ts` | writing and reading orders: `createCheckoutForProject`, `createTeamBooking` (+ `projectLabour`), `projectMaterials` / `materialsPreview`, `projectOrderState`, `applyOrderEdit`, `confirmOrder`, `addOrderComment`, `orderEventsFor`, `recordOrderEvent`, `partnerOwnsOrder`, `partnerCondition`, `ordersForProject` |
+| `lib/finance/money.ts` | the arithmetic, no DB: fees (`platformFee`, `feeAreaM2` — the area a half's fee is charged on), commissions (`effectiveCommissionPct`), `mergeLines`, grouping by store (`buildStoreOrders`, `costLinesByStore`), delivery (`deliveryFeeFor`), `lineTotal`, report periods |
+| `lib/finance/payments.ts` | the fee paid before a half's hinge: `paymentQuote` (the saved row's area × the day's rate), `payProjectHalf` (once per half; a second payment finds the first), `paymentsOf`, `PaymentView`; `projectFees` — every fee a project paid, at its hinges or (before) at checkout, which both project pages show beside their orders (`components/orders/FeeSummary.tsx`) |
+| `lib/account/contact.ts`, `lib/account/server.ts` | an order's contact, pure: `resolveContact` (the account's name and e-mail; the phone and the address typed or the profile's; what to keep on the account), `addressOf`, `formatAddress`; server: `loadAccountContact`, `updateAccountContact` |
+| `lib/finance/orders.ts` | writing and reading orders: `createCheckoutForProject`, `createTeamBooking` (+ `projectLabour`), `projectMaterials` / `checkoutPreview` (the materials and the reserve the dialogue shows), `projectOrderState`, `applyOrderEdit`, `confirmOrder`, `addOrderComment`, `orderEventsFor`, `recordOrderEvent`, `partnerOwnsOrder`, `partnerCondition`, `ordersForProject`, `orderCustomer` |
 | `lib/finance/orderFlow.ts` | the rules, pure: `orderStage`, `awaitsConfirmation`, `partnerNextStatuses` / `partnerMayMove`, `summariseEdit` (an edit event's facts), `lineDiff` (what the customer sees changed) |
 | `lib/finance/notify.ts` | the mails to partners and customers (never fatal) |
-| `lib/finance/report.ts` | `revenueReport`, `ordersForExport` (admin revenue page and CSV) |
+| `lib/finance/report.ts` | `revenueReport` (the fees from `project_payments` and from the checkouts that carried one before), `ordersForExport` (admin revenue page and CSV) |
 | `lib/finance/settings.ts` | the `platform_settings` row, or the defaults |
-| `lib/finance/view.ts` | `orderData` — an order as client components see it (stage, originals, sent/confirmed); `orderEventData` |
+| `lib/finance/view.ts` | `orderData` — an order as client components see it (stage, originals, sent/confirmed, the delivery address on one line); `orderEventData` |
 | `lib/partner/analytics.ts` | a partner's dashboard figures: sales by month, best-selling products, catalogue health, orders by stage |
 | `lib/teams/queries.ts` | `listTeams` (who covers which trades, who is free), `openJobsOf` |
-| `lib/projects/checkoutParts.ts` | the checkout dialogue's one-line summary per half |
-| `lib/validations/checkout.schema.ts` | `checkoutSchema`, `bookingSchema`, `orderEditSchema`, `platformSettingsSchema` |
-| `components/checkout/CheckoutDialog.tsx`, `BookingDialog.tsx`, `CustomerFields.tsx` | ordering a project; booking a brigade |
+| `lib/projects/checkoutParts.ts` | the checkout dialogue's lines per half, each marked furniture or not |
+| `lib/validations/checkout.schema.ts`, `profile.schema.ts` | `checkoutSchema`, `contactSchema`, `bookingSchema`, `orderEditSchema`, `platformSettingsSchema`; `profileSchema`, `paymentSchema` |
+| `components/checkout/CheckoutDialog.tsx`, `BookingDialog.tsx`, `ContactFields.tsx`, `FeePaidNote.tsx` | ordering a project (three rows and the total, then a thank-you and the orders); booking a brigade; the contact and address block both share; the fee as paid on a summary |
+| `components/flow/HingeDialog.tsx` | the warning and the fee before "გამოთვლის დაწყება" and "დიზაინის გენერაცია" (a test card for now) |
 | `components/orders/OrderEditor.tsx` | the platform's order page: keep/strike lines, quantities, prices, delivery, add lines, status, message, staff note, "confirm and send" |
 | `components/orders/PartnerOrderView.tsx` | a partner's order: read-only lines, the next steps as buttons, the message to the customer |
 | `components/orders/OrderTimeline.tsx` | an order's history and the comments between the platform and the partner |
 | `components/orders/OrderReviewCard.tsx`, `ProjectOrdersReview.tsx` | the admin project page's orders: confirm each store's order right there |
 | `components/orders/ProjectOrders.tsx` (`OrderCards`), `OrderStatusBadge.tsx` (`OrderStageBadge`), `useOrderActions.ts` | the customer's view on the project page and on the hubs' orders list (every change shown against what was ordered); the stage badge; saving and confirming from the client |
 | `components/projects/OrderProjectButton.tsx` | ordering a saved project from its page |
-| `app/api/checkout/route.ts` | GET what was ordered before; POST a checkout |
+| `app/api/checkout/route.ts` | GET what was ordered before, the materials and the reserve; POST a checkout |
+| `app/api/payments/route.ts` | GET a project's payments and what each half would cost; POST pay a half |
+| `app/api/profile/route.ts` | GET / PATCH the person's own contact ([auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)) |
 | `app/api/bookings/route.ts` | GET bookings of a project; POST a brigade booking |
 | `app/api/orders/[id]/`, `…/confirm/`, `…/comments/` | read and change an order (staff and its partner, by the rules above), confirm a store's order (staff with `orders`), comment on it |
 | `app/api/settings/route.ts`, `app/api/admin/settings/route.ts` | public fees; admin GET/PUT of the settings |
 | `app/api/admin/revenue/export/route.ts` | revenue CSV |
 | `app/(main)/design/[id]/workers/page.tsx` | step 8: trades and brigades |
 | `app/partner/orders/`, `app/admin/orders/`, `app/admin/revenue/`, `app/admin/settings/` | the portal's and admin's order, revenue and settings pages |
-| `hooks/usePlatformFees.ts` | the fees the summaries show |
+| `hooks/usePlatformFees.ts`, `useProjectPayments.ts`, `useAccountContact.ts` | the fees the payment dialogue previews; what a project has paid (the summaries' fee line); the person's contact for the dialogues |
 
 ## Checkout flow
 
 1. A summary page (`design/[id]/summary`, `calculator/[id]/summary`) or the project page's
    `OrderProjectButton` builds the `CheckoutPart`s (`lib/projects/checkoutParts.ts`):
    `designCheckoutPart` over `priceScene` → `orderedLines`, `calculatorCheckoutPart` over
-   `orderedCalculationLines` (the calculation priced as a design, [budget.md](budget.md)).
-2. `CheckoutDialog` reads `GET /api/checkout?projectId=` (`projectOrderState`) to show what is
-   already paid or partly ordered, saves the project through the caller's save helper, then
-   posts `POST /api/checkout { projectId, customer }` (signed-in owner only).
-3. The route rate-limits, validates, checks the owner and calls `createCheckoutForProject`: the
-   calculator's lines (`calculatorLinesOf` → `calculationLinesByStore`) and the design's
-   (`sceneLinesOf` → `costLinesByStore`) — both the product lines of a `priceScene` — are merged with
-   what was ordered before (`mergeLines`), grouped per store, and a fee row is added per unpaid
-   half.
-4. One transaction writes the `checkouts`, `orders` (every store's with no `sentAt` — it waits
-   for the platform) and `order_items` (each with its `originalQty` / `originalUnitPrice`), a
-   `created` event per order, and sets the project to `submitted`; then
-   `notifyCustomerCheckout` ("our manager will confirm each store's order with you"). The stores
-   are not told yet — each is when its order is confirmed. Nothing new to order → 409
-   `PROJECT_ALREADY_ORDERED`.
-5. The construction materials of the sheet go too, to the store that supplies them — see
+   `orderedCalculationLines` (the calculation priced as a design, [budget.md](budget.md)); every
+   line is marked `furniture` when the budget counts it as furniture (its `bucket`: a placed
+   piece, a lamp standing in a room, a calculator's furniture pick).
+2. `CheckoutDialog` reads `GET /api/checkout?projectId=` — what was ordered before
+   (`projectOrderState`), the construction materials the supplier would be sent and the
+   summary's reserve (`checkoutPreview`) — and shows **three rows and the total**:
+   **სამშენებლო მასალები** (the supplier's construction materials and every store product that
+   is not furniture: finishes, doors, windows, fittings, radiators), **სარეზერვო ფონდი** (the
+   sheet's `contingencyTotal` — 15 % of the renovation's materials and labour, the summary's own
+   figure; counted on the first order of a project only, and on nobody's order) and **ავეჯი**.
+   The full list opens under them, grouped the same way. **No fee**: each half paid its own
+   before its hinge ([below](#how-the-platform-earns-libfinance)).
+3. **The contact is the account's** (`ContactFields`, `useAccountContact` ← `GET /api/profile`):
+   the name and the e-mail are never asked; the phone and the delivery address (city, street
+   and number, postal code) are the profile's — a line each, with "შეცვლა" for an order that goes
+   elsewhere — or asked when the profile has none, with "keep it as my default" ticked (a
+   changed one offers it unticked). The dialogue saves the project through the caller's save
+   helper, then posts `POST /api/checkout { projectId, customer }` with only the fields it asked
+   for (`contactBody`) — the project's signed-in owner only.
+4. The route rate-limits, validates, checks the owner, builds the contact (`resolveContact`: the
+   account's name and e-mail whatever the body says, the phone and the address typed or the
+   profile's — `PHONE_REQUIRED` / `ADDRESS_REQUIRED` when there is neither) and calls
+   `createCheckoutForProject`: the calculator's lines (`calculatorLinesOf` →
+   `calculationLinesByStore`) and the design's (`sceneLinesOf` → `costLinesByStore`) — both the
+   product lines of a `priceScene` — are merged with what was ordered before (`mergeLines`) and
+   grouped per store.
+5. One transaction writes one `checkouts` row (filed under the half the project is furthest
+   along in, `platformFee` 0, the delivery address), the `orders` (every store's with no
+   `sentAt` — it waits for the platform — each with the customer's contact and address) and
+   `order_items` (each with its `originalQty` / `originalUnitPrice`), a `created` event per
+   order, and sets the project to `submitted`; then `notifyCustomerCheckout` ("our manager will
+   confirm each store's order with you"). The stores are not told yet — each is when its order
+   is confirmed, with the address. Nothing new to order → 409 `PROJECT_ALREADY_ORDERED`. Once
+   the order went through, the phone and address typed are kept on the account when asked
+   (`updateAccountContact`).
+6. The dialogue thanks the person — a check, the checkout's number, how many stores it went to
+   — and after four seconds (a bar fills, `animate-countdown`) opens their orders
+   (`/profile?view=orders`) from the top of the page; "ჩემი შეკვეთები" goes at once.
+7. The construction materials of the sheet go too, to the store that supplies them — see
    [Construction materials](#construction-materials-the-materials-supplier).
 
 ## Booking flow (design step 8)
@@ -73,7 +104,10 @@ Related: [budget.md](budget.md) (the lines orders are made from) ·
 1. `design/[id]/workers/page.tsx`: `tradesNeeded(cost)` → `GET /api/teams?covers=…`
    (`listTeams`), and `GET /api/bookings?projectId=` for bookings already sent.
 2. `BookingDialog` saves the design (a draft is enough) and posts
-   `POST /api/bookings { teamId, projectId, customer }`.
+   `POST /api/bookings { teamId, projectId, customer }` — the contact as the checkout's: a
+   signed-in person's name and e-mail are the account's, the phone and the address (where the
+   work is) the profile's unless the dialogue asks for them; a guest (a brigade booked from its
+   public page) types a name and a phone (`resolveContact`, no address required).
 3. `createTeamBooking`: the project's labour (`projectLabour`) plus the brigade's
    site-management line when it has a markup, one order in a transaction, then the partner mail.
 4. The booking is the brigade's at once (`sentAt` set on creation — no platform review: the
@@ -88,29 +122,48 @@ Related: [budget.md](budget.md) (the lines orders are made from) ·
 ## How the platform earns (`lib/finance/`)
 
 The platform owns nothing and sells nothing — it connects the customer with the stores and
-workers who do, and takes a cut at every step. Two revenue lines, both recorded, neither
-collected (there is no payment integration; the fee is shown on the summaries and stored):
+workers who do, and takes a cut at every step. Two revenue lines, both recorded:
 
 1. **A fee per m²** for the project itself — `calculatorFeePerM2` (default 2 ₾) for a
-   calculation, `designFeePerM2` (default 12 ₾) for a 3D design. Shown as its own line on both
-   summaries ("სულ საფასურის ჩათვლით"), written to `checkouts.platformFee` at checkout.
+   calculation, `designFeePerM2` (default 12 ₾) for a 3D design — **paid before the half's
+   hinge**. "გამოთვლის დაწყება" (the calculator's plan step) and "დიზაინის გენერაცია" (the
+   style step) open `HingeDialog`: first the warning that the plan is settled from here (the
+   steps before shut — [project-flow.md §12](project-flow.md#12-locks-and-why-there-is-no-start-over))
+   with what to check, then the fee — the half is saved (`saveCalculatorProject` /
+   `saveDesign`, a draft), `GET /api/payments?projectId=` says whether it is paid and what it
+   costs on the saved row (`paymentQuote`: `feeAreaM2` — the calculation's rooms' floors, the
+   design's plan — × the day's rate), a card form filled with the published test card
+   (4242 4242 4242 4242), and `POST /api/payments { projectId, kind, cardLast4 }` →
+   `payProjectHalf` → one `project_payments` row per half (unique on project and half; a second
+   payment finds the first). "Paid", a moment, and the hinge itself (`setCalculated` /
+   `generate`). A half already paid goes straight on. **There is no payment provider yet**:
+   nothing is charged, the row's `method` is `test`, its `reference` made up. The summaries show
+   the fee as paid, a line of its own under the total (`FeePaidNote`), and the checkout charges
+   none; checkouts placed before carry theirs in `checkouts.platformFee`, and the revenue report
+   counts both.
 2. **A commission on every partner order** — `storeCommissionPct` / `workerCommissionPct`
    (default 5 %), overridden per store / worker by their own `commissionRate`. Frozen into
    `orders.commissionPct` when the order is placed so a later rate change does not rewrite history.
 
 ```
-summary → "შეკვეთის გაფორმება" → CheckoutDialog (name, phone, e-mail; the project's owner only)
+calculator step 2 "გამოთვლის დაწყება" · design step 4 "დიზაინის გენერაცია" → HingeDialog
+  → the warning → save the half → GET /api/payments (paid? the quote) → the test card
+  → POST /api/payments { projectId, kind } → project_payments → the hinge (calculated / generate)
+summary → "შეკვეთის გაფორმება" → CheckoutDialog (materials · reserve · furniture · total; the
+          phone and the address the profile lacks; the project's owner only)
   → saves the project if it is not saved yet (each summary in its own shape)
   → POST /api/checkout { projectId, customer }
+      lib/account/contact.ts   the account's name and e-mail, the phone and address typed or the profile's
       lib/finance/money.ts     group what is bought by store (both halves: the *budget's*
                                product lines — priceScene, see below — by the line's store
                                snapshot, a products.storeId lookup filling in), one order per
-                               store, delivery per store, commission at that store's rate,
-                               fee = m² × rate
+                               store, delivery per store, commission at that store's rate
                                + the construction materials to their supplier (projectMaterials)
-      lib/finance/orders.ts    one transaction: checkout + orders (unsent) + items; project → 'submitted'
+      lib/finance/orders.ts    one transaction: checkout + orders (unsent, with the address) + items;
+                               project → 'submitted'; the contact kept on the account if asked
       lib/finance/notify.ts    mail to the customer (MAIL_DRIVER=log in dev → logs/app-*.log);
                                never fatal
+  → thank-you → /profile?view=orders
   → orders agent: /admin/orders?review=pending or the project page → keep/strike lines,
     delivery → POST /api/orders/[id]/confirm → the store is mailed and sees it in /partner
 design step 8 → "ბრიგადის არჩევა" → BookingDialog → POST /api/bookings { teamId, projectId }
@@ -139,15 +192,15 @@ calculator's estimate worked out afresh, whatever had been edited.
 
 A project can be ordered in two sittings — the calculation first, the 3D design later, or
 both at once — and stays one row throughout: `ownProject` writes into an ordered project
-too, because the orders are snapshots and desync nothing. Each half's fee is charged once
-(one `checkouts` row per half, so the revenue report keeps calculator and design fees
-apart), `mergeLines` unites the two halves: the studio's lines win over the calculator's
+too, because the orders are snapshots and desync nothing. The fees are not the checkout's
+(each half paid its own before its hinge, once); `mergeLines` unites the two halves: the studio's lines win over the calculator's
 copies of the same product (the studio inherited those picks), repeated items stay repeated
 (six chairs are six chairs), and units an earlier checkout already sent to a store come off
 the top product by product (`projectOrderState.orderedQty`). When nothing new
-would be charged or sent the route answers `PROJECT_ALREADY_ORDERED`. The checkout dialog
-shows one quick line per half — fee, products, a half already paid marked as such — with the
-full list a click away, and `GET /api/checkout?projectId=` tells it what was ordered before.
+would be sent the route answers `PROJECT_ALREADY_ORDERED`. The checkout dialog shows its three
+rows over both halves — a row whose lines all went with an earlier order says so, and the
+reserve is counted on the first order only — with the full list a click away, and
+`GET /api/checkout?projectId=` tells it what was ordered before.
 Items nobody sells (product without a store) are left out and reported as `unassigned`.
 
 **A design is ordered from its budget, not from its scene.** `sceneLinesOf` prices the saved
@@ -251,10 +304,16 @@ lines with `categorySlug = material:<rate key>` and no product; `materialLinesBy
 to the supplier, less what an earlier checkout of the project already sent (by slug, like
 products by id, `projectOrderState.orderedMaterials`), and `joinLines` puts them on that
 store's order (their own order when the supplier sells no products). With no supplier set,
-they are reported as unassigned. The checkout dialogue shows them as their own row ("building
-materials · supplier · N lines · total"), read from `GET /api/checkout` (`materialsPreview`,
-from the saved project). The supplier's login sees and fulfils them in its portal like any
+they are reported as unassigned. The checkout dialogue counts them in its building-materials row with the store products that
+are not furniture, read from `GET /api/checkout` (`checkoutPreview`, from the saved project). The supplier's login sees and fulfils them in its portal like any
 store, after the platform's confirmation.
+
+**Which store it is.** Admin chooses it in `/admin/settings`, or on the store's own form: "ამ
+მაღაზიიდან შეიკვეთება სამშენებლო მასალები" (`suppliesMaterials` on `POST` / `PUT /api/stores`,
+admin only — a catalogue agent's is ignored, like the commission) makes that store the supplier
+(`setMaterialsSupplier`); one store supplies all of them, so ticking it moves them from the
+store that had them, which the form names, and unticking it on the supplier leaves nobody. A
+new store can be made the supplier as it is created. The stores list marks the supplier.
 
 ## Partner portal, admin and customer
 
@@ -279,8 +338,11 @@ brigade orders are not in the report yet, see Known gaps — volume, daily bars 
 store, by worker, top products, statuses, CSV export at `/api/admin/revenue/export`),
 `/admin/settings` (the four numbers, with a worked example before you save, and the
 building-materials supplier). Store and worker forms carry e-mail and commission (the
-commission for admin only). The dashboard shows each role its own part: the orders agent the
-queue and the orders' progress, admin also this month's revenue.
+commission for admin only — and on a store's, for admin, the building-materials switch). An
+order's page, the platform's and the partner's alike, shows the delivery address under the
+customer (`OrderData.deliveryAddress`), and the partner's mail carries it. The dashboard shows
+each role its own part: the orders agent the queue and the orders' progress, admin also this
+month's revenue.
 
 The customer sees the orders on the project page as above — and all of them together, grouped
 by project, under "შეკვეთები" in either hub's sidebar (`HubOrders`, the same `OrderCards`) — and
@@ -298,13 +360,20 @@ exercised by the routes, not by unit tests.
 
 ## Tests
 
-- `tests/unit/finance/money.test.ts` — fees and commissions, struck-out lines, grouping by store
+- `tests/unit/account/contact.test.ts` — an order's contact: the account's name and e-mail
+  whatever the body says, a phone or an address typed for this order over the profile's, what
+  the profile lacks is asked (`PHONE_REQUIRED`, `ADDRESS_REQUIRED`, a guest's `NAME_REQUIRED`),
+  and only what was typed and asked to be kept goes onto the account; addresses read, written
+  and compared.
+- `tests/unit/finance/money.test.ts` — fees (and the area a half's fee is charged on,
+  `feeAreaM2`) and commissions, struck-out lines, grouping by store
   and delivery; a door, a fitting and a radiator reach their store as the budget counts them,
   fold into what was ordered before and go nowhere when ticked off; kitchens and "already has"
   excluded; the 255-character room clip; `mergeLines`; report periods. (`labourLines` is tested
   but unused in production — bookings use the private `projectLabour`, which has no test.)
 - `tests/unit/design/ticks.test.ts` — basket, dialogue and order agree line for line.
-- `tests/unit/projects/checkoutParts.test.ts` — both checkout parts respect ticks and quantities.
+- `tests/unit/projects/checkoutParts.test.ts` — both checkout parts respect ticks and quantities,
+  and put the furniture under furniture and every other product under the building materials.
 - `tests/unit/finance/orderFlow.test.ts` — stages, what a partner may do with its order, the
   facts of an edit event, what the customer sees changed.
 - `tests/unit/finance/materials.test.ts` — the construction materials go to their supplier,
@@ -315,9 +384,10 @@ exercised by the routes, not by unit tests.
   and once; the staff note never leaves the platform.
 - `tests/integration/save-routes.test.ts` — a forged door, socket or radiator price never reaches
   the row.
-- `lib/finance/money.ts` and `lib/finance/orderFlow.ts` are in the coverage gate; `orders.ts`,
-  `report.ts`, `settings.ts` touch the database and are exercised through the routes, not unit
-  tests.
+- `lib/finance/money.ts`, `lib/finance/orderFlow.ts` and `lib/account/contact.ts` are in the
+  coverage gate; `orders.ts`, `payments.ts`, `report.ts`, `settings.ts` touch the database and
+  are exercised through the routes, not unit tests (the payment, the checkout and the thank-you
+  were walked through headless on a test project; there is no e2e spec for them).
 
 ## Known gaps
 
@@ -328,9 +398,18 @@ exercised by the routes, not by unit tests.
   `applyBoardPicks`), so those are one order line — until one is swapped in the studio: a door
   or a sofa changed there after the calculation was carried over is sent alongside the
   calculator's. The tick on either summary is the way out.
-- The checkout dialogue totals the goods and the fee; the delivery each store will add is on
-  the budget (`cost.baskets`) and on the order, not in the dialogue.
-- The marketplace records money but does not move it: no payment integration, no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
+- The checkout dialogue totals the goods and the reserve; the delivery each store will add is
+  on the budget (`cost.baskets`) and on the order, not in the dialogue (it says so).
+- **The fee's payment is a stand-in**: a card form filled with a test card, nothing charged,
+  `method: 'test'`. A payment provider goes where `POST /api/payments` is; and the save routes
+  do not refuse the hinge without a payment (`calculated` / `generated` are the browser's word)
+  — a real provider must make them. A half that passed its hinge before the fee moved there has
+  no payment and is not asked for one, and a design-first project opened in the calculator opens
+  already calculated, so its calculation is never charged on its own (the design's fee covers
+  it).
+- The marketplace records money but does not move it: no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
+- One address per account (the default) and one per order: there is no address book, and a
+  guest's booking carries none.
 - **Brigade orders are missing from the money pages**: the revenue report counts store and worker
   orders only (`lib/finance/report.ts`), so brigade commissions are missing from revenue, and the
   CSV's partner column is blank for teams. (The order list, the order page and the customer's
@@ -342,6 +421,6 @@ exercised by the routes, not by unit tests.
   (`estimated` lines): the agent corrects them with the supplier before confirming.
 - One supplier for every construction material (`materialsStoreId`); per-material suppliers
   would need a store per rate-book key.
-- The fee's area can differ between the dialogue and the charge: the server charges each half
-  on `projects.totalM2` (the calculator rooms' area when the calculator owns the row), while the
-  dialogue previews the design half on the plan's floor area.
+- The reserve in the checkout dialogue is the summary's figure (materials *and* labour), though
+  the checkout orders no labour — as the user asked; it is counted on the first order of a
+  project and on nobody's order.

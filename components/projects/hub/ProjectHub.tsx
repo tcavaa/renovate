@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight, FolderOpen, Images, Package } from 'lucide-react';
+import { ChevronRight, FolderOpen, Images, Package, Shapes } from 'lucide-react';
 import { auth } from '@/auth';
 import { Button } from '@/components/ui/button';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
@@ -7,6 +7,7 @@ import { HubTiles, type HubPick } from '@/components/projects/hub/HubTiles';
 import { HubDate } from '@/components/projects/hub/HubDate';
 import { HubRenders } from '@/components/projects/hub/HubRenders';
 import { HubOrders } from '@/components/projects/hub/HubOrders';
+import { HubModels } from '@/components/projects/hub/HubModels';
 import { CARD_FRAME, HubShell, ProjectThumbnail } from '@/components/projects/hub/HubShell';
 import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/ProjectCardMenu';
 import { HubCachePrune } from '@/components/projects/hub/HubCachePrune';
@@ -22,18 +23,19 @@ import type { Dictionary } from '@/lib/i18n';
 import type { StudioStep } from '@/store/designStore';
 
 export type HubJourney = 'calculator' | 'design';
-/** What the hub shows: the projects, the renders (`?view=renders`) or the orders (`?view=orders`). */
-export type HubView = 'projects' | 'renders' | 'orders';
+/** What the hub shows: the projects, the renders (`?view=renders`), the orders (`?view=orders`) or the person's own 3D pieces (`?view=models`). */
+export type HubView = 'projects' | 'renders' | 'orders' | 'models';
 
 /** The hub's view from its `?view=`: the projects unless it names another. */
 export function hubView(value: string | undefined): HubView {
-  return value === 'renders' || value === 'orders' ? value : 'projects';
+  return value === 'renders' || value === 'orders' || value === 'models' ? value : 'projects';
 }
 
 /**
  * A product's front page — `/calculator` and `/design` — and the only way into its steps: every
  * step opens inside a named project (`/<journey>/<id>/…`). Laid out the way a file manager's
- * "my files" is: a sidebar down the left — the projects, the renders — and, beside it, the
+ * "my files" is: a sidebar down the left — the projects, the renders, the orders, the person's
+ * own 3D pieces (the furniture they uploaded, `HubModels`) — and, beside it, the
  * product and the list as a breadcrumb, the ways to start as round buttons (a new project —
  * whose first step asks for the plan, uploaded or drawn — and this product's half of a project
  * the other product has), and the projects as cards, most recently changed first: the drawing,
@@ -103,7 +105,7 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
     }));
   const base = calculator ? '/calculator' : '/design';
   const product = calculator ? t.nav.calculator : t.design.title;
-  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : t.hub.breadcrumb;
+  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : view === 'models' ? t.profile.myModels : t.hub.breadcrumb;
 
   return (
     <HubShell
@@ -112,6 +114,7 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
         { href: base, label: t.hub.breadcrumb, icon: FolderOpen, active: view === 'projects' },
         { href: `${base}?view=renders`, label: t.hub.navRenders, icon: Images, active: view === 'renders' },
         { href: `${base}?view=orders`, label: t.hub.navOrders, icon: Package, active: view === 'orders' },
+        { href: `${base}?view=models`, label: t.profile.myModels, icon: Shapes, active: view === 'models' },
       ]}
       crumb={{ label: product, href: base }}
       title={title}
@@ -121,6 +124,8 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
         <HubRenders userId={userId} t={t} />
       ) : view === 'orders' ? (
         <HubOrders userId={userId} t={t} locale={locale} />
+      ) : view === 'models' ? (
+        <HubModels userId={userId} />
       ) : (
         <>
           <LegacyWorkNotice userId={userId} journey={journey} />

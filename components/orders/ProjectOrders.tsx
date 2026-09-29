@@ -3,11 +3,13 @@ import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import { localizedName, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { checkoutsForProject, ordersForProject, type ProjectOrder } from '@/lib/finance/orders';
+import { ordersForProject, type ProjectOrder } from '@/lib/finance/orders';
+import { projectFees } from '@/lib/finance/payments';
+import { FeeSummary } from '@/components/orders/FeeSummary';
 import { lineDiff, orderStage } from '@/lib/finance/orderFlow';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { FoldSection } from '@/components/projects/FoldSection';
-import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import { cn, formatGEL, formatNumber } from '@/lib/utils';
 
 /**
  * The orders a project turned into, for its owner: one card per partner with where the order
@@ -15,23 +17,11 @@ import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
  * comes to with the delivery, whatever the partner wrote back — and every change the platform
  * made on the customer's behalf shown against what was ordered: a line struck out, a quantity
  * "3 → 2", a price, a line added, the delivery. Server component; sits in the project page as
- * one of its folding blocks, with the fees recorded at checkout beside the title.
+ * one of its folding blocks, with the fees the project paid beside the title (`FeeSummary`).
  */
 export async function ProjectOrders({ projectId, t, locale }: { projectId: number; t: Dictionary; locale: Locale }) {
-  const [orders, checkouts] = await Promise.all([ordersForProject(projectId), checkoutsForProject(projectId)]);
-  const fees = checkouts.filter((c) => Number(c.platformFee) > 0);
-  const feeSummary =
-    fees.length > 0 ? (
-      <span className="text-right">
-        {t.market.feeRecorded}:
-        {fees.map((c) => (
-          <span key={c.id} className="ml-2 inline-block">
-            <span className="text-xs">{c.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}</span> <span className="font-semibold text-ink">{formatGEL(Number(c.platformFee))}</span>
-            <span className="ml-1 text-xs">({fill(t.market.platformFeeHint, { fee: formatGEL(Number(c.feePerM2)), m2: formatM2(Number(c.totalM2)) })})</span>
-          </span>
-        ))}
-      </span>
-    ) : undefined;
+  const [orders, fees] = await Promise.all([ordersForProject(projectId), projectFees(projectId)]);
+  const feeSummary = fees.length > 0 ? <FeeSummary fees={fees} t={t} /> : undefined;
 
   return (
     <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>

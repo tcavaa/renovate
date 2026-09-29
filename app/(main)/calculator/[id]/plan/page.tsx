@@ -13,6 +13,7 @@ import { ElementInspector, InspectorClose } from '@/components/plan/ElementInspe
 import { Tray } from '@/components/studio/BuildBar';
 import { ElectricTray, TechnicalTray } from '@/components/studio/Trays';
 import { StepHeader } from '@/components/flow/StepHeader';
+import { HingeDialog } from '@/components/flow/HingeDialog';
 import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowPanel, FlowPanelOverlay, FlowWorkspace } from '@/components/flow/FlowWorkspace';
@@ -21,6 +22,8 @@ import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorStepHref } from '@/lib/calculator/steps';
+import { saveCalculatorProject } from '@/lib/calculator/saveProject';
+import { feeAreaM2 } from '@/lib/finance/money';
 import { HOME_STATES } from '@/lib/calculator/constants';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { useProjectId } from '@/components/projects/ProjectGate';
@@ -39,7 +42,9 @@ import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
  * the tile again, or Escape, puts it down (the tray stays), and Escape once more puts the
  * tray away. "Start the calculation" leaves from here, once there are rooms to calculate —
  * asking first, when nothing technical is on the board, whether to place it by the standards
- * (`placeByStandards` — the design's own rules) — and shuts this step and the one before it.
+ * (`placeByStandards` — the design's own rules), then warning that the plan is settled from
+ * here and taking the platform's fee for the calculation (`HingeDialog`: a test card for now) —
+ * and shuts this step and the one before it.
  *
  * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
  * tools floating down its left, the rooms in a panel down its right, and whatever is picked on
@@ -61,6 +66,8 @@ export default function CalculatorPlanPage() {
   const [error, setError] = useState<string | null>(null);
   /** "Start the calculation" pressed with nothing technical on the board: asked first. */
   const [askTechnical, setAskTechnical] = useState(false);
+  /** The warning and the fee before the calculation starts (`HingeDialog`). */
+  const [hinge, setHinge] = useState(false);
   // The tool on the rail, and — while the technical or the electrical tray is open — whether
   // its kind is in hand: the sheet places with it, or only selects.
   const [tool, setTool] = useState<EditorTool>('select');
@@ -133,9 +140,11 @@ export default function CalculatorPlanPage() {
   // Whatever is picked on the board but a room (the rooms panel has those): a card of its own, over the rooms panel.
   const inspected = selection && selection.kind !== 'room' ? selection : null;
 
-  const start = () => {
-    // From here the flat and its condition are settled: everything after is quantified from
-    // them, so this step and the one before it close behind us.
+  /** The plan is ready: the warning that it is settled from here, then the fee. */
+  const start = () => setHinge(true);
+  /** Paid: from here the flat and its condition are settled — everything after is quantified from them, so this step and the one before it close behind us. */
+  const calculate = () => {
+    setHinge(false);
     setCalculated();
     router.push(calculatorStepHref(projectId, 3));
   };
@@ -174,7 +183,7 @@ export default function CalculatorPlanPage() {
         <div id="rooms-list" className="container pb-10 lg:contents">
           <PlanWorkspace
             store={useCalculatorPlanStore}
-            tools={['select', 'pan', 'wall', 'room', 'divider', 'door', 'window', 'technical', 'electrical']}
+            tools={['select', 'wall', 'room', 'divider', 'door', 'window', 'technical', 'electrical']}
             tool={tool}
             onTool={pickTool}
             boardTool={tray && !armed ? 'select' : tool}
@@ -291,6 +300,18 @@ export default function CalculatorPlanPage() {
           <p className="text-xs text-ink-muted">{t.calculator.technicalAskSkipHint}</p>
         </DialogContent>
       </Dialog>
+
+      {hinge && (
+        <HingeDialog
+          open
+          onOpenChange={setHinge}
+          kind="calculator"
+          projectId={projectId}
+          areaM2={feeAreaM2('calculator', { rooms })}
+          save={() => saveCalculatorProject({ draft: true })}
+          onPaid={calculate}
+        />
+      )}
 
       <StepNav className="lg:hidden" back={{ href: calculatorStepHref(projectId, 1), label: t.calculator.backButton }} next={{ label: t.calculator.startButton, onClick: handleStart }}>
         {error && (

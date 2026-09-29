@@ -33,6 +33,7 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 | `lib/api/rateLimit.ts` | per-IP sliding-window limits (`RATE_RULES`) for public writes and saves |
 | `app/api/auth/*` | `register`, `register-partner`, `forgot`, `reset`, `verify`, `[...nextauth]` |
 | `app/api/users/route.ts`, `app/api/users/[id]/route.ts` | admin: create an account; read, change (role and link, active, name, e-mail, password) and delete one |
+| `app/api/profile/route.ts`, `lib/account/`, `components/profile/ProfileForm.tsx` | a person's own details: their name, phone and default delivery address (`/profile?view=account`) |
 | `app/admin/users/*`, `components/admin/AccountForm.tsx` | the accounts list, the new-account page and the account page |
 | `app/(auth)/*`, `components/auth/*` | login, register (+ store / worker), forgot and reset password pages |
 
@@ -96,7 +97,7 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 
 | Role | Works in | May | May not |
 |---|---|---|---|
-| `user` | the site | their own projects (calculator, design studio), profile, own furniture, render photos; order a saved project; book a brigade | open `/admin` or `/partner` |
+| `user` | the site | their own projects (calculator, design studio), profile — and their own details (name, phone, default delivery address) — own furniture, render photos; pay a half's fee; order a saved project; book a brigade | open `/admin` or `/partner`; change their own e-mail (it is the sign-in) |
 | `admin` | `/admin`, every section | everything: accounts (create, role and link, deactivate, password, delete), orders, projects, the catalogue, stores, workers, brigades, the rate book, revenue and its CSV, platform settings (fees, commissions, the building-materials supplier); the partner portal as any partner (`?store=` / `?worker=` / `?team=`); delete any project or photo | demote, deactivate or delete themselves |
 | `agent_orders` | `/admin`: dashboard, orders, projects | work every order: keep or strike lines, change quantities, prices and the delivery, add lines, **confirm a store's order and send it to the store**, set any status (reopen a closed order), write to the customer, keep a staff note, comment for the partner; see every project and its orders | products, categories, stores, workers, brigades, rates, revenue, settings, accounts; the partner portal; deleting projects |
 | `agent_catalog` | `/admin`: dashboard, products, categories, stores | products (any store's: add, edit, show/hide, in bulk, 3D models), the category tree (add, edit, move, reorder, hide) and the studio's rooms (add, edit, reorder, hide), stores (add, edit, switch off, approve or reject) | **delete** a product, a category, a studio room or a store (admin's — `canDeleteIn`; the buttons are not shown and the routes answer 403); orders of any kind, projects, revenue, a store's commission rate, workers, brigades, rates, settings, accounts |
@@ -123,6 +124,21 @@ it. `PUT /api/users/[id]` refuses a partner role without its link (`PARTNER_LINK
 link to a row that does not exist (404), an e-mail that is taken (`EMAIL_EXISTS`), and admin
 demoting, deactivating or deleting themselves; every change calls `forgetAccount`, so it is on
 the account's next request.
+
+## A person's own details (`/profile?view=account`)
+
+Every signed-in person edits their own name, phone and default delivery address — city, street
+and number, postal code — on the profile (`ProfileForm`, the last list in its sidebar; the
+account at the head of the sidebar links there). `GET /api/profile` answers the account's
+contact (`loadAccountContact`) and `PATCH /api/profile` (`requireSession`,
+`RATE_RULES.saveProject`, `profileSchema`) changes it: a name of 2–255 characters, a phone with
+at least five digits or empty (which clears it), an address with both a city and a street or
+`null`. A changed name calls `forgetAccount`, so the session's name follows on the next read.
+The e-mail is shown, not edited: it is the sign-in, and admin changes it on the account page.
+The checkout and the booking read the same contact and ask only for what it lacks; what was
+typed there is kept on the account when the person ticks "keep it as my default"
+([marketplace.md](marketplace.md#checkout-flow)). Admin's account page does not show or edit
+the phone and the address.
 
 ## Where access is enforced
 

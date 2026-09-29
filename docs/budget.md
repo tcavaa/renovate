@@ -29,7 +29,7 @@ lines) · [project-flow.md](project-flow.md) (the project page that re-reads bot
 | `lib/summary/quantity.ts` | `quantityOptions` — what the quantity dropdown offers |
 | `components/budget/BudgetSheet.tsx`, `lineName.ts` | the sheet both summaries and the project page render; `budgetLineName` |
 | `lib/projects/sheets.ts` | `loadProjectSheets` — a saved project's two sheets, server-side, for `ProjectDetail` |
-| `lib/projects/checkoutParts.ts` | `designCheckoutPart` / `calculatorCheckoutPart` — the checkout dialogue's summary of each half |
+| `lib/projects/checkoutParts.ts` | `designCheckoutPart` / `calculatorCheckoutPart` — the checkout dialogue's lines of each half, each marked furniture (its `bucket`) or not |
 | `app/(main)/design/[id]/summary/page.tsx` | the design's budget (step 7) |
 | `app/(main)/calculator/[id]/summary/page.tsx` | the calculator's summary (step 6) |
 
@@ -187,7 +187,9 @@ of the lines in the `materials` and `labour` sections still ticked, in `full` mo
 of the furniture, the finishes, the doors, the fittings or the equipment bought, and nothing in
 a design-only project. It is a figure beside the grand total, not a line: the totals cards show
 it under the subtotal and the headline is "total + contingency" (`totalCost` on both saves
-stores it so); the checkout orders what the lines are, not the reserve. `productsTotal` is the
+stores it so); the checkout orders what the lines are, not the reserve — its dialogue shows the
+same figure as a row of its own (on the first order of a project), counted in the dialogue's
+total and on nobody's order ([marketplace.md](marketplace.md#checkout-flow)). `productsTotal` is the
 calculator's lines of its own (`extraLines`: sanitary ware, a pendant, anything the board has no
 place for) and counts in the grand total.
 

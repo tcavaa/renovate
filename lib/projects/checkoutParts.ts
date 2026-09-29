@@ -1,32 +1,37 @@
 import type { DesignCost, FloorPlan } from '@/lib/design/types';
 import type { CheckoutPart } from '@/components/checkout/CheckoutDialog';
-import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
-import { orderedLines } from '@/lib/design/pricing';
+import { orderedLines, type ProductLine } from '@/lib/design/pricing';
 import { localizedName, type Locale } from '@/lib/i18n/labels';
 import { orderedCalculationLines, type CalculationInput } from '@/lib/summary/calculatorSheet';
 
 /**
- * The two halves of a project as the checkout dialog summarises them. Both summary pages
- * build the same shapes, so a project ordered from either end shows the same quick summary.
+ * The two halves of a project as the checkout dialog lists them. Both summary pages build the
+ * same shapes, so a project ordered from either end shows the same rows: each line under the
+ * building materials, or under the furniture when the budget counts it as furniture (its
+ * `bucket` — a placed piece, a lamp standing in a room, a calculator's furniture pick).
  */
-export function calculatorCheckoutPart(input: CalculationInput, feePerM2: number, locale: Locale): CheckoutPart {
+function partLine(line: ProductLine, i: number, locale: Locale): CheckoutPart['lines'][number] {
   return {
-    kind: 'calculator',
-    totalM2: input.rooms.reduce((s, r) => s + r.floorM2, 0),
-    feePerM2,
-    // Read off the same priced, edited lines the orders are (`orderedCalculationLines`), so the
-    // dialogue lists what the stores will be sent — the picks and the doors, fittings and
-    // radiators on the board, at the quantity on the sheet.
-    lines: orderedCalculationLines(input).map((line, i) => ({
-      key: line.tick ?? `p-${line.product.productId}-${i}`,
-      productId: line.product.productId,
-      name: localizedName(locale, line.product),
-      qty: line.qty,
-      unitPrice: line.unitPrice,
-      total: line.total,
-      where: line.roomName ?? null,
-    })),
+    // A product line's tick is its own and nobody else's (`lib/design/ticks`), which is
+    // exactly what a list key has to be.
+    key: line.tick ?? `p-${line.product.productId}-${i}`,
+    productId: line.product.productId,
+    name: localizedName(locale, line.product),
+    qty: line.qty,
+    unitPrice: line.unitPrice,
+    total: line.total,
+    where: line.roomName ?? null,
+    furniture: line.bucket === 'furniture',
   };
+}
+
+/**
+ * The calculator's half, read off the same priced, edited lines the orders are
+ * (`orderedCalculationLines`), so the dialogue lists what the stores will be sent — the picks
+ * and the doors, fittings and radiators on the board, at the quantity on the sheet.
+ */
+export function calculatorCheckoutPart(input: CalculationInput, locale: Locale): CheckoutPart {
+  return { kind: 'calculator', lines: orderedCalculationLines(input).map((line, i) => partLine(line, i, locale)) };
 }
 
 /**
@@ -39,14 +44,7 @@ export function calculatorCheckoutPart(input: CalculationInput, feePerM2: number
  *
  * The caller prices with the project's own home state, as the server will.
  */
-export function designCheckoutPart(plan: FloorPlan | null, cost: Pick<DesignCost, 'lines'> | null, feePerM2: number, locale: Locale): CheckoutPart | null {
+export function designCheckoutPart(plan: FloorPlan | null, cost: Pick<DesignCost, 'lines'> | null, locale: Locale): CheckoutPart | null {
   if (!plan || !cost) return null;
-  return {
-    kind: 'design',
-    totalM2: totalFloorAreaM2(plan),
-    feePerM2,
-    // A product line's tick is its own and nobody else's (`lib/design/ticks`), which is
-    // exactly what a list key has to be.
-    lines: orderedLines(cost).map((line, i) => ({ key: line.tick ?? `p-${line.product.productId}-${i}`, productId: line.product.productId, name: localizedName(locale, line.product), qty: line.qty, unitPrice: line.unitPrice, total: line.total, where: line.roomName ?? null })),
-  };
+  return { kind: 'design', lines: orderedLines(cost).map((line, i) => partLine(line, i, locale)) };
 }

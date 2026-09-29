@@ -170,14 +170,11 @@ interface DesignState {
   electrical: ElectricalPoint[];
   /** The kept versions of the flat, oldest first; the first is the existing house. */
   versions: DesignVersion[];
-  /** Room the camera is focused on, or null for the whole flat. */
-  focusRoomId: string | null;
   /**
-   * Rooms picked out on the 2D board — one click, or a rubber band across several, the way
-   * a desktop selects folders. They move together and detach from what stays behind. A
-   * fact about this session, so not persisted.
+   * Room the camera is focused on — and the one room picked out on the 2D board, a click at a
+   * time — or null for the whole flat.
    */
-  selectedRoomIds: string[];
+  focusRoomId: string | null;
   selectedItemId: string | null;
   selectedElement: ElementSelection;
   /** The half of a studio clicked on the board, so the inspector offers that half's type. Not persisted. */
@@ -276,11 +273,10 @@ interface DesignActions {
   /** Four walls around a drawn rectangle; the room inside is exactly the rectangle. Returns its id. */
   addRectangleRoom: (rect: { x: number; z: number; width: number; depth: number }, type?: RoomType, name?: string) => string | null;
   removeRoom: (roomId: string) => void;
-  /** The rooms picked out on the board (a click, or a rubber band across several). */
-  selectRooms: (roomIds: string[]) => void;
   /**
-   * Moves those rooms bodily, with their walls, furniture, fittings, technical points and
-   * painted zones. A wall shared with a room staying behind is split, so the two come apart.
+   * Moves rooms bodily — with every room joined to them by a wall (`roomCluster`), since
+   * nothing is pulled apart — along with their walls, furniture, fittings, technical points and
+   * painted zones. The board's room drag.
    */
   moveRooms: (roomIds: string[], delta: Vec2) => void;
   // --- walls, columns, beams ---
@@ -514,7 +510,6 @@ const initial: DesignState = {
   selectedRoomPart: null,
   carryingItemId: null,
   carryRestore: null,
-  selectedRoomIds: [],
   generated: false,
   planFromCalculator: false,
   structureLocked: true,
@@ -690,7 +685,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               focusRoomId: null,
               selectedItemId: null,
               selectedElement: null,
-              selectedRoomIds: [],
               // A new flat has not been laid out, whatever the last one had.
               generated: false,
               planFromCalculator: false,
@@ -731,7 +725,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             focusRoomId: null,
             selectedItemId: null,
             selectedElement: null,
-            selectedRoomIds: [],
             // Where the journey was when it was saved; a scene from before that was recorded was laid out.
             generated: scene.progress?.generated ?? true,
             planFromCalculator: scene.progress?.planFromCalculator ?? false,
@@ -839,8 +832,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           });
           return created;
         },
-
-        selectRooms: (roomIds) => set({ selectedRoomIds: roomIds }),
 
         moveRooms: (roomIds, delta) =>
           commit((s) => {
@@ -1144,7 +1135,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               // technical board is that board's selection; kept, it showed the new layout one
               // room at a time.
               focusRoomId: null,
-              selectedRoomIds: [],
               selectedItemId: null,
               selectedElement: null,
               carryingItemId: null,

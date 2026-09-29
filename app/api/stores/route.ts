@@ -7,6 +7,7 @@ import { fail, handle, ok, requireStaff } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 import { publicStore } from '@/lib/api/publicPartners';
 import { canAdmin } from '@/lib/auth/roles';
+import { setMaterialsSupplier } from '@/lib/finance/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,11 +39,15 @@ export const POST = handle('POST /api/stores', 'Failed to create store', async (
   if (!parsed.success) return fail(parsed.error.message, 400);
   // The commission is money, and money is admin's: a catalogue agent's new store gets the
   // default rate, whatever the form sent.
-  const { commissionRate, ...fields } = parsed.data;
-  const data = admin.session.user.role === 'admin' ? { ...fields, commissionRate } : fields;
+  const { commissionRate, suppliesMaterials, ...fields } = parsed.data;
+  const isAdmin = admin.session.user.role === 'admin';
+  const data = isAdmin ? { ...fields, commissionRate } : fields;
 
   const inserted = await db.insert(stores).values(toStoreRow(data));
+  const id = inserted[0].insertId;
+  // The construction materials' supplier is a platform setting, and settings are admin's.
+  if (isAdmin && suppliesMaterials) await setMaterialsSupplier(id, true);
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();
-  return ok({ id: inserted[0].insertId });
+  return ok({ id });
 });

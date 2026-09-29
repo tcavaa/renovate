@@ -5,7 +5,10 @@ import { orders, projects, teams, workers } from '@/lib/db/schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
 import { createTeamBooking, createWorkerBooking } from '@/lib/finance/orders';
-import { bookingSchema, normaliseCustomer } from '@/lib/validations/checkout.schema';
+import { bookingSchema } from '@/lib/validations/checkout.schema';
+import { resolveContact } from '@/lib/account/contact';
+import { loadAccountContact, updateAccountContact } from '@/lib/account/server';
+import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,10 +65,18 @@ export const POST = handle('POST /api/bookings', 'Failed to book', async (req) =
     if (!userId || project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
   }
 
-  const customer = normaliseCustomer(parsed.data.customer);
+  // A signed-in person's name and e-mail are the account's, the phone and the address the
+  // profile's unless the dialogue asked for them; a guest types a name and a phone.
+  const account = userId ? await loadAccountContact(userId) : null;
+  const contact = resolveContact(parsed.data.customer, account, { needAddress: false });
+  if (!contact.ok) return fail(API_ERRORS[contact.error], 400);
+  const customer = contact.customer;
   const owner = userId ?? project?.userId ?? null;
   const result = team
     ? await createTeamBooking({ team, project, customer, userId: owner })
     : await createWorkerBooking({ worker: worker!, project, customer, userId: owner });
+  if (userId && contact.keep) {
+    await updateAccountContact(userId, contact.keep).catch((e: unknown) => log.warn('keeping the booking contact failed', { userId, err: e }));
+  }
   return ok(result);
 });

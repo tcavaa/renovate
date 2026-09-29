@@ -1,19 +1,34 @@
 import { z } from 'zod';
 import { ORDER_STATUSES } from '@/lib/finance/money';
 
-/** Who the partner should call. Guests fill this in; signed-in users get it prefilled. */
-export const customerSchema = z.object({
-  name: z.string().trim().min(2).max(255),
-  phone: z.string().trim().min(5).max(50),
+/**
+ * Who the partner should call and where the goods go. A signed-in person sends only what the
+ * dialogue had to ask for — the phone and the address when the profile has none, or an address
+ * of this order's own — and the server fills the rest from the account (`resolveContact`,
+ * `lib/account/contact.ts`); a guest (booking a brigade from its page) sends a name and a phone.
+ */
+export const contactSchema = z.object({
+  name: z.string().trim().max(255).optional().nullable(),
   email: z.string().trim().email().max(255).optional().nullable().or(z.literal('')),
+  phone: z.string().trim().max(50).optional().nullable(),
+  address: z
+    .object({
+      city: z.string().trim().max(120).optional().nullable(),
+      line: z.string().trim().max(255).optional().nullable(),
+      postalCode: z.string().trim().max(20).optional().nullable(),
+    })
+    .optional()
+    .nullable(),
   note: z.string().trim().max(2000).optional().nullable(),
+  /** Keep the phone and the address typed here on the account as its defaults. */
+  saveAsDefault: z.boolean().optional(),
 });
 
-export type CustomerInput = z.infer<typeof customerSchema>;
+export type ContactBody = z.infer<typeof contactSchema>;
 
 export const checkoutSchema = z.object({
   projectId: z.number().int().positive(),
-  customer: customerSchema,
+  customer: contactSchema,
 });
 
 /**
@@ -25,7 +40,7 @@ export const bookingSchema = z
     workerId: z.number().int().positive().optional(),
     teamId: z.number().int().positive().optional(),
     projectId: z.number().int().positive().optional().nullable(),
-    customer: customerSchema,
+    customer: contactSchema,
   })
   .refine((v) => (v.workerId ? 1 : 0) + (v.teamId ? 1 : 0) === 1, { message: 'BOOK_ONE_PARTNER' });
 
@@ -78,13 +93,3 @@ export const platformSettingsSchema = z.object({
   /** The store that supplies the rate book's construction materials; null for nobody. */
   materialsStoreId: z.number().int().positive().nullable().optional(),
 });
-
-/** Turns the form's empty string / null e-mail into what the row wants. */
-export function normaliseCustomer(input: CustomerInput) {
-  return {
-    name: input.name,
-    phone: input.phone,
-    email: input.email ? input.email : null,
-    note: input.note ? input.note : null,
-  };
-}

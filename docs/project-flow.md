@@ -16,7 +16,7 @@ the design's are [design-studio/overview.md](design-studio/overview.md).
 
 ```
 header "გამომთვლელი" / "დიზაინი"
-  → hub  /calculator · /design            a sidebar (projects · renders · orders), "create new
+  → hub  /calculator · /design            a sidebar (projects · renders · orders · own 3D pieces), "create new
                                            project", the person's projects (public; guests see
                                            what it does and how to sign in)
   → "new project" (named in a dialogue)
@@ -43,7 +43,7 @@ action anywhere can write one project's work over another's.**
 | **journey** | which product's steps are open (`/calculator/<id>/…` or `/design/<id>/…`) |
 | **step** | how far a journey got (`step`) — drives the strip and the locks; only moves forward |
 | **at** | the page that was open last — what the project reopens on |
-| **hinge** | the act that shuts the steps before it: "გამოთვლის დაწყება" (`calculated`) in the calculator, the generation or an empty start (`generated`) in the studio |
+| **hinge** | the act that shuts the steps before it: "გამოთვლის დაწყება" (`calculated`) in the calculator, the generation or an empty start (`generated`) in the studio — the first two behind a warning and the half's fee (`HingeDialog`, §12) |
 | **entry** | `/calculator/<id>`, `/design/<id>`: works out where to open and redirects there |
 | **revision** | `calculator_rev` / `design_rev` on the row, one per half, +1 per write |
 | **base revision** | `baseRev` in a store: the row revision that copy was made from |
@@ -74,9 +74,11 @@ action anywhere can write one project's work over another's.**
 ## 4. The hubs (`components/projects/hub/`)
 
 `ProjectHub` is one server component for both products (`journey` prop), laid out as a file
-manager's "my files" is: a sidebar down the left (`HubSidebar`; a row of the same above the
-page below `lg`) with three lists — **the projects**, **the renders** (`?view=renders`) and
-**the orders** (`?view=orders`; `hubView` reads the parameter) — and beside it the product and
+manager's "my files" is: a sidebar down the left (`HubShell`; a row of the same above the
+page below `lg`) with four lists — **the projects**, **the renders** (`?view=renders`), **the
+orders** (`?view=orders`) and **the person's own 3D pieces** (`?view=models`, `HubModels`: the
+furniture they uploaded, as on the profile; `hubView` reads the parameter) — and beside it the
+product and
 the list as a breadcrumb title ("გამომთვლელი › ჩემი პროექტები"). The projects view, from the top:
 
 1. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
@@ -362,12 +364,15 @@ first too.
   to its entry. `OpenIn3dButton` and `CalculateCostsButton` are links now, not store operations.
 - **The profile (`app/(main)/profile/page.tsx`) is in the hubs' frame** (`HubShell`,
   `components/projects/hub/HubShell.tsx` — the sidebar, the breadcrumb title, `ProjectThumbnail`,
-  `RoundLink`, `CARD_FRAME`): the account at the head of the sidebar and four lists — every
-  project (`loadHubProjects`, whichever product; round links to both hubs, the three figures —
-  projects, m², the planned total — and the cards, each opening the project's page, its "…"
-  offering both halves), the renders (`HubRenders`), the orders by project (`HubOrders`) and the
-  furniture uploaded (`MyModels`, `?view=models`). The profile's layout sets no width: the
-  profile is full width, a project's page (`/profile/projects/[id]`) its own column.
+  `RoundLink`, `CARD_FRAME`): the account at the head of the sidebar (a link to its details)
+  and five lists — every project (`loadHubProjects`, whichever product; round links to both
+  hubs, the three figures — projects, m², the planned total — and the cards, each opening the
+  project's page, its "…" offering both halves), the renders (`HubRenders`), the orders by
+  project (`HubOrders`), the furniture uploaded (`HubModels`, `?view=models`) and the person's
+  own details (`?view=account`, `ProfileForm`: name, phone, default delivery address —
+  [auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)). The
+  profile's layout sets no width: the profile is full width, a project's page
+  (`/profile/projects/[id]`) its own column.
 - `GET /api/projects`, `GET /api/projects/[id]` and `GET /api/design/projects` read projects
   back (the caller's own).
 
@@ -423,6 +428,15 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 
 ## 12. Locks, and why there is no "start over"
 
+- **The hinge says so first, and takes the fee** (`components/flow/HingeDialog.tsx`). Both
+  "გამოთვლის დაწყება" and "დიზაინის გენერაცია" open it: the warning that the plan is settled
+  from here — what to check (the home's condition, the rooms, the walls, doors and windows, the
+  technical points) and that the steps before will be shut, a new project being the way to start
+  again — then the half's platform fee, the half saved first so it is charged on what is on
+  screen, paid with a test card (`POST /api/payments`,
+  [marketplace.md](marketplace.md#how-the-platform-earns-libfinance)); "paid", a moment, and
+  only then the hinge itself. A half already paid goes straight on. The page mounts the dialogue
+  only while it is open, so every press starts from the warning.
 - **Calculator.** "გამოთვლის დაწყება" on the plan step sets `calculated`, which shuts steps 1–2
   (padlocks in the strip — `StepStrip.lockedBefore`, tooltip `flow.lockedStepCalculator` — and
   `CalculatorFlowGuard` sends a typed URL onward). Redrawing the rooms or changing the home state
@@ -464,7 +478,7 @@ the mode (not preselected), the home state's three columns, the empty start, `?w
 A calculation and a 3D design of the same flat are one row — the project, made before either
 was started. Each half is saved by its own journey only (the design save no longer carries the
 calculator's picks); ordering does not fork a project either ([marketplace.md](marketplace.md):
-each half's fee is charged once, `mergeLines` unites the halves).
+each half's fee is paid once, before its hinge; `mergeLines` unites the halves at checkout).
 
 **Each half owns its shared columns.** Once the calculation exists it owns `homeState`, `rooms`
 and `totalM2`; the design writes them only in a project designed first, and writes `mode` unless

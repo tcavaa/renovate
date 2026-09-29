@@ -6,6 +6,7 @@ import {
   costLinesByStore,
   eachDay,
   effectiveCommissionPct,
+  feeAreaM2,
   labourLines,
   mergeLines,
   orderTotals,
@@ -293,5 +294,18 @@ describe('mergeLines', () => {
     const merged = mergeLines({ groups: new Map([[10, [line(1, 100)]]]), unassigned: [] }, { groups: new Map([[20, [line(2, 50)]]]), unassigned: [] });
     expect(merged.skipped).toBe(0);
     expect([...merged.groups.keys()]).toEqual([10, 20]);
+  });
+});
+
+describe('feeAreaM2', () => {
+  it('charges a calculation on its rooms’ floors and a design on its plan’s', () => {
+    expect(feeAreaM2('calculator', { rooms: [{ floorM2: 18.25 }, { floorM2: 12 }] })).toBe(30.25);
+    expect(feeAreaM2('calculator', { rooms: [] })).toBe(0);
+    expect(feeAreaM2('calculator', { rooms: null })).toBe(0);
+    const plan = { rooms: [{ areaM2: 20.5 }, { areaM2: 9.25 }] } as unknown as FloorPlan;
+    expect(feeAreaM2('design', { plan })).toBe(29.75);
+    expect(feeAreaM2('design', { plan: null })).toBe(0);
+    // The fee is that area at the rate: 30.25 m² × 2 ₾.
+    expect(platformFee(feeAreaM2('calculator', { rooms: [{ floorM2: 18.25 }, { floorM2: 12 }] }), 2)).toBe(60.5);
   });
 });

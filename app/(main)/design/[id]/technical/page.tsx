@@ -203,7 +203,7 @@ export default function TechnicalPage() {
 
         <div className="container pb-10 lg:contents">
           <PlanWorkspace
-            tools={['select', 'pan', 'technical']}
+            tools={['select', 'technical']}
             tool={tool}
             onTool={setTool}
             technicalKind={kind}

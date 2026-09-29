@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { priceScene } from '@/lib/design/pricing';
-import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { calculationInput, type SavedProjectInput } from '@/lib/projects/saved';
 
@@ -15,28 +14,27 @@ import { calculationInput, type SavedProjectInput } from '@/lib/projects/saved';
  * Orders a saved project from its page — no need to walk back through a summary. The
  * dialog is the same one the summaries open, built from the row as saved: the calculator's
  * picks when it has a calculation, the studio's products when it has a design. Whatever an
- * earlier sitting already charged or sent is shown as such and not repeated.
+ * earlier sitting already sent is shown as such and not repeated.
  */
 export function OrderProjectButton({ project, size = 'lg', className }: { project: SavedProjectInput; size?: 'sm' | 'lg'; className?: string }) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
-  const fees = usePlatformFees();
   const [open, setOpen] = useState(false);
 
   const parts = useMemo<CheckoutPart[]>(() => {
     const list: CheckoutPart[] = [];
     // A half left before it was calculated or generated is not something to order (`projectKind`).
     const calculation = project.hasCalculator && !project.calculatorPending ? calculationInput(project, { locale }) : null;
-    if (calculation) list.push(calculatorCheckoutPart(calculation, fees.calculatorFeePerM2, locale));
+    if (calculation) list.push(calculatorCheckoutPart(calculation, locale));
     if (project.hasDesign && !project.designPending && project.plan && project.scene) {
       // The row as saved, priced as the server will price it — its scene, its ticks, its
       // home state — so the dialogue lists the product lines the stores will be sent.
-      const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState ?? undefined, locale }), fees.designFeePerM2, locale);
+      const design = designCheckoutPart(project.plan, priceScene(project.plan, project.scene, { homeState: project.homeState ?? undefined, locale }), locale);
       if (design) list.push(design);
     }
     return list;
-  }, [project, fees.calculatorFeePerM2, fees.designFeePerM2, locale]);
+  }, [project, locale]);
 
   if (parts.length === 0) return null;
 

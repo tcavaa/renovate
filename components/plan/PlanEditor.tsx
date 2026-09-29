@@ -7,24 +7,28 @@
  * the run), rooms as rectangles, doors and windows dropped on the nearest wall, columns and
  * beams, technical and electrical points placed with a click. The select tool picks any of
  * them; a selected wall drags sideways and its ends drag as handles, a door slides along its
- * wall or onto another, points and columns move freely. Everything snaps (`lib/design/drawing`)
- * and every snap shows its guide. A piece of furniture picked off the studio's shelf rides on
- * the pointer (`carryingItemId`) the way it does in 3D — green where it fits, red where it
- * does not — and a click sets it down; the page's Escape gives it up.
+ * wall or onto another, points and columns move freely, a room drags the rooms joined to it.
+ * A drag from the empty sheet — or from anything that cannot move on this board, once the
+ * press has picked it — slides the view, as Space, the middle button and W/A/S/D do; there is
+ * no pan tool. Everything snaps (`lib/design/drawing`) and every snap shows its guide. A piece
+ * of furniture picked off the studio's shelf rides on the pointer (`carryingItemId`) the way it
+ * does in 3D — green where it fits, red where it does not — and a click sets it down; the
+ * page's Escape gives it up.
  *
  * The editor owns only the view (pan, zoom) and the gesture in progress; the plan itself is
  * the store's, edited through the callbacks. It redraws from the props on every change, so
  * the drawing can never disagree with the data.
  *
- * Shared by the design flow's steps 2 and 3, the studio's 2D view and the calculator's first
- * step, each with a different set of tools switched on.
+ * Shared by the design flow's steps 2 and 3, the studio's 2D view and the calculator's plan
+ * step, each with a different set of tools switched on, and — `readOnly` — by the project
+ * page's viewer.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type SnapGuide } from '@/lib/design/drawing';
+import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
 import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -36,10 +40,14 @@ import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMarquee, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
+import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
-export type EditorTool = 'select' | 'pan' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
+/**
+ * The tool in hand. `select` is every board's default and also what slides the view: a drag
+ * from the empty sheet, or from anything that cannot move on the board, pans.
+ */
+export type EditorTool = 'select' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
 
 export interface EditorLayers {
   rooms: boolean;
@@ -69,22 +77,31 @@ export interface PlanEditorProps {
   technicalKind?: TechnicalKind;
   electricalKind?: ElectricalKind;
   layers?: Partial<EditorLayers>;
-  /** Walls, doors, windows, columns and beams can be picked but not moved. */
+  /**
+   * The structure — walls, doors and windows, columns, rooms — can be picked but not moved: a
+   * drag from it slides the view.
+   */
   locked?: boolean;
+  /**
+   * A plan to look at, not to touch (the project page's viewer): nothing is hovered, picked or
+   * moved, and every drag slides the view.
+   */
+  readOnly?: boolean;
   /**
    * The estimate builds the partition walls (a black frame): the ones marked as already
    * standing (`Wall.built`) are drawn grey, out of the price.
    */
   builtWalls?: boolean;
   selection: ElementSelection;
+  /** The room picked out (one at a time: a click on a room, or on the empty sheet to let go of it). */
   selectedRoomId?: string | null;
-  /** Rooms picked out with a click or a rubber band; they drag together. */
-  selectedRoomIds?: string[];
   selectedItemId?: string | null;
   onSelect: (selection: ElementSelection) => void;
   onSelectRoom?: (roomId: string | null) => void;
-  onSelectRooms?: (roomIds: string[]) => void;
-  /** Rooms dragged bodily across the sheet; without it rooms are picked but never moved. */
+  /**
+   * Rooms dragged bodily across the sheet: the one grabbed and every room joined to it. Without
+   * it a room is picked, and a drag from it slides the view.
+   */
   onMoveRooms?: (roomIds: string[], delta: Vec2) => void;
   onSelectItem?: (itemId: string | null) => void;
   /**
@@ -233,10 +250,23 @@ const PAN_KEYS: Record<string, [number, number]> = {
   KeyD: [-1, 0],
   ArrowRight: [-1, 0],
 };
-const EMPTY_IDS: string[] = [];
 
 type Gesture =
-  | { kind: 'pan'; startX: number; startY: number; offsetX: number; offsetY: number }
+  | {
+      kind: 'pan';
+      startX: number;
+      startY: number;
+      offsetX: number;
+      offsetY: number;
+      /**
+       * The view follows the pointer: from the first pixel for a pan asked for (Space, the middle
+       * button, a board only looked at), past the drag threshold for one the select tool falls
+       * back on — until then the press may still be a click.
+       */
+      moved: boolean;
+      /** Pressed on the empty sheet: let go without moving, it was a click, and that clears the selection. */
+      onSheet: boolean;
+    }
   | { kind: 'rect'; start: Vec2; current: Vec2; roomId: string | null; /** Where a room rectangle will land after snapping onto neighbouring walls. */ snapped?: { x: number; z: number; width: number; depth: number }; /** It would be drawn over a room that is already there. */ overlaps?: boolean }
   | { kind: 'wall-drag'; wall: Wall; startWorld: Vec2; distance: number; moved: boolean; /** Shift held: the wall goes alone, what meets it stays. */ alone: boolean }
   | { kind: 'node-drag'; wallId: string; from: Vec2; to: Vec2; moved: boolean; /** Shift held: only this wall's end goes, the rest of the junction stays. */ alone: boolean }
@@ -244,11 +274,10 @@ type Gesture =
   | { kind: 'point-drag'; what: 'column' | 'technical' | 'electrical'; id: string; position: Vec2; moved: boolean }
   | { kind: 'item-drag'; item: PlacedItem; grab: Vec2; position: Vec2; roomId: string; valid: boolean; moved: boolean }
   | { kind: 'paint'; last: string }
-  | { kind: 'marquee'; start: Vec2; current: Vec2; additive: boolean }
   | { kind: 'divider-drag'; room: PlanRoom; split: RoomSplit; moved: boolean }
   | {
       kind: 'room-drag';
-      /** The rooms that travel: the ones grabbed and every room joined to them (`roomCluster`). */
+      /** The rooms that travel: the one grabbed and every room joined to it (`roomCluster`). */
       roomIds: string[];
       /** Their walls and everyone else's, worked out once when the drag began. */
       moving: Wall[];
@@ -261,7 +290,7 @@ type Gesture =
     };
 
 interface Hover {
-  kind: 'wall' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'item' | 'room' | 'node' | 'divider' | null;
+  kind: BoardTarget;
   id?: string;
   roomId?: string;
 }
@@ -277,10 +306,10 @@ export function PlanEditor(props: PlanEditorProps) {
     technicalKind = 'water_supply',
     electricalKind = 'socket',
     locked = false,
+    readOnly = false,
     builtWalls = false,
     selection,
     selectedRoomId = null,
-    selectedRoomIds = EMPTY_IDS,
     selectedItemId = null,
     selectedRoomPart = null,
     paintScope = null,
@@ -298,6 +327,8 @@ export function PlanEditor(props: PlanEditorProps) {
   const redraw = useCallback(() => bump((n) => n + 1), []);
   const gestureRef = useRef<Gesture | null>(null);
   const [gestureVersion, setGestureVersion] = useState(0);
+  /** The view is being slid by hand — the cursor closes on the sheet. */
+  const [grabbing, setGrabbing] = useState(false);
   const [hover, setHover] = useState<Hover>({ kind: null });
   const [pointerWorld, setPointerWorld] = useState<Vec2 | null>(null);
   const [guides, setGuides] = useState<SnapGuide[]>([]);
@@ -508,7 +539,6 @@ export function PlanEditor(props: PlanEditorProps) {
           // nothing then, so a swap that came back keeps its selection.
           callbacks.current.onSelect(null);
           callbacks.current.onSelectItem?.(null);
-          callbacks.current.onSelectRooms?.([]);
           callbacks.current.onEscape?.();
         }
       }
@@ -583,7 +613,7 @@ export function PlanEditor(props: PlanEditorProps) {
       for (const planRoom of plan.rooms) {
         // A studio whose line is being dragged is drawn where the line is now, areas and all.
         const room = gesture?.kind === 'divider-drag' && gesture.room.id === planRoom.id ? { ...planRoom, split: gesture.split } : planRoom;
-        const selected = room.id === selectedRoomId || selectedRoomIds.includes(room.id) || (selection?.kind === 'room' && selection.id === room.id);
+        const selected = room.id === selectedRoomId || (selection?.kind === 'room' && selection.id === room.id);
         drawRoom(ctx, tr, room, {
           selected,
           hovered: (hover.kind === 'room' || hover.kind === 'divider') && hover.id === room.id,
@@ -764,9 +794,8 @@ export function PlanEditor(props: PlanEditorProps) {
       const color = tool === 'column' ? EDITOR.column : tool === 'technical' ? TECHNICAL_COLOR[technicalKind] : ELECTRICAL_COLOR.socket;
       drawGhostPoint(ctx, tr, pointerWorld, color);
     }
-    // The rubber band, and the rooms it would take; a room being dragged as an outline at
-    // its new place, with how far it has travelled on a plate beside it.
-    if (gesture?.kind === 'marquee') drawMarquee(ctx, tr, normaliseRect(gesture.start, gesture.current));
+    // The rooms being dragged as outlines at their new place, with how far they have
+    // travelled on a plate beside the pointer.
     if (gesture?.kind === 'room-drag') {
       const tint = gesture.overlaps ? EDITOR.invalid : EDITOR.selected;
       for (const id of gesture.roomIds) {
@@ -784,7 +813,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
     // The sizes of the flat, chained along each side outside the walls.
     if (dimensionChains) drawOuterDimensions(ctx, tr, dimensionChains, t.units.m);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedRoomIds, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, builtWalls, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, builtWalls, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
 
   useEffect(() => {
     draw();
@@ -926,6 +955,21 @@ export function PlanEditor(props: PlanEditorProps) {
     return room ? { kind: 'room', id: room.id } : { kind: null };
   };
 
+  // What this board lets be moved, and whether a press on a hit takes hold of it — or only
+  // picks it, a drag from there sliding the view (`pressMoves`). The cursor asks the same.
+  const boardMoves: BoardMoves = { locked, roomsOnly, rooms: !!props.onMoveRooms, items: !!props.onMoveItem };
+  const movesOnPress = (hit: Hover): boolean => {
+    const own =
+      hit.kind === 'wall'
+        ? walls.find((w) => w.id === hit.id)?.locked
+        : hit.kind === 'opening'
+          ? plan.rooms.find((r) => r.id === hit.roomId)?.openings.find((o) => o.id === hit.id)?.locked
+          : hit.kind === 'item'
+            ? items.find((i) => i.id === hit.id)?.locked
+            : undefined;
+    return pressMoves({ kind: hit.kind, locked: own }, boardMoves);
+  };
+
   /** The wall (room edge) a door or window would land on. */
   const wallTargetFor = (world: Vec2, preferRoomId?: string | null): { room: PlanRoom; edge: PlanEdge } | null => {
     const inside = roomAt(world);
@@ -972,9 +1016,12 @@ export function PlanEditor(props: PlanEditorProps) {
     }
     const world = worldOf(e);
     const tr = transformRef.current;
-    const wantsPan = tool === 'pan' || e.button === 1 || spaceHeld.current;
+    // Space, the middle button, and any press on a board that is only looked at slide the view
+    // from the first pixel, whatever the tool.
+    const wantsPan = readOnly || e.button === 1 || spaceHeld.current;
     if (wantsPan) {
-      gestureRef.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY };
+      gestureRef.current = { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY, moved: true, onSheet: false };
+      setGrabbing(true);
       return;
     }
     if (e.button !== 0) return;
@@ -1085,78 +1132,63 @@ export function PlanEditor(props: PlanEditorProps) {
       }
       case 'select':
       default: {
+        // The press picks what it landed on, one thing at a time, and takes hold of it when it
+        // can move on this board (`pressMoves`).
         const hit = hitTest(world);
+        const moves = movesOnPress(hit);
+        let gesture: Gesture | null = null;
         if (hit.kind === 'node' && selection?.kind === 'wall') {
           const wall = walls.find((w) => w.id === selection.id)!;
           const from = Math.hypot(wall.a.x - world.x, wall.a.z - world.z) <= Math.hypot(wall.b.x - world.x, wall.b.z - world.z) ? wall.a : wall.b;
-          gestureRef.current = { kind: 'node-drag', wallId: wall.id, from, to: from, moved: false, alone: shiftHeld.current };
+          gesture = { kind: 'node-drag', wallId: wall.id, from, to: from, moved: false, alone: shiftHeld.current };
         } else if (hit.kind === 'wall') {
           callbacks.current.onSelect({ kind: 'wall', id: hit.id! });
           const wall = walls.find((w) => w.id === hit.id)!;
-          if (!locked && !wall.locked) gestureRef.current = { kind: 'wall-drag', wall, startWorld: world, distance: 0, moved: false, alone: shiftHeld.current };
+          if (moves) gesture = { kind: 'wall-drag', wall, startWorld: world, distance: 0, moved: false, alone: shiftHeld.current };
         } else if (hit.kind === 'opening') {
           const o = openingAt(world)!;
           callbacks.current.onSelect({ kind: 'opening', id: o.opening.id, roomId: o.room.id });
-          if (!locked && !o.opening.locked) gestureRef.current = { kind: 'opening-drag', room: o.room, opening: o.opening, edge: o.edge, target: { room: o.room, edge: o.edge, t: o.opening.t }, moved: false };
+          if (moves) gesture = { kind: 'opening-drag', room: o.room, opening: o.opening, edge: o.edge, target: { room: o.room, edge: o.edge, t: o.opening.t }, moved: false };
         } else if (hit.kind === 'column' || hit.kind === 'technical' || hit.kind === 'electrical') {
           callbacks.current.onSelect({ kind: hit.kind, id: hit.id! });
-          const movable = hit.kind !== 'column' || !locked;
           const position = hit.kind === 'column' ? columns.find((c) => c.id === hit.id)!.position : hit.kind === 'technical' ? technical.find((p) => p.id === hit.id)!.position : electrical.find((p) => p.id === hit.id)!.position;
-          if (movable) gestureRef.current = { kind: 'point-drag', what: hit.kind, id: hit.id!, position, moved: false };
+          if (moves) gesture = { kind: 'point-drag', what: hit.kind, id: hit.id!, position, moved: false };
         } else if (hit.kind === 'beam') {
           callbacks.current.onSelect({ kind: 'beam', id: hit.id! });
         } else if (hit.kind === 'item') {
           const item = items.find((i) => i.id === hit.id)!;
           callbacks.current.onSelectItem?.(item.id);
           callbacks.current.onSelect(null);
-          if (!item.locked && callbacks.current.onMoveItem) {
-            gestureRef.current = { kind: 'item-drag', item, grab: { x: item.position.x - world.x, z: item.position.z - world.z }, position: item.position, roomId: item.roomId, valid: true, moved: false };
-          }
+          if (moves) gesture = { kind: 'item-drag', item, grab: { x: item.position.x - world.x, z: item.position.z - world.z }, position: item.position, roomId: item.roomId, valid: true, moved: false };
         } else if (hit.kind === 'zone') {
           callbacks.current.onSelect({ kind: 'zone', id: hit.id!, roomId: hit.roomId! });
         } else if (hit.kind === 'divider') {
           const room = plan.rooms.find((r) => r.id === hit.id)!;
-          callbacks.current.onSelectRooms?.([room.id]);
           callbacks.current.onSelect({ kind: 'room', id: room.id });
           callbacks.current.onSelectRoom?.(room.id);
           callbacks.current.onSelectRoomPart?.(room.id, null);
-          gestureRef.current = { kind: 'divider-drag', room, split: effectiveSplit(room), moved: false };
+          gesture = { kind: 'divider-drag', room, split: effectiveSplit(room), moved: false };
         } else if (hit.kind === 'room') {
           const id = hit.id!;
-          // Shift adds to or takes out of the selection, like a desktop; a plain click on a
-          // room already in it keeps the whole group, so several rooms drag together.
-          const group = e.shiftKey
-            ? selectedRoomIds.includes(id)
-              ? selectedRoomIds.filter((r) => r !== id)
-              : [...selectedRoomIds, id]
-            : selectedRoomIds.includes(id)
-              ? selectedRoomIds
-              : [id];
-          callbacks.current.onSelectRooms?.(group);
           callbacks.current.onSelect({ kind: 'room', id });
           callbacks.current.onSelectRoom?.(id);
           // A click in one half of a studio picks that half out, for its type.
           const clicked = plan.rooms.find((r) => r.id === id);
           callbacks.current.onSelectRoomPart?.(id, clicked && isStudio(clicked) ? partAt(clicked, world) : null);
-          if (!locked && !roomsOnly && callbacks.current.onMoveRooms && group.includes(id)) {
+          if (moves) {
             // Rooms with a wall in common are one body: the drag takes every room joined to
-            // the ones grabbed, and nothing is ever pulled apart. The selection stays what
-            // was clicked — Delete must not take the flat with the room.
-            const move = wallsForMove(plan, group);
-            gestureRef.current = { kind: 'room-drag', roomIds: move.roomIds, moving: move.moving, staying: move.staying, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
+            // the one grabbed, and nothing is ever pulled apart. The selection stays the room
+            // clicked — Delete must not take the flat with it.
+            const move = wallsForMove(plan, [id]);
+            gesture = { kind: 'room-drag', roomIds: move.roomIds, moving: move.moving, staying: move.staying, startWorld: world, delta: { x: 0, z: 0 }, moved: false, overlaps: false };
           }
-        } else {
-          // Empty sheet: a rubber band across the rooms, not a pan. Panning is still space,
-          // the middle button and the hand tool.
-          if (!e.shiftKey) {
-            callbacks.current.onSelect(null);
-            callbacks.current.onSelectRoom?.(null);
-            callbacks.current.onSelectItem?.(null);
-          }
-          gestureRef.current = callbacks.current.onSelectRooms
-            ? { kind: 'marquee', start: world, current: world, additive: e.shiftKey }
-            : { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY };
         }
+        // The empty sheet, and whatever this board does not let move, slide the view instead —
+        // once the pointer has travelled: a press let go where it went down is a click, and a
+        // click on the empty sheet lets go of the selection (`onPointerUp`).
+        const onSheet = hit.kind === null;
+        gestureRef.current = gesture ?? { kind: 'pan', startX: e.clientX, startY: e.clientY, offsetX: tr.offsetX, offsetY: tr.offsetY, moved: false, onSheet };
+        if (!gesture && onSheet) setGrabbing(true);
         setGestureVersion((v) => v + 1);
       }
     }
@@ -1170,7 +1202,16 @@ export function PlanEditor(props: PlanEditorProps) {
     if (gesture) {
       switch (gesture.kind) {
         case 'pan': {
-          transformRef.current = { ...transformRef.current, offsetX: gesture.offsetX + (e.clientX - gesture.startX), offsetY: gesture.offsetY + (e.clientY - gesture.startY) };
+          const dx = e.clientX - gesture.startX;
+          const dy = e.clientY - gesture.startY;
+          // A press the select tool turned into a pan is still a click until the pointer has
+          // travelled; the view stays put until then.
+          if (!gesture.moved) {
+            if (Math.hypot(dx, dy) <= DRAG_THRESHOLD_PX) return;
+            gesture.moved = true;
+            setGrabbing(true);
+          }
+          transformRef.current = { ...transformRef.current, offsetX: gesture.offsetX + dx, offsetY: gesture.offsetY + dy };
           userAdjusted.current = true;
           redraw();
           return;
@@ -1262,11 +1303,6 @@ export function PlanEditor(props: PlanEditorProps) {
           }
           return;
         }
-        case 'marquee': {
-          gesture.current = world;
-          setGestureVersion((v) => v + 1);
-          return;
-        }
         case 'room-drag': {
           // A wall of the travellers that comes near a wall staying behind lands exactly on
           // its line, so two rooms pushed together have one wall between them; the guides
@@ -1326,7 +1362,8 @@ export function PlanEditor(props: PlanEditorProps) {
       setGhostOpening({ room: target.room, edge: target.edge, t: projectToEdge(target.edge, world, widthM), widthM, kind: tool, openingId: null, faded: false });
       return;
     }
-    if (tool === 'select') {
+    // A board only looked at hovers nothing: nothing on it answers the pointer.
+    if (tool === 'select' && !readOnly) {
       const hit = hitTest(world);
       if (hit.kind !== hover.kind || hit.id !== hover.id) setHover(hit);
     }
@@ -1336,9 +1373,10 @@ export function PlanEditor(props: PlanEditorProps) {
     const gesture = gestureRef.current;
     gestureRef.current = null;
     setGuides([]);
+    setGrabbing(false);
     if (!gesture) return;
     const world = worldOf(e);
-    if (gesture.kind !== 'pan' && gesture.kind !== 'marquee') edited.current = true;
+    if (gesture.kind !== 'pan') edited.current = true;
     switch (gesture.kind) {
       case 'rect': {
         const rect = normaliseRect(gesture.start, gesture.current);
@@ -1388,13 +1426,6 @@ export function PlanEditor(props: PlanEditorProps) {
       case 'item-drag':
         if (gesture.moved && gesture.valid) callbacks.current.onMoveItem?.(gesture.item.id, gesture.position, gesture.item.rotation, gesture.roomId);
         break;
-      case 'marquee': {
-        const rect = normaliseRect(gesture.start, gesture.current);
-        // A click that never moved clears the selection; a band takes every room it touches.
-        const inside = rect.width < 0.05 && rect.depth < 0.05 ? [] : plan.rooms.filter((r) => r.polygon.some((p) => p.x >= rect.x && p.x <= rect.x + rect.width && p.z >= rect.z && p.z <= rect.z + rect.depth)).map((r) => r.id);
-        callbacks.current.onSelectRooms?.(gesture.additive ? [...new Set([...selectedRoomIds, ...inside])] : inside);
-        break;
-      }
       case 'divider-drag':
         if (gesture.moved) callbacks.current.onSplitRoom?.(gesture.room.id, gesture.split);
         break;
@@ -1406,6 +1437,13 @@ export function PlanEditor(props: PlanEditorProps) {
         }
         break;
       case 'pan':
+        // A press on the empty sheet let go where it went down was a click: it lets go of the selection.
+        if (gesture.onSheet && !gesture.moved) {
+          callbacks.current.onSelect(null);
+          callbacks.current.onSelectRoom?.(null);
+          callbacks.current.onSelectItem?.(null);
+        }
+        break;
       case 'paint':
         break;
     }
@@ -1422,8 +1460,35 @@ export function PlanEditor(props: PlanEditorProps) {
 
   const dividerRoom = hover.kind === 'divider' ? plan.rooms.find((r) => r.id === hover.id) : undefined;
   const dividerAxis = dividerRoom ? effectiveSplit(dividerRoom).axis : null;
-  const cursor =
-    gestureRef.current?.kind === 'divider-drag' ? (gestureRef.current.split.axis === 'x' ? 'col-resize' : 'row-resize') : dividerAxis ? (dividerAxis === 'x' ? 'col-resize' : 'row-resize') : carried ? 'grabbing' : tool === 'pan' ? 'grab' : tool === 'select' ? (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical' ? (locked && (hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'column') ? 'pointer' : 'move') : hover.kind === 'node' ? 'crosshair' : 'default') : 'crosshair';
+  // The select tool says what a press would do: slide the view over the empty sheet, move what
+  // moves, only pick what this board keeps still. A board only looked at is all sheet.
+  const selectCursor =
+    hover.kind === null
+      ? 'grab'
+      : hover.kind === 'node'
+        ? 'crosshair'
+        : hover.kind === 'wall' || hover.kind === 'opening' || hover.kind === 'item' || hover.kind === 'column' || hover.kind === 'technical' || hover.kind === 'electrical'
+          ? movesOnPress(hover)
+            ? 'move'
+            : 'pointer'
+          : 'default';
+  const cursor = grabbing
+    ? 'grabbing'
+    : gestureRef.current?.kind === 'divider-drag'
+      ? gestureRef.current.split.axis === 'x'
+        ? 'col-resize'
+        : 'row-resize'
+      : dividerAxis
+        ? dividerAxis === 'x'
+          ? 'col-resize'
+          : 'row-resize'
+        : carried
+          ? 'grabbing'
+          : readOnly
+            ? 'grab'
+            : tool === 'select'
+              ? selectCursor
+              : 'crosshair';
 
   return (
     <canvas

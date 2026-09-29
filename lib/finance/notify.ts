@@ -4,19 +4,15 @@ import { log } from '@/lib/log';
 import { formatGEL } from '@/lib/utils';
 import { ka } from '@/lib/i18n/ka';
 import type { OrderLineDraft } from './money';
+import { formatAddress, type CustomerContact } from '@/lib/account/contact';
+
+export type { CustomerContact };
 
 /**
  * The mails the marketplace sends. Plain text, Georgian, and never fatal: an order that was
  * written but not announced is a logged problem, an order lost because SMTP was down would
  * be a much worse one. With `MAIL_DRIVER=log` (development) the text lands in the app log.
  */
-export interface CustomerContact {
-  name: string;
-  phone: string;
-  email: string | null;
-  note: string | null;
-}
-
 function linesText(lines: Array<Pick<OrderLineDraft, 'nameKa' | 'qty' | 'unit' | 'total' | 'roomName'>>): string {
   return lines
     .map((l) => `  • ${l.nameKa}${l.roomName ? ` (${l.roomName})` : ''} — ${l.qty} ${l.unit} — ${formatGEL(l.total)}`)
@@ -45,6 +41,7 @@ export async function notifyPartnerNewOrder(args: {
     `მომხმარებელი: ${args.customer.name}`,
     `ტელეფონი: ${args.customer.phone}`,
     args.customer.email ? `ელ-ფოსტა: ${args.customer.email}` : null,
+    args.customer.address ? `მისამართი: ${formatAddress(args.customer.address)}` : null,
     args.customer.note ? `შენიშვნა: ${args.customer.note}` : null,
     '',
     args.lines.length ? 'პოზიციები:' : 'პოზიციები დასაზუსტებელია.',
@@ -66,7 +63,6 @@ export async function notifyPartnerNewOrder(args: {
 export async function notifyCustomerCheckout(args: {
   customer: CustomerContact;
   checkoutId: number;
-  platformFee: number;
   orders: Array<{ id: number; partnerName: string; subtotal: number; deliveryFee: number }>;
 }): Promise<void> {
   if (!args.customer.email) return;
@@ -75,11 +71,13 @@ export async function notifyCustomerCheckout(args: {
     '',
     ...args.orders.map((o) => `  • ${o.partnerName} — ${formatGEL(o.subtotal)}${o.deliveryFee > 0 ? ` (+ მიწოდება ${formatGEL(o.deliveryFee)})` : ''} — შეკვეთა #${o.id}`),
     '',
-    `პლატფორმის მომსახურება: ${formatGEL(args.platformFee)}`,
+    args.customer.address ? `მიწოდების მისამართი: ${formatAddress(args.customer.address)}` : null,
     '',
     'ჩვენი მენეჯერი დაგიკავშირდებათ თითოეული მაღაზიის შეკვეთის დასაზუსტებლად — დადასტურების შემდეგ შეკვეთა მაღაზიას გაეგზავნება.',
-    `შეკვეთების სტატუსი: ${env.NEXT_PUBLIC_APP_URL}/profile`,
-  ].join('\n');
+    `შეკვეთების სტატუსი: ${env.NEXT_PUBLIC_APP_URL}/profile?view=orders`,
+  ]
+    .filter((line): line is string => line != null)
+    .join('\n');
   try {
     await sendMail({ to: args.customer.email, subject: `შეკვეთა #${args.checkoutId} მიღებულია — რემონტი.ge`, text });
   } catch (e) {

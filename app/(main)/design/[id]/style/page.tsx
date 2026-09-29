@@ -14,6 +14,7 @@ import { StepHeader, SectionHead } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
+import { HingeDialog } from '@/components/flow/HingeDialog';
 import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
@@ -22,11 +23,14 @@ import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
 import { designStepHref, designStepPosition, previousStepHref } from '@/lib/design/steps';
+import { saveDesign } from '@/lib/design/saveDesign';
+import { feeAreaM2 } from '@/lib/finance/money';
 
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
- * a direct pick, and an optional furniture budget. "Generate" lays the flat out and opens
- * the studio.
+ * a direct pick, and an optional furniture budget. "Generate" warns that the plan is settled
+ * from here and takes the platform's fee for the design (`HingeDialog`: a test card for now),
+ * then lays the flat out and opens the studio.
  */
 export default function StylePage() {
   const t = useT();
@@ -36,6 +40,8 @@ export default function StylePage() {
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
+  /** The warning and the fee before the generation (`HingeDialog`). */
+  const [hinge, setHinge] = useState(false);
 
   if (!plan || plan.rooms.length === 0) {
     return (
@@ -46,7 +52,9 @@ export default function StylePage() {
     );
   }
 
-  const handleGenerate = async () => {
+  /** Paid: the flat is laid out in the style chosen, and the studio opens. */
+  const generateNow = async () => {
+    setHinge(false);
     setGenerating(true);
     const budget = budgetInput ? Number(budgetInput) : null;
     setBudget(Number.isFinite(budget as number) ? budget : null, products);
@@ -125,12 +133,15 @@ export default function StylePage() {
         back={{ href: previousStepHref(projectId, 4, homeState, mode), label: t.calculator.backButton }}
         next={{
           label: generating ? t.design.generating : t.design.generate,
-          onClick: handleGenerate,
+          onClick: () => setHinge(true),
           disabled: loading || products.length === 0,
           loading: generating || loading,
           icon: <Sparkles className="h-4 w-4" />,
         }}
       />
+      {hinge && (
+        <HingeDialog open onOpenChange={setHinge} kind="design" projectId={projectId} areaM2={feeAreaM2('design', { plan })} save={() => saveDesign({ draft: true })} onPaid={generateNow} />
+      )}
       <GenerationOverlay open={generating} onDone={() => router.push(designStepHref(projectId, 5))} />
     </>
   );

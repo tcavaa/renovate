@@ -1,10 +1,12 @@
 import Link from 'next/link';
-import { desc, eq } from 'drizzle-orm';
-import { Box, Calculator, FolderOpen, Images, Package, Shapes } from 'lucide-react';
+import { eq } from 'drizzle-orm';
+import { Box, Calculator, FolderOpen, Images, Package, Shapes, UserRound } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
-import { products, users } from '@/lib/db/schema';
-import { MyModels } from '@/components/profile/MyModels';
+import { users } from '@/lib/db/schema';
+import { HubModels } from '@/components/projects/hub/HubModels';
+import { ProfileForm } from '@/components/profile/ProfileForm';
+import { loadAccountContact } from '@/lib/account/server';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { CARD_FRAME, HubShell, ProjectThumbnail, RoundLink } from '@/components/projects/hub/HubShell';
 import { HubDate } from '@/components/projects/hub/HubDate';
@@ -22,17 +24,18 @@ import type { Dictionary } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
-type ProfileView = 'projects' | 'renders' | 'orders' | 'models';
+type ProfileView = 'projects' | 'renders' | 'orders' | 'models' | 'account';
 
 function profileView(value: string | undefined): ProfileView {
-  return value === 'renders' || value === 'orders' || value === 'models' ? value : 'projects';
+  return value === 'renders' || value === 'orders' || value === 'models' || value === 'account' ? value : 'projects';
 }
 
 /**
  * The person's own page, in the hubs' frame (`HubShell`): the account at the head of a sidebar
  * of four lists — every project, whichever product it is in; every render; every order, grouped
- * by project; the furniture they uploaded — and, on the projects, the way into each product and
- * what their projects come to. A card opens the project's page.
+ * by project; the furniture they uploaded — and their own details (`?view=account`: name,
+ * phone, default delivery address — what a checkout does not ask again). On the projects, the
+ * way into each product and what their projects come to; a card opens the project's page.
  */
 export default async function ProfilePage(props: { searchParams: Promise<{ verified?: string; view?: string }> }) {
   const searchParams = await props.searchParams;
@@ -49,17 +52,18 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
     .limit(1);
   const needsVerification = !!account && !account.emailVerifiedAt && !!account.hasPassword;
 
-  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : view === 'models' ? t.profile.myModels : t.nav.projects;
+  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : view === 'models' ? t.profile.myModels : view === 'account' ? t.profile.accountTitle : t.nav.projects;
 
   return (
     <HubShell
       label={t.nav.profile}
-      account={{ name: session!.user.name ?? t.nav.user, email: session!.user.email ?? null }}
+      account={{ name: session!.user.name ?? t.nav.user, email: session!.user.email ?? null, href: '/profile?view=account' }}
       items={[
         { href: '/profile', label: t.nav.projects, icon: FolderOpen, active: view === 'projects' },
         { href: '/profile?view=renders', label: t.hub.navRenders, icon: Images, active: view === 'renders' },
         { href: '/profile?view=orders', label: t.hub.navOrders, icon: Package, active: view === 'orders' },
         { href: '/profile?view=models', label: t.profile.myModels, icon: Shapes, active: view === 'models' },
+        { href: '/profile?view=account', label: t.profile.accountTitle, icon: UserRound, active: view === 'account' },
       ]}
       crumb={{ label: t.nav.profile, href: '/profile' }}
       title={title}
@@ -73,7 +77,9 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
       ) : view === 'orders' ? (
         <HubOrders userId={userId} t={t} locale={locale} />
       ) : view === 'models' ? (
-        <OwnModels userId={userId} />
+        <HubModels userId={userId} />
+      ) : view === 'account' ? (
+        <AccountDetails userId={userId} />
       ) : (
         <ProfileProjects userId={userId} t={t} />
       )}
@@ -174,12 +180,8 @@ function ProfileProjectCard({ project: p, t }: { project: HubProject; t: Diction
   );
 }
 
-/** The furniture the person uploaded themselves. */
-async function OwnModels({ userId }: { userId: number }) {
-  const models = await db
-    .select({ id: products.id, name: products.nameKa, kind: products.model3dKind, imageUrl: products.imageUrl, status: products.model3dStatus })
-    .from(products)
-    .where(eq(products.ownerUserId, userId))
-    .orderBy(desc(products.id));
-  return <MyModels models={models} heading={false} />;
+/** The person's own details: the form that edits them. */
+async function AccountDetails({ userId }: { userId: number }) {
+  const contact = await loadAccountContact(userId);
+  return contact ? <ProfileForm initial={contact} /> : null;
 }

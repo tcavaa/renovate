@@ -9,7 +9,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.hub.calculatorEyebrow, description: t.hub.calculatorLead };
 }
 
-/** The calculator's hub: the person's calculations and the way into a new one — or their renders and orders (`?view=`). */
+/** The calculator's hub: the person's calculations and the way into a new one — or their renders, orders and own 3D pieces (`?view=`). */
 export default async function CalculatorHubPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view } = await searchParams;
   return <ProjectHub journey="calculator" view={hubView(view)} />;

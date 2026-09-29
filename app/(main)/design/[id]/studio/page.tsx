@@ -79,13 +79,14 @@ const CATEGORY_MODE: Record<StudioCategory, EditMode> = { build: 'build', furnit
  */
 const CLICK_SLOP_PX = 5;
 
+/** The board's tools in each category (the select tool also slides the view: a drag from the empty sheet pans). */
 const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
-  build: ['select', 'pan', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam'],
-  furniture: ['select', 'pan'],
-  electric: ['select', 'pan', 'electrical'],
-  technical: ['select', 'pan', 'technical'],
-  finishes: ['select', 'pan', 'paint'],
-  budget: ['select', 'pan'],
+  build: ['select', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam'],
+  furniture: ['select'],
+  electric: ['select', 'electrical'],
+  technical: ['select', 'technical'],
+  finishes: ['select', 'paint'],
+  budget: ['select'],
 };
 
 /**
@@ -582,7 +583,7 @@ export default function StudioPage() {
   /** A build tool that draws needs the 2D board; the studio switches for it. */
   const pickBuildTool = (tool: EditorTool) => {
     setBuildTool(tool);
-    if (tool !== 'select' && tool !== 'pan' && view !== '2d') setView('2d');
+    if (tool !== 'select' && view !== '2d') setView('2d');
   };
 
   const endDragCarry = () => {

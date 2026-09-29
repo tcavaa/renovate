@@ -19,9 +19,9 @@ import { basketLabels, localizedName, styleLabel, unitLabel } from '@/lib/i18n/l
 import { archetypeLabel } from '@/lib/design/catalog';
 import { budgetSummary, priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
-import { usePlatformFees } from '@/hooks/usePlatformFees';
-import { platformFee } from '@/lib/finance/money';
+import { useProjectPayments } from '@/hooks/useProjectPayments';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
+import { FeePaidNote } from '@/components/checkout/FeePaidNote';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { fill } from '@/lib/admin/list';
 import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
@@ -38,7 +38,8 @@ import type { FloorPlan } from '@/lib/design/types';
  * Step 7: the budget. Materials + products + labour = the estimated project cost, every line
  * with its quantity and price, grouped the way a builder would read it — finishes with their
  * m², doors and windows, furniture, lighting, sockets, pipes, heating, the bulk materials,
- * the labour — then the baskets per partner store and the platform's fee.
+ * the labour — then the baskets per partner store, and the platform's fee as paid before the
+ * generation (`FeePaidNote`, not part of the total).
  */
 export default function BudgetPage() {
   const t = useT();
@@ -54,7 +55,8 @@ export default function BudgetPage() {
   const [error, setError] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const fees = usePlatformFees();
+  // The platform's fee was paid before the generation: a line of its own, not in the total.
+  const paid = useProjectPayments(projectId);
 
   const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities]);
   const { book } = useRateBook();
@@ -109,10 +111,9 @@ export default function BudgetPage() {
 
   const style = getStyle(styleId);
   const areaM2 = totalFloorAreaM2(plan);
-  const fee = platformFee(areaM2, fees.designFeePerM2);
   // From the budget on this page, not from the scene: the dialogue lists the product lines
   // above that are still ticked — doors, fittings and radiators with the rest.
-  const designPart = designCheckoutPart(plan, cost, fees.designFeePerM2, locale);
+  const designPart = designCheckoutPart(plan, cost, locale);
   // The calculation's half when this project has one that has been worked out — with the
   // edits made on its own summary, as that summary passes them, so the dialogue lists what the
   // stores will be sent for it.
@@ -130,7 +131,6 @@ export default function BudgetPage() {
               electrical: project.snapshot.calculatorBoard?.electrical ?? [],
               edits: { excluded: calculator.excluded, quantities: calculator.quantities, choices: calculator.choices },
             },
-            fees.calculatorFeePerM2,
             locale
           ),
         ]
@@ -291,20 +291,11 @@ export default function BudgetPage() {
                     </div>
                   </div>
                 )}
-                <div className="mt-3 space-y-1.5 border-t border-line pt-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span>
-                      {t.market.feeDesign}
-                      <span className="block text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(fees.designFeePerM2), m2: formatM2(areaM2) })}</span>
-                    </span>
-                    <span className="shrink-0 font-medium tabular-nums">{formatGEL(fee)}</span>
+                {paid.design && (
+                  <div className="mt-3 border-t border-line pt-3">
+                    <FeePaidNote kind="design" payment={paid.design} />
                   </div>
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
-                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal + fee)}</span>
-                  </div>
-                  <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
-                </div>
+                )}
               </div>
             </div>
 
@@ -349,7 +340,7 @@ export default function BudgetPage() {
         next={{ label: t.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal + fee)}</span>
+          {cost.contingencyTotal > 0 ? t.summary.grandTotalWithMargin : t.design.grandTotal} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
         </p>
       </StepNav>
 

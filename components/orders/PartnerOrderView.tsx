@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowUpRight, Check, Loader2, Lock, Phone, Play, Save, X } from 'lucide-react';
+import { ArrowUpRight, Check, Loader2, Lock, MapPin, Phone, Play, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
@@ -79,6 +79,15 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
               </a>
             )}
           </p>
+          {order.deliveryAddress && (
+            <p className="mt-2 flex items-start gap-1.5 text-sm text-ink">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden />
+              <span>
+                <span className="sr-only">{t.contact.deliverTo}: </span>
+                {order.deliveryAddress}
+              </span>
+            </p>
+          )}
           {order.customerNote && (
             <div className="mt-4 border-l-2 border-ink pl-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>

@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react';
 import { CheckCircle2, Hammer, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CustomerFields, type CustomerForm } from '@/components/checkout/CustomerFields';
+import { ContactFields, contactBody, newContactForm, type ContactForm } from '@/components/checkout/ContactFields';
+import { useAccountContact } from '@/hooks/useAccountContact';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -29,7 +30,9 @@ export interface BookingProject {
 }
 
 /**
- * "Send them the job": contact details and the project whose work it is. One trade
+ * "Send them the job": contact details and the project whose work it is. A signed-in person
+ * is not asked their name or e-mail, nor the phone and the address their profile holds — the
+ * address is where the work is (`ContactFields`); a guest types a name and a phone. One trade
  * (`workerId`) or a whole brigade (`teamId`) — a team's booking carries every trade's lines,
  * because a team is hired to do the lot. The partner gets the mail and the order in their
  * own account, where they accept it; the platform gets its commission line.
@@ -42,11 +45,14 @@ export interface BookingProject {
  */
 export function BookingDialog({ workerId, teamId, workerName, label, project, onBooked, disabled, variant = 'outline' }: { workerId?: number; teamId?: number; workerName: string; label?: string; project?: BookingProject; onBooked?: (orderId: number) => void; disabled?: boolean; variant?: 'outline' | 'ink' }) {
   const t = useT();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<CustomerForm | null>(null);
-  // Until the customer types, the form shows what the session knows — no effect needed.
-  const value: CustomerForm = form ?? { name: session?.user?.name ?? '', phone: '', email: session?.user?.email ?? '', note: '' };
+  const signedIn = status === 'authenticated';
+  const { account, ready } = useAccountContact(open && signedIn);
+  const contact = signedIn ? account : null;
+  const [form, setForm] = useState<ContactForm | null>(null);
+  // Until the customer types, the form is the account's fresh one — no effect needed.
+  const value: ContactForm = form ?? newContactForm(contact);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -79,7 +85,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
       const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(teamId ? { teamId } : { workerId }), projectId: attached, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
+        body: JSON.stringify({ ...(teamId ? { teamId } : { workerId }), projectId: attached, customer: contactBody(value, contact, { address: true }) }),
       });
       const json = (await res.json()) as { data: { orderId: number } | null; error: string | null };
       if (!res.ok || !json.data) {
@@ -111,7 +117,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
           if (!next && doneId != null) onBooked?.(doneId);
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto">
           {doneId != null ? (
             <>
               <DialogHeader>
@@ -163,9 +169,13 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
                 {selected && selected.totalWorkersCost && <span className="block text-xs text-ink-muted">{t.summary.workers}: {formatGEL(Number(selected.totalWorkersCost))}</span>}
               </label>
               )}
-              <CustomerFields value={value} onChange={setForm} />
+              {signedIn && !ready ? (
+                <div className="h-24 animate-pulse border border-line bg-bg-base" aria-busy />
+              ) : (
+                <ContactFields account={contact} value={value} onChange={setForm} noteLabel={t.market.bookNote} notePlaceholder={t.market.bookNotePlaceholder} />
+              )}
               {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
-              <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting}>
+              <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || (signedIn && !ready)}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {submitting ? t.market.submitting : t.market.bookSubmit}
               </Button>
