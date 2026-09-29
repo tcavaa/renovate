@@ -72,6 +72,8 @@ runtime yet.
 - **Accounts**: no password-reset link sent from the account page, no audit trail of account
   changes in the database, brigades cannot register or change their crew
   ([auth-and-roles.md](auth-and-roles.md#known-gaps), [partners-and-admin.md](partners-and-admin.md#known-gaps)).
+- **Russian**: hidden from the site for now (`OFFERED_LOCALES`, [architecture.md](architecture.md#i18n));
+  its dictionary and the catalogue's Russian names are kept, ready to be offered again.
 - No SMS notifications; admin has no bulk product import; files uploaded in a form that is
   never saved stay in storage ([catalog.md](catalog.md#known-gaps)).
 - **Categories**: no drag-and-drop on the tree page (a category moves through its form); a

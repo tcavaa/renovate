@@ -1,10 +1,10 @@
 'use client';
 
 import { useLocale, useSetLocale } from '@/lib/i18n/client';
-import { LOCALES, LOCALE_LABELS, type Locale } from '@/lib/i18n';
+import { LOCALE_LABELS, OFFERED_LOCALES, type Locale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-/** Three short language marks in a row — ქა · RU · EN — the current one in ink. */
+/** A short mark per language the site offers (`OFFERED_LOCALES`: ქა · EN while Russian is hidden), in a row, the current one in ink. */
 const MARKS: Record<Locale, string> = { ka: 'ქა', en: 'EN', ru: 'RU' };
 
 export function LanguageSwitcher({ variant = 'desktop', tone = 'light' }: { variant?: 'desktop' | 'mobile'; tone?: 'light' | 'dark' }) {
@@ -14,7 +14,7 @@ export function LanguageSwitcher({ variant = 'desktop', tone = 'light' }: { vari
 
   return (
     <div className={cn('flex items-center', variant === 'mobile' ? 'gap-5' : 'gap-3')} role="group" aria-label="Language">
-      {LOCALES.map((l) => {
+      {OFFERED_LOCALES.map((l) => {
         const active = l === locale;
         return (
           <button

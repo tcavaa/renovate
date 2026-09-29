@@ -188,6 +188,11 @@ playwright.config.ts drizzle.config.ts vercel.json ecosystem.config.cjs server.c
 - Three locales: `ka` (primary, default), `en`, `ru` (`lib/i18n/index.ts`). The locale is a
   cookie (`LOCALE_COOKIE`); `getLocale()` / `getT()` in `lib/i18n/server.ts` are async (Next 16
   request APIs).
+- **The site offers `ka` and `en` only for now** (`OFFERED_LOCALES`): the language switcher
+  (`components/layout/LanguageSwitcher.tsx` — header, sign-in pages, admin and partner sidebars)
+  lists those, and `getLocale()` treats a cookie naming any other (`ru` from before) as the
+  default. Russian is kept up to date all the same — `ru.ts` still has to match `Dictionary`,
+  and the catalogue keeps its Russian names — so offering it again is adding it back to that list.
 - `lib/i18n/ka.ts` defines the `Dictionary` type; `en.ts` and `ru.ts` must match it, so a key
   missing from either is a type error. **Every user-facing string goes through the
   dictionaries** — add the key to all three files.
