@@ -9,5 +9,6 @@ export default async function ProfileLayout({
   const session = await auth();
   if (!session?.user) redirect('/login?callbackUrl=/profile');
 
-  return <div className="container max-w-6xl py-8">{children}</div>;
+  // Each page sets its own width: the profile is the hubs' full-width frame, a project's page a column.
+  return <>{children}</>;
 }

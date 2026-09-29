@@ -1,13 +1,13 @@
 import Link from 'next/link';
-import { ChevronRight, FolderOpen, Images, LayoutGrid, Package, type LucideIcon } from 'lucide-react';
+import { ChevronRight, FolderOpen, Images, Package } from 'lucide-react';
 import { auth } from '@/auth';
 import { Button } from '@/components/ui/button';
-import { PlanSketch } from '@/components/projects/PlanSketch';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { HubTiles, type HubPick } from '@/components/projects/hub/HubTiles';
 import { HubDate } from '@/components/projects/hub/HubDate';
 import { HubRenders } from '@/components/projects/hub/HubRenders';
 import { HubOrders } from '@/components/projects/hub/HubOrders';
+import { CARD_FRAME, HubShell, ProjectThumbnail } from '@/components/projects/hub/HubShell';
 import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/ProjectCardMenu';
 import { HubCachePrune } from '@/components/projects/hub/HubCachePrune';
 import { LegacyWorkNotice } from '@/components/projects/hub/LegacyWorkNotice';
@@ -99,106 +99,53 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
       name: p.name || t.profile.fallbackName,
       date: fill(t.hub.updated, { date: dateOf(p) }),
       href: calculator ? calculatorEntryHref(p.id) : designEntryHref(p.id),
-      thumbnail: <Thumbnail project={p} journey={journey} small />,
+      thumbnail: <ProjectThumbnail project={p} prefer={journey} small />,
     }));
   const base = calculator ? '/calculator' : '/design';
   const product = calculator ? t.nav.calculator : t.design.title;
   const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : t.hub.breadcrumb;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-5 py-8 md:px-8 lg:flex lg:gap-12 lg:py-12">
+    <HubShell
+      label={product}
+      items={[
+        { href: base, label: t.hub.breadcrumb, icon: FolderOpen, active: view === 'projects' },
+        { href: `${base}?view=renders`, label: t.hub.navRenders, icon: Images, active: view === 'renders' },
+        { href: `${base}?view=orders`, label: t.hub.navOrders, icon: Package, active: view === 'orders' },
+      ]}
+      crumb={{ label: product, href: base }}
+      title={title}
+    >
       <HubCachePrune userId={userId} projectIds={all.map((p) => p.id)} />
-      <HubSidebar
-        label={product}
-        items={[
-          { href: base, label: t.hub.breadcrumb, icon: FolderOpen, active: view === 'projects' },
-          { href: `${base}?view=renders`, label: t.hub.navRenders, icon: Images, active: view === 'renders' },
-          { href: `${base}?view=orders`, label: t.hub.navOrders, icon: Package, active: view === 'orders' },
-        ]}
-      />
+      {view === 'renders' ? (
+        <HubRenders userId={userId} t={t} />
+      ) : view === 'orders' ? (
+        <HubOrders userId={userId} t={t} locale={locale} />
+      ) : (
+        <>
+          <LegacyWorkNotice userId={userId} journey={journey} />
 
-      <div className="min-w-0 flex-1">
-        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-serif text-3xl font-bold leading-tight tracking-tight md:text-[2.5rem]">
-          <Link href={base} className="text-ink-faint transition-colors hover:text-ink-muted">
-            {product}
-          </Link>
-          <ChevronRight className="h-6 w-6 shrink-0 text-ink-faint md:h-7 md:w-7" aria-hidden />
-          <span className="text-ink">{title}</span>
-        </h1>
+          <HubTiles journey={journey} defaultName={fill(t.hub.defaultName, { n: listed.length + 1 })} picks={picks} />
 
-        {view === 'renders' ? (
-          <HubRenders userId={userId} t={t} />
-        ) : view === 'orders' ? (
-          <HubOrders userId={userId} t={t} locale={locale} />
-        ) : (
-          <>
-            <LegacyWorkNotice userId={userId} journey={journey} />
-
-            <HubTiles journey={journey} defaultName={fill(t.hub.defaultName, { n: listed.length + 1 })} picks={picks} />
-
-            <section className="mt-12" aria-labelledby="hub-projects">
-              <h2 id="hub-projects" className="text-sm font-medium text-ink-muted">
-                {t.hub.byDate}
-              </h2>
-              {listed.length === 0 ? (
-                <p className="mt-5 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{calculator ? t.hub.emptyCalculator : t.hub.emptyDesign}</p>
-              ) : (
-                <ul className="mt-5 grid gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
-                  {listed.map((p) => (
-                    <li key={p.id}>
-                      <ProjectCard project={p} journey={journey} t={t} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** The hub's sidebar: its lists, the open one lit; a row of the same above the page below `lg`. */
-function HubSidebar({ label, items }: { label: string; items: Array<{ href: string; label: string; icon: LucideIcon; active: boolean }> }) {
-  return (
-    <nav aria-label={label} className="mb-8 lg:mb-0 lg:w-56 lg:shrink-0">
-      <div className="lg:sticky lg:top-24">
-        <p className="mb-3 hidden px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted lg:block">{label}</p>
-        <ul className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1">
-          {items.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                aria-current={item.active ? 'page' : undefined}
-                className={cn('flex items-center gap-3 whitespace-nowrap rounded-[12px] px-3 py-2.5 text-[15px] font-medium transition-colors', item.active ? 'bg-sand text-ink' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}
-              >
-                <item.icon className="h-5 w-5 shrink-0" aria-hidden />
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
-  );
-}
-
-/**
- * A project's plan as a small drawing, from whichever half this hub is about first: the
- * calculator's own board in the calculator, the 3D design's plan in the studio, the typed
- * rooms last. Nothing drawn yet is an empty sheet.
- */
-function Thumbnail({ project, journey, small = false }: { project: HubProject; journey: HubJourney; small?: boolean }) {
-  const { plan, boardPlan, rooms } = project.thumbnail;
-  const hasRooms = (p: typeof plan) => (p?.rooms?.length ?? 0) > 0;
-  const chosen = journey === 'calculator' ? (hasRooms(boardPlan) ? boardPlan : hasRooms(plan) ? plan : null) : hasRooms(plan) ? plan : hasRooms(boardPlan) ? boardPlan : null;
-  // PlanSketch draws nothing when there are no rooms: the same rule decides the empty sheet.
-  const empty = !chosen && rooms.length === 0;
-  return (
-    <div className={cn('flex h-full w-full items-center justify-center overflow-hidden', empty ? 'bg-sand-light' : 'bg-bg-surface', small ? 'p-1' : 'p-6')}>
-      {empty ? <LayoutGrid className={cn('text-ink-faint', small ? 'h-5 w-5' : 'h-8 w-8')} aria-hidden /> : <PlanSketch plan={chosen} rooms={rooms} labels={false} className="h-full w-full" />}
-    </div>
+          <section className="mt-12" aria-labelledby="hub-projects">
+            <h2 id="hub-projects" className="text-sm font-medium text-ink-muted">
+              {t.hub.byDate}
+            </h2>
+            {listed.length === 0 ? (
+              <p className="mt-5 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{calculator ? t.hub.emptyCalculator : t.hub.emptyDesign}</p>
+            ) : (
+              <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+                {listed.map((p) => (
+                  <li key={p.id}>
+                    <ProjectCard project={p} journey={journey} t={t} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+    </HubShell>
   );
 }
 
@@ -220,8 +167,8 @@ function ProjectCard({ project: p, journey, t }: { project: HubProject; journey:
   return (
     <article>
       {/* The drawing opens the project too, but the name is the link a keyboard reaches. */}
-      <Link href={href} tabIndex={-1} aria-hidden className="block aspect-[5/4] overflow-hidden rounded-[18px] border border-line bg-bg-surface transition-shadow hover:shadow-cardHover">
-        <Thumbnail project={p} journey={journey} />
+      <Link href={href} tabIndex={-1} aria-hidden className={CARD_FRAME}>
+        <ProjectThumbnail project={p} prefer={journey} />
       </Link>
       <div className="mt-3.5 flex items-start justify-between gap-3">
         <div className="min-w-0">

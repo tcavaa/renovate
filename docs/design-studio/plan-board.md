@@ -30,6 +30,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `components/plan/ElementInspector.tsx`, `RoomsPanel.tsx` | edit the selected element; the rooms list and typed rooms |
 | `components/plan/draw.ts` | plain canvas drawing routines (rooms, walls, openings, chains, finishes) — shared with the PDF export |
 | `components/plan/palette.ts`, `icons.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, grey built walls, dashed separators), room-type swatches for the lists, origin and system colours; one icon per technical system and electrical kind |
+| `components/plan/sheet.ts` | `drawPlanSheet`: the plan as an architect's sheet (rooms, solid walls, openings, labels, chains) — the PDF page and the project cards' picture (`PlanDrawing`) |
 | `lib/design/planPdfExport.ts` | the plan as an A4 PDF |
 | `lib/calculator/planSync.ts`, `hooks/useCalculatorPlan.ts` | keep the calculator's rooms in step with its board |
 
@@ -225,7 +226,7 @@ windows (`EDITOR` in `palette.ts`; `drawRoom`, `drawWall`, `drawOpening`). A roo
 label, not a tint — the rooms panel and a studio's part fields keep a swatch per type — and the
 room picked out is a pale warm tint with the dashed outline. A room separator is a dashed black
 line; a wall already built in a black frame is grey. The PDF (`planPdfExport`) and the project
-page's sketch (`PlanSketch`) draw the same way. **The floors stay white paper** wherever the plan
+cards' and page's picture (`PlanDrawing`) draw the same way, through one `drawPlanSheet`. **The floors stay white paper** wherever the plan
 is read rather than dressed: the room finishes are the `zones` layer, off on the existing-flat
 and technical steps, the calculator's board and the project page's viewer, and on in the
 studio's 2D view only while the finishes tray is open.
@@ -393,7 +394,7 @@ retyped rooms).
 
 **The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
 draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
-drawing at 200 dpi on an A4 sheet with a title block, and the PDF around it is written by
+drawing (`drawPlanSheet` in `components/plan/sheet.ts`, which the project cards draw with too) at 200 dpi on an A4 sheet with a title block, and the PDF around it is written by
 hand. The sheet carries a heading large enough to be read first with a subtitle under it
 (the style and the date, or the home's condition), the dimension chains outside the walls
 with room reserved for them, every door and window with its width × height

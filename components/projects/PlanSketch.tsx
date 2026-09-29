@@ -7,11 +7,10 @@ import type { FloorPlan } from '@/lib/design/types';
  * A saved project's layout as a static drawing: the plan's own outlines when it has one,
  * otherwise the rooms at the positions the layout editor gave them (or a strip when they
  * were typed before positions existed). Server-safe SVG, metres as units.
- *
- * `labels={false}` leaves the rooms' names and areas off — a thumbnail (the hubs' project
- * cards), where they would be a smudge. Nothing to draw is `null`.
+ * Nothing to draw is `null`. The project cards and the project page draw theirs as the PDF
+ * sheet is instead (`PlanDrawing`).
  */
-export function PlanSketch({ plan, rooms, className, labels = true }: { plan: FloorPlan | null; rooms: Room[]; className?: string; labels?: boolean }) {
+export function PlanSketch({ plan, rooms, className }: { plan: FloorPlan | null; rooms: Room[]; className?: string }) {
   const source = plan && plan.rooms.length > 0 ? plan : rooms.length > 0 ? planFromCalculatorRooms(rooms) : null;
   if (!source) return null;
   const pts = source.rooms.flatMap((r) => r.polygon);
@@ -37,16 +36,12 @@ export function PlanSketch({ plan, rooms, className, labels = true }: { plan: Fl
         return (
           <g key={room.id}>
             <polygon points={points} fill="#FFFFFF" stroke="#141414" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
-            {labels && (
-              <>
-                <text x={cx} y={cz - fs * 0.15} textAnchor="middle" fontSize={fs} fontWeight={600} fill="#161513">
-                  {room.name}
-                </text>
-                <text x={cx} y={cz + fs * 1.05} textAnchor="middle" fontSize={fs * 0.72} fill="#6F6A63">
-                  {formatM2(room.areaM2)}
-                </text>
-              </>
-            )}
+            <text x={cx} y={cz - fs * 0.15} textAnchor="middle" fontSize={fs} fontWeight={600} fill="#161513">
+              {room.name}
+            </text>
+            <text x={cx} y={cz + fs * 1.05} textAnchor="middle" fontSize={fs * 0.72} fill="#6F6A63">
+              {formatM2(room.areaM2)}
+            </text>
           </g>
         );
       })}

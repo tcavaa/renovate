@@ -91,7 +91,8 @@ the list as a breadcrumb title ("გამომთვლელი › ჩემ
    (`lib/projects/hub.ts`: `updatedAt desc, id desc`, sorted in code, not by MySQL —
    [data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json);
    a small serialisable `HubProject`, the scene read for its progress only, versions never). A
-   card: a `PlanSketch` thumbnail (`labels={false}`) in a rounded frame, then under it the name,
+   card: a picture of the plan (`ProjectThumbnail` → `PlanDrawing`, drawn as the PDF sheet is: walls,
+   doors, windows, each room's area, the sizes outside) in a rounded frame, then under it the name,
    when it changed as a file list says it (`HubDate`, in the browser: "დღეს, 15:06", "3 დღის
    წინ, 13:21", then the date), where it stands (`whereItStands`: "not calculated yet · step n of
    6 · <label>", "not generated yet · step n of 8 · <label>" with n the walking position, "not
@@ -359,6 +360,14 @@ first too.
   `DeleteProjectButton` also forgets the browser's caches of it.
 - The profile, the project page (`ProjectDetail`) and the hubs open a project with plain links
   to its entry. `OpenIn3dButton` and `CalculateCostsButton` are links now, not store operations.
+- **The profile (`app/(main)/profile/page.tsx`) is in the hubs' frame** (`HubShell`,
+  `components/projects/hub/HubShell.tsx` — the sidebar, the breadcrumb title, `ProjectThumbnail`,
+  `RoundLink`, `CARD_FRAME`): the account at the head of the sidebar and four lists — every
+  project (`loadHubProjects`, whichever product; round links to both hubs, the three figures —
+  projects, m², the planned total — and the cards, each opening the project's page, its "…"
+  offering both halves), the renders (`HubRenders`), the orders by project (`HubOrders`) and the
+  furniture uploaded (`MyModels`, `?view=models`). The profile's layout sets no width: the
+  profile is full width, a project's page (`/profile/projects/[id]`) its own column.
 - `GET /api/projects`, `GET /api/projects/[id]` and `GET /api/design/projects` read projects
   back (the caller's own).
 
@@ -380,8 +389,15 @@ whole — the admin's project page passes `ProjectOrdersReview` instead, where t
 confirms each store's order, and the orders block carries the `#orders` anchor its "orders to
 confirm" button jumps to ([marketplace.md](marketplace.md#order-review-the-platform-confirms-every-store-order)). A `viewer` slot, under the figures, takes
 `ProjectViewer` on the brigade's page — the 2D plan, the 3D model and the walk-through, to look
-at only ([partners-and-admin.md](partners-and-admin.md)). `PlanSketch` draws a saved layout as static SVG — the plan's outlines when there are any,
-otherwise the rooms at their `x`/`z` (`labels={false}` for the hub cards' thumbnails).
+at only ([partners-and-admin.md](partners-and-admin.md)). The project page's plan, like the hubs' and the profile's cards, is `PlanDrawing`
+(`components/projects/PlanDrawing.tsx`, client canvas): the PDF export's sheet
+(`components/plan/sheet.ts`) cut down to the walls, the rooms, the doors and windows, each room's
+area inside it (`drawRoomLabel`'s `areaOnly`) and the dimension chains outside the walls — no
+names, furniture or fittings. It takes the plan when it has rooms, otherwise the calculator's
+rooms at their `x`/`z` (`planFromCalculatorRooms`), gives either walls (`ensureWalls`), and fills
+its parent, redrawing on resize; `bare` (the hubs' small tiles) is the walls alone. `PlanSketch`
+(static SVG, names and areas) is left only on the calculator's plan-upload step, where no image
+of the uploaded plan is on file.
 
 ## 11. Where a project opens (`lib/flow/resume.ts`, pure, `tests/unit/flow/resume.test.ts`)
 

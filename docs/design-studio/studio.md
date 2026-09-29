@@ -422,7 +422,7 @@ carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-stu
 
 ## Known gaps
 
-- **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the profile page already shows both states.
+- **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the project page, and the renders of the hubs and the profile, already show both states.
 - The walk-through has no collision at all — walls, furniture, nothing stops the viewer.
   Deliberate: a design tool wants to be explored, not navigated, and getting stuck reads as a
   bug every time. `buildWalkable` only picks the starting spot now.

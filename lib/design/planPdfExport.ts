@@ -16,8 +16,8 @@
  */
 
 import type { ElectricalPoint, FloorPlan, PlacedItem } from './types';
-import { leafOnOtherSide } from './openings';
-import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from '@/components/plan/draw';
+import type { Transform } from '@/components/plan/draw';
+import { drawPlanSheet } from '@/components/plan/sheet';
 
 /** A4 at 72 points to the inch. */
 const A4 = { short: 595.28, long: 841.89 };
@@ -88,39 +88,19 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
 
   drawTitleBlock(ctx, options, pageW);
 
-  // The sheet is an architect's: white rooms and solid black walls. No floor is tinted in its
-  // finish and no wall carries a band of one along its face — those read as lines inside the
-  // walls on paper. Their names come last, over the furniture. The edge lengths inside the
-  // rooms are left off the sheet: the chains outside the walls carry every size at print
-  // size, and the small figures at the walls' middles only collided with the fittings there.
-  for (const room of plan.rooms) {
-    drawRoom(ctx, transform, room, { selected: false, hovered: false, labels: false, dimensions: false, unitM2: options.unitM2 });
-  }
-  // Walls with their corners closed, like the board, and solid: no hatch line down the middle.
-  const extensions = wallEndExtensions(plan.walls ?? []);
-  // Room separators first, dashed, so the walls they end against are drawn over their ends.
-  const walls = [...(plan.walls ?? []).filter((w) => w.separator), ...(plan.walls ?? []).filter((w) => !w.separator)];
-  for (const wall of walls) drawWall(ctx, transform, wall, { extendA: extensions.get(wall.id)?.a, extendB: extensions.get(wall.id)?.b, solid: true });
-  for (const room of plan.rooms) {
-    for (const opening of room.openings) {
-      drawOpening(ctx, transform, room, opening, plan.wallThicknessM, {});
-      // Every door and window with its size, so the sheet says what fits the hole — an
-      // interior door once, on the half that draws the leaf, not on each of its two halves.
-      if (opening.kind !== 'archway' && !leafOnOtherSide(opening)) drawOpeningSize(ctx, transform, room, opening, plan.wallThicknessM, unitM, { ui: SCALE });
-    }
-  }
-  for (const column of plan.columns ?? []) drawColumn(ctx, transform, column, {});
-  for (const beam of plan.beams ?? []) drawBeam(ctx, transform, beam, {});
-  for (const point of plan.technical?.points ?? []) drawTechnical(ctx, transform, point, {});
-  for (const point of options.electrical ?? []) drawElectrical(ctx, transform, point, {});
-  if (options.furniture) {
-    for (const item of options.items ?? []) drawFurniture(ctx, transform, item, options.itemLabel?.(item) ?? '', { ui: SCALE });
-  }
-  // The room names over everything, on a white plate, at print size.
-  for (const room of plan.rooms) drawRoomLabel(ctx, transform, room, { unitM2: options.unitM2, ui: SCALE, halo: true });
-  // The flat's sizes, chained along each side outside the walls.
-  const chains = outerDimensionChains(plan);
-  if (chains) drawOuterDimensions(ctx, transform, chains, unitM, { gap: DIMENSIONS_GAP, ui: SCALE });
+  // The sheet is an architect's (`components/plan/sheet`), at print size: every door and
+  // window with its size, the room names over the furniture, the chains outside the walls.
+  drawPlanSheet(ctx, transform, plan, {
+    ui: SCALE,
+    unitM2: options.unitM2,
+    unitM,
+    labels: 'full',
+    dimensionsGap: DIMENSIONS_GAP,
+    openingSizes: true,
+    structure: true,
+    electrical: options.electrical,
+    furniture: options.furniture ? { items: options.items ?? [], label: (item) => options.itemLabel?.(item) ?? '' } : undefined,
+  });
 
   const jpeg = await canvasJpeg(canvas);
   return pdfOfImage(jpeg, canvas.width, canvas.height, pageW, pageH);
