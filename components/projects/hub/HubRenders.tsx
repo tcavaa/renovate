@@ -29,7 +29,7 @@ export async function HubRenders({ userId, t }: { userId: number; t: Dictionary 
       {renders.length === 0 ? (
         <p className="mt-5 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
       ) : (
-        <ul className="mt-5 grid gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
           {renders.map((r) => {
             const ready = r.status === 'ready' && !!r.renderUrl;
             const shown = ready ? r.renderUrl! : r.sourceUrl;

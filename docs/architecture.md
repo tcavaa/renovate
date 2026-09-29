@@ -104,6 +104,7 @@ components/
                VersionsPanel dragImage.ts
   budget/      BudgetSheet lineName.ts
   projects/    ProjectGate SaveProblemBanner ProjectDetail FoldSection ProjectRenders PlanSketch
+               PlanDrawing (the plan as the project cards' picture)
                ProjectViewer (read-only 2D / 3D / walk-through)
                ProjectKindTags OpenIn3dButton CalculateCostsButton OrderProjectButton
                DeleteProjectButton · hub/ (ProjectHub HubTiles ProjectCardMenu LegacyWorkNotice

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { Figure } from '@/components/calculator/MaterialsTable';
-import { PlanSketch } from '@/components/projects/PlanSketch';
+import { PlanDrawing } from '@/components/projects/PlanDrawing';
 import { MoneyRow } from '@/components/ui/money-row';
 import type { Project } from '@/lib/db/schema';
 import type { Dictionary } from '@/lib/i18n/ka';
@@ -145,7 +145,7 @@ export function ProjectDetail({
         <div>
           {rooms.length > 0 || plan ? (
             <div className="border border-line bg-white p-4">
-              <PlanSketch plan={plan} rooms={rooms} className="block h-auto w-full" />
+              <PlanDrawing plan={plan} rooms={rooms} className="aspect-[4/3] w-full" />
             </div>
           ) : (
             <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>

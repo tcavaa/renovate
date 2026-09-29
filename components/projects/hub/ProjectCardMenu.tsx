@@ -21,12 +21,12 @@ export interface OtherJourney {
 const ITEM = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-bg-base focus:bg-bg-base focus:outline-none';
 
 /**
- * A project card's "…": open it, rename it, open (or start) its other half, its page, delete
- * it. A small menu of our own — there is no dropdown primitive here — that behaves like one:
+ * A project card's "…": open it, rename it, open (or start) its other half — or, on the profile,
+ * both halves — its page (unless opening it is that page), delete it. A small menu of our own — there is no dropdown primitive here — that behaves like one:
  * it opens on its first item, the arrows move through it, Escape and a click anywhere else
  * close it, and focus comes back to the button.
  */
-export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }: { projectId: number; name: string; openHref: string; other: OtherJourney | null; canDelete: boolean }) {
+export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }: { projectId: number; name: string; openHref: string; other: OtherJourney | OtherJourney[] | null; canDelete: boolean }) {
   const t = useT();
   const router = useRouter();
   const menuId = useId();
@@ -130,7 +130,8 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
     buttonRef.current?.focus();
   };
 
-  const OtherIcon = other?.label === 'openIn3d' || other?.label === 'createIn3d' ? Box : Calculator;
+  const journeys = other == null ? [] : Array.isArray(other) ? other : [other];
+  const pageHref = `/profile/projects/${projectId}`;
 
   return (
     <div ref={rootRef} className="relative shrink-0">
@@ -158,16 +159,21 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
             <Pencil className="h-4 w-4 text-ink-muted" aria-hidden />
             {t.hub.rename}
           </button>
-          {other && (
-            <Link href={other.href} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
-              <OtherIcon className="h-4 w-4 text-ink-muted" aria-hidden />
-              {t.profile[other.label]}
+          {journeys.map((journey) => {
+            const Icon = journey.label === 'openIn3d' || journey.label === 'createIn3d' ? Box : Calculator;
+            return (
+              <Link key={journey.label} href={journey.href} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
+                <Icon className="h-4 w-4 text-ink-muted" aria-hidden />
+                {t.profile[journey.label]}
+              </Link>
+            );
+          })}
+          {openHref !== pageHref && (
+            <Link href={pageHref} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
+              <FileText className="h-4 w-4 text-ink-muted" aria-hidden />
+              {t.hub.projectPage}
             </Link>
           )}
-          <Link href={`/profile/projects/${projectId}`} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
-            <FileText className="h-4 w-4 text-ink-muted" aria-hidden />
-            {t.hub.projectPage}
-          </Link>
           {canDelete && (
             <>
               <div role="separator" className="my-1 border-t border-line" />

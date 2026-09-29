@@ -25,7 +25,8 @@ export interface OwnModelRow {
   status: 'none' | 'pending' | 'ready' | 'failed';
 }
 
-export function MyModels({ models }: { models: OwnModelRow[] }) {
+/** `heading={false}` where the page's own title already names the list (the profile's "my 3D pieces"). */
+export function MyModels({ models, heading = true }: { models: OwnModelRow[]; heading?: boolean }) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
@@ -52,11 +53,15 @@ export function MyModels({ models }: { models: OwnModelRow[] }) {
   };
 
   return (
-    <section className="mt-12">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
-        <h2 className="font-serif text-2xl font-semibold text-ink">
-          {t.profile.myModels} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{models.length}</span>
-        </h2>
+    <section className={heading ? 'mt-12' : 'mt-8'}>
+      <div className={cn('flex flex-wrap items-center justify-between gap-3', heading && 'border-b border-line pb-3')}>
+        {heading ? (
+          <h2 className="font-serif text-2xl font-semibold text-ink">
+            {t.profile.myModels} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{models.length}</span>
+          </h2>
+        ) : (
+          <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{t.profile.myModelsHint}</p>
+        )}
         <Button asChild variant="outline" size="sm">
           <Link href={DESIGN_HUB_HREF}>
             <Plus className="h-4 w-4" />
@@ -64,16 +69,16 @@ export function MyModels({ models }: { models: OwnModelRow[] }) {
           </Link>
         </Button>
       </div>
-      <p className="mt-3 text-xs text-ink-muted">{t.profile.myModelsHint}</p>
+      {heading && <p className="mt-3 text-xs text-ink-muted">{t.profile.myModelsHint}</p>}
       {error && (
         <p role="alert" className="mt-3 text-sm text-danger">
           {error}
         </p>
       )}
       {models.length === 0 ? (
-        <p className="mt-6 border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.profile.noModels}</p>
+        <p className={cn('mt-6 border border-dashed border-line p-8 text-center text-sm text-ink-muted', !heading && 'rounded-[18px] p-12')}>{t.profile.noModels}</p>
       ) : (
-        <ul className="mt-4 divide-y divide-line border-y border-line">
+        <ul className={cn('mt-4 divide-y divide-line', heading ? 'border-y border-line' : 'rounded-[18px] border border-line bg-bg-surface px-4')}>
           {models.map((m) => {
             const pending = m.status !== 'ready';
             return (

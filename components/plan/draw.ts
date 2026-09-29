@@ -77,6 +77,8 @@ export interface RoomLabelOptions {
   ui?: number;
   /** A translucent white plate under the two lines, so the label reads over whatever stands in the room. */
   halo?: boolean;
+  /** The area alone, no name — a small picture of the plan (the project cards), where names would crowd it. */
+  areaOnly?: boolean;
   typeLabel?: (type: RoomType) => string;
 }
 
@@ -142,6 +144,25 @@ function writeLabel(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[]
   const ui = options.ui ?? 1;
   const centre = toScreen(t, polygonCentroid(polygon));
   const bounds = polygonBounds(polygon);
+  if (options.areaOnly) {
+    if (bounds.width * t.scale < 36 * ui || bounds.depth * t.scale < 18 * ui) return;
+    const px = Math.round(Math.max(9, Math.min(12, (t.scale / ui) * 0.28)) * ui);
+    const area = `${areaM2.toFixed(1)} ${options.unitM2}`;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `600 ${px}px system-ui, sans-serif`;
+    if (options.halo) {
+      const w = ctx.measureText(area).width + 8 * ui;
+      const h = px + 6 * ui;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)';
+      ctx.fillRect(centre.x - w / 2, centre.y - h / 2, w, h);
+    }
+    ctx.fillStyle = EDITOR.label;
+    ctx.fillText(area, centre.x, centre.y);
+    ctx.restore();
+    return;
+  }
   const fits = bounds.width * t.scale > 70 * ui && bounds.depth * t.scale > 40 * ui;
   if (!fits) return;
   const namePx = Math.round(Math.max(11, Math.min(14, (t.scale / ui) * 0.32)) * ui);

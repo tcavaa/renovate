@@ -42,24 +42,26 @@ export default async function UserProjectDetailPage(props: { params: Promise<{ i
   const link = { id: input.id, rooms: input.rooms, hasCalculator: input.hasCalculator, hasDesign: input.hasDesign };
 
   return (
-    <ProjectDetail
-      project={project}
-      sheets={sheets}
-      t={ka}
-      locale={locale}
-      backHref="/profile"
-      backLabel={ka.profile.backToProjects}
-      actions={
-        <>
-          <CalculateCostsButton project={link} size="lg" />
-          <OpenIn3dButton project={link} size="lg" />
-          {/* The kept versions play no part in an order and are the heaviest thing in the row. */}
-          <OrderProjectButton project={{ ...input, versions: [] }} />
-          {project.status !== 'submitted' && <DeleteProjectButton projectId={project.id} size="default" afterHref="/profile" />}
-        </>
-      }
-      renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
-      orders={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
-    />
+    <div className="container max-w-6xl py-8">
+      <ProjectDetail
+        project={project}
+        sheets={sheets}
+        t={ka}
+        locale={locale}
+        backHref="/profile"
+        backLabel={ka.profile.backToProjects}
+        actions={
+          <>
+            <CalculateCostsButton project={link} size="lg" />
+            <OpenIn3dButton project={link} size="lg" />
+            {/* The kept versions play no part in an order and are the heaviest thing in the row. */}
+            <OrderProjectButton project={{ ...input, versions: [] }} />
+            {project.status !== 'submitted' && <DeleteProjectButton projectId={project.id} size="default" afterHref="/profile" />}
+          </>
+        }
+        renders={project.plan != null ? <ProjectRenders projectId={project.id} t={ka} locale={locale} /> : undefined}
+        orders={<ProjectOrders projectId={project.id} t={ka} locale={locale} />}
+      />
+    </div>
   );
 }

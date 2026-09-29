@@ -64,8 +64,9 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   drive the viewer through the `ViewerApi` it hands back via `onApi`. **Keys are matched on
   `event.code`**, never `event.key`: on a Georgian layout W types წ, and matching the
   character left the viewer standing still.
-- **The hubs** (`/calculator`, `/design`, `components/projects/hub/`) look like a file manager's
-  "my files" and take the build mode's rounding: a sidebar of lists with the open one on a
+- **The hubs and the profile** (`/calculator`, `/design`, `/profile` — `HubShell`,
+  `components/projects/hub/`) look like a file manager's "my files" and take the build mode's
+  rounding: a sidebar of lists with the open one on a
   rounded sand pill, a breadcrumb title in the serif (the product muted), round coloured action
   buttons with their names under them, and cards that are a rounded white frame with the name,
   the date and a round "…" under it.
