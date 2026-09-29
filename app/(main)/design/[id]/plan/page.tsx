@@ -6,13 +6,13 @@ import { DoorOpen, Wand2 } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { DesignFlowGuard } from '@/components/flow/FlowGuard';
 import { PlanWorkspace } from '@/components/plan/PlanWorkspace';
-import { ElementInspector } from '@/components/plan/ElementInspector';
+import { ElementInspector, InspectorClose } from '@/components/plan/ElementInspector';
 import { RoomsPanel } from '@/components/plan/RoomsPanel';
 import { StepHeader } from '@/components/flow/StepHeader';
 import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
-import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowBarButton, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
+import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowBarButton, FlowPanel, FlowPanelOverlay, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useT } from '@/lib/i18n/client';
@@ -26,7 +26,8 @@ import { formatM2 } from '@/lib/utils';
 /**
  * Step 2: the existing house. The drawing board with every build tool — walls as lines,
  * rooms as rectangles, doors, windows, columns, beams — the rooms as cards on the right,
- * and the selected element's parameters under them. Leaving keeps version 01, the existing
+ * and whatever is picked on the board in a card of its own laid over them, with its ✕ (as the
+ * calculator's plan step shows it). Leaving keeps version 01, the existing
  * house, so it can always be returned to.
  *
  * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
@@ -101,6 +102,8 @@ export default function ExistingHousePage() {
     router.push(nextStepHref(projectId, 2, homeState, mode));
   };
 
+  // Whatever is picked on the board but a room (the rooms panel has those): a card of its own, over the rooms panel.
+  const inspected = selection && selection.kind !== 'room' ? selection : null;
   const roomCount = fill(t.build.roomCount, { n: plan.rooms.length });
   // A renovation that builds the partition walls (a black frame) asks which of them already stand.
   const wallBuilding = mode === 'full' && !!homeState && buildsPartitions(effectivePhases(homeState, plan.technical?.works ?? null));
@@ -156,39 +159,45 @@ export default function ExistingHousePage() {
             wallBuilding={wallBuilding}
             onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
           />
+          {inspected && (
+            <FlowPanelOverlay>
+              <InspectorClose.Provider value={() => actions.selectElement(null)}>
+                <ElementInspector
+                  roomPart={actions.selectedRoomPart}
+                  plan={plan}
+                  electrical={electrical}
+                  wallBuilding={wallBuilding}
+                  selection={inspected}
+                  actions={{
+                    updateWall: actions.updateWall,
+                    resizeWall: actions.resizeWall,
+                    removeWall: actions.removeWall,
+                    updateOpening: actions.updateOpening,
+                    removeOpening: actions.removeOpening,
+                    addOpening: (roomId, kind, wallIndex) => {
+                      const id = actions.addOpening(roomId, kind, wallIndex);
+                      if (id) actions.selectElement({ kind: 'opening', id, roomId });
+                      else setRefused(t.design.openingRefused);
+                    },
+                    updateColumn: actions.updateColumn,
+                    removeColumn: actions.removeColumn,
+                    updateBeam: actions.updateBeam,
+                    removeBeam: actions.removeBeam,
+                    updateTechnical: actions.updateTechnicalPoint,
+                    removeTechnical: actions.removeTechnicalPoint,
+                    updateElectrical: actions.updateElectricalPoint,
+                    removeElectrical: actions.removeElectricalPoint,
+                    updateRoom: actions.updateRoom,
+                    selectRoomPart: actions.selectRoomPart,
+                    setRoomWhole: actions.setRoomWhole,
+                    resizeRoom: actions.resizeRoom,
+                    removeRoom: actions.removeRoom,
+                  }}
+                />
+              </InspectorClose.Provider>
+            </FlowPanelOverlay>
+          )}
           <FlowPanel className="mt-6 lg:mt-0">
-            <ElementInspector
-              roomPart={actions.selectedRoomPart}
-              plan={plan}
-              electrical={electrical}
-              wallBuilding={wallBuilding}
-              selection={selection && selection.kind !== 'room' ? selection : null}
-              actions={{
-                updateWall: actions.updateWall,
-                resizeWall: actions.resizeWall,
-                removeWall: actions.removeWall,
-                updateOpening: actions.updateOpening,
-                removeOpening: actions.removeOpening,
-                addOpening: (roomId, kind, wallIndex) => {
-                  const id = actions.addOpening(roomId, kind, wallIndex);
-                  if (id) actions.selectElement({ kind: 'opening', id, roomId });
-                  else setRefused(t.design.openingRefused);
-                },
-                updateColumn: actions.updateColumn,
-                removeColumn: actions.removeColumn,
-                updateBeam: actions.updateBeam,
-                removeBeam: actions.removeBeam,
-                updateTechnical: actions.updateTechnicalPoint,
-                removeTechnical: actions.removeTechnicalPoint,
-                updateElectrical: actions.updateElectricalPoint,
-                removeElectrical: actions.removeElectricalPoint,
-                updateRoom: actions.updateRoom,
-                selectRoomPart: actions.selectRoomPart,
-                setRoomWhole: actions.setRoomWhole,
-                resizeRoom: actions.resizeRoom,
-                removeRoom: actions.removeRoom,
-              }}
-            />
             <RoomsPanel
               plan={plan}
               selectedId={focusRoomId}

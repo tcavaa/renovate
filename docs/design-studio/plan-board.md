@@ -230,8 +230,10 @@ is read rather than dressed: the room finishes are the `zones` layer, off on the
 and technical steps, the calculator's board and the project page's viewer, and on in the
 studio's 2D view only while the finishes tray is open.
 
-One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with three shapes: a line,
-a square and a room separator** (`room` is the square: a rectangle whose inside is exactly what
+One canvas, one tool in hand: `select`, `pan`, `wall` — **one tile with three shapes: a
+square, a line and a room separator**, in that order; the tile is called ოთახი and picks the
+square up first (a flat is mostly drawn as rooms), and the tile again while drawing keeps the
+shape in hand (`room` is the square: a rectangle whose inside is exactly what
 was drawn, four walls around it; `divider` draws separators in runs exactly as `wall` draws
 walls, dashed while drawn, through `onAddSeparator`), `door` / `window` (dropped on the nearest
 wall edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`. The

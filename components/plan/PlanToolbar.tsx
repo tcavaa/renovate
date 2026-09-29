@@ -156,28 +156,34 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
   // A room and a room separator are shapes of the wall tool, not tools of their own: one tile,
-  // then a line, a square or a separator. The tile row leaves them out and the shape switch offers them.
+  // then a square, a line or a separator. The tile row leaves them out and the shape switch
+  // offers them. The tile is called "room" and picks the room up first — drawing a flat is
+  // mostly drawing rooms; a lone wall is the second shape.
   const shapes = tools.includes('room') || tools.includes('divider');
   const tiles = shapes ? tools.filter((id) => id !== 'room' && id !== 'divider') : tools;
+  const drawFirst: EditorTool = tools.includes('room') ? 'room' : 'wall';
   return (
     <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
       {tiles.map((id) => {
         const Icon = TOOL_ICON[id];
-        const active = id === 'wall' && shapes ? drawing : tool === id;
+        const draw = id === 'wall' && shapes;
+        const active = draw ? drawing : tool === id;
+        const label = toolLabel(t, draw ? drawFirst : id);
         return (
           <button
             key={id}
             type="button"
-            onClick={() => onTool(id)}
+            // Again while drawing keeps the shape in hand.
+            onClick={() => onTool(draw ? (drawing ? tool : drawFirst) : id)}
             aria-pressed={active}
-            title={toolLabel(t, id)}
+            title={label}
             className={cn(
               'flex h-[58px] w-[64px] flex-col items-center justify-center gap-1 rounded-[12px] text-[10px] font-semibold leading-none transition-colors',
               active ? 'bg-ink text-white shadow-card' : 'text-ink-soft hover:bg-sand-light hover:text-ink'
             )}
           >
             <Icon className="h-5 w-5" />
-            <span className="max-w-[60px] truncate px-1">{toolLabel(t, id)}</span>
+            <span className="max-w-[60px] truncate px-1">{label}</span>
           </button>
         );
       })}
@@ -194,7 +200,7 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
 export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, technicalKind, onTechnicalKind, electricalKind, onElectricalKind, kindPicker = true }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'thicknessM' | 'onThickness' | 'technicalKind' | 'onTechnicalKind' | 'electricalKind' | 'onElectricalKind' | 'kindPicker'>) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
-  const shapeIds = (['wall', 'room', 'divider'] as const).filter((id) => id === 'wall' || tools.includes(id));
+  const shapeIds = (['room', 'wall', 'divider'] as const).filter((id) => id === 'wall' || tools.includes(id));
   const shapes = shapeIds.length > 1;
   // The wall's shape and its thickness side by side, compact: they sit in one row along the
   // bottom of a full-screen board. A room separator has no thickness.

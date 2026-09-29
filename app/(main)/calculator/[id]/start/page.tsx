@@ -34,9 +34,9 @@ type PlanMode = 'upload' | 'draw';
  * The plan lives in the calculator's *own* board (`useCalculatorPlanStore`), separate from
  * the studio's; the calculator's rooms are read off it after every edit.
  *
- * A project made on the hub from its "draw the plan" or "upload a plan" tile arrives with
- * `?way=draw` / `?way=upload`, and opens on that way in — unless there is a plan on file
- * already, which is what the page shows then, as it always has.
+ * A new project from the hub opens on the upload, the blank sheet a choice away. A link with
+ * `?way=draw` / `?way=upload` opens on that way in — unless there is a plan on file already,
+ * which is what the page shows then, as it always has.
  */
 export default function CalculatorStep1Page() {
   const router = useRouter();
