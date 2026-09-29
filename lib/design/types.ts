@@ -361,6 +361,13 @@ export interface SceneProduct {
   model3dUrl: string | null;
   categorySlug: string | null;
   store: SceneStore | null;
+  /**
+   * A finish only: what it is sold by — the catalogue's own unit and price, and a paint's
+   * coverage. A finish's `pricePerUnit` and `qty` are per square metre of what it covers; the
+   * budget buys whole units of it with the cutting waste (`finishPickQuantity`), the way the
+   * calculator buys the same product. Absent on snapshots from before: bought by the m² then.
+   */
+  sale?: { unit: string; pricePerUnit: number; coveragePerUnit: number | null } | null;
 }
 
 export interface SceneStore {
@@ -421,6 +428,12 @@ export interface SurfaceFinish {
    * holds every tile of one product in one room.
    */
   cells?: Array<[number, number]> | null;
+  /**
+   * A floor two products share (the calculator's split): this one's part of it, 0..1. Both
+   * are the room's floor; neither hides the other, and each is bought for its part. The board
+   * and 3D draw the one with the larger part over the whole floor.
+   */
+  share?: number | null;
   /** Skirting and cornice: the moulding's shape; null where a style has none. */
   trim?: TrimSpec | null;
   /** Fallback colour when no product/texture is chosen. */
@@ -655,7 +668,16 @@ export interface DesignCost {
   openingsTotal: number;
   /** Sockets, switches, lights, pipes, radiators, air conditioning — materials and their labour. */
   technicalTotal: number;
+  /** The caller's own product lines (`PriceOptions.extraLines`): the calculator's picks that are neither a surface nor a fitting. */
+  productsTotal: number;
+  /** Everything on the sheet that is counted: what is bought and what is paid for. */
   grandTotal: number;
+  /**
+   * Unforeseen costs, in a renovation only: `CONTINGENCY_PCT` of the renovation work — the bulk
+   * materials and the labour — never of the products or the furniture. Not a line: nothing is
+   * bought or ordered for it; `grandTotal + contingencyTotal` is the budget to plan with.
+   */
+  contingencyTotal: number;
   perRoom: Array<{ roomId: string; roomName: string; total: number }>;
   baskets: StoreBasket[];
   /** Every row of the budget with its quantity — see `BudgetLine` in lib/design/pricing.ts. */

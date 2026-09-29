@@ -143,14 +143,15 @@ export function surfaceOfPick(pick: Pick<SelectedProduct, 'surface' | 'categoryS
 
 /**
  * A room's area of one surface: its floor, or its walls as the estimate counts them — the
- * perimeter times the height, doors and windows not taken off, the same figure the engine
- * prices the plaster and the painting by (and the server has, where the drawing is not).
+ * walled perimeter at the room's height less every door, window and opening in it
+ * (`roomWallAreaM2`, read off the board with the room), the same figure the engine prices the
+ * plaster and the painting by, in the calculator and the design alike.
  */
 export function roomSurfaceAreaM2(room: Pick<Room, 'floorM2' | 'wallM2'>, surface: FinishSurface): number {
   return surface === 'floor' ? room.floorM2 : room.wallM2;
 }
 
-type RoomGeometry = Pick<Room, 'floorM2' | 'wallM2' | 'width' | 'length' | 'height' | 'walls'>;
+type RoomGeometry = Pick<Room, 'floorM2' | 'wallM2' | 'width' | 'length' | 'height' | 'walls' | 'wallsM2'>;
 
 /**
  * A room's walls one by one: each one's length, metres, in the board's order (`Room.walls`); a
@@ -161,9 +162,17 @@ export function roomWalls(room: Pick<Room, 'width' | 'length' | 'walls'>): numbe
   return [room.width, room.length, room.width, room.length];
 }
 
-/** Each wall's area as the estimate counts a wall — its length times the room's height, doors and windows not taken off. */
-export function roomWallAreasM2(room: Pick<Room, 'width' | 'length' | 'height' | 'walls'>): number[] {
-  return roomWalls(room).map((length) => Math.round(length * room.height * 100) / 100);
+/**
+ * Each wall's area as the estimate counts a wall: the board's own figure, its length at the
+ * room's height less the doors and windows in it (`Room.wallsM2`, `edgeWallAreaM2`) — the area the
+ * design buys a wall's finish by. A room saved without it counts each wall gross, its length
+ * times the height.
+ */
+export function roomWallAreasM2(room: Pick<Room, 'width' | 'length' | 'height' | 'walls' | 'wallsM2'>): number[] {
+  const walls = roomWalls(room);
+  // Only beside the walls they were read with, and only as areas.
+  if (walls === room.walls && room.wallsM2?.length === walls.length && room.wallsM2.every((m2) => Number.isFinite(m2) && m2 >= 0)) return room.wallsM2;
+  return walls.map((length) => Math.round(length * room.height * 100) / 100);
 }
 
 const clamp01 = (n: number): number => Math.min(1, Math.max(0, n));

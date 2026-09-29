@@ -98,6 +98,17 @@ own floors, plasters and bricks, plus Poly Haven parquets, tiles, a plaster, a p
 and ambientCG tiles, a microcement floor and paints (all CC0), written straight to the
 database. Paint is sold by the litre, so `pricePerM2` divides by `coveragePerUnit`.
 
+**What a finish covers and what is bought are two figures.** A finish's product holds the area
+it covers in m² (`finishFromProduct`, `finishQuantity`: a floor's area to 0.01 m², a
+wall's net of its doors and windows — `wallAreaM2` → `roomWallAreaM2`, the calculator's own
+measure) and how the product is sold (`SceneProduct.sale`: unit, price, coverage — carried from
+the catalogue, repriced by the save). The budget folds each product's visible area over the
+flat and buys it as sold (`finishPurchase` → `finishPickQuantity`): m² plus a tenth of waste for
+laminate and tiles, paint in whole litres, a moulding by the metre ([../budget.md](../budget.md)).
+A floor two products share — the calculator's split — is two base floor finishes, each with its
+`share` (`SurfaceFinish.share`, the larger first): each covers and buys its share of the floor,
+and the larger is the one drawn over it.
+
 **A partner or admin adds one in the product form** (`/admin/products/new`, or
 `/partner/products/new` for a store): a category under laminate, floor tiles, wall tiles or
 paint turns the form's 3D section into **"finish for the studio"** — the style tags, the
@@ -150,9 +161,12 @@ Where the style's products are laid:
   the design shows the flat in partner products, and those are what it buys. A floor or wall
   the person means to keep is ticked off on the summary (or, in a renovation, ticked as already
   there on the technical step) ([../budget.md](../budget.md)).
-- The 2D sheet still leaves the style's own as the room's paper (`drawBaseFinishes` skips
-  `isStyleFinish`), so a generated flat is not tinted room by room; ceilings stay the style's
-  colour (the ceiling is the engine's phase 12, not a product).
+- The 2D sheet is white paper: the finishes are the board's "zones" layer, shown in the
+  studio's 2D view only while the finishes tray is open, and off on the plan, technical and
+  calculator boards, the project page's viewer and every PDF. With the layer on, the style's own
+  is still the room's paper (`drawBaseFinishes` skips `isStyleFinish`), so a generated flat is
+  not tinted room by room; ceilings stay the style's colour (the ceiling is the engine's phase
+  12, not a product).
 
 **No wall wears the style's `featureWall` by
 itself** (removed 26 September 2026): it drew industrial's brick on the longest clear wall of

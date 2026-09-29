@@ -18,13 +18,14 @@ lines) · [project-flow.md](project-flow.md) (the project page that re-reads bot
 
 | File | Responsibility |
 |---|---|
-| `lib/design/pricing.ts` | `priceScene(plan, scene, options)` → `DesignCost` (`lines`, totals, `baskets` per store, `coverage`, `kitchens`); `budgetSummary`, `budgetSections`, `orderedLines`; `BudgetLine` |
+| `lib/design/pricing.ts` | `priceScene(plan, scene, options)` → `DesignCost` (`lines`, totals, `contingencyTotal`, `baskets` per store, `coverage`, `kitchens`); `renovationEstimate` (its works alone); `finishPurchase`; `budgetSummary`, `budgetSections`, `orderedLines`; `BudgetLine` |
 | `lib/design/ticks.ts` | line keys (`tickFor`), `toggleTick`, `pruneTicks` / `pruneQuantities`, `withEdits` |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys for fittings, technical points, openings and trims (`ELECTRICAL_LABOUR`, `TECHNICAL_RATES`, `OPENING_ESTIMATE_GEL`, …) |
 | `lib/design/kitchen.ts` | measured kitchens (`KITCHEN_RATES`) |
 | `lib/design/finishQuantity.ts` | how much of its product a finish covers (`finishQuantity`, shared by the store and the save route) and how much of it shows (`visibleFinishes`) — what the budget buys |
 | `lib/design/trades.ts` | `tradesNeeded` — the labour keys of a budget → the six worker specialties (step 8) |
-| `lib/summary/calculatorSheet.ts` | the calculator's estimate and picks as `BudgetLine`s with its edits; `orderedPickLines` |
+| `lib/summary/calculatorSheet.ts` | the calculation priced as a design (`calculationCost` → `priceScene`) and its sheet (`calculatorSheet`) with its edits; `orderedCalculationLines` |
+| `lib/design/boardPicks.ts` | `dressBoard`: a product for the whole flat on every door, window, radiator or fitting of its kind — the calculator's board and the design alike |
 | `lib/summary/quantity.ts` | `quantityOptions` — what the quantity dropdown offers |
 | `components/budget/BudgetSheet.tsx`, `lineName.ts` | the sheet both summaries and the project page render; `budgetLineName` |
 | `lib/projects/sheets.ts` | `loadProjectSheets` — a saved project's two sheets, server-side, for `ProjectDetail` |
@@ -36,9 +37,9 @@ lines) · [project-flow.md](project-flow.md) (the project page that re-reads bot
 
 ```
 design:     plan + scene ──priceScene──▶ raw lines ──withEdits(scene.excluded, scene.quantities)──▶ lines
-calculator: rooms + picks ──buildProjectSummary──▶ calculatorSheet(…, { rooms, edits, storeOf }) ──▶ lines
+calculator: board + picks ──boardWithPicks──▶ a scene with no furniture ──priceScene (+ extraLines, missing counts)──▶ lines
 lines ──▶ BudgetSheet (both summary pages, the project page via loadProjectSheets)
-lines ──orderedLines / orderedPickLines──▶ baskets (design), checkout dialogue, store orders
+lines ──orderedLines──▶ baskets, checkout dialogue, store orders (both halves)
 lines (section 'materials', still ticked) ──projectMaterials──▶ the construction-materials supplier's order
 lines (section 'labour', still ticked) ──projectLabour──▶ a brigade's or a worker's booking
 save routes: reprice from the catalogue first, then lay the edits over → cost columns as edited
@@ -49,12 +50,14 @@ save routes: reprice from the catalogue first, then lay the edits over → cost 
 **One sheet for both summaries** (`lib/summary/`, `components/budget/BudgetSheet.tsx`). The
 calculator's last step and the design's budget are the same thing to the person reading
 them — what it all comes to, and what of it they are taking — so they are the same sheet:
-`BudgetLine[]` (`lib/design/pricing`), rendered by `BudgetSheet`. The design's lines come from
-`priceScene`; the calculator's from `calculatorSheet(summary, picks, { rooms, edits, storeOf })`,
-which lays the engine's materials and labour and the person's picks out in that shape. No
-calculator pick records its shop, so who sells each one is looked up: `usePickStores` →
-`GET /api/products?ids=…` + `/api/stores` on the client, the database in `loadProjectSheets`
-on the server.
+`BudgetLine[]` (`lib/design/pricing`), rendered by `BudgetSheet`. Both come from `priceScene`:
+the design's from its plan and scene, the calculator's from its board dressed in its picks
+(`calculationCost` → `calculatorSheet`, [calculator.md](calculator.md)) — so a calculation and a
+design of the same flat with the same products are the same lines, the design's placed furniture
+(and what it brings) aside. No calculator pick records its shop, so who sells each one is looked
+up: `usePickStores` → `GET /api/products?ids=…` + `/api/stores` on the client, the database
+(`loadProductStores`) on the server; the board's own doors, radiators and fittings carry theirs.
+Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …).
 
 - **Shown once, under whoever sells it.** Everything a shop sells stands in that shop's card —
   that is who is asked for it and what its delivery is charged on — with the ticks, the
@@ -85,9 +88,9 @@ on the server.
 - **The server lays the edits over its own figures, never the client's.** Both save routes
   reprice and re-quantify from the catalogue and the geometry first; the edits are keys and
   numbers applied on top (`calculatorSheet` in `POST /api/projects`, `priceScene` in the design
-  save), and the cost columns are the totals *as edited*. `orderedPickLines` /
-  `orderedLines` are what the checkout dialogue and the store orders are made from, so a
-  changed quantity is the quantity a shop is sent. A flag on the pick itself
+  save), and the cost columns are the totals *as edited*. `orderedLines` (the calculator's
+  through `orderedCalculationLines`) is what the checkout dialogue and the store orders are made
+  from, so a changed quantity is the quantity a shop is sent. A flag on the pick itself
   (`SelectedProduct.excluded`, the first version) is still read, as the key it meant, and
   lifted into `excluded` when a stored calculator is rehydrated (`liftFlags`).
 - The sheet rounds each line and adds the lines up, so what is read down the page comes to
@@ -179,6 +182,24 @@ separator (`wallPerimeterM`), and the partition walls a black frame builds are m
 plan's walls, less the ones marked already built and never a room separator (`partitionArea`,
 [design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts)).
 
+**A renovation's contingency is 15 % of its works** (`contingencyTotal`, `CONTINGENCY_PCT`):
+of the lines in the `materials` and `labour` sections still ticked, in `full` mode only — never
+of the furniture, the finishes, the doors, the fittings or the equipment bought, and nothing in
+a design-only project. It is a figure beside the grand total, not a line: the totals cards show
+it under the subtotal and the headline is "total + contingency" (`totalCost` on both saves
+stores it so); the checkout orders what the lines are, not the reserve. `productsTotal` is the
+calculator's lines of its own (`extraLines`: sanitary ware, a pendant, anything the board has no
+place for) and counts in the grand total.
+
+**Finishes are bought as they are sold** (`finishPurchase`). Each finish's product carries how it
+is sold (`SceneProduct.sale`: its unit, price and coverage); the area a product covers over the
+whole flat is turned into what is bought by the calculator's own rule (`finishPickQuantity`):
+m² plus a tenth of cutting waste for laminate and floor and wall tiles, paint in whole litres
+by its coverage, a moulding by the metre. So a paint over five rooms is its litres rounded up
+once, and the calculator and the design buy the same. The line's quantity is in the product's
+unit; its room shares (`perRoom`) are split by area. A snapshot from before `sale` is bought by
+the m², as before.
+
 **Finishes: every floor and wall the flat is shown in, bought where it shows.** Generation
 lays each room's floor and walls in the style's own partner products — the bathroom's tiles,
 the bedroom's laminate and paint ([design-studio/finishes.md](design-studio/finishes.md),
@@ -230,7 +251,8 @@ line again.
   — which walls are partitions, built walls, room separators, the calculator's board.
 - `tests/unit/design/kitchen.test.ts` — measured runs and islands, `custom: false`.
 - `tests/unit/summary/calculatorSheet.test.ts`, `tests/unit/summary/quantity.test.ts` — the
-  calculator's sheet, its edits and legacy flags; the quantity options.
+  calculation and a design of the same flat come to the same lines; the calculator's sheet, its
+  edits and legacy flags, its contingency; the quantity options.
 - `tests/unit/projects/checkoutParts.test.ts` — both checkout parts respect ticks and
   quantities.
 - `lib/design/pricing.ts` is in the coverage gate ([testing.md](testing.md)).
@@ -239,8 +261,7 @@ line again.
 
 - A summary's edits are ticks and quantities on the lines the sheet works out; a line cannot
   be *added* there, a price cannot be changed, and a folded line (a finish over every room it
-  is on, twelve sockets of one model) is edited as a whole. The calculator's sheet shows no
-  delivery — its estimate never included it; the orders do charge it — while the design's does.
+  is on, twelve sockets of one model) is edited as a whole.
 - A wall's own height is drawn, not priced. Every area the budget works out — a room's walls,
   one wall, a strip, a square metre, the calculator's plaster and paint — is against
   `room.heightM`; a wall raised in the inspector costs what it cost before. The room's

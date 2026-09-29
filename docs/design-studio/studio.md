@@ -129,7 +129,11 @@ for the tool in hand (see Known gaps: the page-level hint does not show while th
 hidden). **The choosing trays put their categories down their left edge** and give the rest of
 the width to what the person is actually choosing: the finishes tray its surfaces (floor ·
 walls · skirting · cornice), the furniture tray its styles, the electric tray its two families
-(power · lighting); the technical tray has a label and a count there. The build tray has no sentence at all — the unlock button stands where
+(power · lighting); the technical tray has a label and a count there. **A kind's tile says how
+many of it stand on the plan** (a small count in its corner, the socket tile counting every
+kind of socket), in both the electric and the technical tray — the calculator's plan step shows
+the same two trays ([../calculator.md](../calculator.md)). A fitting set down on the 2D board is
+its catalogue product at once, as one set down in 3D is (`PlanWorkspace`'s `catalog`). The build tray has no sentence at all — the unlock button stands where
 it used to, because that is the one thing to do there.
 
 **The side panels fit without scrolling.** The product card is one compact row (photo, name,

@@ -17,7 +17,9 @@ import { getArchetype } from './catalog';
 import type { CatalogProduct } from './matcher';
 import { quantityFor, toSceneProduct } from './matcher';
 import { finishFromProduct, isSurfaceProduct, isWetRoom, surfaceSpecs } from './surfaces';
-import type { FloorPlan, PlacedItem, SurfaceFinish } from './types';
+import { dressBoard, pickTarget } from './boardPicks';
+import { trimFromProduct } from './trims';
+import type { ElectricalPoint, FloorPlan, PlacedItem, SurfaceFinish } from './types';
 
 export interface CalculatorPicks {
   /** Furniture chosen per room on /calculator/furniture. */
@@ -171,7 +173,9 @@ export function applyFinishPicks(
     const room = plan.rooms.find((r) => r.id === pick.roomId);
     if (!product || !room) continue;
     for (const surface of pick.surface ? [pick.surface] : (['floor', 'wall'] as const)) {
-      if (!isSurfaceProduct(product, surface)) continue;
+      // Chosen for this surface of this room, it goes there — the calculator priced it there —
+      // with or without a texture to show it by; a pick from before, on whatever it suits.
+      if (!pick.surface && !isSurfaceProduct(product, surface)) continue;
       const key = `${room.id}:${surface}`;
       const entry = chosen.get(key) ?? { room, surface, laid: [] };
       entry.laid.push({ product, share: pick.share, walls: pick.walls });
@@ -180,6 +184,18 @@ export function applyFinishPicks(
     }
   }
   for (const { room, surface, laid } of chosen.values()) lay(room, surface, calculatorSurfaceFinishes(room, surface, laid));
+  // A skirting board or a cornice picked for the whole flat goes round every room — as the
+  // calculator priced it — unless the studio chose one there.
+  for (const id of picks.productIds) {
+    const product = byId.get(id);
+    const kind = product?.categorySlug === 'skirting' || product?.categorySlug === 'cornice' ? product.categorySlug : null;
+    if (!product || !kind) continue;
+    for (const room of plan.rooms) {
+      if (next.some((f) => f.roomId === room.id && f.surface === kind && f.origin === 'studio')) continue;
+      next = next.filter((f) => !(f.roomId === room.id && f.surface === kind));
+      next.push(trimFromProduct(room, kind, product, 'calculator'));
+    }
+  }
   // Whole-flat picks fill in the rest by wetness, skipping surfaces a room already chose.
   for (const id of picks.productIds) {
     const product = byId.get(id);
@@ -195,6 +211,28 @@ export function applyFinishPicks(
     }
   }
   return next;
+}
+
+/**
+ * The calculation's picks for the whole flat on the design: a door on every interior door, a
+ * window on every window, a radiator on every radiator, a socket, switch or light on every
+ * fitting of its kind — the standard ones and the ones the furniture brought — as the
+ * calculator priced them on its board (`boardWithPicks`; one rule, `dressBoard`). Put on as the
+ * catalogue's products, so each carries its shop: the board handed over from the calculation
+ * knows the product but not who sells it, and a door with no shop was ordered from nobody and
+ * made its shop's basket — and its delivery — smaller than the calculation's. The mouldings go
+ * in with the finishes (`applyFinishPicks`).
+ */
+export function applyBoardPicks(plan: FloorPlan, electrical: ElectricalPoint[], picks: CalculatorPicks, catalog: CatalogProduct[]): { plan: FloorPlan; electrical: ElectricalPoint[] } {
+  const byId = new Map(catalog.map((p) => [p.id, p]));
+  const products = picks.productIds.flatMap((id) => {
+    const product = byId.get(id);
+    const target = product ? pickTarget(product) : null;
+    return product && target && target !== 'skirting' && target !== 'cornice' ? [{ key: String(id), product }] : [];
+  });
+  if (products.length === 0) return { plan, electrical };
+  const dressed = dressBoard(plan, electrical, products);
+  return { plan: dressed.plan, electrical: dressed.electrical };
 }
 
 function sizeOf(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {

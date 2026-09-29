@@ -58,16 +58,19 @@ vi.mock('@/lib/api/productPrices', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/api/productPrices')>();
   return {
     ...original,
+    // Nobody sells anything here unless a test says so: no delivery on the calculation's sheet.
+    loadProductStores: async () => new Map(),
     loadProductPrices: async () =>
       new Map([
-        [1, { pricePerUnit: 100, nameKa: 'ლამინატი', unit: 'm2', coveragePerUnit: null }],
-        [2, { pricePerUnit: 800, nameKa: 'დივანი', unit: 'piece', coveragePerUnit: null }],
-        [3, { pricePerUnit: 50, nameKa: 'საღებავი', unit: 'liter', coveragePerUnit: 10 }],
-        [4, { pricePerUnit: 620, nameKa: 'კარი', unit: 'piece', coveragePerUnit: null }],
-        [5, { pricePerUnit: 30, nameKa: 'როზეტი', unit: 'piece', coveragePerUnit: null }],
-        [6, { pricePerUnit: 38, nameKa: 'რადიატორი (1 სექცია)', unit: 'piece', coveragePerUnit: null }],
-        [7, { pricePerUnit: 60, nameKa: 'იატაკის ფილა', unit: 'm2', coveragePerUnit: null }],
-        [8, { pricePerUnit: 45, nameKa: 'კედლის ფილა', unit: 'm2', coveragePerUnit: null }],
+        [1, { pricePerUnit: 100, nameKa: 'ლამინატი', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
+        [2, { pricePerUnit: 800, nameKa: 'დივანი', unit: 'piece', coveragePerUnit: null, model3dKind: null }],
+        [3, { pricePerUnit: 50, nameKa: 'საღებავი', unit: 'liter', coveragePerUnit: 10, model3dKind: null }],
+        [4, { pricePerUnit: 620, nameKa: 'კარი', unit: 'piece', coveragePerUnit: null, model3dKind: 'door' }],
+        [5, { pricePerUnit: 30, nameKa: 'როზეტი', unit: 'piece', coveragePerUnit: null, model3dKind: null }],
+        [6, { pricePerUnit: 38, nameKa: 'რადიატორი (1 სექცია)', unit: 'piece', coveragePerUnit: null, model3dKind: null }],
+        [7, { pricePerUnit: 60, nameKa: 'იატაკის ფილა', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
+        [8, { pricePerUnit: 45, nameKa: 'კედლის ფილა', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
+        [9, { pricePerUnit: 700, nameKa: 'ფანჯარა', unit: 'piece', coveragePerUnit: null, model3dKind: 'window' }],
       ]),
   };
 });
@@ -101,6 +104,11 @@ const room = {
 const own = (patch: Row = {}): Row => ({ id: 42, userId: 5, status: 'draft', homeState: null, plan: null, scene: null, selectedProducts: {}, selectedFurniture: {}, calculatorEdits: { progress: { step: 1, calculated: false } }, calculatorRev: 0, designRev: 0, mode: 'full', ...patch });
 const signedIn = () => authMock.mockResolvedValue({ user: { id: '5', role: 'user' } });
 const lastUpdate = () => db.updates[db.updates.length - 1];
+
+/** The calculation's sheet as the save answers it: its lines, priced as the design prices them. */
+type Sheet = { lines: Array<{ section: string; key: string; qty: number; total: number }> };
+const labourLine = (sheet: Sheet, key: string) => sheet.lines.find((l) => l.section === 'labour' && l.key === key);
+const sheetTotal = (sheet: Sheet, section: string) => sheet.lines.filter((l) => l.section === section).reduce((sum, l) => sum + l.total, 0);
 
 beforeEach(() => {
   db.row = own();
@@ -174,7 +182,7 @@ describe('POST /api/projects (the calculation)', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data.summary.subtotalFurniture).toBe(800);
+    expect(sheetTotal(body.data.sheet, 'furniture')).toBe(800);
     const set = lastUpdate();
     const products = set.selectedProducts as Record<string, { qty: number; pricePerUnit: number; totalPrice: number }>;
     expect(products.laminate_global).toMatchObject({ qty: 22, pricePerUnit: 100, totalPrice: 2200 }); // 20 m² dry floor + 10 % waste
@@ -243,6 +251,98 @@ describe('POST /api/projects (the calculation)', () => {
     expect(products['floor-tiles_room:r1/floor2']).toMatchObject({ share: 0.25, qty: 5.5, totalPrice: 330 }); // 5 m² + 10 %
     expect(products['paint_room:r1/walls3']).toMatchObject({ walls: [0, 1, 3], qty: 4, totalPrice: 200 }); // 35.1 m² at 10 m² a litre
     expect(products['wall-tiles_room:r1/walls8']).toMatchObject({ walls: [2], qty: 14.9, totalPrice: 670.5 }); // 13.5 m² + 10 %
+  });
+
+  it('hangs the doors on the board it carries — and buys a door chosen for the whole flat for them — not one a room', async () => {
+    signedIn();
+    const POST = await load();
+    const rectangle = (x: number) => [{ x, z: 0 }, { x: x + 4, z: 0 }, { x: x + 4, z: 3 }, { x, z: 3 }];
+    const door = (roomId: string, to: string) => ({ id: `${roomId}-${to}-d`, kind: 'door', wallIndex: 1, t: 0.5, widthM: 0.85, heightM: 2.05, sillM: 0, roomId, connectsToRoomId: to, exterior: false });
+    // Two rooms with one door between them, its two halves: the plan step's board, as a plan read from an upload has it.
+    const board = (doors: boolean) => ({
+      plan: {
+        rooms: [
+          { id: 'r1', type: 'living_room', name: 'მისაღები', polygon: rectangle(0), heightM: 2.7, areaM2: 12, perimeterM: 14, openings: doors ? [door('r1', 'r2')] : [] },
+          { id: 'r2', type: 'bedroom', name: 'საძინებელი', polygon: rectangle(4), heightM: 2.7, areaM2: 12, perimeterM: 14, openings: doors ? [door('r2', 'r1')] : [] },
+        ],
+        metresPerPixel: null,
+        bounds: { width: 8, depth: 3 },
+        source: 'parsed',
+        wallThicknessM: 0.12,
+      },
+      floorPlanUrl: null,
+      finishes: [],
+    });
+    const save = (doors: boolean) =>
+      POST(
+        post('http://localhost/api/projects', {
+          projectId: 42,
+          homeState: 'white_frame',
+          rooms: [room, { ...room, id: 'r2', type: 'bedroom', nameKa: 'საძინებელი' }],
+          selectedProducts: { doors_global: { productId: 4, nameKa: 'x', pricePerUnit: 1, unit: 'piece', qty: 999, totalPrice: 1, imageUrl: null } },
+          selectedFurniture: {},
+          edits: worked,
+          board: board(doors),
+          draft: true,
+        }),
+        ctx
+      );
+    const doorLine = (sheet: Sheet) => labourLine(sheet, 'door_install');
+    const doorPick = () => (lastUpdate().selectedProducts as Record<string, { qty: number; totalPrice: number }>).doors_global;
+
+    const drawn = await save(true);
+    expect(drawn.status).toBe(200);
+    expect(doorLine((await drawn.json()).data.sheet)).toMatchObject({ qty: 1, total: 150 });
+    expect(doorPick()).toMatchObject({ qty: 1, totalPrice: 620 });
+
+    // A board with no doorway drawn says nothing about the doors: a door a room, as before.
+    const bare = await save(false);
+    expect(doorLine((await bare.json()).data.sheet)).toMatchObject({ qty: 2, total: 300 });
+    expect(doorPick()).toMatchObject({ qty: 2, totalPrice: 1240 });
+  });
+
+  it('keeps the windows with the rooms, takes them off a wall chosen on its own, and buys a window for the whole flat for the board’s', async () => {
+    signedIn();
+    const POST = await load();
+    const window = (wallIndex: number) => ({ id: `r1-w${wallIndex}`, kind: 'window', wallIndex, t: 0.5, widthM: 1.8, heightM: 1.4, sillM: 0.9, roomId: 'r1', connectsToRoomId: null, exterior: true });
+    const board = {
+      plan: {
+        rooms: [{ id: 'r1', type: 'living_room', name: 'მისაღები', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 4 }, { x: 0, z: 4 }], heightM: 2.7, areaM2: 20, perimeterM: 18, openings: [window(0), window(1)] }],
+        metresPerPixel: null,
+        bounds: { width: 5, depth: 4 },
+        source: 'parsed',
+        wallThicknessM: 0.12,
+      },
+      floorPlanUrl: null,
+      finishes: [],
+    };
+    // The room as the plan step reads it off that board: two 1.8 × 1.4 m windows, 2.52 m² each, off its walls.
+    const windowed = { ...room, walls: [5, 4, 5, 4], wallsM2: [10.98, 8.28, 13.5, 10.8], wallM2: 43.56 };
+    const pick = (productId: number, over: object) => ({ productId, nameKa: 'x', pricePerUnit: 1, unit: 'piece', qty: 999, totalPrice: 1, imageUrl: null, ...over });
+    const res = await POST(
+      post('http://localhost/api/projects', {
+        projectId: 42,
+        homeState: 'white_frame',
+        rooms: [windowed],
+        selectedProducts: {
+          'wall-tiles_room:r1/walls8': pick(8, { roomId: 'r1', surface: 'wall', categorySlug: 'wall-tiles', walls: [0], unit: 'm2' }),
+          windows_global: pick(9, { categorySlug: 'windows' }),
+        },
+        selectedFurniture: {},
+        edits: worked,
+        board,
+        draft: true,
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+    const set = lastUpdate();
+    expect((set.rooms as Array<{ wallsM2?: number[] }>)[0].wallsM2).toEqual([10.98, 8.28, 13.5, 10.8]);
+    const products = set.selectedProducts as Record<string, { qty: number; totalPrice: number }>;
+    expect(products['wall-tiles_room:r1/walls8']).toMatchObject({ qty: 12.1, totalPrice: 544.5 }); // 13.5 m² less 2.52, + 10 %
+    expect(products.windows_global).toMatchObject({ qty: 2, totalPrice: 1400 }); // the board's two, not a window a room
+    // The painting is the room's walls without the windows.
+    expect(labourLine((await res.json()).data.sheet, 'paint_walls')).toMatchObject({ qty: 43.56 });
   });
 
   it('turns a design in the row into a renovation in place, and counts it as a write to the design', async () => {
@@ -325,7 +425,7 @@ describe('POST /api/projects (the calculation)', () => {
     const res = await save('old_renovation');
     expect(res.status).toBe(200);
     const old = lastUpdate();
-    const keys = ((await res.json()).data.summary.workerCosts as Array<{ key: string }>).map((w) => w.key);
+    const keys = ((await res.json()).data.sheet as Sheet).lines.filter((l) => l.section === 'labour').map((l) => l.key);
     // A dry room has no tiles to break out.
     expect(keys.slice(0, 3)).toEqual(['demolish_floor', 'demolish_walls', 'debris_old']);
     // The same flat as a black frame: no floor or walls to break up and a new build's rubbish
@@ -470,13 +570,14 @@ describe('POST /api/design/projects (the design)', () => {
     );
     expect(res.status).toBe(200);
     const { cost } = (await res.json()).data;
-    // 48.6 m² of wall: 2.7 m² under the strip at 100 GEL, the other 45.9 m² in paint at 5 GEL (50 GEL a litre, 10 m² a litre).
-    const finishLines = cost.lines.filter((l: { section: string }) => l.section === 'finishes').map((l: { key: string; qty: number; total: number }) => [l.key, l.qty, l.total]);
+    // 48.6 m² of wall: 2.7 m² under the strip at 100 GEL, the other 45.9 m² in paint — 4.59 litres
+    // at 10 m² a litre, bought as the tins come: 5 whole litres at 50 GEL.
+    const finishLines = cost.lines.filter((l: { section: string }) => l.section === 'finishes').map((l: { key: string; qty: number; unit: string; total: number }) => [l.key, l.qty, l.unit, l.total]);
     expect(finishLines).toEqual([
-      ['product-3', 45.9, 229.5],
-      ['product-1', 2.7, 270],
+      ['product-3', 5, 'liter', 250],
+      ['product-1', 2.7, 'm2', 270],
     ]);
-    expect(cost.finishesTotal).toBe(499.5);
+    expect(cost.finishesTotal).toBe(520);
     // What is stored is what each finish covers; the budget is what shows.
     const set = lastUpdate() as { scene: { finishes: Array<{ product: { qty: number } }> } };
     expect(set.scene.finishes.map((f) => f.product.qty)).toEqual([48.6, 2.7]);

@@ -15,7 +15,7 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useProjectMeta } from '@/components/projects/ProjectGate';
 import { problemOf, useSaveProblems } from '@/lib/flow/saveQueue';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { basketLabels, localizedName, styleLabel } from '@/lib/i18n/labels';
+import { basketLabels, localizedName, styleLabel, unitLabel } from '@/lib/i18n/labels';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { budgetSummary, priceScene } from '@/lib/design/pricing';
 import { useRateBook } from '@/hooks/useRateBook';
@@ -24,7 +24,7 @@ import { platformFee } from '@/lib/finance/money';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL, formatM2 } from '@/lib/utils';
+import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
@@ -120,11 +120,19 @@ export default function BudgetPage() {
   const checkoutParts: CheckoutPart[] = [
     ...(calculated
       ? [
-          calculatorCheckoutPart(calculator.rooms, calculator.selectedProducts, calculator.selectedFurniture, fees.calculatorFeePerM2, locale, {
-            excluded: calculator.excluded,
-            quantities: calculator.quantities,
-            choices: calculator.choices,
-          }),
+          calculatorCheckoutPart(
+            {
+              rooms: calculator.rooms,
+              homeState: calculator.homeState!,
+              picks: { selectedProducts: calculator.selectedProducts, selectedFurniture: calculator.selectedFurniture },
+              // The calculation's board as its row has it: the plan and the fittings it is priced on.
+              board: project.snapshot.calculatorBoard?.plan ?? null,
+              electrical: project.snapshot.calculatorBoard?.electrical ?? [],
+              edits: { excluded: calculator.excluded, quantities: calculator.quantities, choices: calculator.choices },
+            },
+            fees.calculatorFeePerM2,
+            locale
+          ),
         ]
       : []),
     ...(designPart ? [designPart] : []),
@@ -160,7 +168,6 @@ export default function BudgetPage() {
         unitM: t.units.m,
         items,
         electrical,
-        finishes,
         furniture: true,
         itemLabel: (item) => archetypeLabel(item.kind, locale),
       });
@@ -222,12 +229,13 @@ export default function BudgetPage() {
 
         {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
 
-        {/* Materials + products + labour = the estimate. */}
-        <div className="mt-8 grid overflow-hidden rounded-[16px] border border-line sm:grid-cols-4">
+        {/* Materials + products + labour = the estimate; a renovation's contingency on top of its works. */}
+        <div className={cn('mt-8 grid overflow-hidden rounded-[16px] border border-line', cost.contingencyTotal > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
           <Figure label={t.build.budgetMaterials} value={formatGEL(summary.materials)} />
           <Figure label={t.build.budgetProducts} value={formatGEL(summary.products)} />
           <Figure label={t.build.budgetLabour} value={formatGEL(summary.labour)} />
-          <Figure label={t.build.budgetTotal} value={formatGEL(summary.total)} emphasis />
+          {cost.contingencyTotal > 0 && <Figure label={t.summary.contingency} value={formatGEL(cost.contingencyTotal)} />}
+          <Figure label={cost.contingencyTotal > 0 ? t.summary.grandTotalWithMargin : t.build.budgetTotal} value={formatGEL(summary.total + cost.contingencyTotal)} emphasis />
         </div>
         <p className="mt-3 text-xs text-ink-muted">{t.build.budgetEstimatedNote}</p>
 
@@ -273,6 +281,16 @@ export default function BudgetPage() {
                   <span className="font-serif font-semibold">{fullCost ? t.build.orderTotal : t.design.grandTotal}</span>
                   <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
                 </div>
+                {/* A renovation's unforeseen costs: a share of its works, not of what is bought — the calculator's rule. */}
+                {cost.contingencyTotal > 0 && (
+                  <div className="space-y-1.5">
+                    <MoneyRow label={t.summary.contingency} value={cost.contingencyTotal} muted />
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
+                      <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 space-y-1.5 border-t border-line pt-3">
                   <div className="flex items-baseline justify-between gap-3">
                     <span>
@@ -283,7 +301,7 @@ export default function BudgetPage() {
                   </div>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
-                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + fee)}</span>
+                    <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal + fee)}</span>
                   </div>
                   <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
                 </div>
@@ -299,7 +317,8 @@ export default function BudgetPage() {
                   {cost.coverage.map((c) => (
                     <li key={c.product.productId} className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-ink-soft">{localizedName(locale, c.product)}</span>
-                      <span className="shrink-0 tabular-nums text-ink">{formatM2(c.areaM2)}</span>
+                      {/* A skirting board or a cornice is bought by the metre, not the square metre. */}
+                      <span className="shrink-0 tabular-nums text-ink">{c.unit === 'linear_m' ? `${formatNumber(c.areaM2)} ${unitLabel(t, 'linear_m')}` : formatM2(c.areaM2)}</span>
                     </li>
                   ))}
                 </ul>
@@ -330,7 +349,7 @@ export default function BudgetPage() {
         next={{ label: t.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + fee)}</span>
+          {t.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal + fee)}</span>
         </p>
       </StepNav>
 

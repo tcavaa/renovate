@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildStoreOrders,
-  calculatorLinesByStore,
+  calculationLinesByStore,
   commissionFor,
   costLinesByStore,
   eachDay,
@@ -17,7 +17,8 @@ import { priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom } from '@/lib/design/planGeometry';
-import type { SelectedProduct } from '@/lib/calculator/types';
+import type { Room, SelectedProduct } from '@/lib/calculator/types';
+import type { CalculationInput } from '@/lib/summary/calculatorSheet';
 import type { DesignScene, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SceneProduct, SceneStore, Vec2 } from '@/lib/design/types';
 
 const pick = (productId: number, price: number, qty = 1, extra: Partial<SelectedProduct> = {}): SelectedProduct => ({
@@ -67,21 +68,21 @@ describe('platform fee and commission', () => {
   });
 });
 
+/** A calculation of one living room with no board of its own, its picks as given. */
+const calculation = (selectedProducts: Record<string, SelectedProduct>, selectedFurniture: Record<string, SelectedProduct[]>, extra: Partial<CalculationInput> = {}): CalculationInput => {
+  const room: Room = { id: 'r1', type: 'living_room', nameKa: 'მისაღები', width: 5, length: 4, height: 2.7, floorM2: 20, wallM2: 48.6, ceilingM2: 20, perimeterM: 18, isWetRoom: false };
+  return { rooms: [room], homeState: 'white_frame', picks: { selectedProducts, selectedFurniture }, board: null, electrical: [], ...extra };
+};
+
 describe('grouping a project into partner orders', () => {
-  it('splits calculator picks by store and keeps the room on furniture', () => {
+  it('splits a calculation’s product lines by store and keeps the room on furniture', () => {
     const storeOf = (id: number) => ({ 1: 10, 2: 10, 3: 20 } as Record<number, number>)[id] ?? null;
-    const result = calculatorLinesByStore(
-      { laminate: pick(1, 40, 30, { unit: 'm2', categorySlug: 'laminate' }), paint: pick(9, 15, 4) },
-      { r1: [pick(2, 900), pick(3, 1200)] },
-      [{ id: 'r1', nameKa: 'მისაღები' }],
-      storeOf
-    );
-    expect([...result.groups.keys()]).toEqual([10, 20]);
+    const result = calculationLinesByStore(calculation({ sanitary_global: pick(1, 40, 3, { categorySlug: 'sanitary' }), decor_global: pick(9, 15, 4) }, { r1: [pick(2, 900), pick(3, 1200)] }), storeOf);
+    expect([...result.groups.keys()].sort()).toEqual([10, 20]);
     const store10 = result.groups.get(10)!;
     expect(store10).toHaveLength(2);
-    expect(store10[0].roomName).toBeNull();
-    expect(store10[1].roomName).toBe('მისაღები');
-    expect(store10[0].total).toBe(1200);
+    expect(store10.find((l) => l.productId === 1)).toMatchObject({ roomName: null, total: 120 });
+    expect(store10.find((l) => l.productId === 2)?.roomName).toBe('მისაღები');
     expect(result.unassigned).toHaveLength(1);
     expect(result.unassigned[0].productId).toBe(9);
   });
@@ -199,7 +200,7 @@ describe('grouping a project into partner orders', () => {
       expect(again.groups.has(11)).toBe(false);
       expect(again.skipped).toBe(1);
       // A calculator pick of the same door is the studio's door, not a second one.
-      const calculator = calculatorLinesByStore({ doors_global: pick(21, 620, 1) }, {}, [], () => 11);
+      const calculator = calculationLinesByStore(calculation({ sanitary_global: pick(21, 620, 1, { categorySlug: 'sanitary' }) }, {}), () => 11);
       expect(mergeLines(result, calculator).groups.get(11)).toHaveLength(1);
     });
 
@@ -212,13 +213,10 @@ describe('grouping a project into partner orders', () => {
     });
   });
 
-  it('orders the calculator\u2019s picks as the summary left them', () => {
-    const result = calculatorLinesByStore(
-      { tiles_global: pick(1, 45, 12, { unit: 'm2' }), paint_global: pick(2, 18, 9) },
-      { r1: [pick(5, 900), pick(5, 900)] },
-      [{ id: 'r1', nameKa: '\u10e1\u10d0\u10eb\u10d8\u10dc\u10d4\u10d1\u10d4\u10da\u10d8' }],
-      () => 7,
-      { excluded: ['pick:paint_global', 'furniture:r1:5:0'], quantities: { 'pick:tiles_global': 10 } }
+  it('orders the calculation as the summary left it', () => {
+    const result = calculationLinesByStore(
+      calculation({ sanitary_global: pick(1, 45, 12), decor_global: pick(2, 18, 9) }, { r1: [pick(5, 900), pick(5, 900)] }, { edits: { excluded: ['pick:decor_global', 'furniture:r1:5:0'], quantities: { 'pick:sanitary_global': 10 } } }),
+      () => 7
     );
     const lines = result.groups.get(7)!;
     expect(lines.map((l) => [l.productId, l.qty, l.total])).toEqual([

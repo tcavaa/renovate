@@ -39,6 +39,8 @@ const sceneProductSchema = z.object({
   model3dUrl: z.string().nullable(),
   categorySlug: z.string().nullable(),
   store: sceneStoreSchema.nullable(),
+  // A finish: what it is sold by — the catalogue's unit and price and a paint's coverage (`SceneProduct.sale`).
+  sale: z.object({ unit: z.string().max(16), pricePerUnit: z.number().min(0), coveragePerUnit: z.number().positive().nullable() }).nullable().optional(),
 });
 
 const openingSchema = z.object({
@@ -196,6 +198,8 @@ export const surfaceFinishSchema = z.object({
   zone: finishZoneSchema.nullable().optional(),
   // Floor tiles painted one square metre at a time: grid indices within the room.
   cells: z.array(z.tuple([z.number().int().min(0).max(400), z.number().int().min(0).max(400)])).max(2000).nullable().optional(),
+  // A floor two products share: this one's part of it (`SurfaceFinish.share`).
+  share: z.number().min(0).max(1).nullable().optional(),
   // A skirting board or cornice: its cross-section.
   trim: z
     .object({ profile: z.enum(['flat', 'rounded', 'stepped', 'ogee', 'cove']), heightM: z.number().min(0.01).max(0.6), depthM: z.number().min(0.002).max(0.6) })

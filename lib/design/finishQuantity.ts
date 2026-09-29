@@ -19,7 +19,7 @@ import { isTrimSurface, trimLengthM } from './trims';
 import { clipPolygon, isBaseFinish, wallEdgeAreaM2, zoneAreaM2 } from './zones';
 import type { PlanRoom, SurfaceFinish, Vec2 } from './types';
 
-export function finishQuantity(room: PlanRoom, finish: Pick<SurfaceFinish, 'surface' | 'wallIndex' | 'span' | 'zone' | 'cells'>): number {
+export function finishQuantity(room: PlanRoom, finish: Pick<SurfaceFinish, 'surface' | 'wallIndex' | 'span' | 'zone' | 'cells' | 'share'>): number {
   if (isTrimSurface(finish.surface)) return trimLengthM(room, finish.surface);
   // `cells` on a wall are square metres of that wall — [column along it, row up it] — not
   // tiles of the floor: read as floor tiles they were priced by whatever floor happened to
@@ -31,7 +31,9 @@ export function finishQuantity(room: PlanRoom, finish: Pick<SurfaceFinish, 'surf
     return finish.span ? spanAreaM2(room, finish.wallIndex, finish.span) : wallEdgeAreaM2(room, finish.wallIndex);
   }
   if (finish.surface === 'wall') return wallAreaM2(room);
-  return Math.round(room.areaM2 * 10) / 10;
+  // A floor two products share: this one's part of it.
+  const share = finish.surface === 'floor' && finish.share != null ? Math.min(1, Math.max(0, finish.share)) : 1;
+  return Math.round(room.areaM2 * share * 100) / 100;
 }
 
 /** The unit a finish is bought in: mouldings by the running metre, everything else by the square metre. */
@@ -98,7 +100,11 @@ function hiddenAreas(finishes: SurfaceFinish[], rooms: PlanRoom[]): Map<SurfaceF
     if (own.length === 0) continue;
 
     // --- the floor: the room's, the zones on it, the tiles painted over both ---
-    const floor = firstOf(own.filter((f) => f.surface === 'floor' && isBaseFinish(f)));
+    // A floor two products share (`share`) is one floor in two parts: neither hides the other,
+    // and what lies on top of the floor comes off each in proportion to its part.
+    const bases = own.filter((f) => f.surface === 'floor' && isBaseFinish(f));
+    const shared = bases.length > 1 && bases.every((f) => f.share != null);
+    const floor = shared ? undefined : firstOf(bases);
     const zones = own.filter((f) => f.surface === 'floor' && f.zone && !f.cells && f.product);
     const tiles = own.filter((f) => f.surface === 'floor' && f.cells && f.product);
     const squares = tiles.flatMap((f) => f.cells!.map((cell) => cellSquare(room, cell)));
@@ -109,7 +115,9 @@ function hiddenAreas(finishes: SurfaceFinish[], rooms: PlanRoom[]): Map<SurfaceF
       hide(zone, underTiles);
       zonesShown += Math.max(0, zone.product!.qty - underTiles);
     }
-    hide(floor, zonesShown + tiles.reduce((sum, f) => sum + f.product!.qty, 0));
+    const onFloor = zonesShown + tiles.reduce((sum, f) => sum + f.product!.qty, 0);
+    if (shared) for (const part of bases) hide(part, onFloor * Math.min(1, Math.max(0, part.share ?? 0)));
+    else hide(floor, onFloor);
 
     // --- the walls: the room's, a wall's own, the strips on it, the square metres on top ---
     const walls = firstOf(own.filter((f) => f.surface === 'wall' && isBaseFinish(f)));

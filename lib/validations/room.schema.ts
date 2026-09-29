@@ -63,6 +63,8 @@ export const calculatorRequestSchema = z.object({
         parts: z.array(roomPartSchema).max(2).optional(),
         /** Each wall's length off the board (`Room.walls`), what a wall chosen on its own is counted by. */
         walls: z.array(z.number().min(0).max(100)).max(64).optional(),
+        /** Each of those walls as the estimate counts it, m² — less its doors and windows (`Room.wallsM2`). */
+        wallsM2: z.array(z.number().min(0).max(1000)).max(64).optional(),
       })
     )
     .min(1),

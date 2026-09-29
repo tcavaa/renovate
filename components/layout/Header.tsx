@@ -81,13 +81,6 @@ export function Header() {
 
         <div className="hidden items-center gap-5 lg:flex">
           <UserMenu variant="desktop" />
-          <Link
-            href="/design"
-            className="group inline-flex h-10 items-center gap-2 bg-ink pl-4 pr-3 text-sm font-medium text-white transition-colors hover:bg-brand"
-          >
-            {t.landing.heroCta}
-            <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-          </Link>
           <LanguageSwitcher variant="desktop" />
         </div>
 

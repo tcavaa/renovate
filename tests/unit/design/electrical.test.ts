@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BEDSIDE_SOCKET_M, electricalCounts, fittingClashes, fittingFootprintM, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
+import { BEDSIDE_SOCKET_M, electricalCounts, fittingClashes, fittingFootprintM, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, standardElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
 import { addOpening } from '@/lib/design/openings';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -61,6 +61,22 @@ describe('suggestElectrical', () => {
     const points = suggestElectrical(plan(), [bed], [mine]);
     expect(points.filter((p) => p.roomId === 'bed')).toEqual([mine]);
     expect(points.some((p) => p.roomId === 'living')).toBe(true);
+  });
+
+  it('keeps a room the person wired by hand whole — the app’s points in it too — and wires the others again', () => {
+    const before = standardElectrical(plan());
+    const bedroom = before.filter((p) => p.roomId === 'bed');
+    expect(bedroom.length).toBeGreaterThan(1);
+    const mine: ElectricalPoint = { id: 'mine', roomId: 'bed', kind: 'socket', position: P(1, 0.01), elevationM: 0.45, wallIndex: 0, t: 0.25, origin: 'user' };
+    const existing = [...before, mine];
+    // One socket added: the bedroom keeps its light and switch, and gets no bedside sockets over them.
+    for (const points of [suggestElectrical(plan(), [bed], existing), standardElectrical(plan(), existing)]) {
+      expect(points.filter((p) => p.roomId === 'bed')).toEqual([...bedroom, mine]);
+      // The rooms nobody touched are wired again from the rules: as many points, new ones.
+      const living = points.filter((p) => p.roomId === 'living');
+      expect(living.map((p) => p.kind).sort()).toEqual(before.filter((p) => p.roomId === 'living').map((p) => p.kind).sort());
+      expect(living.some((p) => before.includes(p))).toBe(false);
+    }
   });
 });
 

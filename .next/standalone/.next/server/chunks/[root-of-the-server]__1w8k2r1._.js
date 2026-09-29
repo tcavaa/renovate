@@ -6,6 +6,6 @@ ${t.auth.mailIgnore}`})}async function c(e,t){let r=await u(e.id,"verify_email")
 
 ${s}
 
-${t.auth.mailIgnore}`})}async function E(e){await s.db.update(n.users).set({emailVerifiedAt:new Date}).where((0,r.eq)(n.users.id,e))}e.s(["consumeToken",0,d,"markEmailVerified",0,E,"sendPasswordResetMail",0,p,"sendVerificationMail",0,c])},960882,e=>{"use strict";var t=e.i(902038);let r=["ka","en","ru"];function s(e){return"string"==typeof e&&r.includes(e)}var n=e.i(165163),a=e.i(718576),i=e.i(428805);let o={ka:n.ka,en:a.en,ru:i.ru};async function l(){let e=(await (0,t.cookies)()).get("locale")?.value;return s(e)?e:"ka"}async function u(){var e;return s(e=await l())?o[e]:o.ka}e.s(["getT",0,u],960882)}];
+${t.auth.mailIgnore}`})}async function E(e){await s.db.update(n.users).set({emailVerifiedAt:new Date}).where((0,r.eq)(n.users.id,e))}e.s(["consumeToken",0,d,"markEmailVerified",0,E,"sendPasswordResetMail",0,p,"sendVerificationMail",0,c])},960882,e=>{"use strict";var t=e.i(902038);let r=["ka","en","ru"];function s(e){return"string"==typeof e&&r.includes(e)}let n=["ka","en"];var a=e.i(165163),i=e.i(718576),o=e.i(428805);let l={ka:a.ka,en:i.en,ru:o.ru};async function u(){let e=(await (0,t.cookies)()).get("locale")?.value;return s(e)&&n.includes(e)?e:"ka"}async function d(){var e;return s(e=await u())?l[e]:l.ka}e.s(["getT",0,d],960882)}];
 
 //# sourceMappingURL=%5Broot-of-the-server%5D__1w8k2r1._.js.map

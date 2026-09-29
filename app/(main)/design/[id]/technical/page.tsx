@@ -208,7 +208,8 @@ export default function TechnicalPage() {
             onTool={setTool}
             technicalKind={kind}
             onTechnicalKind={setKind}
-            layers={{ dimensions: false }}
+            // White paper under the points: the finishes are the studio's, not this step's.
+            layers={{ dimensions: false, zones: false }}
             layerKeys={['walls', 'openings', 'structure', 'technical', 'dimensions']}
             locked
             bleed={FLOW_BOARD_BLEED}

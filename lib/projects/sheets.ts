@@ -1,17 +1,14 @@
-import { inArray } from 'drizzle-orm';
-import { calculatorBoardPlan, projectKind } from '@/lib/projects/saved';
-import { db } from '@/lib/db';
-import { products, stores, type Project } from '@/lib/db/schema';
-import { buildProjectSummary } from '@/lib/calculator/materials';
-import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
+import { calculationInput, projectKind } from '@/lib/projects/saved';
+import type { Project } from '@/lib/db/schema';
+import type { HomeState, SelectedProduct } from '@/lib/calculator/types';
 import type { RateBook } from '@/lib/calculator/rates';
+import { loadProductStores } from '@/lib/api/productPrices';
 import { priceScene, type BudgetLine } from '@/lib/design/pricing';
-import { boardPartitionCounts } from '@/lib/design/partitions';
-import type { DesignScene, FloorPlan, SceneStore } from '@/lib/design/types';
+import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { basketLabels } from '@/lib/i18n/labels';
 import type { Dictionary } from '@/lib/i18n/ka';
 import type { Locale } from '@/lib/i18n';
-import { calculatorSheet, type CalculatorEdits, type CalculatorSheet } from '@/lib/summary/calculatorSheet';
+import { calculatorSheet, type CalculatorSheet } from '@/lib/summary/calculatorSheet';
 
 /**
  * A saved project as the two sheets it was summarised on — the calculator's and the
@@ -27,8 +24,12 @@ import { calculatorSheet, type CalculatorEdits, type CalculatorSheet } from '@/l
 export interface DesignSheet {
   lines: BudgetLine[];
   grandTotal: number;
+  /** The renovation's contingency, when the design is one (`DesignCost.contingencyTotal`). */
+  contingency: number;
   /** The grand total with no edit applied; absent when nothing was edited. */
   originalGrandTotal: number | null;
+  /** The contingency of that unedited sheet. */
+  originalContingency: number | null;
   excludedCount: number;
   changedCount: number;
 }
@@ -41,30 +42,7 @@ export interface ProjectSheets {
   designPending: boolean;
 }
 
-/** The shops that sell these products, as the snapshots a sheet line carries. */
-async function storesOf(productIds: number[]): Promise<Map<number, SceneStore>> {
-  const ids = [...new Set(productIds)];
-  if (ids.length === 0) return new Map();
-  const rows = await db.select({ id: products.id, storeId: products.storeId }).from(products).where(inArray(products.id, ids));
-  const storeIds = [...new Set(rows.map((r) => r.storeId).filter((id): id is number => id != null))];
-  if (storeIds.length === 0) return new Map();
-  const shops = await db.select().from(stores).where(inArray(stores.id, storeIds));
-  const byId = new Map(
-    shops.map((s): [number, SceneStore] => [
-      s.id,
-      { id: s.id, nameKa: s.nameKa, nameEn: s.nameEn, nameRu: s.nameRu, logoUrl: s.logoUrl, websiteUrl: s.websiteUrl, phone: s.phone, address: s.address, city: s.city, rating: s.rating == null ? null : Number(s.rating), deliveryDays: s.deliveryDays, deliveryFeeGel: s.deliveryFeeGel == null ? null : Number(s.deliveryFeeGel) },
-    ])
-  );
-  const out = new Map<number, SceneStore>();
-  for (const row of rows) {
-    const shop = row.storeId != null ? byId.get(row.storeId) : undefined;
-    if (shop) out.set(row.id, shop);
-  }
-  return out;
-}
-
 export async function loadProjectSheets(project: Project, book: RateBook, t: Dictionary, locale: Locale): Promise<ProjectSheets> {
-  const rooms = (project.rooms ?? []) as Room[];
   // Null on a project still on its first step: no calculation to show, and a design prices without one.
   const homeState = (project.homeState ?? undefined) as HomeState | undefined;
   const hasDesign = project.plan != null && project.scene != null;
@@ -76,12 +54,12 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
   // and labour are the design sheet's — shown there, not twice.
   let calculator: CalculatorSheet | null = null;
   if ((project.selectedProducts != null || !hasDesign) && !kind.calculatorPending && homeState) {
+    // Priced as the design prices it (`calculationCost`): the board, its fittings, the picks.
     const selectedProducts = (project.selectedProducts ?? {}) as Record<string, SelectedProduct>;
     const selectedFurniture = (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>;
-    const picks = [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()];
-    const shops = await storesOf(picks.map((p) => p.productId));
-    const summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), book, { choices: (project.calculatorEdits as CalculatorEdits | null)?.choices, counts: boardPartitionCounts(calculatorBoardPlan(project)) });
-    calculator = calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits: (project.calculatorEdits ?? null) as CalculatorEdits | null, storeOf: (id) => shops.get(id) ?? null });
+    const shops = await loadProductStores([...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()].map((p) => p.productId));
+    const input = calculationInput(project, { book, locale, storeOf: (id) => shops.get(id) ?? null, ...basketLabels(t) });
+    if (input) calculator = calculatorSheet(input);
   }
 
   let design: DesignSheet | null = null;
@@ -91,10 +69,13 @@ export async function loadProjectSheets(project: Project, book: RateBook, t: Dic
     const options = { homeState, book, locale, ...basketLabels(t) };
     const cost = priceScene(plan, scene, options);
     const edited = (scene.excluded?.length ?? 0) > 0 || Object.keys(scene.quantities ?? {}).length > 0;
+    const original = edited ? priceScene(plan, { ...scene, excluded: [], quantities: {} }, options) : null;
     design = {
       lines: cost.lines,
       grandTotal: cost.grandTotal,
-      originalGrandTotal: edited ? priceScene(plan, { ...scene, excluded: [], quantities: {} }, options).grandTotal : null,
+      contingency: cost.contingencyTotal,
+      originalGrandTotal: original ? original.grandTotal : null,
+      originalContingency: original ? original.contingencyTotal : null,
       excludedCount: cost.lines.filter((l) => l.excluded).length,
       changedCount: cost.lines.filter((l) => l.originalQty != null && !l.excluded).length,
     };

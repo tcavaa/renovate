@@ -1,7 +1,7 @@
 import type { HomeState, ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignCost, DesignScene, FloorPlan } from '@/lib/design/types';
 import { FREE_DELIVERY_THRESHOLD_GEL, orderedLines, priceScene } from '@/lib/design/pricing';
-import { orderedPickLines, type CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import { calculationCost, type CalculationInput } from '@/lib/summary/calculatorSheet';
 
 /**
  * The marketplace arithmetic, with no database and no React.
@@ -149,26 +149,13 @@ function push(result: LinesByStore, storeId: number | null | undefined, draft: O
 }
 
 /**
- * A calculator project's picks, grouped by the store that sells each one. Materials carry
- * no room (they are bought for the whole flat); furniture is keyed by room.
+ * A calculation's products by the store that sells each one: every product line of its priced
+ * sheet still ticked (`calculationCost`) — the finishes, the doors and windows, the fittings and
+ * radiators on its board, its other picks and its furniture — at the sheet's quantity. The same
+ * reading of the same lines as a design's (`costLinesByStore`), so the two order alike.
  */
-export function calculatorLinesByStore(
-  selectedProducts: Record<string, SelectedProduct>,
-  selectedFurniture: Record<string, SelectedProduct[]>,
-  rooms: Pick<Room, 'id' | 'nameKa'>[],
-  storeOf: StoreOf,
-  /** The project's `calculatorEdits`: lines ticked off the summary and quantities changed on it. */
-  edits?: CalculatorEdits | null
-): LinesByStore {
-  const result: LinesByStore = { groups: new Map(), unassigned: [] };
-  // The picks as the person left them on the summary (`orderedPickLines`): one ticked off is
-  // not ordered at all, and one whose quantity was changed is ordered at that quantity. A
-  // finish picked for one room names that room on the order line, like furniture does.
-  for (const sheetLine of orderedPickLines({ selectedProducts, selectedFurniture }, rooms, edits)) {
-    const product = sheetLine.product!;
-    push(result, storeOf(product.productId), line({ ...product, qty: sheetLine.qty }, sheetLine.roomName ?? null));
-  }
-  return result;
+export function calculationLinesByStore(input: CalculationInput, storeOf: StoreOf = () => null): LinesByStore {
+  return costLinesByStore(calculationCost(input), storeOf);
 }
 
 /**

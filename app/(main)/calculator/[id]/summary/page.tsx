@@ -14,7 +14,8 @@ import {
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { SummaryCard } from '@/components/calculator/SummaryCard';
 import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
-import { calculatorSheet } from '@/lib/summary/calculatorSheet';
+import { calculatorSheet, type CalculationInput } from '@/lib/summary/calculatorSheet';
+import { useCalculatorBoardProducts } from '@/hooks/useCalculatorBoardProducts';
 import { usePickStores } from '@/hooks/usePickStores';
 import { fill } from '@/lib/admin/list';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -24,8 +25,6 @@ import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useProjectId, useProjectMeta } from '@/components/projects/ProjectGate';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
-import { buildProjectSummary } from '@/lib/calculator/materials';
-import { boardPartitionCounts } from '@/lib/design/partitions';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designEntryHref } from '@/lib/design/steps';
 import { useRateBook } from '@/hooks/useRateBook';
@@ -36,11 +35,10 @@ import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/check
 import { priceScene } from '@/lib/design/pricing';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
 import { problemOf, useSaveProblems } from '@/lib/flow/saveQueue';
-import { boardFinishesFromPicks } from '@/lib/calculator/roomFinishes';
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { homeStateLabel } from '@/lib/i18n/labels';
+import { basketLabels, homeStateLabel } from '@/lib/i18n/labels';
 import { formatGEL, formatM2 } from '@/lib/utils';
 import type { DesignScene } from '@/lib/design/types';
 
@@ -53,8 +51,11 @@ export default function SummaryPage() {
 
   const { rooms, homeState, selectedProducts, selectedFurniture, excluded, quantities, choices, toggleExcluded, setLinesExcluded, setQuantity, clearEdits } =
     useCalculatorStore();
-  // The calculator's own board, each room in the floor and walls chosen for it — the plan the PDF draws.
+  // The calculator's own board — the plan the calculation is priced on, as a design is, and the
+  // plan the PDF draws — with the fittings on it, every one a product (`useCalculatorBoardProducts`).
   const boardPlan = useCalculatorPlanStore((s) => s.plan);
+  const boardElectrical = useCalculatorPlanStore((s) => s.electrical);
+  useCalculatorBoardProducts();
   const [exporting, setExporting] = useState(false);
   const { book } = useRateBook();
   const fees = usePlatformFees();
@@ -85,23 +86,18 @@ export default function SummaryPage() {
 
   const ready = !!homeState && rooms.length > 0;
 
-  const summary = useMemo(() => {
-    if (!ready) return null;
-    const products = Object.values(selectedProducts);
-    const furniture = Object.values(selectedFurniture).flat();
-    return buildProjectSummary(rooms, homeState, products, furniture, book, { choices, counts: boardPartitionCounts(boardPlan) });
-  }, [ready, rooms, homeState, selectedProducts, selectedFurniture, book, choices, boardPlan]);
-
-  // The estimate as one sheet: every line with its tick and its quantity, the picks under the
-  // shop that sells them. The engine's figures are the original; the person's edits — lines
-  // ticked off, quantities of their own — are laid over them and kept in the store.
+  // The estimate as one sheet, priced as the design prices it (`calculatorSheet`): every line
+  // with its tick and its quantity, what a shop sells under that shop. The figures worked out
+  // are the original; the person's edits — lines ticked off, quantities of their own — are laid
+  // over them and kept in the store.
   const pickIds = useMemo(() => [...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()].map((p) => p.productId), [selectedProducts, selectedFurniture]);
   const storeOf = usePickStores(pickIds);
-  const edits = useMemo(() => ({ excluded, quantities }), [excluded, quantities]);
-  const sheet = useMemo(
-    () => (summary ? calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits, storeOf }) : null),
-    [summary, selectedProducts, selectedFurniture, rooms, edits, storeOf]
+  const labels = useMemo(() => basketLabels(ka), [ka]);
+  const input = useMemo<CalculationInput | null>(
+    () => (ready ? { rooms, homeState, picks: { selectedProducts, selectedFurniture }, board: boardPlan, electrical: boardElectrical, edits: { excluded, quantities, choices }, book, storeOf, locale, ...labels } : null),
+    [ready, rooms, homeState, selectedProducts, selectedFurniture, boardPlan, boardElectrical, excluded, quantities, choices, book, storeOf, locale, labels]
   );
+  const sheet = useMemo(() => (input ? calculatorSheet(input) : null), [input]);
   const sheetActions: SheetActions = {
     toggle: (line) => line.tick && toggleExcluded(line.tick),
     setMany: (lines, out) => setLinesExcluded(lines.flatMap((l) => (l.tick ? [l.tick] : [])), out),
@@ -136,9 +132,7 @@ export default function SummaryPage() {
   }, [designExists, designPlan, designScene, homeState, fees.designFeePerM2, locale]);
   // Built from the picks rather than from the estimate, because the two differ: what the
   // person ticked off on the order list is still costed and no longer bought.
-  const checkoutParts: CheckoutPart[] = summary
-    ? [calculatorCheckoutPart(rooms, selectedProducts, selectedFurniture, fees.calculatorFeePerM2, locale, edits), ...(designPart ? [designPart] : [])]
-    : [];
+  const checkoutParts: CheckoutPart[] = input ? [calculatorCheckoutPart(input, fees.calculatorFeePerM2, locale), ...(designPart ? [designPart] : [])] : [];
 
   /**
    * Writes the calculation into the project's row — the save button and the checkout share
@@ -170,7 +164,7 @@ export default function SummaryPage() {
     }
   }, [saveNow, ka, projectId]);
 
-  /** The plan as a PDF: the rooms with their sizes, the doors and windows with theirs, what each room wears. */
+  /** The plan as a PDF: the rooms with their sizes, the doors and windows with theirs, the technical points and fittings on the board. */
   const exportPdf = async () => {
     if (!boardPlan || boardPlan.rooms.length === 0 || !homeState) return;
     setExporting(true);
@@ -185,7 +179,7 @@ export default function SummaryPage() {
         roomsLabel: fill(ka.build.roomCount, { n: boardPlan.rooms.length }),
         unitM2: ka.units.m2,
         unitM: ka.units.m,
-        finishes: boardFinishesFromPicks(boardPlan, selectedProducts),
+        electrical: boardElectrical,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -213,7 +207,7 @@ export default function SummaryPage() {
     return () => clearTimeout(t);
   }, [successModalOpen, goToProject]);
 
-  if (!ready || !summary || !sheet) {
+  if (!ready || !sheet) {
     return (
       <>
         <StepIndicator current={6} />
@@ -227,7 +221,7 @@ export default function SummaryPage() {
       <StepIndicator current={6} />
       <div className="container py-10 md:py-14">
         <StepHeader
-          step={7}
+          step={6}
           total={CALCULATOR_STEPS}
           title={ka.summary.title}
           subtitle={ka.summary.subtitle}

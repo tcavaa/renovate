@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from './room.schema';
 import { calculatorEditsSchema, selectedProductSchema } from './project.schema';
-import { draftPlanSchema, surfaceFinishSchema } from './design.schema';
+import { draftPlanSchema, electricalPointSchema, surfaceFinishSchema } from './design.schema';
 
 /**
  * The calculator's drawing board as a project keeps it (`projects.calculator_board`): the plan
@@ -12,6 +12,8 @@ export const calculatorBoardSchema = z.object({
   plan: draftPlanSchema.nullable(),
   floorPlanUrl: z.string().max(500).nullable(),
   finishes: z.array(surfaceFinishSchema).max(800),
+  // The sockets, switches and lights on it (`CalculatorBoard.electrical`).
+  electrical: z.array(electricalPointSchema).max(600).optional(),
 });
 
 /**

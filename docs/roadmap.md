@@ -12,8 +12,8 @@ what is *not* done; what *is* done lives in the topic documents; history lives i
 
 ## Bugs found and not yet fixed
 
-Found by reading the code while the docs were verified; none has been fixed or reproduced at
-runtime yet.
+Most were found by reading the code while the docs were verified and have not been reproduced
+at runtime yet; the last one was seen on the sample plan.
 
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
@@ -23,6 +23,8 @@ runtime yet.
   hover card's phone line never renders — [design-studio/studio.md](design-studio/studio.md#known-gaps).
 - Floor zones can no longer be created from the UI — [design-studio/finishes.md](design-studio/finishes.md#known-gaps).
 - The calculator's summary lines have no product link (`slug: ''`) — [budget.md](budget.md#known-gaps).
+- Inferred doors can leave a flat with no front door (windows are placed first; the sample
+  plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
 
 ## Next features
 
@@ -56,15 +58,17 @@ runtime yet.
   edge, the app's separator only from partial walls square to the plan; a studio (one room in
   two parts) still takes one floor and one set of walls in the calculator's catalogue
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
-- **Pricing accuracy**: wall heights of their own, net wall areas in the calculator, a
-  heat-loss calculation for radiators ([budget.md](budget.md#known-gaps),
-  [calculator.md](calculator.md#known-gaps)); the style's skirting boards and cornices as
-  products like its floors and walls ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
+- **Pricing accuracy**: wall heights of their own, a heat-loss calculation for radiators
+  ([budget.md](budget.md#known-gaps)); the style's skirting boards and cornices as products like
+  its floors and walls ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Projects**: live updates between two tabs on one project
   ([project-flow.md §19](project-flow.md#19-known-gaps)).
-- **Calculator finishes**: a floor in two products has a share, not a place (the board and 3D
-  show its larger product), and the summary and the orders do not name a pick's walls or share
-  ([calculator.md](calculator.md#known-gaps)).
+- **Calculator finishes**: a floor in two products has a share, not a place (both are bought;
+  the board and 3D show the larger), and the summary and the orders do not name a pick's walls
+  or share ([calculator.md](calculator.md#known-gaps)).
+- **Calculator ↔ design**: a door, window, radiator or fitting chosen in the studio has no mark
+  of it, so carrying the calculation into a laid-out design again puts the calculation's whole-flat
+  pick over it (floors and walls are protected) ([calculator.md](calculator.md#known-gaps)).
 - **Orders**: nobody on the staff is told when a store order arrives for review (the queue, the
   dashboard and the sidebar's count are the signal); the customer cannot cancel or message from
   the project page; one supplier for every construction material
@@ -72,6 +76,8 @@ runtime yet.
 - **Accounts**: no password-reset link sent from the account page, no audit trail of account
   changes in the database, brigades cannot register or change their crew
   ([auth-and-roles.md](auth-and-roles.md#known-gaps), [partners-and-admin.md](partners-and-admin.md#known-gaps)).
+- **Russian**: hidden from the site for now (`OFFERED_LOCALES`, [architecture.md](architecture.md#i18n));
+  its dictionary and the catalogue's Russian names are kept, ready to be offered again.
 - No SMS notifications; admin has no bulk product import; files uploaded in a form that is
   never saved stay in storage ([catalog.md](catalog.md#known-gaps)).
 - **Categories**: no drag-and-drop on the tree page (a category moves through its form); a

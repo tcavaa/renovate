@@ -1,7 +1,9 @@
-import { aggregateRoomTotals } from '@/lib/calculator/materials';
+import { aggregateRoomTotals, type OpeningCounts } from '@/lib/calculator/materials';
 import { categorySlugFromKey, isCartKey, roomFinishQuantity, roomIdFromKey, SURFACE_OF_SLUG, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
 import { normalizeRoomFinishes } from '@/lib/calculator/roomFinishes';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
+import type { ElectricalPoint, FloorPlan } from '@/lib/design/types';
+import { placedQuantity } from '@/lib/summary/calculatorSheet';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
@@ -22,9 +24,13 @@ export interface RepricedPicks {
 export async function repriceCalculatorPicks(
   rooms: Room[],
   incomingProducts: Record<string, SelectedProduct>,
-  incomingFurniture: Record<string, SelectedProduct[]>
+  incomingFurniture: Record<string, SelectedProduct[]>,
+  /** What the calculation's board counts (`boardCounts`): a door or a window chosen for the whole flat is bought for its doors or windows. */
+  counts?: OpeningCounts | null,
+  /** The board the calculation is priced on: a product for the whole flat that goes on its doors, fittings or rooms is bought for them (`placedQuantity`). */
+  board?: { plan: FloorPlan | null; electrical: ElectricalPoint[] } | null
 ): Promise<RepricedPicks | { unknownProductId: number }> {
-  const totals = aggregateRoomTotals(rooms);
+  const totals = aggregateRoomTotals(rooms, counts);
   // A room's finishes in the shape the catalogue step keeps them — each on the surface its
   // category is for (the seeds' categories say; one made in admin is taken at the surface the
   // pick was made for), a floor in at most two products whose shares make the whole, every
@@ -70,8 +76,11 @@ export async function repriceCalculatorPicks(
     // room took its own (no longer made; a tab left open from before can still send one), is
     // bought at the area it was laid on, held within what the flat could possibly take;
     // everything else is quantified from the rooms alone.
-    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : suggestedQuantity(categorySlug, totals);
-    const repriced = repriceSnapshot({ ...snapshot, categorySlug }, known, qty);
+    // What the product is comes from the catalogue, not from the snapshot: it decides what on the board it goes on.
+    const kinded = { ...snapshot, categorySlug, model3dKind: catalogue.model3dKind };
+    const placed = board && !isCartKey(key) ? placedQuantity(board.plan, board.electrical, key, kinded) : null;
+    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : (placed ?? suggestedQuantity(categorySlug, totals));
+    const repriced = repriceSnapshot(kinded, known, qty);
     if (!repriced) return { unknownProductId: snapshot.productId };
     selectedProducts[key] = repriced;
   }

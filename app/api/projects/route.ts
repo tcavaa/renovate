@@ -1,16 +1,16 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { calculatorBoardPlan, isCalculatorPending, projectKind } from '@/lib/projects/saved';
+import { calculatorBoardElectrical, calculatorBoardPlan, isCalculatorPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { saveCalculatorSchema } from '@/lib/validations/calculatorSave.schema';
-import { buildProjectSummary } from '@/lib/calculator/materials';
-import { boardPartitionCounts } from '@/lib/design/partitions';
-import type { FloorPlan } from '@/lib/design/types';
-import { calculatorSheet } from '@/lib/summary/calculatorSheet';
+import { boardCounts } from '@/lib/calculator/boardCounts';
+import type { ElectricalPoint, FloorPlan } from '@/lib/design/types';
+import { calculatorSheet, type CalculatorSheet } from '@/lib/summary/calculatorSheet';
 import type { SelectedProduct } from '@/lib/calculator/types';
 import { auth } from '@/auth';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/projectSave';
+import { loadProductPrices, loadProductStores, planProductIds, repricePlan } from '@/lib/api/productPrices';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
 
@@ -54,11 +54,25 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   const ownUnconfirmed = prevSaveId != null && existing.calculatorSaveId === prevSaveId && baseRev === existing.calculatorRev - 1;
   if (!force && baseRev != null && baseRev < existing.calculatorRev && !ownUnconfirmed) return fail('PROJECT_CHANGED', 409);
 
+  // The drawing board this save carries, else the one the row has — the plan the calculation is
+  // priced on, as a design is (`calculationCost`). Its doors, windows, radiators and fittings are
+  // products a store is sent, repriced from the catalogue as the design's save reprices them.
+  const board = parsed.data.board;
+  const sentPlan = board !== undefined ? ((board?.plan ?? null) as FloorPlan | null) : calculatorBoardPlan(existing);
+  const sentElectrical = board !== undefined ? ((board?.electrical ?? []) as ElectricalPoint[]) : calculatorBoardElectrical(existing);
+  const onBoard = await loadProductPrices(planProductIds(sentPlan, sentElectrical));
+  const priced = repricePlan(sentPlan, sentElectrical, onBoard);
+  if (priced.unknown.length > 0) return fail(`Unknown product ${priced.unknown[0]}`, 400);
+  const boardPlan = priced.plan;
+  const boardElectrical = priced.electrical;
+
   // The client's prices and quantities are a preview; see repriceCalculatorPicks.
   const repriced = await repriceCalculatorPicks(
     rooms,
     parsed.data.selectedProducts as Record<string, SelectedProduct>,
-    parsed.data.selectedFurniture as Record<string, SelectedProduct[]>
+    parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,
+    boardCounts(boardPlan),
+    { plan: boardPlan, electrical: boardElectrical }
   );
   if (isUnknownProduct(repriced)) return fail(`Unknown product ${repriced.unknownProductId}`, 400);
   const { selectedProducts, selectedFurniture } = repriced;
@@ -69,21 +83,16 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   const edits = parsed.data.edits ?? null;
   const pending = isCalculatorPending(edits) || !homeState || rooms.length === 0;
 
-  // The drawing board this save carries, else the one the row has: its partition walls — less
-  // the ones already standing — are what the estimate builds (`boardPartitionCounts`).
-  const board = parsed.data.board;
-  const boardPlan = board !== undefined ? ((board?.plan ?? null) as FloorPlan | null) : calculatorBoardPlan(existing);
-
-  let summary: ReturnType<typeof buildProjectSummary> | null = null;
+  let sheet: CalculatorSheet | null = null;
   let costColumns: Record<'totalMaterialsCost' | 'totalFurnitureCost' | 'totalWorkersCost' | 'totalCost', string | null> | null = null;
   if (!pending && homeState) {
-    // Same rate book the calculator UI used, so the saved total matches what was shown.
-    summary = buildProjectSummary(rooms, homeState, Object.values(selectedProducts), Object.values(selectedFurniture).flat(), await loadRateBook(), { choices: edits?.choices, counts: boardPartitionCounts(boardPlan) });
-    // What the person made of the estimate — lines ticked off, quantities of their own — is
-    // laid over the figures just worked out, never over the client's. The row keeps the edits
-    // and the totals *as edited*: what the estimate was before them is worked out again from
-    // the rooms and the picks whenever somebody wants to see it.
-    const sheet = calculatorSheet(summary, { selectedProducts, selectedFurniture }, { rooms, edits });
+    // Priced as the design prices it, with the same rate book the calculator UI used, so the
+    // saved total matches what was shown. What the person made of the estimate — lines ticked
+    // off, quantities of their own — is laid over the figures just worked out, never over the
+    // client's. The row keeps the edits and the totals *as edited*: what the estimate was
+    // before them is worked out again from the board and the picks whenever somebody asks.
+    const shops = await loadProductStores([...Object.values(selectedProducts), ...Object.values(selectedFurniture).flat()].map((p) => p.productId));
+    sheet = calculatorSheet({ rooms, homeState, picks: { selectedProducts, selectedFurniture }, board: boardPlan, electrical: boardElectrical, edits, book: await loadRateBook(), storeOf: (id) => shops.get(id) ?? null });
     costColumns = {
       totalMaterialsCost: String(Math.round((sheet.subtotalMaterials + sheet.subtotalProducts) * 100) / 100),
       totalFurnitureCost: String(sheet.subtotalFurniture),
@@ -104,7 +113,8 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     selectedProducts,
     selectedFurniture,
     calculatorEdits: edits && ((edits.excluded?.length ?? 0) > 0 || Object.keys(edits.quantities ?? {}).length > 0 || Object.keys(edits.choices ?? {}).length > 0 || edits.progress != null) ? edits : null,
-    ...(board !== undefined ? { calculatorBoard: board } : {}),
+    // The board as stored is the repriced one: its doors, radiators and fittings at the catalogue's price.
+    ...(board !== undefined ? { calculatorBoard: board ? { ...board, plan: boardPlan, electrical: boardElectrical } : board } : {}),
   };
 
   // A project with a calculation is renovation + design, whatever the studio was told when
@@ -132,5 +142,5 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     // other cannot both win, and the revision this one made is the one it names back.
     .where(and(eq(projects.id, existing.id), eq(projects.calculatorRev, existing.calculatorRev)));
   if ((result as { affectedRows?: number } | undefined)?.affectedRows === 0) return fail('PROJECT_CHANGED', 409);
-  return ok({ id: existing.id, summary, rev: existing.calculatorRev + 1 });
+  return ok({ id: existing.id, sheet: sheet ? { lines: sheet.lines, grandTotal: sheet.grandTotal, contingency: sheet.contingency, grandTotalWithMargin: sheet.grandTotalWithMargin } : null, rev: existing.calculatorRev + 1 });
 });

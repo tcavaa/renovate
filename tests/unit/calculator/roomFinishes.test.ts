@@ -79,6 +79,18 @@ describe('keys and quantities', () => {
     expect(roomWallAreasM2(lShape)[2]).toBe(4.05);
   });
 
+  it('counts each wall as the board measured it, less its doors and windows — only beside the walls it was read with', () => {
+    // Read off the board with a 1.8 × 1.4 m window in wall 0 and a 0.9 × 2.05 m door in wall 3; the room's walls already without them.
+    const opened = { ...bedroom, walls: [4, 3.5, 4, 3.5], wallsM2: [8.28, 9.45, 10.8, 7.61], wallM2: 36.14 };
+    expect(roomWallAreasM2(opened)).toEqual([8.28, 9.45, 10.8, 7.61]);
+    expect(roomFinishQuantity({ ...wallTile, walls: [0] }, 'wall', opened)).toBe(9.1); // 8.28 m² + 10 %
+    expect(roomFinishQuantity(wallTile, 'wall', opened)).toBe(39.8); // 36.14 m² + 10 %
+    // Not beside the walls they were read with — none recorded, not as many, or not areas — they count gross.
+    expect(roomWallAreasM2({ ...bedroom, wallsM2: [8.28, 9.45, 10.8, 7.61] })).toEqual([10.8, 9.45, 10.8, 9.45]);
+    expect(roomWallAreasM2({ ...opened, wallsM2: [8.28] })).toEqual([10.8, 9.45, 10.8, 9.45]);
+    expect(roomWallAreasM2({ ...opened, wallsM2: [Number.NaN, 0, 0, 0] })).toEqual([10.8, 9.45, 10.8, 9.45]);
+  });
+
   it('counts a share of the floor and the walls chosen one by one from that part of the room alone', () => {
     expect(roomFinishQuantity({ ...product(), share: 0.25 }, 'floor', bedroom)).toBe(3.9); // 3.5 m² + 10 %
     expect(roomFinishQuantity({ ...wallTile, walls: [1] }, 'wall', bedroom)).toBe(10.4); // 9.45 m² + 10 %
@@ -348,7 +360,7 @@ describe('the drawing board in the rooms’ picks', () => {
     expect(boardFinishesFromPicks(null, picks)).toEqual([]);
   });
 
-  it('wears walls chosen one by one on those walls, and a floor two products share in the one with more of it', () => {
+  it('wears walls chosen one by one on those walls, and a floor two products share in both, the larger part first', () => {
     const plan = rebuildRooms(blank, wallsForRectangle({ x: 0, z: 0, width: 4, depth: 3.5 }, 0.12, 'user', 'r'));
     const id = plan.rooms[0].id;
     const flat = [{ ...bedroom, id }];
@@ -363,7 +375,13 @@ describe('the drawing board in the rooms’ picks', () => {
       [2, 12],
       [3, 12],
     ]);
-    expect(finishes.filter((f) => f.surface === 'floor').map((f) => f.product?.productId)).toEqual([9]);
+    // Both parts of the floor, each bought for its share; the board draws the first.
+    const floors = finishes.filter((f) => f.surface === 'floor');
+    expect(floors.map((f) => [f.product?.productId, f.share])).toEqual([
+      [9, 0.7],
+      [7, 0.3],
+    ]);
+    expect(floors[0].product!.qty + floors[1].product!.qty).toBeCloseTo(plan.rooms[0].areaM2, 1);
   });
 
   it('draws a pick with what it carries from its catalogue row', () => {

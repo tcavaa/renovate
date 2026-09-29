@@ -18,6 +18,7 @@ import { useDesignStore, type DesignStoreHook } from '@/store/designStore';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
+import type { CatalogProduct } from '@/lib/design/matcher';
 import { ALL_LAYERS, PlanEditor, type BoardInsets, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
 import { PlanToolbar, PlanToolOptions, PlanToolTiles, PlanViewControls, toolHint } from './PlanToolbar';
 import { EDITOR } from './palette';
@@ -27,6 +28,14 @@ export interface PlanWorkspaceProps {
   /** The tool to start with, and the one the page can drive (the studio's build bar). */
   tool?: EditorTool;
   onTool?: (tool: EditorTool) => void;
+  /**
+   * The tool the sheet itself works with, when it is not the one the rail shows: a tray of
+   * kinds open with none of them in hand (the calculator's technical and electrical trays) —
+   * the rail keeps its tile lit, and the sheet selects.
+   */
+  boardTool?: EditorTool;
+  /** The design catalogue: a fitting set down on the board is its best product at once, as one set down in 3D is. */
+  catalog?: CatalogProduct[];
   /** The tool in hand at first, when the page does not drive the tool itself. The first offered otherwise. */
   defaultTool?: EditorTool;
   layers?: Partial<EditorLayers>;
@@ -97,7 +106,7 @@ export interface PlanWorkspaceProps {
   wallBuilding?: boolean;
 }
 
-export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore, bleed, dock, frameless = false, hint: showHint = true, wallBuilding = false }: PlanWorkspaceProps) {
+export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, catalog, defaultTool, layers: layerOverrides, layerKeys, locked = false, furniture = false, electricalKind: controlledElectrical, onElectricalKind, technicalKind: controlledTechnical, onTechnicalKind, className, height, hideToolbar, keyboardUndo = true, showTotals = true, onToolDone, onRefused, paintScope = null, onPaint, roomsOnly = false, onEscape, onApi: onApiProp, store = useDesignStore, bleed, dock, frameless = false, hint: showHint = true, wallBuilding = false }: PlanWorkspaceProps) {
   const t = useT();
   // The hook comes in as a prop, but it is a module constant either way — the same store for
   // the life of the component, so the rules of hooks hold.
@@ -117,6 +126,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
   const tool = controlledTool ?? innerTool;
+  const sheetTool = boardTool ?? tool;
   const setTool = useCallback(
     (next: EditorTool) => {
       setInnerTool(next);
@@ -216,7 +226,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
   if (!plan) return null;
 
   const totalM2 = totalFloorAreaM2(plan);
-  const hint = toolHint(t, tool, locked);
+  const hint = toolHint(t, sheetTool, locked);
   const totals = (
     <>
       <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
@@ -300,7 +310,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           items={layers.furniture ? items : []}
           electrical={electrical}
           finishes={finishes}
-          tool={tool}
+          tool={sheetTool}
           wallThicknessM={thicknessM}
           technicalKind={technicalKind}
           electricalKind={electricalKind}
@@ -328,7 +338,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, defaultTool
           onAddBeam={(a, b) => actions.addBeam(a, b)}
           onAddTechnical={(kind, position, roomId) => actions.addTechnicalPoint(kind, position, roomId)}
           onMoveTechnical={(id, position) => actions.updateTechnicalPoint(id, { position, roomId: plan.rooms.find((r) => r.polygon && pointIn(position, r.polygon))?.id ?? null })}
-          onAddElectrical={(kind, position, roomId) => actions.addElectricalPoint(kind, position, roomId)}
+          onAddElectrical={(kind, position, roomId) => actions.addElectricalPoint(kind, position, roomId, catalog)}
           onMoveElectrical={actions.moveElectricalPoint}
           // A studio's line is where the kitchen stops, not structure: the lock does not hold it.
           onSplitRoom={roomsOnly ? undefined : actions.splitRoom}

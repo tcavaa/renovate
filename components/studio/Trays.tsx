@@ -114,18 +114,31 @@ const POWER_KINDS: ElectricalKind[] = ['socket', 'switch', 'tv', 'internet'];
 
 export const ELECTRICAL_DRAG_TYPE = 'application/x-renovate-electrical';
 
+/** The kinds the power shelf's socket tile stands for: the same plate at another height or width. */
+const SOCKET_FAMILY: ElectricalKind[] = ['socket', 'socket_double', 'socket_high', 'socket_kitchen'];
+
+/** How many of a kind stand on the plan, in a tile's corner — nothing while there are none. */
+function CountBadge({ n, active }: { n: number; active: boolean }) {
+  if (n <= 0) return null;
+  return <span className={cn('absolute right-0.5 top-0.5 min-w-[15px] rounded-full px-1 text-center text-[9px] font-semibold leading-[14px] tabular-nums', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>;
+}
+
 /**
  * Sockets, switches and lights as tiles: the two families down the left edge (power ·
- * lighting, like the finishes tray's surfaces), the kinds of the open one filling the row.
- * Click a tile to arm a click on the 3D floor (or the 2D board), or drag it straight into
- * the 3D view — the fitting rides on the pointer and sticks to the nearest wall at its usual
- * height until it is let go.
+ * lighting, like the finishes tray's surfaces), the kinds of the open one filling the row,
+ * each with how many of it the plan holds. Click a tile to arm a click on the 3D floor (or the
+ * 2D board), or drag it straight into the 3D view — the fitting rides on the pointer and
+ * sticks to the nearest wall at its usual height until it is let go. The calculator's plan
+ * step shows the same tray over its board, with no 3D to drag into (`hint`) and the points
+ * placed in place of the lights switched on.
  */
-export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, lightsOn, onDragKind }: { kind: ElectricalKind; onKind: (kind: ElectricalKind) => void; armed: boolean; onArm: (armed: boolean) => void; onSuggest: () => void; onClear: () => void; lightsOn: number; /** A tile started or finished being dragged. */ onDragKind?: (kind: ElectricalKind | null) => void }) {
+export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, lightsOn, counts, hint, onDragKind }: { kind: ElectricalKind; onKind: (kind: ElectricalKind) => void; armed: boolean; onArm: (armed: boolean) => void; onSuggest: () => void; onClear: () => void; /** The lights switched on in 3D; without it, how many fittings are placed. */ lightsOn?: number; /** How many of each kind stand on the plan. */ counts?: Partial<Record<ElectricalKind, number>>; /** The line under the tiles, when the page's is not the studio's. */ hint?: string; /** A tile started or finished being dragged. */ onDragKind?: (kind: ElectricalKind | null) => void }) {
   const t = useT();
   // The family the open kind belongs to, so arming a light from the shelf opens its tab.
   const [family, setFamily] = useState<'power' | 'light'>(() => (LIGHT_KINDS.includes(kind) ? 'light' : 'power'));
   const kinds = family === 'light' ? LIGHT_KINDS : POWER_KINDS;
+  const countOf = (k: ElectricalKind) => (k === 'socket' ? SOCKET_FAMILY : [k]).reduce((n, each) => n + (counts?.[each] ?? 0), 0);
+  const placed = Object.values(counts ?? {}).reduce((a, b) => a + (b ?? 0), 0);
   return (
     <div className="flex gap-2">
       <div className="flex shrink-0 flex-col gap-0.5 border-r border-line pr-2" role="tablist" aria-label={t.build.catElectric}>
@@ -138,7 +151,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
             <span className="truncate">{label}</span>
           </button>
         ))}
-        <span className="mt-0.5 px-1.5 text-[9px] tabular-nums text-ink-muted">{fill(t.build.lightsOnCount, { n: lightsOn })}</span>
+        <span className="mt-0.5 px-1.5 text-[9px] tabular-nums text-ink-muted">{lightsOn != null ? fill(t.build.lightsOnCount, { n: lightsOn }) : fill(t.build.pointsPlaced, { n: placed })}</span>
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -169,10 +182,11 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
                     onArm(!active);
                   }}
                   title={`${electricalLabel(t, k)} · ${fill(t.build.standardHeightHint, { n: Math.round(ELECTRICAL_KINDS[k].defaultElevationM * 100) })}`}
-                  className={cn('flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span className="max-w-full truncate px-1">{electricalLabel(t, k)}</span>
+                  <CountBadge n={countOf(k)} active={active} />
                 </button>
               );
             })}
@@ -187,7 +201,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
             </button>
           </div>
         </div>
-        <p className="truncate text-[10px] leading-snug text-ink-muted">{t.build.wiringDragHint}</p>
+        <p className="truncate text-[10px] leading-snug text-ink-muted">{hint ?? t.build.wiringDragHint}</p>
       </div>
     </div>
   );
@@ -195,12 +209,13 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
 
 /**
  * The technical points as tiles: water, sewer, a drain, the panel, gas, a radiator, air
- * conditioning, an extractor, a boiler, a heating pipe. A tile arms the 2D board with that
- * kind and stays armed until it is clicked again — the bargain the electric tray makes — so
- * the whole technical layer can be laid out without leaving the studio. The works checklist,
- * which is a page of its own, is one link away.
+ * conditioning, an extractor, a boiler, a heating pipe — each with how many of it the plan
+ * holds. A tile arms the 2D board with that kind and stays armed until it is clicked again —
+ * the bargain the electric tray makes — so the whole technical layer can be laid out without
+ * leaving the studio. The works checklist, which is a page of its own, is one link away
+ * (`stepHref`; the calculator's plan step has none).
  */
-export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC. */ onAuto: () => void; onRadiators: () => void; stepHref: string }) {
+export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC. */ onAuto: () => void; onRadiators: () => void; stepHref?: string }) {
   const t = useT();
   const placed = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   return (
@@ -226,15 +241,13 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
                     onArm(!active);
                   }}
                   title={technicalLabel(t, k)}
-                  className={cn('flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
                 >
                   <span className="grid h-4 w-4 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
                     <Icon className="h-2.5 w-2.5" />
                   </span>
-                  <span className="max-w-full truncate px-1">
-                    {technicalLabel(t, k)}
-                    {counts[k] ? ` ${counts[k]}` : ''}
-                  </span>
+                  <span className="max-w-full truncate px-1">{technicalLabel(t, k)}</span>
+                  <CountBadge n={counts[k] ?? 0} active={active} />
                 </button>
               );
             })}
@@ -247,10 +260,12 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
             <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink hover:text-ink">
               <Flame className="h-3.5 w-3.5" />
             </button>
-            <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
-              {t.build.worksTitle}
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
+            {stepHref && (
+              <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
+                {t.build.worksTitle}
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            )}
           </div>
         </div>
         <p className="truncate text-[10px] leading-snug text-ink-muted">{t.build.hintTechnical}</p>

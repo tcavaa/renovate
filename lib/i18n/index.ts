@@ -22,4 +22,16 @@ export function isLocale(value: unknown): value is Locale {
   return typeof value === 'string' && (LOCALES as readonly string[]).includes(value);
 }
 
+/**
+ * The languages the site offers: what the language switcher lists and what a visitor can be
+ * shown. Russian is hidden for now — its dictionary is kept up to date all the same (`ru.ts`
+ * must still match `Dictionary`), so offering it again is putting it back in this list.
+ */
+export const OFFERED_LOCALES: readonly Locale[] = ['ka', 'en'];
+
+/** A locale the site offers now (`OFFERED_LOCALES`) — a cookie naming any other falls back to the default. */
+export function isOfferedLocale(value: unknown): value is Locale {
+  return isLocale(value) && OFFERED_LOCALES.includes(value);
+}
+
 export type { Dictionary };

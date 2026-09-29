@@ -9,8 +9,8 @@ import { EmptyStep } from '@/components/flow/EmptyStep';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
-import { calculateMaterials, calculateWorkerCosts, aggregateRoomTotals } from '@/lib/calculator/materials';
-import { boardPartitionCounts } from '@/lib/design/partitions';
+import { aggregateRoomTotals } from '@/lib/calculator/materials';
+import { calculationEstimate } from '@/lib/summary/calculatorSheet';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { WorkChoicesPicker } from '@/components/calculator/WorkChoicesPicker';
 import { useT } from '@/lib/i18n/client';
@@ -22,20 +22,18 @@ export default function MaterialsPage() {
   const t = useT();
   const projectId = useProjectId();
   const { rooms, homeState, choices, setChoices } = useCalculatorStore();
-  // The partition walls are measured off the board, less the ones already standing (`boardPartitionCounts`).
+  // The works as the summary prices them (`calculationEstimate`): the board's rooms, what it
+  // holds counted as a design counts it — its points, doors and partition walls.
   const boardPlan = useCalculatorPlanStore((s) => s.plan);
+  const boardElectrical = useCalculatorPlanStore((s) => s.electrical);
   const { book } = useRateBook();
   const ready = !!homeState && rooms.length > 0;
 
   const { materials, workerCosts, totals } = useMemo(() => {
     if (!ready) return { materials: [], workerCosts: [], totals: null };
-    const counts = boardPartitionCounts(boardPlan);
-    return {
-      materials: calculateMaterials(rooms, homeState, book, { choices, counts }),
-      workerCosts: calculateWorkerCosts(rooms, homeState, book, { choices, counts }),
-      totals: aggregateRoomTotals(rooms),
-    };
-  }, [rooms, homeState, ready, book, choices, boardPlan]);
+    const { materials, workerCosts } = calculationEstimate({ rooms, homeState, board: boardPlan, electrical: boardElectrical, edits: { choices }, book });
+    return { materials, workerCosts, totals: aggregateRoomTotals(rooms) };
+  }, [rooms, homeState, ready, book, choices, boardPlan, boardElectrical]);
   const phases = homeState ? HOME_STATES[homeState].includedPhases : [];
 
   if (!ready) {

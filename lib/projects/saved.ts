@@ -3,8 +3,8 @@ import { CALCULATOR_STEPS, fromSevenSteps } from '@/lib/calculator/steps';
 import { selectionKey } from '@/lib/calculator/quantities';
 import { isBaseFinish } from '@/lib/design/zones';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
-import type { DesignProgress, DesignScene, DesignVersion, FloorPlan, SceneProduct, SurfaceFinish } from '@/lib/design/types';
-import type { CalculatorEdits } from '@/lib/summary/calculatorSheet';
+import type { DesignProgress, DesignScene, DesignVersion, ElectricalPoint, FloorPlan, SceneProduct, SurfaceFinish } from '@/lib/design/types';
+import type { CalculationInput, CalculatorEdits } from '@/lib/summary/calculatorSheet';
 import { DEFAULT_WALL_THICKNESS_M } from '@/lib/design/planGeometry';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 
@@ -18,11 +18,37 @@ export interface CalculatorBoard {
   plan: FloorPlan | null;
   floorPlanUrl: string | null;
   finishes: SurfaceFinish[];
+  /** The sockets, switches and lights on it — the standard ones its automatic placement put in (`standardElectrical`). */
+  electrical?: ElectricalPoint[];
 }
 
-/** The plan on a project's calculator board, or null — what its partition walls are measured off (`boardPartitionCounts`). */
+/** The plan on a project's calculator board, or null — what the calculation is priced on (`calculationCost`). */
 export function calculatorBoardPlan(project: Pick<Project, 'calculatorBoard'>): FloorPlan | null {
   return ((project.calculatorBoard as Partial<CalculatorBoard> | null)?.plan ?? null) as FloorPlan | null;
+}
+
+/** What a project's calculation is priced from (`calculationCost`) — the row's, or the snapshot the steps opened. Null before a home state is chosen: there is nothing to price yet. */
+export function calculationInput(
+  project: { rooms?: unknown; homeState?: string | null; selectedProducts?: unknown; selectedFurniture?: unknown; calculatorEdits?: unknown; calculatorBoard?: unknown },
+  options: Pick<CalculationInput, 'book' | 'storeOf' | 'locale' | 'surfaceLabels' | 'productLabels'> = {}
+): CalculationInput | null {
+  if (!project.homeState) return null;
+  const board = project.calculatorBoard as Partial<CalculatorBoard> | null | undefined;
+  return {
+    rooms: (project.rooms ?? []) as Room[],
+    homeState: project.homeState as HomeState,
+    picks: { selectedProducts: (project.selectedProducts ?? {}) as Record<string, SelectedProduct>, selectedFurniture: (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]> },
+    board: (board?.plan ?? null) as FloorPlan | null,
+    electrical: Array.isArray(board?.electrical) ? board.electrical : [],
+    edits: (project.calculatorEdits ?? null) as CalculatorEdits | null,
+    ...options,
+  };
+}
+
+/** The fittings on a project's calculator board. */
+export function calculatorBoardElectrical(project: Pick<Project, 'calculatorBoard'>): ElectricalPoint[] {
+  const electrical = (project.calculatorBoard as Partial<CalculatorBoard> | null)?.electrical;
+  return Array.isArray(electrical) ? electrical : [];
 }
 
 /** How far the calculator got, and the page last open (`lib/flow/resume`). */
@@ -90,7 +116,7 @@ export function savedProjectInput(p: Project): SavedProjectInput {
     selectedProducts: (p.selectedProducts ?? {}) as Record<string, SelectedProduct>,
     selectedFurniture: (p.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>,
     calculatorEdits: (p.calculatorEdits as CalculatorEdits | null) ?? null,
-    calculatorBoard: board ? { plan: board.plan ?? null, floorPlanUrl: board.floorPlanUrl ?? null, finishes: board.finishes ?? [] } : null,
+    calculatorBoard: board ? { plan: board.plan ?? null, floorPlanUrl: board.floorPlanUrl ?? null, finishes: board.finishes ?? [], electrical: Array.isArray(board.electrical) ? board.electrical : [] } : null,
     calculatorStarted: p.selectedProducts != null,
     plan: (p.plan as FloorPlan | null) ?? null,
     scene: (p.scene as DesignScene | null) ?? null,

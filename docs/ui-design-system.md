@@ -111,10 +111,13 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   left (`PlanToolTiles`, vertical); what the tool in hand can be told (the wall's shape — a
   line, a square, a room separator — and its thickness, compact and side by side in one row)
   along the bottom with the hint over it, next to any tray of the page's own (`dock`: the
-  technical kinds); the area in the bottom-left corner, and over it, in a black frame, the
+  technical kinds; the calculator's plan step docks the studio's technical and electric trays
+  there); the area in the bottom-left corner, and over it, in a black frame, the
   legend of the walls to build and the ones already built; the
   layers and the zoom in a column at the bottom right (`PlanViewControls`); the step's cards
-  in `FlowPanel` down the right, scrolling inside itself. `PlanToolbar` is those three parts
+  in `FlowPanel` down the right, scrolling inside itself — and, on the calculator's plan step,
+  what is picked on the board in a card of its own just left of that panel, with a ✕
+  (`InspectorClose`), rather than stacked over the panel's list. `PlanToolbar` is those three parts
   in one row, as before, for everything else. **Whatever floats over the sheet says which edge
   it covers** (`data-board-edge="top|right|bottom|left"`), and `PlanWorkspace` measures them
   whenever the view is fitted (`PlanEditor.fitInsets`): a plan is framed in what the floating

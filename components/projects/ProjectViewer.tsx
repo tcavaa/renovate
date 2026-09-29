@@ -6,7 +6,7 @@ import { Download, Eye, FileImage, Loader2, Minus, Moon, Plus, Scan, SquareDashe
 import { ALL_LAYERS, PlanEditor, type EditorLayers, type PlanEditorApi } from '@/components/plan/PlanEditor';
 import { PlanViewControls } from '@/components/plan/PlanToolbar';
 import type { ViewerApi } from '@/components/design/Viewer3D';
-import type { DesignScene, FloorPlan, SurfaceFinish } from '@/lib/design/types';
+import type { DesignScene, ElectricalPoint, FloorPlan, SurfaceFinish } from '@/lib/design/types';
 import { DAYLIGHT_HOURS, DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
@@ -38,6 +38,7 @@ export function ProjectViewer({
   plan,
   scene,
   finishes,
+  electrical: fittings,
   title,
   subtitle,
   floorPlanUrl,
@@ -48,6 +49,8 @@ export function ProjectViewer({
   scene: DesignScene | null;
   /** What the rooms wear on the 2D plan and the PDF (the scene's, or the calculator's board). */
   finishes: SurfaceFinish[];
+  /** The sockets, switches and lights: the scene's, or the calculator's board's when there is no design. */
+  electrical?: ElectricalPoint[] | null;
   title: string;
   subtitle: string;
   /** The picture the plan was read from, when one was uploaded. */
@@ -58,7 +61,8 @@ export function ProjectViewer({
   const locale = useLocale();
   const has3d = plan != null && scene != null;
   const [view, setView] = useState<View>(has3d ? '3d' : '2d');
-  const [layers, setLayers] = useState<EditorLayers>({ ...ALL_LAYERS, furniture: has3d, origins: false });
+  // White paper, like every plan: the finishes are a layer to switch on, not the floor.
+  const [layers, setLayers] = useState<EditorLayers>({ ...ALL_LAYERS, furniture: has3d, origins: false, zones: false });
   const [planApi, setPlanApi] = useState<PlanEditorApi | null>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
   const [showWalls, setShowWalls] = useState(true);
@@ -68,7 +72,7 @@ export function ProjectViewer({
   // One plan for the life of the page: the board and the camera frame it once, not on every render.
   const [frameKey] = useState(() => Symbol('plan'));
   const items = useMemo(() => scene?.items ?? [], [scene]);
-  const electrical = useMemo(() => scene?.electrical ?? [], [scene]);
+  const electrical = useMemo(() => fittings ?? scene?.electrical ?? [], [fittings, scene]);
 
   const exportPdf = useCallback(async () => {
     if (!plan) return;
@@ -84,7 +88,6 @@ export function ProjectViewer({
         unitM: t.units.m,
         items,
         electrical,
-        finishes,
         furniture: has3d,
         itemLabel: (item) => archetypeLabel(item.kind, locale),
       });
@@ -93,7 +96,7 @@ export function ProjectViewer({
     } finally {
       setExporting(false);
     }
-  }, [plan, title, subtitle, t, items, electrical, finishes, has3d, locale, v.pdfError]);
+  }, [plan, title, subtitle, t, items, electrical, has3d, locale, v.pdfError]);
 
   if (!plan || plan.rooms.length === 0) {
     return <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{v.noPlan}</p>;

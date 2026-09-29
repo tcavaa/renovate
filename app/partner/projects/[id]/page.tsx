@@ -70,6 +70,7 @@ export default async function PartnerProjectPage(props: { params: Promise<{ id: 
           plan={plan}
           scene={scene}
           finishes={finishes}
+          electrical={scene?.electrical ?? board?.electrical ?? []}
           title={title}
           subtitle={`${homeStateLabel(t, project.homeState)} · ${formatM2L(t, Number(project.totalM2))}`}
           floorPlanUrl={project.floorPlanUrl ?? board?.floorPlanUrl ?? null}

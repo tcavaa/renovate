@@ -51,7 +51,7 @@ describe('the calculator’s room finishes in 3D', () => {
     expect(finishes.map((f) => `${f.roomId}:${f.surface}:${f.product?.productId}`)).toEqual(['bath:wall:11']);
   });
 
-  it('go on the walls they were chosen for one by one, and a floor two products share goes in the one with more of it', () => {
+  it('go on the walls they were chosen for one by one, and a floor two products share in both, the one with more of it first', () => {
     const paint: SelectedProduct = { ...wallTile, productId: 12, categorySlug: 'paint', textureUrl: '/paint.jpg', specs: { surfaces: ['wall'] }, walls: [0, 2, 3] };
     const tile: SelectedProduct = { ...wallTile, walls: [1] };
     const floor = (productId: number, share: number): SelectedProduct => ({ ...wallTile, productId, categorySlug: 'floor-tiles', surface: 'floor', textureUrl: `/floor-${productId}.jpg`, specs: { surfaces: ['floor'] }, share });
@@ -69,6 +69,10 @@ describe('the calculator’s room finishes in 3D', () => {
     ]);
     // Each wall is bought by its own area: two metres of wall 2.7 m high.
     expect(finishes.find((f) => f.wallIndex === 1)?.product?.qty).toBe(5.4);
-    expect(finishes.filter((f) => f.surface === 'floor').map((f) => f.product?.productId)).toEqual([22]);
+    // Both, each bought for its share of the floor, as the calculator priced them; the one with more of it drawn.
+    expect(finishes.filter((f) => f.surface === 'floor').map((f) => [f.product?.productId, f.share])).toEqual([
+      [22, 0.7],
+      [21, 0.3],
+    ]);
   });
 });

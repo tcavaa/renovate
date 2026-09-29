@@ -9,7 +9,7 @@ import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/check
 import { priceScene } from '@/lib/design/pricing';
 import { usePlatformFees } from '@/hooks/usePlatformFees';
 import { useLocale, useT } from '@/lib/i18n/client';
-import type { SavedProjectInput } from '@/lib/projects/saved';
+import { calculationInput, type SavedProjectInput } from '@/lib/projects/saved';
 
 /**
  * Orders a saved project from its page — no need to walk back through a summary. The
@@ -27,7 +27,8 @@ export function OrderProjectButton({ project, size = 'lg', className }: { projec
   const parts = useMemo<CheckoutPart[]>(() => {
     const list: CheckoutPart[] = [];
     // A half left before it was calculated or generated is not something to order (`projectKind`).
-    if (project.hasCalculator && !project.calculatorPending) list.push(calculatorCheckoutPart(project.rooms, project.selectedProducts, project.selectedFurniture, fees.calculatorFeePerM2, locale, project.calculatorEdits));
+    const calculation = project.hasCalculator && !project.calculatorPending ? calculationInput(project, { locale }) : null;
+    if (calculation) list.push(calculatorCheckoutPart(calculation, fees.calculatorFeePerM2, locale));
     if (project.hasDesign && !project.designPending && project.plan && project.scene) {
       // The row as saved, priced as the server will price it — its scene, its ticks, its
       // home state — so the dialogue lists the product lines the stores will be sent.
