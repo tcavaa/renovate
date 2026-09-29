@@ -30,9 +30,9 @@ const noop = () => undefined;
  * and the finishes (layers to switch, zoom, the plan as a PDF to print for the site), and, when
  * the project has a design, the furnished flat in 3D and walked through from the inside.
  *
- * The board is `PlanEditor` with the pan tool in hand and no edit callbacks: every press pans,
- * nothing can be picked or moved. The 3D view is `Viewer3D` with `readOnly`: the camera turns and
- * walks, nothing in the flat answers the pointer.
+ * The board is `PlanEditor` with `readOnly` and no edit callbacks: every drag slides the view,
+ * nothing is hovered, picked or moved. The 3D view is `Viewer3D` with `readOnly`: the camera
+ * turns and walks, nothing in the flat answers the pointer.
  */
 export function ProjectViewer({
   plan,
@@ -174,10 +174,11 @@ export function ProjectViewer({
               items={layers.furniture ? items : []}
               electrical={electrical}
               finishes={finishes}
-              tool="pan"
+              tool="select"
               wallThicknessM={plan.wallThicknessM ?? 0.12}
               layers={layers}
               locked
+              readOnly
               selection={NO_SELECTION}
               onSelect={noop}
               fitKey={frameKey}

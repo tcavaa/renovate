@@ -9,6 +9,7 @@ import { sectionCrumb } from '@/lib/admin/crumbs';
 import { AdminPageHeader } from '@/components/admin/AdminList';
 import { getT } from '@/lib/i18n/server';
 import { canDeleteIn } from '@/lib/auth/roles';
+import { materialsSupplierFor } from '@/lib/admin/materialsSupplier';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +19,14 @@ export default async function EditStorePage(props: { params: Promise<{ id: strin
   const id = Number(params.id);
   if (!Number.isFinite(id)) notFound();
 
-  const [rows, ka] = await Promise.all([db.select().from(stores).where(eq(stores.id, id)).limit(1), getT()]);
+  const [rows, ka, materials] = await Promise.all([db.select().from(stores).where(eq(stores.id, id)).limit(1), getT(), materialsSupplierFor(id)]);
   if (rows.length === 0) notFound();
 
   return (
     <div className="space-y-6">
       <AdminPageHeader crumbs={[sectionCrumb(ka, 'stores'), { label: rows[0].nameKa }]} title={rows[0].nameKa} />
       <PartnerApproval kind="store" id={rows[0].id} status={rows[0].approvalStatus} />
-      <StoreForm store={rows[0]} canEditCommission={session.user.role === 'admin'} canDelete={canDeleteIn(session.user.role, 'stores')} />
+      <StoreForm store={rows[0]} canEditCommission={session.user.role === 'admin'} canDelete={canDeleteIn(session.user.role, 'stores')} materials={session.user.role === 'admin' ? materials : undefined} />
     </div>
   );
 }

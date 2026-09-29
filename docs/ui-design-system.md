@@ -18,7 +18,7 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 | `tailwind.config.ts` | tokens: `brand`, `accent`, `ink` (+ `ink-muted`, `ink-soft`, `ink-faint`), `bg-base`, `bg-surface`, `bg-deep`, `sand`, `slate-deep`, `line`, `success` / `warning` / `danger`; shadows `card`, `cardHover`, `glass`, `float`; the collapsed radius scale |
 | `app/globals.css` | shared utilities: `.glass`, `.glass-dark`, `.grain`, `.display`, `.eyebrow`, `.bracket-link`, `.btn-3d`, the scroll-driven `.reveal*` / `.seq*` / `.parallax`, `.studio-bar` container rules, `.site-shell:has([data-flow-workspace])`, `.scrollbar-none` |
 | `components/ui/*` | primitives (button with the `ink` variant, card, dialog, input, select, …), `scroll-row.tsx`, `money-row.tsx`, `stat-card.tsx`, `button-3d.tsx` |
-| `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`) |
+| `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`), `HingeDialog` |
 | `components/layout/*` | `Header` (`HEADER_HEIGHT_CLASS`), `Footer`, `AdminSidebar`, `LanguageSwitcher`, `UserMenu`, `NotFoundContent` |
 | `components/landing/*`, `components/motion/*` | the landing page; `CountUp`, `Marquee`, `RotatingBadge` |
 | `components/plan/palette.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, blue windows, grey built walls, dashed room separators), room-type swatches for the lists, origin colours (existing ink / changed terracotta / generated teal), technical-system colours |
@@ -46,7 +46,9 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   `@supports` and reduced-motion — content is fully visible where they are unsupported. The
   hero words use `.hero-word` (load-time stagger via `--i`). `animate-marquee`,
   `animate-spin-slow`, `animate-float` are the only decorative loops (loaders still use
-  `animate-spin` / `animate-pulse`, and the hero has one `animate-bounce`).
+  `animate-spin` / `animate-pulse`, and the hero has one `animate-bounce`). `animate-countdown`
+  fills a bar once while a page waits to move on (its length set with `animation-duration` —
+  the checkout's thank-you before the orders open).
 - **Scroll sequences** (`.seq` + `.seq-fill/-wipe-up/-wipe-right/-pop/-fade/-fade-out/-rise`,
   and `.drop-in`): an element plays between `--from` and `--to` percent of its `cover` range
   (0 = top edge enters at the bottom of the viewport, 100 = bottom edge leaves at the top; a
@@ -97,7 +99,9 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   "STEP 02 / 05" head with title, lead, meta and actions; `SectionHead` numbers sections
   inside a step; `StepNav` is the sticky bottom bar (back link, running total, one primary
   action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
-  the "finish the previous step first" card. `Figure` (in `MaterialsTable`) is the large
+  the "finish the previous step first" card; `HingeDialog` is the warning, and the payment,
+  before a step that shuts the ones before it (a warning icon, a checklist, a padlock line, then
+  the fee, a card form and "paid"). `Figure` (in `MaterialsTable`) is the large
   number-in-a-cell used for stats and subtotals.
 - **The board steps are the whole window** (`components/flow/FlowWorkspace.tsx`, September
   2026). The steps where the 2D board or the 3D scene is open — the calculator's plan (2), the

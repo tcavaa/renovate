@@ -6,7 +6,7 @@
  * game's build mode on purpose: the person should never feel they are in CAD.
  */
 
-import { BrickWall, Cable, DoorOpen, Ellipsis, Hand, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, DoorOpen, Ellipsis, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
@@ -57,7 +57,6 @@ export function electricalLabel(t: Dictionary, kind: ElectricalKind): string {
 
 const TOOL_ICON: Record<EditorTool, LucideIcon> = {
   select: MousePointer2,
-  pan: Hand,
   wall: BrickWall,
   room: Square,
   divider: Ellipsis,
@@ -74,7 +73,6 @@ const TOOL_ICON: Record<EditorTool, LucideIcon> = {
 export function toolLabel(t: Dictionary, tool: EditorTool): string {
   const key: Record<EditorTool, keyof Dictionary['build']> = {
     select: 'toolSelect',
-    pan: 'toolPan',
     wall: 'toolWall',
     room: 'toolRoom',
     divider: 'toolDivider',
@@ -94,7 +92,6 @@ export function toolHint(t: Dictionary, tool: EditorTool, locked: boolean): stri
   if (tool === 'select' && locked) return t.build.hintLocked;
   const key: Record<EditorTool, keyof Dictionary['build']> = {
     select: 'hintSelect',
-    pan: 'hintSelect',
     wall: 'hintWall',
     room: 'hintRoom',
     divider: 'hintDivider',
@@ -151,7 +148,11 @@ export function PlanToolbar({ tools, tool, onTool, thicknessM, onThickness, tech
   );
 }
 
-/** The big tiles, one per tool: a row, or a rail down the side of the sheet (`vertical`). */
+/**
+ * The big tiles, one per tool: a row, or a rail down the side of the sheet (`vertical`). None
+ * at all when there is nothing to choose between — the select tool on its own is simply how
+ * the board works.
+ */
 export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, style }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'vertical'> & { edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
@@ -162,6 +163,7 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
   const shapes = tools.includes('room') || tools.includes('divider');
   const tiles = shapes ? tools.filter((id) => id !== 'room' && id !== 'divider') : tools;
   const drawFirst: EditorTool = tools.includes('room') ? 'room' : 'wall';
+  if (tiles.length < 2) return null;
   return (
     <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
       {tiles.map((id) => {

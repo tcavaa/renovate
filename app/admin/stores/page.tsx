@@ -13,6 +13,7 @@ import { getT } from '@/lib/i18n/server';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { formatGEL } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
+import { loadPlatformSettings } from '@/lib/finance/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,8 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
           ? [p.dir === 'asc' ? asc(stores.id) : desc(stores.id)]
           : [p.dir === 'desc' ? desc(stores.nameKa) : asc(stores.nameKa)];
 
+  // The store the rate book's construction materials go to: marked in the list.
+  const { materialsStoreId } = await loadPlatformSettings();
   const [rows, [{ total }]] = await Promise.all([
     db
       .select({
@@ -131,7 +134,10 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
                     {s.logoUrl && <Image src={s.logoUrl} alt="" fill sizes="36px" className="object-cover" />}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium hover:text-brand">{s.nameKa}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-medium hover:text-brand">{s.nameKa}</span>
+                      {s.id === materialsStoreId && <Badge variant="secondary">{ka.orderReview.materialsTitle}</Badge>}
+                    </span>
                     <span className="block truncate text-xs text-ink-muted">{[s.phone, s.websiteUrl?.replace(/^https?:\/\//, '')].filter(Boolean).join(' · ')}</span>
                   </span>
                 </Link>

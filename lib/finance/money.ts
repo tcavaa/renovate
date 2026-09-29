@@ -1,16 +1,18 @@
 import type { HomeState, ProjectSummary, Room, SelectedProduct } from '@/lib/calculator/types';
 import type { DesignCost, DesignScene, FloorPlan } from '@/lib/design/types';
 import { FREE_DELIVERY_THRESHOLD_GEL, orderedLines, priceScene } from '@/lib/design/pricing';
+import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { calculationCost, type CalculationInput } from '@/lib/summary/calculatorSheet';
 
 /**
  * The marketplace arithmetic, with no database and no React.
  *
  * The platform owns nothing and sells nothing. It earns twice on every project: a fee per
- * square metre when the customer places a calculation or a 3D design (shown on the summary,
- * not collected — there is no payment integration yet), and a commission on every partner
- * order the project turns into — a store's basket, a worker's booking. Everything here is
- * the arithmetic of those two lines; `lib/finance/orders.ts` is where rows get written.
+ * square metre for a calculation or a 3D design, paid before the half's hinge ("start the
+ * calculation", the generation — `lib/finance/payments.ts`; a test card until a payment
+ * provider is wired in), and a commission on every partner order the project turns into — a
+ * store's basket, a worker's booking. Everything here is the arithmetic of those two lines;
+ * `lib/finance/orders.ts` and `payments.ts` are where rows get written.
  */
 
 export interface PlatformSettings {
@@ -47,6 +49,16 @@ export function feePerM2For(kind: CheckoutKind, settings: PlatformSettings): num
 export function platformFee(totalM2: number, feePerM2: number): number {
   if (!Number.isFinite(totalM2) || totalM2 <= 0) return 0;
   return round2(totalM2 * Math.max(0, feePerM2));
+}
+
+/**
+ * The floor area a half's fee is charged on: the calculation's rooms (their floors) or the
+ * design's plan (its rooms' floors) — the browser's copy in the payment dialogue, the saved
+ * row on the server, so the two agree once the half is saved.
+ */
+export function feeAreaM2(kind: CheckoutKind, source: { rooms?: ReadonlyArray<Pick<Room, 'floorM2'>> | null; plan?: FloorPlan | null }): number {
+  if (kind === 'design') return source.plan ? round2(totalFloorAreaM2(source.plan)) : 0;
+  return round2((source.rooms ?? []).reduce((sum, room) => sum + (Number(room.floorM2) || 0), 0));
 }
 
 export function commissionFor(subtotal: number, pct: number): number {

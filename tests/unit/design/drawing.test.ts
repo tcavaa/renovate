@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt } from '@/lib/design/drawing';
+import { beamAt, columnAt, nodeAt, pointElementAt, polygonsOverlap, pressMoves, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves } from '@/lib/design/drawing';
 import { addWalls, roomsFromWalls, wallsClash, wallsForRectangle } from '@/lib/design/walls';
 import type { Beam, Column, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
@@ -190,6 +190,39 @@ describe('hit tests', () => {
     const point: TechnicalPoint = { id: 'p', kind: 'sewer', roomId: null, position: P(3, 2), origin: 'existing' };
     expect(pointElementAt([point], P(3.1, 2.1), 0.2)?.id).toBe('p');
     expect(pointElementAt([point], P(3.5, 2.5), 0.2)).toBeNull();
+  });
+});
+
+describe('what a press with the select tool takes hold of (pressMoves)', () => {
+  // The design's plan step: everything moves. The technical step and a locked studio: the structure stays.
+  const open: BoardMoves = { locked: false, roomsOnly: false, rooms: true, items: true };
+  const locked: BoardMoves = { ...open, locked: true };
+
+  it('takes hold of whatever the board lets move, so a drag moves it', () => {
+    for (const kind of ['wall', 'node', 'opening', 'column', 'technical', 'electrical', 'item', 'divider', 'room'] as const) {
+      expect(pressMoves({ kind }, open), kind).toBe(true);
+    }
+  });
+
+  it('leaves the empty sheet, a beam and a floor zone to slide the view', () => {
+    for (const kind of [null, 'beam', 'zone'] as const) expect(pressMoves({ kind }, open), String(kind)).toBe(false);
+  });
+
+  it('slides the view from the structure of a locked board, and from a wall, door or piece locked on its own', () => {
+    for (const kind of ['wall', 'opening', 'column', 'room'] as const) expect(pressMoves({ kind }, locked), kind).toBe(false);
+    expect(pressMoves({ kind: 'wall', locked: true }, open)).toBe(false);
+    expect(pressMoves({ kind: 'opening', locked: true }, open)).toBe(false);
+    expect(pressMoves({ kind: 'item', locked: true }, open)).toBe(false);
+  });
+
+  it('still moves the technical and electrical points, the furniture and a studio line on a locked board', () => {
+    for (const kind of ['technical', 'electrical', 'item', 'divider'] as const) expect(pressMoves({ kind }, locked), kind).toBe(true);
+  });
+
+  it('keeps rooms and furniture still where the page does not move them, and every room while finishes are chosen', () => {
+    expect(pressMoves({ kind: 'room' }, { ...open, rooms: false })).toBe(false);
+    expect(pressMoves({ kind: 'item' }, { ...open, items: false })).toBe(false);
+    expect(pressMoves({ kind: 'room' }, { ...open, roomsOnly: true })).toBe(false);
   });
 });
 

@@ -1,5 +1,6 @@
 /**
- * What the 2D editor needs to feel like a drawing tool: snapping and hit-testing.
+ * What the 2D editor needs to feel like a drawing tool: snapping, hit-testing, and whether a
+ * press takes hold of what it landed on or a drag from there slides the view (`pressMoves`).
  *
  * Snapping is what makes a wall land *on* the wall it was aimed at. In order of authority:
  * a junction within reach wins outright (it closes loops exactly), then a point on an
@@ -493,6 +494,58 @@ export function pointElementAt<T extends TechnicalPoint | ElectricalPoint>(eleme
     if (distance <= radiusM && (!best || distance < best.distance)) best = { element, distance };
   }
   return best?.element ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// What a press takes hold of
+// ---------------------------------------------------------------------------
+
+/**
+ * What a press on the board can land on: `node` is an end of the selected wall, `divider` a
+ * studio's dividing line, null the empty sheet.
+ */
+export type BoardTarget = 'wall' | 'node' | 'opening' | 'column' | 'beam' | 'technical' | 'electrical' | 'item' | 'zone' | 'divider' | 'room' | null;
+
+/** What a page lets be moved on its board. */
+export interface BoardMoves {
+  /** The structure — walls, doors and windows, columns, rooms — is picked but never moved. */
+  locked: boolean;
+  /** Only rooms and floor zones answer the pointer (the studio's finishes), and neither moves. */
+  roomsOnly: boolean;
+  /** The page moves rooms (`PlanEditor.onMoveRooms`). */
+  rooms: boolean;
+  /** The page moves furniture (`PlanEditor.onMoveItem`). */
+  items: boolean;
+}
+
+/**
+ * Whether a press with the select tool takes hold of what it landed on, so that dragging moves
+ * it. What it cannot move — the empty sheet, a beam, a floor zone, anything locked, rooms on a
+ * board where rooms stay put — the press only selects, and a drag from there slides the view.
+ * `locked` is the thing's own lock: a wall's, a door's or window's, a piece of furniture's.
+ */
+export function pressMoves(target: { kind: BoardTarget; locked?: boolean }, board: BoardMoves): boolean {
+  switch (target.kind) {
+    // A wall's ends are offered only on a board that moves walls; a studio's line is where the
+    // kitchen stops, not structure; the technical and electrical points are placed on a locked
+    // board (the technical step's), not built.
+    case 'node':
+    case 'divider':
+    case 'technical':
+    case 'electrical':
+      return true;
+    case 'wall':
+    case 'opening':
+      return !board.locked && !target.locked;
+    case 'column':
+      return !board.locked;
+    case 'item':
+      return board.items && !target.locked;
+    case 'room':
+      return board.rooms && !board.locked && !board.roomsOnly;
+    default:
+      return false;
+  }
 }
 
 function round3(n: number): number {

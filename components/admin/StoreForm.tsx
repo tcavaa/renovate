@@ -13,13 +13,28 @@ import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import type { Store } from '@/lib/db/schema';
 import { rememberedListHref } from '@/lib/admin/listMemory';
+import { fill } from '@/lib/admin/list';
 
 /**
  * A partner store's details. The commission is money, and money is admin's: a catalogue agent
  * edits everything else and never sees the field (`PUT /api/stores/[id]` ignores it from them).
+ * So is the construction materials' supplier (`materials`, admin only): ticked, this store is
+ * sent the rate book's materials with every order — one store for all of them, so ticking it
+ * takes them from the store that had them (the settings page picks the same thing).
  */
 /** `canDelete`: admin only (`canDeleteIn`) — a catalogue agent switches a store off instead. */
-export function StoreForm({ store, canEditCommission = false, canDelete = false }: { store?: Store; canEditCommission?: boolean; canDelete?: boolean }) {
+export function StoreForm({
+  store,
+  canEditCommission = false,
+  canDelete = false,
+  materials,
+}: {
+  store?: Store;
+  canEditCommission?: boolean;
+  canDelete?: boolean;
+  /** Admin only: whether this store supplies the construction materials, and who does now. */
+  materials?: { supplier: boolean; currentName: string | null };
+}) {
   const router = useRouter();
   const ka = useT();
   const [loading, setLoading] = useState(false);
@@ -45,6 +60,7 @@ export function StoreForm({ store, canEditCommission = false, canDelete = false 
     commissionRate: store?.commissionRate != null ? String(store.commissionRate) : '5',
     isActive: store?.isActive ?? true,
   });
+  const [suppliesMaterials, setSuppliesMaterials] = useState(materials?.supplier ?? false);
 
   const update = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -57,7 +73,7 @@ export function StoreForm({ store, canEditCommission = false, canDelete = false 
     const res = await fetch(store ? `/api/stores/${store.id}` : '/api/stores', {
       method: store ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(materials ? { ...form, suppliesMaterials } : form),
     });
     const json = await res.json();
     setLoading(false);
@@ -232,6 +248,19 @@ export function StoreForm({ store, canEditCommission = false, canDelete = false 
             />
             {ka.admin.forms.active}
           </label>
+
+          {materials && (
+            <div className="space-y-1 border-l-2 border-ink pl-3">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={suppliesMaterials} onChange={(e) => setSuppliesMaterials(e.target.checked)} />
+                {ka.admin.forms.suppliesMaterials}
+              </label>
+              <p className="text-xs text-ink-muted">
+                {ka.orderReview.supplierHint}
+                {suppliesMaterials && !materials.supplier && materials.currentName && <> {fill(ka.admin.forms.suppliesMaterialsMoves, { store: materials.currentName })}</>}
+              </p>
+            </div>
+          )}
 
           {error && (
             <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">

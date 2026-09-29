@@ -9,6 +9,7 @@ import {
   mysqlEnum,
   index,
   primaryKey,
+  uniqueIndex,
   type AnyMySqlColumn,
 } from 'drizzle-orm/mysql-core';
 import { json } from './json';
@@ -40,6 +41,16 @@ export const users = mysqlTable('users', {
   isActive: boolean('is_active').default(true).notNull(),
   /** The last successful sign-in, password or social. */
   lastLoginAt: timestamp('last_login_at'),
+  /**
+   * The person's own contact, from their profile (`/profile?view=account`) or kept from a
+   * checkout ("make it my default address"): a checkout or a booking asks only for what is
+   * missing here. The address is the default delivery address — city, street and number,
+   * postal code (optional).
+   */
+  phone: varchar('phone', { length: 50 }),
+  addressCity: varchar('address_city', { length: 120 }),
+  addressLine: varchar('address_line', { length: 255 }),
+  addressPostalCode: varchar('address_postal_code', { length: 20 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -468,9 +479,9 @@ export const projectRenders = mysqlTable('project_renders', {
 
 /**
  * One row. What the platform charges: a fee per square metre for a calculation and for a
- * 3D design (shown on the summaries, not collected — there is no payment integration), and
- * the default commission on partner stores and workers. A store or worker with its own
- * `commissionRate` overrides the default.
+ * 3D design (paid before the half's hinge — `project_payments`; there is no payment provider
+ * yet, the card is a test one), and the default commission on partner stores and workers. A
+ * store or worker with its own `commissionRate` overrides the default.
  */
 export const platformSettings = mysqlTable('platform_settings', {
   id: int('id').primaryKey().autoincrement(),
@@ -488,9 +499,10 @@ export const platformSettings = mysqlTable('platform_settings', {
 });
 
 /**
- * A customer placing the order for a whole project: the platform fee for that project
- * (calculator or design, per m²) and one partner `order` per store the goods come from.
- * Totals are snapshots — what was charged the day it was placed.
+ * A customer placing the order for a whole project: one partner `order` per store the goods
+ * come from, and where they go. Totals are snapshots — what was ordered the day it was placed.
+ * The platform's fee is paid before the half's hinge now (`project_payments`); `platformFee` is
+ * 0 on every checkout since, and holds the fee only on those placed before.
  */
 export const checkouts = mysqlTable('checkouts', {
   id: int('id').primaryKey().autoincrement(),
@@ -506,10 +518,41 @@ export const checkouts = mysqlTable('checkouts', {
   customerPhone: varchar('customer_phone', { length: 50 }).notNull(),
   customerEmail: varchar('customer_email', { length: 255 }),
   note: text('note'),
+  /** Where the goods go (the stores deliver there): the account's default address or one given at checkout. */
+  deliveryCity: varchar('delivery_city', { length: 120 }),
+  deliveryAddress: varchar('delivery_address', { length: 255 }),
+  deliveryPostalCode: varchar('delivery_postal_code', { length: 20 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => ({
   createdIdx: index('checkouts_created_idx').on(t.createdAt),
   userIdx: index('checkouts_user_idx').on(t.userId),
+}));
+
+/**
+ * The platform's fee for one half of a project, paid before the half's hinge — "გამოთვლის
+ * დაწყება" in the calculator, the generation in the studio (`HingeDialog`): the half's floor area
+ * × the fee per m² of the day. One row per half (a half is paid once). There is no payment
+ * provider yet: the card form is a stand-in with a test card and `method` is `test`; the row is
+ * the record the revenue report counts. A checkout charges no fee any more — only fees recorded
+ * before this table existed are on `checkouts`.
+ */
+export const projectPayments = mysqlTable('project_payments', {
+  id: int('id').primaryKey().autoincrement(),
+  projectId: int('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  userId: int('user_id').references(() => users.id, { onDelete: 'set null' }),
+  kind: mysqlEnum('kind', ['calculator', 'design']).notNull(),
+  totalM2: decimal('total_m2', { precision: 8, scale: 2 }).notNull(),
+  feePerM2: decimal('fee_per_m2', { precision: 8, scale: 2 }).notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  /** How it was paid: `test` until a payment provider is wired in. */
+  method: varchar('method', { length: 20 }).default('test').notNull(),
+  cardLast4: varchar('card_last4', { length: 4 }),
+  /** The payment's own reference (the provider's, one day; made up for a test payment). */
+  reference: varchar('reference', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => ({
+  projectKindIdx: uniqueIndex('project_payments_project_kind_idx').on(t.projectId, t.kind),
+  createdIdx: index('project_payments_created_idx').on(t.createdAt),
 }));
 
 /**
@@ -537,6 +580,10 @@ export const orders = mysqlTable('orders', {
   customerEmail: varchar('customer_email', { length: 255 }),
   /** What the customer wrote at checkout. */
   customerNote: text('customer_note'),
+  /** Where the partner delivers or works: the checkout's (or the booking's) address, copied onto each order. */
+  deliveryCity: varchar('delivery_city', { length: 120 }),
+  deliveryAddress: varchar('delivery_address', { length: 255 }),
+  deliveryPostalCode: varchar('delivery_postal_code', { length: 20 }),
   /** What the partner wrote back — delivery date, a substitution, a question. */
   partnerMessage: text('partner_message'),
   /**
@@ -638,6 +685,7 @@ export type NewWorker = typeof workers.$inferInsert;
 export type WorkerReview = typeof workerReviews.$inferSelect;
 export type WorkerWork = typeof workerWorks.$inferSelect;
 export type Project = typeof projects.$inferSelect;
+export type ProjectPayment = typeof projectPayments.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectRender = typeof projectRenders.$inferSelect;
 export type ApprovalStatus = Store['approvalStatus'];

@@ -328,10 +328,10 @@ describe('room names', () => {
 describe('generating the flat', () => {
   it('opens the studio on the whole flat, whatever room the plan step had picked out', () => {
     useDesignStore.getState().setFocusRoom('r1');
-    useDesignStore.getState().selectRooms(['r1']);
+    useDesignStore.getState().selectElement({ kind: 'room', id: 'r1' });
     useDesignStore.getState().generate([]);
     expect(useDesignStore.getState().focusRoomId).toBeNull();
-    expect(useDesignStore.getState().selectedRoomIds).toEqual([]);
+    expect(useDesignStore.getState().selectedElement).toBeNull();
     expect(useDesignStore.getState().generated).toBe(true);
   });
 });

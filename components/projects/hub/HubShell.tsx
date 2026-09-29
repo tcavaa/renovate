@@ -18,21 +18,13 @@ export interface HubNavItem {
  * below `lg` — and beside it a breadcrumb title in the serif, the parent muted ("გამომთვლელი ›
  * ჩემი პროექტები"), then the page. The profile puts the account at the head of the sidebar.
  */
-export function HubShell({ label, account, items, crumb, title, children }: { label: string; account?: { name: string; email: string | null }; items: HubNavItem[]; crumb: { label: string; href: string }; title: string; children: React.ReactNode }) {
+export function HubShell({ label, account, items, crumb, title, children }: { label: string; account?: { name: string; email: string | null; href?: string }; items: HubNavItem[]; crumb: { label: string; href: string }; title: string; children: React.ReactNode }) {
   return (
     <div className="mx-auto w-full max-w-[1440px] px-5 py-8 md:px-8 lg:flex lg:gap-12 lg:py-12">
       <nav aria-label={label} className="mb-8 lg:mb-0 lg:w-56 lg:shrink-0">
         <div className="lg:sticky lg:top-24">
           {account ? (
-            <div className="mb-5 flex items-center gap-3 px-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-sm font-semibold uppercase text-white" aria-hidden>
-                {account.name.trim().charAt(0) || '·'}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-ink">{account.name}</span>
-                {account.email && <span className="block truncate text-xs text-ink-muted">{account.email}</span>}
-              </span>
-            </div>
+            <AccountHead account={account} />
           ) : (
             <p className="mb-3 hidden px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted lg:block">{label}</p>
           )}
@@ -64,6 +56,28 @@ export function HubShell({ label, account, items, crumb, title, children }: { la
         {children}
       </div>
     </div>
+  );
+}
+
+/** The account at the head of the profile's sidebar: its initial, name and e-mail — a link to its details when given one. */
+function AccountHead({ account }: { account: { name: string; email: string | null; href?: string } }) {
+  const inner = (
+    <>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-sm font-semibold uppercase text-white" aria-hidden>
+        {account.name.trim().charAt(0) || '·'}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-ink">{account.name}</span>
+        {account.email && <span className="block truncate text-xs text-ink-muted">{account.email}</span>}
+      </span>
+    </>
+  );
+  return account.href ? (
+    <Link href={account.href} className="mb-5 flex items-center gap-3 rounded-[12px] px-3 py-1.5 transition-colors hover:bg-sand/60">
+      {inner}
+    </Link>
+  ) : (
+    <div className="mb-5 flex items-center gap-3 px-3">{inner}</div>
   );
 }
 

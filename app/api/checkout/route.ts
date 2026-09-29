@@ -4,19 +4,24 @@ import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
-import { NothingToOrder, createCheckoutForProject, materialsPreview, projectOrderState } from '@/lib/finance/orders';
+import { NothingToOrder, checkoutPreview, createCheckoutForProject, projectOrderState } from '@/lib/finance/orders';
+import { resolveContact } from '@/lib/account/contact';
+import { loadAccountContact, updateAccountContact } from '@/lib/account/server';
 import { log } from '@/lib/log';
-import { checkoutSchema, normaliseCustomer } from '@/lib/validations/checkout.schema';
+import { checkoutSchema } from '@/lib/validations/checkout.schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Places the order for a saved project: the platform fee is recorded and every store whose
- * products are in it gets an order. A project belongs to an account (it is made, named, before
- * its first step) and only that account orders it. A project can be ordered in two sittings
- * (the calculation, then the design); each half is charged once and nothing is sent to a
- * store twice.
+ * Places the order for a saved project: every store whose products are in it gets an order,
+ * the construction materials go to their supplier, all delivered to the customer's address.
+ * A project belongs to an account (it is made, named, before its first step) and only that
+ * account orders it; the name and e-mail are the account's, the phone and the address the
+ * profile's unless the dialogue asked for them (`resolveContact`), and those are kept on the
+ * account when the person said so. A project can be ordered in two sittings (the calculation,
+ * then the design); nothing is sent to a store twice. No fee is charged here — each half's
+ * was paid before its hinge (`/api/payments`).
  */
 export const POST = handle('POST /api/checkout', 'Failed to place order', async (req) => {
   const limited = rateLimited(req, RATE_RULES.checkout);
@@ -34,8 +39,17 @@ export const POST = handle('POST /api/checkout', 'Failed to place order', async 
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
   if (project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
 
+  const account = await loadAccountContact(userId);
+  if (!account) return fail(API_ERRORS.UNAUTHORIZED, 401);
+  const contact = resolveContact(parsed.data.customer, account, { needAddress: true });
+  if (!contact.ok) return fail(API_ERRORS[contact.error], 400);
+
   try {
-    const result = await createCheckoutForProject(project, normaliseCustomer(parsed.data.customer), userId);
+    const result = await createCheckoutForProject(project, contact.customer, userId);
+    // Kept once the order went through: an order refused is no reason to change the profile.
+    if (contact.keep) {
+      await updateAccountContact(userId, contact.keep).catch((e: unknown) => log.warn('keeping the checkout contact failed', { userId, err: e }));
+    }
     return ok(result);
   } catch (e) {
     if (e instanceof NothingToOrder) return fail(API_ERRORS.PROJECT_ALREADY_ORDERED, 409);
@@ -44,10 +58,10 @@ export const POST = handle('POST /api/checkout', 'Failed to place order', async 
 });
 
 /**
- * What earlier checkouts of a project already charged and sent — so the checkout dialog can
- * show which half is still to be paid and which products will not be ordered again — and the
- * construction materials this checkout would send their supplier, read off the saved project
- * as the checkout will read it.
+ * What earlier checkouts of a project already sent — so the checkout dialog can show which
+ * products will not be ordered again — the construction materials this checkout would send
+ * their supplier and the summary's reserve, read off the saved project as the checkout will
+ * read it.
  */
 export const GET = handle('GET /api/checkout', 'Failed to load order state', async (req) => {
   const projectId = Number(new URL(req.url).searchParams.get('projectId'));
@@ -60,9 +74,9 @@ export const GET = handle('GET /api/checkout', 'Failed to load order state', asy
   if (project.userId !== userId && session?.user?.role !== 'admin') return fail(API_ERRORS.FORBIDDEN, 403);
   const state = await projectOrderState(projectId);
   // A preview that cannot be worked out is no reason to refuse the dialogue its state.
-  const materials = await materialsPreview(project, state).catch((e: unknown) => {
-    log.warn('materials preview failed', { projectId, err: e });
-    return null;
+  const preview = await checkoutPreview(project, state).catch((e: unknown) => {
+    log.warn('checkout preview failed', { projectId, err: e });
+    return { materials: null, reserve: 0 };
   });
-  return ok({ ...state, materials });
+  return ok({ ...state, ...preview });
 });

@@ -23873,6 +23873,9 @@ var Index = class {
 function index(name) {
   return new IndexBuilderOn(name, false);
 }
+function uniqueIndex(name) {
+  return new IndexBuilderOn(name, true);
+}
 
 // node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
 function primaryKey(...config2) {
@@ -25687,6 +25690,7 @@ __export(schema_exports, {
   orders: () => orders,
   platformSettings: () => platformSettings,
   products: () => products,
+  projectPayments: () => projectPayments,
   projectRenders: () => projectRenders,
   projects: () => projects,
   rates: () => rates,
@@ -25749,6 +25753,16 @@ var users = mysqlTable("users", {
   isActive: boolean("is_active").default(true).notNull(),
   /** The last successful sign-in, password or social. */
   lastLoginAt: timestamp("last_login_at"),
+  /**
+   * The person's own contact, from their profile (`/profile?view=account`) or kept from a
+   * checkout ("make it my default address"): a checkout or a booking asks only for what is
+   * missing here. The address is the default delivery address — city, street and number,
+   * postal code (optional).
+   */
+  phone: varchar("phone", { length: 50 }),
+  addressCity: varchar("address_city", { length: 120 }),
+  addressLine: varchar("address_line", { length: 255 }),
+  addressPostalCode: varchar("address_postal_code", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull()
 });
 var authTokens = mysqlTable("auth_tokens", {
@@ -26138,10 +26152,32 @@ var checkouts = mysqlTable("checkouts", {
   customerPhone: varchar("customer_phone", { length: 50 }).notNull(),
   customerEmail: varchar("customer_email", { length: 255 }),
   note: text("note"),
+  /** Where the goods go (the stores deliver there): the account's default address or one given at checkout. */
+  deliveryCity: varchar("delivery_city", { length: 120 }),
+  deliveryAddress: varchar("delivery_address", { length: 255 }),
+  deliveryPostalCode: varchar("delivery_postal_code", { length: 20 }),
   createdAt: timestamp("created_at").defaultNow().notNull()
 }, (t) => ({
   createdIdx: index("checkouts_created_idx").on(t.createdAt),
   userIdx: index("checkouts_user_idx").on(t.userId)
+}));
+var projectPayments = mysqlTable("project_payments", {
+  id: int("id").primaryKey().autoincrement(),
+  projectId: int("project_id").references(() => projects.id, { onDelete: "set null" }),
+  userId: int("user_id").references(() => users.id, { onDelete: "set null" }),
+  kind: mysqlEnum("kind", ["calculator", "design"]).notNull(),
+  totalM2: decimal("total_m2", { precision: 8, scale: 2 }).notNull(),
+  feePerM2: decimal("fee_per_m2", { precision: 8, scale: 2 }).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  /** How it was paid: `test` until a payment provider is wired in. */
+  method: varchar("method", { length: 20 }).default("test").notNull(),
+  cardLast4: varchar("card_last4", { length: 4 }),
+  /** The payment's own reference (the provider's, one day; made up for a test payment). */
+  reference: varchar("reference", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (t) => ({
+  projectKindIdx: uniqueIndex("project_payments_project_kind_idx").on(t.projectId, t.kind),
+  createdIdx: index("project_payments_created_idx").on(t.createdAt)
 }));
 var orders = mysqlTable("orders", {
   id: int("id").primaryKey().autoincrement(),
@@ -26162,6 +26198,10 @@ var orders = mysqlTable("orders", {
   customerEmail: varchar("customer_email", { length: 255 }),
   /** What the customer wrote at checkout. */
   customerNote: text("customer_note"),
+  /** Where the partner delivers or works: the checkout's (or the booking's) address, copied onto each order. */
+  deliveryCity: varchar("delivery_city", { length: 120 }),
+  deliveryAddress: varchar("delivery_address", { length: 255 }),
+  deliveryPostalCode: varchar("delivery_postal_code", { length: 20 }),
   /** What the partner wrote back — delivery date, a substitution, a question. */
   partnerMessage: text("partner_message"),
   /**

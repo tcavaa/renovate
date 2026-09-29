@@ -744,6 +744,12 @@
       "namedRegex": "^/api/health(?:/)?$"
     },
     {
+      "page": "/api/payments",
+      "regex": "^/api/payments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payments(?:/)?$"
+    },
+    {
       "page": "/api/products",
       "regex": "^/api/products(?:/)?$",
       "routeKeys": {},
@@ -754,6 +760,12 @@
       "regex": "^/api/products/bulk(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/products/bulk(?:/)?$"
+    },
+    {
+      "page": "/api/profile",
+      "regex": "^/api/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/profile(?:/)?$"
     },
     {
       "page": "/api/projects",

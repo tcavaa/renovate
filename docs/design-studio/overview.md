@@ -25,7 +25,7 @@ the detailed documents. Read it first for any task under `app/(main)/design/`, `
 | 1 | `start/` | upload a plan or start on a blank sheet; wall defaults; *design only* or *renovation + design* (and the home state); or an empty start | `PlanUploadCard`, `HomeStateSelector`, [project-flow.md §14](../project-flow.md) |
 | 2 | `plan/` | the existing house on the 2D board: walls, rooms, doors, windows, columns, beams | `PlanWorkspace`, `ElementInspector`, `RoomsPanel` — [plan-board.md](plan-board.md) |
 | 3 | `technical/` | technical points on the board; the automatic placement, the radiators, the works, how it is done and what the flat already has as checks in a modal that going on opens | `lib/design/technical.ts`, `existing.ts`, `radiators.ts`, `TechnicalChecks` — [technical-and-fittings.md](technical-and-fittings.md) |
-| 4 | `style/` | the five-question style test (or a direct pick), budget, **generate** | `StyleQuiz`, `StylePicker`, `GenerationOverlay`, `designStore.generate` |
+| 4 | `style/` | the five-question style test (or a direct pick), budget, **generate** — after the warning and the design's fee | `StyleQuiz`, `StylePicker`, `HingeDialog`, `GenerationOverlay`, `designStore.generate` |
 | 5 | `studio/` | the 3D studio in build mode: furniture, fittings, lights | [studio.md](studio.md) |
 | 6 | `studio/?tool=finishes` | materials on rooms, single walls, strips, square metres, floor zones | [finishes.md](finishes.md) |
 | 7 | `summary/` | the budget: materials + products + labour, a quantity on every line; checkout; plan PDF | [../budget.md](../budget.md), [../marketplace.md](../marketplace.md) |
@@ -161,6 +161,15 @@ directly (`StylePicker`) marks `direct`.
 
 The store records a snapshot (plan, items, finishes, electrical) before every change
 (`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`.
+
+**Before it, the warning and the fee.** "დიზაინის გენერაცია" opens `HingeDialog`
+(`components/flow/`): after generation the plan steps are shut, so the rooms, the walls, doors
+and windows and the technical points are checked now; then the design's fee — the plan's floor
+area × `designFeePerM2` (`feeAreaM2`), the design saved first (a draft) so the server charges
+what is on screen — paid with a test card (`POST /api/payments`,
+[marketplace.md](../marketplace.md#how-the-platform-earns-libfinance)). Only then does the style
+step set the budget, `generate` and play the overlay; a design already paid goes straight on.
+The budget page shows the fee as paid under its total (`FeePaidNote`), not in it.
 
 **Generating is the journey's hinge, not an undoable edit.** `generate` (called by the style
 step) does not go through `commit`: it clears `versions` and the history itself and sets

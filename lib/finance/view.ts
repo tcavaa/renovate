@@ -2,6 +2,7 @@ import type { OrderEvent } from '@/lib/db/schema';
 import type { OrderView } from './orders';
 import type { CheckoutKind, OrderStatus } from './money';
 import { orderStage, type OrderStage } from './orderFlow';
+import { addressOf, formatAddress } from '@/lib/account/contact';
 
 /**
  * An order as the client components see it: numbers instead of decimal strings, ISO dates
@@ -41,6 +42,8 @@ export interface OrderData {
   customerPhone: string;
   customerEmail: string | null;
   customerNote: string | null;
+  /** Where the partner delivers or works, on one line; null on an order placed without one. */
+  deliveryAddress: string | null;
   partnerMessage: string | null;
   /** The agent's own note; null for everyone but the platform's people. */
   staffNote: string | null;
@@ -73,6 +76,10 @@ export function orderData(view: OrderView): OrderData {
     customerPhone: order.customerPhone,
     customerEmail: order.customerEmail,
     customerNote: order.customerNote,
+    deliveryAddress: (() => {
+      const address = addressOf({ city: order.deliveryCity, line: order.deliveryAddress, postalCode: order.deliveryPostalCode });
+      return address ? formatAddress(address) : null;
+    })(),
     partnerMessage: order.partnerMessage,
     staffNote: order.staffNote,
     createdAt: order.createdAt.toISOString(),

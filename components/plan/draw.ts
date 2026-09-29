@@ -737,22 +737,6 @@ export function drawGuides(ctx: CanvasRenderingContext2D, t: Transform, guides: 
   ctx.restore();
 }
 
-/** The rubber band the select tool drags across the sheet, desktop-style. */
-export function drawMarquee(ctx: CanvasRenderingContext2D, t: Transform, rect: { x: number; z: number; width: number; depth: number }): void {
-  const a = toScreen(t, { x: rect.x, z: rect.z });
-  ctx.save();
-  ctx.fillStyle = EDITOR.selected;
-  ctx.globalAlpha = 0.1;
-  ctx.fillRect(a.x, a.y, rect.width * t.scale, rect.depth * t.scale);
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = EDITOR.selected;
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 3]);
-  ctx.strokeRect(a.x, a.y, rect.width * t.scale, rect.depth * t.scale);
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
 /** Where a room being dragged would land: its outline, offset, over the sheet. */
 export function drawRoomGhost(ctx: CanvasRenderingContext2D, t: Transform, polygon: Vec2[], delta: Vec2, color: string = EDITOR.selected): void {
   if (polygon.length < 3) return;

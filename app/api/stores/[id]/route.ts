@@ -8,6 +8,7 @@ import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 import { isListedPartner, publicStore } from '@/lib/api/publicPartners';
 import { canAdmin, canDeleteIn } from '@/lib/auth/roles';
 import { removeUnusedUploads } from '@/lib/storage/cleanup';
+import { setMaterialsSupplier } from '@/lib/finance/settings';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,12 +37,15 @@ export const PUT = handle('PUT /api/stores/[id]', 'Failed to update store', asyn
   const parsed = storeSchema.partial().safeParse(await req.json());
   if (!parsed.success) return fail(parsed.error.message, 400);
   // The commission is money, and money is admin's: a catalogue agent edits everything else.
-  const { commissionRate, ...fields } = parsed.data;
-  const data = admin.session.user.role === 'admin' ? { ...fields, commissionRate } : fields;
+  const { commissionRate, suppliesMaterials, ...fields } = parsed.data;
+  const isAdmin = admin.session.user.role === 'admin';
+  const data = isAdmin ? { ...fields, commissionRate } : fields;
   const [before] = await db.select({ logoUrl: stores.logoUrl }).from(stores).where(eq(stores.id, id)).limit(1);
   if (!before) return fail(API_ERRORS.NOT_FOUND, 404);
 
   await db.update(stores).set(toStoreRow(data)).where(eq(stores.id, id));
+  // The construction materials' supplier is a platform setting, and settings are admin's.
+  if (isAdmin && suppliesMaterials !== undefined) await setMaterialsSupplier(id, suppliesMaterials);
   // A logo replaced is a file nobody shows any more.
   if (data.logoUrl !== undefined && before.logoUrl !== (data.logoUrl || null)) await removeUnusedUploads([before.logoUrl]);
   // The studio's cached catalogue must not outlive this write.

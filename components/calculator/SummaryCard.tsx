@@ -1,8 +1,7 @@
 'use client';
 
 import { useT } from '@/lib/i18n/client';
-import { formatGEL, formatM2 } from '@/lib/utils';
-import { fill } from '@/lib/admin/list';
+import { formatGEL } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { Figure } from '@/components/calculator/MaterialsTable';
 import type { SheetTotals } from '@/lib/summary/calculatorSheet';
@@ -17,16 +16,10 @@ import type { SheetTotals } from '@/lib/summary/calculatorSheet';
  * them: struck through under the big figure, and as its own rows in the arithmetic, with the
  * way back to it.
  */
-export interface PlatformFeeLine {
-  perM2: number;
-  m2: number;
-  total: number;
-}
-
 export function SummaryCard({
   totals,
   original,
-  platformFee,
+  fee,
   note,
   onResetEdits,
   children,
@@ -34,7 +27,8 @@ export function SummaryCard({
   totals: SheetTotals;
   /** The same totals with no edit applied; absent when nothing was edited. */
   original?: SheetTotals | null;
-  platformFee?: PlatformFeeLine;
+  /** The platform's fee, paid before the calculation started (`FeePaidNote`): a line under the total, not part of it. */
+  fee?: React.ReactNode;
   /** A line under the subtotals: how to use the sheet, and how much of it was edited. */
   note?: React.ReactNode;
   onResetEdits?: () => void;
@@ -106,22 +100,7 @@ export function SummaryCard({
           <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
           <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.grandTotalWithMargin)}</span>
         </div>
-        {platformFee && (
-          <div className="mt-4 space-y-2 border-t border-line pt-4">
-            <div className="flex items-baseline justify-between gap-3 text-sm">
-              <span>
-                {t.market.feeCalculator}
-                <span className="ml-2 text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(platformFee.perM2), m2: formatM2(platformFee.m2) })}</span>
-              </span>
-              <span className="shrink-0 font-medium tabular-nums">{formatGEL(platformFee.total)}</span>
-            </div>
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
-              <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(totals.grandTotalWithMargin + platformFee.total)}</span>
-            </div>
-            <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
-          </div>
-        )}
+        {fee && <div className="mt-4 border-t border-line pt-4">{fee}</div>}
       </div>
     </div>
   );

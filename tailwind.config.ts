@@ -87,6 +87,7 @@ const config: Config = {
         marquee: { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(-50%)' } },
         spin: { to: { transform: 'rotate(360deg)' } },
         float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+        countdown: { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -97,6 +98,8 @@ const config: Config = {
         marquee: 'marquee 40s linear infinite',
         'spin-slow': 'spin 24s linear infinite',
         float: 'float 7s ease-in-out infinite',
+        /** A bar filling while a page waits to move on (the checkout's thank-you); set its length with `animation-duration`. */
+        countdown: 'countdown 4s linear forwards',
       },
     },
   },

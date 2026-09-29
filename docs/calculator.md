@@ -52,7 +52,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
    the board's `setPlan`.
 3. `plan/` — `PlanWorkspace` on the calculator's own board store; `useCalculatorPlan` →
    `reconcileCalculatorPlan` → `setRooms` after every edit; the technical setup (below);
-   "გამოთვლის დაწყება" → `setCalculated`.
+   "გამოთვლის დაწყება" → `HingeDialog` (the warning, the calculation's fee) → `setCalculated`.
 4. `materials/` — `useRateBook()` → `calculationEstimate` (the works of the sheet: the board,
    its points and fittings, the person's `choices` — `WorkChoicesPicker` → `setChoices`).
 5. `catalog/` — a room's floor through `setFloorProduct` / `setFloorShare`, its walls through
@@ -77,7 +77,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | # | Path | What |
 |---|---|---|
 | 1 | `start` | the way in (upload a plan or say you will draw one; a hub tile's `?way=` preselects it when there is no plan on file) and the home's condition |
-| 2 | `plan` | the board — the uploaded plan to check, or a blank sheet to draw on; **"გამოთვლის დაწყება"** here (needs rooms) sets `calculated` |
+| 2 | `plan` | the board — the uploaded plan to check, or a blank sheet to draw on; **"გამოთვლის დაწყება"** here (needs rooms) sets `calculated`, after the warning and the calculation's fee (`HingeDialog`) |
 | 3 | `materials` | the engine's materials and labour; laminate/parquet and ceiling choices |
 | 4 | `catalog` | **each room's floor and walls**, and the products for the whole flat |
 | 5 | `furniture` | optional, room by room (`AskFurnitureDialog` asks on leaving the catalogue) |
@@ -127,7 +127,15 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 - **"გამოთვლის დაწყება" asks first** when the board has neither a technical point nor a
   fitting: place them all by the standards (`placeByStandards(catalog)`: the three above and
   every door and window a product, one step of the history, then on), or carry on without — the
-  points are then estimated from the room types (`ROOM_POINTS`), as below.
+  points are then estimated from the room types (`ROOM_POINTS`), as below. **Then, every time,
+  the warning and the fee** (`HingeDialog`, [project-flow.md §12](project-flow.md#12-locks-and-why-there-is-no-start-over)):
+  from here the plan and the home's condition are settled and steps 1–2 shut; the calculation's
+  fee is its rooms' floor area × `calculatorFeePerM2` (`feeAreaM2`), the calculation saved first
+  (a draft — the rooms and their area reach the row while it is still pending) so the server
+  charges what is on screen, paid with a test card (`POST /api/payments`,
+  [marketplace.md](marketplace.md#how-the-platform-earns-libfinance)); a calculation already paid
+  goes straight on. The summary shows the fee as paid, under its total (`SummaryCard`'s `fee`,
+  `FeePaidNote`), not in it.
 - **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free
   spot (`findFreeSpot`, `lib/calculator/layout.ts`). Sizes are exact to the centimetre; a
   dragged room snaps wall to wall exactly as on the design's board (`snapRoomMove`,

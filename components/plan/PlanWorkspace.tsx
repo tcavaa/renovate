@@ -119,7 +119,6 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
   const selection = useStore((s) => s.selectedElement);
   const selectedItemId = useStore((s) => s.selectedItemId);
   const focusRoomId = useStore((s) => s.focusRoomId);
-  const selectedRoomIds = useStore((s) => s.selectedRoomIds);
   const carryingItemId = useStore((s) => s.carryingItemId);
   const selectedRoomPart = useStore((s) => s.selectedRoomPart);
   const actions = useStore();
@@ -188,12 +187,11 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
         s.removeFinishZone(sel.roomId, sel.id);
         break;
       case 'room':
-        // A rubber band selection goes at once; a single pick is just itself.
-        if (!locked) for (const id of s.selectedRoomIds.includes(sel.id) ? s.selectedRoomIds : [sel.id]) s.removeRoom(id);
+        // The room picked, and only it: the rooms joined to it travel with a drag, not with Delete.
+        if (!locked) s.removeRoom(sel.id);
         break;
     }
     s.selectElement(null);
-    s.selectRooms([]);
   }, [locked, useStore]);
 
   const undo = useCallback(() => useStore.getState().undo(), [useStore]);
@@ -319,11 +317,9 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
           builtWalls={wallBuilding}
           selection={selection}
           selectedRoomId={focusRoomId}
-          selectedRoomIds={selectedRoomIds}
           selectedItemId={selectedItemId}
           onSelect={actions.selectElement}
           onSelectRoom={actions.setFocusRoom}
-          onSelectRooms={actions.selectRooms}
           onMoveRooms={locked ? undefined : actions.moveRooms}
           onSelectItem={actions.selectItem}
           onAddWall={(a, b) => actions.addWall({ a, b, thicknessM })}

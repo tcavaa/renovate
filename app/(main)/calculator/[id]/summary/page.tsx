@@ -28,9 +28,9 @@ import { useCalculatorPlanStore } from '@/store/designStore';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designEntryHref } from '@/lib/design/steps';
 import { useRateBook } from '@/hooks/useRateBook';
-import { usePlatformFees } from '@/hooks/usePlatformFees';
-import { platformFee } from '@/lib/finance/money';
+import { useProjectPayments } from '@/hooks/useProjectPayments';
 import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/CheckoutDialog';
+import { FeePaidNote } from '@/components/checkout/FeePaidNote';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { priceScene } from '@/lib/design/pricing';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
@@ -58,7 +58,8 @@ export default function SummaryPage() {
   useCalculatorBoardProducts();
   const [exporting, setExporting] = useState(false);
   const { book } = useRateBook();
-  const fees = usePlatformFees();
+  // The platform's fee was paid before the calculation started: a line of its own, not in the total.
+  const paid = useProjectPayments(projectId);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -104,9 +105,6 @@ export default function SummaryPage() {
     setQuantity: (line, qty) => line.tick && setQuantity(line.tick, qty, line.originalQty ?? line.qty),
   };
 
-  // The platform's own line: a fee per square metre of the flat, shown, not collected.
-  const totalM2 = useMemo(() => rooms.reduce((s, r) => s + r.floorM2, 0), [rooms]);
-  const fee = platformFee(totalM2, fees.calculatorFeePerM2);
 
   // The design half is the design's budget — its product lines, the doors, fittings and
   // radiators with the furniture — priced the way the server will price it once this page
@@ -128,11 +126,11 @@ export default function SummaryPage() {
       excluded: designScene.excluded,
       quantities: designScene.quantities,
     };
-    return designCheckoutPart(designPlan, priceScene(designPlan, scene, { homeState, locale }), fees.designFeePerM2, locale);
-  }, [designExists, designPlan, designScene, homeState, fees.designFeePerM2, locale]);
+    return designCheckoutPart(designPlan, priceScene(designPlan, scene, { homeState, locale }), locale);
+  }, [designExists, designPlan, designScene, homeState, locale]);
   // Built from the picks rather than from the estimate, because the two differ: what the
   // person ticked off on the order list is still costed and no longer bought.
-  const checkoutParts: CheckoutPart[] = input ? [calculatorCheckoutPart(input, fees.calculatorFeePerM2, locale), ...(designPart ? [designPart] : [])] : [];
+  const checkoutParts: CheckoutPart[] = input ? [calculatorCheckoutPart(input, locale), ...(designPart ? [designPart] : [])] : [];
 
   /**
    * Writes the calculation into the project's row — the save button and the checkout share
@@ -256,7 +254,7 @@ export default function SummaryPage() {
           <SummaryCard
             totals={sheet}
             original={sheet.original}
-            platformFee={{ perM2: fees.calculatorFeePerM2, m2: totalM2, total: fee }}
+            fee={paid.calculator ? <FeePaidNote kind="calculator" payment={paid.calculator} /> : null}
             onResetEdits={clearEdits}
             note={
               <>
@@ -279,7 +277,7 @@ export default function SummaryPage() {
       >
         <div className="flex flex-wrap items-center justify-end gap-4">
           <p className="text-sm text-ink-muted">
-            {ka.market.totalWithFee} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(sheet.grandTotalWithMargin + fee)}</span>
+            {ka.summary.grandTotalWithMargin} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(sheet.grandTotalWithMargin)}</span>
           </p>
           <Button3d onClick={viewIn3d} disabled={!ready}>
             {designExists ? ka.profile.openIn3d : ka.calculator.view3dButton}

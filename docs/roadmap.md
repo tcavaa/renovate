@@ -28,8 +28,13 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
-- **Payments**: the marketplace records money but does not move it — no payment integration,
-  no payouts, no invoices ([marketplace.md](marketplace.md)).
+- **Payments**: the platform's fee is paid at each half's hinge through a stand-in (a
+  prefilled test card, `method: 'test'`, nothing charged): a real provider goes there, and the
+  save routes must then refuse the hinge without a payment; no payouts, no invoices
+  ([marketplace.md](marketplace.md#known-gaps)).
+- **e2e**: nothing walks the calculator's payment, the checkout (its rows, the contact, the
+  thank-you) or the profile's details; the studio spec covers the design's
+  ([testing.md](testing.md#known-gaps)).
 - **Realistic renders**: `project_renders` rows wait in `queued`; a worker that calls an image
   model with the screenshot and scene, writes `renderUrl` and flips the status is not built
   ([design-studio/studio.md](design-studio/studio.md#known-gaps)).

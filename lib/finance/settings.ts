@@ -42,6 +42,16 @@ export async function loadPlatformSettings(): Promise<PlatformSettingsWithMeta> 
   }
 }
 
+/**
+ * A store made (or unmade) the construction materials' supplier from its own form: ticked, the
+ * materials go to it — whoever had them before; unticked on the store that has them, to nobody.
+ */
+export async function setMaterialsSupplier(storeId: number, supplies: boolean): Promise<void> {
+  const current = await loadPlatformSettings();
+  if (supplies && current.materialsStoreId !== storeId) await savePlatformSettings({ materialsStoreId: storeId });
+  else if (!supplies && current.materialsStoreId === storeId) await savePlatformSettings({ materialsStoreId: null });
+}
+
 export async function savePlatformSettings(patch: PlatformSettingsPatch): Promise<PlatformSettingsWithMeta> {
   const current = await loadPlatformSettings();
   const next: PlatformSettings = {

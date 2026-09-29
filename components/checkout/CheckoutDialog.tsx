@@ -1,37 +1,47 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { CheckCircle2, ChevronDown, Loader2, Send } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, CheckCircle2, ChevronDown, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CustomerFields, type CustomerForm } from '@/components/checkout/CustomerFields';
+import { ContactFields, contactBody, newContactForm, type ContactForm } from '@/components/checkout/ContactFields';
+import { useAccountContact } from '@/hooks/useAccountContact';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { apiErrorMessage, localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import type { CheckoutResult, MaterialsPreview, ProjectOrderState } from '@/lib/finance/orders';
-import { lineTotal, platformFee, round2, type CheckoutKind } from '@/lib/finance/money';
-import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import type { CheckoutPreview, CheckoutResult, ProjectOrderState } from '@/lib/finance/orders';
+import { lineTotal, round2, type CheckoutKind } from '@/lib/finance/money';
+import { cn, formatGEL, formatNumber } from '@/lib/utils';
 
-/** One half of a project as the dialog summarises it: the fee it carries and the products it would send. */
+/** One half of a project as the dialog lists it: the products it would send. */
 export interface CheckoutPart {
   kind: CheckoutKind;
-  totalM2: number;
-  feePerM2: number;
-  /** `unitPrice` lets a line partly ordered before be shown as the units still to send, priced as the server prices them. */
-  lines: Array<{ key: string; productId: number | null; name: string; qty: number; unitPrice?: number; total: number; where: string | null }>;
+  /**
+   * `unitPrice` lets a line partly ordered before be shown as the units still to send, priced
+   * as the server prices them; `furniture` puts it under furniture rather than building
+   * materials (the budget line's `bucket`).
+   */
+  lines: Array<{ key: string; productId: number | null; name: string; qty: number; unitPrice?: number; total: number; where: string | null; furniture: boolean }>;
 }
 
+/** Where the thank-you sends the person, and how long it waits first. */
+const ORDERS_HREF = '/profile?view=orders';
+const THANK_YOU_MS = 4000;
+
 /**
- * The step that turns an estimate into business: the customer leaves their contact, the
- * project is saved (by the caller, so each summary saves in its own shape), and the platform
- * writes the fees and one order per store. A project with both halves is one checkout: a
- * quick line per half — fee and products — with the full list a click away; a half ordered
- * earlier is shown as already paid, and products already sent to a store are not sent again.
- * The rate book's construction materials go to their supplier as an order of their own. The
- * project's owner orders it (the route answers 401 to a guest). Nothing is paid here; the fees
- * are shown, and every store's order is confirmed with the customer before the store sees it.
+ * The step that turns an estimate into business. The dialog reads what the project comes to in
+ * three rows — the building materials (the rate book's construction materials, which go to
+ * their supplier, and every store product that is not furniture: finishes, doors, windows,
+ * fittings, radiators), the summary's reserve (15 % of the renovation's materials and labour —
+ * on nobody's order; shown on the first order only) and the furniture — and the total under
+ * them. The platform's fee is not here: each half paid it before its hinge.
+ *
+ * The contact is the account's: a signed-in person is asked only for the phone and the
+ * delivery address their profile does not have, and may keep them as the default
+ * (`ContactFields`). The caller saves the project (each summary in its own shape), then the
+ * platform writes one order per store; a project ordered before sends only what is new. On
+ * success a thank-you, and then the person's orders (`/profile?view=orders`).
  */
 export function CheckoutDialog({
   open,
@@ -53,22 +63,24 @@ export function CheckoutDialog({
 }) {
   const t = useT();
   const locale = useLocale();
-  const { data: session } = useSession();
-  const [form, setForm] = useState<CustomerForm | null>(null);
-  const value: CustomerForm = form ?? { name: session?.user?.name ?? '', phone: '', email: session?.user?.email ?? '', note: '' };
+  const router = useRouter();
+  const { account, ready } = useAccountContact(open);
+  const [form, setForm] = useState<ContactForm | null>(null);
+  const value = form ?? newContactForm(account);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckoutResult | null>(null);
-  const [state, setState] = useState<(ProjectOrderState & { materials?: MaterialsPreview | null }) | null>(null);
+  const [state, setState] = useState<(ProjectOrderState & CheckoutPreview) | null>(null);
   const [full, setFull] = useState(false);
 
-  // What earlier sittings already ordered, so the preview matches what the server will do.
+  // What earlier sittings already ordered, the materials and the reserve, so the preview matches
+  // what the server will do.
   useEffect(() => {
     if (!open || !projectId) return;
     let cancelled = false;
     fetch(`/api/checkout?projectId=${projectId}`)
       .then((r) => r.json())
-      .then((json: { data: (ProjectOrderState & { materials?: MaterialsPreview | null }) | null }) => {
+      .then((json: { data: (ProjectOrderState & CheckoutPreview) | null }) => {
         if (!cancelled) setState(json.data);
       })
       .catch(() => undefined);
@@ -77,7 +89,17 @@ export function CheckoutDialog({
     };
   }, [open, projectId]);
 
-  const orderedKinds = new Set(state?.orderedKinds ?? []);
+  // The thank-you stays a moment, then the person's orders open — from the top of the page:
+  // the summary behind the dialogue is usually scrolled far down.
+  useEffect(() => {
+    if (!result) return;
+    const handle = window.setTimeout(() => {
+      window.scrollTo({ top: 0 });
+      router.push(ORDERS_HREF);
+    }, THANK_YOU_MS);
+    return () => window.clearTimeout(handle);
+  }, [result, router]);
+
   // Same rules the server applies: the design's lines win over the calculator's copies of a
   // product, and units ordered earlier are taken off the top, product by product.
   const designProducts = new Set(parts.filter((p) => p.kind === 'design').flatMap((p) => p.lines.map((l) => l.productId)).filter((id): id is number => id != null));
@@ -112,40 +134,41 @@ export function CheckoutDialog({
       marked.set(line.key, false);
     }
   }
-  const view = parts.map((part) => {
-    const lines = part.lines.map((line) => ({ ...line, ...partly.get(line.key), duplicate: marked.get(line.key) ?? false }));
-    const feePaid = orderedKinds.has(part.kind);
-    return {
-      ...part,
-      lines,
-      feePaid,
-      fee: feePaid ? 0 : platformFee(part.totalM2, part.feePerM2),
-      goods: lines.filter((l) => !l.duplicate).reduce((s, l) => s + l.total, 0),
-      skipped: lines.filter((l) => l.duplicate).length,
-    };
-  });
+  const lines = parts.flatMap((part) => part.lines.map((line) => ({ ...line, ...partly.get(line.key), duplicate: marked.get(line.key) ?? false })));
+  const sending = lines.filter((l) => !l.duplicate);
+  const productLines = sending.filter((l) => !l.furniture);
+  const furnitureLines = sending.filter((l) => l.furniture);
+  const skipped = lines.length - sending.length;
+
+  // The construction materials go to their supplier; the server says what they come to (read
+  // off the saved project as the checkout will read it), and what the summary's reserve is.
+  const loaded = state != null;
+  const materials = state?.materials ?? null;
+  const supplierTotal = materials?.storeId != null ? materials.total : 0;
+  const materialsTotal = round2(supplierTotal + productLines.reduce((s, l) => s + l.total, 0));
+  const furnitureTotal = round2(furnitureLines.reduce((s, l) => s + l.total, 0));
+  // The reserve belongs to the project, not to a sitting: it is counted on the first order only.
+  const firstOrder = (state?.orderedKinds.length ?? 0) === 0;
+  const reserve = state && firstOrder ? state.reserve : 0;
+  const total = round2(materialsTotal + reserve + furnitureTotal);
+  const materialCount = productLines.length + (materials?.storeId != null ? materials.lines.length : 0);
+  /** What a row says under its name: how many lines go, or that they went with an earlier order, or that there are none. */
+  const rowHint = (sent: number, furniture: boolean) => (sent > 0 ? fill(t.market.itemsCount, { n: sent }) : lines.some((l) => l.furniture === furniture) ? t.market.rowOrdered : t.market.rowEmpty);
+  // Everything already sent: say so instead of letting the server refuse.
+  const nothingNew = loaded && supplierTotal === 0 && sending.length === 0;
+
   // Closing forgets the sitting: the next opening starts from a fresh form and re-reads what
-  // has been ordered, so a second order from the same page does not show the first one's receipt.
+  // has been ordered.
   const close = (next: boolean) => {
     if (!next) {
       setResult(null);
       setError(null);
       setFull(false);
       setState(null);
+      setForm(null);
     }
     onOpenChange(next);
   };
-
-  // The construction materials go to their supplier as an order of their own; the server says
-  // what they come to (read off the saved project as the checkout will read it).
-  const materials = state?.materials ?? null;
-  const materialsTotal = materials?.storeId != null ? materials.total : 0;
-  const feeTotal = view.reduce((s, p) => s + p.fee, 0);
-  const goodsTotal = view.reduce((s, p) => s + p.goods, 0) + materialsTotal;
-  const skipped = view.reduce((s, p) => s + p.skipped, 0);
-  // Everything already charged and sent: say so instead of letting the server refuse.
-  const nothingNew = state != null && feeTotal === 0 && materialsTotal === 0 && view.every((p) => p.lines.every((l) => l.duplicate));
-  const partLabel = (kind: CheckoutKind) => (kind === 'design' ? t.market.partDesign : t.market.partCalculator);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +179,7 @@ export function CheckoutDialog({
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: id, customer: { name: value.name, phone: value.phone, email: value.email || null, note: value.note || null } }),
+        body: JSON.stringify({ projectId: id, customer: contactBody(value, account, { address: true }) }),
       });
       const json = (await res.json()) as { data: CheckoutResult | null; error: string | null };
       if (!res.ok || !json.data) {
@@ -172,63 +195,39 @@ export function CheckoutDialog({
     }
   };
 
+  const figure = (amount: number) => (loaded ? formatGEL(amount) : <Loader2 className="ml-auto h-4 w-4 animate-spin text-ink-faint" aria-label={t.common.loading} />);
+
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto">
         {result ? (
-          <>
-            <DialogHeader>
-              <div className="mx-auto mb-2 grid h-14 w-14 place-items-center rounded-full bg-success/15 text-success">
-                <CheckCircle2 className="h-7 w-7" />
-              </div>
-              <DialogTitle className="text-center">{t.market.successTitle}</DialogTitle>
-              <DialogDescription className="text-center">{fill(t.market.successDesc, { id: result.checkoutId })}</DialogDescription>
+          <div className="py-2 text-center">
+            <div className="mx-auto grid h-16 w-16 animate-scale-in place-items-center rounded-full bg-success/15 text-success">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <DialogHeader className="mt-4 space-y-2">
+              <DialogTitle className="text-center font-serif text-2xl">{t.market.thankYouTitle}</DialogTitle>
+              <DialogDescription className="text-center text-base leading-relaxed">{fill(t.market.thankYouDesc, { id: result.checkoutId })}</DialogDescription>
             </DialogHeader>
-            <div className="border border-line">
-              {result.fees.map((f) => (
-                <div key={f.kind} className="flex items-baseline justify-between border-b border-line px-4 py-2.5 text-sm">
-                  <span className="text-ink-muted">
-                    {t.market.feeRecorded} · {f.kind === 'design' ? t.market.feeDesign : t.market.feeCalculator}
-                  </span>
-                  <span className="font-semibold tabular-nums">{formatGEL(f.fee)}</span>
-                </div>
-              ))}
-              {result.orders.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-ink-muted">{t.market.noStoreOrders}</p>
-              ) : (
-                <ul>
-                  {result.orders.map((o) => (
-                    <li key={o.id} className="flex items-baseline justify-between gap-3 border-b border-line/70 px-4 py-2.5 text-sm last:border-b-0">
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium text-ink">{localizedName(locale, { nameKa: o.storeNameKa, nameEn: o.storeNameEn, nameRu: o.storeNameRu })}</span>
-                        <span className="text-xs text-ink-muted">
-                          {fill(t.market.orderNo, { id: o.id })} · {fill(t.market.itemsCount, { n: o.itemCount })}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-semibold tabular-nums">{formatGEL(o.subtotal)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            {result.orders.length > 0 && <p className="mt-3 text-sm text-ink-muted">{fill(t.market.thankYouStores, { n: result.orders.length })}</p>}
+            {result.unassigned > 0 && <p className="mt-2 text-xs text-warning">{fill(t.market.noPartnerItems, { n: result.unassigned })}</p>}
+            <div className="mx-auto mt-6 h-1 w-40 overflow-hidden rounded-full bg-line">
+              <div className="h-full w-full origin-left animate-countdown bg-ink" style={{ animationDuration: `${THANK_YOU_MS}ms` }} />
             </div>
-            {result.orders.length > 0 && <p className="border border-line bg-bg-base px-3 py-2 text-xs text-ink-soft">{t.orderReview.reviewNote}</p>}
-            {result.alreadyOrdered > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: result.alreadyOrdered })}</p>}
-            {result.unassigned > 0 && <p className="text-xs text-warning">{fill(t.market.noPartnerItems, { n: result.unassigned })}</p>}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {session?.user ? (
-                <Button asChild variant="ink">
-                  <Link href="/profile">{t.market.viewOrders}</Link>
-                </Button>
-              ) : (
-                <Button asChild variant="ink">
-                  <Link href="/register">{t.nav.register}</Link>
-                </Button>
-              )}
-              <Button type="button" variant="outline" onClick={() => close(false)}>
-                {t.market.close}
-              </Button>
-            </div>
-          </>
+            <p className="mt-2 text-xs text-ink-muted">{t.market.redirectingToOrders}</p>
+            <Button
+              type="button"
+              variant="ink"
+              className="mt-5 w-full"
+              onClick={() => {
+                window.scrollTo({ top: 0 });
+                router.push(ORDERS_HREF);
+              }}
+            >
+              {t.market.goToOrders}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         ) : (
           <form onSubmit={submit} className="space-y-4">
             <DialogHeader>
@@ -236,47 +235,19 @@ export function CheckoutDialog({
               <DialogDescription>{t.market.checkoutDesc}</DialogDescription>
             </DialogHeader>
 
-            {/* quick summary: one line per half */}
+            {/* What it comes to: building materials, their reserve, the furniture, and the total. */}
             <div className="border border-line text-sm">
-              {view.map((part) => (
-                <div key={part.kind} className="border-b border-line px-4 py-2.5 last:border-b-0">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-medium text-ink">{partLabel(part.kind)}</span>
-                    <span className="shrink-0 tabular-nums">{formatGEL(part.goods + part.fee)}</span>
-                  </div>
-                  <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
-                    <span>
-                      {t.market.platformFee}: {part.feePaid ? t.market.alreadyOrderedKind : `${formatGEL(part.fee)} · ${fill(t.market.platformFeeHint, { fee: formatGEL(part.feePerM2), m2: formatM2(part.totalM2) })}`}
-                    </span>
-                    <span>
-                      {t.summary.products}: {formatGEL(part.goods)} · {fill(t.market.itemsCount, { n: part.lines.length - part.skipped })}
-                    </span>
-                  </p>
-                </div>
-              ))}
-              {materials && (
-                <div className="border-b border-line px-4 py-2.5 last:border-b-0">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-medium text-ink">{t.orderReview.materialsTitle}</span>
-                    <span className="shrink-0 tabular-nums">{materials.storeId != null ? formatGEL(materials.total) : '—'}</span>
-                  </div>
-                  <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
-                    {materials.storeId != null ? (
-                      <>
-                        <span>{fill(t.orderReview.materialsFrom, { store: materials.storeNameKa ?? '—' })}</span>
-                        <span>{fill(t.market.itemsCount, { n: materials.lines.length })}</span>
-                      </>
-                    ) : (
-                      <span className="text-warning">{t.orderReview.materialsNoSupplier}</span>
-                    )}
-                  </p>
-                </div>
-              )}
-              <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink px-4 py-2.5">
-                <span className="font-semibold text-ink">{t.market.totalWithFee}</span>
-                <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(goodsTotal + feeTotal)}</span>
+              <Row label={t.market.rowMaterials} amount={figure(materialsTotal)} hint={loaded ? rowHint(materialCount, false) : null}>
+                {materials?.storeId == null && materials != null && <span className="text-warning">{t.orderReview.materialsNoSupplier}</span>}
+              </Row>
+              {(!loaded || reserve > 0) && <Row label={t.market.rowReserve} amount={figure(reserve)} hint={t.market.rowReserveHint} />}
+              <Row label={t.market.rowFurniture} amount={formatGEL(furnitureTotal)} hint={rowHint(furnitureLines.length, true)} />
+              <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink px-4 py-3">
+                <span className="font-semibold text-ink">{t.market.total}</span>
+                <span className="font-serif text-xl font-semibold tabular-nums text-ink">{loaded ? formatGEL(total) : '…'}</span>
               </div>
             </div>
+            <p className="text-xs text-ink-muted">{t.market.deliveryNote}</p>
 
             {nothingNew ? (
               <p className="border border-line bg-bg-base px-3 py-2 text-sm text-ink-muted">{t.market.nothingToOrder}</p>
@@ -290,49 +261,29 @@ export function CheckoutDialog({
             </button>
             {full && (
               <div className="max-h-56 overflow-y-auto border border-line text-xs">
-                {view.map((part) => (
-                  <div key={part.kind}>
-                    <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{partLabel(part.kind)}</p>
-                    <ul className="divide-y divide-line/70">
-                      {part.lines.length === 0 && <li className="px-3 py-2 text-ink-muted">—</li>}
-                      {part.lines.map((line) => (
-                        <li key={line.key} className={cn('flex items-baseline justify-between gap-3 px-3 py-1.5', line.duplicate && 'text-ink-faint line-through')}>
-                          <span className="min-w-0 truncate">
-                            {line.name}
-                            {line.where && <span className="ml-1 text-ink-muted no-underline">· {line.where}</span>}
-                          </span>
-                          <span className="shrink-0 tabular-nums">
-                            {line.qty !== 1 && <span className="mr-1 text-ink-muted">{formatNumber(line.qty)} ×</span>}
-                            {formatGEL(line.total)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                {materials && materials.lines.length > 0 && (
-                  <div>
-                    <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.orderReview.materialsTitle}</p>
-                    <ul className="divide-y divide-line/70">
-                      {materials.lines.map((line) => (
-                        <li key={line.categorySlug ?? line.nameKa} className="flex items-baseline justify-between gap-3 px-3 py-1.5">
-                          <span className="min-w-0 truncate">{localizedName(locale, line)}</span>
-                          <span className="shrink-0 tabular-nums">
-                            <span className="mr-1 text-ink-muted">{formatNumber(line.qty)} ×</span>
-                            {formatGEL(line.total)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <FullGroup title={t.market.rowMaterials}>
+                  {(materials?.storeId != null ? materials.lines : []).map((line) => (
+                    <FullLine key={line.categorySlug ?? line.nameKa} name={localizedName(locale, line)} qty={line.qty} total={line.total} />
+                  ))}
+                  {lines
+                    .filter((l) => !l.furniture)
+                    .map((line) => (
+                      <FullLine key={line.key} name={line.name} where={line.where} qty={line.qty} total={line.total} struck={line.duplicate} />
+                    ))}
+                </FullGroup>
+                <FullGroup title={t.market.rowFurniture}>
+                  {lines
+                    .filter((l) => l.furniture)
+                    .map((line) => (
+                      <FullLine key={line.key} name={line.name} where={line.where} qty={line.qty} total={line.total} struck={line.duplicate} />
+                    ))}
+                </FullGroup>
               </div>
             )}
 
-            <CustomerFields value={value} onChange={setForm} />
+            {ready ? <ContactFields account={account} value={value} onChange={setForm} /> : <div className="h-24 animate-pulse border border-line bg-bg-base" aria-busy />}
             {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
-            <p className="text-xs text-ink-muted">{t.market.feeNote}</p>
-            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || nothingNew}>
+            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || nothingNew || !ready}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? t.market.submitting : t.market.submit}
             </Button>
@@ -340,5 +291,49 @@ export function CheckoutDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One of the three rows: what, how many, and what it comes to. */
+function Row({ label, amount, hint, children }: { label: string; amount: React.ReactNode; hint: string | null; children?: React.ReactNode }) {
+  return (
+    <div className="border-b border-line px-4 py-2.5 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-medium text-ink">{label}</span>
+        <span className="shrink-0 tabular-nums">{amount}</span>
+      </div>
+      {(hint || children) && (
+        <p className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-ink-muted">
+          {hint && <span>{hint}</span>}
+          {children}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A group of the full list: its title, then its lines (or a dash). */
+function FullGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  const items = Array.isArray(children) ? children.flat().filter(Boolean) : children ? [children] : [];
+  return (
+    <div>
+      <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{title}</p>
+      <ul className="divide-y divide-line/70">{items.length > 0 ? items : <li className="px-3 py-2 text-ink-muted">—</li>}</ul>
+    </div>
+  );
+}
+
+function FullLine({ name, where, qty, total, struck = false }: { name: string; where?: string | null; qty: number; total: number; struck?: boolean }) {
+  return (
+    <li className={cn('flex items-baseline justify-between gap-3 px-3 py-1.5', struck && 'text-ink-faint line-through')}>
+      <span className="min-w-0 truncate">
+        {name}
+        {where && <span className="ml-1 text-ink-muted no-underline">· {where}</span>}
+      </span>
+      <span className="shrink-0 tabular-nums">
+        {qty !== 1 && <span className="mr-1 text-ink-muted">{formatNumber(qty)} ×</span>}
+        {formatGEL(total)}
+      </span>
+    </li>
   );
 }

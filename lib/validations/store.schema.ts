@@ -35,6 +35,11 @@ export const storeSchema = z.object({
   deliveryFeeGel: z.coerce.number().min(0).max(100000).optional().nullable(),
   commissionRate: z.coerce.number().min(0).max(100).optional().nullable(),
   isActive: z.boolean().default(true),
+  /**
+   * This store supplies the rate book's construction materials (`platform_settings.materialsStoreId`
+   * — one store for all of them). Admin's, like the settings it writes; not a column of the store.
+   */
+  suppliesMaterials: z.boolean().optional(),
 });
 
 export type StoreInput = z.infer<typeof storeSchema>;
@@ -47,8 +52,11 @@ export type StoreInput = z.infer<typeof storeSchema>;
  * a partial update stays partial.
  */
 export function toStoreRow<T extends Partial<StoreInput>>(data: T) {
+  // Not a column: the routes write it to the platform's settings.
+  const fields = { ...data };
+  delete fields.suppliesMaterials;
   return {
-    ...data,
+    ...fields,
     logoUrl: data.logoUrl || null,
     websiteUrl: data.websiteUrl || null,
     email: data.email !== undefined ? data.email || null : undefined,

@@ -71,6 +71,14 @@ export const API_ERRORS = {
   ORDER_LINES_LOCKED: 'ORDER_LINES_LOCKED',
   /** Every line is struck out: there is nothing to send — cancel the order instead. */
   ORDER_EMPTY: 'ORDER_EMPTY',
+  /** A guest's order needs a name; a signed-in person's comes from the account. */
+  NAME_REQUIRED: 'NAME_REQUIRED',
+  /** No phone given and none on the profile. */
+  PHONE_REQUIRED: 'PHONE_REQUIRED',
+  /** A store has to deliver somewhere: no address given and none on the profile. */
+  ADDRESS_REQUIRED: 'ADDRESS_REQUIRED',
+  /** A half with no floor area has no fee to pay: the rooms are drawn first. */
+  NOTHING_TO_PAY: 'NOTHING_TO_PAY',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];
