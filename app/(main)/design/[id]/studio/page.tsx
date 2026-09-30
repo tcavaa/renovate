@@ -58,7 +58,8 @@ import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool, PlanEditorApi } from '@/components/plan/PlanEditor';
-import type { ElectricalKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
+import type { ElectricalKind, OpeningKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
+import { openingProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
 
@@ -83,7 +84,7 @@ const CLICK_SLOP_PX = 5;
 
 /** The board's tools in each category (the select tool also slides the view: a drag from the empty sheet pans). */
 const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
-  build: ['select', 'wall', 'room', 'divider', 'door', 'window', 'column', 'beam'],
+  build: ['select', 'wall', 'room', 'divider', 'door', 'window', 'archway', 'railing', 'column', 'beam'],
   furniture: ['select'],
   electric: ['select', 'electrical'],
   technical: ['select', 'technical'],
@@ -145,7 +146,7 @@ export default function StudioPage() {
   // Every door and window is a product where the catalogue has one — also in a design
   // saved before doors and windows were products, and one dropped on the 2D board, which
   // knows nothing of the catalogue.
-  const openingsWithoutProduct = plan?.rooms.reduce((n, r) => n + r.openings.filter((o) => o.kind !== 'archway' && !o.product).length, 0) ?? 0;
+  const openingsWithoutProduct = plan?.rooms.reduce((n, r) => n + r.openings.filter((o) => !!openingProductKind(o) && !o.product).length, 0) ?? 0;
   useEffect(() => {
     if (products.length > 0 && openingsWithoutProduct > 0) store.ensureOpeningProducts(products);
   }, [products, openingsWithoutProduct, store]);
@@ -805,7 +806,7 @@ export default function StudioPage() {
     removeWall: store.removeWall,
     updateOpening: (roomId: string, openingId: string, patch: Parameters<typeof store.updateOpening>[2]) => store.updateOpening(roomId, openingId, patch, products),
     removeOpening: store.removeOpening,
-    addOpening: (roomId: string, kind: 'door' | 'window' | 'archway', wallIndex: number) => {
+    addOpening: (roomId: string, kind: OpeningKind, wallIndex: number) => {
       const id = store.addOpening(roomId, kind, wallIndex, products);
       if (id) store.selectElement({ kind: 'opening', id, roomId });
       else setRefused(t.design.openingRefused);
@@ -954,7 +955,7 @@ export default function StudioPage() {
               layers={{ furniture: true, dimensions: category === 'build', zones: category === 'finishes' }}
               height="100%"
               className="h-full"
-              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : t.design.openingRefused)}
               onEscape={putToolsDown}
               onApi={setPlanApi}
             />
@@ -1107,7 +1108,12 @@ export default function StudioPage() {
                 />
               </FloatingPanel>
             ) : selectedElement?.kind === 'opening' && plan.rooms.find((r) => r.id === selectedElement.roomId)?.openings.some((o) => o.id === selectedElement.id) ? (
-              <FloatingPanel title={t.build.inspectorOpening} subtitle={roomNameOf(selectedElement.roomId)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
+              <FloatingPanel
+                title={plan.rooms.find((r) => r.id === selectedElement.roomId)?.openings.find((o) => o.id === selectedElement.id)?.kind === 'railing' ? t.build.toolRailing : t.build.inspectorOpening}
+                subtitle={roomNameOf(selectedElement.roomId)}
+                onClose={() => store.selectElement(null)}
+                className="h-full rounded-[16px]"
+              >
                 <OpeningPanel
                   key={selectedElement.id}
                   opening={plan.rooms.find((r) => r.id === selectedElement.roomId)!.openings.find((o) => o.id === selectedElement.id)!}

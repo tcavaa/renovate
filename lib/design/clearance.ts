@@ -1,5 +1,5 @@
 import { blockingItems, footprintOf, type Footprint } from './manipulate';
-import { openFloor, pointOnEdge, polygonBounds, roomEdges } from './planGeometry';
+import { isPassage, openFloor, pointOnEdge, polygonBounds, roomEdges } from './planGeometry';
 import type { PlacedItem, PlanRoom } from './types';
 
 /**
@@ -53,7 +53,7 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly
   const doorPoints = floor.flatMap((r) => {
     const edges = roomEdges(r.polygon);
     return r.openings
-      .filter((o) => o.kind !== 'window')
+      .filter(isPassage)
       .map((o) => {
         const edge = edges.find((e) => e.index === o.wallIndex);
         if (!edge) return null;

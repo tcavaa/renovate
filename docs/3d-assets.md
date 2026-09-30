@@ -22,6 +22,7 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm models:stock [--inspect] [--only=…]` | `scripts/stock-models.ts` | CC0 stock furniture (Poly Haven + Kenney) → `public/models/stock/` + its `manifest.json` |
 | `pnpm models:fixtures` | `scripts/fixture-models.ts` | sockets, switches, lamps, doors and windows (Poly Haven, poly.pizza) → `public/models/fixtures/` + manifest, and the generated `lib/design3d/fixtureManifest.ts` |
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
+| `pnpm models:railings` | `scripts/railing-models.ts` | the balcony railing written in code with the radiators' mesh kit: one metre module (a handrail, a bottom rail, eight balusters, half a post at each end) centred on x with an x-extent of exactly its pitch, standing on y = 0, centred on z → `public/models/railings/railing.glb` + manifest + the generated `lib/design3d/railingManifest.ts`. Not a product — no photo, nothing seeded; the studio repeats the module along a railing's gap ([technical-and-fittings.md](design-studio/technical-and-fittings.md#balcony-railings)) |
 | `pnpm models:equipment [--only=a,b]` | `scripts/equipment-models.ts` | twelve pieces of technical equipment (electrical panels, a boiler, a water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain, TV and data sockets) from CC0 / CC BY / CC BY-SA sources → `public/models/equipment/` + manifest + the generated `lib/design3d/equipmentManifest.ts` ([below](#equipment-models-scriptsequipment-modelsts)) |
 | `pnpm models:kitchens [--only=a,b]` | `scripts/kitchen-models.ts` | one straight kitchen run per kitchen-maker material (LDSP, MDF, veneer), a CC BY source re-textured three ways → `public/models/kitchens/` + manifest ([below](#kitchen-runs-scriptskitchen-modelsts)) |
 | `pnpm models:photos [--only=a,b]` | `scripts/model-photos.ts` | a product photo per fixture, radiator, piece of equipment and kitchen run, rendered from the model in Playwright's Chromium |
@@ -32,7 +33,8 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm deploy:bundle-seed` | esbuild | `models:seed` as one plain-node file beside the standalone server (the cPanel deploy runs it) |
 
 Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts`,
-the manifests) are never edited by hand — change the script's source list and re-run it.
+`railingManifest.ts`, the manifests) are never edited by hand — change the script's source list
+and re-run it.
 
 ## What `pnpm models:seed` does
 

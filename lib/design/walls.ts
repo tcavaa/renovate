@@ -28,7 +28,7 @@
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
-import { alignTwins, projectToEdge } from './openings';
+import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge } from './openings';
 import { nextRoomName } from './roomNames';
 import type { Column, ElementOrigin, FloorPlan, Opening, PlanRoom, Vec2, Wall } from './types';
 
@@ -462,7 +462,8 @@ export function innerPolygon(centre: Vec2[], thickness: number[], wallIds: strin
 /**
  * Carries a room's doors and windows onto its new outline: each opening keeps its place in
  * the world and lands on the nearest parallel edge of the new polygon; one whose wall is gone
- * is dropped.
+ * is dropped. A railing keeps running into the corners (`cornerMargin`) — measured with a
+ * door's margin, one drawn the whole length of its wall lost 30 cm at every edit.
  */
 export function reprojectOpenings(previous: PlanRoom, next: PlanRoom): Opening[] {
   const oldEdges = roomEdges(previous.polygon);
@@ -491,8 +492,9 @@ export function reprojectOpenings(previous: PlanRoom, next: PlanRoom): Opening[]
       }
     }
     if (!best || best.edge.length < opening.widthM * 0.6) continue;
-    const width = Math.min(opening.widthM, Math.max(0.5, best.edge.length - 0.3));
-    out.push({ ...opening, roomId: next.id, wallIndex: best.edge.index, t: projectToEdge(best.edge, point, width), widthM: width });
+    const margin = cornerMargin(opening.kind);
+    const width = Math.min(opening.widthM, Math.max(opening.kind === 'railing' ? MIN_RAILING_M : 0.5, best.edge.length - margin * 2));
+    out.push({ ...opening, roomId: next.id, wallIndex: best.edge.index, t: projectToEdge(best.edge, point, width, margin), widthM: width });
   }
   return out;
 }

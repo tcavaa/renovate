@@ -19,7 +19,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `lib/design/walls.ts` | walls ⇄ rooms: `roomsFromWalls`, `wallsFromRooms`, `ensureWalls`, `rebuildRooms`, junction splitting, room clusters and moves, clash tests |
 | `lib/design/drawing.ts` | snapping (junction → wall → axis → alignment → grid), hit tests, `snapRoomMove`, `snapRectangle`, `snapWallOffset`, `pressMoves` (whether a press with the select tool takes hold of what it landed on, or a drag from there slides the view) |
 | `lib/design/separators.ts` | room separators: the partial walls the app draws one on from (`partialWallIn`, `withPartialWallSeparators`), the type a room cut off takes (`withSplitRoomTypes`), deleting one (`withoutWall`), a room's card (`joinRoom`, `divideAlongPartialWall`), `openNeighbours` |
-| `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
+| `lib/design/partitions.ts` | the partition walls a renovation builds and the ones already standing (`partitionWalls`, `partitionWall`, `partitionArea`), a balcony's walls that always stand (`standsAlready`, `standingWallIds`), the calculator's board (`boardPartitionCounts`), `buildsPartitions` |
 | `lib/design/studio.ts` | a studio room split into two parts (`effectiveSplit`, `studioParts`) |
 | `lib/design/roomNames.ts` | the names the app gives rooms: a kind's name, numbered only when the flat has several (`withRoomNames`, `nextRoomName`, `isAutoRoomName`, `readingOrder`) |
 | `lib/design/planGeometry.ts` | edges, inward normals, wall segments, areas — the geometry every consumer works against; `wallEdges` / `isOpenEdge` / `wallPerimeterM` (a room's edges that are walls, not on a separator); `openFloor` / `floorWalls` (the rooms joined across separators, and what holds a piece in on them); `boxInPolygon` / `wallsEnterBox` (a box inside a room: corners in, no wall through — the layout engine, the matcher and the studio) |
@@ -29,7 +29,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `components/plan/PlanToolbar.tsx` | tool tiles, wall shape and thickness, kinds, layers (`PlanToolTiles`, `PlanViewControls` on the full-window steps) |
 | `components/plan/ElementInspector.tsx`, `RoomsPanel.tsx` | edit the selected element; the rooms list and typed rooms |
 | `components/plan/draw.ts` | plain canvas drawing routines (rooms, walls, openings, chains, finishes) — shared with the PDF export |
-| `components/plan/palette.ts`, `icons.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, grey built walls, dashed separators), room-type swatches for the lists, origin and system colours; one icon per technical system and electrical kind |
+| `components/plan/palette.ts`, `icons.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, green railings, a black frame's walls still to build grey, dashed separators), room-type swatches for the lists, origin and system colours; one icon per technical system and electrical kind |
 | `components/plan/sheet.ts` | `drawPlanSheet`: the plan as an architect's sheet (rooms, solid walls, openings, labels, chains) — the PDF page and the project cards' picture (`PlanDrawing`) |
 | `lib/design/planPdfExport.ts` | the plan as an A4 PDF |
 | `lib/calculator/planSync.ts`, `hooks/useCalculatorPlan.ts` | keep the calculator's rooms in step with its board |
@@ -183,12 +183,25 @@ room it stands in. Some partitions of a black frame are up already, so a wall ca
 **already built** (`Wall.built`): the wall card asks "კედლის აშენება — ასაშენებელია / უკვე
 აშენებულია" with the wall's m² (`WallBuildingField`, shown instead of the origin row whenever the
 estimate builds walls — `wallBuilding` on the pages, from the home state and, in the design, the
-ticked works); an outer wall says it is not priced; a separator is not a wall at all. A built
-wall is drawn grey on the board (`EDITOR.wallBuilt`), and the sheet's corner carries a small
-legend above the area plate. `partitionArea` sums the partitions not built, at each wall's own
+ticked works); an outer wall says it is not priced; a separator is not a wall at all. **On the
+board of such an estimate a wall still to build is grey and every wall that stands is black**
+(`wallsToBuild`, `EDITOR.wallToBuild`): the building's outer walls always, a balcony's walls, and
+a partition marked built — so black means built, as it does on a white frame's board, where every
+wall is. The legend over the area plate says so: grey "ასაშენებელი", black "აშენებული". `partitionArea` sums the partitions not built, at each wall's own
 height; the studio prices from it (`priceScene`), and the calculator from its own board
 (`boardPartitionCounts`, which `boardCounts` passes on with the board's doors — see
 [../calculator.md](../calculator.md)).
+
+**A balcony's walls always stand** (`standsAlready`: the room type `balcony`). They are the
+building's whatever state the flat is in, so a wall with a balcony on either side — its outer
+walls and the one onto the flat alike — is never a partition to build: `partitionWall` marks it
+`balcony: true`, `partitionArea` leaves it out as it leaves out a built wall, the board of a
+black frame draws it black with the built ones (it is not in `wallsToBuild`), and its card says
+"აივნის კედელი — უკვე დგას, ფასში არ შედის" instead of asking (`standingWallIds`). A window may
+go in the wall between the balcony and the flat, cut in both rooms like a door
+([technical-and-fittings.md](technical-and-fittings.md#doors-and-windows-are-editable-libdesignopeningsts)). Where the balcony is open, the person
+draws a railing along the wall instead ([technical-and-fittings.md](technical-and-fittings.md#balcony-railings)): the wall is gone
+there, floor to ceiling.
 
 ## A studio is one room in two parts (`lib/design/studio.ts`)
 
@@ -225,7 +238,7 @@ see "The board steps are the whole window" in [../ui-design-system.md](../ui-des
 windows (`EDITOR` in `palette.ts`; `drawRoom`, `drawWall`, `drawOpening`). A room's type is its
 label, not a tint — the rooms panel and a studio's part fields keep a swatch per type — and the
 room picked out is a pale warm tint with the dashed outline. A room separator is a dashed black
-line; a wall already built in a black frame is grey. The PDF (`planPdfExport`) and the project
+line; in a black frame a wall still to build is grey. The PDF (`planPdfExport`) and the project
 cards' and page's picture (`PlanDrawing`) draw the same way, through one `drawPlanSheet`. **The floors stay white paper** wherever the plan
 is read rather than dressed: the room finishes are the `zones` layer, off on the existing-flat
 and technical steps, the calculator's board and the project page's viewer, and on in the
@@ -236,14 +249,31 @@ square, a line and a room separator**, in that order; the tile is called ოთ�
 square up first (a flat is mostly drawn as rooms), and the tile again while drawing keeps the
 shape in hand (`room` is the square: a rectangle whose inside is exactly what
 was drawn, four walls around it; `divider` draws separators in runs exactly as `wall` draws
-walls, dashed while drawn, through `onAddSeparator`), `door` / `window` (dropped on the nearest
-wall edge, the usual twin logic), `column`, `beam`, `technical`, `electrical`, `zone`. The
+walls, dashed while drawn, through `onAddSeparator`), `door` / `window` / `archway` (dropped on
+the nearest wall edge, the usual twin logic) and `railing` (drawn along a balcony's outer wall
+— below), `column`, `beam`, `technical`, `electrical`, `zone`. **The four opening tools are one
+tile, "კარ-ფანჯარა"** (`OPENING_TOOLS`, `isOpeningTool`): the tile picks the door up first and
+keeps whichever kind is in hand, its icon that kind's, and while one is in hand the kinds —
+კარი, ფანჯარა, ღიობი, მოაჯირი — sit in one row along the bottom of the board in the middle,
+under the hint (`OpeningKindPicker` in `PlanToolOptions`); the studio's build tray shows the
+same row beside its tiles. Both plan steps (the design's and the calculator's) and the studio
+offer all four.
+
+**A railing is drawn like a wall, along one** (`PlanEditor`'s `draftRailing`). Over a wall the
+tool shows the spot it would start from — green on a balcony's outer wall, red anywhere else;
+a press there and a drag along the wall draws it to where the pointer is let go, or a click
+and a second click do the same, the railing following the pointer between them with its length
+on a plate. The ends snap onto the wall's corners within reach, else to the 5 cm grid (1 cm with
+Shift); a railing shorter than `MIN_RAILING_M` is dropped, one the plan would not take
+(`railingFits`: not a balcony, a wall another room stands behind) is refused with its own
+message (`onRefused('railing')`), and Escape or a right click gives up one half drawn. It goes
+in through the store's `addRailing` and is the selection afterwards. The
 toolbar and the studio's build tray both leave `room` and `divider` out of the tile row and
 offer them as the wall tool's shapes; the shape and the thickness (none for a separator) sit
 side by side in one compact row. **There is no pan tool** (no გადაწევა tile): the select tool
 slides the view (below), so a hand tile would have nothing to do. A rail left with nothing to
 choose between is not drawn (`PlanToolTiles` shows nothing for a single tool), and the studio's
-build tray is select, the drawing tile, door, window, column and beam.
+build tray is select, the drawing tile, doors & windows, column and beam.
 `lib/design/drawing.ts` does the snapping — a junction first, then the axis lock (applied
 before the wall snap so a T-junction still lands on the axis), then a point on a wall, then
 alignment with any junction's x or z, then the 5 cm grid (1 cm with Shift) — and reports the
@@ -444,6 +474,7 @@ parses the result back with pdf.js.
 
 `tests/unit/design/walls.test.ts`, `drawing.test.ts` (snapping, hit tests, and what a press
 takes hold of — `pressMoves`), `planDrawing.test.ts`, `studio.test.ts`,
+`railings.test.ts` (a balcony's railings and its standing walls),
 `separators.test.ts` (partial walls, the app's separators following and leaving, kept whole,
 joined and divided from the card, open edges out of every wall measure, no door, no 3D wall,
 drawing over a separator), `partitions.test.ts` (inner, outer and partial walls, built walls,

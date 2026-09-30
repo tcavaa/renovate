@@ -6,7 +6,7 @@
  * game's build mode on purpose: the person should never feel they are in CAD.
  */
 
-import { BrickWall, Cable, DoorOpen, Ellipsis, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, Wrench, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, DoorOpen, Ellipsis, Fence, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, SquareDashedBottom, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
@@ -15,7 +15,7 @@ import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
 import { ELECTRICAL_KIND_LIST } from '@/lib/design/electrical';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
-import type { EditorLayers, EditorTool } from './PlanEditor';
+import { OPENING_TOOLS, isOpeningTool, type EditorLayers, type EditorTool, type OpeningTool } from './PlanEditor';
 import { TECHNICAL_COLOR } from './palette';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 
@@ -55,13 +55,15 @@ export function electricalLabel(t: Dictionary, kind: ElectricalKind): string {
   return t.build[ELECTRICAL_LABEL_KEY[kind]];
 }
 
-const TOOL_ICON: Record<EditorTool, LucideIcon> = {
+export const TOOL_ICON: Record<EditorTool, LucideIcon> = {
   select: MousePointer2,
   wall: BrickWall,
   room: Square,
   divider: Ellipsis,
   door: DoorOpen,
   window: RectangleHorizontal,
+  archway: SquareDashedBottom,
+  railing: Fence,
   column: SquareDashed,
   beam: Minus,
   technical: Wrench,
@@ -78,6 +80,8 @@ export function toolLabel(t: Dictionary, tool: EditorTool): string {
     divider: 'toolDivider',
     door: 'toolDoor',
     window: 'toolWindow',
+    archway: 'toolArchway',
+    railing: 'toolRailing',
     column: 'toolColumn',
     beam: 'toolBeam',
     technical: 'toolTechnical',
@@ -97,6 +101,8 @@ export function toolHint(t: Dictionary, tool: EditorTool, locked: boolean): stri
     divider: 'hintDivider',
     door: 'hintDoor',
     window: 'hintWindow',
+    archway: 'hintArchway',
+    railing: 'hintRailing',
     column: 'hintColumn',
     beam: 'hintBeam',
     technical: 'hintTechnical',
@@ -153,6 +159,20 @@ export function PlanToolbar({ tools, tool, onTool, thicknessM, onThickness, tech
  * at all when there is nothing to choose between — the select tool on its own is simply how
  * the board works.
  */
+/**
+ * The kinds of opening a board offers, when there are several: the door, the window, the plain
+ * opening and the balcony's railing are one tile, "doors & windows", and its kinds are offered
+ * along the bottom of the board once it is in hand (`PlanToolOptions`, the studio's build tray).
+ */
+export function openingKinds(tools: readonly EditorTool[]): OpeningTool[] {
+  return OPENING_TOOLS.filter((id) => tools.includes(id));
+}
+
+/** The tile the opening tools stand under: the door's, whichever kind is in hand. */
+export function openingTileTool(tools: readonly EditorTool[]): OpeningTool | null {
+  return openingKinds(tools)[0] ?? null;
+}
+
 export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, style }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'vertical'> & { edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
@@ -161,22 +181,27 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
   // offers them. The tile is called "room" and picks the room up first — drawing a flat is
   // mostly drawing rooms; a lone wall is the second shape.
   const shapes = tools.includes('room') || tools.includes('divider');
-  const tiles = shapes ? tools.filter((id) => id !== 'room' && id !== 'divider') : tools;
+  // The same for the openings: one tile, the door picked up first, the kinds offered under it.
+  const kinds = openingKinds(tools);
+  const openingTile = kinds.length > 1 ? kinds[0] : null;
+  const tiles = tools.filter((id) => !(shapes && (id === 'room' || id === 'divider')) && !(openingTile && isOpeningTool(id) && id !== openingTile));
   const drawFirst: EditorTool = tools.includes('room') ? 'room' : 'wall';
   if (tiles.length < 2) return null;
   return (
     <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
       {tiles.map((id) => {
-        const Icon = TOOL_ICON[id];
         const draw = id === 'wall' && shapes;
-        const active = draw ? drawing : tool === id;
-        const label = toolLabel(t, draw ? drawFirst : id);
+        const opens = id === openingTile;
+        const inHand = opens && isOpeningTool(tool) ? tool : null;
+        const Icon = TOOL_ICON[inHand ?? id];
+        const active = draw ? drawing : opens ? !!inHand : tool === id;
+        const label = opens ? t.build.toolOpenings : toolLabel(t, draw ? drawFirst : id);
         return (
           <button
             key={id}
             type="button"
-            // Again while drawing keeps the shape in hand.
-            onClick={() => onTool(draw ? (drawing ? tool : drawFirst) : id)}
+            // Again while drawing keeps the shape in hand; the openings' tile keeps its kind.
+            onClick={() => onTool(draw ? (drawing ? tool : drawFirst) : opens ? (inHand ?? id) : id)}
             aria-pressed={active}
             title={label}
             className={cn(
@@ -185,7 +210,8 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
             )}
           >
             <Icon className="h-5 w-5" />
-            <span className="max-w-[60px] truncate px-1">{label}</span>
+            {/* Two lines at most: "doors & windows" is the one tile whose name needs both. */}
+            <span className="line-clamp-2 max-w-[60px] break-words px-1 text-center leading-[1.15]">{label}</span>
           </button>
         );
       })}
@@ -204,10 +230,12 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
   const shapeIds = (['room', 'wall', 'divider'] as const).filter((id) => id === 'wall' || tools.includes(id));
   const shapes = shapeIds.length > 1;
+  const kinds = openingKinds(tools);
   // The wall's shape and its thickness side by side, compact: they sit in one row along the
   // bottom of a full-screen board. A room separator has no thickness.
   return (
     <>
+      {kinds.length > 1 && isOpeningTool(tool) && <OpeningKindPicker kinds={kinds} tool={tool} onTool={onTool} />}
       {(shapes && drawing) || (drawing && tool !== 'divider') ? (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {shapes && drawing && (
@@ -297,6 +325,36 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The kinds of opening under the "doors & windows" tile — a door, a window, a plain opening, a
+ * balcony's railing — in one row along the bottom of the board, the one in hand lit. The
+ * studio's build tray shows the same row beside its tiles.
+ */
+export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: readonly OpeningTool[]; tool: EditorTool; onTool: (tool: EditorTool) => void; className?: string }) {
+  const t = useT();
+  return (
+    <div className={cn('flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl', className)} role="radiogroup" aria-label={t.build.toolOpenings}>
+      {kinds.map((id) => {
+        const Icon = TOOL_ICON[id];
+        return (
+          <button
+            key={id}
+            type="button"
+            role="radio"
+            aria-checked={tool === id}
+            onClick={() => onTool(id)}
+            title={toolHint(t, id, false)}
+            className={cn('flex h-8 items-center gap-1.5 rounded-[8px] px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {toolLabel(t, id)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

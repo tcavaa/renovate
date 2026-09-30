@@ -5,18 +5,19 @@
  * it is (a real product with its photo, price and shop, or an estimate while the catalogue
  * has nothing of its kind), the kind as a dropdown, the few measures that matter — width,
  * height, the sill of a window, the hinge, swing and open angle of a door — and, in a
- * drawer along the bottom, every door or window the catalogue offers in its place.
+ * drawer along the bottom, every door or window the catalogue offers in its place. A balcony's
+ * railing is not bought: its card is how long it runs and how high it stands.
  */
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { AppWindow, Check, ChevronUp, DoorOpen, Lock, LockOpen, Sparkles, Trash2 } from 'lucide-react';
+import { AppWindow, Check, ChevronUp, DoorOpen, Fence, Lock, LockOpen, Sparkles, Trash2 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL } from '@/lib/utils';
-import { roomEdges } from '@/lib/design/planGeometry';
-import { openingCandidates } from '@/lib/design/openings';
+import { cn, formatGEL, formatM2 } from '@/lib/utils';
+import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
+import { MIN_RAILING_M, RAILING_HEIGHT_RANGE_M, openingCandidates } from '@/lib/design/openings';
 import { openingEstimate } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { Opening, OpeningKind, PlanRoom, StyleId } from '@/lib/design/types';
@@ -38,6 +39,8 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
 
   const product = opening.product ?? null;
   const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
+  // Up to the wall's length as the board writes it, to the centimetre: the store keeps it to the wall.
+  if (opening.kind === 'railing') return <RailingCard opening={opening} room={room} maxLength={Math.ceil((edge?.length ?? 10) * 100) / 100} locked={locked} onUpdate={onUpdate} onRemove={onRemove} />;
   const maxWidth = edge ? Math.max(0.5, edge.length - 0.3) : 6;
   const alternatives = openingCandidates(opening, catalog, styleId);
   const estimate = openingEstimate(opening);
@@ -187,6 +190,40 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+/** A balcony's railing: what it is, how long and how high, what it takes off the wall, lock and delete. */
+function RailingCard({ opening, room, maxLength, locked, onUpdate, onRemove }: { opening: Opening; room: PlanRoom; maxLength: number; locked?: boolean; onUpdate: (patch: OpeningPatch) => void; onRemove: () => void }) {
+  const t = useT();
+  return (
+    <div className="space-y-2 overflow-y-auto pb-2 pr-1">
+      <div className="flex items-center gap-2 rounded-[10px] border border-line bg-bg-surface p-2">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-bg-base text-ink-soft">
+          <Fence className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-semibold leading-tight text-ink">{t.build.toolRailing}</p>
+          <p className="truncate text-[10px] text-ink-muted">{room.name}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField label={`${t.build.length} (${t.units.m})`} value={opening.widthM} min={MIN_RAILING_M} max={maxLength} step={0.05} onCommit={(v) => onUpdate({ widthM: v })} disabled={locked} />
+        <NumberField label={`${t.build.railingHeight} (${t.units.m})`} value={opening.heightM} min={RAILING_HEIGHT_RANGE_M.min} max={RAILING_HEIGHT_RANGE_M.max} step={0.05} onCommit={(v) => onUpdate({ heightM: v })} disabled={locked} />
+      </div>
+      <p className="text-[11px] leading-snug text-ink-muted">
+        {t.build.railingNote} · <span className="tabular-nums">{formatM2(openingWallArea(opening, room.heightM))}</span>
+      </p>
+      <OriginRow origin={opening.origin ?? 'existing'} />
+      <div className="flex items-center gap-1.5">
+        <IconAction label={opening.locked ? t.build.unlockItem : t.build.lockItem} active={!!opening.locked} onClick={() => onUpdate({ locked: !opening.locked })}>
+          {opening.locked ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}
+        </IconAction>
+        <IconAction label={t.build.deleteElement} danger disabled={locked} onClick={onRemove}>
+          <Trash2 className="h-4 w-4" />
+        </IconAction>
+      </div>
     </div>
   );
 }

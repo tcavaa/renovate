@@ -74,6 +74,7 @@ pnpm models:convert [--only=a,b]   # partner OBJ → GLB + manifest
 pnpm models:stock [--inspect] [--only=…]   # CC0 stock furniture
 pnpm models:fixtures    # sockets, switches, lamps, doors, windows
 pnpm models:radiators   # the four radiator designs (one section each)
+pnpm models:railings    # the balcony railing (one metre module, not a product)
 pnpm models:equipment [--only=…]   # panels, boilers, ACs, hoods, fan, drain, TV/data sockets (CC0/CC BY downloads)
 pnpm models:kitchens    # a kitchen run per kitchen material (one CC BY kitchen, re-textured)
 pnpm models:photos      # product photos rendered from those models (Playwright's Chromium)

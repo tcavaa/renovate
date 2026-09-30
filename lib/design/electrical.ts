@@ -16,7 +16,7 @@
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
-import { pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { isPassage, openingSpanUp, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
@@ -105,13 +105,14 @@ function make(b: Builder, room: PlanRoom, kind: ElectricalKind, position: Vec2, 
 }
 
 function makeOnWall(b: Builder, room: PlanRoom, kind: ElectricalKind, edge: PlanEdge, t: number, extra: Partial<ElectricalPoint> = {}): ElectricalPoint | null {
-  // Not in a doorway or a window at that height.
+  // Not in a doorway or a window at that height — nor anywhere over a railing, where there is no wall.
   const height = extra.elevationM ?? ELECTRICAL_KINDS[kind].defaultElevationM;
   const blocked = room.openings.some((o) => {
     if (o.wallIndex !== edge.index) return false;
     const half = (o.widthM / 2 + 0.08) / edge.length;
     const inSpan = t > o.t - half && t < o.t + half;
-    const inHeight = height >= o.sillM - 0.05 && height <= o.sillM + o.heightM + 0.05;
+    const gap = openingSpanUp(o, room.heightM);
+    const inHeight = height >= gap.bottom - 0.05 && height <= gap.top + 0.05;
     return inSpan && inHeight;
   });
   if (blocked) return null;
@@ -196,7 +197,7 @@ function standardFor(b: Builder, room: PlanRoom): void {
 
   // Every room: a main light and a switch on the handle side of each door.
   make(b, room, 'light_ceiling', centre);
-  for (const door of room.openings.filter((o) => o.kind !== 'window')) {
+  for (const door of room.openings.filter(isPassage)) {
     const edge = edges.find((e) => e.index === door.wallIndex);
     if (!edge) continue;
     const side = door.hinge === 'right' ? -1 : 1;

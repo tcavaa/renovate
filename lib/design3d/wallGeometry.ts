@@ -29,10 +29,17 @@ import type { PlanEdge } from '@/lib/design/planGeometry';
 import type { WallPiece } from '@/lib/design/wallPieces';
 
 export interface WallHole {
+  /**
+   * Metres along the edge. Past the edge's end (−∞ / +∞) the gap runs on through the corner:
+   * the next wall is open there too (two railings meeting), so the mitred corner goes with it.
+   */
   left: number;
   right: number;
   bottom: number;
+  /** The wall's full height for a gap that runs to the top (a balcony's railing): the top of the wall is cut there too. */
   top: number;
+  /** Close the gap's floor across the wall's depth: under a railing the slab runs out to the wall's far face. */
+  floor?: boolean;
 }
 
 export interface WallFaceSpan {
@@ -119,9 +126,15 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
   };
 
   pieces.forEach((piece, index) => {
+    // Clipped to the piece, its mitred ends included: a gap that runs through a corner takes
+    // the corner's triangle of wall too.
+    const lo = Math.min(piece.from, piece.farFrom);
+    const hi = Math.max(piece.to, piece.farTo);
     const holes = spec.holes
-      .map((h) => ({ ...h, left: Math.max(h.left, piece.from), right: Math.min(h.right, piece.to) }))
+      .map((h) => ({ ...h, left: Math.max(h.left, lo), right: Math.min(h.right, hi) }))
       .filter((h) => h.right - h.left > 1e-4 && h.top - h.bottom > 1e-4);
+    /** A gap floor to top over the whole of this end of the piece: the end face is not there. */
+    const openAt = (s: number) => holes.some((h) => h.left <= s + 1e-6 && h.right >= s - 1e-6 && h.bottom <= 1e-4 && h.top >= height - 1e-4);
     const inHole = (s: number, y: number) => holes.some((h) => s > h.left && s < h.right && y > h.bottom && y < h.top);
     // The face is cut where a hole starts or ends, and where a painted patch does.
     const ys = breakpoints([0, height, ...holes.flatMap((h) => [h.bottom, h.top]), ...spans.flatMap((s) => [s.bottom ?? 0, s.top ?? height])], 0, height);
@@ -157,10 +170,32 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
       if (!original || Math.abs(original.right - h.right) < 1e-6) quad(slot, [at(h.right, h.bottom, 0), at(h.right, h.bottom, piece.depth), at(h.right, h.top, piece.depth), at(h.right, h.top, 0)], backward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);
       if (h.top < height - 1e-4) quad(slot, [at(h.left, h.top, 0), at(h.right, h.top, 0), at(h.right, h.top, piece.depth), at(h.left, h.top, piece.depth)], [0, -1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);
       if (h.bottom > 1e-4) quad(slot, [at(h.left, h.bottom, 0), at(h.right, h.bottom, 0), at(h.right, h.bottom, piece.depth), at(h.left, h.bottom, piece.depth)], [0, 1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);
+      else if (original?.floor) quad(WALL_SLOT_CAP, [at(h.left, 0, 0), at(h.right, 0, 0), at(h.right, 0, piece.depth), at(h.left, 0, piece.depth)], [0, 1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);
     }
 
     // --- the top, and the two ends (slanted where the corner is mitred) ---
-    quad(WALL_SLOT_CAP, [at(piece.from, height, 0), at(piece.to, height, 0), at(piece.farTo, height, piece.depth), at(piece.farFrom, height, piece.depth)], [0, 1, 0], [[piece.from, 0], [piece.to, 0], [piece.farTo, piece.depth], [piece.farFrom, piece.depth]]);
+    // The top is cut where a gap runs up to it — a railing's: the wall is not there. What is
+    // left of it at a corner is the mitre's triangle, so each stretch is drawn from whichever of
+    // its two sides is the longer (a quad with two corners on one point still has a face).
+    const farAt = (s: number) => Math.min(Math.max(s, piece.farFrom), piece.farTo);
+    const capBetween = (s0: number, s1: number, f0: number, f1: number) => {
+      if (Math.max(s1 - s0, f1 - f0) < 1e-5) return;
+      const near: Array<[number, number, number]> = [at(s0, height, 0), at(s1, height, 0)];
+      const far: Array<[number, number, number]> = [at(f1, height, piece.depth), at(f0, height, piece.depth)];
+      const nearUv: Array<[number, number]> = [[s0, 0], [s1, 0]];
+      const farUv: Array<[number, number]> = [[f1, piece.depth], [f0, piece.depth]];
+      if (s1 - s0 >= f1 - f0) quad(WALL_SLOT_CAP, [...near, ...far], [0, 1, 0], [...nearUv, ...farUv]);
+      else quad(WALL_SLOT_CAP, [...far, ...near], [0, 1, 0], [...farUv, ...nearUv]);
+    };
+    const openTop = holes.filter((h) => h.top >= height - 1e-4).sort((a, b) => a.left - b.left);
+    let cursor = piece.from;
+    let farCursor = piece.farFrom;
+    for (const h of openTop) {
+      if (h.left > cursor - 1e-6) capBetween(cursor, h.left, farCursor, farAt(h.left));
+      cursor = Math.max(cursor, h.right);
+      farCursor = farAt(cursor);
+    }
+    capBetween(cursor, piece.to, farCursor, piece.farTo);
     const endNormal = (from: number, farFrom: number, sign: 1 | -1): [number, number, number] => {
       // Perpendicular to the end's slant, pointing away from the piece.
       const ds = farFrom - from;
@@ -169,8 +204,8 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
       const nw = (-sign * ds) / length;
       return [edge.dir.x * ns - edge.inward.x * nw, 0, edge.dir.z * ns - edge.inward.z * nw];
     };
-    quad(WALL_SLOT_CAP, [at(piece.from, 0, 0), at(piece.from, height, 0), at(piece.farFrom, height, piece.depth), at(piece.farFrom, 0, piece.depth)], endNormal(piece.from, piece.farFrom, -1), [[0, 0], [0, height], [piece.depth, height], [piece.depth, 0]]);
-    quad(WALL_SLOT_CAP, [at(piece.to, 0, 0), at(piece.to, height, 0), at(piece.farTo, height, piece.depth), at(piece.farTo, 0, piece.depth)], endNormal(piece.to, piece.farTo, 1), [[0, 0], [0, height], [piece.depth, height], [piece.depth, 0]]);
+    if (!openAt(lo)) quad(WALL_SLOT_CAP, [at(piece.from, 0, 0), at(piece.from, height, 0), at(piece.farFrom, height, piece.depth), at(piece.farFrom, 0, piece.depth)], endNormal(piece.from, piece.farFrom, -1), [[0, 0], [0, height], [piece.depth, height], [piece.depth, 0]]);
+    if (!openAt(hi)) quad(WALL_SLOT_CAP, [at(piece.to, 0, 0), at(piece.to, height, 0), at(piece.farTo, height, piece.depth), at(piece.farTo, 0, piece.depth)], endNormal(piece.to, piece.farTo, 1), [[0, 0], [0, height], [piece.depth, height], [piece.depth, 0]]);
   });
 
   const geometry = new THREE.BufferGeometry();

@@ -4,8 +4,9 @@
  * The 2D plan editor — the build mode's drawing board.
  *
  * One canvas, one tool in hand. Walls are drawn as lines (click, click, click; Escape ends
- * the run), rooms as rectangles, doors and windows dropped on the nearest wall, columns and
- * beams, technical and electrical points placed with a click. The select tool picks any of
+ * the run), rooms as rectangles, doors, windows and archways dropped on the nearest wall, a
+ * balcony's railing drawn along its wall from end to end, columns and beams, technical and
+ * electrical points placed with a click. The select tool picks any of
  * them; a selected wall drags sideways and its ends drag as handles, a door slides along its
  * wall or onto another, points and columns move freely, a room drags the rooms joined to it.
  * A drag from the empty sheet — or from anything that cannot move on this board, once the
@@ -29,7 +30,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
-import { OPENING_DEFAULTS, distanceToSegment, nearestWall, projectToEdge, type WallTarget } from '@/lib/design/openings';
+import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, projectToEdge, railingFits, type WallTarget } from '@/lib/design/openings';
+import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
 import { wallNormal, wallsClash, wallsForMove } from '@/lib/design/walls';
@@ -38,7 +40,7 @@ import { roomTypeLabel } from '@/lib/i18n/labels';
 import { clampT, dividerSegments, effectiveSplit, isStudio, partAt, tAtCoordinate } from '@/lib/design/studio';
 import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
-import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
+import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, OpeningKind, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
 import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
@@ -47,7 +49,15 @@ import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
  * The tool in hand. `select` is every board's default and also what slides the view: a drag
  * from the empty sheet, or from anything that cannot move on the board, pans.
  */
-export type EditorTool = 'select' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
+export type EditorTool = 'select' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'archway' | 'railing' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
+
+/** The tools that put an opening in a wall — one tile on the rail, with the kinds under it. */
+export const OPENING_TOOLS = ['door', 'window', 'archway', 'railing'] as const satisfies readonly EditorTool[];
+export type OpeningTool = (typeof OPENING_TOOLS)[number];
+
+export function isOpeningTool(tool: EditorTool): tool is OpeningTool {
+  return (OPENING_TOOLS as readonly EditorTool[]).includes(tool);
+}
 
 export interface EditorLayers {
   rooms: boolean;
@@ -88,8 +98,9 @@ export interface PlanEditorProps {
    */
   readOnly?: boolean;
   /**
-   * The estimate builds the partition walls (a black frame): the ones marked as already
-   * standing (`Wall.built`) are drawn grey, out of the price.
+   * The estimate builds the partition walls (a black frame): the ones still to build are drawn
+   * grey (`wallsToBuild`); whatever stands — the outer walls, a balcony's, a partition marked
+   * `built` — black.
    */
   builtWalls?: boolean;
   selection: ElementSelection;
@@ -124,7 +135,12 @@ export interface PlanEditorProps {
   onOffsetWall?: (wallId: string, distance: number, alone?: boolean) => void;
   /** A junction dragged; with `onlyWallId` (Shift held) only that wall's end goes, the rest of the junction stays. */
   onMoveNode?: (from: Vec2, to: Vec2, onlyWallId?: string | null) => void;
-  onAddOpening?: (kind: 'door' | 'window', target: WallTarget) => string | null;
+  onAddOpening?: (kind: 'door' | 'window' | 'archway', target: WallTarget) => string | null;
+  /**
+   * A railing drawn along a balcony's outer wall (the railing tool): centred at `target.t`,
+   * `widthM` long. Returns its id, or null when refused.
+   */
+  onAddRailing?: (target: WallTarget, widthM: number) => string | null;
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
   onMoveOpeningToWall?: (roomId: string, openingId: string, target: WallTarget) => string | null;
   onAddColumn?: (position: Vec2) => void;
@@ -161,9 +177,10 @@ export interface PlanEditorProps {
   onDelete?: () => void;
   /**
    * A drop the plan would not accept, and why: `opening` — a window on a shared wall or a room
-   * separator, a door with no wall to go on; `overlap` — a room drawn on top of a room.
+   * separator, a door with no wall to go on; `overlap` — a room drawn on top of a room;
+   * `railing` — a railing anywhere but along a balcony's outer wall.
    */
-  onRefused?: (reason: 'opening' | 'overlap') => void;
+  onRefused?: (reason: 'opening' | 'overlap' | 'railing') => void;
   /** A one-shot tool finished (a column placed): the page may go back to select. */
   onToolDone?: () => void;
   /** Ctrl+Z / Ctrl+Y (Cmd on a Mac) while the board has the keyboard; undone by the page. */
@@ -342,7 +359,14 @@ export function PlanEditor(props: PlanEditorProps) {
    * different carry starts afresh from wherever the store stood the piece.
    */
   const [carryAt, setCarryAt] = useState<{ id: string; world: Vec2 } | null>(null);
-  const [ghostOpening, setGhostOpening] = useState<{ room: PlanRoom; edge: PlanEdge; t: number; widthM: number; kind: 'door' | 'window'; openingId: string | null; faded: boolean } | null>(null);
+  const [ghostOpening, setGhostOpening] = useState<{ room: PlanRoom; edge: PlanEdge; t: number; widthM: number; kind: OpeningKind; openingId: string | null; faded: boolean } | null>(null);
+  /**
+   * The railing being drawn along a wall: where it starts and where the pointer has it end,
+   * metres along the edge, and whether a railing may stand there. Before the first press, the
+   * spot under the pointer (`from === to`). `pressed` is the press still held — let go after a
+   * drag, the railing is drawn; let go where it went down, the next click ends it.
+   */
+  const [draftRailing, setDraftRailing] = useState<{ room: PlanRoom; edge: PlanEdge; from: number; to: number; valid: boolean; started: boolean; pressed: boolean; startX: number; startY: number } | null>(null);
   const spaceHeld = useRef(false);
   const shiftHeld = useRef(false);
   const fitted = useRef<unknown>(undefined);
@@ -361,6 +385,8 @@ export function PlanEditor(props: PlanEditorProps) {
   // How far each wall's body runs past its ends to close its corners, and the chains of
   // dimensions outside the plan — both from the plan alone, worked out once per plan.
   const wallExtensions = useMemo(() => wallEndExtensions(plan.walls ?? []), [plan.walls]);
+  // A black frame's partitions still to build are grey; what stands is black.
+  const toBuildWalls = useMemo(() => (builtWalls ? wallsToBuild(plan) : null), [plan, builtWalls]);
   const dimensionChains = useMemo(() => (layers.dimensions ? outerDimensionChains(plan) : null), [plan, layers.dimensions]);
 
   // The piece on the pointer, and where it stands: under the pointer once it has come onto
@@ -530,9 +556,10 @@ export function PlanEditor(props: PlanEditorProps) {
         return;
       }
       if (e.code === 'Escape') {
-        if (draftWall || draftBeam) {
+        if (draftWall || draftBeam || draftRailing?.started) {
           setDraftWall(null);
           setDraftBeam(null);
+          setDraftRailing(null);
           setGuides([]);
         } else if (!callbacks.current.carryingItemId) {
           // A piece on the pointer is the page's to give up (`cancelCarry`); the board says
@@ -571,12 +598,13 @@ export function PlanEditor(props: PlanEditorProps) {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [draftWall, draftBeam]);
+  }, [draftWall, draftBeam, draftRailing]);
 
   // A new tool drops whatever the old one was in the middle of.
   useEffect(() => {
     setDraftWall(null);
     setDraftBeam(null);
+    setDraftRailing(null);
     setGhostOpening(null);
     setPaintHover(null);
     setGuides([]);
@@ -696,7 +724,7 @@ export function PlanEditor(props: PlanEditorProps) {
           hovered: hover.kind === 'wall' && hover.id === wall.id,
           locked: locked || wall.locked,
           byOrigin: layers.origins,
-          built: builtWalls && !!wall.built,
+          toBuild: !!toBuildWalls?.has(wall.id),
           extendA: extension?.a,
           extendB: extension?.b,
         });
@@ -760,6 +788,23 @@ export function PlanEditor(props: PlanEditorProps) {
       }
     }
 
+    // The railing being drawn: from where it was started to the pointer, with its length on a
+    // plate; before the first press, the spot on the wall it would start from. Red where no
+    // railing may stand.
+    if (draftRailing) {
+      const { room, edge, from, to, valid } = draftRailing;
+      const lo = Math.min(from, to);
+      const hi = Math.max(from, to);
+      if (hi - lo > 0.01) {
+        const preview: Opening = { id: 'ghost-railing', kind: 'railing', wallIndex: edge.index, t: (lo + hi) / 2 / edge.length, widthM: hi - lo, heightM: 1, sillM: 0, roomId: room.id, exterior: true };
+        drawOpening(ctx, tr, room, preview, plan.wallThicknessM, { selected: valid, invalid: !valid, alpha: 0.9, dashed: true });
+        const mid = pointOnEdge(edge, (lo + hi) / 2 / edge.length);
+        const at = toScreenPoint(tr, { x: mid.x + edge.inward.x * 0.35, z: mid.z + edge.inward.z * 0.35 });
+        drawMeasure(ctx, at.x, at.y, `${(hi - lo).toFixed(2)} ${t.units.m}`, valid ? EDITOR.railing : EDITOR.invalid);
+      }
+      drawGhostPoint(ctx, tr, pointOnEdge(edge, from / edge.length), valid ? EDITOR.railing : EDITOR.invalid);
+    }
+
     // Columns and beams.
     if (layers.structure) {
       for (const column of columns) {
@@ -813,7 +858,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (guides.length > 0) drawGuides(ctx, tr, guides, width, height);
     // The sizes of the flat, chained along each side outside the walls.
     if (dimensionChains) drawOuterDimensions(ctx, tr, dimensionChains, t.units.m);
-  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, builtWalls, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
+  }, [plan, items, electrical, finishes, walls, columns, beams, technical, layers, selection, selectedRoomId, selectedItemId, hover, ghostOpening, draftRailing, paintHover, draftWall, draftBeam, guides, pointerWorld, tool, wallThicknessM, technicalKind, locked, builtWalls, toBuildWalls, t, locale, gestureVersion, carried, carryPose, wallExtensions, dimensionChains]);
 
   useEffect(() => {
     draw();
@@ -978,6 +1023,40 @@ export function PlanEditor(props: PlanEditorProps) {
   };
 
   /**
+   * Where along a wall the railing tool is, metres from the edge's start: the pointer's foot on
+   * it, onto a corner within reach, else on the 5 cm grid (1 cm with Shift).
+   */
+  const railingSpot = (edge: PlanEdge, world: Vec2): number => {
+    const s = Math.max(0, Math.min(edge.length, (world.x - edge.a.x) * edge.dir.x + (world.z - edge.a.z) * edge.dir.z));
+    const reach = SNAP_PX * perPx();
+    if (s <= reach) return 0;
+    if (edge.length - s <= reach) return edge.length;
+    const step = shiftHeld.current ? 0.01 : 0.05;
+    return Math.max(0, Math.min(edge.length, Math.round(s / step) * step));
+  };
+  /** A railing may stand from `from` to `to` along this wall: a balcony's outer wall (`railingFits`). */
+  const railingOk = (room: PlanRoom, edge: PlanEdge, from: number, to: number) => railingFits(plan.rooms, room.id, edge.index, from, to, plan.wallThicknessM);
+  /** A railing may start here: the shortest railing about the spot fits. */
+  const railingStartOk = (room: PlanRoom, edge: PlanEdge, s: number) => {
+    if (!holdsRailings(room) || edge.length < MIN_RAILING_M) return false;
+    const lo = Math.max(0, Math.min(s - MIN_RAILING_M / 2, edge.length - MIN_RAILING_M));
+    return railingOk(room, edge, lo, lo + MIN_RAILING_M);
+  };
+  /** Ends the railing being drawn at `to`: added when it may stand there, refused when not, dropped when too short to be one. */
+  const finishRailing = (draft: NonNullable<typeof draftRailing>, to: number) => {
+    setDraftRailing(null);
+    const lo = Math.min(draft.from, to);
+    const hi = Math.max(draft.from, to);
+    if (hi - lo < MIN_RAILING_M - 1e-6) return;
+    const id = railingOk(draft.room, draft.edge, lo, hi) ? (callbacks.current.onAddRailing?.({ roomId: draft.room.id, wallIndex: draft.edge.index, t: (lo + hi) / 2 / draft.edge.length }, round2(hi - lo)) ?? null) : null;
+    if (id === null) callbacks.current.onRefused?.('railing');
+    else {
+      edited.current = true;
+      callbacks.current.onSelect({ kind: 'opening', id, roomId: draft.room.id });
+    }
+  };
+
+  /**
    * What the paint brush would paint at a point. The floor: the tile of the room the point
    * is in. A wall: the strip nearest to the point on the walls of the room the point is in —
    * so a shared wall is always painted on the side the pointer is on.
@@ -1085,8 +1164,26 @@ export function PlanEditor(props: PlanEditorProps) {
         }
         return;
       }
+      case 'railing': {
+        // Drawn like a wall, along one: a press where it starts, then a drag to where it ends
+        // — or a click, and a second click there. The second click ends it here.
+        if (draftRailing?.started) {
+          finishRailing(draftRailing, railingSpot(draftRailing.edge, world));
+          return;
+        }
+        const target = wallTargetFor(world);
+        if (!target) return;
+        const s = railingSpot(target.edge, world);
+        if (!railingStartOk(target.room, target.edge, s)) {
+          callbacks.current.onRefused?.('railing');
+          return;
+        }
+        setDraftRailing({ room: target.room, edge: target.edge, from: s, to: s, valid: true, started: true, pressed: true, startX: e.clientX, startY: e.clientY });
+        return;
+      }
       case 'door':
-      case 'window': {
+      case 'window':
+      case 'archway': {
         const target = wallTargetFor(world);
         if (!target) return;
         const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
@@ -1257,10 +1354,10 @@ export function PlanEditor(props: PlanEditorProps) {
           const target = callbacks.current.onMoveOpeningToWall ? wallTargetFor(world, gesture.room.id) : null;
           const room = target?.room ?? gesture.room;
           const edge = target?.edge ?? gesture.edge;
-          const tt = projectToEdge(edge, world, gesture.opening.widthM);
+          const tt = projectToEdge(edge, world, gesture.opening.widthM, cornerMargin(gesture.opening.kind));
           gesture.target = { room, edge, t: tt };
           gesture.moved = true;
-          setGhostOpening({ room, edge, t: tt, widthM: gesture.opening.widthM, kind: gesture.opening.kind === 'window' ? 'window' : 'door', openingId: gesture.opening.id, faded: false });
+          setGhostOpening({ room, edge, t: tt, widthM: gesture.opening.widthM, kind: gesture.opening.kind, openingId: gesture.opening.id, faded: false });
           return;
         }
         case 'point-drag': {
@@ -1352,7 +1449,23 @@ export function PlanEditor(props: PlanEditorProps) {
       setGuides(snapped.guides);
       return;
     }
-    if (tool === 'door' || tool === 'window') {
+    if (tool === 'railing') {
+      if (draftRailing?.started) {
+        const to = railingSpot(draftRailing.edge, world);
+        const valid = Math.abs(to - draftRailing.from) < MIN_RAILING_M || railingOk(draftRailing.room, draftRailing.edge, draftRailing.from, to);
+        if (to !== draftRailing.to || valid !== draftRailing.valid) setDraftRailing({ ...draftRailing, to, valid });
+        return;
+      }
+      const target = wallTargetFor(world);
+      if (!target) {
+        if (draftRailing) setDraftRailing(null);
+        return;
+      }
+      const s = railingSpot(target.edge, world);
+      setDraftRailing({ room: target.room, edge: target.edge, from: s, to: s, valid: railingStartOk(target.room, target.edge, s), started: false, pressed: false, startX: 0, startY: 0 });
+      return;
+    }
+    if (tool === 'door' || tool === 'window' || tool === 'archway') {
       const target = wallTargetFor(world);
       if (!target) {
         setGhostOpening(null);
@@ -1370,6 +1483,15 @@ export function PlanEditor(props: PlanEditorProps) {
   };
 
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // A railing pressed and dragged along its wall is drawn where it is let go; pressed and let
+    // go where it went down, it waits for the click that ends it.
+    if (tool === 'railing' && draftRailing?.started && draftRailing.pressed) {
+      const to = railingSpot(draftRailing.edge, worldOf(e));
+      const dragged = Math.hypot(e.clientX - draftRailing.startX, e.clientY - draftRailing.startY) > DRAG_THRESHOLD_PX;
+      if (dragged && Math.abs(to - draftRailing.from) >= MIN_RAILING_M - 1e-6) finishRailing(draftRailing, to);
+      else setDraftRailing({ ...draftRailing, to, pressed: false });
+      return;
+    }
     const gesture = gestureRef.current;
     gestureRef.current = null;
     setGuides([]);
@@ -1411,7 +1533,7 @@ export function PlanEditor(props: PlanEditorProps) {
           }
         } else {
           const id = callbacks.current.onMoveOpeningToWall?.(gesture.room.id, gesture.opening.id, { roomId: room.id, wallIndex: edge.index, t: tt }) ?? null;
-          if (id === null) callbacks.current.onRefused?.('opening');
+          if (id === null) callbacks.current.onRefused?.(gesture.opening.kind === 'railing' ? 'railing' : 'opening');
           else callbacks.current.onSelect({ kind: 'opening', id, roomId: room.id });
         }
         break;
@@ -1502,16 +1624,18 @@ export function PlanEditor(props: PlanEditorProps) {
       onDoubleClick={onDoubleClick}
       onContextMenu={(e) => {
         e.preventDefault();
-        // A right click ends a wall run, like in CAD.
+        // A right click ends a wall run, like in CAD, and gives up a railing half drawn.
         if (draftWall) setDraftWall(null);
         if (draftBeam) setDraftBeam(null);
+        if (draftRailing?.started) setDraftRailing(null);
         setGuides([]);
       }}
       onPointerLeave={() => {
         setPointerWorld(null);
         setPaintHover(null);
         if (!gestureRef.current) setHover({ kind: null });
-        if ((tool === 'door' || tool === 'window') && !gestureRef.current) setGhostOpening(null);
+        if ((tool === 'door' || tool === 'window' || tool === 'archway') && !gestureRef.current) setGhostOpening(null);
+        if (tool === 'railing' && !draftRailing?.started) setDraftRailing(null);
       }}
     />
   );

@@ -45,7 +45,7 @@ const MAX_TRIANGLES = 1250;
 // The catalogue
 // ---------------------------------------------------------------------------
 
-interface Surface {
+export interface Surface {
   /** The glTF material's name. */
   name: string;
   /** sRGB, as one reads it off a colour picker. */
@@ -54,7 +54,7 @@ interface Surface {
   roughness: number;
 }
 
-interface Part {
+export interface Part {
   surface: Surface;
   shape: Shape;
 }
@@ -417,11 +417,12 @@ function buildClassic(): Part[] {
 }
 
 // ---------------------------------------------------------------------------
-// A small mesh kit: indexed triangles with normals, built the right way round
+// A small mesh kit: indexed triangles with normals, built the right way round (the railing,
+// scripts/railing-models.ts, is written with it too)
 // ---------------------------------------------------------------------------
 
-type V3 = [number, number, number];
-type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
+export type V3 = [number, number, number];
+export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 
 const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -435,7 +436,7 @@ const unit2 = (a: [number, number]): [number, number] => {
   return [a[0] / length, a[1] / length];
 };
 
-class Shape {
+export class Shape {
   positions: number[] = [];
   normals: number[] = [];
   indices: number[] = [];
@@ -504,7 +505,7 @@ class Shape {
 }
 
 /** An axis-aligned box; `skip` leaves out the faces nobody can see. */
-function box(min: V3, max: V3, skip: Face[] = []): Shape {
+export function box(min: V3, max: V3, skip: Face[] = []): Shape {
   const [x0, y0, z0] = min;
   const [x1, y1, z1] = max;
   const shape = new Shape();
@@ -695,7 +696,7 @@ function heightGrid(xs: number[], ys: number[], z: (x: number, y: number) => num
 // ---------------------------------------------------------------------------
 
 /** One mesh per surface: the parts merged, identical vertices welded, slivers dropped, and every triangle checked to face the way its normals say. */
-function mergeBySurface(slug: string, parts: Part[]): Array<{ surface: Surface; positions: Float32Array<ArrayBuffer>; normals: Float32Array<ArrayBuffer>; indices: Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer>; triangles: number }> {
+export function mergeBySurface(slug: string, parts: Part[]): Array<{ surface: Surface; positions: Float32Array<ArrayBuffer>; normals: Float32Array<ArrayBuffer>; indices: Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer>; triangles: number }> {
   const surfaces = new Map<string, { surface: Surface; shapes: Shape[] }>();
   for (const part of parts) {
     const known = surfaces.get(part.surface.name);
@@ -739,7 +740,7 @@ function mergeBySurface(slug: string, parts: Part[]): Array<{ surface: Surface; 
   });
 }
 
-function linearColor(hex: string): [number, number, number, number] {
+export function linearColor(hex: string): [number, number, number, number] {
   const channel = (at: number) => {
     const c = parseInt(hex.slice(at, at + 2), 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

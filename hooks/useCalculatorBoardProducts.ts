@@ -5,6 +5,7 @@ import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { equipmentSignature } from '@/lib/design/equipment';
+import { openingProductKind } from '@/lib/design/openings';
 
 /**
  * The calculator's board dressed as a design is: once the design catalogue is in, every door,
@@ -23,7 +24,7 @@ export function useCalculatorBoardProducts(): CatalogProduct[] {
   // product, and the rooms a radiator's sections are counted from.
   const signature = useMemo(() => {
     if (!plan) return '';
-    const bare = plan.rooms.reduce((n, r) => n + r.openings.filter((o) => o.kind !== 'archway' && !o.product).length, 0);
+    const bare = plan.rooms.reduce((n, r) => n + r.openings.filter((o) => !!openingProductKind(o) && !o.product).length, 0);
     const radiators = (plan.technical?.points ?? []).filter((p) => p.kind === 'radiator').map((p) => `${p.id}:${p.product?.productId ?? ''}:${p.product?.qty ?? ''}:${p.roomId ?? ''}`).join('|');
     const fittings = electrical.filter((p) => !p.product).length;
     return `${bare}#${radiators}#${fittings}#${plan.rooms.map((r) => `${r.id}:${r.areaM2}`).join(',')}#${equipmentSignature(plan)}`;

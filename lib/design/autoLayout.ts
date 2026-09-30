@@ -27,6 +27,7 @@ import {
 import {
   boxInPolygon,
   isOpenEdge,
+  isPassage,
   pointOnEdge,
   polygonBounds,
   polygonCentroid,
@@ -240,7 +241,7 @@ function placeAgainstWall(
   exact = false,
   anchors: TechnicalAnchor[] = []
 ): Pose | null {
-  const doorPoints = openingPoints(room, edges, (o) => o.kind !== 'window');
+  const doorPoints = openingPoints(room, edges, isPassage);
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
 
   // A wardrobe comes in many widths; a bed does not. When the standard width finds no wall,
@@ -890,7 +891,7 @@ function doorKeepouts(room: PlanRoom, edges: PlanEdge[]): Box[] {
   const boxes: Box[] = [];
 
   for (const opening of room.openings) {
-    if (opening.kind === 'window') continue;
+    if (!isPassage(opening)) continue;
     const edge = edges.find((e) => e.index === opening.wallIndex);
     if (!edge) continue;
 
@@ -918,7 +919,8 @@ function doorKeepouts(room: PlanRoom, edges: PlanEdge[]): Box[] {
  * Would an item spanning `width` at position `t` block one of these openings?
  *
  * Doors always block. Windows only block something tall enough to reach them — a sofa under
- * a window is exactly where a sofa belongs, whereas a wardrobe there is not.
+ * a window is exactly where a sofa belongs, whereas a wardrobe there is not — and a railing
+ * only something taller than it: an armchair against a balcony's railing is fine.
  */
 function coversOpening(
   edge: PlanEdge,
@@ -932,6 +934,7 @@ function coversOpening(
   const hi = t + half;
   return openings.some((o) => {
     if (o.kind === 'window' && itemHeight <= o.sillM + 0.05) return false;
+    if (o.kind === 'railing' && itemHeight <= o.heightM + 0.05) return false;
     const oHalf = o.widthM / 2 / edge.length;
     return lo < o.t + oHalf && hi > o.t - oHalf;
   });

@@ -45,7 +45,7 @@ const sceneProductSchema = z.object({
 
 const openingSchema = z.object({
   id: z.string(),
-  kind: z.enum(['door', 'window', 'archway']),
+  kind: z.enum(['door', 'window', 'archway', 'railing']),
   wallIndex: z.number().int().min(0),
   t: z.number().min(0).max(1),
   widthM: z.number().positive().max(12),

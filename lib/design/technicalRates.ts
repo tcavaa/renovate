@@ -98,6 +98,8 @@ export const OPENING_ESTIMATE_GEL: Record<OpeningKind, number> = {
   door: 380,
   window: 420,
   archway: 0,
+  // A balcony's railing comes with the balcony: nothing is bought or fitted.
+  railing: 0,
 };
 export const ENTRANCE_DOOR_GEL = 950;
 

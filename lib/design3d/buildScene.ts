@@ -23,7 +23,7 @@ import * as THREE from 'three';
 import { loadFixture, loadModel } from './modelLoader';
 import { isOpenEdge, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
-import { leafOnOtherSide } from '@/lib/design/openings';
+import { primaryHalf } from '@/lib/design/openings';
 import { CUSTOM_KITCHEN_SLOTS, drawnModelUrl } from '@/lib/design/kitchen';
 import { wallFinishFor } from '@/lib/design/zones';
 import { patchSpansOnWall, wallPatches, wallSpans } from '@/lib/design/paint';
@@ -31,6 +31,7 @@ import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
 import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
 import { buildElectrical, buildEquipment, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
 import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallFaceSpan, type WallHole } from './wallGeometry';
+import { RAILING_MODEL } from './railingManifest';
 import type {
   DesignScene,
   FloorPlan,
@@ -279,9 +280,24 @@ function buildRoomShell(
       }
 
       const holes: WallHole[] = [];
+      // Whether a railing on the wall before this one runs into their shared corner (`atEnd`),
+      // or one on the wall after it runs out of it: then the corner is open as well.
+      const railedTo = (other: PlanEdge, atEnd: boolean) =>
+        room.openings.some((o) => o.kind === 'railing' && o.wallIndex === other.index && (atEnd ? o.t * other.length + o.widthM / 2 >= other.length - 0.005 : o.t * other.length - o.widthM / 2 <= 0.005));
       for (const opening of openings) {
         const centre = opening.t * edge.length;
         const half = opening.widthM / 2;
+        if (opening.kind === 'railing') {
+          // A balcony's open side: no wall from the floor to the top, into the corners if it
+          // runs there — through them when the next side is a railing too, so no post of wall
+          // is left standing between two railings — and the slab running out under it to the
+          // wall's far face.
+          const throughStart = centre - half <= 0.005 && railedTo(edges[(order - 1 + edges.length) % edges.length], true);
+          const throughEnd = centre + half >= edge.length - 0.005 && railedTo(edges[(order + 1) % edges.length], false);
+          const gap = { left: throughStart ? -Infinity : Math.max(0, centre - half), right: throughEnd ? Infinity : Math.min(edge.length, centre + half), bottom: 0, top: height, floor: true };
+          if (gap.right - gap.left >= 0.05) holes.push(gap);
+          continue;
+        }
         const hole = { left: Math.max(0.02, centre - half), right: Math.min(edge.length - 0.02, centre + half), bottom: Math.max(0, opening.sillM), top: Math.min(height - 0.02, opening.sillM + opening.heightM) };
         if (hole.right - hole.left >= 0.05 && hole.top - hole.bottom >= 0.05) holes.push(hole);
       }
@@ -370,14 +386,12 @@ function buildTrim(
   const outline = trimOutline(kind, spec);
 
   // Where the moulding runs: the whole edge, less the doorways for a skirting board
-  // (windows start above it).
-  const gaps =
-    kind === 'skirting'
-      ? openings
-          .filter((o) => o.kind !== 'window')
-          .map((o) => [o.t * edge.length - o.widthM / 2 - 0.03, o.t * edge.length + o.widthM / 2 + 0.03] as const)
-          .sort((a, b) => a[0] - b[0])
-      : [];
+  // (windows start above it), and less a balcony's railings for both — there is no wall
+  // along its foot or under its ceiling there.
+  const gaps = openings
+    .filter((o) => (kind === 'skirting' ? o.kind !== 'window' : o.kind === 'railing'))
+    .map((o) => [o.t * edge.length - o.widthM / 2 - 0.03, o.t * edge.length + o.widthM / 2 + 0.03] as const)
+    .sort((a, b) => a[0] - b[0]);
   const runs: Array<[number, number]> = [];
   let cursor = 0;
   for (const [start, end] of gaps) {
@@ -445,11 +459,12 @@ function buildOpeningTrim(
   slab.rotation.y = edge.facing;
   group.add(slab);
 
-  // An interior door or archway exists in both rooms; one half draws it — for a door the
-  // half it swings into (`leafOnOtherSide`), for an archway the room that sorts first —
-  // unless the other room is the one left out of the view, and then this half does.
-  const primary = !opening.connectsToRoomId || (opening.kind === 'door' ? !leafOnOtherSide(opening) : opening.roomId < opening.connectsToRoomId);
-  if (primary || !twinShown) {
+  // An interior door, archway or window onto a balcony exists in both rooms; one half draws it
+  // (`primaryHalf`: for a door the half it swings into, for the others the room that sorts
+  // first) — unless the other room is the one left out of the view, and then this half does.
+  const primary = primaryHalf(opening);
+  if (opening.kind === 'railing') attachRailing(group, edge, opening, thickness);
+  else if (primary || !twinShown) {
     const product = opening.product?.model3dUrl;
     const fallback = opening.kind === 'archway' ? fixtureRole('casing') : fixtureRole(opening.kind);
     const url = opening.kind !== 'archway' && product ? product : fallback?.url;
@@ -457,6 +472,40 @@ function buildOpeningTrim(
   }
 
   return group;
+}
+
+/**
+ * A balcony's railing in its gap: the railing module (`RAILING_MODEL`, a metre of it) as many
+ * times as fit the railing's length, each stretched a little so they fill it exactly and to the
+ * railing's height, standing in the middle of the wall's thickness. Nothing is drawn by hand;
+ * the gap is bare for the beat the file takes to arrive.
+ */
+function attachRailing(group: THREE.Group, edge: PlanEdge, opening: Opening, thickness: number): void {
+  const moduleM = RAILING_MODEL.pitchCm / 100;
+  const count = Math.max(1, Math.round(opening.widthM / moduleM));
+  const pitch = opening.widthM / count;
+  const point = pointOnEdge(edge, opening.t);
+  const midWall = -thickness / 2;
+  loadFixture(RAILING_MODEL.url)
+    .then((module) => {
+      // Rebuilt while the model was in flight.
+      if (!group.parent) return;
+      const root = new THREE.Group();
+      root.name = 'opening-model';
+      root.position.set(point.x + edge.inward.x * midWall, 0, point.z + edge.inward.z * midWall);
+      root.rotation.y = edge.facing;
+      for (let i = 0; i < count; i++) {
+        const holder = new THREE.Group();
+        holder.scale.set(pitch / moduleM, opening.heightM / (RAILING_MODEL.heightCm / 100), 1);
+        holder.position.x = -opening.widthM / 2 + pitch * (i + 0.5);
+        holder.add(i === 0 ? module : module.clone(true));
+        root.add(holder);
+      }
+      finishModel(root);
+      tag(root, { pickKind: 'opening', roomId: opening.roomId, openingId: opening.id } satisfies SceneUserData);
+      group.add(root);
+    })
+    .catch((error: unknown) => console.warn(`[studio] railing failed to load: ${RAILING_MODEL.url}`, error));
 }
 
 /**

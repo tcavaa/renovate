@@ -8,8 +8,14 @@
  * `${roomB}-${roomA}-d`) or, for doors added later, by projecting the door's world point
  * onto the neighbour's edge.
  *
+ * A railing (მოაჯირი) is an opening too: a balcony's open side, drawn along one of its outer
+ * walls from where it starts to where it ends, running into the corners if it likes. The wall
+ * is gone there floor to ceiling (`openingSpanUp` in planGeometry), so it comes off the wall's
+ * area, and a railing stands in the gap. It is never sold and never has a twin.
+ *
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
+import type { RoomType } from '@/lib/calculator/types';
 import { roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import type { FloorPlan, Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
@@ -18,10 +24,33 @@ export const OPENING_DEFAULTS: Record<OpeningKind, { widthM: number; heightM: nu
   door: { widthM: 0.9, heightM: 2.05, sillM: 0 },
   window: { widthM: 1.4, heightM: 1.4, sillM: 0.9 },
   archway: { widthM: 1.6, heightM: 2.2, sillM: 0 },
+  // A balcony railing is a metre high; its width is what was drawn (the whole wall from a card).
+  railing: { widthM: 1.2, heightM: 1.0, sillM: 0 },
 };
 
 /** Smallest gap kept between an opening's edge and the wall's corner, metres. */
 const CORNER_MARGIN_M = 0.15;
+
+/** How close to a corner an opening may come: a railing runs right into it, anything else keeps a hand's breadth. */
+export function cornerMargin(kind: OpeningKind): number {
+  return kind === 'railing' ? 0 : CORNER_MARGIN_M;
+}
+
+/** The shortest railing worth drawing, metres. */
+export const MIN_RAILING_M = 0.3;
+
+/**
+ * The rooms whose open sides are railings. A balcony's walls stand whatever state the flat is
+ * in — they are the building's — and where it is open the person draws a railing instead.
+ */
+export const RAILING_ROOM_TYPES: readonly RoomType[] = ['balcony'];
+
+export function holdsRailings(room: Pick<PlanRoom, 'type'>): boolean {
+  return RAILING_ROOM_TYPES.includes(room.type);
+}
+
+/** Railing heights the cards offer, metres. */
+export const RAILING_HEIGHT_RANGE_M = { min: 0.8, max: 1.5 } as const;
 
 export function edgeOf(room: PlanRoom, wallIndex: number): PlanEdge | null {
   return roomEdges(room.polygon).find((e) => e.index === wallIndex) ?? null;
@@ -68,10 +97,10 @@ export function openingWorldPoint(room: PlanRoom, opening: Opening): Vec2 | null
   return edge ? pointOnEdge(edge, opening.t) : null;
 }
 
-/** The `t` along `edge` nearest to `point`, kept far enough from both corners for `widthM`. */
-export function projectToEdge(edge: PlanEdge, point: Vec2, widthM: number): number {
+/** The `t` along `edge` nearest to `point`, kept far enough from both corners for `widthM` (and `cornerM` more). */
+export function projectToEdge(edge: PlanEdge, point: Vec2, widthM: number, cornerM: number = CORNER_MARGIN_M): number {
   const raw = ((point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z) / edge.length;
-  const margin = (widthM / 2 + CORNER_MARGIN_M) / edge.length;
+  const margin = (widthM / 2 + cornerM) / edge.length;
   if (margin >= 0.5) return 0.5;
   return Math.min(1 - margin, Math.max(margin, raw));
 }
@@ -150,6 +179,17 @@ export function leafOnOtherSide(opening: Opening): boolean {
 }
 
 /**
+ * The half of an opening between two rooms that stands for both — draws the model, writes the
+ * size on the sheet: a door's the half its leaf swings into (`leafOnOtherSide`), anything else's
+ * (an archway, a window onto a balcony) the room that sorts first. An opening in one room only is
+ * its own.
+ */
+export function primaryHalf(opening: Opening): boolean {
+  if (!opening.connectsToRoomId) return true;
+  return opening.kind === 'door' ? !leafOnOtherSide(opening) : opening.roomId < opening.connectsToRoomId;
+}
+
+/**
  * Makes every twin agree with its primary on the leaf: plans from before the halves were
  * mirrored (and the parser's doors) had both halves hinged "left" — the opposite corners —
  * and both swinging "in", so the same door showed two leaves. The half met first in room
@@ -161,7 +201,7 @@ export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
   let out = rooms;
   for (const room of rooms) {
     for (const opening of room.openings) {
-      if (done.has(opening.id) || opening.kind === 'window' || !opening.connectsToRoomId) continue;
+      if (done.has(opening.id) || opening.kind === 'window' || opening.kind === 'railing' || !opening.connectsToRoomId) continue;
       const twin = twinOf(out, opening);
       if (!twin) continue;
       done.add(opening.id);
@@ -194,7 +234,7 @@ export function moveOpening(rooms: PlanRoom[], roomId: string, openingId: string
   if (!room || !opening) return rooms;
   const edge = edgeOf(room, opening.wallIndex);
   if (!edge) return rooms;
-  const clamped = projectToEdge(edge, pointOnEdge(edge, t), opening.widthM);
+  const clamped = projectToEdge(edge, pointOnEdge(edge, t), opening.widthM, cornerMargin(opening.kind));
   let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, { t: clamped }));
 
   const twin = twinOf(rooms, opening);
@@ -208,13 +248,22 @@ export function moveOpening(rooms: PlanRoom[], roomId: string, openingId: string
   return next;
 }
 
-/** Changes width, height, sill or kind; the twin follows for width and kind. */
+/**
+ * Changes width, height, sill or kind; the twin follows for width and kind. A railing stays a
+ * railing and nothing else becomes one: it belongs on a balcony's outer wall, where the railing
+ * tool draws it.
+ */
 export function updateOpening(rooms: PlanRoom[], roomId: string, openingId: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind'>>): PlanRoom[] {
   const room = rooms.find((r) => r.id === roomId);
   const opening = room?.openings.find((o) => o.id === openingId);
   if (!room || !opening) return rooms;
+  if (patch.kind && patch.kind !== opening.kind && (patch.kind === 'railing' || opening.kind === 'railing')) {
+    const { kind: _refused, ...rest } = patch;
+    patch = rest;
+  }
   const edge = edgeOf(room, opening.wallIndex);
-  const widthM = patch.widthM != null ? Math.max(0.5, Math.min(patch.widthM, (edge?.length ?? 10) - CORNER_MARGIN_M * 2)) : opening.widthM;
+  const minWidth = opening.kind === 'railing' ? MIN_RAILING_M : 0.5;
+  const widthM = patch.widthM != null ? Math.max(minWidth, Math.min(patch.widthM, (edge?.length ?? 10) - cornerMargin(opening.kind) * 2)) : opening.widthM;
   const clean: Partial<Opening> = { ...patch, widthM };
   const kindChanged = !!patch.kind && patch.kind !== opening.kind;
   if (patch.kind && kindChanged) {
@@ -241,7 +290,8 @@ export function updateOpening(rooms: PlanRoom[], roomId: string, openingId: stri
 /**
  * Every door and window is bought as a product where the catalogue has one: the kind a
  * product carries (`products.model3dKind`) is `door` for an interior door, `entrance_door`
- * for one on an exterior wall, `window` for a window. An archway is a hole and buys nothing.
+ * for one on an exterior wall, `window` for a window. An archway is a hole and buys nothing,
+ * and neither does a railing — it comes with the balcony.
  * An opening whose kind has no product yet stays an estimate (`OPENING_ESTIMATE_GEL`) and is
  * drawn with the procedural frame and leaf.
  */
@@ -253,7 +303,7 @@ export function isOpeningProductKind(kind: string | null | undefined): kind is O
   return !!kind && (OPENING_PRODUCT_KINDS as readonly string[]).includes(kind);
 }
 
-/** The product kind an opening buys, or null for an archway. */
+/** The product kind an opening buys, or null for an archway or a railing. */
 export function openingProductKind(opening: Pick<Opening, 'kind' | 'exterior'>): OpeningProductKind | null {
   if (opening.kind === 'window') return 'window';
   if (opening.kind === 'door') return opening.exterior ? 'entrance_door' : 'door';
@@ -263,7 +313,7 @@ export function openingProductKind(opening: Pick<Opening, 'kind' | 'exterior'>):
 /**
  * The catalogue's products for an opening: its own kind first (an entrance door offered
  * for an interior one comes after the interior doors), the style's before the rest, the
- * cheapest first within that. Empty for an archway.
+ * cheapest first within that. Empty for an archway and a railing.
  */
 export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
   const wanted = openingProductKind(opening);
@@ -295,7 +345,7 @@ export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[]
   const done = new Set<string>();
   for (const room of rooms) {
     for (const opening of room.openings) {
-      if (done.has(opening.id) || opening.kind === 'archway') continue;
+      if (done.has(opening.id) || !openingProductKind(opening)) continue;
       const candidates = openingCandidates(opening, catalog, styleId);
       const current = opening.product ? candidates.find((c) => c.id === opening.product?.productId) : undefined;
       const chosen = current ?? candidates[0] ?? null;
@@ -352,19 +402,57 @@ export interface AddOpeningOptions {
   product?: Opening['product'];
 }
 
+/** How far past a wall a neighbour's copy of it is looked for. */
+const neighbourTolerance = (wallThicknessM: number) => Math.max(wallThicknessM * 2.5, 0.25);
+
+/** The room on the other side of `edge` of `roomId` at `point`, and its copy of the wall — none on an outer wall. */
+function neighbourAt(rooms: PlanRoom[], roomId: string, edge: PlanEdge, point: Vec2, wallThicknessM: number): { room: PlanRoom; edge: PlanEdge } | null {
+  const tolerance = neighbourTolerance(wallThicknessM);
+  for (const r of rooms) {
+    if (r.id === roomId) continue;
+    const found = twinEdge(r, edge, point, tolerance);
+    if (found) return { room: r, edge: found };
+  }
+  return null;
+}
+
+/**
+ * Whether a railing may run from `fromM` to `toM` along a wall (metres from the edge's start):
+ * the room is a balcony, the edge is a wall and not a room separator, and no room stands behind
+ * any of that stretch — a railing is the balcony's open side, never a wall onto the flat.
+ */
+export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number, fromM: number, toM: number, wallThicknessM: number): boolean {
+  const room = rooms.find((r) => r.id === roomId);
+  if (!room || !holdsRailings(room)) return false;
+  const edge = wallEdges(room).find((e) => e.index === wallIndex);
+  if (!edge) return false;
+  const [lo, hi] = [Math.max(0, Math.min(fromM, toM)), Math.min(edge.length, Math.max(fromM, toM))];
+  if (hi - lo < MIN_RAILING_M - 1e-6) return false;
+  // A few spots along it, a little in from its ends so a corner's neighbour does not count.
+  const inset = Math.min(0.05, (hi - lo) / 4);
+  const spots = [lo + inset, (lo + hi) / 2, hi - inset];
+  return spots.every((s) => !neighbourAt(rooms, roomId, edge, pointOnEdge(edge, s / edge.length), wallThicknessM));
+}
+
 /**
  * Adds an opening to a wall — the given one, or the longest wall with nothing on it. A door
  * on a wall another room shares gets its twin cut in that room too, so it opens into a room
  * rather than into the back of a wall; a window on a shared wall is refused (returns the
- * rooms unchanged), because a window into the neighbour's bedroom is never what was meant.
+ * rooms unchanged), because a window into the neighbour's bedroom is never what was meant —
+ * unless one of the two rooms is a balcony: a window onto the balcony is, and it is cut in both
+ * rooms like a door. A railing goes only on a balcony's outer wall (`railingFits`), the whole
+ * wall unless a width is given, and takes the place of the windows and plain openings it
+ * covers — the wall they were in is gone.
  */
 export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThicknessM: number, options: AddOpeningOptions = {}): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);
   if (!room) return { rooms, openingId: null };
+  if (kind === 'railing' && !holdsRailings(room)) return { rooms, openingId: null };
   // Never in a room separator: there is no wall to cut a door or a window into.
   const edges = wallEdges(room);
   const defaults = OPENING_DEFAULTS[kind];
-  const minLength = defaults.widthM + CORNER_MARGIN_M * 2;
+  const margin = cornerMargin(kind);
+  const minLength = kind === 'railing' ? MIN_RAILING_M : defaults.widthM + margin * 2;
   const chosen =
     (wallIndex != null ? edges.find((e) => e.index === wallIndex) : null) ??
     edges
@@ -376,9 +464,9 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
       })[0];
   if (!chosen || chosen.length < minLength) return { rooms, openingId: null };
 
-  const width = Math.min(options.widthM ?? defaults.widthM, chosen.length - CORNER_MARGIN_M * 2);
+  const width = Math.min(options.widthM ?? (kind === 'railing' ? chosen.length : defaults.widthM), chosen.length - margin * 2);
   let t = options.t ?? 0.5;
-  if (options.t == null) {
+  if (options.t == null && kind !== 'railing') {
     // A free spot along the wall: the centre, or beside what is already there.
     const taken = room.openings.filter((o) => o.wallIndex === chosen.index).map((o) => o.t);
     for (const candidate of [0.5, 0.25, 0.75, 0.15, 0.85]) {
@@ -388,12 +476,15 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
       }
     }
   }
-  t = projectToEdge(chosen, pointOnEdge(chosen, t), width);
+  t = projectToEdge(chosen, pointOnEdge(chosen, t), width, margin);
   const point = pointOnEdge(chosen, t);
-  const tolerance = Math.max(wallThicknessM * 2.5, 0.25);
-  const neighbour = rooms.map((r) => (r.id === roomId ? null : { room: r, edge: twinEdge(r, chosen, point, tolerance) })).find((n) => n?.edge) ?? null;
+  const neighbour = neighbourAt(rooms, roomId, chosen, point, wallThicknessM);
 
-  if (kind === 'window' && neighbour) return { rooms, openingId: null };
+  if (kind === 'window' && neighbour && !holdsRailings(room) && !holdsRailings(neighbour.room)) return { rooms, openingId: null };
+  if (kind === 'railing') {
+    const centre = t * chosen.length;
+    if (!railingFits(rooms, roomId, chosen.index, centre - width / 2, centre + width / 2, wallThicknessM)) return { rooms, openingId: null };
+  }
 
   const stamp = Date.now().toString(36);
   const id = `${roomId}-${kind}-${stamp}`;
@@ -413,7 +504,9 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     ...(options.openAngleDeg != null ? { openAngleDeg: options.openAngleDeg } : {}),
     ...(options.product ? { product: options.product } : {}),
   };
-  let next = replaceIn(rooms, roomId, (r) => ({ ...r, openings: [...r.openings, opening] }));
+  const centre = t * chosen.length;
+  const covered = (o: Opening) => kind === 'railing' && o.wallIndex === chosen.index && (o.kind === 'window' || o.kind === 'archway') && Math.abs(o.t * chosen.length - centre) < (o.widthM + width) / 2 - 1e-6;
+  let next = replaceIn(rooms, roomId, (r) => ({ ...r, openings: [...r.openings.filter((o) => !covered(o)), opening] }));
   if (neighbour && neighbour.edge) {
     // The twin is the same leaf seen from the other room: the other jamb, the other way.
     const twin: Opening = {
@@ -434,8 +527,8 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
  * Puts an opening down on any wall of any room, at `target.t`, keeping its size and kind.
  * Along its own wall (or the neighbour's copy of that shared wall) this is a plain slide;
  * anywhere else the opening — and its twin — is cut out and cut in again, so it gets a
- * new id, which is returned. A window dropped on a shared wall is refused: `openingId` is
- * null and the rooms come back unchanged.
+ * new id, which is returned. A window dropped on a shared wall (but a balcony's) is refused:
+ * `openingId` is null and the rooms come back unchanged.
  */
 export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: string, target: WallTarget, wallThicknessM: number): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);

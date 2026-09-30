@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, RectangleHorizontal, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -29,20 +29,20 @@ import type { DesignCost } from '@/lib/design/types';
 import { budgetSections } from '@/lib/design/pricing';
 import { designStepHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
-import type { EditorTool } from '@/components/plan/PlanEditor';
-import { electricalLabel, technicalLabel, toolLabel } from '@/components/plan/PlanToolbar';
+import { OPENING_TOOLS, isOpeningTool, type EditorTool } from '@/components/plan/PlanEditor';
+import { TOOL_ICON, electricalLabel, technicalLabel, toolHint, toolLabel } from '@/components/plan/PlanToolbar';
 import type { Dictionary } from '@/lib/i18n';
 
 /**
  * A room and a room separator are shapes of the wall tool — a square, a line, a dashed line —
- * not tiles of their own. There is no pan tile: on the board a drag from the empty sheet slides
- * the view with the select tool in hand.
+ * not tiles of their own; a door, a window, a plain opening and a balcony's railing are kinds of
+ * one "doors & windows" tile. There is no pan tile: on the board a drag from the empty sheet
+ * slides the view with the select tool in hand.
  */
 const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'select', icon: MousePointer2 },
   { id: 'wall', icon: BrickWall },
   { id: 'door', icon: DoorOpen },
-  { id: 'window', icon: RectangleHorizontal },
   { id: 'column', icon: SquareDashed },
   { id: 'beam', icon: Minus },
 ];
@@ -50,22 +50,39 @@ const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
 export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void }) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
+  const opening = isOpeningTool(tool) ? tool : null;
   return (
     <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1" role="toolbar">
-        {BUILD_TOOLS.map(({ id, icon: Icon }) => {
+        {BUILD_TOOLS.map(({ id, icon }) => {
           // The drawing tile is called "room" and picks the room up first; the shapes follow.
+          // The openings' tile picks the door up first and keeps whichever kind is in hand.
           const draw = id === 'wall';
-          const active = draw ? drawing : tool === id;
-          const label = toolLabel(t, draw ? 'room' : id);
+          const opens = id === 'door';
+          const active = draw ? drawing : opens ? !!opening : tool === id;
+          const label = opens ? t.build.toolOpenings : toolLabel(t, draw ? 'room' : id);
+          const Icon = opens && opening ? TOOL_ICON[opening] : icon;
           return (
-            <button key={id} type="button" onClick={() => onTool(draw ? (drawing ? tool : 'room') : id)} aria-pressed={active} title={label} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+            <button key={id} type="button" onClick={() => onTool(draw ? (drawing ? tool : 'room') : opens ? (opening ?? 'door') : id)} aria-pressed={active} title={label} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
               <Icon className="h-5 w-5" />
-              <span className="truncate px-1">{label}</span>
+              <span className="line-clamp-2 break-words px-1 text-center leading-[1.15]">{label}</span>
             </button>
           );
         })}
       </div>
+      {opening && (
+        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.toolOpenings}>
+          {OPENING_TOOLS.map((id) => {
+            const Icon = TOOL_ICON[id];
+            return (
+              <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolHint(t, id, false)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                <Icon className="h-3.5 w-3.5" />
+                {toolLabel(t, id)}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {drawing && (
         <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
           {(['room', 'wall', 'divider'] as const).map((id) => {

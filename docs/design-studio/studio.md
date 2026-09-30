@@ -43,8 +43,9 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
 (`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
 (`Tray`), one at a time — build (tools + the wall's shape + thickness + the unlock button; a
-drawing tool switches to the 2D view; the tools are select, the drawing tile, door, window,
-column and beam — no pan tile, because on the 2D board, in every category, the select tool
+drawing tool switches to the 2D view; the tools are select, the drawing tile, doors & windows
+(one tile — "კარ-ფანჯარა" — with the door, the window, the plain opening and the balcony's
+railing beside it while it is in hand), column and beam — no pan tile, because on the 2D board, in every category, the select tool
 slides the view when dragged from the empty sheet or from anything that cannot move there, as
 [plan-board.md](plan-board.md#the-2d-board-componentsplanplaneditortsx) describes), furniture (the catalogue as a shelf of small tiles —
 a picture and a price — browsed by room and then by kind, narrowed by colour swatches; click

@@ -132,6 +132,20 @@ Each of these cost real debugging time. Don't undo them.
     than its hole. Each part now sits inside a `Group` of its own that carries the stretch and
     the hinge offset. `stretchTo` and `reframe` are fine because they scale the model's root.
 
+## A gap to the top of the wall: a balcony's railing
+
+Every hole in a wall stopped 2 cm under its top and 2 cm in from its ends, and the wall's top was
+one quad over the whole piece. A railing's gap (`lib/design/openings.ts`) has no wall above it,
+so `buildScene` cuts it from the floor to the wall's full height and from corner to corner, and
+`buildWallGeometry` cuts the top too wherever a gap reaches it — each stretch of the top drawn
+from whichever of its two sides is longer, since at a mitred corner what is left is a triangle.
+A gap given as running past the edge's end (`left: -Infinity` / `right: Infinity`) takes the
+corner's triangle and the piece's end face with it: `buildScene` asks for that only when the next
+side's railing runs into the same corner, so two railings meet with no post of wall between them
+while a railing against a standing wall leaves that wall's mitred end whole. `WallHole.floor`
+closes the gap's floor across the wall's depth (the slab running out under the railing). Tested
+in `tests/unit/design/railings.test.ts`.
+
 ## Wall-mounted geometry: use `edge.facing`, never the edge direction
 
 `edge.facing` is the rotation that puts a box's **width along the wall** and its **depth

@@ -536,6 +536,8 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
         seen.add(key);
       }
       if (!all && opening.origin !== 'user') continue;
+      // A balcony's railing is not sold and not fitted: it stands in the price nowhere.
+      if (opening.kind === 'railing') continue;
       if (opening.product && opening.kind !== 'archway') {
         const label: ProductLabelKey = opening.kind === 'window' ? 'window' : opening.exterior ? 'entrance_door' : 'door';
         const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, label, qty: 0, total: 0, rooms: new Set<string>() };
@@ -555,7 +557,7 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
   return lines;
 }
 
-/** What a door or window without a product is estimated at: a window by its area, a door apiece, the material weighing in. */
+/** What a door or window without a product is estimated at: a window by its area, a door apiece, the material weighing in. Nothing for an archway or a railing. */
 export function openingEstimate(opening: Pick<Opening, 'kind' | 'exterior' | 'material' | 'widthM' | 'heightM'>): { qty: number; unit: 'piece' | 'm2'; unitPrice: number; total: number } | null {
   const factor = OPENING_MATERIAL_FACTOR[opening.material ?? 'pvc'] ?? 1;
   if (opening.kind === 'window') {
@@ -563,7 +565,7 @@ export function openingEstimate(opening: Pick<Opening, 'kind' | 'exterior' | 'ma
     const unitPrice = round2(OPENING_ESTIMATE_GEL.window * factor);
     return { qty: area, unit: 'm2', unitPrice, total: round2(area * unitPrice) };
   }
-  if (opening.kind === 'archway') return null;
+  if (opening.kind === 'archway' || opening.kind === 'railing') return null;
   const base = opening.exterior ? ENTRANCE_DOOR_GEL : OPENING_ESTIMATE_GEL.door;
   const unitPrice = round2(base * (opening.material ? OPENING_MATERIAL_FACTOR[opening.material] ?? 1 : 1));
   return { qty: 1, unit: 'piece', unitPrice, total: unitPrice };

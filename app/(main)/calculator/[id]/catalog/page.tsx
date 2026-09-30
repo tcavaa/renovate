@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';
-import { MIN_LISTED_WALL_M, RoomFinishCards, type FinishTarget } from '@/components/calculator/RoomFinishCards';
+import { RoomFinishCards, isListedWall, type FinishTarget } from '@/components/calculator/RoomFinishCards';
 import { RoomRow } from '@/components/calculator/RoomRow';
 import { ProductCard } from '@/components/catalog/ProductCard';
 import { StepHeader } from '@/components/flow/StepHeader';
@@ -102,15 +102,17 @@ export default function CatalogStepPage() {
   const finishes = room ? roomFinishesOf(selectedProducts, room) : null;
   const oneByOne = !!room && !!finishes && (finishes.byWall ? true : finishes.walls ? false : !!perWall[room.id]);
   const wallAreas = room ? roomWallAreasM2(room) : [];
-  // The walls the list offers: not a room separator's open edge, nor a sliver (`MIN_LISTED_WALL_M`).
+  // The walls the list offers: not a room separator's open edge, nor a sliver, nor a side a
+  // railing has taken all of (`isListedWall`).
   const wallLengths = room ? roomWalls(room) : [];
+  const listed = (i: number) => isListedWall(wallLengths[i] ?? 0, wallAreas[i] ?? 0);
   // What the grid is choosing for, as the room has it: a second floor product only once there
   // is a first, one wall only while the walls are chosen one by one.
   const aim: FinishTarget =
     target.surface === 'floor'
       ? { surface: 'floor', slot: target.slot === 1 && (finishes?.floor.length ?? 0) > 0 ? 1 : 0 }
       : oneByOne
-        ? { surface: 'wall', wall: target.wall != null && (wallLengths[target.wall] ?? 0) >= MIN_LISTED_WALL_M ? target.wall : Math.max(0, wallLengths.findIndex((l) => l >= MIN_LISTED_WALL_M)) }
+        ? { surface: 'wall', wall: target.wall != null && listed(target.wall) ? target.wall : Math.max(0, wallLengths.findIndex((_, i) => listed(i))) }
         : { surface: 'wall', wall: null };
   const surface: FinishSurface = aim.surface;
   const aimed = !finishes ? null : aim.surface === 'floor' ? (finishes.floor[aim.slot]?.[1] ?? null) : aim.wall == null ? (finishes.walls?.[1] ?? null) : (finishes.byWall?.[aim.wall] ?? null);
