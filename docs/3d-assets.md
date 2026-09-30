@@ -17,24 +17,99 @@ doors, windows and radiators — their models' framing rules) ·
 
 | Command | Script | Output |
 |---|---|---|
-| `pnpm assets:extract` | `scripts/extract-assets.sh` | product renders → `public/uploads/furniture/`, PBR maps → `public/textures/`, from the partner asset drop (outside the repo) |
-| `pnpm models:convert [--only=a,b]` | `scripts/convert-models.ts` (+ `scripts/lib/objGroups.ts`, `textureClassify.ts`) | the partner's OBJ exports → textured, meshopt-compressed, validated GLBs in `public/models/` + `public/models/manifest.json` (17 entries) |
+| `pnpm assets:extract` | `scripts/extract-assets.sh` | product renders → `public/uploads/furniture/`, PBR maps → `public/textures/` as WebP (it runs `textures:webp`), from the partner asset drop (outside the repo) |
+| `pnpm models:convert [--only=a,b]` | `scripts/convert-models.ts` (+ `scripts/lib/objGroups.ts`, `textureClassify.ts`) | the partner's OBJ exports → textured, compressed, validated GLBs in `public/models/` + `public/models/manifest.json` (17 entries) |
 | `pnpm models:stock [--inspect] [--only=…]` | `scripts/stock-models.ts` | CC0 stock furniture (Poly Haven + Kenney) → `public/models/stock/` + its `manifest.json` |
 | `pnpm models:fixtures` | `scripts/fixture-models.ts` | sockets, switches, lamps, doors and windows (Poly Haven, poly.pizza) → `public/models/fixtures/` + manifest, and the generated `lib/design3d/fixtureManifest.ts` |
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
 | `pnpm models:railings` | `scripts/railing-models.ts` | the balcony railing written in code with the radiators' mesh kit: one metre module (a handrail, a bottom rail, eight balusters, half a post at each end) centred on x with an x-extent of exactly its pitch, standing on y = 0, centred on z → `public/models/railings/railing.glb` + manifest + the generated `lib/design3d/railingManifest.ts`. Not a product — no photo, nothing seeded; the studio repeats the module along a railing's gap ([technical-and-fittings.md](design-studio/technical-and-fittings.md#balcony-railings)) |
 | `pnpm models:equipment [--only=a,b]` | `scripts/equipment-models.ts` | twelve pieces of technical equipment (electrical panels, a boiler, a water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain, TV and data sockets) from CC0 / CC BY / CC BY-SA sources → `public/models/equipment/` + manifest + the generated `lib/design3d/equipmentManifest.ts` ([below](#equipment-models-scriptsequipment-modelsts)) |
 | `pnpm models:kitchens [--only=a,b]` | `scripts/kitchen-models.ts` | one straight kitchen run per kitchen-maker material (LDSP, MDF, veneer), a CC BY source re-textured three ways → `public/models/kitchens/` + manifest ([below](#kitchen-runs-scriptskitchen-modelsts)) |
-| `pnpm models:photos [--only=a,b]` | `scripts/model-photos.ts` | a product photo per fixture, radiator, piece of equipment and kitchen run, rendered from the model in Playwright's Chromium |
+| `pnpm models:photos [--only=a,b]` | `scripts/model-photos.ts` | a product photo per fixture, radiator, piece of equipment and kitchen run, rendered from the model in Playwright's Chromium, written as WebP with its transparency |
+| `pnpm photos:webp [--dry-run]` | `scripts/webp-photos.ts` (+ `lib/uploads/imageOptimize.ts`, `scripts/lib/photos.ts`) | every seed picture in `public/uploads/products` and `/furniture` as WebP, the manifests' `imageUrl` following ([below](#photos-are-webp)) |
 | `pnpm models:colors [--force]` | `scripts/model-colors.ts` (+ `scripts/lib/modelColor.ts`) | each furniture model's colours read off its triangles into the manifests |
 | `pnpm textures:stock` | `scripts/stock-textures.ts` | ~35 floor/wall finish textures (partner drop, Poly Haven, ambientCG) written straight to the database as surface products, thumbnails in `public/uploads/products/`, each finish's colours read off its texture into `specs.colors` |
+| `pnpm textures:webp [--dry-run]` | `scripts/webp-textures.ts` (+ `lib/uploads/textureOptimize.ts`) | every JPEG or PNG in `public/textures` replaced by `<name>.webp` ([below](#finish-textures-are-webp)) |
 | `pnpm textures:colors [--force]` | `scripts/texture-colors.ts` (+ `lib/uploads/textureColors.ts`) | every textured product's colours read off its texture into `specs.colors`, for the finishes' colour filter — only what is missing unless `--force`; the textures the product form uploads get theirs as they arrive |
 | `pnpm models:seed` | `scripts/seed-models.ts` | the catalogue made to match the manifests (below) |
 | `pnpm deploy:bundle-seed` | esbuild | `models:seed` as one plain-node file beside the standalone server (the cPanel deploy runs it) |
+| `pnpm models:compress [--only=a,b] [--dry-run]` | `scripts/compress-models.ts` (+ `scripts/lib/compressModels.ts`) | every model as the studio downloads it: WebP textures, Draco geometry where that pays ([below](#compression-webp-and-draco)). The last step of every model pipeline above; on its own for the files already there |
+| `pnpm uploads:optimize-models [--dry-run]` | `scripts/optimize-stored-models.ts` (+ `lib/uploads/optimizeStored.ts`) | the upload recipe run again over the models already stored (admin products, own furniture), in place ([below](#uploads-are-optimized)) |
+| `pnpm deploy:bundle-optimize` | esbuild | that script as `optimize-models.cjs` beside the standalone server (the cPanel deploy runs it with `--dir` on the shared uploads) |
+| `pnpm draco:decoder` | `scripts/copy-draco-decoder.mjs` | three's Draco decoder (glTF build) copied into `public/vendor/draco` for the browser's loaders; the copy is committed |
 
 Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts`,
 `railingManifest.ts`, the manifests) are never edited by hand — change the script's source list
 and re-run it.
+
+## Compression: WebP and Draco
+
+Every model in `public/models` is downloaded compressed two ways (`scripts/lib/compressModels.ts`,
+run as the last step of each pipeline and as `pnpm models:compress`):
+
+- **Textures are WebP** at quality 80 (`EXT_texture_webp`, required), at the size they have —
+  colour maps capped at 2048 px, data maps at 1024, as for uploads. Textures were 75 % of the
+  models' bytes; the partner models' 1024-pixel JPEGs (400–785 KB each) and Poly Haven's and the
+  fixtures' maps come to about half as WebP. The pipelines write WebP themselves too
+  (`compressTextures` in `scripts/lib/gltfPipeline.ts`).
+- **Geometry is Draco** (`KHR_draco_mesh_compression`: positions 14 bits, normals 10, texture
+  coordinates 12 — `DRACO_OPTIONS` in `lib/uploads/glbOptimize.ts`) where that pays: at least
+  24 KB of geometry (`DRACO_MIN_GEOMETRY_BYTES`) and at least 16 KB saved against meshopt.
+  Measured on the partner and stock models, Draco geometry is about 40 % of meshopt's as the
+  studio serves it (the production host does not gzip GLBs; meshopt with brotli was still about
+  1.6 times Draco). Everything else — sockets, switches, Kenney's pieces — stays meshopt, which
+  the browser decodes without a worker round trip.
+
+Glass is stored plain too (`plainGlassMaterials`, the upload recipe's): the five models that had
+`KHR_materials_transmission` — the wall clock, three pendants, the "Industrial" wall lamp — are
+alpha-blended glass in their files. A file already WebP and Draco (or too small for Draco) with no
+transmission is not even decoded, so re-running is quick and idempotent; the manifests' `bytes`
+follow the files. Applied to the whole library
+(1 Oct 2026): 54 MB → 32 MB with WebP → 23 MB with Draco, 98 of 221 models Draco. Every reader of
+the files understands both — the studio and the catalogue's turntable (`DRACO_DECODER_PATH`),
+the admin uploader's preview, the photo renderer (three's decoder from `node_modules`),
+`scripts/lib/modelColor.ts` and the upload recipe (`draco3d`, a server external).
+
+## Finish textures are WebP
+
+The floor and wall maps in `public/textures` (colour, normal and roughness, 1024 px) are WebP:
+colour and roughness maps at quality 80, **normal maps at 90 with sharp YUV** — lossy WebP keeps
+colour at half resolution, and a normal map's colour is a direction; at 80 the median map's
+normals moved 2° and tile grout came out visibly harder under raking light, at 90 the median is
+1.4° (`lib/uploads/textureOptimize.ts`, which tells a normal map by its name). The JPEGs were saved
+near quality 100: 93 maps went from 47 MB to 9.2 MB. `pnpm textures:webp` converts whatever is not
+WebP yet (and `pnpm assets:extract` runs it); `pnpm textures:stock` converts what it downloads;
+a texture uploaded in the product form (`/api/upload`, folder `textures`) is stored as WebP within
+2048 px. The names stayed, so only the extension changed: **migration 0021** rewrote the stored
+URLs — products' `texture_url` and `specs`, saved designs (scene, plan, calculator board, versions;
+their revisions moved on so a cached copy does not write the JPEGs back) and the brigade portfolio
+photos — matching only a path that starts at `/textures/` (an uploaded `/uploads/textures/…` keeps
+its name). `next.config.mjs` redirects any `/textures/….jpg` still asked for to its `.webp`, for a
+page, a browser's cached design or an order made before.
+
+## Photos are WebP
+
+Every picture is WebP, at quality 85 within 1600 px with a render's transparency kept
+(`lib/uploads/imageOptimize.ts`):
+
+- **Uploads** — `/api/upload` (a product's, a brigade's, a store's, a category's photo; a texture
+  goes through the texture encoder above) and a person's own furniture (`/api/design/models`, its
+  turntable photo or a photo on its own). A GIF, a WebP within size or a file WebP would not make
+  smaller is kept as it came.
+- **The seed pictures** in `public/uploads/products` and `/furniture` — 327 of them, 89.7 MB of PNG
+  and JPEG, now 7.4 MB — by `pnpm photos:webp`, which leaves runtime uploads alone
+  (`isRuntimeUploadKey`: a `<timestamp>-<hex>` or `own-<user>-…` name) and points the model
+  manifests' `imageUrl` at the `.webp`, so `models:seed` and the deploy's catalogue sync name them.
+  The pipelines that render, fetch or copy a photo write WebP themselves (`scripts/lib/photos.ts`:
+  `models:photos`, the fixtures', stock and partner photos, `textures:stock`'s thumbnails), and
+  the seed catalogue's default photo is `/uploads/products/<slug>.webp`.
+- **Migration 0022** rewrote the stored URLs — products' `image_url` and `images`, the product
+  snapshots in saved designs and the calculator's picks (their revisions moved on) — for seed names
+  only: a runtime upload's name starts with a digit or `own-<digit>` and keeps its format.
+
+The site shows photos through Next's image optimizer, which serves browsers a resized WebP or AVIF
+anyway; what this saves is the uploads' and the repo's weight, the optimizer's first read of a
+large PNG on a slow host, and a raw `<img>` (the plan board's inspector) downloading the original.
 
 ## What `pnpm models:seed` does
 
@@ -80,10 +155,10 @@ cryptically named `.rar` contains.
 The studio scales every model to the product's dimensions (`fitToItem`), so a model in the
 wrong units still renders at the right size; what it cannot fix is orientation — the front
 of a piece has to face +Z with Y up, which is what `pnpm models:convert` produces and what
-the uploader's arrow shows. The upload route also refuses a GLB that *requires* Draco or
-Basis (`lib/uploads/glb.ts`): the studio's loader has neither decoder, and such a file would
-upload fine and then render as nothing. Meshopt is fine. What is stored is not the file as it
-was picked but its optimized copy (next section).
+the uploader's arrow shows. The upload route also refuses a GLB that *requires* Basis (KTX2)
+textures (`lib/uploads/glb.ts`): the studio's loader has no transcoder, and such a file would
+upload fine and then render as nothing. Meshopt and Draco are fine. What is stored is not the
+file as it was picked but its optimized copy (next section).
 
 ## Uploads are optimized
 
@@ -98,8 +173,15 @@ recipe (`glbOptimize.ts`, isomorphic):
   far as 0.01 % of the model's size — coplanar triangles merge, nothing visible moves. A model
   still over **100 000 triangles** is taken down to that in steps of 0.05 %, 0.1 % and 0.2 % of
   its size and no further. `prune` keeps empty nodes (a model's named parts are its own
-  business), and `meshopt` (level `high`) quantises and compresses, which the studio's
-  `MeshoptDecoder` already reads. No `flatten` and no `join`: the node tree stays as uploaded.
+  business). Then compressed: **Draco on the server** (`geometry: 'draco'`, the stored file;
+  about 40 % of meshopt's bytes as served), **meshopt (level `high`) in the browser**, which has
+  no Draco encoder and only has to make the file small enough to send — the server rewrites that
+  geometry as Draco and keeps its WebP textures. The studio reads both. No `flatten` and no
+  `join`: the node tree stays as uploaded.
+- **Glass**: a material with `KHR_materials_transmission` is stored as plain alpha-blended
+  glass (`plainGlassMaterials`; the more it let through, the clearer): transmission makes three
+  render the whole flat twice every frame the piece is on screen. The studio's loader does the
+  same to any older file that still carries it.
 - **Textures**: WebP (`EXT_texture_webp`, required — three's loader reads it natively). The
   **colour map keeps up to 2048 px**; normal, metallic-roughness and occlusion maps go to
   1024 px (`getTextureColorSpace` tells them apart). Shrinking the colour map too was tried
@@ -121,10 +203,12 @@ the pages' initial JavaScript) and re-encodes textures through a canvas; the upl
 the 4.5 MB a Vercel function accepts. A browser that cannot write WebP (Safari: `convertToBlob`
 quietly answers with a PNG) shrinks an oversized JPEG as a JPEG and leaves the rest — the
 geometry is still compressed, and the three uploads below came to 1.8–3.6 MB that way. Then in
-the route — `optimizeUploadedModel` (`glbOptimizeServer.ts`, sharp, Lanczos) in
-`/api/upload/model` and `/api/design/models` — which keeps a browser-optimized file as it is
-and finishes any other: a Safari upload, a failed browser pass, a script posting straight to
-the route. The log says which: `model uploaded` (and `own model added`) carries
+the route — `optimizeUploadedModel` (`glbOptimizeServer.ts`, sharp, Lanczos, and `draco3d`,
+kept outside the server bundle by `serverExternalPackages` because it reads its `.wasm` beside
+itself) in `/api/upload/model` and `/api/design/models` — which rewrites a browser-optimized
+file's geometry as Draco, keeping its WebP textures, and finishes any other: a Safari upload, a
+failed browser pass, a script posting straight to the route. A file already Draco and WebP
+within its caps is kept byte for byte. The log says which: `model uploaded` (and `own model added`) carries
 `optimized: server | already-optimized | not-smaller | failed` beside the bytes received, and
 `model optimized` the bytes, triangles and time of a pass the route did itself.
 
@@ -137,7 +221,17 @@ textures halves (67 → 34 MB: a decoded 2048-pixel map is 22 MB with its mipmap
 file format). The browser pass took about 1.2 s for each of them in Chrome on the same
 machine, the 21 MB scan included, plus the chunk's download the first time; expect a slower
 laptop or a phone to take several times that. In the dev server the route's pass is slower
-too (about 1.5 s for the figure).
+too (about 1.5 s for the figure). With Draco on the server the same three came to 0.32, 0.73 and 0.75 MB.
+
+**Models stored before the recipe existed** — or before it wrote Draco — are optimized in place
+by `pnpm uploads:optimize-models` (`lib/uploads/optimizeStored.ts` over the storage's
+`models/`, local or S3) and, on the cPanel host, by the deploy itself: the `cPanel build`
+workflow bundles the script as `.next/standalone/optimize-models.cjs` (`deploy:bundle-optimize`,
+`sharp` and `draco3d` left to the standalone's `node_modules`) and `deploy/cpanel.sh` runs it with
+`--dir` on the shared uploads' `models/` after the catalogue sync. Each file keeps its name, so
+the product rows and saved designs that point at it keep working; a browser's cached old copy is
+still a valid model. Idempotent: an optimized file is left alone. Locally it took the three old
+uploads from 35.4 MB to 1.7 MB (originals kept in `~/Desktop/Projects/RenovationRoom-backups`).
 
 ## Every object is a GLB
 
@@ -394,13 +488,14 @@ material names themselves, and their photos are worth a look side by side).
 
 ## Known gaps
 
-- Models uploaded before uploads were optimized are stored as they came (locally products #500
-  and #503, 5.7 and 8.4 MB); uploading the file again in the product form replaces it with an
-  optimized copy. Nothing re-optimizes stored files in bulk.
 - The optimizer keeps texture resolution for colour maps, so an upload's textures still take
   about 34 MB of GPU memory against 17 MB for a converted model. KTX2 (Basis) would keep 2048
   pixels at a fraction of that, but needs a transcoder in the studio and an encoder on the
   server, and the upload route refuses Basis today.
+- **Finish textures uploaded before they were converted keep their JPEG or PNG**
+  (`/uploads/textures/…`; locally one, product #558). New uploads are WebP; renaming an old one
+  would mean rewriting every saved design that names it, which migration 0021 does only for
+  `/textures/…`.
 - The mouldings are swept from five profiles; a real cornice range has dozens, and nothing
   reads a profile out of a supplier's drawing. Curtains, still, have no model anywhere.
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**

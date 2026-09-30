@@ -112,7 +112,8 @@ and the larger is the one drawn over it.
 **A partner or admin adds one in the product form** (`/admin/products/new`, or
 `/partner/products/new` for a store): a category under laminate, floor tiles, wall tiles or
 paint turns the form's 3D section into **"finish for the studio"** — the style tags, the
-texture (a square, seamlessly repeating photo, uploaded to `textures/`), where it goes (floor,
+texture (a square, seamlessly repeating photo, uploaded to `textures/` and stored as WebP —
+[../3d-assets.md](../3d-assets.md#finish-textures-are-webp)), where it goes (floor,
 walls or both — required once there is a texture), water-resistant for bathrooms, the pattern
 repeat in metres (a 2 × 2 m preview shows it tiled at that size), what one unit covers when it
 is not sold by the m² (a litre of paint, a pack of laminate) and the colour shown until the

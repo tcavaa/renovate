@@ -11,26 +11,26 @@
  * The sources' own thumbnails come on coloured gradients that look nothing like a product
  * photo, so each model is rendered here the way the studio shows it — its own materials, a
  * soft three-point light, a slight three-quarter view from the room side — onto a
- * transparent PNG (`public/uploads/furniture/fixture-<slug>.png`), and the manifest's
+ * transparent WebP (`public/uploads/furniture/fixture-<slug>.webp`), and the manifest's
  * `imageUrl` is pointed at it so `pnpm models:seed` picks it up. Rendering runs in
  * Playwright's Chromium (the e2e suite's), with three.js served from node_modules.
  *
  * A radiator's file is ONE section, which nobody would recognise, so its photo is the
  * section repeated eight times at its pitch — a radiator — written to
- * `public/uploads/furniture/radiator-<name>.png`, the path `pnpm models:radiators` has
+ * `public/uploads/furniture/radiator-<name>.webp`, the path `pnpm models:radiators` has
  * already put in that manifest.
  *
  * The equipment (`pnpm models:equipment`) is photographed the same way, from a view that
  * suits its frame — a wall piece from the front and a little to the side, an air conditioner
  * from just below (its outlet is what tells it apart), a floor drain from above — with no
  * lamp glow, to the `imageUrl` its manifest already names
- * (`public/uploads/furniture/equipment-<slug>.png`). A kitchen run (`pnpm models:kitchens`) is
+ * (`public/uploads/furniture/equipment-<slug>.webp`). A kitchen run (`pnpm models:kitchens`) is
  * photographed standing on its shadow, from the front and a little to the side, to
- * `public/uploads/furniture/kitchen-<slug>.png`.
+ * `public/uploads/furniture/kitchen-<slug>.webp`.
  */
 
 import { existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -39,6 +39,7 @@ import type { EquipmentManifestModel } from './equipment-models';
 import type { FixtureManifestModel } from './fixture-models';
 import type { KitchenManifestModel } from './kitchen-models';
 import type { RadiatorManifestModel } from './radiator-models';
+import { writePhotoWebp } from './lib/photos';
 
 const ROOT = process.cwd();
 const MANIFEST = path.join(ROOT, 'public', 'models', 'fixtures', 'manifest.json');
@@ -59,6 +60,7 @@ const PAGE = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;bac
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 const size = ${SIZE};
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setSize(size, size);
@@ -72,6 +74,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
+// The larger models' geometry is Draco (pnpm models:compress); three's decoder, from node_modules too.
+loader.setDRACOLoader(new DRACOLoader().setDecoderPath('/node_modules/three/examples/jsm/libs/draco/gltf/').setDecoderConfig({ type: 'wasm' }));
 
 window.renderModel = async (url, mount, row, view) => {
   const scene = new THREE.Scene();
@@ -207,13 +211,11 @@ async function main() {
       process.stdout.write(`• ${model.slug} `);
       try {
         const png = await render(model.url, model.mount, null);
-        const file = path.join(PHOTO_DIR, `fixture-${model.slug}.png`);
-        await writeFile(file, png);
-        // The source's thumbnail, if one was fetched, is superseded.
-        await rm(path.join(PHOTO_DIR, `fixture-${model.slug}.jpg`), { force: true });
-        model.imageUrl = `/uploads/furniture/fixture-${model.slug}.png`;
+        // WebP with its transparency; the source's thumbnail, if one was fetched, is superseded.
+        const file = await writePhotoWebp(png, path.join(PHOTO_DIR, `fixture-${model.slug}.webp`));
+        model.imageUrl = `/uploads/furniture/fixture-${model.slug}.webp`;
         done++;
-        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+        console.log(`✓ ${((await stat(file)).size / 1024).toFixed(0)} KB`);
       } catch (error) {
         console.log(`✗ ${(error as Error).message}`);
         process.exitCode = 1;
@@ -225,9 +227,10 @@ async function main() {
       process.stdout.write(`• ${model.slug} ×${RADIATOR_SECTIONS} `);
       try {
         const png = await render(model.url, 'radiator', { count: RADIATOR_SECTIONS, pitch: model.sectionWidthCm / 100 });
-        await writeFile(path.join(ROOT, 'public', model.imageUrl), png);
+        // Written as WebP whatever the manifest's extension (the pipelines name `.webp`).
+        const file = await writePhotoWebp(png, path.join(ROOT, 'public', model.imageUrl));
         done++;
-        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+        console.log(`✓ ${((await stat(file)).size / 1024).toFixed(0)} KB`);
       } catch (error) {
         console.log(`✗ ${(error as Error).message}`);
         process.exitCode = 1;
@@ -237,9 +240,10 @@ async function main() {
       process.stdout.write(`• ${model.slug} `);
       try {
         const png = await render(model.url, `equipment-${model.frame}`, null, equipmentView(model));
-        await writeFile(path.join(ROOT, 'public', model.imageUrl), png);
+        // Written as WebP whatever the manifest's extension (the pipelines name `.webp`).
+        const file = await writePhotoWebp(png, path.join(ROOT, 'public', model.imageUrl));
         done++;
-        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+        console.log(`✓ ${((await stat(file)).size / 1024).toFixed(0)} KB`);
       } catch (error) {
         console.log(`✗ ${(error as Error).message}`);
         process.exitCode = 1;
@@ -249,9 +253,10 @@ async function main() {
       process.stdout.write(`• ${model.slug} `);
       try {
         const png = await render(model.url, 'kitchen', null, [0.5, 0.3, 1]);
-        await writeFile(path.join(ROOT, 'public', model.imageUrl), png);
+        // Written as WebP whatever the manifest's extension (the pipelines name `.webp`).
+        const file = await writePhotoWebp(png, path.join(ROOT, 'public', model.imageUrl));
         done++;
-        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+        console.log(`✓ ${((await stat(file)).size / 1024).toFixed(0)} KB`);
       } catch (error) {
         console.log(`✗ ${(error as Error).message}`);
         process.exitCode = 1;

@@ -74,6 +74,9 @@ jobs:
           # so deploy/cpanel.sh can make the database match the model manifests on a host
           # that has no tsx and no node_modules of its own.
           pnpm deploy:bundle-seed
+          # The upload recipe for the models stored before uploads were optimized (sharp stays
+          # outside the bundle: the standalone server's node_modules has it).
+          pnpm deploy:bundle-optimize
           printf '%s\n%s\n' "${GITHUB_SHA}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .next/standalone/.prebuilt
           du -sh .next/standalone
 

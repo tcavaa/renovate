@@ -2,8 +2,9 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { Document, getBounds, NodeIO, type Texture } from '@gltf-transform/core';
 import { dequantize } from '@gltf-transform/functions';
-import { configureGlbIO, countTriangles, optimizeGlb, type TextureEncoder } from '@/lib/uploads/glbOptimize';
-import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
+import { countTriangles, optimizeGlb, plainGlassMaterials, type TextureEncoder } from '@/lib/uploads/glbOptimize';
+import { KHRMaterialsTransmission } from '@gltf-transform/extensions';
+import { glbServerIO, optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 
 /**
  * The upload recipe on files made here: a sphere of float geometry with JPEG textures, the
@@ -11,7 +12,8 @@ import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
  * the caps are shrunk to match.
  */
 
-const io = configureGlbIO(new NodeIO());
+// The server's IO: it reads the Draco the server writes as well as meshopt.
+const io = await glbServerIO();
 
 /** A gradient with a little noise, so neither JPEG nor WebP can make it vanish. */
 async function jpeg(size: number): Promise<Uint8Array> {
@@ -88,7 +90,7 @@ function textureNamed(doc: Document, name: string): Texture {
 }
 
 describe('optimizing an uploaded GLB', () => {
-  it('compresses the geometry and turns the textures into WebP, the colour map larger than the data maps', async () => {
+  it('compresses the geometry with Draco and turns the textures into WebP, the colour map larger than the data maps', async () => {
     const input = await sphereGlb(96, 48);
     const { body, result } = await optimizeUploadedModel(Buffer.from(input), { colourTexturePx: 128, dataTexturePx: 64 });
 
@@ -96,7 +98,8 @@ describe('optimizing an uploaded GLB', () => {
     expect(body.byteLength).toBeLessThan(input.byteLength / 2);
     const out = await io.readBinary(body);
     const used = out.getRoot().listExtensionsUsed().map((e) => e.extensionName);
-    expect(used).toContain('EXT_meshopt_compression');
+    expect(used).toContain('KHR_draco_mesh_compression');
+    expect(used).not.toContain('EXT_meshopt_compression');
     expect(used).toContain('EXT_texture_webp');
     expect(out.getRoot().listExtensionsRequired().map((e) => e.extensionName)).toContain('EXT_texture_webp');
     expect(textureNamed(out, 'colour').getMimeType()).toBe('image/webp');
@@ -123,6 +126,47 @@ describe('optimizing an uploaded GLB', () => {
     expect(result.stats.trianglesIn).toBe(256 * 128 * 2);
     expect(result.stats.trianglesOut).toBeLessThanOrEqual(8000 * 1.1);
     extent(await read(result.bytes)).forEach((size, i) => expect(size).toBeCloseTo(extent(before)[i], 1));
+  });
+
+  it('gives a browser-optimized file (meshopt, WebP) Draco geometry on the server and keeps its textures', async () => {
+    const input = await sphereGlb(96, 48, 64);
+    const sharpWebp: TextureEncoder = async (image) => ({ image: new Uint8Array(await sharp(image).webp().toBuffer()), mimeType: 'image/webp' });
+    const browser = await optimizeGlb(io, input, sharpWebp);
+    if (browser.status !== 'optimized') throw new Error(`kept: ${browser.reason}`);
+    expect((await io.readBinary(browser.bytes)).getRoot().listExtensionsUsed().map((e) => e.extensionName)).toContain('EXT_meshopt_compression');
+
+    const { body, result } = await optimizeUploadedModel(Buffer.from(browser.bytes));
+    if (result.status !== 'optimized') throw new Error(`kept: ${result.reason}`);
+    expect(result.stats.texturesEncoded).toBe(0);
+    expect(body.byteLength).toBeLessThan(browser.bytes.byteLength);
+    const out = await io.readBinary(body);
+    const used = out.getRoot().listExtensionsUsed().map((e) => e.extensionName);
+    expect(used).toContain('KHR_draco_mesh_compression');
+    expect(used).not.toContain('EXT_meshopt_compression');
+    const before = extent(await read(input));
+    extent(await read(body)).forEach((size, i) => expect(size).toBeCloseTo(before[i], 2));
+  });
+
+  it('stores glass as plain transparency, so the studio never renders the flat twice for it', async () => {
+    const doc = await io.readBinary(await sphereGlb(24, 12, 16));
+    const material = doc.getRoot().listMaterials()[0];
+    const transmission = doc.createExtension(KHRMaterialsTransmission);
+    material.setExtension('KHR_materials_transmission', transmission.createTransmission().setTransmissionFactor(1));
+    const input = await io.writeBinary(doc);
+
+    const { body, result } = await optimizeUploadedModel(Buffer.from(input));
+    expect(result.status).toBe('optimized');
+    const out = await io.readBinary(body);
+    expect(out.getRoot().listExtensionsUsed().map((e) => e.extensionName)).not.toContain('KHR_materials_transmission');
+    const glass = out.getRoot().listMaterials()[0];
+    expect(glass.getAlphaMode()).toBe('BLEND');
+    expect(glass.getBaseColorFactor()[3]).toBeCloseTo(0.3, 5);
+
+    // Nothing left to change the second time; an opaque material is never touched.
+    expect(plainGlassMaterials(out)).toBe(0);
+    const plain = await io.readBinary(await sphereGlb(8, 4, 16));
+    expect(plainGlassMaterials(plain)).toBe(0);
+    expect(plain.getRoot().listMaterials()[0].getAlphaMode()).toBe('OPAQUE');
   });
 
   it('keeps a file it has already optimized byte for byte', async () => {

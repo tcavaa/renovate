@@ -31,7 +31,7 @@ const room: PlanRoom = refreshRoom({
 const plan: FloorPlan = { rooms: [room], metresPerPixel: null, bounds: { width: 4, depth: 4 }, source: 'manual', wallThicknessM: 0.12 };
 
 const product = (id: number, pricePerM2: number, surfaces: Array<'floor' | 'wall'> = ['floor', 'wall']): CatalogProduct =>
-  ({ id, nameKa: `p${id}`, slug: `p${id}`, brand: null, categorySlug: 'paint', pricePerUnit: pricePerM2, unit: 'm2', imageUrl: null, colorHex: '#886644', textureUrl: `/textures/p${id}.jpg`, model3dKind: null, model3dUrl: null, widthCm: null, depthCm: null, heightCm: null, styleTags: [], tags: [], isFeatured: false, specs: { surfaces }, coveragePerUnit: null, store: null }) as CatalogProduct;
+  ({ id, nameKa: `p${id}`, slug: `p${id}`, brand: null, categorySlug: 'paint', pricePerUnit: pricePerM2, unit: 'm2', imageUrl: null, colorHex: '#886644', textureUrl: `/textures/p${id}.webp`, model3dKind: null, model3dUrl: null, widthCm: null, depthCm: null, heightCm: null, styleTags: [], tags: [], isFeatured: false, specs: { surfaces }, coveragePerUnit: null, store: null }) as CatalogProduct;
 
 const walls = (id: number, price = 10) => finishFromProduct(room, 'wall', product(id, price));
 const floor = (id: number, price = 10) => finishFromProduct(room, 'floor', product(id, price));

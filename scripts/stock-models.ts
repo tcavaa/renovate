@@ -29,8 +29,7 @@
 import './lib/loadEnv';
 
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Document, NodeIO, type Primitive } from '@gltf-transform/core';
@@ -41,6 +40,9 @@ import { ARCHETYPES } from '../lib/design/catalog';
 import type { StyleId } from '../lib/design/types';
 import type { ManifestModel } from './convert-models';
 import { colorsOfDocument } from './lib/modelColor';
+import { compressModels } from './lib/compressModels';
+import { writePhotoWebp } from './lib/photos';
+import { compressTextures } from './lib/gltfPipeline';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -390,6 +392,8 @@ async function main() {
 
   const total = models.reduce((sum, m) => sum + m.bytes, 0) / 1024 / 1024;
   console.log(`\n${models.length} stock models in manifest · ${total.toFixed(1)} MB · ${path.relative(ROOT, OUT_DIR)}`);
+  // The library as the studio downloads it: WebP maps, Draco geometry where that pays.
+  await compressModels();
   const byKind = models.reduce<Record<string, number>>((acc, m) => ((acc[m.kind] = (acc[m.kind] ?? 0) + 1), acc), {});
   console.log(
     `  per kind: ${Object.entries(byKind)
@@ -655,6 +659,8 @@ async function convertOne(
     };
   }
 
+  // WebP maps at quality 80, as every pipeline and the upload recipe write them.
+  await compressTextures(doc, { colourPx: 1024, dataPx: 1024, quality: 80 });
   await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
   const out = path.join(OUT_DIR, `${slug}.glb`);
   await io.write(out, doc);
@@ -663,7 +669,7 @@ async function convertOne(
   // dozen textures. Geometry is rarely the problem, so shrink the maps before giving up.
   for (const [px, limit] of [[512, SOFT_BYTES], [256, MAX_BYTES]] as const) {
     if (bytes <= limit) break;
-    await shrinkTextures(doc, px);
+    await compressTextures(doc, { colourPx: px, dataPx: px, quality: 80 });
     await io.write(out, doc);
     ({ size: bytes } = await stat(out));
     process.stdout.write(`(maps→${px}px) `);
@@ -986,49 +992,15 @@ function listPrimitives(doc: Document): Primitive[] {
   return doc.getRoot().listMeshes().flatMap((m) => m.listPrimitives());
 }
 
-/** Re-encodes every texture at most `px` wide, through sips — no native image module needed. */
-async function shrinkTextures(doc: Document, px: number): Promise<void> {
-  const work = await mkdtemp(path.join(os.tmpdir(), 'rr-stock-tex-'));
-  try {
-    let i = 0;
-    for (const texture of doc.getRoot().listTextures()) {
-      const image = texture.getImage();
-      if (!image) continue;
-      const mime = texture.getMimeType();
-      const ext = mime === 'image/png' ? 'png' : 'jpg';
-      const src = path.join(work, `${i}.${ext}`);
-      const dst = path.join(work, `${i}-small.jpg`);
-      i++;
-      await writeFile(src, image);
-      // Normal maps survive JPEG fine at this size; alpha would not, so PNGs stay PNG.
-      if (ext === 'png') {
-        const dstPng = path.join(work, `${i}-small.png`);
-        await run('sips', ['-Z', String(px), src, '--out', dstPng]);
-        texture.setImage(new Uint8Array(await readFile(dstPng)));
-      } else {
-        await run('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '80', '-Z', String(px), src, '--out', dst]);
-        texture.setImage(new Uint8Array(await readFile(dst))).setMimeType('image/jpeg');
-      }
-    }
-  } finally {
-    await rm(work, { recursive: true, force: true });
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Photos and shell
 // ---------------------------------------------------------------------------
 
-async function placePhoto(source: string, slug: string, kind: Source): Promise<string | null> {
+/** The source's picture of the piece as its product photo, WebP (Kenney's keep their transparency). */
+async function placePhoto(source: string, slug: string, _kind: Source): Promise<string | null> {
   if (!existsSync(source)) return null;
-  if (kind === 'kenney') {
-    const out = path.join(PHOTO_DIR, `stock-${slug}.png`);
-    await copyFile(source, out);
-    return `/uploads/furniture/stock-${slug}.png`;
-  }
-  const out = path.join(PHOTO_DIR, `stock-${slug}.jpg`);
-  await run('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '82', '-Z', '900', source, '--out', out]);
-  return `/uploads/furniture/stock-${slug}.jpg`;
+  await writePhotoWebp(await readFile(source), path.join(PHOTO_DIR, `stock-${slug}.webp`));
+  return `/uploads/furniture/stock-${slug}.webp`;
 }
 
 function run(command: string, args: string[]): Promise<void> {

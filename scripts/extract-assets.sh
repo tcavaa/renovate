@@ -103,12 +103,10 @@ crop() {
 crop "$FURN/ind-tango-chair.jpg"  680 880
 crop "$FURN/vin-rattan-chair.jpg" 670 880
 
-# PNG source maps are 1–2 MB each; JPEG at q78 keeps them under 350 KB with no visible loss
-# on a tiling floor material.
-for f in "$TEX"/*.png; do
-  [ -f "$f" ] || continue
-  sips -s format jpeg -s formatOptions 78 "$f" --out "${f%.png}.jpg" >/dev/null 2>&1 && rm "$f"
-done
+# The maps as the studio downloads them: WebP (colour and roughness at 80, normal maps at 90),
+# each JPEG or PNG replaced by `<name>.webp` (scripts/webp-textures.ts) — and the renders too,
+# as WebP product photos (scripts/webp-photos.ts).
+(cd "$ROOT" && pnpm -s textures:webp && pnpm -s photos:webp)
 
 echo
 echo "done — $ok extracted, $miss skipped"

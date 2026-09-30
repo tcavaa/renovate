@@ -8,6 +8,7 @@ import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
+import { DRACO_DECODER_PATH } from '@/lib/design3d/draco';
 
 /**
  * Upload a furniture GLB for the studio and see it before saving.
@@ -314,16 +315,20 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
 
 /** The turntable with its grid and front arrow, and the model measured — shared with the studio's own-model dialog. */
 export async function mountPreview(host: HTMLElement, url: string): Promise<{ handle: PreviewHandle; measurement: ModelMeasurement }> {
-  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }] = await Promise.all([
+  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }, { DRACOLoader }] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
     import('three/examples/jsm/controls/OrbitControls.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
+    import('three/examples/jsm/loaders/DRACOLoader.js'),
   ]);
 
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(url);
+  // A Draco file (what the upload recipe stores) opens too; the decoder goes once it is read.
+  const draco = new DRACOLoader().setDecoderPath(DRACO_DECODER_PATH).setDecoderConfig({ type: 'wasm' });
+  loader.setDRACOLoader(draco);
+  const gltf = await loader.loadAsync(url).finally(() => draco.dispose());
   const model = gltf.scene;
 
   // Measure in the file's own units, then decide what those units are.

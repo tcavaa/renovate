@@ -43,8 +43,11 @@ import { dedup, getBounds, join, meshopt, prune, simplify, weld } from '@gltf-tr
 import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 
 import { chooseGroups, readGroups, writeFilteredObj, type GroupSelection } from './lib/objGroups';
+import { compressModels } from './lib/compressModels';
+import { existingPhoto, publicUrl, writePhotoWebp } from './lib/photos';
 import { classifyMaps, pickMaps } from './lib/textureClassify';
 import { colorsOfDocument } from './lib/modelColor';
+import { compressTextures } from './lib/gltfPipeline';
 
 const run = promisify(execFile);
 
@@ -485,6 +488,8 @@ async function main() {
 
   const total = models.reduce((sum, m) => sum + m.bytes, 0) / 1024 / 1024;
   console.log(`\n${models.length}/${only ? models.length : SOURCES.length} in manifest · ${total.toFixed(1)} MB · ${path.relative(ROOT, OUT_DIR)}`);
+  // The library as the studio downloads it: WebP maps, Draco geometry where that pays.
+  await compressModels();
   const byStyle = models.reduce<Record<string, number>>((acc, m) => ((acc[m.style] = (acc[m.style] ?? 0) + 1), acc), {});
   console.log(`  per style: ${Object.entries(byStyle).map(([s, n]) => `${s} ${n}`).join(' · ')}`);
 
@@ -554,6 +559,9 @@ async function convertOne(sourceRoot: string, entry: ModelSource): Promise<Manif
 
     // --- materials --------------------------------------------------------
     const textures = await applyMaterial(doc, entry, images, work);
+    // The maps as WebP at quality 80, as every pipeline and the upload recipe write them: the
+    // 1024-pixel JPEGs weighed 400–785 KB each, and WebP is about half.
+    await compressTextures(doc, { colourPx: TEXTURE_PX, dataPx: TEXTURE_PX, quality: 80 });
 
     // Quantise and compress. EXT_meshopt_compression is what makes a 240k-triangle weave
     // shippable at all; on ordinary models it takes 3–5× off. The viewer decodes it with
@@ -970,22 +978,14 @@ function countTriangles(doc: Document): number {
 // Product photo
 // ---------------------------------------------------------------------------
 
-/** Copies the product's photo into uploads: a real render if we have one, else the preview. */
+/** The product's photo in uploads, as WebP: a real render if we have one, else the preview. */
 async function placePhoto(sourceRoot: string, entry: ModelSource): Promise<string | null> {
-  const existing = entry.photo ? path.join(PHOTO_DIR, entry.photo) : null;
-  if (existing && existsSync(existing)) return `/uploads/furniture/${entry.photo}`;
+  const existing = entry.photo ? existingPhoto(path.join(PHOTO_DIR, entry.photo)) : null;
+  if (existing) return publicUrl(ROOT, existing.endsWith('.webp') ? existing : await writePhotoWebp(await readFile(existing), existing));
 
   const preview = path.join(sourceRoot, '_PREVIEWS', entry.preview);
   if (!existsSync(preview)) return null;
-
-  const dest = path.join(PHOTO_DIR, `${entry.name}.jpg`);
-  await copyFile(preview, dest);
-  try {
-    await run('sips', ['-Z', '900', dest]);
-  } catch {
-    // keep the full-size copy
-  }
-  return `/uploads/furniture/${entry.name}.jpg`;
+  return publicUrl(ROOT, await writePhotoWebp(await readFile(preview), path.join(PHOTO_DIR, `${entry.name}.webp`)));
 }
 
 main().catch((error) => {

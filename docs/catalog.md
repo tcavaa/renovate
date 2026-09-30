@@ -26,7 +26,7 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: size, category, placement rule, labels), `ROOM_PROGRAMS`, the category slug sets the code knows (`FIXTURE_…`, `OPENING_…`, `RADIATOR_…`, `TRIM_…`, `DESIGN_CATEGORY_SLUGS`), `SHELF_ROOMS` (the studio rooms' starting point), `archetypeLabel` |
 | `lib/design/styles.ts` | the four style ids ([design-studio/overview.md](design-studio/overview.md#the-four-styles)) |
 | `lib/design/colors.ts` | colour families for the shelves' filters (`productColors`, `productColorFamilies`, `colorTally`, `colorsOfPixels`) |
-| `lib/uploads/textureColors.ts`, `app/api/upload/route.ts` | an image upload; a texture (`folder: textures`) comes back with the colours read off it (`colorsOfImage`) |
+| `lib/uploads/textureColors.ts`, `lib/uploads/textureOptimize.ts`, `lib/uploads/imageOptimize.ts`, `app/api/upload/route.ts` | an image upload, stored as WebP — a photo within 1600 px at quality 85, a texture (`folder: textures`) within 2048 px, which comes back with the colours read off it (`colorsOfImage`) ([3d-assets.md](3d-assets.md#photos-are-webp)) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
 | `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
 | `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload, inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |

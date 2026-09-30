@@ -17,12 +17,12 @@ const surfaceProduct = (id: number, textureUrl: string, surfaces: Array<'floor' 
 
 const laminate = surfaceProduct(1, look.floor.textureUrl!, ['floor']);
 // Cheaper and as modern as the style's own: ranked first on the shelf, but not what the style shows.
-const cheaperLaminate = surfaceProduct(2, '/textures/other-wood.jpg', ['floor'], { price: 10, styleTags: ['modern', 'minimalist'] });
+const cheaperLaminate = surfaceProduct(2, '/textures/other-wood.webp', ['floor'], { price: 10, styleTags: ['modern', 'minimalist'] });
 const floorTiles = surfaceProduct(3, look.wetFloor.textureUrl!, ['floor', 'wall'], { wet: true, price: 40 });
 const wallTiles = surfaceProduct(4, look.wetWall.textureUrl!, ['wall'], { wet: true, price: 35 });
 // The same file served from elsewhere, as an uploaded texture may be.
 const plaster = surfaceProduct(5, `https://cdn.remonti.ge${look.wall.textureUrl}?v=2`, ['wall'], { price: 16 });
-const otherWetFloor = surfaceProduct(6, '/textures/other-tile.jpg', ['floor'], { wet: true, price: 20 });
+const otherWetFloor = surfaceProduct(6, '/textures/other-tile.webp', ['floor'], { wet: true, price: 20 });
 const sofa = { ...surfaceProduct(7, '', []), textureUrl: null, specs: null, categorySlug: 'sofas' } as CatalogProduct;
 const catalog = [cheaperLaminate, laminate, otherWetFloor, floorTiles, wallTiles, plaster, sofa];
 

@@ -29,7 +29,7 @@ function product(id: number, over: Partial<CatalogProduct>): CatalogProduct {
     unit: 'm2',
     imageUrl: null,
     colorHex: null,
-    textureUrl: `/textures/finish-${id}.jpg`,
+    textureUrl: `/textures/finish-${id}.webp`,
     model3dKind: null,
     model3dUrl: null,
     widthCm: null,

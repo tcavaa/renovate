@@ -148,6 +148,20 @@
       "when": 1790722054484,
       "tag": "0020_equipment_kitchen_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1790808228004,
+      "tag": "0021_finish_textures_webp",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1790809798864,
+      "tag": "0022_seed_photos_webp",
+      "breakpoints": true
     }
   ]
 }

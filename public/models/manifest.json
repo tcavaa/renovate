@@ -14,10 +14,10 @@
       "heightCm": 99,
       "priceGel": 3150,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/ind-bed-woody.jpg",
+      "imageUrl": "/uploads/furniture/ind-bed-woody.webp",
       "colorHex": "#C8B79A",
       "triangles": 13998,
-      "bytes": 461392,
+      "bytes": 99120,
       "textures": [
         "albedo:2b2b71175522.jpg",
         "normal:33c0abdbd8cf.jpg",
@@ -39,10 +39,10 @@
       "heightCm": 79,
       "priceGel": 690,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/meccanica-chair.jpg",
+      "imageUrl": "/uploads/furniture/meccanica-chair.webp",
       "colorHex": "#2F1A11",
       "triangles": 13999,
-      "bytes": 1952436,
+      "bytes": 1126752,
       "textures": [
         "albedo:FriendlyShade_Leather02_Albedo.jpg",
         "normal:FriendlyShade_Leather02_Normal.jpg",
@@ -64,10 +64,10 @@
       "heightCm": 167,
       "priceGel": 1890,
       "storeSlug": "lumina",
-      "imageUrl": "/uploads/furniture/cinquanta-lamp.jpg",
+      "imageUrl": "/uploads/furniture/cinquanta-lamp.webp",
       "colorHex": "#2B2D31",
       "triangles": 13998,
-      "bytes": 86076,
+      "bytes": 27536,
       "textures": [],
       "colors": [
         "#2B2D31"
@@ -85,10 +85,10 @@
       "heightCm": 72,
       "priceGel": 4800,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/node-sofa.jpg",
+      "imageUrl": "/uploads/furniture/node-sofa.webp",
       "colorHex": "#4A4A48",
       "triangles": 14000,
-      "bytes": 682448,
+      "bytes": 296444,
       "textures": [
         "normal:LaCividina NODE3.jpg",
         "roughness:LaCividina NODE4.jpg"
@@ -109,10 +109,10 @@
       "heightCm": 71,
       "priceGel": 1450,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/swivel-accent-chair.jpg",
+      "imageUrl": "/uploads/furniture/swivel-accent-chair.webp",
       "colorHex": "#C1C1C1",
       "triangles": 1578,
-      "bytes": 1136656,
+      "bytes": 686100,
       "textures": [
         "albedo:SWIVEL ACCENT CHAIR By ZARA HOME-001.jpg",
         "normal:SWIVEL ACCENT CHAIR By ZARA HOME-003.jpg"
@@ -133,10 +133,10 @@
       "heightCm": 79,
       "priceGel": 4250,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/industrial-divan.jpg",
+      "imageUrl": "/uploads/furniture/industrial-divan.webp",
       "colorHex": "#A1A1A1",
       "triangles": 13998,
-      "bytes": 658836,
+      "bytes": 216452,
       "textures": [
         "albedo:divan Industrial-001.jpg",
         "normal:divan Industrial-004.jpg"
@@ -157,10 +157,10 @@
       "heightCm": 45,
       "priceGel": 2350,
       "storeSlug": "loft-42",
-      "imageUrl": "/uploads/furniture/ind-barcelona-table.jpg",
+      "imageUrl": "/uploads/furniture/ind-barcelona-table.webp",
       "colorHex": "#242426",
       "triangles": 1016,
-      "bytes": 953820,
+      "bytes": 390196,
       "textures": [
         "albedo:TableTopD.jpg",
         "normal:DUST_05_NORM_8_bits_resized_1k.tiff.jpg",
@@ -182,10 +182,10 @@
       "heightCm": 57,
       "priceGel": 1650,
       "storeSlug": "nordic-home",
-      "imageUrl": "/uploads/furniture/vadehavet-daybed.jpg",
+      "imageUrl": "/uploads/furniture/vadehavet-daybed.webp",
       "colorHex": "#C69C7D",
       "triangles": 13996,
-      "bytes": 336384,
+      "bytes": 106928,
       "textures": [
         "albedo:oak_natural_dif.jpg"
       ],
@@ -206,10 +206,10 @@
       "heightCm": 72,
       "priceGel": 480,
       "storeSlug": "nordic-home",
-      "imageUrl": "/uploads/furniture/ash-wood-chair.jpg",
+      "imageUrl": "/uploads/furniture/ash-wood-chair.webp",
       "colorHex": "#A68362",
       "triangles": 14000,
-      "bytes": 318704,
+      "bytes": 104052,
       "textures": [
         "albedo:Wood_Veneer_2_d.jpg",
         "normal:Wood_Veneer_2_n.jpg"
@@ -230,10 +230,10 @@
       "heightCm": 109,
       "priceGel": 420,
       "storeSlug": "lumina",
-      "imageUrl": "/uploads/furniture/sca-pendant.jpg",
+      "imageUrl": "/uploads/furniture/sca-pendant.webp",
       "colorHex": "#B08D57",
       "triangles": 7120,
-      "bytes": 46560,
+      "bytes": 12692,
       "textures": [],
       "colors": [
         "#B08D57"
@@ -251,10 +251,10 @@
       "heightCm": 72,
       "priceGel": 5200,
       "storeSlug": "nordic-home",
-      "imageUrl": "/uploads/furniture/cloud-sofa.jpg",
+      "imageUrl": "/uploads/furniture/cloud-sofa.webp",
       "colorHex": "#D9CFC6",
       "triangles": 16681,
-      "bytes": 1204968,
+      "bytes": 637652,
       "textures": [
         "albedo:fabric1.jpg",
         "normal:normal.jpg",
@@ -276,10 +276,10 @@
       "heightCm": 76,
       "priceGel": 2650,
       "storeSlug": "nordic-home",
-      "imageUrl": "/uploads/furniture/sca-dining-table.jpg",
+      "imageUrl": "/uploads/furniture/sca-dining-table.webp",
       "colorHex": "#A07C57",
       "triangles": 15644,
-      "bytes": 719008,
+      "bytes": 296820,
       "textures": [
         "albedo:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-004.jpg",
         "roughness:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-001.jpg"
@@ -300,10 +300,10 @@
       "heightCm": 65,
       "priceGel": 2450,
       "storeSlug": "antikvari",
-      "imageUrl": "/uploads/furniture/queen-bed.jpg",
+      "imageUrl": "/uploads/furniture/queen-bed.webp",
       "colorHex": "#E9E2D6",
       "triangles": 13999,
-      "bytes": 112640,
+      "bytes": 38996,
       "textures": [],
       "colors": [
         "#E9E2D6"
@@ -321,10 +321,10 @@
       "heightCm": 73,
       "priceGel": 2150,
       "storeSlug": "antikvari",
-      "imageUrl": "/uploads/furniture/vin-bed.png",
+      "imageUrl": "/uploads/furniture/vin-bed.webp",
       "colorHex": "#6E4526",
       "triangles": 11580,
-      "bytes": 166460,
+      "bytes": 46584,
       "textures": [
         "albedo:BED.png"
       ],
@@ -345,10 +345,10 @@
       "heightCm": 145,
       "priceGel": 1980,
       "storeSlug": "antikvari",
-      "imageUrl": "/uploads/furniture/vin-rattan-chair.jpg",
+      "imageUrl": "/uploads/furniture/vin-rattan-chair.webp",
       "colorHex": "#2E1205",
       "triangles": 300075,
-      "bytes": 2855692,
+      "bytes": 1090980,
       "textures": [
         "albedo:Rattan Chair-bambo_diff.jpg",
         "normal:Rattan Chair-fabric_normal.jpg",
@@ -370,10 +370,10 @@
       "heightCm": 88,
       "priceGel": 2790,
       "storeSlug": "antikvari",
-      "imageUrl": "/uploads/furniture/ektorp-sofa.jpg",
+      "imageUrl": "/uploads/furniture/ektorp-sofa.webp",
       "colorHex": "#59585E",
       "triangles": 14000,
-      "bytes": 437116,
+      "bytes": 167672,
       "textures": [
         "albedo:Gray Fabrik.jpg"
       ],
@@ -393,10 +393,10 @@
       "heightCm": 55,
       "priceGel": 780,
       "storeSlug": "antikvari",
-      "imageUrl": "/uploads/furniture/cupola-side-table.jpg",
+      "imageUrl": "/uploads/furniture/cupola-side-table.webp",
       "colorHex": "#DACAB6",
       "triangles": 3840,
-      "bytes": 1102844,
+      "bytes": 581968,
       "textures": [
         "albedo:CUPOLA CARVED ROUND SIDE TABLE-002.jpg",
         "roughness:CUPOLA CARVED ROUND SIDE TABLE-003.jpg"

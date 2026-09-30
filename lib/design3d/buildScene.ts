@@ -32,6 +32,7 @@ import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib
 import { buildElectrical, buildEquipment, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
 import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallFaceSpan, type WallHole } from './wallGeometry';
 import { RAILING_MODEL } from './railingManifest';
+import { alongX, instanced } from './instancing';
 import type {
   DesignScene,
   FloorPlan,
@@ -158,16 +159,19 @@ export function visibleRoomIds(plan: FloorPlan, options: BuildSceneOptions): Set
 }
 
 /**
- * Frees the GPU buffers of geometry this module created.
+ * Frees the GPU buffers of geometry this module created, and the instance buffers of the
+ * instanced runs (`instancing.ts`).
  *
  * Only *owned* geometry — walls, floors, trim — is disposed. Furniture meshes are clones that
  * share their buffers with the module-level model cache, and disposing those made every
- * model re-upload on the next rebuild. Three.js does not free GPU memory on its own, so this
- * has to be called when a shell group is dropped.
+ * model re-upload on the next rebuild; an instanced run shares its geometry the same way, so
+ * only its per-copy matrices go. Three.js does not free GPU memory on its own, so this has to
+ * be called when a shell, fittings or radiators group is dropped.
  */
 export function disposeOwnedGeometry(root: THREE.Object3D): void {
   root.traverse((child) => {
-    if ((child instanceof THREE.Mesh || child instanceof THREE.LineSegments) && child.userData.ownsGeometry) child.geometry.dispose();
+    if (child instanceof THREE.InstancedMesh) child.dispose();
+    else if ((child instanceof THREE.Mesh || child instanceof THREE.LineSegments) && child.userData.ownsGeometry) child.geometry.dispose();
   });
 }
 
@@ -494,13 +498,10 @@ function attachRailing(group: THREE.Group, edge: PlanEdge, opening: Opening, thi
       root.name = 'opening-model';
       root.position.set(point.x + edge.inward.x * midWall, 0, point.z + edge.inward.z * midWall);
       root.rotation.y = edge.facing;
-      for (let i = 0; i < count; i++) {
-        const holder = new THREE.Group();
-        holder.scale.set(pitch / moduleM, opening.heightM / (RAILING_MODEL.heightCm / 100), 1);
-        holder.position.x = -opening.widthM / 2 + pitch * (i + 0.5);
-        holder.add(i === 0 ? module : module.clone(true));
-        root.add(holder);
-      }
+      // One instanced run for the whole railing, each module stretched to its pitch and height.
+      const stretch = new THREE.Matrix4().makeScale(pitch / moduleM, opening.heightM / (RAILING_MODEL.heightCm / 100), 1);
+      const placements = Array.from({ length: count }, (_, i) => alongX(-opening.widthM / 2 + pitch * (i + 0.5)).multiply(stretch));
+      root.add(instanced(module, placements));
       finishModel(root);
       tag(root, { pickKind: 'opening', roomId: opening.roomId, openingId: opening.id } satisfies SceneUserData);
       group.add(root);

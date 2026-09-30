@@ -1487,7 +1487,7 @@ export const en: Dictionary = {
     ORDER_STATUS_NOT_ALLOWED: 'The order cannot be moved to that status',
     ORDER_LINES_LOCKED: 'Lines, prices and delivery are changed by the platform manager — leave a comment',
     ORDER_EMPTY: 'Every line is unchecked — there is nothing to send. Cancel the order instead.',
-    MODEL_UNSUPPORTED_COMPRESSION: 'The model uses Draco or Basis compression, which the studio cannot read — export without them (Meshopt is fine)',
+    MODEL_UNSUPPORTED_COMPRESSION: 'The model uses Basis (KTX2) compression, which the studio cannot read — export without it (Draco and Meshopt are fine)',
     UNKNOWN: 'Something went wrong, please try again',
     NAME_REQUIRED: 'Enter a name',
     PHONE_REQUIRED: 'Enter a phone number',

@@ -11,9 +11,11 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Document, Logger, NodeIO, type Node as GltfNode, type Primitive } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP } from '@gltf-transform/extensions';
-import { getBounds, getTextureColorSpace, prune, simplify } from '@gltf-transform/functions';
+import { dequantize, draco, getBounds, getTextureColorSpace, prune, simplify } from '@gltf-transform/functions';
+import draco3d from 'draco3d';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
+import { DRACO_OPTIONS } from '../../lib/uploads/glbOptimize';
 
 export const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
 export const OBJAVERSE = 'https://huggingface.co/datasets/allenai/objaverse/resolve/main';
@@ -42,6 +44,36 @@ export interface ModelCredit {
 
 export function newIO(): NodeIO {
   return new NodeIO().setLogger(new Logger(Logger.Verbosity.WARN)).registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'meshopt.encoder': MeshoptEncoder });
+}
+
+// ---------------------------------------------------------------------------
+// Draco
+// ---------------------------------------------------------------------------
+
+let dracoCodec: Promise<{ encoder: unknown; decoder: unknown }> | null = null;
+
+/** An IO that reads and writes Draco geometry as well as meshopt (Draco's codec is WASM, made once). */
+export async function modelIO(): Promise<NodeIO> {
+  dracoCodec ??= Promise.all([draco3d.createEncoderModule({}), draco3d.createDecoderModule({})]).then(([encoder, decoder]) => ({ encoder, decoder }));
+  const { encoder, decoder } = await dracoCodec;
+  return newIO().registerDependencies({ 'draco3d.encoder': encoder, 'draco3d.decoder': decoder });
+}
+
+/** Draco's settings are the upload recipe's (`lib/uploads/glbOptimize.ts`), so shipped models and uploads match. */
+export { DRACO_OPTIONS };
+
+/**
+ * Geometry under this stays meshopt: in the browser every Draco primitive is a round trip to a
+ * decoder worker, and a socket's 6 KB of geometry would save 3 at best.
+ */
+export const DRACO_MIN_GEOMETRY_BYTES = 24 * 1024;
+
+/** The document's geometry compressed with Draco instead of meshopt (write it with `modelIO`). */
+export async function toDraco(doc: Document): Promise<void> {
+  for (const extension of doc.getRoot().listExtensionsUsed()) {
+    if (extension.extensionName === 'EXT_meshopt_compression') extension.dispose();
+  }
+  await doc.transform(dequantize(), draco(DRACO_OPTIONS));
 }
 
 // ---------------------------------------------------------------------------

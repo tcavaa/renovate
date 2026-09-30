@@ -161,7 +161,8 @@ kind: the EU socket, the switch, the industrial wall lamp, the bulb on a cord, t
 spot, one photoscanned tube for the strips, stretched to the point's length). **Nothing in
 the studio is drawn by hand any more** — no plates, roses, cords, rings or bars — so the
 group is empty for the beat the file takes to arrive; the same goes for doors and windows
-(below). A double socket is two of the same plate side by side; a ceiling point under a
+(below). A double socket is two of the same plate side by side, drawn as one instanced run
+(`lib/design3d/instancing.ts`); fittings cast no shadow of their own (they sit on their wall); a ceiling point under a
 hanging lamp from the catalogue shows only the rose (`role: 'rose'`, a flush light); the
 ghost that rides on the pointer while a fitting is dragged in is the same model in one
 translucent material; a light that is on has the materials named for the light (`light`,
@@ -173,8 +174,11 @@ the manifest: two sockets, two switches, a brass sconce, a pendant, a disc lamp,
 light that is both the rose and the recessed spot, a square spot) — two or three products
 per kind so the card has something to swap to — and `pnpm models:photos` renders each
 one's product photo from the model itself (a transparent PNG under `uploads/furniture`,
-lit and framed like the studio; the sources' own thumbnails sit on garish gradients). The lights that
-are on become point lights (`lightsFrom`; at night they replace the per-room lamps). With
+lit and framed like the studio; the sources' own thumbnails sit on garish gradients). From dusk
+the lights that are on become point lights (`lightsFrom`; they replace the per-room lamps); by
+day a light that is on only glows — a dozen point lights cost a third of the frame for a glow
+the sun drowns ([3d-engine.md](3d-engine.md), gotcha 22). The glass of the industrial wall lamp
+and the glass globe pendant is drawn as plain transparency (gotcha 20). With
 one room in focus, the other rooms' fittings, lights and tight-passage outlines are left out
 along with their furniture. The selected fitting's card in the studio (`FixturePanel`) is
 the furniture card's twin: photo, price and shop (or the estimate), the kind as a dropdown,
@@ -219,7 +223,8 @@ first three (`technicalChecks`).
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
 is **one section**: `pnpm models:radiators` writes four designs (a steel panel module, an
 aluminium sectional, a cast-iron column, a classic), each a single section framed exactly one
-pitch wide with its back on z = 0, and the 3D view repeats it along the wall (`buildRadiators`).
+pitch wide with its back on z = 0, and the 3D view repeats it along the wall (`buildRadiators`) as one
+instanced run — a draw call per mesh of the section for the whole radiator — with no shadow of its own.
 How many sections is arithmetic, not a guess: ~100 W per m² at a 2.7 m ceiling, a fifth more
 in a room with two outside walls (`outsideEdges`, from the wall pieces), divided by the
 product's `wattsPerSection`, then shared between the radiators in the room and kept between
@@ -432,7 +437,7 @@ or puts one along a whole outer wall from the wall's card ("მოაჯირ�
   running out under the gap (`WallHole.floor`), and the railing model (`RAILING_MODEL`, one metre
   module written by `scripts/railing-models.ts`) repeated along the gap, each module stretched a
   little to fill it and to the railing's height, in the middle of the wall's thickness
-  (`attachRailing`). Its card (`OpeningPanel`'s `RailingCard`, the inspector's own section) is
+  (`attachRailing`, one instanced run for the whole railing). Its card (`OpeningPanel`'s `RailingCard`, the inspector's own section) is
   its length, its height, what it takes off the wall, lock and delete.
 
 ## Tests

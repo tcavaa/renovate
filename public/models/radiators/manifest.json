@@ -12,7 +12,7 @@
       "wattsPerSection": 170,
       "triangles": 616,
       "bytes": 16616,
-      "imageUrl": "/uploads/furniture/radiator-panel.png",
+      "imageUrl": "/uploads/furniture/radiator-panel.webp",
       "author": "RenovationRoom",
       "license": "CC0",
       "product": {
@@ -39,7 +39,7 @@
       "wattsPerSection": 180,
       "triangles": 588,
       "bytes": 20312,
-      "imageUrl": "/uploads/furniture/radiator-aluminium.png",
+      "imageUrl": "/uploads/furniture/radiator-aluminium.webp",
       "author": "RenovationRoom",
       "license": "CC0",
       "product": {
@@ -67,7 +67,7 @@
       "wattsPerSection": 120,
       "triangles": 1152,
       "bytes": 23788,
-      "imageUrl": "/uploads/furniture/radiator-column.png",
+      "imageUrl": "/uploads/furniture/radiator-column.webp",
       "author": "RenovationRoom",
       "license": "CC0",
       "product": {
@@ -93,8 +93,8 @@
       "depthCm": 16,
       "wattsPerSection": 110,
       "triangles": 1160,
-      "bytes": 27812,
-      "imageUrl": "/uploads/furniture/radiator-classic.png",
+      "bytes": 5388,
+      "imageUrl": "/uploads/furniture/radiator-classic.webp",
       "author": "RenovationRoom",
       "license": "CC0",
       "product": {

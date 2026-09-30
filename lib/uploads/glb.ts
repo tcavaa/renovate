@@ -1,10 +1,10 @@
 /**
  * What a GLB says about itself, read from its JSON chunk without decoding any geometry.
  *
- * The studio's loader speaks core glTF 2 plus meshopt compression. A file that *requires* an
- * extension it does not have — Draco geometry, Basis/KTX2 textures — would upload fine and
- * then load as nothing, so the upload route asks here first and refuses with a message that
- * names the problem while the person who can re-export the file is still looking at it.
+ * The studio's loader speaks core glTF 2 plus meshopt and Draco compression. A file that
+ * *requires* an extension it does not have — Basis/KTX2 textures — would upload fine and then
+ * load as nothing, so the upload route asks here first and refuses with a message that names
+ * the problem while the person who can re-export the file is still looking at it.
  */
 export interface GlbInfo {
   generator: string | null;
@@ -44,6 +44,6 @@ export function inspectGlb(bytes: Uint8Array): GlbInfo | null {
 
 /** The first required extension the studio cannot handle, or null when the file is fine. */
 export function unsupportedExtension(info: GlbInfo): string | null {
-  const blocked = new Set<string>(['KHR_draco_mesh_compression', 'KHR_texture_basisu']);
+  const blocked = new Set<string>(['KHR_texture_basisu']);
   return info.extensionsRequired.find((e) => blocked.has(e)) ?? null;
 }
