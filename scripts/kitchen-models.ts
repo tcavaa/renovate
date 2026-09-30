@@ -47,6 +47,7 @@ import {
   type ModelCredit,
   type ModelSource,
 } from './lib/gltfPipeline';
+import { compressModels } from './lib/compressModels';
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, 'public', 'models', 'kitchens');
@@ -141,8 +142,8 @@ const VARIANTS: KitchenVariant[] = [
     material: 'kitchen-material-ldsp',
     title: 'Kitchen run, laminated chipboard (LDSP), grey oak, silver handles',
     // A light, cool grey oak — the stock grey floor texture desaturated and lightened
-    // (public/textures/kitchen-oak-grey-diffuse.jpg): as it was, it read as the veneer's brown.
-    body: { texture: 'textures/kitchen-oak-grey-diffuse.jpg', metallic: 0, roughness: 0.62 },
+    // (public/textures/kitchen-oak-grey-diffuse.webp): as it was, it read as the veneer's brown.
+    body: { texture: 'textures/kitchen-oak-grey-diffuse.webp', metallic: 0, roughness: 0.62 },
     handles: { color: '#c9ccd0', metallic: 0.5, roughness: 0.3 },
   },
   {
@@ -156,7 +157,7 @@ const VARIANTS: KitchenVariant[] = [
     slug: 'run-veneer',
     material: 'kitchen-material-veneer',
     title: 'Kitchen run, natural oak veneer, brass handles',
-    body: { texture: 'textures/wood-floor-light-diffuse.jpg', metallic: 0, roughness: 0.55 },
+    body: { texture: 'textures/wood-floor-light-diffuse.webp', metallic: 0, roughness: 0.55 },
     handles: { color: '#b08d57', metallic: 0.5, roughness: 0.3 },
   },
 ];
@@ -202,6 +203,8 @@ async function main() {
     ) + '\n'
   );
   console.log(`\n${all.length} kitchen runs in manifest · ${path.relative(ROOT, OUT_DIR)}`);
+  // The library as the studio downloads it: WebP maps, Draco geometry where that pays.
+  await compressModels();
   if (failed.length) {
     console.log(`\n${failed.length} failed:\n${failed.map((f) => `  · ${f}`).join('\n')}`);
     process.exitCode = 1;
@@ -258,7 +261,7 @@ async function makeVariant(variant: KitchenVariant): Promise<KitchenManifestMode
       const material = prim.getMaterial()!;
       material.setBaseColorFactor([...(finish.color ? linearColor(finish.color) : [1, 1, 1]), 1] as [number, number, number, number]).setMetallicFactor(finish.metallic).setRoughnessFactor(finish.roughness).setBaseColorTexture(null).setMetallicRoughnessTexture(null).setNormalTexture(null);
       if (finish.texture) {
-        const texture = doc.createTexture(path.basename(finish.texture)).setImage(new Uint8Array(await readFile(path.join(ROOT, 'public', finish.texture)))).setMimeType('image/jpeg');
+        const texture = doc.createTexture(path.basename(finish.texture)).setImage(new Uint8Array(await readFile(path.join(ROOT, 'public', finish.texture)))).setMimeType(finish.texture.endsWith('.webp') ? 'image/webp' : 'image/jpeg');
         material.setBaseColorTexture(texture);
         projectUVs(doc, prim, TEXTURE_TILE_M);
       }
@@ -312,7 +315,7 @@ async function makeVariant(variant: KitchenVariant): Promise<KitchenManifestMode
     author: credit.author,
     license: credit.license,
     credit,
-    imageUrl: `/uploads/furniture/kitchen-${variant.slug}.png`,
+    imageUrl: `/uploads/furniture/kitchen-${variant.slug}.webp`,
   };
 }
 

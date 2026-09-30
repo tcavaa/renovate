@@ -1485,7 +1485,7 @@ export const ru: Dictionary = {
     ORDER_STATUS_NOT_ALLOWED: 'Заказ нельзя перевести в этот статус',
     ORDER_LINES_LOCKED: 'Позиции, цены и доставку меняет менеджер платформы — оставьте комментарий',
     ORDER_EMPTY: 'Все позиции сняты — отправлять нечего. Такой заказ лучше отменить.',
-    MODEL_UNSUPPORTED_COMPRESSION: 'Модель использует сжатие Draco или Basis, которое студия не читает — экспортируйте без них (Meshopt допустим)',
+    MODEL_UNSUPPORTED_COMPRESSION: 'Модель использует сжатие Basis (KTX2), которое студия не читает — экспортируйте без него (Draco и Meshopt допустимы)',
     UNKNOWN: 'Что-то пошло не так, попробуйте ещё раз',
     NAME_REQUIRED: 'Укажите имя',
     PHONE_REQUIRED: 'Укажите номер телефона',

@@ -33,7 +33,7 @@ export function Hero({ t }: { t: Dictionary }) {
               </span>
               <span className="absolute left-[84%] top-0 z-10 hidden w-[clamp(130px,13vw,190px)] -translate-y-[58%] animate-scale-in md:block" style={{ animationDelay: '500ms' }}>
                 <span className="relative block aspect-[4/5] overflow-hidden rounded-2xl shadow-float ring-1 ring-black/5">
-                  <Image src="/uploads/furniture/cloud-sofa.jpg" alt="" fill priority sizes="330px" className="parallax scale-110 object-cover" />
+                  <Image src="/uploads/furniture/cloud-sofa.webp" alt="" fill priority sizes="330px" className="parallax scale-110 object-cover" />
                 </span>
               </span>
             </span>
@@ -48,12 +48,12 @@ export function Hero({ t }: { t: Dictionary }) {
           {/* Side imagery, sitting in the margins like pinned photographs. */}
           <div className="pointer-events-none absolute left-[3%] top-[40%] hidden w-[clamp(120px,13vw,200px)] -rotate-3 animate-rise-in lg:block" style={{ animationDelay: '800ms' }}>
             <span className="relative block aspect-[3/4] overflow-hidden rounded-xl shadow-cardHover ring-1 ring-black/5">
-              <Image src="/uploads/furniture/sca-pendant.jpg" alt="" fill sizes="200px" className="parallax scale-110 object-cover" />
+              <Image src="/uploads/furniture/sca-pendant.webp" alt="" fill sizes="200px" className="parallax scale-110 object-cover" />
             </span>
           </div>
           <div className="pointer-events-none absolute right-[4%] top-[22%] hidden w-[clamp(120px,13vw,200px)] rotate-2 animate-rise-in lg:block" style={{ animationDelay: '950ms' }}>
             <span className="relative block aspect-[4/5] overflow-hidden rounded-xl shadow-cardHover ring-1 ring-black/5">
-              <Image src="/uploads/furniture/meccanica-chair.jpg" alt="" fill sizes="200px" className="parallax scale-110 object-cover" />
+              <Image src="/uploads/furniture/meccanica-chair.webp" alt="" fill sizes="200px" className="parallax scale-110 object-cover" />
             </span>
           </div>
           <RotatingBadge

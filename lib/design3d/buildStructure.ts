@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pointOnEdge, roomEdges } from '@/lib/design/planGeometry';
 import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
@@ -22,6 +23,7 @@ import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
 import { loadFixture, loadModel } from './modelLoader';
+import { alongX, instanced } from './instancing';
 import type { SceneUserData } from './buildScene';
 import { RADIATOR_MODELS } from './radiatorManifest';
 import { EQUIPMENT_MODELS } from './equipmentManifest';
@@ -176,15 +178,17 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
    * that runs north–south a tube's thickness was read as its length, and the strip came out
    * fifty times too long, a white bar across the whole flat.
    */
-  const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', prepare?: (model: THREE.Object3D) => void) => {
+  const attach = (holder: THREE.Group, spec: NonNullable<ReturnType<typeof modelFor>>, mount: 'wall' | 'ceiling', prepare?: (model: THREE.Object3D) => void, placements?: THREE.Matrix4[]) => {
     (spec.framed ? loadFixture(spec.url) : loadModel(spec.url).then((m) => reframe(m, mount, spec.sizeM)))
       .then((model) => {
         if (!piece.parent) return;
         if (ghost) ghostModel(model, ghost);
         else if (info.light && on) litModel(model, materials.style.lighting.lamp);
         prepare?.(model);
-        holder.add(model);
-        tag(model, { ...data() });
+        // Several plates of one point are one instanced run (`instancing.ts`).
+        const drawn = placements ? instanced(model, placements) : model;
+        holder.add(drawn);
+        tag(drawn, { ...data() });
       })
       .catch((error: unknown) => console.warn(`[studio] fixture failed to load: ${spec.url}`, error));
   };
@@ -234,12 +238,9 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   // Sockets, switches, TV and data points: one plate per outlet, side by side; a wall lamp is one.
   const single = point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet' || point.kind === 'light_wall';
   const count = single ? 1 : Math.max(1, point.count ?? 1);
-  for (let i = 0; i < count; i++) {
-    const holder = new THREE.Group();
-    holder.position.x = (i - (count - 1) / 2) * PLATE_M;
-    piece.add(holder);
-    attach(holder, spec, 'wall');
-  }
+  const holder = new THREE.Group();
+  piece.add(holder);
+  attach(holder, spec, 'wall', undefined, count > 1 ? Array.from({ length: count }, (_, i) => alongX((i - (count - 1) / 2) * PLATE_M)) : undefined);
   return piece;
 }
 
@@ -337,18 +338,16 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
     tag(piece, data);
 
     if (sectional) {
-      for (let i = 0; i < sections; i++) {
-        const holder = new THREE.Group();
-        holder.position.x = (i - (sections - 1) / 2) * pitch;
-        piece.add(holder);
-        loadFixture(url)
-          .then((model) => {
-            if (!piece.parent) return;
-            holder.add(model);
-            tag(model, data);
-          })
-          .catch((error: unknown) => console.warn(`[studio] radiator failed to load: ${url}`, error));
-      }
+      // The sections side by side as one instanced run: a draw call per mesh of the section
+      // model for the whole radiator, not one per section.
+      loadFixture(url)
+        .then((model) => {
+          if (!piece.parent) return;
+          const run = instanced(model, Array.from({ length: sections }, (_, i) => alongX((i - (sections - 1) / 2) * pitch)));
+          piece.add(run);
+          tag(run, data);
+        })
+        .catch((error: unknown) => console.warn(`[studio] radiator failed to load: ${url}`, error));
     } else {
       loadModel(url)
         .then((model) => {
@@ -517,7 +516,9 @@ export function buildZones(plan: FloorPlan, finishes: SurfaceFinish[], materials
 /**
  * The floor tiles painted one at a time (`lib/design/paint`): each tile its own patch,
  * clipped to the room, a hair above the zones. They answer to the pointer as the room's
- * floor — a click on a painted tile paints it again — not as a thing of their own.
+ * floor — a click on a painted tile paints it again — not as a thing of their own. All the
+ * tiles of one finish are one mesh: a square metre is what the brush lays, and a floor
+ * painted tile by tile was a draw call for every metre of it.
  */
 export function buildPaintedCells(plan: FloorPlan, finishes: SurfaceFinish[], materials: StyleMaterials, style: StyleDefinition, rooms?: Set<string> | null): THREE.Group {
   const group = new THREE.Group();
@@ -527,11 +528,18 @@ export function buildPaintedCells(plan: FloorPlan, finishes: SurfaceFinish[], ma
     if (rooms && !rooms.has(finish.roomId)) continue;
     const room = plan.rooms.find((r) => r.id === finish.roomId);
     if (!room) continue;
-    const material = floorFinishMaterial(finish, materials, style);
+    const patches: THREE.BufferGeometry[] = [];
     for (const cell of finish.cells) {
       const polygon = cellPolygon(room, cell);
-      if (polygon.length < 3) continue;
-      const mesh = own(new THREE.Mesh(floorPatch(polygon), material));
+      if (polygon.length >= 3) patches.push(floorPatch(polygon));
+    }
+    if (patches.length === 0) continue;
+    const merged = patches.length > 1 ? mergeGeometries(patches) : null;
+    if (merged) patches.forEach((patch) => patch.dispose());
+    const material = floorFinishMaterial(finish, materials, style);
+    // Patches that could not be merged (never so far: they are all the same kind) stay apart.
+    for (const geometry of merged ? [merged] : patches) {
+      const mesh = own(new THREE.Mesh(geometry, material));
       mesh.position.y = 0.006;
       mesh.receiveShadow = true;
       tag(mesh, { pickKind: 'surface', roomId: room.id, surface: 'floor' } satisfies SceneUserData);

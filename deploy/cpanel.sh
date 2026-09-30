@@ -206,6 +206,15 @@ else
   NODE_ENV=production $PNPM models:seed || echo "warning: the catalogue was not synced with the manifests — see above; the site runs with the previous catalogue" >&2
 fi
 
+echo "==> stored models"
+# Models uploaded before uploads were optimized (admin products, own furniture) get the upload
+# recipe now: WebP textures and compressed geometry, rewritten in place under the same name
+# (lib/uploads/optimizeStored.ts). An optimized file is left alone, so after the first deploy this
+# only reads. A failure leaves the files as they were; the site still runs.
+if [ -f "$STANDALONE/optimize-models.cjs" ]; then
+  NODE_ENV=production node "$STANDALONE/optimize-models.cjs" --dir "$SHARED_UPLOADS/models" || echo "warning: the stored models were not optimized — see above; they are served as they were" >&2
+fi
+
 echo "==> restart (Passenger)"
 mkdir -p tmp && touch tmp/restart.txt
 echo "==> deploy finished $(date -u +%Y-%m-%dT%H:%M:%SZ) — open the site; the first request after a restart takes a few seconds"

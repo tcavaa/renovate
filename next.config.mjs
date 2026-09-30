@@ -74,16 +74,19 @@ const securityHeaders = [
 ];
 
 /**
- * Next serves `/public` with `max-age=0`, which means every studio visit re-validates 50 MB
- * of models and 45 MB of textures. Uploads have random names and never change, so they are
- * immutable; models and textures keep their names across re-conversion, so they get a week
- * and revalidate in the background.
+ * Next serves `/public` with `max-age=0`, which means every studio visit re-validates 23 MB
+ * of models and 45 MB of textures. Uploads have random names and do not change — an old model
+ * optimized in place (`pnpm uploads:optimize-models`) is the one exception, and a browser's
+ * cached copy of it stays a valid model — so they are immutable; models, textures and the
+ * vendored decoders keep their names across re-conversion and upgrades, so they get a week and
+ * revalidate in the background.
  */
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const ONE_WEEK = 'public, max-age=604800, stale-while-revalidate=86400';
 const assetHeaders = [
   { source: '/uploads/:path*', headers: [{ key: 'Cache-Control', value: IMMUTABLE }] },
   { source: '/models/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
+  { source: '/vendor/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
   { source: '/textures/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
   { source: '/samples/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
 ];
@@ -100,8 +103,12 @@ const nextConfig = {
   poweredByHeader: false,
   typescript: { ignoreBuildErrors: lowMemory },
   // Shipped in the standalone server's node_modules instead of being bundled into the server
-  // chunks, so deploy/migrate.cjs can load it on a host that has no other node_modules.
-  serverExternalPackages: ['mysql2'],
+  // chunks: mysql2 so deploy/migrate.cjs can load it on a host that has no other node_modules,
+  // draco3d because its encoder reads the .wasm beside its own file (the upload recipe's Draco,
+  // lib/uploads/glbOptimizeServer.ts; also what the deploy's optimize-models.cjs loads). The
+  // tracer copies the whole package, .wasm included — an `outputFileTracingIncludes` for the
+  // .wasm made a second node_modules/draco3d of the two files alone and broke the require.
+  serverExternalPackages: ['mysql2', 'draco3d'],
   // Self-contained server for PM2 / Passenger: deploy/deploy.sh and deploy/cpanel.sh copy
   // public/ and .next/static beside it. Never on Vercel — see `onVercel`.
   output: onVercel ? undefined : 'standalone',
@@ -124,6 +131,14 @@ const nextConfig = {
   },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }, ...assetHeaders];
+  },
+  async redirects() {
+    return [
+      // The finish textures are WebP (`pnpm textures:webp`); migration 0021 rewrote the stored
+      // URLs, and a page, a browser's cached design or an order that still asks for the JPEG
+      // lands on the file that replaced it.
+      { source: '/textures/:name([^/]+)\\.jpg', destination: '/textures/:name.webp', permanent: true },
+    ];
   },
 };
 

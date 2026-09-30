@@ -11,7 +11,7 @@
       "heightCm": 90,
       "depthCm": 64.2,
       "triangles": 10004,
-      "bytes": 190516,
+      "bytes": 132588,
       "title": "Kitchen run, laminated chipboard (LDSP), grey oak, silver handles",
       "source": "sketchfab",
       "sourceUrl": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
@@ -25,7 +25,7 @@
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
         "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
       },
-      "imageUrl": "/uploads/furniture/kitchen-run-ldsp.png"
+      "imageUrl": "/uploads/furniture/kitchen-run-ldsp.webp"
     },
     {
       "slug": "run-mdf",
@@ -36,7 +36,7 @@
       "heightCm": 90,
       "depthCm": 64.2,
       "triangles": 10004,
-      "bytes": 81796,
+      "bytes": 38820,
       "title": "Kitchen run, painted MDF, matt cashmere, black handles",
       "source": "sketchfab",
       "sourceUrl": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
@@ -50,7 +50,7 @@
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
         "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
       },
-      "imageUrl": "/uploads/furniture/kitchen-run-mdf.png"
+      "imageUrl": "/uploads/furniture/kitchen-run-mdf.webp"
     },
     {
       "slug": "run-veneer",
@@ -61,7 +61,7 @@
       "heightCm": 90,
       "depthCm": 64.2,
       "triangles": 10004,
-      "bytes": 170008,
+      "bytes": 112080,
       "title": "Kitchen run, natural oak veneer, brass handles",
       "source": "sketchfab",
       "sourceUrl": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
@@ -75,7 +75,7 @@
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
         "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
       },
-      "imageUrl": "/uploads/furniture/kitchen-run-veneer.png"
+      "imageUrl": "/uploads/furniture/kitchen-run-veneer.webp"
     }
   ]
 }

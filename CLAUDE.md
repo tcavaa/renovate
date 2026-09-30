@@ -79,12 +79,17 @@ pnpm models:equipment [--only=…]   # panels, boilers, ACs, hoods, fan, drain, 
 pnpm models:kitchens    # a kitchen run per kitchen material (one CC BY kitchen, re-textured)
 pnpm models:photos      # product photos rendered from those models (Playwright's Chromium)
 pnpm models:colors [--force]   # read each model's colours into the manifests
+pnpm models:compress [--dry-run]   # WebP textures + Draco geometry where it pays (every models:* runs it last)
 pnpm models:seed        # the catalogue made to match the model manifests
 pnpm textures:stock     # floor/wall finish textures → surface products
 pnpm textures:colors [--force]   # each finish's colours read off its texture (the colour filter)
+pnpm textures:webp [--dry-run]   # every JPEG/PNG finish texture in public/textures as WebP (normal maps at 90)
+pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products and /furniture as WebP (uploads convert on arrival)
 pnpm deploy:bundle-seed # models:seed as one plain-node file (the cPanel workflow runs it)
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references
+pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it (the cPanel deploy runs it too)
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
+pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three
 ```
 
 Admin login after seeding: `ADMIN_EMAIL` (default `admin@remonti.ge`) / `ADMIN_PASSWORD` from

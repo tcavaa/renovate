@@ -478,6 +478,8 @@ function SceneContent({
   const sceneLights = useMemo(() => lightsFrom(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
   // The radiators hang on the plan's technical points; they change with the plan alone.
   const radiatorGroup = useMemo(() => buildRadiators(plan, style, roomFilter), [plan, style, roomFilter]);
+  // Its sections are instanced runs, whose per-section buffers go with the group.
+  useEffect(() => () => disposeOwnedGeometry(radiatorGroup), [radiatorGroup]);
   // So does the equipment bought for them: the panel, the boiler, the air conditioners, hoods and fans, the drains.
   const equipmentGroup = useMemo(() => buildEquipment(plan, roomFilter), [plan, roomFilter]);
 
@@ -487,6 +489,15 @@ function SceneContent({
     [plan, scene.finishes, style, materials, shellOptions]
   );
   useEffect(() => () => disposeOwnedGeometry(shell), [shell]);
+  // The finishes the new shells no longer wear — a tile painted over, a room out of focus a
+  // while — are let go with their maps; every tile tried used to stay on the GPU all session.
+  useEffect(() => {
+    const worn = new Set<THREE.Material>();
+    shell.traverse((child) => {
+      if (child instanceof THREE.Mesh) for (const material of Array.isArray(child.material) ? child.material : [child.material]) worn.add(material);
+    });
+    materials.releaseUnused(worn);
+  }, [shell, materials]);
 
   // In openings mode every door and window wears its translucent slab — the handle to
   // grab — and the selected one is a shade stronger. Off the mode they leave the raycast
@@ -1562,10 +1573,16 @@ function SceneContent({
         <primitive object={radiatorGroup} />
         <primitive object={equipmentGroup} />
       </group>
-      {/* The lights that are switched on. By day they are a glow, at night the light. */}
-      {sceneLights.map((light) => (
-        <pointLight key={light.id} position={light.position} intensity={light.intensity * (daylight.interiorLightsOn ? Math.max(0.6, daylight.interiorIntensity) : 0.3)} distance={light.distance} decay={1.5} color={style.lighting.lamp} />
-      ))}
+      {/*
+        The lights that are switched on light the rooms from dusk. By day a lamp that is on only
+        glows — its shade's lit material (`litModel`) — and is no light at all: every point light
+        is paid for on every lit pixel, and a flat's dozen of them cost a third of the frame for a
+        glow the sun drowns anyway.
+      */}
+      {daylight.interiorLightsOn &&
+        sceneLights.map((light) => (
+          <pointLight key={light.id} position={light.position} intensity={light.intensity * Math.max(0.6, daylight.interiorIntensity)} distance={light.distance} decay={1.5} color={style.lighting.lamp} />
+        ))}
 
       <primitive object={ground} position={[groundCentre.x, ground.position.y, groundCentre.z]} />
       <primitive object={warnings} />

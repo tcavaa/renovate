@@ -29,15 +29,16 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import os from 'node:os';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 import { Document, NodeIO, type Primitive } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, flatten, getBounds, join, meshopt, prune, simplify, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import type { ElectricalKind, StyleId } from '../lib/design/types';
+import { compressTextures } from './lib/gltfPipeline';
+import { compressModels } from './lib/compressModels';
+import { writePhotoWebp } from './lib/photos';
 
 const ROOT = process.cwd();
 const OUT_DIR = path.join(ROOT, 'public', 'models', 'fixtures');
@@ -441,6 +442,8 @@ async function main() {
     )};\n`
   );
   console.log(`\n${all.length} fixtures in manifest · ${path.relative(ROOT, OUT_DIR)}`);
+  // The library as the studio downloads it: WebP maps, Draco geometry where that pays.
+  await compressModels();
   if (failed.length) {
     console.log(`\n${failed.length} failed:\n${failed.map((f) => `  · ${f}`).join('\n')}`);
     process.exitCode = 1;
@@ -577,12 +580,14 @@ async function convertOne(entry: FixtureEntry): Promise<FixtureManifestModel> {
   else transformPositions(doc, (p) => [p[0] - cx, p[1] - b.min[1], p[2] - cz]);
 
   const triangles = countTriangles(doc);
+  // WebP maps at quality 80, as every pipeline and the upload recipe write them.
+  await compressTextures(doc, { colourPx: 1024, dataPx: 1024, quality: 80 });
   await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'medium' }));
   const out = path.join(OUT_DIR, `${entry.slug}.glb`);
   await io.write(out, doc);
   let { size: bytes } = await stat(out);
   if (bytes > MAX_BYTES) {
-    await shrinkTextures(doc, 512);
+    await compressTextures(doc, { colourPx: 512, dataPx: 512, quality: 80 });
     await io.write(out, doc);
     ({ size: bytes } = await stat(out));
   }
@@ -700,15 +705,14 @@ function splitByCentroid(doc: Document, prim: Primitive, box: { x0: number; x1: 
  * source's own render of the model, fetched once.
  */
 async function placePhoto(entry: FixtureEntry): Promise<string | null> {
-  const rendered = path.join(PHOTO_DIR, `fixture-${entry.slug}.png`);
-  if (existsSync(rendered)) return `/uploads/furniture/fixture-${entry.slug}.png`;
+  // The one `pnpm models:photos` rendered, or the source's fetched before — WebP either way.
+  const photo = path.join(PHOTO_DIR, `fixture-${entry.slug}.webp`);
+  if (existsSync(photo)) return `/uploads/furniture/fixture-${entry.slug}.webp`;
   const src = entry.source;
   const url = src.type === 'polyhaven' ? `https://cdn.polyhaven.com/asset_img/primary/${src.id}.png?width=600` : src.url.replace(/\.glb$/, '.jpg');
-  const ext = src.type === 'polyhaven' ? 'png' : 'jpg';
-  const file = path.join(PHOTO_DIR, `fixture-${entry.slug}.${ext}`);
   try {
-    if (!existsSync(file)) await writeFile(file, await fetchBytes(url));
-    return `/uploads/furniture/fixture-${entry.slug}.${ext}`;
+    await writePhotoWebp(await fetchBytes(url), photo);
+    return `/uploads/furniture/fixture-${entry.slug}.webp`;
   } catch (error) {
     console.warn(`(no photo: ${(error as Error).message}) `);
     return null;
@@ -835,33 +839,6 @@ function bakeNodeTransforms(doc: Document): void {
   }
 }
 
-async function shrinkTextures(doc: Document, px: number): Promise<void> {
-  const work = await mkdtemp(path.join(os.tmpdir(), 'rr-fixture-tex-'));
-  try {
-    let i = 0;
-    for (const texture of doc.getRoot().listTextures()) {
-      const image = texture.getImage();
-      if (!image) continue;
-      const ext = texture.getMimeType() === 'image/png' ? 'png' : 'jpg';
-      const src = path.join(work, `${i}.${ext}`);
-      const dst = path.join(work, `${i}-small.${ext}`);
-      i++;
-      await writeFile(src, image);
-      await run('sips', ext === 'png' ? ['-Z', String(px), src, '--out', dst] : ['-s', 'format', 'jpeg', '-s', 'formatOptions', '80', '-Z', String(px), src, '--out', dst]);
-      texture.setImage(new Uint8Array(await readFile(dst)));
-    }
-  } finally {
-    await rm(work, { recursive: true, force: true });
-  }
-}
-
-function run(command: string, args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: 'ignore' });
-    child.on('error', reject);
-    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${command} exited with ${code}`))));
-  });
-}
 
 main().catch((error) => {
   console.error(error);

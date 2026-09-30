@@ -31335,7 +31335,7 @@ var KITCHEN_MATERIALS = [
     priceGelPerM2: 650,
     styles: ["scandinavian", "industrial"],
     colorHex: "#B4AAA3",
-    imageUrl: "/uploads/products/kitchen-material-ldsp-grey-oak.jpg"
+    imageUrl: "/uploads/products/kitchen-material-ldsp-grey-oak.webp"
   },
   {
     slug: "kitchen-material-mdf",
@@ -31346,7 +31346,7 @@ var KITCHEN_MATERIALS = [
     priceGelPerM2: 850,
     styles: ["modern", "scandinavian"],
     colorHex: "#DCD5C8",
-    imageUrl: "/uploads/products/kitchen-material-mdf.jpg"
+    imageUrl: "/uploads/products/kitchen-material-mdf.webp"
   },
   {
     slug: "kitchen-material-veneer",
@@ -31357,7 +31357,7 @@ var KITCHEN_MATERIALS = [
     priceGelPerM2: 1150,
     styles: ["vintage", "modern", "industrial"],
     colorHex: "#B8875A",
-    imageUrl: "/uploads/products/kitchen-material-veneer.jpg"
+    imageUrl: "/uploads/products/kitchen-material-veneer.webp"
   }
 ];
 

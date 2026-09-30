@@ -9,21 +9,28 @@
  * a metre so the lights, the grid and the camera can stay fixed.
  */
 
+import { DRACO_DECODER_PATH } from './draco';
+import { plainGlass } from './glass';
+
 export interface ModelPreviewHandle {
   dispose: () => void;
 }
 
 export async function mountModelPreview(host: HTMLElement, url: string): Promise<ModelPreviewHandle> {
-  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }] = await Promise.all([
+  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }, { DRACOLoader }] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
     import('three/examples/jsm/controls/OrbitControls.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
+    import('three/examples/jsm/loaders/DRACOLoader.js'),
   ]);
 
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(url);
+  const draco = new DRACOLoader().setDecoderPath(DRACO_DECODER_PATH).setDecoderConfig({ type: 'wasm' });
+  loader.setDRACOLoader(draco);
+  // One model and done: the decoder's workers go as soon as it is read.
+  const gltf = await loader.loadAsync(url).finally(() => draco.dispose());
   const model = gltf.scene;
   model.traverse((child) => {
     if (child instanceof THREE.Mesh) {
@@ -32,6 +39,8 @@ export async function mountModelPreview(host: HTMLElement, url: string): Promise
       child.receiveShadow = true;
     }
   });
+  // The studio's glass, so the turntable shows the piece as the flat will.
+  plainGlass(model);
 
   // Normalise to roughly a metre so lights, grid and camera can be fixed.
   const box = new THREE.Box3().setFromObject(model);

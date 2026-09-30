@@ -11,7 +11,8 @@ import { isFixtureProductKind } from '@/lib/design/electrical';
 import { isOpeningProductKind } from '@/lib/design/openings';
 import { isRadiatorProductKind } from '@/lib/design/radiators';
 import { safeKey, storage } from '@/lib/storage';
-import { IMAGE_EXTENSION, MODEL_EXTENSION, sniffImage, sniffModel } from '@/lib/uploads/sniff';
+import { IMAGE_EXTENSION, MODEL_EXTENSION, sniffImage, sniffModel, type ImageMime } from '@/lib/uploads/sniff';
+import { optimizeUploadedImage } from '@/lib/uploads/imageOptimize';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
 import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 import { slugify } from '@/lib/utils';
@@ -31,6 +32,13 @@ const fieldsSchema = z.object({
   depthCm: z.coerce.number().int().min(1).max(2000).optional(),
   heightCm: z.coerce.number().int().min(1).max(2000).optional(),
 });
+
+/** A photo of the piece, stored as WebP like every uploaded image (`lib/uploads/imageOptimize.ts`). */
+async function storePhoto(stamp: string, bytes: Buffer, mime: ImageMime): Promise<string> {
+  const { body, converted } = await optimizeUploadedImage(bytes, mime);
+  const stored: ImageMime = converted ? 'image/webp' : mime;
+  return (await storage.put(safeKey('products', `${stamp}.${IMAGE_EXTENSION[stored]}`), body, stored)).url;
+}
 
 /** A furniture archetype a person may upload a piece as — not a fitting, a door or a radiator. */
 function furnitureArchetype(kind: string): Archetype | null {
@@ -100,11 +108,11 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     if (photo instanceof File && photo.size > 0 && photo.size <= MAX_IMAGE_BYTES) {
       const photoBytes = Buffer.from(await photo.arrayBuffer());
       const photoMime = sniffImage(photoBytes);
-      if (photoMime) imageUrl = (await storage.put(safeKey('products', `${stamp}.${IMAGE_EXTENSION[photoMime]}`), photoBytes, photoMime)).url;
+      if (photoMime) imageUrl = await storePhoto(stamp, photoBytes, photoMime);
     }
   } else {
     if (bytes.length > MAX_IMAGE_BYTES) return fail(API_ERRORS.IMAGE_TOO_LARGE, 400);
-    imageUrl = (await storage.put(safeKey('products', `${stamp}.${IMAGE_EXTENSION[imageMime!]}`), bytes, imageMime!)).url;
+    imageUrl = await storePhoto(stamp, bytes, imageMime!);
     status = 'pending';
   }
 

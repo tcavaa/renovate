@@ -84,7 +84,11 @@ Everything the app needs to run unattended, and where each piece lives.
   with esbuild (`pnpm deploy:bundle-seed`, drizzle, mysql2 and dotenv inside), so **the
   catalogue follows the model manifests on every deploy**: new models become products, models
   taken out of the manifests are removed, prices in the manifests win over admin edits of
-  those rows — touch `tmp/restart.txt`. Without the marker it installs and builds itself with
+  those rows — then `node .next/standalone/optimize-models.cjs --dir <uploads>/models`
+  (`pnpm deploy:bundle-optimize`, with `sharp` and `draco3d` left to the standalone's
+  `node_modules`), which gives the models uploaded before the upload recipe its WebP and Draco
+  in place and only reads once they have it ([3d-assets.md](3d-assets.md#uploads-are-optimized)),
+  and touch `tmp/restart.txt`. Without the marker it installs and builds itself with
   `RENOVATE_LOW_MEMORY=1` (one worker, no in-build type check) — for a host with memory.
   `~/renovate/.env` holds the server variables (`AUTH_URL`, `AUTH_TRUST_HOST=true`, `LOG_DIR`
   included; the Node.js app's own settings are invisible to deployment tasks). Uploads live
@@ -148,6 +152,21 @@ Everything the app needs to run unattended, and where each piece lives.
 - **Tests and CI**: [testing.md](testing.md).
 
 ## Known gaps
+
+- **Production on the cPanel host is slow to deliver files, about 1 MB/s per download**
+  (measured from Tbilisi: 0.9–1.0 MB/s for a single file, about 1.45 MB/s for six at once,
+  against 2.2 MB/s from a CDN on the same line). Files the Node app serves (`/models`,
+  `/_next/static`) and files Apache serves from the document root (`/uploads`) are equally
+  slow, so the limit is the host's bandwidth, not Passenger. HTML and API answers are fine
+  (0.1–0.2 s of server time), and the host does not compress GLBs. A first visit to a furnished
+  studio downloaded about 8.5 MB (≈ 6.6 MB of models, ≈ 1.9 MB of textures) and took
+  **13–16 s** to finish drawing there, against 0.8 s locally; a repeat visit is about 1.2 s,
+  because `/models` is cached for 7 days and `/_next/static` for a year. The models are now
+  WebP and Draco ([3d-assets.md](3d-assets.md#compression-webp-and-draco)): the same flat's
+  models went from 5.2 to 2.2 MB, so a first visit should take about half as long — to be
+  measured there after the deploy. What is left is the host's bandwidth: a CDN in front of the
+  domain, or the planned move to Vercel (whose CDN serves `/public` and `/_next/static`). The
+  finish textures are WebP too, 47 → 9.2 MB ([3d-assets.md](3d-assets.md#finish-textures-are-webp)).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
   Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget

@@ -64,6 +64,7 @@ import {
   type ModelCredit,
   type ModelSource,
 } from './lib/gltfPipeline';
+import { compressModels } from './lib/compressModels';
 import type { StyleId } from '../lib/design/types';
 
 const ROOT = process.cwd();
@@ -331,6 +332,8 @@ async function main() {
     )};\n`
   );
   console.log(`\n${all.length} equipment models in manifest · ${path.relative(ROOT, OUT_DIR)}`);
+  // The library as the studio downloads it: WebP maps, Draco geometry where that pays.
+  await compressModels();
   if (failed.length) {
     console.log(`\n${failed.length} failed:\n${failed.map((f) => `  · ${f}`).join('\n')}`);
     process.exitCode = 1;
@@ -451,7 +454,7 @@ async function convertOne(entry: EquipmentEntry): Promise<EquipmentManifestModel
     title: entry.title,
     triangles,
     bytes,
-    imageUrl: `/uploads/furniture/equipment-${entry.slug}.png`,
+    imageUrl: `/uploads/furniture/equipment-${entry.slug}.webp`,
     source: source.type,
     sourceUrl: credit.url,
     author: credit.author,

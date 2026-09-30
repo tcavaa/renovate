@@ -47,7 +47,7 @@ function standardFlat(): { plan: FloorPlan; electrical: ReturnType<typeof standa
 const store: SceneStore = { id: 5, nameKa: 'Domus', logoUrl: null, websiteUrl: null, phone: null, address: null, city: null, rating: null, deliveryDays: 3, deliveryFeeGel: 40 };
 const pick = (productId: number, price: number, extra: Partial<SelectedProduct> = {}): SelectedProduct => ({ productId, nameKa: `p${productId}`, pricePerUnit: price, unit: 'piece', qty: 1, totalPrice: price, imageUrl: null, ...extra });
 
-const finish = (surfaces: string[]) => ({ textureUrl: '/textures/t.jpg', specs: { surfaces } });
+const finish = (surfaces: string[]) => ({ textureUrl: '/textures/t.webp', specs: { surfaces } });
 const laminate = pick(1, 40, { unit: 'm2', categorySlug: 'laminate', roomId: 'liv', surface: 'floor', ...finish(['floor']) });
 const paint = pick(2, 60, { unit: 'liter', categorySlug: 'paint', coveragePerUnit: 10, roomId: 'liv', surface: 'wall', ...finish(['wall']) });
 const floorTile = pick(3, 55, { unit: 'm2', categorySlug: 'floor-tiles', roomId: 'bath', surface: 'floor', ...finish(['floor']) });

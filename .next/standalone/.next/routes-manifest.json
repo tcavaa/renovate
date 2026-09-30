@@ -12,6 +12,12 @@
       "priority": true,
       "statusCode": 308,
       "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    },
+    {
+      "source": "/textures/:name([^/]+)\\.jpg",
+      "destination": "/textures/:name.webp",
+      "statusCode": 308,
+      "regex": "^(?!/_next)/textures(?:/([^/]+))\\.jpg(?:/)?$"
     }
   ],
   "headers": [
@@ -64,6 +70,16 @@
         }
       ],
       "regex": "^/models(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    },
+    {
+      "source": "/vendor/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800, stale-while-revalidate=86400"
+        }
+      ],
+      "regex": "^/vendor(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
     },
     {
       "source": "/textures/:path*",

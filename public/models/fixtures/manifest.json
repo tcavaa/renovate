@@ -24,7 +24,7 @@
       "title": "EU Outlet",
       "author": "J-Toastie",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-socket-eu.png",
+      "imageUrl": "/uploads/furniture/fixture-socket-eu.webp",
       "product": {
         "kind": "socket",
         "categorySlug": "sockets-switches",
@@ -51,13 +51,13 @@
       "heightCm": 5,
       "depthCm": 1,
       "triangles": 78,
-      "bytes": 53196,
+      "bytes": 6560,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/sw4oGFLDfC",
       "title": "Wall Socket",
       "author": "J-Toastie",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-socket-twin.png",
+      "imageUrl": "/uploads/furniture/fixture-socket-twin.webp",
       "product": {
         "kind": "socket",
         "categorySlug": "sockets-switches",
@@ -85,7 +85,7 @@
       "title": "Light switch",
       "author": "Poly by Google",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-switch.png",
+      "imageUrl": "/uploads/furniture/fixture-switch.webp",
       "product": {
         "kind": "switch",
         "categorySlug": "sockets-switches",
@@ -113,7 +113,7 @@
       "title": "Light switch",
       "author": "jeremy",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-switch-classic.png",
+      "imageUrl": "/uploads/furniture/fixture-switch-classic.webp",
       "product": {
         "kind": "switch",
         "categorySlug": "sockets-switches",
@@ -139,13 +139,13 @@
       "heightCm": 43,
       "depthCm": 14,
       "triangles": 4446,
-      "bytes": 444496,
+      "bytes": 144420,
       "source": "polyhaven",
       "sourceUrl": "https://polyhaven.com/a/industrial_wall_lamp",
       "title": "industrial wall lamp",
       "author": "Poly Haven",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-wall-lamp.png",
+      "imageUrl": "/uploads/furniture/fixture-wall-lamp.webp",
       "product": {
         "kind": "light_wall",
         "categorySlug": "lighting",
@@ -171,13 +171,13 @@
       "heightCm": 34,
       "depthCm": 25,
       "triangles": 5998,
-      "bytes": 252728,
+      "bytes": 78304,
       "source": "polyhaven",
       "sourceUrl": "https://polyhaven.com/a/industrial_wall_sconce",
       "title": "industrial wall sconce",
       "author": "Poly Haven",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-wall-sconce.png",
+      "imageUrl": "/uploads/furniture/fixture-wall-sconce.webp",
       "product": {
         "kind": "light_wall",
         "categorySlug": "lighting",
@@ -209,7 +209,7 @@
       "title": "Sconce light",
       "author": "jrich01",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-wall-lamp-brass.png",
+      "imageUrl": "/uploads/furniture/fixture-wall-lamp-brass.webp",
       "product": {
         "kind": "light_wall",
         "categorySlug": "lighting",
@@ -241,7 +241,7 @@
       "title": "Light bulb",
       "author": "reelpersen",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-bulb.png",
+      "imageUrl": "/uploads/furniture/fixture-bulb.webp",
       "product": {
         "kind": "light_ceiling",
         "categorySlug": "lighting",
@@ -263,13 +263,13 @@
       "heightCm": 95,
       "depthCm": 43,
       "triangles": 5602,
-      "bytes": 337728,
+      "bytes": 139276,
       "source": "polyhaven",
       "sourceUrl": "https://polyhaven.com/a/modern_ceiling_lamp_01",
       "title": "modern ceiling lamp 01",
       "author": "Poly Haven",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-ceiling-globe.png",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-globe.webp",
       "product": {
         "kind": "light_ceiling",
         "categorySlug": "lighting",
@@ -301,7 +301,7 @@
       "title": "Ceiling Light",
       "author": "Quaternius",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-ceiling-pendant.png",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-pendant.webp",
       "product": {
         "kind": "light_ceiling",
         "categorySlug": "lighting",
@@ -333,7 +333,7 @@
       "title": "Ceiling Lamp",
       "author": "Zsky",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-ceiling-disc.png",
+      "imageUrl": "/uploads/furniture/fixture-ceiling-disc.webp",
       "product": {
         "kind": "light_ceiling",
         "categorySlug": "lighting",
@@ -364,7 +364,7 @@
       "author": "Jarlan Perez",
       "license": "CC-BY 3.0",
       "role": "rose",
-      "imageUrl": "/uploads/furniture/fixture-ceiling-rose.png"
+      "imageUrl": "/uploads/furniture/fixture-ceiling-rose.webp"
     },
     {
       "slug": "spot-flush",
@@ -383,7 +383,7 @@
       "title": "Ceiling Light",
       "author": "Jarlan Perez",
       "license": "CC-BY 3.0",
-      "imageUrl": "/uploads/furniture/fixture-spot-flush.png",
+      "imageUrl": "/uploads/furniture/fixture-spot-flush.webp",
       "product": {
         "kind": "light_spot",
         "categorySlug": "lighting",
@@ -411,7 +411,7 @@
       "title": "Lamp Square Ceiling",
       "author": "Kenney",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-spot-square.png",
+      "imageUrl": "/uploads/furniture/fixture-spot-square.webp",
       "product": {
         "kind": "light_spot",
         "categorySlug": "lighting",
@@ -437,13 +437,13 @@
       "heightCm": 4,
       "depthCm": 4,
       "triangles": 1496,
-      "bytes": 185156,
+      "bytes": 62856,
       "source": "polyhaven",
       "sourceUrl": "https://polyhaven.com/a/mounted_fluorescent_lights",
       "title": "mounted fluorescent lights",
       "author": "Poly Haven",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-strip-led.png",
+      "imageUrl": "/uploads/furniture/fixture-strip-led.webp",
       "product": {
         "kind": "light_strip",
         "categorySlug": "lighting",
@@ -466,13 +466,13 @@
       "heightCm": 4,
       "depthCm": 4,
       "triangles": 1496,
-      "bytes": 185156,
+      "bytes": 62856,
       "source": "polyhaven",
       "sourceUrl": "https://polyhaven.com/a/mounted_fluorescent_lights",
       "title": "mounted fluorescent lights",
       "author": "Poly Haven",
       "license": "CC0",
-      "imageUrl": "/uploads/furniture/fixture-strip-furniture.png",
+      "imageUrl": "/uploads/furniture/fixture-strip-furniture.webp",
       "product": {
         "kind": "light_furniture",
         "categorySlug": "lighting",
@@ -503,7 +503,7 @@
         "body"
       ],
       "role": "casing",
-      "imageUrl": "/uploads/furniture/fixture-door-frame.png"
+      "imageUrl": "/uploads/furniture/fixture-door-frame.webp"
     },
     {
       "slug": "door-oak",
@@ -524,7 +524,7 @@
         "frame",
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-door-oak.png",
+      "imageUrl": "/uploads/furniture/fixture-door-oak.webp",
       "product": {
         "kind": "door",
         "categorySlug": "doors",
@@ -558,7 +558,7 @@
         "frame",
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-door-nordic.png",
+      "imageUrl": "/uploads/furniture/fixture-door-nordic.webp",
       "product": {
         "kind": "door",
         "categorySlug": "doors",
@@ -593,7 +593,7 @@
         "leaf"
       ],
       "role": "door",
-      "imageUrl": "/uploads/furniture/fixture-door-flat.png",
+      "imageUrl": "/uploads/furniture/fixture-door-flat.webp",
       "product": {
         "kind": "door",
         "categorySlug": "doors",
@@ -626,7 +626,7 @@
         "frame",
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-door-classic.png",
+      "imageUrl": "/uploads/furniture/fixture-door-classic.webp",
       "product": {
         "kind": "door",
         "categorySlug": "doors",
@@ -650,7 +650,7 @@
       "heightCm": 205,
       "depthCm": 24,
       "triangles": 240,
-      "bytes": 24056,
+      "bytes": 16400,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/P09FqyST04",
       "title": "Wooden Door",
@@ -659,7 +659,7 @@
       "parts": [
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-door-country.png",
+      "imageUrl": "/uploads/furniture/fixture-door-country.webp",
       "product": {
         "kind": "door",
         "categorySlug": "doors",
@@ -693,7 +693,7 @@
         "frame",
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-entrance-door-classic.png",
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-classic.webp",
       "product": {
         "kind": "entrance_door",
         "categorySlug": "doors",
@@ -717,7 +717,7 @@
       "heightCm": 210,
       "depthCm": 15,
       "triangles": 72,
-      "bytes": 8036,
+      "bytes": 4996,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/PCJv96DB6b",
       "title": "Metal Door",
@@ -726,7 +726,7 @@
       "parts": [
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-entrance-door-metal.png",
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-metal.webp",
       "product": {
         "kind": "entrance_door",
         "categorySlug": "doors",
@@ -750,7 +750,7 @@
       "heightCm": 205,
       "depthCm": 24,
       "triangles": 188,
-      "bytes": 23560,
+      "bytes": 15904,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/NZxf87zEEm",
       "title": "Red Door",
@@ -759,7 +759,7 @@
       "parts": [
         "leaf"
       ],
-      "imageUrl": "/uploads/furniture/fixture-entrance-door-red.png",
+      "imageUrl": "/uploads/furniture/fixture-entrance-door-red.webp",
       "product": {
         "kind": "entrance_door",
         "categorySlug": "doors",
@@ -792,7 +792,7 @@
       "parts": [
         "body"
       ],
-      "imageUrl": "/uploads/furniture/fixture-window-nordic.png",
+      "imageUrl": "/uploads/furniture/fixture-window-nordic.webp",
       "product": {
         "kind": "window",
         "categorySlug": "windows",
@@ -825,7 +825,7 @@
       "parts": [
         "body"
       ],
-      "imageUrl": "/uploads/furniture/fixture-window-grid.png",
+      "imageUrl": "/uploads/furniture/fixture-window-grid.webp",
       "product": {
         "kind": "window",
         "categorySlug": "windows",
@@ -858,7 +858,7 @@
       "parts": [
         "body"
       ],
-      "imageUrl": "/uploads/furniture/fixture-window-wood.png",
+      "imageUrl": "/uploads/furniture/fixture-window-wood.webp",
       "product": {
         "kind": "window",
         "categorySlug": "windows",
@@ -882,7 +882,7 @@
       "heightCm": 120,
       "depthCm": 9,
       "triangles": 60,
-      "bytes": 4172,
+      "bytes": 4000,
       "source": "polypizza",
       "sourceUrl": "https://poly.pizza/m/0BEn8hO2Nbn",
       "title": "Square window",
@@ -891,7 +891,7 @@
       "parts": [
         "body"
       ],
-      "imageUrl": "/uploads/furniture/fixture-window-square.png",
+      "imageUrl": "/uploads/furniture/fixture-window-square.webp",
       "product": {
         "kind": "window",
         "categorySlug": "windows",

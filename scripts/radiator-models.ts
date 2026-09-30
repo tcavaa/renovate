@@ -801,7 +801,7 @@ async function writeOne(design: RadiatorDesign): Promise<RadiatorManifestModel> 
     wattsPerSection: design.wattsPerSection,
     triangles,
     bytes,
-    imageUrl: `/uploads/furniture/radiator-${radiatorShortName(design.slug)}.png`,
+    imageUrl: `/uploads/furniture/radiator-${radiatorShortName(design.slug)}.webp`,
     author: 'RenovationRoom',
     license: 'CC0',
     product: design.product,

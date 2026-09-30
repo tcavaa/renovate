@@ -20,6 +20,7 @@ import sharp from 'sharp';
 import { NodeIO, type Document, type Texture } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
+import draco3d from 'draco3d';
 import { colorTally } from '../../lib/design/colors';
 
 /** Triangles looked at per primitive; a woven rattan chair has a quarter of a million. */
@@ -27,10 +28,11 @@ const MAX_SAMPLES = 20000;
 const TEXTURE_PX = 128;
 
 let io: NodeIO | null = null;
+/** Reads meshopt and Draco geometry alike (the larger models are Draco, `pnpm models:compress`). */
 async function reader(): Promise<NodeIO> {
   if (io) return io;
   await MeshoptDecoder.ready;
-  io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder });
+  io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.decoder': MeshoptDecoder, 'draco3d.decoder': await draco3d.createDecoderModule({}) });
   return io;
 }
 

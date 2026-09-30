@@ -23,8 +23,11 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), the technical points' equipment (`buildEquipment`: a panel, boiler, air conditioner, hood or fan on its wall at the product's size, a drain set into the floor), lights from fittings (`lightsFrom`), floor zones and painted cells |
 | `lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts` | each room edge cut into pieces by what stands behind it; each piece's mesh face by face (mitres, spans, far-face material slots); `buildMouldingGeometry` |
 | `lib/design3d/wallSide.ts` | `wallSideAt` — whose wall a hit on a wall face is (the outside of the flat is nobody's) |
-| `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded` |
-| `lib/design3d/modelLoader.ts` | `loadModel` / `loadFixture`: one GLB per URL (meshopt), clones out, pivot onto y = 0, footprint mask registration |
+| `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded`; `releaseUnused` lets go of the finishes no shell wears (gotcha 23) |
+| `lib/design3d/modelLoader.ts` | `loadModel` / `loadFixture`: one GLB per URL (meshopt or Draco), clones out, pivot onto y = 0, glass made plain, footprint mask registration; a failed load is forgotten so the next placement asks again |
+| `lib/design3d/glass.ts` | `plainGlass`: a transmissive glTF material (`KHR_materials_transmission`) turned into plain transparency (gotcha 20) |
+| `lib/design3d/instancing.ts` | `instanced` / `alongX`: one model at several places as one `InstancedMesh` per mesh — radiator sections, a socket's plates, railing modules (gotcha 21) |
+| `lib/design3d/draco.ts` | `DRACO_DECODER_PATH`: where every browser loader finds the Draco decoder (`public/vendor/draco`, `pnpm draco:decoder`) |
 | `lib/design3d/footprintFromModel.ts` | a model's covered floor read off its triangles (→ `lib/design/footprintMasks.ts`) |
 | `lib/design3d/daylight.ts`, `environment.ts` | lighting for an hour (`lightingForHour`); the sky texture and the ruled ground |
 | `lib/design3d/outline.ts`, `primitives.ts` | selection outlines (wireframe boxes); the few geometry helpers |
@@ -131,6 +134,33 @@ Each of these cost real debugging time. Don't undo them.
     the loaded nodes: every leaf stood half in the floor and every window was a third taller
     than its hole. Each part now sits inside a `Group` of its own that carries the stretch and
     the hinge offset. `stretchTo` and `reframe` are fine because they scale the model's root.
+20. **Glass is plain transparency, never transmission.** A glTF material with
+    `KHR_materials_transmission` makes three render every opaque object in the flat a second
+    time, into a full-size target, every frame one is on screen. That was two wall clocks (the
+    stock `ph-wall_clock`), about 25 of a 46 ms frame. `plainGlass` (`glass.ts`) turns it into a
+    transparent material that writes no depth, on the cached original as it loads — so every
+    clone, every upload, and the catalogue's turntable get it too. The files are stored with plain
+    glass as well — the five stock and fixture models that had it (`pnpm models:compress`) and
+    every upload (`plainGlassMaterials` in the upload recipe) — so the loader's pass is the net
+    under a file that still carries transmission.
+21. **An instanced run shares its model's geometry — dispose only the instances.** Radiator
+    sections, a double socket's plates and a railing's modules are one `InstancedMesh` per mesh
+    of their model (`instancing.ts`). Its geometry and materials are the loader's cache, so
+    `disposeOwnedGeometry` calls the instanced mesh's own `dispose()` (its instance buffers)
+    and never its geometry's (gotcha 10). A group that holds runs — fittings, radiators, the
+    shells with their railings — must be disposed when it is dropped, or the per-copy buffers
+    stay on the GPU. Each placement is a matrix in the frame the model would have stood in; the
+    model's own node transforms are read and kept under it (gotcha 19).
+22. **Lights are lights only from dusk.** By day a switched-on fitting is its glowing shade
+    (`litModel`) and no `pointLight` at all: every point light is paid on every lit pixel, and a
+    generated flat's dozen cost about a third of the frame. The count of point lights is part of
+    three's shader key, so the switch at dusk recompiles the materials once.
+23. **Finishes let go of their maps.** `StyleMaterials` keeps every surface material and
+    texture it makes; after each rebuild of the shells the viewer hands `releaseUnused` the
+    materials the shells wear, and the rest are disposed with the textures only they held — kept
+    30 s first (a room back in view, an undo), unless more than 24 idle textures pile up, when
+    the longest idle go at once. A 1024-pixel map is about 5.6 MB of GPU memory with its mips,
+    and every tile tried used to stay until the studio closed.
 
 ## A gap to the top of the wall: a balcony's railing
 
@@ -166,7 +196,16 @@ piece sat below the floor.
 error, so a 404 or a broken file looked exactly like "no product" — an invisible item with a
 selection box around it. Now the item gets a translucent ghost box in the product's colour
 and a `console.warn` naming the product and URL; a slot with no product at all still draws
-nothing.
+nothing. The loader forgets a failed file (`remember` in `modelLoader.ts`): the next placement
+of that product asks the server again, where one dropped request used to leave it a ghost box
+until the page was reloaded.
+
+**Geometry arrives compressed one of two ways.** The larger shipped models and every upload
+since the Draco recipe are Draco (`KHR_draco_mesh_compression`, about 40 % of meshopt's bytes
+as the studio serves them); small pieces and older uploads are meshopt. The loader has both
+decoders: meshopt's is inline, Draco's is fetched from `public/vendor/draco` the first time a
+Draco model arrives and decodes in web workers of its own (the CSP allows `worker-src blob:` and
+`'wasm-unsafe-eval'`). Textures are WebP. How the files are made: [../3d-assets.md](../3d-assets.md).
 
 ## Time of day and the world around the flat
 
@@ -175,7 +214,8 @@ nothing.
 position swings east to west and rises and sets, its colour warms when low, the sky and the
 exposure follow, and from dusk the flat's own lights come on: the light fittings that are
 switched on become point lights (`lightsFrom`), and when the flat has none, one `pointLight` per
-room under the ceiling, sized to the room. (The viewer also turns the cached window glass
+room under the ceiling, sized to the room. By day a fitting that is on only glows — its lamp
+materials lit (`litModel`) — and is no light (gotcha 22). (The viewer also turns the cached window glass
 emissive, which no longer shows — see gotcha 17.) The style still tints the sun and the lamps.
 Tested in `tests/unit/design/daylight.test.ts`.
 
@@ -209,3 +249,47 @@ asynchronously, so anything waiting for the first model (e2e, screenshots) has t
 - Kitchens count as wet rooms for the 3D builder's default wall and floor (`WET_ROOM_TYPES` in
   `buildScene.ts`), while the defaults and pricing use `surfaces.isWetRoom` (bathroom and toilet
   only) — the two can disagree about a kitchen's default finish.
+### Performance
+
+**Measured** on an Apple M4 with the sample-plan flat furnished (about 40 items, 37 fittings,
+12 lights on), locally on a production build and on production, at a 1440 × 900 window (a
+2520 × 1361 canvas at the 1.75 pixel-ratio cap). GPU time was read with
+`EXT_disjoint_timer_query_webgl2`, draw calls by wrapping `drawElements` (`threejs-performance`
+skill); the timer is noisy once a frame is cheaper than the gap between frames, so the counts
+are the firmer evidence.
+
+| Per frame | Before | After gotchas 20–23 and the instanced runs |
+|---|---|---|
+| GPU time | ≈ 46 ms (≈ 22 fps at best) | ≈ 10–12 ms |
+| Draw calls | 743 | 373 |
+| Full-scene passes besides the picture | 3 (shadows, transmission, its resolve and mipmaps) | 1 (shadows) |
+| Triangles | ≈ 1.0 million | ≈ 0.59 million |
+| Point lights by day | 12 | 0 |
+| Shader programs | 39 | 25 |
+
+What is still open, in order of expected payoff:
+
+- **The canvas renders every frame while nothing moves.** `<Canvas>` has no `frameloop`, so
+  an idle studio keeps the GPU drawing that whole frame continuously. `frameloop="demand"`
+  needs `invalidate()` wherever the scene changes outside React: a model or texture arriving,
+  a drag, a carry, the keyboard pan. The walk-through needs continuous frames while it is on.
+  drei's `OrbitControls` already invalidates while it moves and damps.
+- **The cost grows with pixels.** The pixel-ratio cap of 1.75 draws three times the pixels of
+  a 1.0 canvas on a retina screen; drei's `PerformanceMonitor` could lower it when frames fall.
+  At night the switched-on fittings are point lights again, which a flat with a dozen of them
+  pays for on every lit pixel.
+- **Every furniture move rebuilds all the fittings.** `hangingLamps` is a new array whenever
+  `scene.items` changes, so `buildElectrical` re-clones every socket, switch and lamp on each
+  drop. Every paint click rebuilds every room's shell (`shell` depends on `scene.finishes`).
+- **Switching between the 2D board and 3D rebuilds the 3D view from scratch.** `Viewer3D` is
+  unmounted while the board shows, so coming back makes a new WebGL context, compiles every
+  shader and uploads every model and texture again. Only the parsed GLBs survive in
+  `modelLoader`'s cache.
+- **Textures are not GPU-compressed.** A decoded 1024-pixel map is ≈ 5.6 MB of GPU memory with
+  its mipmaps whatever its file format; KTX2 (Basis) would cut that four to eight times but
+  needs an encoder in every pipeline and the upload recipe, and a transcoder in the studio.
+- Smaller: the studio page reads the whole design store (`useDesignStore()` with no
+  selector), so every store change, the autosave's status included, re-renders the page and
+  the viewer. The materials of lit lamps (`litModel`), the fitting preview's ghost material
+  and the opening slabs' materials are never disposed. A ghost box's geometry is not freed
+  when its item goes.

@@ -58,9 +58,9 @@ describe('inspectGlb', () => {
     expect(unsupportedExtension(info)).toBeNull();
   });
 
-  it('names Draco and Basis as the extensions the studio cannot decode', async () => {
+  it('names Basis as the extension the studio cannot decode, and lets Draco through', async () => {
     const { inspectGlb, unsupportedExtension } = await import('@/lib/uploads/glb');
-    expect(unsupportedExtension(inspectGlb(withJson({ meshes: [{}], extensionsRequired: ['KHR_draco_mesh_compression'] }))!)).toBe('KHR_draco_mesh_compression');
+    expect(unsupportedExtension(inspectGlb(withJson({ meshes: [{}], extensionsRequired: ['KHR_draco_mesh_compression'] }))!)).toBeNull();
     expect(unsupportedExtension(inspectGlb(withJson({ meshes: [{}], extensionsRequired: ['KHR_texture_basisu'] }))!)).toBe('KHR_texture_basisu');
     expect(inspectGlb(new Uint8Array(4))).toBeNull();
   });

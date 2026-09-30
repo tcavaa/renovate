@@ -338,13 +338,21 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.mjs",
     "serverExternalPackages": [
-      "mysql2"
+      "mysql2",
+      "draco3d"
     ],
     "repoRoot": "/home/runner/work/renovate/renovate",
     "turbopack": {
       "root": "/home/runner/work/renovate/renovate"
     },
-    "distDirRoot": ".next"
+    "distDirRoot": ".next",
+    "_originalRedirects": [
+      {
+        "source": "/textures/:name([^/]+)\\.jpg",
+        "destination": "/textures/:name.webp",
+        "permanent": true
+      }
+    ]
   },
   "appDir": "/home/runner/work/renovate/renovate",
   "relativeAppDir": "",

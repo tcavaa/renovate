@@ -15,6 +15,9 @@
  *   - Poly Haven textures (1k jpg diffuse / normal / roughness)
  *   - ambientCG materials (1K-JPG zips: Color / NormalGL / Roughness)
  *
+ * Every map lands as WebP (`lib/uploads/textureOptimize.ts`: colour and roughness at 80, normal
+ * maps at 90), and the products' URLs name the `.webp`.
+ *
  * Prices and Georgian names are placeholders, like the rest of the catalogue.
  */
 
@@ -27,7 +30,10 @@ import { spawn } from 'node:child_process';
 import { eq } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { categories, products, stores } from '../lib/db/schema';
+import sharp from 'sharp';
 import { colorsOfImage } from '../lib/uploads/textureColors';
+import { encodeTextureWebp, textureKind } from '../lib/uploads/textureOptimize';
+import { PHOTO_WEBP_QUALITY } from '../lib/uploads/imageOptimize';
 import { humanizeSlug } from './lib/translations';
 import type { StyleId } from '../lib/design/types';
 
@@ -48,7 +54,7 @@ interface TextureEntry {
   /** Product slug — an existing calculator product gets its texture; a new slug is created. */
   slug: string;
   source: 'local' | 'polyhaven' | 'ambientcg';
-  /** Local: base name in public/textures without `-diffuse.jpg`. Others: the asset id. */
+  /** Local: base name in public/textures without `-diffuse.webp`. Others: the asset id. */
   id: string;
   nameKa: string;
   categorySlug: 'laminate' | 'floor-tiles' | 'wall-tiles' | 'paint';
@@ -167,26 +173,27 @@ interface Maps {
   rough: string | null;
 }
 
-/** Puts the three maps in public/textures under a predictable name and returns their URLs. */
+/** Puts the three maps in public/textures under a predictable name, as WebP, and returns their URLs. */
 async function materialise(entry: TextureEntry): Promise<Maps> {
   const base = entry.source === 'local' ? entry.id : `${entry.source === 'polyhaven' ? 'ph' : 'acg'}-${entry.id}`;
-  const out = (kind: string) => path.join(TEX_DIR, `${base}-${kind}.jpg`);
-  const url = (kind: string) => `/textures/${base}-${kind}.jpg`;
+  const stem = (kind: string) => path.join(TEX_DIR, `${base}-${kind}`);
+  const url = (kind: string) => `/textures/${base}-${kind}.webp`;
 
   if (entry.source === 'local') {
-    // The partner drop's floors and bricks are `name-diffuse.jpg`; its plasters and the
-    // concrete are plain `name.jpg`. Either is the colour map.
-    const plain = path.join(TEX_DIR, `${base}.jpg`);
-    const diffuse = existsSync(out('diffuse')) ? url('diffuse') : existsSync(plain) ? `/textures/${base}.jpg` : null;
-    if (!diffuse) throw new Error(`missing public/textures/${base}(-diffuse).jpg — run pnpm assets:extract`);
+    // The partner drop's floors and bricks are `name-diffuse`; its plasters and the concrete are
+    // plain `name`. Either is the colour map. `pnpm assets:extract` leaves them WebP already.
+    const diffuse = (await ensureWebp(stem('diffuse'))) ? url('diffuse') : (await ensureWebp(path.join(TEX_DIR, base))) ? `/textures/${base}.webp` : null;
+    if (!diffuse) throw new Error(`missing public/textures/${base}(-diffuse) — run pnpm assets:extract`);
     return {
       diffuse,
-      normal: !entry.noNormal && existsSync(out('normal')) ? url('normal') : null,
-      rough: !entry.noRough && existsSync(out('rough')) ? url('rough') : null,
+      normal: !entry.noNormal && (await ensureWebp(stem('normal'))) ? url('normal') : null,
+      rough: !entry.noRough && (await ensureWebp(stem('rough'))) ? url('rough') : null,
     };
   }
 
-  if (!existsSync(out('diffuse'))) {
+  if (!(await ensureWebp(stem('diffuse')))) {
+    // The sources' own JPEGs first, converted below.
+    const out = (kind: string) => `${stem(kind)}.jpg`;
     if (entry.source === 'polyhaven') {
       const files = JSON.parse(Buffer.from(await fetchBytes(`https://api.polyhaven.com/files/${entry.id}`)).toString('utf8')) as Record<string, Record<string, Record<string, { url: string }>>>;
       const pick = (key: string) => files[key]?.['1k']?.jpg?.url ?? null;
@@ -216,20 +223,34 @@ async function materialise(entry: TextureEntry): Promise<Maps> {
       if (rough) await copyFile(rough, out('rough'));
       await rm(work, { recursive: true, force: true });
     }
+    for (const kind of ['diffuse', 'normal', 'rough']) await ensureWebp(stem(kind));
   }
   return {
     diffuse: url('diffuse'),
-    normal: existsSync(out('normal')) ? url('normal') : null,
-    rough: existsSync(out('rough')) ? url('rough') : null,
+    normal: existsSync(`${stem('normal')}.webp`) ? url('normal') : null,
+    rough: existsSync(`${stem('rough')}.webp`) ? url('rough') : null,
   };
+}
+
+/** `<stem>.webp` exists, made now from a JPEG or PNG beside it (which then goes) when it did not. */
+async function ensureWebp(stem: string): Promise<boolean> {
+  if (existsSync(`${stem}.webp`)) return true;
+  for (const ext of ['jpg', 'jpeg', 'png']) {
+    const source = `${stem}.${ext}`;
+    if (!existsSync(source)) continue;
+    await writeFile(`${stem}.webp`, await encodeTextureWebp(await readFile(source), textureKind(path.basename(stem))));
+    await rm(source);
+    return true;
+  }
+  return false;
 }
 
 /** A small square of the texture is the product photo — it is what the customer would see. */
 async function thumbnail(diffuseUrl: string, slug: string): Promise<string> {
   const src = path.join(ROOT, 'public', diffuseUrl);
-  const out = path.join(THUMB_DIR, `tex-${slug}.jpg`);
-  await run('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '80', '-Z', '360', src, '--out', out]);
-  return `/uploads/products/tex-${slug}.jpg`;
+  const out = path.join(THUMB_DIR, `tex-${slug}.webp`);
+  await sharp(src).resize(360, 360, { fit: 'inside' }).webp({ quality: PHOTO_WEBP_QUALITY }).toFile(out);
+  return `/uploads/products/tex-${slug}.webp`;
 }
 
 async function upsert(

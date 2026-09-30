@@ -228,7 +228,7 @@ async function seed() {
           pricePerUnit: String(p.pricePerUnit),
           unit: p.unit,
           brand: p.brand ?? null,
-          imageUrl: p.imageUrl ?? `/uploads/products/${p.slug}.png`,
+          imageUrl: p.imageUrl ?? `/uploads/products/${p.slug}.webp`,
           specs: p.specs ?? null,
           isActive: true,
           isFeatured: !!p.isFeatured,
@@ -239,7 +239,7 @@ async function seed() {
             nameKa: p.nameKa,
             nameEn: PRODUCT_I18N[p.slug]?.en ?? null,
             nameRu: PRODUCT_I18N[p.slug]?.ru ?? null,
-            imageUrl: p.imageUrl ?? `/uploads/products/${p.slug}.png`,
+            imageUrl: p.imageUrl ?? `/uploads/products/${p.slug}.webp`,
             isFeatured: !!p.isFeatured,
           },
         });
