@@ -21,7 +21,8 @@ lines) · [project-flow.md](project-flow.md) (the project page that re-reads bot
 | `lib/design/pricing.ts` | `priceScene(plan, scene, options)` → `DesignCost` (`lines`, totals, `contingencyTotal`, `baskets` per store, `coverage`, `kitchens`); `renovationEstimate` (its works alone); `finishPurchase`; `budgetSummary`, `budgetSections`, `orderedLines`; `BudgetLine` |
 | `lib/design/ticks.ts` | line keys (`tickFor`), `toggleTick`, `pruneTicks` / `pruneQuantities`, `withEdits` |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys for fittings, technical points, openings and trims (`ELECTRICAL_LABOUR`, `TECHNICAL_RATES`, `OPENING_ESTIMATE_GEL`, …) |
-| `lib/design/kitchen.ts` | measured kitchens (`KITCHEN_RATES`) |
+| `lib/design/kitchen.ts` | measured kitchens: the kitchen maker's material per m² of façade (`kitchenMaterial`), else `KITCHEN_RATES`; `boughtProduct` / `itemCostGel` for what a placed piece is bought as |
+| `lib/design/equipment.ts` | the technical points bought as products (panel, boiler, air conditioner, hood or fan, drain) — one piece per point |
 | `lib/design/finishQuantity.ts` | how much of its product a finish covers (`finishQuantity`, shared by the store and the save route) and how much of it shows (`visibleFinishes`) — what the budget buys |
 | `lib/design/trades.ts` | `tradesNeeded` — the labour keys of a budget → the six worker specialties (step 8) |
 | `lib/summary/calculatorSheet.ts` | the calculation priced as a design (`calculationCost` → `priceScene`) and its sheet (`calculatorSheet`) with its edits; `orderedCalculationLines` |
@@ -68,7 +69,7 @@ Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …
   which would reshuffle the page at every tick.
 - **Every line has a key, not only the products** (`tickFor` in `lib/design/ticks`):
   `item:`, `kitchen:`, `finish:`, `opening:`, `opening-estimate:`, `fixture:`, `radiator:`,
-  `estimate:`, `material:`, `labour:`, and for the calculator `pick:<selection key>` and
+  `equipment:`, `estimate:`, `material:`, `labour:`, and for the calculator `pick:<selection key>` and
   `furniture:<room>:<product>:<n>` (the n-th copy, because the same bed can be picked twice for
   one room). Only delivery has none: it is not chosen, it follows from what the shops bring.
 - **Two kinds of edit hang on the key**: a tick (`excluded`) and a quantity (`quantities`). The
@@ -108,7 +109,7 @@ Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …
 leaves it in the design — still in the room, still in 3D — and takes it out of the order.
 `scene.excluded` holds one key per *line*: a placed piece is `item:<its id>`, and the lines
 the budget folds per product are that product within its kind (`finish:<id>`,
-`opening:<id>`, `fixture:<id>`, `radiator:<id>`). The first version kept bare product ids, and
+`opening:<id>`, `fixture:<id>`, `radiator:<id>`, `equipment:<id>`). The first version kept bare product ids, and
 a flat with the same bed in four bedrooms is four lines of one product: unticking one struck
 all four, which read as three rows appearing from nowhere. (A bare number in an older scene
 still means "every line of that product" when read; `toggleTick` never writes one, and
@@ -158,12 +159,15 @@ ticked phases), what the flat already has (`plan.technical.existing`), that two 
 interior door are one door, and how many sections a radiator comes to. **Do not re-derive any
 of that in an order builder; add the product to the line.** Three things follow from reading
 the lines that the old loops got wrong in the other direction: a finish the flat already has
-and a made-to-measure kitchen (an estimate, a joiner's job) are on nobody's order, and a paint
-brushed on in twenty strips is one order line of its square metres rather than twenty.
+and a made-to-measure kitchen with no material chosen (an estimate, a joiner's job) are on
+nobody's order, and a paint brushed on in twenty strips is one order line of its square metres
+rather than twenty. A kitchen in one of the kitchen maker's materials is that maker's product
+line, and so their basket and their order (below).
 The basket labels follow the `surfaceLabels` pattern — `productLabels` in `PriceOptions`, the
 four sockets as one key, Georgian defaults — and `basketLabels(t)` in `lib/i18n/labels.ts`
-hands a page both maps from the dictionary (the `ek*`, `tkRadiator` and `line*` strings the
-fitting cards and the estimates already use). **Delivery rose for scenes whose doors or
+hands a page both maps from the dictionary (the `ek*`, `tk*` and `line*` strings the fitting
+cards and the estimates already use: `tkPanel`, `tkBoiler`, `tkAc`, `tkHood`, `tkFan` and
+`tkDrain` for the equipment, `lineKitchenRun` / `lineKitchenIsland` for a kitchen in a material). **Delivery rose for scenes whose doors or
 fittings come from a shop below `FREE_DELIVERY_THRESHOLD_GEL`** — that shop was always going to
 charge for the van; the budget now says so.
 
@@ -172,7 +176,10 @@ window (its product, else an estimate — `OPENING_ESTIMATE_GEL`; a pair of inte
 electrical kind (materials + per-point labour from the rate book: `electric_point`, with an
 LED strip or a furniture light counted as half a point — `ELECTRICAL_LABOUR`), technical point
 (`TECHNICAL_RATES`: `plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`,
-`extractor_install`; the electrical panel is four `electric_point`s) — a point's labour only
+`extractor_install`; the electrical panel is four `electric_point`s; a panel, boiler, air
+conditioner, extractor or floor drain that is a product — `lib/design/equipment` — is a product
+line of one piece per point, the same product folded, `equipment:<id>`, in place of the point's
+material estimate, its labour counted as before) — a point's labour only
 when its phase is not running (`technicalWork`, [calculator.md](calculator.md)) — bulk material
 and labour line — plus `openingsTotal`,
 `technicalTotal`, `lightingTotal` and `coverage`. In `design_only` mode only what the person
@@ -220,19 +227,45 @@ whatever laid it.
 into the sections the budget page lists. `tradesNeeded` maps the labour keys to the six
 worker specialties for step 8.
 
-## Kitchens are measured, not bought (`lib/design/kitchen.ts`)
+## Kitchens are measured, and made in the maker's material (`lib/design/kitchen.ts`)
 
 Every other product is a SKU with a price; a kitchen is built for the flat it stands in, so
-`kitchen_run` and `kitchen_island` are **measured** and their model's price is ignored. The
-quote is the one a joiner gives: the façade of the lower units and of the upper ones by the
-square metre, the worktop and the fitting by the running metre (`KITCHEN_RATES`). The
-measurement is in `DesignCost.kitchens` and the budget's line carries the m², marked as an
-estimate. A stock kitchen is an item with `custom: false` (a data flag — the studio has no
-control for it yet).
-An estimate is not a product line, so a measured kitchen is in no basket and on no store's
-order — the checkout used to send the shop the model at its catalogue price all the same,
-while the budget charged the joiner's quote; `custom: false` makes it a product and an order
-line again.
+`kitchen_run` and `kitchen_island` are **measured** and their model's price is ignored — the
+model is only what is drawn. The measure is the façade: the lower units and the upper ones by
+the square metre (`kitchenFacadeM2`; an island is worked from both sides, with nothing above).
+
+- **In a material** (`PlacedItem.kitchenMaterial`): the kitchen maker's product for it, in the
+  `kitchen-custom` category — "სამზარეულოს ავეჯი — ინდივიდუალური დამზადება", seeded with three
+  materials (laminated chipboard 650, painted MDF 850, oak veneer 1 150 ₾ per m² of façade, all
+  in: carcases, fronts, the worktop's share and the fitting — `scripts/lib/kitchenMaterials.ts`).
+  The line is that product at `façade × price`, not an estimate: key `product-<id>`, tick
+  `kitchen:<item id>`, bucket and section furniture, `item` "სამზარეულოს ავეჯი — ინდივიდუალური
+  დამზადება" (or the island's), so it is the maker's basket and the maker's order. **Only a
+  product sold by the m² is a material** (`isKitchenMaterial` in `lib/design/catalog.ts`:
+  `kitchen-custom` or under it, unit `m2`); anything else filed there — a unit sold by the
+  piece — is an ordinary product, and a snapshot that is not per m² prices nothing
+  (`kitchenMaterialOf`). The studio gives every made-to-measure piece the style's material (its
+  first style tag, else the cheapest — `withKitchenMaterials`), buys it again for the façade
+  when the piece is stretched, keeps the snapshot as the catalogue has it now (a price, a photo,
+  a model uploaded since; a product no longer sold by the m² gives way to the next material),
+  and lets the person choose another in the item's panel. The save reprices the snapshot from
+  the catalogue for the façade the piece has, and drops one the catalogue does not sell by the
+  m² — that kitchen is the estimate again (`app/api/design/projects/route.ts`).
+- **A material with a 3D model is how the kitchen is drawn** (`drawnModelUrl`): chosen for a
+  piece, its model replaces the placed kitchen's own in 3D, stretched to the measured run like
+  any kitchen model. Its 3D kind says for which pieces — a `kitchen_run` model on runs, a
+  `kitchen_island` model on islands, a model with no kind on both; a piece of the other kind
+  keeps its own model (the snapshot's `model3dUrl` is left empty for it). A material is never a
+  piece of furniture itself, model or not: it is not on the shelf, in the catalogue modal, in a
+  piece's alternatives or in what generation places (`isFurnitureProduct`, `candidatesFor`).
+- **With no material** (the catalogue has none): the quote a joiner gives — the façade by the
+  square metre, the worktop and the fitting by the running metre (`KITCHEN_RATES`) — marked as
+  an estimate, in no basket and on no store's order.
+
+The measurement is in `DesignCost.kitchens` either way. The furniture list and the item's card
+show a kitchen at what it is made for (`itemCostGel`, `boughtProduct`), not the model's price.
+A stock kitchen is an item with `custom: false` (a data flag — the studio has no control for it
+yet): an ordinary product and order line again.
 
 ## Tests
 
@@ -251,7 +284,13 @@ line again.
 - `tests/unit/design/budget.test.ts` — technical points, doors and fittings, what the flat
   already has, partitions, work choices, `tradesNeeded`; `tests/unit/design/partitions.test.ts`
   — which walls are partitions, built walls, room separators, the calculator's board.
-- `tests/unit/design/kitchen.test.ts` — measured runs and islands, `custom: false`.
+- `tests/unit/design/kitchen.test.ts` — measured runs and islands, `custom: false`; the maker's
+  materials: the style's default, re-bought when a run is stretched, the product line and its shop.
+- `tests/unit/design/equipment.test.ts` — what a technical point is bought as, the candidates
+  (an air conditioner sized to its room), the plan's equipment kept to its rooms, whole-flat
+  picks, and the product lines in the budget.
+- `tests/integration/save-routes.test.ts` — the design save reprices the equipment one per
+  point and a kitchen's material by its façade.
 - `tests/unit/summary/calculatorSheet.test.ts`, `tests/unit/summary/quantity.test.ts` — the
   calculation and a design of the same flat come to the same lines; the calculator's sheet, its
   edits and legacy flags, its contingency; the quantity options.

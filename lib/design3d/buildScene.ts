@@ -24,11 +24,12 @@ import { loadFixture, loadModel } from './modelLoader';
 import { isOpenEdge, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { leafOnOtherSide } from '@/lib/design/openings';
+import { CUSTOM_KITCHEN_SLOTS, drawnModelUrl } from '@/lib/design/kitchen';
 import { wallFinishFor } from '@/lib/design/zones';
 import { patchSpansOnWall, wallPatches, wallSpans } from '@/lib/design/paint';
 import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
 import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
-import { buildElectrical, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
+import { buildElectrical, buildEquipment, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
 import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallFaceSpan, type WallHole } from './wallGeometry';
 import type {
   DesignScene,
@@ -121,7 +122,7 @@ export function buildRoomShells(
 /** Sockets, switches and light fittings; rebuilt when the electrical layer changes. */
 export { buildElectrical };
 /** The radiators; rebuilt when the plan's technical points change. */
-export { buildRadiators };
+export { buildEquipment, buildRadiators };
 
 /**
  * Whole scene in one group — shells plus furniture. The viewer keeps the two halves apart
@@ -658,7 +659,7 @@ export function syncPlacedItems(
 /** What a wrapper was built from. If any of this changes the wrapper has to be rebuilt. */
 function itemKey(item: PlacedItem): string {
   const s = item.size;
-  return `${item.product?.productId ?? ''}|${item.product?.model3dUrl ?? ''}|${s.width}|${s.depth}|${s.height}`;
+  return `${item.product?.productId ?? ''}|${drawnModelUrl(item) ?? ''}|${s.width}|${s.depth}|${s.height}`;
 }
 
 /**
@@ -676,7 +677,8 @@ function itemKey(item: PlacedItem): string {
  * fixed in admin rather than mistaken for an empty slot.
  */
 export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
-  const modelUrl = item.product?.model3dUrl;
+  // A made-to-measure kitchen whose material has a model of its own is drawn as that model.
+  const modelUrl = drawnModelUrl(item);
   if (!modelUrl) return null;
 
   const wrapper = new THREE.Group();
@@ -758,7 +760,10 @@ function fitToItem(model: THREE.Object3D, item: PlacedItem): void {
   // A kitchen run is stretched to its wall and a rug to its table, so those slots are a
   // different shape from the product and each axis has to follow. Anything else keeps its
   // proportions; the tiny per-axis differences left are rounding in the stored dimensions.
-  if (Math.max(...ratios) / Math.min(...ratios) > 1.25) {
+  // A kitchen is measured by its slot whatever the proportions — a 2.6 m model on a 3 m run is
+  // within the 1.25 below, and scaled whole it stood 1.04 m tall and 0.74 m deep.
+  const measured = (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
+  if (measured || Math.max(...ratios) / Math.min(...ratios) > 1.25) {
     model.scale.set(rx, ry, rz);
   } else {
     model.scale.setScalar(Math.max(...ratios));

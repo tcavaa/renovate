@@ -2,17 +2,18 @@
 
 Everything in the flat that is not furniture or a finish: technical points (water, drains,
 panel, gas, radiators, AC, extractors, boiler, heating pipe) and the checks of step 3 (the works among them);
-sockets, switches and lights (the electrical layer); radiators bought by the section; doors and
+sockets, switches and lights (the electrical layer); radiators bought by the section; the
+panel, boiler, air conditioners, hoods and fans and floor drains bought one per point; doors and
 windows as editable openings and as products. Read this before touching
 `lib/design/technical.ts`, `autoTechnical.ts`, `technicalRates.ts`, `electrical.ts`,
-`radiators.ts`, `openings.ts`, `lib/design3d/buildStructure.ts`, the fitting/opening cards, or
-the technical step.
+`radiators.ts`, `equipment.ts`, `openings.ts`, `lib/design3d/buildStructure.ts`, the
+fitting/opening cards, or the technical step.
 
 Related: [overview.md](overview.md) (step order: the technical step moves for renovations;
 what the flat already has) · [plan-board.md](plan-board.md) (points and openings on the board)
 · [3d-engine.md](3d-engine.md) (models in 3D) · [../budget.md](../budget.md) (how they are
 priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiators`,
-`models:photos`) · [../calculator.md](../calculator.md) (phases and labour keys).
+`models:equipment`, `models:photos`) · [../calculator.md](../calculator.md) (phases and labour keys).
 
 ## Key files
 
@@ -25,11 +26,12 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design/electrical.ts` | sockets, switches, lights: `standardElectrical` (what every room gets), `suggestElectrical` (that and the furniture's), `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
 | `lib/design/boardPicks.ts` | `dressBoard`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind (the calculator's `boardWithPicks`, the design's `applyBoardPicks`) |
 | `lib/design/radiators.ts` | sections per room, `suggestRadiators`, radiator products (`withRadiatorProducts`, `radiatorCandidates`) |
+| `lib/design/equipment.ts` | the points that are equipment (`EQUIPMENT_KINDS`), what each is bought as (`equipmentProductKind`: an extractor is a cooker hood in a kitchen, a fan elsewhere), `equipmentCandidates`, `withEquipmentProduct(s)`, `equipmentSignature` |
 | `lib/design/openings.ts` | doors and windows: move, update, remove, add, twins (`alignTwins`, `mirrorHinge` / `mirrorSwing`, `leafOnOtherSide`), `moveOpeningToWall`, products (`openingProductKind`, `withOpeningProducts`, `openingCandidates`), `countDoors` (an interior door's two halves once — what the doors phase hangs, in the studio and on the calculator's board), `countWindows` (what the calculator buys a window for the whole flat for) |
 | `lib/design/planGeometry.ts` → `deriveOpenings` | doors inferred for a plan read by the CV parser ([plan-reading.md](plan-reading.md)) |
-| `lib/design3d/buildStructure.ts` | fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), `lightsFrom` |
+| `lib/design3d/buildStructure.ts` | fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), equipment (`buildEquipment`), `lightsFrom` |
 | `lib/design3d/buildScene.ts` → `buildOpeningTrim` / `attachOpeningModel` | door and window models in their holes |
-| `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts` | the generated model lists (`FIXTURE_MODELS`, `RADIATOR_MODELS`) |
+| `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts` | the generated model lists (`FIXTURE_MODELS`, `RADIATOR_MODELS`, `EQUIPMENT_MODELS`) |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx` | the selected fitting's and opening's cards |
 | `components/plan/ElementInspector.tsx`, `components/plan/icons.ts` | editing a point or opening on the board; one icon per system |
 | `app/(main)/design/[id]/technical/page.tsx` | step 3: the board with the kinds as tiles, the selected point, the checks' card and the hints; going on opens the checks |
@@ -121,9 +123,8 @@ unit's own `AC_UNIT_HEIGHT_M` (30 cm), floored at `AC_MIN_ELEVATION_M` (1.8 m) s
 does not bring it to head height (`TECHNICAL_KINDS.ac_unit.defaultElevationM`, 2.1 m, is only
 the fallback with no room). Placing a point takes that height, and so does re-kinding one —
 a socket turned into an air conditioner used to stay at 45 cm off the floor. It stays
-editable, and the inspector says where the number came from. The unit is not drawn in 3D
-yet: there is no model for it, and the radiators are the precedent for writing one
-(`scripts/radiator-models.ts`, in code, no download).
+editable, and the inspector says where the number came from. The unit is drawn in 3D as the
+product it is bought as (below: equipment), its bottom at that height.
 
 **Every fitting is a product**, like every piece of furniture. `FIXTURE_PRODUCT_KIND` maps
 a point's kind to the `model3dKind` a product carries — the four socket kinds are one
@@ -132,8 +133,12 @@ a point's kind to the `model3dKind` a product carries — the four socket kinds 
 give a point the catalogue's best product of that kind (`fixtureCandidates`: the style's
 first, the cheapest next) as a `SceneProduct` with its size (`sizeM`). The store attaches
 them wherever points are made or re-kinded (`addElectricalPoint`, `suggestElectrical`,
-`generate`, `changeElectricalKind`) and `setElectricalProduct` swaps one; a point whose
-kind has no product yet stays an estimate (`ELECTRICAL_MATERIAL_GEL`). The budget prices a
+`generate`, `changeElectricalKind`), the studio gives one to every fitting still without
+(`ensureFixtureProducts` — a TV or data point placed before those sockets were sold, say), and
+`setElectricalProduct` swaps one; a point whose kind has no product yet stays an estimate
+(`ELECTRICAL_MATERIAL_GEL`). The TV and data sockets are Lumina's, their models under
+`/models/equipment/` framed as fittings, which `buildFitting` draws as it draws
+`/models/fixtures/`. The budget prices a
 bought fitting as a real line (`product-<id>`, folded across points) and the rest by kind;
 the electrician's labour is per point either way. The admin product form offers the
 fixture kinds (⚡) next to the archetypes; `FIXTURE_CATEGORY_SLUGS` (sockets & switches,
@@ -220,6 +225,58 @@ rooms that already have one, unheated rooms (balcony, storage, closet) and rooms
 are skipped). They are marked `origin: 'user'` because the person asked for them, so a
 finished home still costs them. The budget buys the sections and charges `radiator_mount` per
 radiator — on the radiator's own line, or inside the heating phase (2) when that phase runs.
+
+## Equipment is bought one per point (`lib/design/equipment.ts`)
+
+The electrical panel, the boiler, the air conditioner, the extractor and the floor drain are
+points of the plan like the pipes, but each is also **a thing somebody buys**: a catalogue
+product, one piece per point, the way a radiator is one per point by the section. The product
+kinds (`model3dKind`) are `electrical_panel`, `boiler`, `ac_unit`, `cooker_hood`,
+`bathroom_fan` and `floor_drain` — an extractor is bought as a cooker hood in a kitchen or a
+studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
+(`equipmentProductKind`, `pointProductKind`). Their categories are under "საინჟინრო სისტემები"
+(Building services) in Materials; the seeded ones are San-Plus's.
+
+- **Which product.** `equipmentCandidates`: products of the kind that have a model, the style's
+  own first, then — an air conditioner — the smallest that cools the room (`specs.coverM2`
+  against the room's area; a room bigger than any unit takes the biggest), then the catalogue's
+  order (`specs.rank`), then the cheapest. `withEquipmentProducts` gives every point without a
+  product the best one, and one whose product is of another kind than its room calls for now —
+  a bathroom's fan dragged into the kitchen — the right one; a product the catalogue no longer
+  lists is kept (the save refuses it). The studio, the technical step and the calculator's
+  board run it when the catalogue is in and whenever `equipmentSignature` changes (a point
+  added, moved, re-kinded; a room retyped or resized); `placeByStandards` and
+  `ensureBoardProducts` include it. Re-kinding a point drops its product (`updateTechnicalPoint`),
+  and the new kind takes its own.
+- **Choosing another.** The point's inspector lists the candidates (`EquipmentFields` in
+  `ElementInspector`) — on the technical step, in the studio and on the calculator's plan step;
+  an air conditioner's shows the area each one cools. A point always has one when the catalogue
+  has any; leaving it out of the order is the budget's tick (`equipment:<id>`).
+- **The hood's height.** A cooker hood hung where a bathroom fan hangs (2.2 m, the extractor's
+  default) comes down to `COOKER_HOOD_ELEVATION_M` (1.55 m, 65 cm over the worktop) when it is
+  bought; a height somebody set stays.
+- **Priced** as a product line of its shop, the same product across points folded
+  ([../budget.md](../budget.md)), in place of the point's `TECHNICAL_RATES` estimate; the
+  labour (`electric_point` ×4 for a panel, `plumbing_install`, `ac_install`,
+  `extractor_install`) is counted as before. A point with no product in the catalogue stays the
+  estimate. Saves reprice it from the catalogue at one piece (`repricePlan`).
+- **Drawn** by `buildEquipment` (`lib/design3d/buildStructure.ts`): the product's model on the
+  point's nearest wall (`radiatorWallSpot`), its bottom at the point's height, its back on the
+  plaster, turned to the room, at the product's size (`TechnicalPoint.sizeM`, set from the
+  product's centimetres); a drain is set into the floor with its grate a few millimetres proud.
+  A point with no product draws the manifest's first model of its kind, as a radiator draws
+  the style's. A wall piece that would cover a window or a door on its wall is slid along it to
+  the nearest clear spot (`clearOfOpenings` — its height counts: an air conditioner over a
+  window head stays) — in 3D only; the point stays where it was put, so the board shows it
+  there. The models (twelve, downloaded from CC0 / CC BY / CC BY-SA sources by
+  `pnpm models:equipment`) and their credits: [../3d-assets.md](../3d-assets.md#equipment-models-scriptsequipment-modelsts).
+- **Where the automatic placement hangs it** (`suggestTechnical`): a bathroom's fan high on the
+  outside wall with the window, where the duct goes; a kitchen's hood over the kitchen run, on
+  the wall behind it — the hob is on the run — and, with no run placed yet, on the longest wall
+  without a window or door (it used to go to the middle of the window wall, and a hood hung
+  over the glass).
+- **A whole-flat pick** of equipment in the calculator goes on every point it is bought for
+  (`dressBoard`'s `{ equipment }` target).
 
 ## Doors and windows are editable (`lib/design/openings.ts`)
 
@@ -322,13 +379,15 @@ Interior at made-up prices.
 
 `tests/unit/design/technical.test.ts` (with the checks each project is asked),
 `autoTechnical.test.ts`, `electrical.test.ts` (the furniture's fittings, and a room wired by hand
-kept whole by both suggesters), `radiators.test.ts`, `openings.test.ts`,
+kept whole by both suggesters), `radiators.test.ts`, `equipment.test.ts` (what a point is bought
+as, the candidates, the plan's equipment kept to its rooms, whole-flat picks, the budget's
+lines), `openings.test.ts`,
 `tests/unit/summary/calculatorSheet.test.ts` (the standard fittings and a whole-flat pick on
 them, as the calculator and the design both price them),
 `budget.test.ts` (points, doors and fittings priced, existing),
 `tests/unit/store/designStore.test.ts` (the setup kept when points are added, checks recorded
-once), `tests/integration/save-routes.test.ts` (forged door, socket and radiator prices are
-refused), `e2e/design-studio.spec.ts` (going on through the checks). The modal and the card
+once), `tests/integration/save-routes.test.ts` (forged door, socket, radiator and equipment
+prices are refused), `e2e/design-studio.spec.ts` (going on through the checks). The modal and the card
 have no tests of their own.
 
 ## Known gaps
@@ -336,17 +395,22 @@ have no tests of their own.
 - A check stays looked at whatever happens afterwards: a room drawn on step 2 after the checks
   were gone through is not asked about again (its radiators, say) — the card still shows where
   each check stands and opens it.
-- Estimates for pipes and air conditioning (`lib/design/technicalRates.ts`) are market
-  averages, not products. Doors, windows, sockets, switches, lamps and radiators are
-  products now, and fall back to the same estimates only where the catalogue has none of
-  their kind. A radiator's *sections* are counted from the room's heat demand, which is a
+- Estimates for pipes, gas and the heating pipe (`lib/design/technicalRates.ts`) are market
+  averages, not products — they are the fitters' work. Doors, windows, sockets, switches,
+  lamps, radiators and the equipment (panel, boiler, air conditioner, hood or fan, drain) are
+  products, and fall back to the estimates only where the catalogue has none of their kind.
+  The equipment's labour is still the estimate's (`ac_install`, `extractor_install`, …), not a
+  price from the shop that sells it. A radiator's *sections* are counted from the room's heat demand, which is a
   rule of thumb (~100 W/m²) and not a heat-loss calculation: no window area, no glazing, no
   storey, no outside design temperature. A heating engineer's numbers would want all of them.
 - The four radiator designs are ours, written in code (`scripts/radiator-models.ts`), not a
   manufacturer's range: the watts per section are plausible, the prices made up. Kitchens are
-  measured at `KITCHEN_RATES`, which are Tbilisi averages rather than a joiner's quote, and
-  only the run and the island are measured — a fitted wardrobe is still an off-the-shelf
-  product.
-- The air conditioner is not drawn in 3D: there is no model for it yet
-  (`scripts/radiator-models.ts` is the precedent for writing one in code).
+  measured by the façade at the kitchen maker's price for the material (three seeded, placeholder
+  prices) or, with none, at `KITCHEN_RATES` — Tbilisi averages, not a joiner's quote — and only
+  the run and the island are measured: a fitted wardrobe is still an off-the-shelf product.
+- The equipment's models are strangers' stock, not the partners' range, and some carry a
+  maker's logo; their CC BY / CC BY-SA credits are in the manifest and not shown in the app —
+  see [../3d-assets.md](../3d-assets.md#known-gaps). A kitchen's extractor placed before hoods
+  were hung over the run stays where it was (slid off a window in 3D); moving the point on the
+  board puts it over the hob.
 - A window with no product falls back to nothing — see [../3d-assets.md](../3d-assets.md#known-gaps).

@@ -8,8 +8,10 @@
  * products of that kind were moved into. The studio's rooms list those subcategories the way
  * the shelf listed the kinds (`kindsForRoom`).
  *
- * Migration `0017_category_tree` writes exactly this into a database that had the flat
- * catalogue (`tests/unit/catalog/defaultTree.test.ts` keeps the two in step), and the seeds
+ * Migration `0018_category_tree_defaults` writes this into a database that had the flat
+ * catalogue, and `0020_equipment_kitchen_categories` the categories added since — the technical
+ * points' equipment, the TV and data sockets, the made-to-measure kitchens
+ * (`tests/unit/catalog/defaultTree.test.ts` keeps the tree and the SQL in step) — and the seeds
  * build it on a fresh one (`scripts/lib/categoryTree.ts`). After that the tree is the admin's:
  * nothing here is read at run time.
  */
@@ -66,9 +68,25 @@ const TREE: Spec[] = [
       }),
       old('windows', 'ფანჯრები', 'Windows', 'Окна', 'app-window', { model3dKind: 'window' }),
       old('sockets-switches', 'როზეტები/ამომრთველები', 'Sockets & Switches', 'Розетки и выключатели', 'plug-zap', {
-        children: [kind('socket', 'sockets', 'როზეტები', 'Sockets', 'Розетки', 'plug'), kind('switch', 'switches', 'ამომრთველები', 'Switches', 'Выключатели', 'toggle-left')],
+        children: [
+          kind('socket', 'sockets', 'როზეტები', 'Sockets', 'Розетки', 'plug'),
+          kind('switch', 'switches', 'ამომრთველები', 'Switches', 'Выключатели', 'toggle-left'),
+          kind('socket_tv', 'tv-sockets', 'ტელევიზორის როზეტები', 'TV sockets', 'ТВ-розетки', 'tv'),
+          kind('socket_data', 'data-sockets', 'ინტერნეტის როზეტები', 'Data sockets', 'Интернет-розетки', 'ethernet-port'),
+        ],
       }),
       old('radiators', 'რადიატორები', 'Radiators', 'Радиаторы', 'heater', { model3dKind: 'radiator' }),
+      // The technical points bought as products, one per point (`lib/design/equipment`).
+      add('engineering', 'საინჟინრო სისტემები', 'Building services', 'Инженерные системы', 'wrench', {
+        children: [
+          kind('electrical_panel', 'electrical-panels', 'ელექტრო ფარები', 'Electrical panels', 'Электрощиты', 'zap'),
+          kind('boiler', 'boilers', 'ქვაბები და ბოილერები', 'Boilers & water heaters', 'Котлы и водонагреватели', 'flame'),
+          kind('ac_unit', 'air-conditioners', 'კონდიციონერები', 'Air conditioners', 'Кондиционеры', 'air-vent'),
+          kind('cooker_hood', 'cooker-hoods', 'სამზარეულოს გამწოვები', 'Cooker hoods', 'Кухонные вытяжки', 'wind'),
+          kind('bathroom_fan', 'bathroom-fans', 'გამწოვი ვენტილატორები', 'Extractor fans', 'Вытяжные вентиляторы', 'fan'),
+          kind('floor_drain', 'floor-drains', 'იატაკის ტრაპები', 'Floor drains', 'Трапы', 'circle-dot'),
+        ],
+      }),
     ],
   }),
   old('lighting', 'განათება', 'Lighting', 'Освещение', 'lightbulb', {
@@ -135,6 +153,10 @@ const TREE: Spec[] = [
           kind('fridge', 'fridges', 'მაცივრები', 'Fridges', 'Холодильники', 'refrigerator'),
         ],
       }),
+      // The kitchen maker's materials, each priced per m² of façade (`lib/design/kitchen`) — not a
+      // piece placed in a room, so not furniture to the seeds, and beside the kitchen furniture
+      // rather than under it, which the calculator's tab lists whole.
+      add('kitchen-custom', 'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება', 'Made-to-measure kitchens', 'Кухни на заказ', 'ruler', { isFurniture: false }),
     ],
   }),
   old('decor', 'დეკორი', 'Decor', 'Декор', 'flower-2', {

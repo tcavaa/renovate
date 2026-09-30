@@ -26,6 +26,7 @@ import { technicalLabel } from '@/components/plan/PlanToolbar';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
 import { TECHNICAL_ICON } from '@/components/plan/icons';
 import { radiatorPoints } from '@/lib/design/radiators';
+import { equipmentSignature } from '@/lib/design/equipment';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import type { EditorTool } from '@/components/plan/PlanEditor';
 import type { TechnicalKind } from '@/lib/design/types';
@@ -84,6 +85,14 @@ export default function TechnicalPage() {
     // The signature says when the radiators or their rooms changed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, radiatorSignature]);
+
+  // And the equipment — panel, boiler, air conditioners, hoods and fans, drains — the kind its room calls for.
+  const equipmentKey = equipmentSignature(plan);
+  useEffect(() => {
+    if (products.length > 0 && equipmentKey) actions.ensureEquipmentProducts(products);
+    // The signature says when a point or its room changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, equipmentKey]);
 
   const suggestions = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
 
@@ -243,6 +252,7 @@ export default function TechnicalPage() {
                 selectRoomPart: actions.selectRoomPart,
                   removeRoom: actions.removeRoom,
                   setRadiatorProduct: actions.setRadiatorProduct,
+                  setEquipmentProduct: actions.setEquipmentProduct,
                 }}
                 catalog={products}
                 styleId={styleId}

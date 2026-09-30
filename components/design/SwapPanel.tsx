@@ -12,7 +12,9 @@ import { ItemCard } from '@/components/design/ItemCard';
 import { ProductPageLink } from '@/components/design/ProductPageLink';
 import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
-import { formatGEL, cn } from '@/lib/utils';
+import { kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
+import { fill } from '@/lib/admin/list';
+import { formatGEL, formatM2, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import type { PlacedItem, StyleId } from '@/lib/design/types';
@@ -33,6 +35,8 @@ interface SwapPanelProps {
   /** A copy beside it. */
   onDuplicate?: () => void;
   onLock?: (locked: boolean) => void;
+  /** A made-to-measure kitchen: the kitchen maker's material it is made in, priced per m² of façade. */
+  onKitchenMaterial?: (product: CatalogProduct) => void;
 }
 
 /** The angle as a slider and a number, 0–359°; both write the same rotation. */
@@ -82,6 +86,7 @@ export function SwapPanel({
   onMirror,
   onDuplicate,
   onLock,
+  onKitchenMaterial,
 }: SwapPanelProps) {
   const t = useT();
   const locale = useLocale();
@@ -155,6 +160,7 @@ export function SwapPanel({
           <AngleRow degrees={Math.round(((item.rotation * 180) / Math.PI + 360) % 360)} onChange={(deg) => onRotateTo((deg * Math.PI) / 180)} label={t.design.angle} />
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
+        {onKitchenMaterial && <KitchenMaterials item={item} catalog={catalog} styleId={styleId} onPick={onKitchenMaterial} />}
         {rotateBlocked && (
           <p role="alert" className="text-[11px] text-danger">
             {t.design.rotateBlocked}
@@ -222,5 +228,58 @@ export function SwapPanel({
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * The material a made-to-measure kitchen is made in: the kitchen maker's products, each priced
+ * per m² of façade (`lib/design/kitchen`), and what this piece comes to in each. One with a 3D
+ * model of this piece's kind says so: chosen, the kitchen is drawn as that model. With none in
+ * the catalogue the piece is the market's estimate, and says so.
+ */
+function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem; catalog: CatalogProduct[]; styleId: StyleId; onPick: (product: CatalogProduct) => void }) {
+  const t = useT();
+  const locale = useLocale();
+  const materials = kitchenMaterialCandidates(catalog, styleId);
+  const facadeM2 = kitchenFacadeM2(item);
+  return (
+    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kitchenMaterial}</p>
+      <p className="text-[11px] leading-snug text-ink-muted">{materials.length > 0 ? fill(t.build.kitchenMaterialHint, { m2: formatM2(facadeM2) }) : t.build.kitchenMaterialNone}</p>
+      {materials.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {materials.map((product) => {
+            const active = item.kitchenMaterial?.productId === product.id;
+            const drawn = !!product.model3dUrl && (!product.model3dKind || product.model3dKind === item.slot);
+            return (
+              <button key={product.id} type="button" onClick={() => !active && onPick(product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-[6px] bg-bg-base">
+                  {product.imageUrl ? (
+                    <Image src={product.imageUrl} alt="" fill sizes="36px" className="object-cover" />
+                  ) : (
+                    <span className="block h-full w-full" style={{ backgroundColor: product.colorHex ?? '#DDD8CF' }} />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-ink">{localizedName(locale, product)}</span>
+                  <span className="flex items-center gap-1.5 truncate tabular-nums text-ink-muted">
+                    {formatGEL(product.pricePerUnit)} / {t.units.m2}
+                    {drawn && (
+                      <span title={t.build.kitchenMaterialModel} className="rounded-[4px] border border-ink/15 px-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-ink">
+                        3D
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-xs font-semibold tabular-nums text-ink">{formatGEL(Math.round(product.pricePerUnit * facadeM2 * 100) / 100)}</span>
+                  {active && <Check className="ml-auto mt-0.5 h-3.5 w-3.5 text-ink" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

@@ -24,7 +24,10 @@ import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
 import { loadFixture, loadModel } from './modelLoader';
 import type { SceneUserData } from './buildScene';
 import { RADIATOR_MODELS } from './radiatorManifest';
-import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
+import { EQUIPMENT_MODELS } from './equipmentManifest';
+import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
+import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
+import { technicalElevation } from '@/lib/design/technical';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -91,12 +94,13 @@ export function fixtureFor(kind: ElectricalKind): FixtureModel | null {
 /**
  * What to draw for a point: its own product's model when it has one, the kind's default
  * fixture otherwise. A file under `/models/fixtures` is framed as a fixture already (back
- * on the wall, top on the ceiling); anything else — a product a partner uploaded — is a
- * furniture-framed model that is scaled to the product's size and turned to the wall here.
+ * on the wall, top on the ceiling), and so is an equipment model framed as a fitting (the TV
+ * and data sockets); anything else — a product a partner uploaded — is a furniture-framed
+ * model that is scaled to the product's size and turned to the wall here.
  */
 function modelFor(point: ElectricalPoint): { url: string; framed: boolean; sizeM?: { width: number; depth: number; height: number } } | null {
   const url = point.product?.model3dUrl;
-  if (url) return { url, framed: url.startsWith('/models/fixtures/'), sizeM: point.sizeM };
+  if (url) return { url, framed: url.startsWith('/models/fixtures/') || EQUIPMENT_MODELS.some((m) => m.url === url && m.frame === 'fitting'), sizeM: point.sizeM };
   const fixture = fixtureFor(point.kind);
   return fixture ? { url: fixture.url, framed: true } : null;
 }
@@ -362,6 +366,76 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
         })
         .catch((error: unknown) => console.warn(`[studio] radiator failed to load: ${url}`, error));
     }
+    group.add(piece);
+  }
+  return group;
+}
+
+// ---------------------------------------------------------------------------
+// Equipment
+// ---------------------------------------------------------------------------
+
+/** How far a wall-hung piece of equipment stands off the plaster (its bracket). */
+const EQUIPMENT_WALL_GAP_M = 0.01;
+/** How far a floor drain's grate stands proud of the floor; the rest of it is in the slab. */
+const DRAIN_PROUD_M = 0.003;
+
+/**
+ * The technical points bought as equipment (`lib/design/equipment`): the electrical panel, the
+ * boiler, the air conditioner, a cooker hood or a fan — each its product's model on the nearest
+ * wall of its room, its bottom at the point's height, its back on the plaster and its front to
+ * the room, slid along the wall off any window or door it would cover (`clearOfOpenings`) — and
+ * a floor drain set into the floor at its point, its grate flush. The model is
+ * the point's product, or the manifest's first of the kind while it has none (the radiators'
+ * rule). Any file will do — the loader stands a model on y = 0 centred on x/z — and it is drawn
+ * at the product's size when the product has one (`TechnicalPoint.sizeM`), else at its own.
+ */
+export function buildEquipment(plan: FloorPlan, rooms?: Set<string> | null): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'equipment';
+  for (const point of plan.technical?.points ?? []) {
+    if (!isEquipmentKind(point.kind)) continue;
+    const productKind = pointProductKind(plan, point);
+    const url = point.product?.model3dUrl ?? EQUIPMENT_MODELS.find((m) => m.kind === productKind)?.url;
+    if (!url) continue;
+    // What it measures: its product's size, else the manifest's for its model.
+    const known = EQUIPMENT_MODELS.find((m) => m.url === url);
+    const dims = point.sizeM ?? (known ? { width: known.widthCm / 100, depth: known.depthCm / 100, height: known.heightCm / 100 } : null);
+    const floor = point.kind === 'floor_drain';
+    const spot = floor ? null : radiatorWallSpot(plan, point);
+    const room = spot?.room ?? radiatorRoom(plan, point);
+    if (!room || (!floor && !spot) || (rooms && !rooms.has(room.id))) continue;
+
+    const piece = new THREE.Group();
+    piece.name = `equipment-${point.id}`;
+    const data = { pickKind: 'technical', roomId: room.id, technicalId: point.id } satisfies SceneUserData;
+    tag(piece, data);
+    if (spot) {
+      // At its point along the wall, off the windows and doors, never past the wall's end.
+      const bottom = point.elevationM ?? technicalElevation(point.kind, room);
+      const along = clearOfOpenings(spot.room.openings, spot.edge, spot.s, dims?.width ?? 0.4, bottom, dims?.height ?? 0);
+      const at = pointOnEdge(spot.edge, along / spot.edge.length);
+      piece.position.set(at.x + spot.edge.inward.x * EQUIPMENT_WALL_GAP_M, bottom, at.z + spot.edge.inward.z * EQUIPMENT_WALL_GAP_M);
+      piece.rotation.y = spot.edge.facing;
+    } else {
+      piece.position.set(point.position.x, 0, point.position.z);
+    }
+
+    loadModel(url)
+      .then((model) => {
+        if (!piece.parent) return;
+        const authored = (model.userData.authoredSize as THREE.Vector3 | undefined) ?? new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+        const size = point.sizeM ?? { width: authored.x, depth: authored.z, height: authored.y };
+        const wrapper = new THREE.Group();
+        wrapper.scale.set(size.width / Math.max(authored.x, 1e-6), size.height / Math.max(authored.y, 1e-6), size.depth / Math.max(authored.z, 1e-6));
+        // On a wall its back is on the plaster (the model is centred on z); in the floor only the grate shows.
+        if (floor) wrapper.position.y = DRAIN_PROUD_M - size.height;
+        else wrapper.position.z = size.depth / 2;
+        wrapper.add(model);
+        piece.add(wrapper);
+        tag(wrapper, data);
+      })
+      .catch((error: unknown) => console.warn(`[studio] equipment failed to load: ${url}`, error));
     group.add(piece);
   }
   return group;

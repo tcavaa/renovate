@@ -42,6 +42,8 @@ import { priceScene } from '@/lib/design/pricing';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { equipmentSignature } from '@/lib/design/equipment';
+import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
@@ -154,6 +156,26 @@ export default function StudioPage() {
   useEffect(() => {
     if (products.length > 0 && radiatorSignature.includes(':')) store.ensureRadiatorProducts(products);
   }, [products, radiatorSignature, store]);
+
+  // And every socket, switch and light: a fitting placed before its kind was sold — a TV or a
+  // data socket — is bought as the catalogue's best of its kind once there is one.
+  const fittingsWithoutProduct = electrical.filter((p) => !p.product).length;
+  useEffect(() => {
+    if (products.length > 0 && fittingsWithoutProduct > 0) store.ensureFixtureProducts(products);
+  }, [products, fittingsWithoutProduct, store]);
+
+  // So is the equipment — the panel, the boiler, the air conditioners, a hood in the kitchen
+  // and a fan in the bathroom, the drains — each the right kind for the room it is in.
+  const equipmentKey = equipmentSignature(plan);
+  useEffect(() => {
+    if (products.length > 0 && equipmentKey) store.ensureEquipmentProducts(products);
+  }, [products, equipmentKey, store]);
+
+  // A made-to-measure kitchen is made in one of the kitchen maker's materials, bought by the façade it has.
+  const kitchenKey = kitchenMaterialSignature(items);
+  useEffect(() => {
+    if (products.length > 0 && kitchenKey) store.ensureKitchenMaterials(products);
+  }, [products, kitchenKey, store]);
 
   // The existing house is kept the first time the studio opens on a plan.
   useEffect(() => {
@@ -803,6 +825,7 @@ export default function StudioPage() {
     setRoomWhole: store.setRoomWhole,
     removeZone: store.removeFinishZone,
     setRadiatorProduct: store.setRadiatorProduct,
+    setEquipmentProduct: store.setEquipmentProduct,
   };
 
   /**
@@ -1065,6 +1088,7 @@ export default function StudioPage() {
                   onMirror={() => store.mirrorItem(selected.id)}
                   onDuplicate={() => store.duplicateItem(selected.id)}
                   onLock={(locked) => store.lockItem(selected.id, locked)}
+                  onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => store.setKitchenMaterial(selected.id, product) : undefined}
                 />
               </FloatingPanel>
             ) : selectedElement?.kind === 'electrical' && electrical.some((p) => p.id === selectedElement.id) ? (

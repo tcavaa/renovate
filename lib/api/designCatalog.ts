@@ -2,7 +2,7 @@ import { revalidateTag, unstable_cache } from 'next/cache';
 import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, stores, type Category } from '@/lib/db/schema';
-import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
+import { DESIGN_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY } from '@/lib/design/catalog';
 import { SURFACE_CATEGORY_SLUGS } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ShelfData } from '@/lib/design/shelf';
@@ -17,8 +17,8 @@ export interface DesignCatalog {
   shelf: ShelfData;
 }
 
-/** The categories the studio's code names: its furniture, fittings, openings, radiators, mouldings and finishes. */
-const KNOWN_SLUGS: ReadonlySet<string> = new Set([...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS]);
+/** The categories the studio's code names: its furniture, fittings, openings, radiators, mouldings, finishes and the kitchen maker's materials. */
+const KNOWN_SLUGS: ReadonlySet<string> = new Set([...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY]);
 
 /**
  * Cache tag for the design catalogue. Admin writes to products, stores, categories or the studio's rooms call
@@ -42,9 +42,10 @@ export function invalidateDesignCatalog(): void {
 }
 
 /**
- * What the studio can use: every product with a 3D kind (furniture, fittings, doors, radiators
- * — wherever admin filed it), and everything under the categories its code names (the
- * finishes and mouldings, which have no kind). Each product carries its own category, for the
+ * What the studio can use: every product with a 3D kind (furniture, fittings, doors, radiators,
+ * the technical points' equipment — wherever admin filed it), and everything under the
+ * categories its code names (the finishes, the mouldings and the kitchen maker's materials,
+ * which have no kind). Each product carries its own category, for the
  * shelf's rooms, and the category the code knows it by (`nearestSlug`).
  */
 async function loadDesignCatalog(): Promise<DesignCatalog> {

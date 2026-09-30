@@ -110,14 +110,22 @@ without one before it looks at archetype or style. There are two ways a product 
   to use as the product photo when there is none. Saving a URL sets `model3dStatus = 'ready'`
   (the design catalogue only exposes ready models); clearing it sets `'none'`.
 - **`pnpm models:seed`** writes one product per entry of the model manifests (the partner
-  drop, CC0 stock, fixtures, radiators) and deletes every other manifest-managed product with a
-  `model3dKind` — a product whose `model3dUrl` is not under `/models/` (an upload) and a person's
-  own product are left alone. Details in [3d-assets.md](3d-assets.md#what-pnpm-modelsseed-does).
+  drop, CC0 stock, fixtures, radiators, the technical points' equipment) and deletes every other
+  manifest-managed product with a `model3dKind` — a product whose `model3dUrl` is not under
+  `/models/` (an upload) and a person's own product are left alone. Details in
+  [3d-assets.md](3d-assets.md#what-pnpm-modelsseed-does). It also writes the kitchen maker's
+  three materials (`scripts/lib/kitchenMaterials.ts`: per m² of façade, in `kitchen-custom`) and
+  makes their store when the database has none — `seed-design.ts` writes the same store with
+  the other partner stores. A material's 3D model (admin's upload, or the seed's) is how a
+  kitchen made in it is drawn, never a piece placed on its own
+  ([budget.md](budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents)); a
+  product in that category sold by the piece is an ordinary product, not a material.
   The hand-written 115-product range that `seed-design.ts` used to carry is gone for that
   reason.
 
-The `model3dKind` options come from `ARCHETYPES` directly, plus the fixture kinds (⚡) and the
-opening kinds (🚪), so adding an archetype makes it selectable without touching the admin
+The `model3dKind` options come from `ARCHETYPES` directly, plus the fixture kinds (⚡), the
+opening kinds (🚪) and the radiator and the technical points' equipment (🔧 —
+`EQUIPMENT_KIND_LABEL`), so adding an archetype makes it selectable without touching the admin
 form. A stored kind that is no longer in the registry
 stays listed (marked `?`) rather than silently blanking the select and being lost on save.
 

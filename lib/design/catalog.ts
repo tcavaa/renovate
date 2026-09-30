@@ -612,6 +612,19 @@ export const FIXTURE_CATEGORY_SLUGS = ['sockets-switches', 'lighting'];
 /** The categories the doors and windows are sold in. */
 export const OPENING_CATEGORY_SLUGS = ['doors', 'windows'];
 
+/** The category the kitchen maker's materials are in (`lib/design/kitchen`): each priced per m² of façade. */
+export const KITCHEN_MATERIAL_CATEGORY = 'kitchen-custom';
+
+/**
+ * A kitchen maker's material — what a made-to-measure kitchen is made in and priced by: a
+ * product in `kitchen-custom` (or under it) sold by the square metre. Anything else there, a
+ * unit sold by the piece, is an ordinary product; and a material is never a piece of furniture,
+ * even with a model (`isFurnitureProduct`, `candidatesFor`).
+ */
+export function isKitchenMaterial(product: { categorySlug?: string | null; unit?: string | null }): boolean {
+  return product.categorySlug === KITCHEN_MATERIAL_CATEGORY && product.unit === 'm2';
+}
+
 /** The categories the central-heating radiators are sold in, by the section. */
 export const RADIATOR_CATEGORY_SLUGS = ['radiators'];
 /** The categories the skirting boards and cornices are sold in, by the running metre. */

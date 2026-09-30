@@ -14,6 +14,7 @@ import { Trash2 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { itemCostGel } from '@/lib/design/kitchen';
 import { cn, formatGEL } from '@/lib/utils';
 import type { PlacedItem, PlanRoom } from '@/lib/design/types';
 
@@ -50,7 +51,7 @@ export function RoomItemsPanel({ items, rooms, focusRoomId, selectedItemId, onSe
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-ink">{name}</span>
                     <span className="block truncate text-[10px] tabular-nums text-ink-muted">
-                      {item.product ? formatGEL(item.product.totalPrice) : '—'}
+                      {item.product ? formatGEL(itemCostGel(item)) : '—'}
                     </span>
                   </span>
                 </button>

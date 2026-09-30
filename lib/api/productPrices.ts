@@ -2,6 +2,7 @@ import { inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { fixtureQuantity } from '@/lib/design/electrical';
+import { isEquipmentKind } from '@/lib/design/equipment';
 import { radiatorSections } from '@/lib/design/radiators';
 import type { ElectricalPoint, FloorPlan, SceneProduct, SceneStore } from '@/lib/design/types';
 
@@ -101,7 +102,7 @@ function withPrice<T extends PricedSnapshot>(snapshot: T, pricePerUnit: number, 
   };
 }
 
-/** Every product on a plan and the fittings on it: its doors and windows, its radiators, its sockets and lights. */
+/** Every product on a plan and the fittings on it: its doors and windows, its radiators and equipment, its sockets and lights. */
 export function planProductIds(plan: FloorPlan | null, electrical: ElectricalPoint[] = []): number[] {
   if (!plan) return electrical.flatMap((p) => (p.product ? [p.product.productId] : []));
   return [
@@ -114,7 +115,8 @@ export function planProductIds(plan: FloorPlan | null, electrical: ElectricalPoi
 /**
  * A plan's products and its fittings' at the catalogue's price and the server's quantity: a door
  * or a window one apiece, a radiator by the section — counted on the plan as submitted, which is
- * the plan the sections belong to — a double socket two plates, a strip by the metre. The same
+ * the plan the sections belong to — a panel, a boiler, an air conditioner, a hood or a drain one
+ * per point, a double socket two plates, a strip by the metre. The same
  * for the design's save and the calculator's: a door, a socket and a radiator are order lines a
  * store is sent, exactly as a sofa is. `unknown` lists products the catalogue does not have.
  */
@@ -131,7 +133,7 @@ export function repricePlan<P extends FloorPlan | null, E extends ElectricalPoin
       ? {
           ...plan,
           rooms: plan.rooms.map((room) => ({ ...room, openings: room.openings.map((opening) => repriced(opening, 1)) })),
-          ...(plan.technical ? { technical: { ...plan.technical, points: plan.technical.points.map((point) => (point.kind === 'radiator' ? repriced(point, radiatorSections(plan, point)) : point)) } } : {}),
+          ...(plan.technical ? { technical: { ...plan.technical, points: plan.technical.points.map((point) => (point.kind === 'radiator' ? repriced(point, radiatorSections(plan, point)) : isEquipmentKind(point.kind) ? repriced(point, 1) : point)) } } : {}),
         }
       : plan
   ) as P;

@@ -24,6 +24,7 @@ import {
   HIDDEN_LAYER,
   OPENING_SLAB_NAME,
   buildElectrical,
+  buildEquipment,
   buildRadiators,
   buildRoomShells,
   disposeOwnedGeometry,
@@ -472,6 +473,8 @@ function SceneContent({
   const sceneLights = useMemo(() => lightsFrom(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
   // The radiators hang on the plan's technical points; they change with the plan alone.
   const radiatorGroup = useMemo(() => buildRadiators(plan, style, roomFilter), [plan, style, roomFilter]);
+  // So does the equipment bought for them: the panel, the boiler, the air conditioners, hoods and fans, the drains.
+  const equipmentGroup = useMemo(() => buildEquipment(plan, roomFilter), [plan, roomFilter]);
 
   // The room shells change only with the plan, the finishes or the style — not with furniture.
   const shell = useMemo(
@@ -1550,6 +1553,7 @@ function SceneContent({
         <primitive object={itemsGroup} />
         <primitive object={electricalGroup} />
         <primitive object={radiatorGroup} />
+        <primitive object={equipmentGroup} />
       </group>
       {/* The lights that are switched on. By day they are a glow, at night the light. */}
       {sceneLights.map((light) => (

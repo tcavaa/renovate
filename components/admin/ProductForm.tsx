@@ -27,6 +27,7 @@ import {
   pickLocalizedName,
   FIXTURE_KIND_LABEL,
   OPENING_KIND_LABEL,
+  EQUIPMENT_KIND_LABEL,
 } from "@/lib/i18n/labels";
 import { ARCHETYPES, TRIM_CATEGORY_SLUGS } from "@/lib/design/catalog";
 import { FIXTURE_PRODUCT_KINDS } from "@/lib/design/electrical";
@@ -897,7 +898,8 @@ export function ProductForm({
                           !FIXTURE_PRODUCT_KINDS.includes(form.model3dKind) &&
                           !(
                             OPENING_PRODUCT_KINDS as readonly string[]
-                          ).includes(form.model3dKind) && (
+                          ).includes(form.model3dKind) &&
+                          !(form.model3dKind in EQUIPMENT_KIND_LABEL) && (
                             <SelectItem value={form.model3dKind}>
                               {form.model3dKind} (?)
                             </SelectItem>
@@ -922,6 +924,13 @@ export function ProductForm({
                             {(ka.build as Record<string, string>)[
                               OPENING_KIND_LABEL[kind]
                             ] ?? kind}{" "}
+                            · {kind}
+                          </SelectItem>
+                        ))}
+                        {Object.entries(EQUIPMENT_KIND_LABEL).map(([kind, label]) => (
+                          <SelectItem key={kind} value={kind}>
+                            🔧{" "}
+                            {(ka.build as Record<string, string>)[label] ?? kind}{" "}
                             · {kind}
                           </SelectItem>
                         ))}

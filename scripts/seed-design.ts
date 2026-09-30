@@ -24,6 +24,7 @@ import { db, pool } from '../lib/db';
 import { categories, stores } from '../lib/db/schema';
 import { CATEGORY_RU, STORE_I18N } from './lib/translations';
 import { defaultPlacement } from './lib/categoryTree';
+import { KITCHEN_STORE, type SeedStoreSpec } from './lib/kitchenMaterials';
 
 // ---------------------------------------------------------------------------
 // Categories the studio needs on top of the calculator's own
@@ -50,20 +51,7 @@ const extraCategories = [
 // Partner stores (fictional)
 // ---------------------------------------------------------------------------
 
-interface SeedStore {
-  slug: string;
-  nameKa: string;
-  descriptionKa: string;
-  city: string;
-  address: string;
-  phone: string;
-  websiteUrl: string;
-  rating: string;
-  reviewCount: number;
-  deliveryDays: number;
-  deliveryFeeGel: string;
-  commissionRate: string;
-}
+type SeedStore = SeedStoreSpec;
 
 const seedStores: SeedStore[] = [
   {
@@ -178,6 +166,8 @@ const seedStores: SeedStore[] = [
     deliveryFeeGel: '40.00',
     commissionRate: '5.00',
   },
+  // The made-to-measure kitchens and the materials they are made in (`scripts/lib/kitchenMaterials.ts`).
+  KITCHEN_STORE,
 ];
 
 // ---------------------------------------------------------------------------
