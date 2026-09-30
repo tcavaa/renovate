@@ -105,9 +105,12 @@ the list as a breadcrumb title ("გამომთვლელი › ჩემ
    exist (§9).
 
 **The renders** (`HubRenders`, `loadHubRenders`): every photo taken in the studio and the
-realistic render made from it, across the person's projects, newest first — the render once it
-is ready, the photo until then, its state on it, each opening its project's page, the photo and
-the render downloadable. The same list in both hubs. **The orders** (`HubOrders`,
+realistic render made from it, grouped by project like the orders — the project rendered most
+recently first, each group the project's name (to its page), how many, and its renders newest
+first, each named by its room and date — the render once it is ready, the photo until then, its
+state on it, the photo and the render downloadable. Each group is an anchor (`rendersAnchor`,
+`lib/projects/links.ts`), which the studio's "რენდერის ნახვა" scrolls to. The same list in both
+hubs and the profile. **The orders** (`HubOrders`,
 `loadHubOrderProjects`): every order of the person's projects, grouped by project — the one
 ordered from most recently first — each group the project's name (to its page) and its orders as
 the project page shows them (`OrderCards`, [marketplace.md](marketplace.md)): the stage in plain
