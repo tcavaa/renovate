@@ -218,6 +218,15 @@ describe('the empty start', () => {
     expect(state.history.past).toHaveLength(0);
   });
 
+  it('leaves a renovation’s home state to the person', () => {
+    useDesignStore.setState({ homeState: null });
+    useDesignStore.getState().setMode('full');
+    expect(useDesignStore.getState().homeState).toBeNull();
+    useDesignStore.getState().setHomeState('black_frame');
+    useDesignStore.getState().setMode('full');
+    expect(useDesignStore.getState().homeState).toBe('black_frame');
+  });
+
   it('is put down by the other two cards', () => {
     useDesignStore.getState().chooseEmptyStart();
     useDesignStore.getState().setMode('design_only');

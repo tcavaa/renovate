@@ -71,3 +71,24 @@ describe('the layout engine stands nothing through a wall', () => {
     }
   });
 });
+
+describe('dining chairs', () => {
+  it('stand a little under their table, not clear of its edge', () => {
+    // A kitchen big enough for a dining table with chairs on every side.
+    const plan = rebuildRooms(base, [wall('t', P(0, 0), P(6, 0)), wall('r', P(6, 0), P(6, 5)), wall('b', P(6, 5), P(0, 5)), wall('l', P(0, 5), P(0, 0))]);
+    const room = { ...plan.rooms[0], type: 'kitchen' as const };
+    const items = layoutRoom(room);
+    const table = items.find((i) => i.kind === 'dining_table');
+    const chairs = items.filter((i) => i.kind === 'dining_chair');
+    expect(table).toBeDefined();
+    expect(chairs.length).toBeGreaterThan(0);
+    const t = footprintOf(table!.position, table!.size, table!.rotation);
+    for (const chair of chairs) {
+      const c = footprintOf(chair.position, chair.size, chair.rotation);
+      // The two boxes overlap: the seat's front is under the table's top.
+      const overlapX = Math.min(t.maxX, c.maxX) - Math.max(t.minX, c.minX);
+      const overlapZ = Math.min(t.maxZ, c.maxZ) - Math.max(t.minZ, c.minZ);
+      expect(Math.min(overlapX, overlapZ)).toBeGreaterThan(0.05);
+    }
+  });
+});

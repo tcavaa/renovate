@@ -123,8 +123,9 @@ when it is not (the calculator's step 1 uses the card the same way). A plan that
 was rasterised first ([plan-reading.md](plan-reading.md)).
 
 - **What do you need** is not preselected: *design only* or *renovation + design* (which reveals
-  the home states, old renovation first) — `designStore.modeChosen`; the continue button refuses
-  with a message until a plan and a mode exist. Each card lists what it covers
+  the home states, old renovation first, **none of them chosen** — `setMode` picks no home
+  state) — `designStore.modeChosen`; the continue button refuses with a message until a plan and
+  a mode exist, and for a renovation a home state ("ჯერ აირჩიე სახლის მდგომარეობა"). Each card lists what it covers
   (`modeDesignOnlyCovers` / `modeFullCovers`), and a chosen home state shows three columns —
   what is standing, what the estimate charges for, **what happens to the technical points** (a
   green frame records its sockets and pipes rather than pricing them). Keep that third column

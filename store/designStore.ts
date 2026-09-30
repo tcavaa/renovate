@@ -613,7 +613,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         setSaveState: (saveState) => set({ saveState }),
 
         // Renovation needs a starting state to price from; white frame is the common case.
-        setMode: (mode) => set((s) => ({ mode, modeChosen: true, emptyStart: false, homeState: mode === 'full' ? (s.homeState ?? 'white_frame') : s.homeState })),
+        // A renovation's home state is the person's to choose (step 1 asks before going on): none
+        // is picked for them.
+        setMode: (mode) => set({ mode, modeChosen: true, emptyStart: false }),
         chooseEmptyStart: () => set({ mode: 'design_only', modeChosen: true, emptyStart: true }),
         startEmpty: () =>
           set((s) => ({

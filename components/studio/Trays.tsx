@@ -47,80 +47,91 @@ const BUILD_TOOLS: Array<{ id: EditorTool; icon: LucideIcon }> = [
   { id: 'beam', icon: Minus },
 ];
 
-export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void }) {
+export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnlock, onLock }: { tool: EditorTool; onTool: (tool: EditorTool) => void; thicknessM: number; onThickness: (m: number) => void; locked: boolean; onUnlock: () => void; onLock: () => void }) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';
   const opening = isOpeningTool(tool) ? tool : null;
+  // The openings' tile open, with a kind in hand or none yet (`openings`).
+  const openings = !!opening || tool === 'openings';
+  // One line: the tiles, what the tool in hand can be told — scrolling sideways when it runs
+  // longer than the tray (`ScrollRow`) — and the lock at the end. Wrapped, the lock fell onto a
+  // second row under the kinds of opening and took a row of height off the 3D view.
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex gap-1" role="toolbar">
+    <div className="flex items-center gap-2">
+      <div className="flex shrink-0 gap-1" role="toolbar">
         {BUILD_TOOLS.map(({ id, icon }) => {
           // The drawing tile is called "room" and picks the room up first; the shapes follow.
           // The openings' tile picks the door up first and keeps whichever kind is in hand.
           const draw = id === 'wall';
           const opens = id === 'door';
-          const active = draw ? drawing : opens ? !!opening : tool === id;
+          const active = draw ? drawing : opens ? openings : tool === id;
           const label = opens ? t.build.toolOpenings : toolLabel(t, draw ? 'room' : id);
           const Icon = opens && opening ? TOOL_ICON[opening] : icon;
           return (
-            <button key={id} type="button" onClick={() => onTool(draw ? (drawing ? tool : 'room') : opens ? (opening ?? 'door') : id)} aria-pressed={active} title={label} className={cn('flex h-[52px] w-[60px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+            <button key={id} type="button" onClick={() => onTool(draw ? (drawing ? tool : 'room') : opens ? (opening ?? 'openings') : id)} aria-pressed={active} title={label} className={cn('flex h-[52px] w-[56px] flex-col items-center justify-center gap-1 rounded-[10px] text-[9px] font-semibold', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
               <Icon className="h-5 w-5" />
               <span className="line-clamp-2 break-words px-1 text-center leading-[1.15]">{label}</span>
             </button>
           );
         })}
       </div>
-      {opening && (
-        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.toolOpenings}>
-          {OPENING_TOOLS.map((id) => {
-            const Icon = TOOL_ICON[id];
-            return (
-              <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolHint(t, id, false)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
-                <Icon className="h-3.5 w-3.5" />
-                {toolLabel(t, id)}
+      <ScrollRow className="min-w-0 flex-1" contentClassName="items-center gap-2">
+        {openings && (
+          <div className="flex shrink-0 items-center gap-1" role="radiogroup" aria-label={t.build.toolOpenings}>
+            {OPENING_TOOLS.map((id) => {
+              const Icon = TOOL_ICON[id];
+              return (
+                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(tool === id ? 'openings' : id)} title={toolHint(t, id, false)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {toolLabel(t, id)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {drawing && (
+          <div className="flex shrink-0 items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
+            {(['room', 'wall', 'divider'] as const).map((id) => {
+              const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
+              return (
+                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {toolLabel(t, id)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* A room separator has no thickness. */}
+        {drawing && tool !== 'divider' && (
+          // The thicknesses as bare numbers, the unit once after them: "10 სმ" five times did not
+          // leave the row room for them.
+          <div className="flex shrink-0 items-center gap-0.5" role="radiogroup" aria-label={t.build.thickness}>
+            {WALL_THICKNESS_OPTIONS_M.map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} aria-label={fill(t.build.thicknessCm, { n: Math.round(m * 100) })} onClick={() => onThickness(m)} className={cn('h-8 min-w-8 rounded-[8px] px-1.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                {Math.round(m * 100)}
               </button>
-            );
-          })}
-        </div>
-      )}
-      {drawing && (
-        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.wallShape}>
-          {(['room', 'wall', 'divider'] as const).map((id) => {
-            const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
-            return (
-              <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 rounded-[8px] px-2 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
-                <Icon className="h-3.5 w-3.5" />
-                {toolLabel(t, id)}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {/* A room separator has no thickness. */}
-      {drawing && tool !== 'divider' && (
-        <div className="flex items-center gap-1" role="radiogroup" aria-label={t.build.thickness}>
-          {WALL_THICKNESS_OPTIONS_M.map((m) => (
-            <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} onClick={() => onThickness(m)} className={cn('h-8 rounded-[8px] px-2.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
-              {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
-            </button>
-          ))}
-        </div>
-      )}
+            ))}
+            <span className="pl-0.5 text-xs text-ink-muted">{t.units.cm}</span>
+          </div>
+        )}
+      </ScrollRow>
       {/*
         The unlock button stands where the "pick a tool" sentence used to: it is the one
         thing the person actually has to do here, and the sentence said what the tools
         already show.
       */}
       {locked ? (
-        <button type="button" onClick={onUnlock} className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-dark">
+        <button type="button" onClick={onUnlock} className="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-dark">
           <LockOpen className="h-3.5 w-3.5" />
           {t.build.unlockStructure}
         </button>
       ) : (
-        <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-[10px] bg-success/10 px-3 py-2 text-xs font-semibold text-success">
-          <LockOpen className="h-3.5 w-3.5" />
-          {t.build.structureUnlocked}
-        </span>
+        // Unlocked: an icon, its state and what a click does on hover, so the row keeps its room
+        // for the tools — and a click locks the walls again, as the top bar's lock does.
+        <button type="button" onClick={onLock} title={`${t.build.structureUnlocked} · ${t.build.lockStructure}`} aria-label={t.build.lockStructure} className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-success/10 text-success transition-colors hover:bg-success/20">
+          <LockOpen className="h-4 w-4" />
+        </button>
       )}
     </div>
   );

@@ -955,7 +955,7 @@ export default function StudioPage() {
               layers={{ furniture: true, dimensions: category === 'build', zones: category === 'finishes' }}
               height="100%"
               className="h-full"
-              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : t.design.openingRefused)}
+              onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : reason === 'onRailing' ? t.design.onRailingRefused : t.design.openingRefused)}
               onEscape={putToolsDown}
               onApi={setPlanApi}
             />
@@ -1178,7 +1178,7 @@ export default function StudioPage() {
               </div>
               {trayShown && (
                 <Tray>
-                  {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} />}
+                  {category === 'build' && <BuildTray tool={buildTool} onTool={pickBuildTool} thicknessM={thicknessM} onThickness={(m) => { setThicknessM(m); store.setPlanDefaults({ wallThicknessM: m }); }} locked={structureLocked} onUnlock={() => store.setStructureLocked(false)} onLock={() => store.setStructureLocked(true)} />}
                   {category === 'furniture' && (
                     <FurnitureTray
                       catalog={products}

@@ -30,7 +30,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
-import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, projectToEdge, railingFits, type WallTarget } from '@/lib/design/openings';
+import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -49,9 +49,13 @@ import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
  * The tool in hand. `select` is every board's default and also what slides the view: a drag
  * from the empty sheet, or from anything that cannot move on the board, pans.
  */
-export type EditorTool = 'select' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'archway' | 'railing' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
+export type EditorTool = 'select' | 'wall' | 'room' | 'divider' | 'door' | 'window' | 'archway' | 'railing' | 'openings' | 'column' | 'beam' | 'technical' | 'electrical' | 'zone' | 'paint';
 
-/** The tools that put an opening in a wall — one tile on the rail, with the kinds under it. */
+/**
+ * The tools that put an opening in a wall — one tile on the rail, with the kinds under it. The
+ * tile opens with none of them in hand (`openings`: the kinds shown, the sheet only selects)
+ * until one is picked.
+ */
 export const OPENING_TOOLS = ['door', 'window', 'archway', 'railing'] as const satisfies readonly EditorTool[];
 export type OpeningTool = (typeof OPENING_TOOLS)[number];
 
@@ -178,9 +182,10 @@ export interface PlanEditorProps {
   /**
    * A drop the plan would not accept, and why: `opening` — a window on a shared wall or a room
    * separator, a door with no wall to go on; `overlap` — a room drawn on top of a room;
-   * `railing` — a railing anywhere but along a balcony's outer wall.
+   * `railing` — a railing anywhere but along a balcony's outer wall; `onRailing` — a door,
+   * window or opening on a railing (there is no wall there), or a railing over a door.
    */
-  onRefused?: (reason: 'opening' | 'overlap' | 'railing') => void;
+  onRefused?: (reason: 'opening' | 'overlap' | 'railing' | 'onRailing') => void;
   /** A one-shot tool finished (a column placed): the page may go back to select. */
   onToolDone?: () => void;
   /** Ctrl+Z / Ctrl+Y (Cmd on a Mac) while the board has the keyboard; undone by the page. */
@@ -784,7 +789,9 @@ export function PlanEditor(props: PlanEditorProps) {
       }
       if (ghostOpening) {
         const preview: Opening = { id: 'ghost', kind: ghostOpening.kind, wallIndex: ghostOpening.edge.index, t: ghostOpening.t, widthM: ghostOpening.widthM, heightM: 2, sillM: 0, roomId: ghostOpening.room.id, exterior: false };
-        drawOpening(ctx, tr, ghostOpening.room, preview, plan.wallThicknessM, { selected: true, alpha: ghostOpening.faded ? 0.3 : 0.85, dashed: !ghostOpening.openingId });
+        // Red over a railing's stretch (or, a railing dragged, over a door or window): it will not go there.
+        const clash = railingClash(ghostOpening.room, { ...preview, id: ghostOpening.openingId ?? undefined }, ghostOpening.t, ghostOpening.edge.length);
+        drawOpening(ctx, tr, ghostOpening.room, preview, plan.wallThicknessM, { selected: !clash, invalid: clash, alpha: ghostOpening.faded ? 0.3 : 0.85, dashed: !ghostOpening.openingId });
       }
     }
 
@@ -1049,7 +1056,8 @@ export function PlanEditor(props: PlanEditorProps) {
     const hi = Math.max(draft.from, to);
     if (hi - lo < MIN_RAILING_M - 1e-6) return;
     const id = railingOk(draft.room, draft.edge, lo, hi) ? (callbacks.current.onAddRailing?.({ roomId: draft.room.id, wallIndex: draft.edge.index, t: (lo + hi) / 2 / draft.edge.length }, round2(hi - lo)) ?? null) : null;
-    if (id === null) callbacks.current.onRefused?.('railing');
+    // A door in the way says so; anything else is the balcony's rule.
+    if (id === null) callbacks.current.onRefused?.(railingFits(plan.rooms, draft.room.id, draft.edge.index, lo, hi, plan.wallThicknessM, { doors: false }) ? 'onRailing' : 'railing');
     else {
       edited.current = true;
       callbacks.current.onSelect({ kind: 'opening', id, roomId: draft.room.id });
@@ -1189,7 +1197,7 @@ export function PlanEditor(props: PlanEditorProps) {
         const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
         const tt = projectToEdge(target.edge, world, widthM);
         const id = callbacks.current.onAddOpening?.(tool, { roomId: target.room.id, wallIndex: target.edge.index, t: tt }) ?? null;
-        if (id === null) callbacks.current.onRefused?.('opening');
+        if (id === null) callbacks.current.onRefused?.(railingClash(target.room, { kind: tool, wallIndex: target.edge.index, widthM }, tt, target.edge.length) ? 'onRailing' : 'opening');
         else {
           edited.current = true;
           callbacks.current.onSelect({ kind: 'opening', id, roomId: target.room.id });
@@ -1528,12 +1536,14 @@ export function PlanEditor(props: PlanEditorProps) {
         const sameWall = room.id === gesture.room.id && edge.index === gesture.opening.wallIndex;
         if (sameWall) {
           if (Math.abs(tt - gesture.opening.t) > 1e-4) {
-            if (callbacks.current.onMoveOpening) callbacks.current.onMoveOpening(gesture.room.id, gesture.opening.id, tt);
+            // Not onto a railing's stretch, nor a railing onto a door's or a window's.
+            if (railingClash(room, gesture.opening, tt, edge.length)) callbacks.current.onRefused?.('onRailing');
+            else if (callbacks.current.onMoveOpening) callbacks.current.onMoveOpening(gesture.room.id, gesture.opening.id, tt);
             else callbacks.current.onMoveOpeningToWall?.(gesture.room.id, gesture.opening.id, { roomId: room.id, wallIndex: edge.index, t: tt });
           }
         } else {
           const id = callbacks.current.onMoveOpeningToWall?.(gesture.room.id, gesture.opening.id, { roomId: room.id, wallIndex: edge.index, t: tt }) ?? null;
-          if (id === null) callbacks.current.onRefused?.(gesture.opening.kind === 'railing' ? 'railing' : 'opening');
+          if (id === null) callbacks.current.onRefused?.(railingClash(room, { kind: gesture.opening.kind, wallIndex: edge.index, widthM: gesture.opening.widthM }, tt, edge.length) ? 'onRailing' : gesture.opening.kind === 'railing' ? 'railing' : 'opening');
           else callbacks.current.onSelect({ kind: 'opening', id, roomId: room.id });
         }
         break;

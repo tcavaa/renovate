@@ -19,7 +19,7 @@ import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import { ALL_LAYERS, PlanEditor, type BoardInsets, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
+import { ALL_LAYERS, PlanEditor, isOpeningTool, type BoardInsets, type EditorLayers, type EditorTool, type PlanEditorApi } from './PlanEditor';
 import { PlanToolbar, PlanToolOptions, PlanToolTiles, PlanViewControls, toolHint } from './PlanToolbar';
 import { EDITOR } from './palette';
 
@@ -61,7 +61,7 @@ export interface PlanWorkspaceProps {
   /** Called when the pointer tool finished a one-shot action. */
   onToolDone?: () => void;
   /** A refused drop, and why (`PlanEditor.onRefused`). */
-  onRefused?: (reason: 'opening' | 'overlap' | 'railing') => void;
+  onRefused?: (reason: 'opening' | 'overlap' | 'railing' | 'onRailing') => void;
   /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
   paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
@@ -125,7 +125,9 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
   const tool = controlledTool ?? innerTool;
-  const sheetTool = boardTool ?? tool;
+  // The openings' tile open with no kind in hand: the sheet selects until one is picked.
+  const shownTool = boardTool ?? tool;
+  const sheetTool: EditorTool = shownTool === 'openings' ? 'select' : shownTool;
   const setTool = useCallback(
     (next: EditorTool) => {
       setInnerTool(next);
@@ -194,6 +196,17 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
     s.selectElement(null);
   }, [locked, useStore]);
 
+  /**
+   * Escape with nothing of the board's own to end, one level at a time: a kind of opening in hand
+   * is put down at once — the kinds stay offered (`openings`) — whatever was selected; then the
+   * page's own Escape, or, on a board that drives its own tool, the tool goes back to select.
+   */
+  const escape = useCallback(() => {
+    if (isOpeningTool(tool)) setTool('openings');
+    else if (onEscape) onEscape();
+    else if (tool !== 'select') setTool('select');
+  }, [tool, onEscape, setTool]);
+
   const undo = useCallback(() => useStore.getState().undo(), [useStore]);
   const redo = useCallback(() => useStore.getState().redo(), [useStore]);
 
@@ -224,7 +237,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
   if (!plan) return null;
 
   const totalM2 = totalFloorAreaM2(plan);
-  const hint = toolHint(t, sheetTool, locked);
+  const hint = toolHint(t, shownTool, locked);
   const totals = (
     <>
       <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
@@ -350,7 +363,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
             actions.finishCarry();
             actions.selectItem(id);
           }}
-          onEscape={onEscape}
+          onEscape={escape}
           onDelete={deleteSelected}
           onUndo={keyboardUndo ? undo : undefined}
           onRedo={keyboardUndo ? redo : undefined}

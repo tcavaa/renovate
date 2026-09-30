@@ -67,8 +67,7 @@ at runtime yet; the last one was seen on the sample plan.
   edge, the app's separator only from partial walls square to the plan; a studio (one room in
   two parts) still takes one floor and one set of walls in the calculator's catalogue
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
-- **Balcony railings**: a railing lengthened or slid over a window leaves the window; plans read
-  from an upload never have railings; one railing design
+- **Balcony railings**: plans read from an upload never have railings; one railing design
   ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).
 - **Pricing accuracy**: wall heights of their own, a heat-loss calculation for radiators
   ([budget.md](budget.md#known-gaps)); the style's skirting boards and cornices as products like
