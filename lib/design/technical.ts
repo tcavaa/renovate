@@ -56,17 +56,24 @@ export const AC_CEILING_GAP_M = 0.18;
 /** However low the ceiling, the unit does not come down to head height. */
 export const AC_MIN_ELEVATION_M = 1.8;
 
+/** A cooker hood's bottom above the floor: 65 cm over a 90 cm worktop. */
+export const COOKER_HOOD_ELEVATION_M = 1.55;
+/** The rooms where an extractor is a cooker hood over the hob; anywhere else it is a fan high in the wall. */
+export const HOOD_ROOM_TYPES: readonly RoomType[] = ['kitchen', 'studio'];
+
 /**
  * Where a point of this kind sits above the floor in *this* room.
  *
- * Every other kind has one usual height — a socket is a socket whatever the ceiling. An air
+ * Most kinds have one usual height — a socket is a socket whatever the ceiling. An air
  * conditioner is the exception: it is hung from the ceiling down, not from the floor up, so
- * in a 3.2 m room it belongs 40 cm higher than in a 2.8 m one. The number is the bottom of
- * the unit, which is what the 3D view and the inspector both read, and the person can
- * change it afterwards like any other height.
+ * in a 3.2 m room it belongs 40 cm higher than in a 2.8 m one. And an extractor in a kitchen is
+ * a cooker hood over the hob, not a fan high in the wall. The number is the bottom of the unit,
+ * which is what the 3D view and the inspector both read, and the person can change it
+ * afterwards like any other height.
  */
-export function technicalElevation(kind: TechnicalKind, room?: { heightM?: number } | null): number {
+export function technicalElevation(kind: TechnicalKind, room?: { heightM?: number; type?: RoomType } | null): number {
   const info = TECHNICAL_KINDS[kind];
+  if (kind === 'extractor' && room?.type && HOOD_ROOM_TYPES.includes(room.type)) return COOKER_HOOD_ELEVATION_M;
   if (kind !== 'ac_unit') return info.defaultElevationM;
   const ceiling = room?.heightM ?? DEFAULT_WALL_HEIGHT_M;
   return round2(Math.max(AC_MIN_ELEVATION_M, ceiling - AC_CEILING_GAP_M - AC_UNIT_HEIGHT_M));

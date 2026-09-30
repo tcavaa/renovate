@@ -68,8 +68,9 @@ const state = (over: Partial<CatalogBrowserState> = {}): CatalogBrowserState => 
 const ids = (list: CatalogProduct[]) => list.map((p) => p.id);
 
 describe('the catalogue browser', () => {
-  it('lists furniture only: no fittings, doors, radiators or products without a model', () => {
+  it('lists furniture only: no fittings, doors, radiators, equipment or products without a model', () => {
     expect(CATALOG.filter(isFurnitureProduct).map((p) => p.id)).toEqual([1, 2, 3, 4, 5]);
+    for (const kind of ['boiler', 'ac_unit', 'cooker_hood', 'bathroom_fan', 'floor_drain', 'electrical_panel']) expect(isFurnitureProduct(product(99, { model3dKind: kind })), kind).toBe(false);
     const b = browseCatalog(CATALOG, state(), { focusRoom: null, locale: 'ka', shelf });
     expect(b.total).toBe(5);
     expect(ids(b.results)).toEqual([5, 3, 1, 4, 2]);

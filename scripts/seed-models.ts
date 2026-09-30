@@ -32,7 +32,11 @@ import { DEFAULT_CATEGORY_TREE } from '../lib/catalog/defaultTree';
 import type { ManifestModel } from './convert-models';
 import type { FixtureManifestModel } from './fixture-models';
 import type { RadiatorManifestModel } from './radiator-models';
+import type { EquipmentManifestModel } from './equipment-models';
+import type { KitchenManifestModel } from './kitchen-models';
 import { TRIM_PRODUCTS } from './lib/trimProducts';
+import { KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
+import { STORE_I18N } from './lib/translations';
 
 interface Manifest {
   models: ManifestModel[];
@@ -87,16 +91,18 @@ async function main() {
   const ensureCategory = async (slug: string): Promise<number> => {
     const known = categoryBySlug(slug);
     if (known) return known;
-    // Made as the starting tree has it (`lib/catalog/defaultTree.ts`), under its parent if that is there.
+    // Made as the starting tree has it (`lib/catalog/defaultTree.ts`), under its parent — made
+    // first when that is missing too.
     const spec = DEFAULT_CATEGORY_TREE.find((c) => c.slug === slug);
     if (!spec) throw new Error(`no default for category "${slug}"`);
+    const parentId = spec.parent ? await ensureCategory(spec.parent) : null;
     const inserted = await db.insert(categories).values({
       nameKa: spec.nameKa,
       nameEn: spec.nameEn,
       nameRu: spec.nameRu,
       slug: spec.slug,
       icon: spec.icon,
-      parentId: spec.parent ? (categoryBySlug(spec.parent) ?? null) : null,
+      parentId,
       calculationType: spec.calculationType,
       isVisible: true,
       isFurniture: spec.isFurniture,
@@ -112,6 +118,31 @@ async function main() {
   // Stores are matched by the slug used in seed-design.ts, which is derived from the name.
   const storeBySlug = new Map<string, number>();
   for (const row of storeRows) storeBySlug.set(storeSlugFor(row.nameKa), row.id);
+
+  // The kitchen maker sells the materials below; a database seeded before it existed (or a
+  // deploy that runs this script alone) gets it here, as `seed-design.ts` writes it.
+  if (!storeBySlug.has(KITCHEN_STORE.slug)) {
+    const s = KITCHEN_STORE;
+    const inserted = await db.insert(stores).values({
+      nameKa: s.nameKa,
+      nameEn: STORE_I18N[s.nameKa]?.en ?? null,
+      nameRu: STORE_I18N[s.nameKa]?.ru ?? null,
+      descriptionKa: s.descriptionKa,
+      logoUrl: `/uploads/stores/${s.slug}.svg`,
+      websiteUrl: s.websiteUrl,
+      phone: s.phone,
+      address: s.address,
+      city: s.city,
+      rating: s.rating,
+      reviewCount: s.reviewCount,
+      deliveryDays: s.deliveryDays,
+      deliveryFeeGel: s.deliveryFeeGel,
+      commissionRate: s.commissionRate,
+      isActive: true,
+    });
+    storeBySlug.set(s.slug, Number(inserted[0].insertId));
+    console.log(`  + store ${s.nameKa}`);
+  }
 
   const keepSlugs: string[] = [];
   let upserted = 0;
@@ -270,6 +301,61 @@ async function main() {
     console.log('  (no public/models/radiators/manifest.json — run `pnpm models:radiators` for the radiators)');
   }
 
+  // The technical points' equipment — electrical panels, boilers and water heaters, air
+  // conditioners, cooker hoods, extractor fans, floor drains — and the TV and data sockets: one
+  // product per downloaded model (`pnpm models:equipment`), one piece per point on the plan
+  // (`lib/design/equipment.ts`). The credit a CC BY / CC BY-SA licence asks for is the
+  // description; `rank` and an air conditioner's `coverM2` ride in `specs`.
+  try {
+    const equipment = JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'equipment', 'manifest.json'), 'utf8')) as { models: EquipmentManifestModel[] };
+    for (const model of equipment.models) {
+      const product = model.product;
+      if (!product) continue;
+      await ensureCategory(product.categorySlug);
+      const slug = `${SLUG_PREFIX}equipment-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(product.kind, product.categorySlug, existing[0]?.categoryId)!;
+      const storeId = storeBySlug.get(product.storeSlug) ?? null;
+      if (!storeId) console.log(`  ! equipment ${model.slug}: store "${product.storeSlug}" not found — left without a store`);
+      keepSlugs.push(slug);
+      const specs = { ...(product.rank != null ? { rank: product.rank } : {}), ...(product.coverM2 != null ? { coverM2: product.coverM2 } : {}) };
+      // Whole centimetres (the columns are integers), never 0: a drain's grate is 3 mm.
+      const cm = (value: number) => Math.max(1, Math.round(value));
+      const row = {
+        categoryId,
+        storeId,
+        nameKa: product.nameKa,
+        nameEn: product.nameEn,
+        nameRu: product.nameRu,
+        descriptionKa: model.credit.text,
+        slug,
+        sku: `EQ-${model.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
+        pricePerUnit: String(product.priceGel),
+        unit: 'piece' as const,
+        brand: null,
+        imageUrl: model.imageUrl,
+        styleTags: product.styles,
+        specs: Object.keys(specs).length ? specs : null,
+        model3dKind: product.kind,
+        model3dUrl: model.url,
+        model3dStatus: 'ready' as const,
+        colorHex: null,
+        widthCm: cm(model.widthCm),
+        depthCm: cm(model.depthCm),
+        heightCm: cm(model.heightCm),
+        isActive: true,
+        isFeatured: false,
+      };
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+      console.log(`  ✓ ${slug.padEnd(38)} ${product.kind.padEnd(14)} ${model.widthCm}×${model.depthCm}×${model.heightCm}  ${product.priceGel} ₾`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    console.log('  (no public/models/equipment/manifest.json — run `pnpm models:equipment` for the panels, boilers, air conditioners, hoods, fans, drains and TV/data sockets)');
+  }
+
   // Skirting boards and cornices. These carry no model file at all: the studio sweeps the
   // profile their `specs` name along every wall of the room (`lib/design/trims.ts`), so what
   // is drawn is what is bought, by the running metre.
@@ -307,6 +393,53 @@ async function main() {
     }
   }
   console.log(`  ✓ ${TRIM_PRODUCTS.length} skirting boards and cornices`);
+
+  // The materials a made-to-measure kitchen is made in, the kitchen maker's, each per m² of
+  // façade — and, where `pnpm models:kitchens` has one, the kitchen run drawn in it: chosen for a
+  // run, the material's model takes the place of the kitchen model placed in the room
+  // (`drawnModelUrl`). A model admin uploaded for one (not under /models/) is theirs and stays;
+  // without a manifest model the row's is left as it is.
+  await ensureCategory('kitchen-custom');
+  let kitchenModels: KitchenManifestModel[] = [];
+  try {
+    kitchenModels = (JSON.parse(await readFile(path.join(process.cwd(), 'public', 'models', 'kitchens', 'manifest.json'), 'utf8')) as { models: KitchenManifestModel[] }).models;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    console.log('  (no public/models/kitchens/manifest.json — the kitchen materials keep whatever model admin gave them)');
+  }
+  for (const material of KITCHEN_MATERIALS) {
+    const existing = await db.select({ id: products.id, categoryId: products.categoryId, model3dUrl: products.model3dUrl }).from(products).where(eq(products.slug, material.slug)).limit(1);
+    // A 3D kind admin gives one (for the model it is drawn as) must not make it the sweep's below.
+    keepSlugs.push(material.slug);
+    const uploaded = !!existing[0]?.model3dUrl && !existing[0].model3dUrl.startsWith('/models/');
+    const model = uploaded ? undefined : kitchenModels.find((m) => m.material === material.slug);
+    const drawn = model
+      ? { model3dKind: model.kind, model3dUrl: model.url, model3dStatus: 'ready' as const, widthCm: Math.round(model.widthCm), depthCm: Math.round(model.depthCm), heightCm: Math.round(model.heightCm) }
+      : {};
+    const row = {
+      ...drawn,
+      categoryId: placeFor(null, 'kitchen-custom', existing[0]?.categoryId)!,
+      storeId: storeBySlug.get(KITCHEN_STORE.slug) ?? null,
+      nameKa: material.nameKa,
+      nameEn: material.nameEn,
+      nameRu: material.nameRu,
+      descriptionKa: material.descriptionKa,
+      slug: material.slug,
+      sku: `KM-${material.slug.replace(/^kitchen-material-/, '').toUpperCase()}`,
+      pricePerUnit: String(material.priceGelPerM2),
+      unit: 'm2' as const,
+      brand: null,
+      imageUrl: material.imageUrl,
+      styleTags: material.styles,
+      colorHex: material.colorHex,
+      isActive: true,
+      isFeatured: false,
+    };
+    if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+    else await db.insert(products).values(row);
+    upserted++;
+    console.log(`  ✓ ${material.slug.padEnd(38)} kitchen        ${material.priceGelPerM2} ₾/მ² ფასადი${model ? `  · ${model.url}` : ''}`);
+  }
 
   // Everything else the studio could have placed goes. The studio must never draw a product
   // that has no partner model behind it.
@@ -367,6 +500,7 @@ function storeSlugFor(nameKa: string): string {
     'ლუმინა განათება': 'lumina',
     'ტექსტილ+ ხალიჩები': 'textil-plus',
     'სან-პლუს სანტექნიკა': 'san-plus',
+    [KITCHEN_STORE.nameKa]: KITCHEN_STORE.slug,
   };
   return known[nameKa] ?? nameKa.toLowerCase().replace(/\s+/g, '-');
 }

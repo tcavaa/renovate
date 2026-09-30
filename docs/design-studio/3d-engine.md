@@ -20,7 +20,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `components/design/WalkControls.tsx` | the walk-through (no collision; `findStandingSpot` picks the start) |
 | `components/projects/ProjectViewer.tsx` | the same `Viewer3D` with `readOnly` — hover, picking and dragging off, the camera and the walk-through kept — for a brigade looking at the flat it is hired for ([../partners-and-admin.md](../partners-and-admin.md)) |
 | `lib/design3d/buildScene.ts` | `buildRoomShells` (floors, walls, ceilings, trims, openings), `syncPlacedItems` / `buildPlacedItem` (furniture wrappers reconciled by product and size; `fitToItem`, ghost box on a failed load), `attachOpeningModel`, `wallMaterialFor`, `HIDDEN_LAYER`, `disposeOwnedGeometry`. The viewer composes these itself (`buildScene()` has no callers) |
-| `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), lights from fittings (`lightsFrom`), floor zones and painted cells |
+| `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), the technical points' equipment (`buildEquipment`: a panel, boiler, air conditioner, hood or fan on its wall at the product's size, a drain set into the floor), lights from fittings (`lightsFrom`), floor zones and painted cells |
 | `lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts` | each room edge cut into pieces by what stands behind it; each piece's mesh face by face (mitres, spans, far-face material slots); `buildMouldingGeometry` |
 | `lib/design3d/wallSide.ts` | `wallSideAt` — whose wall a hit on a wall face is (the outside of the flat is nobody's) |
 | `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded` |
@@ -29,7 +29,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `lib/design3d/daylight.ts`, `environment.ts` | lighting for an hour (`lightingForHour`); the sky texture and the ruled ground |
 | `lib/design3d/outline.ts`, `primitives.ts` | selection outlines (wireframe boxes); the few geometry helpers |
 | `lib/design3d/modelPreview.ts` | the catalogue page's turntable (plain three.js) |
-| `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts` | generated model lists ([../3d-assets.md](../3d-assets.md)) |
+| `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts` | generated model lists ([../3d-assets.md](../3d-assets.md)) |
 
 ## Three.js gotchas already paid for
 
@@ -79,7 +79,7 @@ Each of these cost real debugging time. Don't undo them.
 13. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group memoised on
     the plan, finishes, style, materials and the shell options (walls, ceiling, focused room),
-    and the fittings and radiators are groups of their own. Rebuilding everything on every drag was the studio's biggest stutter.
+    and the fittings, the radiators and the equipment are groups of their own. Rebuilding everything on every drag was the studio's biggest stutter.
 14. **A wall is written out face by face, mitred, and cut where what is behind it changes**
     (`lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts`). `ExtrudeGeometry` could
     not do any of the three: a slab as long as the room's inner edge stopped short of the

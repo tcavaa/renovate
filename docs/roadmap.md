@@ -55,8 +55,12 @@ at runtime yet; the last one was seen on the sample plan.
   roughness map); production needs `pnpm textures:colors` once for the finishes it already has
   ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Catalogue coverage**: more partner furniture (MODERN has none), curtains (no model anywhere),
-  an air-conditioner model, a real radiator range, more moulding profiles
+  a real radiator range and the partners' own equipment (the twelve equipment models are CC
+  stock, some with a maker's logo), more moulding profiles
   ([3d-assets.md](3d-assets.md#known-gaps), [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).
+- **Model credits in the app**: the CC BY / CC BY-SA models (the equipment, the fixtures) need
+  their author, title, licence and link shown where they are used; they are in the manifests
+  only ([3d-assets.md](3d-assets.md#known-gaps)).
 - **Editing**: draw walls and move rooms in 3D; walk-through collision is deliberately off
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
 - **Room separators**: a line on the 3D floor where one runs, corner furniture kept off an open

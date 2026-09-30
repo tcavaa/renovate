@@ -11,7 +11,7 @@
  */
 
 import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
-import { getArchetype } from './catalog';
+import { getArchetype, isKitchenMaterial } from './catalog';
 import { styleAffinity } from './styles';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
@@ -224,7 +224,8 @@ export function candidatesFor(
   // There used to be a fallback to the whole category; with every product carrying a kind it
   // did nothing but stretch a picture frame to curtain size when no curtain existed. An
   // empty slot is the honest answer.
-  const pool = catalog.filter((c) => !!c.model3dUrl && c.model3dKind === kind);
+  // A kitchen maker's material with a model is drawn through the kitchen it is chosen for, not placed or swapped in as a piece.
+  const pool = catalog.filter((c) => !!c.model3dUrl && c.model3dKind === kind && !isKitchenMaterial(c));
 
   return [...pool].sort(
     (a, b) => styleAffinity(styleId, b.styleTags, b.tags) - styleAffinity(styleId, a.styleTags, a.tags)

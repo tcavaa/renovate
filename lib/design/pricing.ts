@@ -36,7 +36,8 @@ import { alreadyHave, defaultExistingForHomeState, EXISTING_KEYS, HAVE_NOTHING, 
 import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL, type TechnicalLabourKey } from './technicalRates';
 import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
-import { measureKitchens } from './kitchen';
+import { isEquipmentKind, pointProductKind, type EquipmentProductKind } from './equipment';
+import { kitchenMaterialOf, measureKitchens } from './kitchen';
 import { finishCoverage, type FinishCoverage } from './zones';
 import { visibleFinishes } from './finishQuantity';
 import { tickFor, tickedOff, validQuantity, type Quantities } from './ticks';
@@ -102,10 +103,10 @@ const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
 
 /**
  * What a basket line is when it is neither furniture (its archetype says) nor a finish (its
- * surface does): the kind of opening, the radiator, or the kind of fitting — the four
- * sockets as one, since one socket product serves them all.
+ * surface does): the kind of opening, the radiator, the equipment, the kind of fitting — the
+ * four sockets as one, since one socket product serves them all — or a kitchen made to measure.
  */
-export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
+export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_island' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
 export type ProductLabels = Record<ProductLabelKey, string>;
 
 const DEFAULT_PRODUCT_LABELS: ProductLabels = {
@@ -122,6 +123,14 @@ const DEFAULT_PRODUCT_LABELS: ProductLabels = {
   light_spot: 'სპოტი',
   light_strip: 'LED ლენტი',
   light_furniture: 'ავეჯის განათება',
+  electrical_panel: 'ელექტრო ფარი',
+  boiler: 'ბოილერი',
+  ac_unit: 'კონდიციონერი',
+  cooker_hood: 'სამზარეულოს გამწოვი',
+  bathroom_fan: 'გამწოვი ვენტილატორი',
+  floor_drain: 'იატაკის ტრაპი',
+  kitchen_run: 'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება',
+  kitchen_island: 'სამზარეულოს კუნძული — ინდივიდუალური დამზადება',
 };
 
 const fittingLabelKey = (kind: ElectricalPoint['kind']): ProductLabelKey => (kind.startsWith('socket') ? 'socket' : (kind as ProductLabelKey));
@@ -235,8 +244,9 @@ export function priceScene(
 
   // --- furniture ---
   // A made-to-measure kitchen is quoted by its façade, not by the model's price — the model
-  // is only what is drawn. Its lines come below, with the measurement on them; it is a
-  // joiner's job and not a product line, so no store is sent it either.
+  // is only what is drawn. Its lines come below, with the measurement on them: in a chosen
+  // material, the kitchen maker's product (their shop is sent the order); with none, a
+  // joiner's estimate that no store is sent.
   const kitchens = measureKitchens(scene.items, plan.rooms);
   const measured = new Set(kitchens.map((k) => k.itemId));
 
@@ -265,11 +275,34 @@ export function priceScene(
     });
   }
 
-  // The kitchens, one line each: what a joiner measures (the façade in m², the worktop by
-  // the metre) at the market rates, marked as the estimate it is until a joiner quotes.
+  // The kitchens, one line each, measured by the façade: in the material chosen for it, the
+  // kitchen maker's product at its price per m² — a real line their shop is sent — else what a
+  // joiner measures (the façade in m², the worktop by the metre) at the market rates, marked as
+  // the estimate it is until a joiner quotes.
   for (const kitchen of kitchens) {
     const tick = tickFor.kitchen(kitchen.itemId);
     roomOf.set(tick, kitchen.roomId);
+    const placed = scene.items.find((i) => i.id === kitchen.itemId);
+    const material = placed ? kitchenMaterialOf(placed) : null;
+    if (material) {
+      const label = kitchen.slot === 'kitchen_island' ? 'kitchen_island' : 'kitchen_run';
+      raw.push({
+        section: 'furniture',
+        bucket: 'furniture',
+        key: `product-${material.productId}`,
+        tick,
+        name: localizedName(material, locale),
+        roomName: kitchen.roomName,
+        qty: kitchen.totalM2,
+        unit: 'm2',
+        unitPrice: material.pricePerUnit,
+        total: kitchen.totalGel,
+        estimated: false,
+        product: lineProduct(material, kitchen.totalM2, kitchen.totalGel),
+        item: options.productLabels?.[label] ?? DEFAULT_PRODUCT_LABELS[label],
+      });
+      continue;
+    }
     raw.push({
       section: 'furniture',
       bucket: 'furniture',
@@ -647,8 +680,13 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
   // Technical points, one row per kind. A radiator that is a real product is bought by the
   // section — as many as its room's heat calls for (`radiatorSections`) — and the same
   // product across radiators folds into one row; hanging it is a unit of labour either way.
+  // A panel, a boiler, an air conditioner, a hood or fan and a drain that are products are one
+  // piece per point, folded the same way.
   const techByKind = new Map<string, { units: number; labourUnits: number; rooms: Set<string> }>();
   const radiatorsBought = new Map<number, { product: SceneProduct; sections: number; rooms: Set<string> }>();
+  // The equipment — panel, boiler, air conditioner, hood or fan, drain — one piece per point,
+  // the same product across points folded into one row (`lib/design/equipment`).
+  const equipmentBought = new Map<number, { product: SceneProduct; label: EquipmentProductKind | null; section: BudgetSection; qty: number; rooms: Set<string> }>();
   for (const point of plan.technical?.points ?? []) {
     const rate = TECHNICAL_RATES[point.kind];
     const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : rate.section === 'heating' ? heatingOn : plumbingOn;
@@ -665,6 +703,13 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
       bought.sections += radiatorSections(plan, point);
       if (point.roomId) bought.rooms.add(point.roomId);
       radiatorsBought.set(point.product.productId, bought);
+    } else if (point.product && isEquipmentKind(point.kind)) {
+      // Bought equipment replaces the point's estimate (a drain's was the pipes, which the
+      // plumbing phase buys anyway); fitting it is the trade's point either way.
+      const bought = equipmentBought.get(point.product.productId) ?? { product: point.product, label: pointProductKind(plan, point), section: rate.section, qty: 0, rooms: new Set<string>() };
+      bought.qty += 1;
+      if (point.roomId) bought.rooms.add(point.roomId);
+      equipmentBought.set(point.product.productId, bought);
     } else if (!(rate.pipes && phaseOwns)) {
       // A plumbing point's material is its pipes, which the plumbing phase buys for every point.
       entry.units += 1;
@@ -675,6 +720,10 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
   for (const bought of radiatorsBought.values()) {
     const total = round2(bought.sections * bought.product.pricePerUnit);
     lines.push({ section: 'heating', bucket: 'technical', key: `product-${bought.product.productId}`, tick: tickFor.radiator(bought.product.productId), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((id) => roomName.get(id) ?? id).join(', ') || undefined, qty: bought.sections, unit: 'section', unitPrice: bought.product.pricePerUnit, total, estimated: false, product: lineProduct(bought.product, bought.sections, total), item: labels.radiator });
+  }
+  for (const [id, bought] of equipmentBought) {
+    const total = round2(bought.qty * bought.product.pricePerUnit);
+    lines.push({ section: bought.section, bucket: 'technical', key: `product-${id}`, tick: tickFor.equipment(id), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((r) => roomName.get(r) ?? r).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total, estimated: false, product: lineProduct(bought.product, bought.qty, total), item: bought.label ? labels[bought.label] : undefined });
   }
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];

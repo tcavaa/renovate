@@ -27,7 +27,9 @@ export const tickFor = {
   opening: (productId: number): string => `opening:${productId}`,
   fixture: (productId: number): string => `fixture:${productId}`,
   radiator: (productId: number): string => `radiator:${productId}`,
-  /** A made-to-measure kitchen: the joiner's quote for one placed run or island. */
+  /** The equipment of the technical points — a panel, a boiler, an air conditioner, a hood, a fan, a drain — folded per product. */
+  equipment: (productId: number): string => `equipment:${productId}`,
+  /** A made-to-measure kitchen: one placed run or island, in the kitchen maker's material or at the joiner's estimate. */
   kitchen: (itemId: string): string => `kitchen:${itemId}`,
   /** A door or window with no product chosen, estimated on its own. */
   openingEstimate: (openingId: string): string => `opening-estimate:${openingId}`,

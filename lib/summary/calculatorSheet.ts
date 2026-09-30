@@ -162,7 +162,8 @@ export function boardWithPicks(board: FloorPlan, electrical: ElectricalPoint[], 
 
 /**
  * How much of a product picked for the whole flat the sheet buys once it is on the board: the
- * doors or windows it hangs in, a radiator's sections over every radiator, a fitting's plates
+ * doors or windows it hangs in, a radiator's sections over every radiator, one piece of
+ * equipment per point it is bought for, a fitting's plates
  * or metres over every fitting of its kind, a moulding's metres round every room. Null when
  * the board has no place for it — its quantity is then the pick's own (`suggestedQuantity`).
  */
@@ -175,7 +176,7 @@ export function placedQuantity(board: FloorPlan | null, electrical: ElectricalPo
   const sum = (values: number[]) => round2(values.reduce((s, v) => s + v, 0));
   if (target === 'radiator') return sum((dressed.plan.technical?.points ?? []).filter((p) => p.kind === 'radiator').map((p) => p.product?.qty ?? 0));
   if (target === 'skirting' || target === 'cornice') return sum(dressed.trims.map((f) => f.product?.qty ?? 0));
-  if (target && typeof target === 'object') return sum(dressed.electrical.filter((p) => FIXTURE_PRODUCT_KIND[p.kind] === target.fixture).map((p) => p.product?.qty ?? 0));
+  if (target && typeof target === 'object' && 'fixture' in target) return sum(dressed.electrical.filter((p) => FIXTURE_PRODUCT_KIND[p.kind] === target.fixture).map((p) => p.product?.qty ?? 0));
   return n;
 }
 

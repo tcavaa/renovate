@@ -29,6 +29,7 @@ import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, Floo
 import type { Dictionary } from '@/lib/i18n';
 import type { ElementSelection } from '@/store/designStore';
 import { MAX_SECTIONS, radiatorCandidates, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';
+import { equipmentCandidates, equipmentSpecs, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
 import { useLocale } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import type { CatalogProduct } from '@/lib/design/matcher';
@@ -85,6 +86,8 @@ export interface InspectorActions {
   removeZone?: (roomId: string, zoneId: string) => void;
   /** The catalogue product a radiator is (null: back to the estimate). */
   setRadiatorProduct?: (id: string, product: CatalogProduct | null) => void;
+  /** The catalogue product a panel, a boiler, an air conditioner, a hood or fan, a drain is (null: back to the estimate). */
+  setEquipmentProduct?: (id: string, product: CatalogProduct | null) => void;
 }
 
 export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian', roomPart, wallBuilding = false }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId; /** The half of a studio picked out on the board. */ roomPart?: RoomPartPick; /** The estimate builds the partition walls (a black frame): a wall can be marked as already standing (`Wall.built`). */ wallBuilding?: boolean }) {
@@ -272,6 +275,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
             : fill(t.build.standardHeightHint, { n: Math.round(technicalElevation(point.kind, room) * 100) })}
         </p>
         {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
+        {isEquipmentKind(point.kind) && actions.setEquipmentProduct && <EquipmentFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         <Field label={t.build.note}>
           <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm" />
         </Field>
@@ -624,6 +628,54 @@ function RadiatorFields({ plan, point, catalog, styleId, locale, actions }: { pl
           </span>
           <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatGEL(price)}</span>
         </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What a panel, a boiler, an air conditioner, an extractor — a hood in a kitchen, a fan
+ * elsewhere — or a floor drain is bought as: the catalogue's products of its kind, one piece
+ * per point (`lib/design/equipment`). A point always takes one when the catalogue has any
+ * (the budget's tick is how it is left out); with nothing of the kind it is the estimate, and
+ * says so.
+ */
+function EquipmentFields({ plan, point, catalog, styleId, locale, actions }: { plan: FloorPlan; point: TechnicalPoint; catalog: CatalogProduct[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru'; actions: InspectorActions }) {
+  const t = useT();
+  const productKind = pointProductKind(plan, point);
+  const room = radiatorRoom(plan, point);
+  const candidates = productKind ? equipmentCandidates(productKind, catalog, styleId, room) : [];
+  return (
+    <div className="space-y-2 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      {point.kind === 'ac_unit' && room && <p className="text-[11px] leading-snug text-ink-muted">{fill(t.build.equipmentRoomHint, { room: room.name, m2: formatM2(room.areaM2) })}</p>}
+      {candidates.length === 0 ? (
+        <p className="text-[11px] leading-snug text-ink-muted">{t.build.equipmentNone}</p>
+      ) : (
+        <Field label={t.build.equipmentProduct}>
+          <div className="flex flex-col gap-1">
+            {candidates.map((product) => {
+              const active = point.product?.productId === product.id;
+              const cover = equipmentSpecs(product).coverM2;
+              return (
+                <button key={product.id} type="button" onClick={() => !active && actions.setEquipmentProduct?.(point.id, product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                  {product.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base object-contain" />
+                  ) : (
+                    <span className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="line-clamp-2 font-medium leading-snug text-ink">{localizedName(locale, product)}</span>
+                    <span className="block truncate tabular-nums text-ink-muted">
+                      {formatGEL(product.pricePerUnit)}
+                      {point.kind === 'ac_unit' && cover != null && ` · ${fill(t.build.equipmentCovers, { m2: formatM2(cover) })}`}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
       )}
     </div>
   );

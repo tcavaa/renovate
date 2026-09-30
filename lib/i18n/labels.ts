@@ -40,12 +40,23 @@ export const FIXTURE_KIND_LABEL: Readonly<Record<string, string>> = {
 /** Doors and windows are products of their own kinds too, drawn in the wall's hole. */
 export const OPENING_KIND_LABEL: Readonly<Record<string, string>> = { door: 'lineDoor', entrance_door: 'lineEntranceDoor', window: 'lineWindow' };
 
+/** The technical points' equipment, bought one per point (`lib/design/equipment`), and the radiator section. */
+export const EQUIPMENT_KIND_LABEL: Readonly<Record<string, string>> = {
+  radiator: 'tkRadiator',
+  electrical_panel: 'tkPanel',
+  boiler: 'tkBoiler',
+  ac_unit: 'tkAc',
+  cooker_hood: 'tkHood',
+  bathroom_fan: 'tkFan',
+  floor_drain: 'tkDrain',
+};
+
 /** A product's 3D kind by name: the studio's furniture by its label, a fitting or an opening as the studio calls it. */
 export function productKindLabel(t: Dictionary, locale: 'ka' | 'en' | 'ru', kind: string): string {
   if (getArchetype(kind)) return archetypeLabel(kind, locale);
-  const key = FIXTURE_KIND_LABEL[kind] ?? OPENING_KIND_LABEL[kind];
-  if (key) return (t.build as unknown as AnyMap)[key] ?? kind;
   if (kind === 'radiator') return t.build.radiatorSection;
+  const key = FIXTURE_KIND_LABEL[kind] ?? OPENING_KIND_LABEL[kind] ?? EQUIPMENT_KIND_LABEL[kind];
+  if (key) return (t.build as unknown as AnyMap)[key] ?? kind;
   return kind;
 }
 
@@ -107,6 +118,14 @@ export function basketLabels(t: Dictionary): { surfaceLabels: SurfaceLabels; pro
       entrance_door: t.build.lineEntranceDoor,
       window: t.build.lineWindow,
       radiator: t.build.tkRadiator,
+      electrical_panel: t.build.tkPanel,
+      boiler: t.build.tkBoiler,
+      ac_unit: t.build.tkAc,
+      cooker_hood: t.build.tkHood,
+      bathroom_fan: t.build.tkFan,
+      floor_drain: t.build.tkDrain,
+      kitchen_run: t.build.lineKitchenRun,
+      kitchen_island: t.build.lineKitchenIsland,
       socket: t.build.ekSocket,
       switch: t.build.ekSwitch,
       tv: t.build.ekTv,

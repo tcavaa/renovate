@@ -2,9 +2,11 @@
  * Product photos rendered from the models themselves.
  *
  *   pnpm models:photos                    → every fixture, door and window in
- *                                           public/models/fixtures/manifest.json, and every
+ *                                           public/models/fixtures/manifest.json, every
  *                                           radiator in public/models/radiators/manifest.json
- *   pnpm models:photos --only=door-oak,radiator-panel   → a few
+ *                                           every model in public/models/equipment/manifest.json
+ *                                           and every run in public/models/kitchens/manifest.json
+ *   pnpm models:photos --only=door-oak,radiator-panel   → a few (slugs from any of the four)
  *
  * The sources' own thumbnails come on coloured gradients that look nothing like a product
  * photo, so each model is rendered here the way the studio shows it — its own materials, a
@@ -17,6 +19,14 @@
  * section repeated eight times at its pitch — a radiator — written to
  * `public/uploads/furniture/radiator-<name>.png`, the path `pnpm models:radiators` has
  * already put in that manifest.
+ *
+ * The equipment (`pnpm models:equipment`) is photographed the same way, from a view that
+ * suits its frame — a wall piece from the front and a little to the side, an air conditioner
+ * from just below (its outlet is what tells it apart), a floor drain from above — with no
+ * lamp glow, to the `imageUrl` its manifest already names
+ * (`public/uploads/furniture/equipment-<slug>.png`). A kitchen run (`pnpm models:kitchens`) is
+ * photographed standing on its shadow, from the front and a little to the side, to
+ * `public/uploads/furniture/kitchen-<slug>.png`.
  */
 
 import { existsSync } from 'node:fs';
@@ -25,12 +35,16 @@ import http from 'node:http';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium } from '@playwright/test';
+import type { EquipmentManifestModel } from './equipment-models';
 import type { FixtureManifestModel } from './fixture-models';
+import type { KitchenManifestModel } from './kitchen-models';
 import type { RadiatorManifestModel } from './radiator-models';
 
 const ROOT = process.cwd();
 const MANIFEST = path.join(ROOT, 'public', 'models', 'fixtures', 'manifest.json');
 const RADIATOR_MANIFEST = path.join(ROOT, 'public', 'models', 'radiators', 'manifest.json');
+const EQUIPMENT_MANIFEST = path.join(ROOT, 'public', 'models', 'equipment', 'manifest.json');
+const KITCHEN_MANIFEST = path.join(ROOT, 'public', 'models', 'kitchens', 'manifest.json');
 const PHOTO_DIR = path.join(ROOT, 'public', 'uploads', 'furniture');
 const SIZE = 720;
 /** A radiator is photographed as this many of its sections side by side. */
@@ -59,7 +73,7 @@ document.body.appendChild(renderer.domElement);
 const loader = new GLTFLoader();
 loader.setMeshoptDecoder(MeshoptDecoder);
 
-window.renderModel = async (url, mount, row) => {
+window.renderModel = async (url, mount, row, view) => {
   const scene = new THREE.Scene();
   const gltf = await loader.loadAsync(url);
   let model = gltf.scene;
@@ -95,6 +109,9 @@ window.renderModel = async (url, mount, row) => {
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
   key.shadow.radius = 4;
+  // Broad smooth faces seen at a slant (a hood's canopy, an air conditioner's front) shadow
+  // themselves in rings without a bias.
+  if (mount.startsWith('equipment') || mount === 'kitchen') { key.shadow.bias = -0.0003; key.shadow.normalBias = radius * 0.004; }
   const cam = key.shadow.camera; cam.left = cam.bottom = -radius * 2; cam.right = cam.top = radius * 2; cam.near = 0.01; cam.far = radius * 10;
   key.target.position.copy(centre);
   scene.add(key, key.target);
@@ -112,8 +129,8 @@ window.renderModel = async (url, mount, row) => {
     glow.position.set(centre.x, centre.y, centre.z + (mount === 'wall' ? radius * 0.4 : 0));
     scene.add(glow);
   }
-  // A ground shadow under a door or a radiator, so it stands rather than floats.
-  if (mount === 'door' || mount === 'radiator') {
+  // A ground shadow under a door, a radiator or a kitchen run, so it stands rather than floats.
+  if (mount === 'door' || mount === 'radiator' || mount === 'kitchen') {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(radius * 8, radius * 8), new THREE.ShadowMaterial({ opacity: 0.18 }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = box.min.y;
@@ -125,7 +142,8 @@ window.renderModel = async (url, mount, row) => {
   // Three-quarter view from the room side (+z), a little above; a ceiling fitting is seen
   // from slightly below, the way one sees a lamp; a radiator from further round and higher,
   // so its end and its top — what tells one kind from another — are in the picture.
-  const dir = mount === 'ceiling' ? new THREE.Vector3(0.75, -0.22, 1) : mount === 'door' || mount === 'window' ? new THREE.Vector3(0.55, 0.28, 1) : mount === 'radiator' ? new THREE.Vector3(0.78, 0.42, 1) : new THREE.Vector3(0.6, 0.35, 1);
+  // An equipment photo names its own view (see EQUIPMENT_VIEW).
+  const dir = view ? new THREE.Vector3(view[0], view[1], view[2]) : mount === 'ceiling' ? new THREE.Vector3(0.75, -0.22, 1) : mount === 'door' || mount === 'window' ? new THREE.Vector3(0.55, 0.28, 1) : mount === 'radiator' ? new THREE.Vector3(0.78, 0.42, 1) : new THREE.Vector3(0.6, 0.35, 1);
   dir.normalize();
   const fit = radius / Math.sin((camera.fov * Math.PI) / 360) * 1.06;
   camera.position.copy(centre).addScaledVector(dir, fit);
@@ -144,9 +162,11 @@ async function main() {
   const wanted = <T extends { slug: string }>(list: T[]): T[] => (only ? list.filter((m) => only.includes(m.slug)) : list);
   const manifest = existsSync(MANIFEST) ? (JSON.parse(await readFile(MANIFEST, 'utf8')) as { models: FixtureManifestModel[]; [k: string]: unknown }) : null;
   const models = wanted(manifest?.models ?? []);
-  // The radiators' manifest already names each photo (`pnpm models:radiators` writes the path), so it is only read.
+  // The radiators' and the equipment's manifests already name each photo (their scripts write the path), so they are only read.
   const radiators = existsSync(RADIATOR_MANIFEST) ? wanted((JSON.parse(await readFile(RADIATOR_MANIFEST, 'utf8')) as { models: RadiatorManifestModel[] }).models) : [];
-  if (models.length + radiators.length === 0) throw new Error(only ? `nothing matches --only=${only.join(',')}` : 'no manifest — run `pnpm models:fixtures` and `pnpm models:radiators` first');
+  const equipment = existsSync(EQUIPMENT_MANIFEST) ? wanted((JSON.parse(await readFile(EQUIPMENT_MANIFEST, 'utf8')) as { models: EquipmentManifestModel[] }).models) : [];
+  const kitchens = existsSync(KITCHEN_MANIFEST) ? wanted((JSON.parse(await readFile(KITCHEN_MANIFEST, 'utf8')) as { models: KitchenManifestModel[] }).models) : [];
+  if (models.length + radiators.length + equipment.length + kitchens.length === 0) throw new Error(only ? `nothing matches --only=${only.join(',')}` : 'no manifest — run `pnpm models:fixtures`, `pnpm models:radiators`, `pnpm models:equipment` and `pnpm models:kitchens` first');
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -175,9 +195,10 @@ async function main() {
     await page.waitForFunction(() => (window as unknown as { ready?: boolean }).ready === true, null, { timeout: 30_000 });
 
     type Row = { count: number; pitch: number } | null;
+    type View = [number, number, number] | null;
     // The page's own origin serves the project root, so a public URL lives under /public.
-    const render = async (url: string, mount: string, row: Row): Promise<Buffer> => {
-      const data = await page.evaluate(([u, m, r]) => (window as unknown as { renderModel: (u: string, m: string, r: Row) => Promise<string> }).renderModel(u, m, r), [`/public${url}`, mount, row] as const);
+    const render = async (url: string, mount: string, row: Row, view: View = null): Promise<Buffer> => {
+      const data = await page.evaluate(([u, m, r, v]) => (window as unknown as { renderModel: (u: string, m: string, r: Row, v: View) => Promise<string> }).renderModel(u, m, r, v), [`/public${url}`, mount, row, view] as const);
       return Buffer.from(data.slice(data.indexOf(',') + 1), 'base64');
     };
 
@@ -212,11 +233,48 @@ async function main() {
         process.exitCode = 1;
       }
     }
-    console.log(`\n${done} of ${models.length + radiators.length} rendered · ${path.relative(ROOT, PHOTO_DIR)}`);
+    for (const model of equipment) {
+      process.stdout.write(`• ${model.slug} `);
+      try {
+        const png = await render(model.url, `equipment-${model.frame}`, null, equipmentView(model));
+        await writeFile(path.join(ROOT, 'public', model.imageUrl), png);
+        done++;
+        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+      } catch (error) {
+        console.log(`✗ ${(error as Error).message}`);
+        process.exitCode = 1;
+      }
+    }
+    for (const model of kitchens) {
+      process.stdout.write(`• ${model.slug} `);
+      try {
+        const png = await render(model.url, 'kitchen', null, [0.5, 0.3, 1]);
+        await writeFile(path.join(ROOT, 'public', model.imageUrl), png);
+        done++;
+        console.log(`✓ ${(png.length / 1024).toFixed(0)} KB`);
+      } catch (error) {
+        console.log(`✗ ${(error as Error).message}`);
+        process.exitCode = 1;
+      }
+    }
+    console.log(`\n${done} of ${models.length + radiators.length + equipment.length + kitchens.length} rendered · ${path.relative(ROOT, PHOTO_DIR)}`);
   } finally {
     await browser.close();
     server.close();
   }
+}
+
+/**
+ * Where the camera stands for a piece of equipment, as a direction from its middle (+z is the
+ * room): a floor drain from above, an air conditioner hung high from just below, a cooker
+ * hood about level, anything else on a wall from the front and a little above.
+ */
+function equipmentView(model: Pick<EquipmentManifestModel, 'frame' | 'kind'>): [number, number, number] {
+  if (model.frame === 'floor') return [0.35, 1.1, 0.75];
+  if (model.kind === 'ac_unit') return [0.5, -0.06, 1];
+  if (model.kind === 'cooker_hood') return [0.55, 0.12, 1];
+  if (model.frame === 'fitting') return [0.6, 0.35, 1];
+  return [0.55, 0.25, 1];
 }
 
 main().catch((error) => {

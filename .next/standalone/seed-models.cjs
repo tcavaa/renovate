@@ -31029,9 +31029,25 @@ var TREE = [
       }),
       old("windows", "\u10E4\u10D0\u10DC\u10EF\u10E0\u10D4\u10D1\u10D8", "Windows", "\u041E\u043A\u043D\u0430", "app-window", { model3dKind: "window" }),
       old("sockets-switches", "\u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8/\u10D0\u10DB\u10DD\u10DB\u10E0\u10D7\u10D5\u10D4\u10DA\u10D4\u10D1\u10D8", "Sockets & Switches", "\u0420\u043E\u0437\u0435\u0442\u043A\u0438 \u0438 \u0432\u044B\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438", "plug-zap", {
-        children: [kind("socket", "sockets", "\u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8", "Sockets", "\u0420\u043E\u0437\u0435\u0442\u043A\u0438", "plug"), kind("switch", "switches", "\u10D0\u10DB\u10DD\u10DB\u10E0\u10D7\u10D5\u10D4\u10DA\u10D4\u10D1\u10D8", "Switches", "\u0412\u044B\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438", "toggle-left")]
+        children: [
+          kind("socket", "sockets", "\u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8", "Sockets", "\u0420\u043E\u0437\u0435\u0442\u043A\u0438", "plug"),
+          kind("switch", "switches", "\u10D0\u10DB\u10DD\u10DB\u10E0\u10D7\u10D5\u10D4\u10DA\u10D4\u10D1\u10D8", "Switches", "\u0412\u044B\u043A\u043B\u044E\u0447\u0430\u0442\u0435\u043B\u0438", "toggle-left"),
+          kind("socket_tv", "tv-sockets", "\u10E2\u10D4\u10DA\u10D4\u10D5\u10D8\u10D6\u10DD\u10E0\u10D8\u10E1 \u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8", "TV sockets", "\u0422\u0412-\u0440\u043E\u0437\u0435\u0442\u043A\u0438", "tv"),
+          kind("socket_data", "data-sockets", "\u10D8\u10DC\u10E2\u10D4\u10E0\u10DC\u10D4\u10E2\u10D8\u10E1 \u10E0\u10DD\u10D6\u10D4\u10E2\u10D4\u10D1\u10D8", "Data sockets", "\u0418\u043D\u0442\u0435\u0440\u043D\u0435\u0442-\u0440\u043E\u0437\u0435\u0442\u043A\u0438", "ethernet-port")
+        ]
       }),
-      old("radiators", "\u10E0\u10D0\u10D3\u10D8\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", "Radiators", "\u0420\u0430\u0434\u0438\u0430\u0442\u043E\u0440\u044B", "heater", { model3dKind: "radiator" })
+      old("radiators", "\u10E0\u10D0\u10D3\u10D8\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", "Radiators", "\u0420\u0430\u0434\u0438\u0430\u0442\u043E\u0440\u044B", "heater", { model3dKind: "radiator" }),
+      // The technical points bought as products, one per point (`lib/design/equipment`).
+      add("engineering", "\u10E1\u10D0\u10D8\u10DC\u10DF\u10D8\u10DC\u10E0\u10DD \u10E1\u10D8\u10E1\u10E2\u10D4\u10DB\u10D4\u10D1\u10D8", "Building services", "\u0418\u043D\u0436\u0435\u043D\u0435\u0440\u043D\u044B\u0435 \u0441\u0438\u0441\u0442\u0435\u043C\u044B", "wrench", {
+        children: [
+          kind("electrical_panel", "electrical-panels", "\u10D4\u10DA\u10D4\u10E5\u10E2\u10E0\u10DD \u10E4\u10D0\u10E0\u10D4\u10D1\u10D8", "Electrical panels", "\u042D\u043B\u0435\u043A\u0442\u0440\u043E\u0449\u0438\u0442\u044B", "zap"),
+          kind("boiler", "boilers", "\u10E5\u10D5\u10D0\u10D1\u10D4\u10D1\u10D8 \u10D3\u10D0 \u10D1\u10DD\u10D8\u10DA\u10D4\u10E0\u10D4\u10D1\u10D8", "Boilers & water heaters", "\u041A\u043E\u0442\u043B\u044B \u0438 \u0432\u043E\u0434\u043E\u043D\u0430\u0433\u0440\u0435\u0432\u0430\u0442\u0435\u043B\u0438", "flame"),
+          kind("ac_unit", "air-conditioners", "\u10D9\u10DD\u10DC\u10D3\u10D8\u10EA\u10D8\u10DD\u10DC\u10D4\u10E0\u10D4\u10D1\u10D8", "Air conditioners", "\u041A\u043E\u043D\u0434\u0438\u0446\u0438\u043E\u043D\u0435\u0440\u044B", "air-vent"),
+          kind("cooker_hood", "cooker-hoods", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D2\u10D0\u10DB\u10EC\u10DD\u10D5\u10D4\u10D1\u10D8", "Cooker hoods", "\u041A\u0443\u0445\u043E\u043D\u043D\u044B\u0435 \u0432\u044B\u0442\u044F\u0436\u043A\u0438", "wind"),
+          kind("bathroom_fan", "bathroom-fans", "\u10D2\u10D0\u10DB\u10EC\u10DD\u10D5\u10D8 \u10D5\u10D4\u10DC\u10E2\u10D8\u10DA\u10D0\u10E2\u10DD\u10E0\u10D4\u10D1\u10D8", "Extractor fans", "\u0412\u044B\u0442\u044F\u0436\u043D\u044B\u0435 \u0432\u0435\u043D\u0442\u0438\u043B\u044F\u0442\u043E\u0440\u044B", "fan"),
+          kind("floor_drain", "floor-drains", "\u10D8\u10D0\u10E2\u10D0\u10D9\u10D8\u10E1 \u10E2\u10E0\u10D0\u10DE\u10D4\u10D1\u10D8", "Floor drains", "\u0422\u0440\u0430\u043F\u044B", "circle-dot")
+        ]
+      })
     ]
   }),
   old("lighting", "\u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D0", "Lighting", "\u041E\u0441\u0432\u0435\u0449\u0435\u043D\u0438\u0435", "lightbulb", {
@@ -31097,7 +31113,11 @@ var TREE = [
           kind("kitchen_island", "kitchen-islands", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D9\u10E3\u10DC\u10EB\u10E3\u10DA\u10D4\u10D1\u10D8", "Kitchen islands", "\u041A\u0443\u0445\u043E\u043D\u043D\u044B\u0435 \u043E\u0441\u0442\u0440\u043E\u0432\u0430", "kitchen-island"),
           kind("fridge", "fridges", "\u10DB\u10D0\u10EA\u10D8\u10D5\u10E0\u10D4\u10D1\u10D8", "Fridges", "\u0425\u043E\u043B\u043E\u0434\u0438\u043B\u044C\u043D\u0438\u043A\u0438", "refrigerator")
         ]
-      })
+      }),
+      // The kitchen maker's materials, each priced per m² of façade (`lib/design/kitchen`) — not a
+      // piece placed in a room, so not furniture to the seeds, and beside the kitchen furniture
+      // rather than under it, which the calculator's tab lists whole.
+      add("kitchen-custom", "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D0\u10D5\u10D4\u10EF\u10D8 \u2014 \u10D8\u10DC\u10D3\u10D8\u10D5\u10D8\u10D3\u10E3\u10D0\u10DA\u10E3\u10E0\u10D8 \u10D3\u10D0\u10DB\u10D6\u10D0\u10D3\u10D4\u10D1\u10D0", "Made-to-measure kitchens", "\u041A\u0443\u0445\u043D\u0438 \u043D\u0430 \u0437\u0430\u043A\u0430\u0437", "ruler", { isFurniture: false })
     ]
   }),
   old("decor", "\u10D3\u10D4\u10D9\u10DD\u10E0\u10D8", "Decor", "\u0414\u0435\u043A\u043E\u0440", "flower-2", {
@@ -31289,6 +31309,72 @@ var TRIM_PRODUCTS = [
   }
 ];
 
+// scripts/lib/kitchenMaterials.ts
+var KITCHEN_STORE = {
+  slug: "kitchen-custom",
+  nameKa: "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D0\u10D5\u10D4\u10EF\u10D8 \u2014 \u10D8\u10DC\u10D3\u10D8\u10D5\u10D8\u10D3\u10E3\u10D0\u10DA\u10E3\u10E0\u10D8 \u10D3\u10D0\u10DB\u10D6\u10D0\u10D3\u10D4\u10D1\u10D0",
+  descriptionKa: "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D0\u10D5\u10D4\u10EF\u10D8 \u10D1\u10D8\u10DC\u10D8\u10E1 \u10D6\u10DD\u10DB\u10D4\u10D1\u10D6\u10D4: \u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DA\u10D3\u10E1\u10DE, \u10E8\u10D4\u10E6\u10D4\u10D1\u10D8\u10DA\u10D8 MDF \u10D0\u10DC \u10DB\u10E3\u10EE\u10D8\u10E1 \u10DC\u10D0\u10E2\u10E3\u10E0\u10D0\u10DA\u10E3\u10E0\u10D8 \u10E8\u10DE\u10DD\u10DC\u10D8. \u10E4\u10D0\u10E1\u10D8 \u2014 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8\u10E1 \u10D9\u10D5\u10D0\u10D3\u10E0\u10D0\u10E2\u10E3\u10DA \u10DB\u10D4\u10E2\u10E0\u10D6\u10D4, \u10D6\u10DD\u10DB\u10D4\u10D1\u10D8\u10E1 \u10D0\u10E6\u10D4\u10D1\u10D8\u10D7, \u10E1\u10D0\u10DB\u10E3\u10E8\u10D0\u10DD \u10D6\u10D4\u10D3\u10D0\u10DE\u10D8\u10E0\u10D8\u10D7\u10D0 \u10D3\u10D0 \u10DB\u10DD\u10DC\u10E2\u10D0\u10DF\u10D8\u10D7.",
+  city: "\u10D7\u10D1\u10D8\u10DA\u10D8\u10E1\u10D8",
+  address: "\u10D7\u10D1\u10D8\u10DA\u10D8\u10E1\u10D8, \u10D3\u10D8\u10D3\u10E3\u10D1\u10D4, \u10EC\u10D4\u10E0\u10D4\u10D7\u10DA\u10D8\u10E1 \u10D2\u10D0\u10DB\u10D6. 116",
+  phone: "+995 322 55 06 41",
+  websiteUrl: "https://kitchen-custom.ge",
+  rating: "4.70",
+  reviewCount: 58,
+  // Made to order: measured, built and fitted — three weeks, delivered and fitted in the price.
+  deliveryDays: 21,
+  deliveryFeeGel: "0.00",
+  commissionRate: "7.00"
+};
+var KITCHEN_MATERIALS = [
+  {
+    slug: "kitchen-material-ldsp",
+    nameKa: "\u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DA\u10D3\u10E1\u10DE \u2014 \u10DC\u10D0\u10EA\u10E0\u10D8\u10E1\u10E4\u10D4\u10E0\u10D8 \u10DB\u10E3\u10EE\u10D0",
+    nameEn: "Laminated chipboard \u2014 grey oak",
+    nameRu: "\u041B\u0414\u0421\u041F \u2014 \u0441\u0435\u0440\u044B\u0439 \u0434\u0443\u0431",
+    descriptionKa: "\u10D9\u10DD\u10E0\u10DE\u10E3\u10E1\u10D8 \u10D3\u10D0 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8 \u2014 \u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DA\u10D3\u10E1\u10DE (18 \u10DB\u10DB), ABS \u10D9\u10D8\u10D3\u10D8\u10D7; \u10E1\u10D0\u10DB\u10E3\u10E8\u10D0\u10DD \u10D6\u10D4\u10D3\u10D0\u10DE\u10D8\u10E0\u10D8 \u2014 \u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8, 38 \u10DB\u10DB. \u10E4\u10D0\u10E1\u10D8 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8\u10E1 1 \u10DB\xB2-\u10D6\u10D4, \u10D6\u10DD\u10DB\u10D4\u10D1\u10D8\u10E1 \u10D0\u10E6\u10D4\u10D1\u10D8\u10D7\u10D0 \u10D3\u10D0 \u10DB\u10DD\u10DC\u10E2\u10D0\u10DF\u10D8\u10D7.",
+    priceGelPerM2: 650,
+    styles: ["scandinavian", "industrial"],
+    colorHex: "#B4AAA3",
+    imageUrl: "/uploads/products/kitchen-material-ldsp-grey-oak.jpg"
+  },
+  {
+    slug: "kitchen-material-mdf",
+    nameKa: "\u10E8\u10D4\u10E6\u10D4\u10D1\u10D8\u10DA\u10D8 MDF \u2014 \u10DB\u10D0\u10E2\u10D8, \u10D9\u10D0\u10E8\u10D4\u10DB\u10D8\u10E0\u10D8",
+    nameEn: "Painted MDF \u2014 matt cashmere",
+    nameRu: "\u041A\u0440\u0430\u0448\u0435\u043D\u044B\u0439 \u041C\u0414\u0424 \u2014 \u043C\u0430\u0442\u043E\u0432\u044B\u0439 \u043A\u0430\u0448\u0435\u043C\u0438\u0440",
+    descriptionKa: "\u10E4\u10D0\u10E1\u10D0\u10D3\u10D8 \u2014 \u10E8\u10D4\u10E6\u10D4\u10D1\u10D8\u10DA\u10D8 MDF (19 \u10DB\u10DB, \u10DB\u10D0\u10E2\u10D8 \u10DA\u10D0\u10E5\u10D8), \u10D9\u10DD\u10E0\u10DE\u10E3\u10E1\u10D8 \u2014 \u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DA\u10D3\u10E1\u10DE; \u10E1\u10D0\u10DB\u10E3\u10E8\u10D0\u10DD \u10D6\u10D4\u10D3\u10D0\u10DE\u10D8\u10E0\u10D8 \u2014 \u10D9\u10DD\u10DB\u10DE\u10D0\u10E5\u10E2-\u10DA\u10D0\u10DB\u10D8\u10DC\u10D0\u10E2\u10D8. \u10E4\u10D0\u10E1\u10D8 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8\u10E1 1 \u10DB\xB2-\u10D6\u10D4, \u10D6\u10DD\u10DB\u10D4\u10D1\u10D8\u10E1 \u10D0\u10E6\u10D4\u10D1\u10D8\u10D7\u10D0 \u10D3\u10D0 \u10DB\u10DD\u10DC\u10E2\u10D0\u10DF\u10D8\u10D7.",
+    priceGelPerM2: 850,
+    styles: ["modern", "scandinavian"],
+    colorHex: "#DCD5C8",
+    imageUrl: "/uploads/products/kitchen-material-mdf.jpg"
+  },
+  {
+    slug: "kitchen-material-veneer",
+    nameKa: "\u10DB\u10E3\u10EE\u10D8\u10E1 \u10DC\u10D0\u10E2\u10E3\u10E0\u10D0\u10DA\u10E3\u10E0\u10D8 \u10E8\u10DE\u10DD\u10DC\u10D8",
+    nameEn: "Natural oak veneer",
+    nameRu: "\u041D\u0430\u0442\u0443\u0440\u0430\u043B\u044C\u043D\u044B\u0439 \u0448\u043F\u043E\u043D \u0434\u0443\u0431\u0430",
+    descriptionKa: "\u10E4\u10D0\u10E1\u10D0\u10D3\u10D8 \u2014 \u10DB\u10E3\u10EE\u10D8\u10E1 \u10DC\u10D0\u10E2\u10E3\u10E0\u10D0\u10DA\u10E3\u10E0\u10D8 \u10E8\u10DE\u10DD\u10DC\u10D8 (\u10D6\u10D4\u10D7\u10D8-\u10EA\u10D5\u10D8\u10DA\u10D8), \u10D9\u10DD\u10E0\u10DE\u10E3\u10E1\u10D8 \u2014 \u10DA\u10D0\u10DB\u10D8\u10DC\u10D8\u10E0\u10D4\u10D1\u10E3\u10DA\u10D8 \u10DA\u10D3\u10E1\u10DE; \u10E1\u10D0\u10DB\u10E3\u10E8\u10D0\u10DD \u10D6\u10D4\u10D3\u10D0\u10DE\u10D8\u10E0\u10D8 \u2014 \u10DB\u10D0\u10E1\u10D8\u10D5\u10D8 \u10D0\u10DC \u10D9\u10D5\u10D0\u10E0\u10EA\u10D8. \u10E4\u10D0\u10E1\u10D8 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8\u10E1 1 \u10DB\xB2-\u10D6\u10D4, \u10D6\u10DD\u10DB\u10D4\u10D1\u10D8\u10E1 \u10D0\u10E6\u10D4\u10D1\u10D8\u10D7\u10D0 \u10D3\u10D0 \u10DB\u10DD\u10DC\u10E2\u10D0\u10DF\u10D8\u10D7.",
+    priceGelPerM2: 1150,
+    styles: ["vintage", "modern", "industrial"],
+    colorHex: "#B8875A",
+    imageUrl: "/uploads/products/kitchen-material-veneer.jpg"
+  }
+];
+
+// scripts/lib/translations.ts
+var STORE_I18N = {
+  "\u10E0\u10D4\u10DB\u10DD\u10DC\u10E2\u10D8.ge \u10DD\u10E4\u10D8\u10EA\u10D8\u10D0\u10DA\u10E3\u10E0\u10D8 \u10DB\u10D0\u10E6\u10D0\u10D6\u10D8\u10D0": { en: "remonti.ge official store", ru: "\u041E\u0444\u0438\u0446\u0438\u0430\u043B\u044C\u043D\u044B\u0439 \u043C\u0430\u0433\u0430\u0437\u0438\u043D remonti.ge" },
+  "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8 \u10D0\u10D5\u10D4\u10EF\u10D8": { en: "Georgian Furniture", ru: "\u0413\u0440\u0443\u0437\u0438\u043D\u0441\u043A\u0430\u044F \u043C\u0435\u0431\u0435\u043B\u044C" },
+  "Nordic Home Tbilisi": { en: "Nordic Home Tbilisi", ru: "Nordic Home \u0422\u0431\u0438\u043B\u0438\u0441\u0438" },
+  "LOFT 42": { en: "LOFT 42", ru: "LOFT 42" },
+  "Domus Interior": { en: "Domus Interior", ru: "Domus Interior" },
+  "\u10D0\u10DC\u10E2\u10D8\u10D9\u10D5\u10D0\u10E0\u10D8 \u2014 \u10D5\u10D8\u10DC\u10E2\u10D0\u10DF\u10D8\u10E1 \u10E1\u10D0\u10DA\u10DD\u10DC\u10D8": { en: "Antikvari \u2014 vintage salon", ru: "\u0410\u043D\u0442\u0438\u043A\u0432\u0430\u0440\u0438 \u2014 \u0441\u0430\u043B\u043E\u043D \u0432\u0438\u043D\u0442\u0430\u0436\u0430" },
+  "\u10DA\u10E3\u10DB\u10D8\u10DC\u10D0 \u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D0": { en: "Lumina Lighting", ru: "\u041B\u044E\u043C\u0438\u043D\u0430 \u041E\u0441\u0432\u0435\u0449\u0435\u043D\u0438\u0435" },
+  "\u10E2\u10D4\u10E5\u10E1\u10E2\u10D8\u10DA+ \u10EE\u10D0\u10DA\u10D8\u10E9\u10D4\u10D1\u10D8": { en: "Textile+ Rugs", ru: "\u0422\u0435\u043A\u0441\u0442\u0438\u043B\u044C+ \u041A\u043E\u0432\u0440\u044B" },
+  "\u10E1\u10D0\u10DC-\u10DE\u10DA\u10E3\u10E1 \u10E1\u10D0\u10DC\u10E2\u10D4\u10E5\u10DC\u10D8\u10D9\u10D0": { en: "San-Plus Sanitary", ru: "\u0421\u0430\u043D-\u041F\u043B\u044E\u0441 \u0421\u0430\u043D\u0442\u0435\u0445\u043D\u0438\u043A\u0430" },
+  "\u10E1\u10D0\u10DB\u10D6\u10D0\u10E0\u10D4\u10E3\u10DA\u10DD\u10E1 \u10D0\u10D5\u10D4\u10EF\u10D8 \u2014 \u10D8\u10DC\u10D3\u10D8\u10D5\u10D8\u10D3\u10E3\u10D0\u10DA\u10E3\u10E0\u10D8 \u10D3\u10D0\u10DB\u10D6\u10D0\u10D3\u10D4\u10D1\u10D0": { en: "Made-to-measure kitchens", ru: "\u041A\u0443\u0445\u043D\u0438 \u043D\u0430 \u0437\u0430\u043A\u0430\u0437" }
+};
+
 // scripts/seed-models.ts
 var SLUG_PREFIX = "model-";
 async function main() {
@@ -31326,13 +31412,14 @@ async function main() {
     if (known) return known;
     const spec = DEFAULT_CATEGORY_TREE.find((c) => c.slug === slug);
     if (!spec) throw new Error(`no default for category "${slug}"`);
+    const parentId = spec.parent ? await ensureCategory(spec.parent) : null;
     const inserted = await db.insert(categories).values({
       nameKa: spec.nameKa,
       nameEn: spec.nameEn,
       nameRu: spec.nameRu,
       slug: spec.slug,
       icon: spec.icon,
-      parentId: spec.parent ? categoryBySlug(spec.parent) ?? null : null,
+      parentId,
       calculationType: spec.calculationType,
       isVisible: true,
       isFurniture: spec.isFurniture,
@@ -31346,6 +31433,28 @@ async function main() {
   };
   const storeBySlug = /* @__PURE__ */ new Map();
   for (const row of storeRows) storeBySlug.set(storeSlugFor(row.nameKa), row.id);
+  if (!storeBySlug.has(KITCHEN_STORE.slug)) {
+    const s = KITCHEN_STORE;
+    const inserted = await db.insert(stores).values({
+      nameKa: s.nameKa,
+      nameEn: STORE_I18N[s.nameKa]?.en ?? null,
+      nameRu: STORE_I18N[s.nameKa]?.ru ?? null,
+      descriptionKa: s.descriptionKa,
+      logoUrl: `/uploads/stores/${s.slug}.svg`,
+      websiteUrl: s.websiteUrl,
+      phone: s.phone,
+      address: s.address,
+      city: s.city,
+      rating: s.rating,
+      reviewCount: s.reviewCount,
+      deliveryDays: s.deliveryDays,
+      deliveryFeeGel: s.deliveryFeeGel,
+      commissionRate: s.commissionRate,
+      isActive: true
+    });
+    storeBySlug.set(s.slug, Number(inserted[0].insertId));
+    console.log(`  + store ${s.nameKa}`);
+  }
   const keepSlugs = [];
   let upserted = 0;
   for (const model of manifest.models) {
@@ -31488,6 +31597,54 @@ async function main() {
   } catch {
     console.log("  (no public/models/radiators/manifest.json \u2014 run `pnpm models:radiators` for the radiators)");
   }
+  try {
+    const equipment = JSON.parse(await (0, import_promises.readFile)(import_node_path.default.join(process.cwd(), "public", "models", "equipment", "manifest.json"), "utf8"));
+    for (const model of equipment.models) {
+      const product = model.product;
+      if (!product) continue;
+      await ensureCategory(product.categorySlug);
+      const slug = `${SLUG_PREFIX}equipment-${model.slug}`;
+      const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, slug)).limit(1);
+      const categoryId = placeFor(product.kind, product.categorySlug, existing[0]?.categoryId);
+      const storeId = storeBySlug.get(product.storeSlug) ?? null;
+      if (!storeId) console.log(`  ! equipment ${model.slug}: store "${product.storeSlug}" not found \u2014 left without a store`);
+      keepSlugs.push(slug);
+      const specs = { ...product.rank != null ? { rank: product.rank } : {}, ...product.coverM2 != null ? { coverM2: product.coverM2 } : {} };
+      const cm = (value) => Math.max(1, Math.round(value));
+      const row = {
+        categoryId,
+        storeId,
+        nameKa: product.nameKa,
+        nameEn: product.nameEn,
+        nameRu: product.nameRu,
+        descriptionKa: model.credit.text,
+        slug,
+        sku: `EQ-${model.slug.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+        pricePerUnit: String(product.priceGel),
+        unit: "piece",
+        brand: null,
+        imageUrl: model.imageUrl,
+        styleTags: product.styles,
+        specs: Object.keys(specs).length ? specs : null,
+        model3dKind: product.kind,
+        model3dUrl: model.url,
+        model3dStatus: "ready",
+        colorHex: null,
+        widthCm: cm(model.widthCm),
+        depthCm: cm(model.depthCm),
+        heightCm: cm(model.heightCm),
+        isActive: true,
+        isFeatured: false
+      };
+      if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+      else await db.insert(products).values(row);
+      upserted++;
+      console.log(`  \u2713 ${slug.padEnd(38)} ${product.kind.padEnd(14)} ${model.widthCm}\xD7${model.depthCm}\xD7${model.heightCm}  ${product.priceGel} \u20BE`);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    console.log("  (no public/models/equipment/manifest.json \u2014 run `pnpm models:equipment` for the panels, boilers, air conditioners, hoods, fans, drains and TV/data sockets)");
+  }
   for (const kind2 of ["skirting", "cornice"]) {
     await ensureCategory(kind2);
     for (const trim of TRIM_PRODUCTS.filter((p) => p.kind === kind2)) {
@@ -31522,6 +31679,44 @@ async function main() {
     }
   }
   console.log(`  \u2713 ${TRIM_PRODUCTS.length} skirting boards and cornices`);
+  await ensureCategory("kitchen-custom");
+  let kitchenModels = [];
+  try {
+    kitchenModels = JSON.parse(await (0, import_promises.readFile)(import_node_path.default.join(process.cwd(), "public", "models", "kitchens", "manifest.json"), "utf8")).models;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    console.log("  (no public/models/kitchens/manifest.json \u2014 the kitchen materials keep whatever model admin gave them)");
+  }
+  for (const material of KITCHEN_MATERIALS) {
+    const existing = await db.select({ id: products.id, categoryId: products.categoryId, model3dUrl: products.model3dUrl }).from(products).where(eq(products.slug, material.slug)).limit(1);
+    keepSlugs.push(material.slug);
+    const uploaded = !!existing[0]?.model3dUrl && !existing[0].model3dUrl.startsWith("/models/");
+    const model = uploaded ? void 0 : kitchenModels.find((m) => m.material === material.slug);
+    const drawn = model ? { model3dKind: model.kind, model3dUrl: model.url, model3dStatus: "ready", widthCm: Math.round(model.widthCm), depthCm: Math.round(model.depthCm), heightCm: Math.round(model.heightCm) } : {};
+    const row = {
+      ...drawn,
+      categoryId: placeFor(null, "kitchen-custom", existing[0]?.categoryId),
+      storeId: storeBySlug.get(KITCHEN_STORE.slug) ?? null,
+      nameKa: material.nameKa,
+      nameEn: material.nameEn,
+      nameRu: material.nameRu,
+      descriptionKa: material.descriptionKa,
+      slug: material.slug,
+      sku: `KM-${material.slug.replace(/^kitchen-material-/, "").toUpperCase()}`,
+      pricePerUnit: String(material.priceGelPerM2),
+      unit: "m2",
+      brand: null,
+      imageUrl: material.imageUrl,
+      styleTags: material.styles,
+      colorHex: material.colorHex,
+      isActive: true,
+      isFeatured: false
+    };
+    if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+    else await db.insert(products).values(row);
+    upserted++;
+    console.log(`  \u2713 ${material.slug.padEnd(38)} kitchen        ${material.priceGelPerM2} \u20BE/\u10DB\xB2 \u10E4\u10D0\u10E1\u10D0\u10D3\u10D8${model ? `  \xB7 ${model.url}` : ""}`);
+  }
   const manifestManaged = and(isNull(products.ownerUserId), or(isNull(products.model3dUrl), like(products.model3dUrl, "/models/%")));
   const stale = await db.select({ id: products.id, slug: products.slug }).from(products).where(
     keepSlugs.length ? and(isNotNull(products.model3dKind), notInArray(products.slug, keepSlugs), manifestManaged) : and(isNotNull(products.model3dKind), manifestManaged)
@@ -31555,7 +31750,8 @@ function storeSlugFor(nameKa) {
     "\u10D0\u10DC\u10E2\u10D8\u10D9\u10D5\u10D0\u10E0\u10D8 \u2014 \u10D5\u10D8\u10DC\u10E2\u10D0\u10DF\u10D8\u10E1 \u10E1\u10D0\u10DA\u10DD\u10DC\u10D8": "antikvari",
     "\u10DA\u10E3\u10DB\u10D8\u10DC\u10D0 \u10D2\u10D0\u10DC\u10D0\u10D7\u10D4\u10D1\u10D0": "lumina",
     "\u10E2\u10D4\u10E5\u10E1\u10E2\u10D8\u10DA+ \u10EE\u10D0\u10DA\u10D8\u10E9\u10D4\u10D1\u10D8": "textil-plus",
-    "\u10E1\u10D0\u10DC-\u10DE\u10DA\u10E3\u10E1 \u10E1\u10D0\u10DC\u10E2\u10D4\u10E5\u10DC\u10D8\u10D9\u10D0": "san-plus"
+    "\u10E1\u10D0\u10DC-\u10DE\u10DA\u10E3\u10E1 \u10E1\u10D0\u10DC\u10E2\u10D4\u10E5\u10DC\u10D8\u10D9\u10D0": "san-plus",
+    [KITCHEN_STORE.nameKa]: KITCHEN_STORE.slug
   };
   return known[nameKa] ?? nameKa.toLowerCase().replace(/\s+/g, "-");
 }

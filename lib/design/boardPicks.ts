@@ -1,8 +1,9 @@
 /**
  * Products chosen for the whole flat, put on the flat: a door on every interior door (an
  * entrance door on the front door), a window on every window, a radiator on every radiator —
- * its sections counted from its room — a socket, switch or light on every fitting of its kind,
- * a skirting board or cornice round every room.
+ * its sections counted from its room — a panel, boiler, air conditioner, hood, fan or drain on
+ * every technical point it is bought for, a socket, switch or light on every fitting of its
+ * kind, a skirting board or cornice round every room.
  *
  * One rule for both halves of a project. The calculator prices its board dressed this way
  * from its picks (`boardWithPicks`); the design puts the same picks on its plan, as the
@@ -12,22 +13,24 @@
  */
 
 import { FIXTURE_PRODUCT_KIND, withFixtureProduct } from './electrical';
+import { isEquipmentProductKind, pointProductKind, withEquipmentProduct, type EquipmentProductKind } from './equipment';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { withRadiatorProduct } from './radiators';
 import { trimFromProduct } from './trims';
-import type { ElectricalPoint, FloorPlan, SurfaceFinish } from './types';
+import type { ElectricalPoint, FloorPlan, SurfaceFinish, TechnicalPoint } from './types';
 
 /**
- * What a product chosen for the whole flat is put on: its kind of door, window, radiator or
- * fitting, or a moulding round every room. Null for what the plan has no place for — sanitary
- * ware, a pendant — which stays a line of its own.
+ * What a product chosen for the whole flat is put on: its kind of door, window, radiator,
+ * equipment or fitting, or a moulding round every room. Null for what the plan has no place
+ * for — sanitary ware, a pendant — which stays a line of its own.
  */
-export type PickTarget = 'door' | 'entrance_door' | 'window' | 'radiator' | 'skirting' | 'cornice' | { fixture: string };
+export type PickTarget = 'door' | 'entrance_door' | 'window' | 'radiator' | 'skirting' | 'cornice' | { fixture: string } | { equipment: EquipmentProductKind };
 
 export function pickTarget(product: { model3dKind?: string | null; categorySlug?: string | null }): PickTarget | null {
   const kind = product.model3dKind ?? null;
   if (kind === 'door' || kind === 'entrance_door' || kind === 'window' || kind === 'radiator') return kind;
   if (kind && Object.values(FIXTURE_PRODUCT_KIND).includes(kind)) return { fixture: kind };
+  if (isEquipmentProductKind(kind)) return { equipment: kind };
   if (product.categorySlug === 'skirting' || product.categorySlug === 'cornice') return product.categorySlug;
   // A product with no model of its own, chosen in the tab that says what it is.
   if (!kind && product.categorySlug === 'doors') return 'door';
@@ -87,6 +90,13 @@ export function dressBoard(board: FloorPlan, electrical: ElectricalPoint[], prod
         trims.push(trimFromProduct(room, target, product, 'calculator'));
         n += 1;
       }
+    } else if ('equipment' in target) {
+      // One piece per point it is bought for: a hood on a kitchen's extractor, a fan on a bathroom's.
+      const staged = plan;
+      const points = plan.technical?.points ?? [];
+      const wanted = (p: TechnicalPoint) => pointProductKind(staged, p) === target.equipment;
+      n = points.filter(wanted).length;
+      if (n > 0) plan = { ...plan, technical: { ...plan.technical, points: points.map((p) => (wanted(p) ? withEquipmentProduct(p, product) : p)) } };
     } else {
       const ofKind = (p: ElectricalPoint) => FIXTURE_PRODUCT_KIND[p.kind] === target.fixture;
       n = fittings.filter(ofKind).length;

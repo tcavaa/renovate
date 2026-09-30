@@ -116,6 +116,8 @@ export const technicalPointSchema = z.object({
   product: sceneProductSchema.nullable().optional(),
   radiator: z.object({ wattsPerSection: z.number().min(20).max(1000), sectionWidthM: z.number().min(0.02).max(0.5), heightM: z.number().min(0.1).max(2.5), depthM: z.number().min(0.02).max(0.5) }).optional(),
   sections: z.number().int().min(1).max(60).nullable().optional(),
+  // A piece of equipment: its product's size, for the 3D view.
+  sizeM: z.object({ width: z.number().min(0.01).max(5), depth: z.number().min(0.001).max(5), height: z.number().min(0.001).max(5) }).nullable().optional(),
   origin: elementOriginSchema,
 });
 
@@ -176,8 +178,9 @@ export const placedItemSchema = z.object({
   }),
   product: sceneProductSchema.nullable(),
   pinned: z.boolean().optional(),
-  // A kitchen made to measure rather than bought at the model's price.
+  // A kitchen made to measure rather than bought at the model's price, and what it is made in.
   custom: z.boolean().optional(),
+  kitchenMaterial: sceneProductSchema.nullable().optional(),
   origin: itemOriginSchema.optional(),
   mirrored: z.boolean().optional(),
   locked: z.boolean().optional(),

@@ -22,25 +22,34 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm models:stock [--inspect] [--only=…]` | `scripts/stock-models.ts` | CC0 stock furniture (Poly Haven + Kenney) → `public/models/stock/` + its `manifest.json` |
 | `pnpm models:fixtures` | `scripts/fixture-models.ts` | sockets, switches, lamps, doors and windows (Poly Haven, poly.pizza) → `public/models/fixtures/` + manifest, and the generated `lib/design3d/fixtureManifest.ts` |
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
-| `pnpm models:photos` | `scripts/model-photos.ts` | a product photo per fixture and radiator, rendered from the model in Playwright's Chromium |
+| `pnpm models:equipment [--only=a,b]` | `scripts/equipment-models.ts` | twelve pieces of technical equipment (electrical panels, a boiler, a water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain, TV and data sockets) from CC0 / CC BY / CC BY-SA sources → `public/models/equipment/` + manifest + the generated `lib/design3d/equipmentManifest.ts` ([below](#equipment-models-scriptsequipment-modelsts)) |
+| `pnpm models:kitchens [--only=a,b]` | `scripts/kitchen-models.ts` | one straight kitchen run per kitchen-maker material (LDSP, MDF, veneer), a CC BY source re-textured three ways → `public/models/kitchens/` + manifest ([below](#kitchen-runs-scriptskitchen-modelsts)) |
+| `pnpm models:photos [--only=a,b]` | `scripts/model-photos.ts` | a product photo per fixture, radiator, piece of equipment and kitchen run, rendered from the model in Playwright's Chromium |
 | `pnpm models:colors [--force]` | `scripts/model-colors.ts` (+ `scripts/lib/modelColor.ts`) | each furniture model's colours read off its triangles into the manifests |
 | `pnpm textures:stock` | `scripts/stock-textures.ts` | ~35 floor/wall finish textures (partner drop, Poly Haven, ambientCG) written straight to the database as surface products, thumbnails in `public/uploads/products/`, each finish's colours read off its texture into `specs.colors` |
 | `pnpm textures:colors [--force]` | `scripts/texture-colors.ts` (+ `lib/uploads/textureColors.ts`) | every textured product's colours read off its texture into `specs.colors`, for the finishes' colour filter — only what is missing unless `--force`; the textures the product form uploads get theirs as they arrive |
 | `pnpm models:seed` | `scripts/seed-models.ts` | the catalogue made to match the manifests (below) |
 | `pnpm deploy:bundle-seed` | esbuild | `models:seed` as one plain-node file beside the standalone server (the cPanel deploy runs it) |
 
-Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, the manifests) are
-never edited by hand — change the script's source list and re-run it.
+Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts`,
+the manifests) are never edited by hand — change the script's source list and re-run it.
 
 ## What `pnpm models:seed` does
 
-Reads the four manifests — `public/models/manifest.json` (partner), `stock/`, `fixtures/`,
-`radiators/` — and:
+Reads the five manifests — `public/models/manifest.json` (partner), `stock/`, `fixtures/`,
+`radiators/`, `equipment/` — and:
 
 - writes one product per manifest entry (prices, stores and names from the manifest win over
-  admin edits of those rows), plus the fixtures, radiators and the skirting/cornice range
-  (`scripts/lib/trimProducts.ts`), creating a missing category where the starting tree puts it
-  (`DEFAULT_CATEGORY_TREE`);
+  admin edits of those rows), plus the fixtures, radiators, equipment (the credit its licence
+  asks for as the description; `rank` and `coverM2` in `specs`; whole centimetres, at least 1)
+  and the skirting/cornice range (`scripts/lib/trimProducts.ts`), creating a missing category —
+  and its missing parents — where the starting tree puts it (`DEFAULT_CATEGORY_TREE`);
+- writes the kitchen maker's three materials (`scripts/lib/kitchenMaterials.ts`: per m² of
+  façade, in `kitchen-custom`), each with its kitchen run from `public/models/kitchens/manifest.json`
+  as its model (`kitchen_run`) when the manifest has one — a model admin uploaded for a material
+  (anything not under `/models/`) is theirs and stays, and without a manifest model a material
+  keeps whatever model it has — and makes the kitchen maker's store when the database has none
+  ([budget.md](budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents));
 - files each product in the category tree by its 3D kind (`categoryForKind`: the category that
   takes the kind — "Corner sofas" — else the archetype's own); one admin filed elsewhere under
   the archetype's category stays where it was put, one moved outside it goes back
@@ -224,6 +233,132 @@ points forward. Cabinets: the
 Output is the same manifest shape as the partner pipeline, plus `styles`, `source`,
 `license`, `brand`; `pnpm models:seed` reads both manifests.
 
+## Equipment models (`scripts/equipment-models.ts`)
+
+The plan's technical equipment sold as products — two electrical panels, a gas combi boiler,
+an electric water heater, two air conditioners, two cooker hoods, a bathroom fan, a floor
+drain — and the TV and data sockets: twelve models, one product each, all of them other
+people's models fetched at build time. `EQUIPMENT` at the top of the script is the list: per
+entry the source, what to keep of it, how to turn and size it, and the catalogue product it
+is sold as. What it shares with the kitchen script — fetching and caching a source, the
+credit, the glTF steps — is `scripts/lib/gltfPipeline.ts`.
+
+**Licences: only what a commercial site may serve.** CC0 and CC BY; CC BY-SA only where
+nothing CC0 or CC BY of the thing exists (the gas boiler and the RJ45 socket — the entry's
+`note` says why). Never NonCommercial, NoDerivatives, Sketchfab's "Standard"/"Editorial" or
+an unknown licence. Every manifest row carries `source`, `sourceUrl`, `author`, `license`
+and a `credit` (`title`, `author`, `license`, `url`, `via`, and a ready-made `text`) — the
+attribution CC BY asks for. A CC BY-SA model changed by the script is still CC BY-SA.
+
+**Where they come from.** Poly Haven's API (1k glTF; it refuses a request without a
+User-Agent), poly.pizza's static GLBs, and Sketchfab uploads through the Objaverse mirror on
+Hugging Face (`huggingface.co/datasets/allenai/objaverse`, `glbs/000-NNN/<uid>.glb`, the
+path recorded on the entry): Sketchfab needs an account to download, the mirror does not,
+and every object keeps its uploader's licence. To look for more, the mirror's
+`metadata/000-NNN.json.gz` (name, tags, licence and face count of all ~800 000 objects, about
+580 MB) can be searched offline, and `lvis-annotations.json.gz` groups a subset by category
+(`water_heater`, `air_conditioner`, `wall_socket`, `fume_hood`…). Downloads are cached in
+`node_modules/.cache/renovate-equipment/`.
+
+**What it does to a file**, in this order: keeps the mesh nodes whose name path matches
+`keep` (Poly Haven's panel loses the door that hangs open 30 cm into the room, the TV socket
+keeps its plate and connector, the grate pack its one clean grate); drops tangents (they would
+not survive the turns, and three.js does without); flattens, joins per material, welds;
+simplifies towards 6 000 triangles; turns the front to +z (`turn`); squashes what goes into
+the wall onto the plate's back (`clampBehindZ`); scales uniformly so the dimension that names
+the product (`fit` — a hood's or an air conditioner's width, a panel's or a boiler's height)
+is exactly its catalogue size, the other two following the geometry; frames it (below);
+renames every material `<slug>-<source name>` with any word the studio lights up
+(`light`, `lamp`, `glow`, `bulb`, `emiss`, `led`, `tube`, `shade`) replaced; caps metalness at 0.5
+(the studio and the photos have no environment map, so a full metal renders black) unless
+the entry sets that material's own values (`materials`: the chimney hood's steel); makes
+blended materials opaque; re-encodes the textures as WebP, the upload recipe's format
+(colour maps up to 1024 px, data maps 512 px); meshopt-compresses. Then it reads the file
+back and fails the entry if it is more than half a millimetre off its frame, the named
+dimension is a millimetre off, it is over 12 000 triangles or 1.5 MB, or a material name
+still has a lit word in it; a failed entry keeps its previous file and manifest row (the
+draft is written under the cache and copied into `public/` only once it passes). Two runs
+write the same bytes; `--only=a,b` redoes a few and merges.
+
+**Frames** (metres, front along +z) — what `frame` says and the checks enforce:
+
+- `wall` — standing on y = 0, centred on x, its back on z = 0: the panels, boilers, air
+  conditioners, hoods and the fan;
+- `fitting` — centred on x and y, its back on z = 0, like the sockets in `/models/fixtures`;
+- `floor` — centred on x and z, its top at y = 0 and the rest below: the drain.
+
+`public/models/equipment/manifest.json` has, per model: `slug`, `kind` (the product's
+`model3dKind`), `frame`, `url`, the measured `widthCm`/`heightCm`/`depthCm`, `styles`, `title`
+(what it is, in English), `triangles`, `bytes`, `imageUrl`
+(`/uploads/furniture/equipment-<slug>.png`), the credit fields above, and `product` — the
+catalogue product: kind, category, store, price, the three names, styles, and `rank` (the
+order a kind's products are offered in) or, for an air conditioner, `coverM2`. The typed copy
+`lib/design3d/equipmentManifest.ts` (`EquipmentFrame`, `EquipmentModel`, `EQUIPMENT_MODELS`)
+carries the placing fields and the credit ones. `pnpm models:photos --only=<slugs>` renders
+the photos with the fixtures' light and framing, no lamp glow, a view per frame (a wall piece
+from the front and a little above, an air conditioner from just below, a hood about level,
+the drain from above) and a small shadow bias — without it a broad slanted face (a hood's
+canopy, an air conditioner's front) shadows itself in rings.
+
+| Slug | Kind | Frame | Source model | Author | Licence |
+|---|---|---|---|---|---|
+| `panel-12` | electrical_panel | wall | [Simple Fuse Box](https://sketchfab.com/3d-models/f9bd67c84bc84e959b57bd69511f7883) | lightjavacode | CC BY 4.0 |
+| `panel-24` | electrical_panel | wall | [Power Box 01](https://polyhaven.com/a/power_box_01), the box without its door | Poly Haven | CC0 |
+| `boiler-combi-24` | boiler | wall | [Gaz water heater](https://sketchfab.com/3d-models/2ff78c598c654e36959ed8d3a2c39a43) | 1-3D.com | CC BY-SA 4.0 |
+| `water-heater-80` | boiler | wall | [formax_80L](https://sketchfab.com/3d-models/2a1edaa43d61499a905f034640e2877a) | rk_m | CC BY 4.0 |
+| `ac-9000` | ac_unit | wall | [airconditioner Electrolux Fusion](https://sketchfab.com/3d-models/d3a156127b2c478dabc40e3a9597df82) | rk_m | CC BY 4.0 |
+| `ac-12000` | ac_unit | wall | [conditioner Electrolux Atrium DC](https://sketchfab.com/3d-models/da8f719b60e9406fb16c84a0bf404297) | rk_m | CC BY 4.0 |
+| `hood-chimney-60` | cooker_hood | wall | [Range Hood (Kitchen Hood)](https://sketchfab.com/3d-models/e846cb48e88446808af55976ff76b1da) | govindu94 | CC BY 4.0 |
+| `hood-flat-60` | cooker_hood | wall | [Kitchen Hood Model 3D fbx](https://sketchfab.com/3d-models/0be84630c8e84508926c5922c541e1ce) | GLOBALO | CC BY 4.0 |
+| `fan-100` | bathroom_fan | wall | [Air Vent](https://poly.pizza/m/PCqBwDkgAz) | J-Toastie | CC BY 3.0 |
+| `drain-15` | floor_drain | floor | [Floor Grate Small Pack [Free]](https://sketchfab.com/3d-models/d3cb922e9304417bad755b8c7298ff4f), one grate | Jesus Fernandez Garcia | CC BY 4.0 |
+| `socket-tv` | socket_tv | fitting | [TV Socket](https://sketchfab.com/3d-models/6c7bd622341945baa49161751b8c6d1e), plate and connector | deslancer | CC BY 4.0 |
+| `socket-data` | socket_data | fitting | [Wall rj45 plug](https://sketchfab.com/3d-models/ded403c85dee45b7ad8a6bcc8c3b2754) | 1-3D.com | CC BY-SA 4.0 |
+
+The Sketchfab files were taken from the Objaverse mirror under the licence its metadata
+records; the prices, stores and names are ours.
+
+## Kitchen runs (`scripts/kitchen-models.ts`)
+
+A made-to-measure kitchen is priced by the material the maker builds it in
+(`kitchen-material-ldsp`, `-mdf`, `-veneer`, per m² of façade), and a material with a model is
+drawn in place of the placed kitchen's own (`drawnModelUrl` in `lib/design/kitchen.ts`).
+`pnpm models:kitchens` writes that model for each: a straight run of
+base units with its worktop, standing on y = 0, centred on x and z, the fronts along +z — the
+furniture frame of `public/models/stock` — in `public/models/kitchens/<slug>.glb`.
+
+**One source, three finishes.** All three are made from one downloaded run,
+[kitchen.ciete.warszawa](https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17) by
+corbaanton (CC BY 4.0, from the Objaverse mirror as in the equipment section): 2.6 m of
+drawer-and-door modules on a recessed plinth, with a flush sink and an induction hob in an
+anthracite worktop, no wall units. Its fronts, plinth and carcase are one material in the
+file, so each variant re-textures that one — a light grey oak for LDSP
+(`public/textures/kitchen-oak-grey-diffuse.jpg`: the stock grey floor texture desaturated and
+lightened, which as it was rendered as brown as the veneer), the light-oak wood texture for
+veneer, flat matt cashmere (`#dcd5c8`) for the painted MDF —
+and re-colours the knobs (silver, black, brass); the worktop, sink, hob and legs are the same
+in all three. The texture goes on by projecting each face onto the plane it faces, in metres
+(0.9 m a repeat), so the grain runs up every door and side whatever the source's UVs were.
+Nothing is modelled: the script removes the tap (it stood 37 cm above the worktop, and the
+studio stretches a run to the slot by its bounding box, so a tap would push the worktop down)
+and the parts inside the sink unit nobody sees (a bin carrying 3.8 MB of textures, two
+valves), simplifies to about 10 000 triangles and scales the run to 0.90 m. The materials are
+kept apart by name through the clean-up (`dedup` without materials: the hob's body, the legs
+and a valve are the same grey), renamed `<slug>-<source name>` with no lit word, and the
+textures go WebP as for the equipment. The written file is read back and has to be centred,
+standing on y = 0, exactly 0.90 m tall, 2–4 m long and 0.5–0.75 m deep, under 12 000 triangles
+and 1.5 MB, or the variant keeps its previous file and row.
+
+`public/models/kitchens/manifest.json` is `{ generatedAt, note, models }`, each model `slug`,
+`material` (the product slug), `kind: 'kitchen_run'`, `url`, the measured
+`widthCm`/`heightCm`/`depthCm`, `triangles`, `bytes`, `title`, `source`, `sourceUrl`, `author`,
+`license`, `credit` (as for the equipment) and `imageUrl`
+(`/uploads/furniture/kitchen-<slug>.png`, rendered by `pnpm models:photos --only=<slugs>`
+standing on its shadow). The three are `run-ldsp`, `run-mdf` and `run-veneer`, each
+259.9 × 90 × 64.2 cm, four 59 cm modules and a narrow end one. Stretched to a 3.72 m run the
+modules are about 85 cm wide and the knobs a little oval, which still reads as a kitchen of
+the same kind; a much longer run would want a longer source rather than wider fronts.
+
 ## Model colours
 
 **The colour filter is swatches of what is on the shelf.** `lib/design/colors.ts` sorts any
@@ -250,8 +385,10 @@ kept, the triangle cap, an optimized file and an unreadable one kept as they cam
 (colour families), `tests/unit/design3d/footprintFromModel.test.ts` (a real Kenney GLB). The
 browser half (`glbOptimizeBrowser.ts`, the canvas) has no unit test — it was checked by
 uploading through the admin form and the own-furniture dialog. Nothing
-tests the converters, `stock-models`, `seed-models`, `modelColor`, `objGroups` or
-`textureClassify`; check a run's printed report and the manifest diff.
+tests the converters, `stock-models`, `equipment-models`, `kitchen-models`, `seed-models`,
+`modelColor`, `objGroups` or `textureClassify`; check a run's printed report and the manifest
+diff (the equipment and kitchen scripts check each file's frame, size, triangles, bytes and
+material names themselves, and their photos are worth a look side by side).
 
 ## Known gaps
 
@@ -277,6 +414,23 @@ tests the converters, `stock-models`, `seed-models`, `modelColor`, `objGroups` o
 - Which way a chair *faces* is not derivable from geometry — set `yawDegrees` on the source
   entry by eye when one comes out backwards. The Cinquanta lamp is a 2.3 m two-arm fixture
   and reads as a pendant only in a large room.
+- **The equipment models' credits are in the manifests only.** CC BY and CC BY-SA ask for the
+  author, the title, the licence and a link wherever the model is used; nothing in the app
+  shows `credit` yet (the CC BY fixtures are in the same position). Two of the twelve are
+  CC BY-SA (`boiler-combi-24`, `socket-data`): the GLBs made from them stay CC BY-SA.
+- The equipment is stock from strangers, not the partners' range: `panel-24` is Poly Haven's
+  worn industrial box (grey metal, scuffed), `panel-12` a plain closed white box, the TV socket
+  black. Some textures carry marks — an Electrolux logo on both air conditioners and the water
+  heater, a "BRANDING" plate on the boiler, a small GLOBALO logo on the built-in hood. The
+  sizes follow the geometry past the named dimension: the chimney hood is 60 cm tall (its
+  chimney is short), the fan a 1.2 cm louvred plate, the sockets 0.6 cm plates (the fixture
+  sockets are 1.8 cm), and the floor drain is its 3 mm grate with no body under it.
+- The kitchen runs are one source in three finishes, with round knobs where the maker's
+  swatches show bar handles (the CC BY runs with bar handles that were found carry their
+  wall units in the same mesh, or are toy-like), and the plinth wears the fronts' finish. The back under the sink
+  is open, and the pipes left there take the fronts' finish — it faces the wall. Stretched to
+  a long run (1.43× to 3.72 m) the modules widen to about 85 cm and the knobs go slightly
+  oval: the studio fits a kitchen to its measured slot per axis, always (`fitToItem`).
 - **Windows with no product show an empty hole.** `scripts/fixture-models.ts` gives
   `window-nordic` the role `window`, but the generated `lib/design3d/fixtureManifest.ts` and
   `public/models/fixtures/manifest.json` carry no window role, so the default-window fallback

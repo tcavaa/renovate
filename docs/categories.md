@@ -22,7 +22,7 @@ the modal) · [calculator.md](calculator.md) (its catalogue and furniture steps)
 | `lib/catalog/queries.ts` | server: `loadCategoryTree`, `subtreeOfSlug`, `loadShelf` (the studio's rooms and the tree, icons drawn), `roomTypesOf` |
 | `lib/catalog/shelfRooms.ts` | server: `setRoomCategories`, `setCategoryRooms`, `roomsOfCategory` — the room ↔ category links |
 | `lib/catalog/iconNodes.ts` | server: `iconNodeFor(name)` — an icon's drawing (the studio's own first, then lucide's) for payloads that must not ship an icon set |
-| `lib/catalog/defaultTree.ts`, `lib/db/migrations/0018_category_tree_defaults.sql` | the tree and the studio rooms the platform starts with, and the migration that wrote them in (kept in step by `tests/unit/catalog/defaultTree.test.ts`) |
+| `lib/catalog/defaultTree.ts`, `lib/db/migrations/0018_category_tree_defaults.sql`, `0020_equipment_kitchen_categories.sql` | the tree and the studio rooms the platform starts with, and the migrations that wrote them in (kept in step by `tests/unit/catalog/defaultTree.test.ts`) |
 | `lib/catalog/kinds.ts` | `PRODUCT_KINDS` — every 3D kind a category may take |
 | `lib/design/shelf.ts` | pure: the studio shelf — `shelfIndex`, `shelfRoomCounts`, `inShelfRoom`, `roomCategories`, `subcategoryCounts`, `shelfTrail`, `shelfRoomForType`, `shelfName` |
 | `lib/admin/icons.ts`, `components/admin/IconPicker.tsx`, `CategoryIcon.tsx`, `components/ui/node-icon.tsx` | icon names (`iconLookupKey`), the studio's own furniture icons (`STUDIO_ICONS`), the suggested icons with Georgian/Russian/English search words; the picker; drawing an icon by name (server/admin) or from its drawing (`NodeIcon`) |
@@ -84,12 +84,13 @@ siblings (`POST /api/categories/reorder` takes exactly the parent's children, or
 catalogue agent makes, edits, moves, orders and hides. A slug another category has is
 refused (`SLUG_EXISTS`).
 
-## The starting tree (`lib/catalog/defaultTree.ts`, migration 0018)
+## The starting tree (`lib/catalog/defaultTree.ts`, migrations 0018 and 0020)
 
 The flat catalogue became five groups — **Materials** (tiles, flooring, walls and ceilings,
-doors, windows, sockets and switches, radiators), **Lighting**, **Sanitary**, **Furniture**
-(sofas and armchairs, beds, tables, chairs, wardrobes, storage, kitchen furniture) and
-**Decor** (with rugs under it) — with the old categories under them and **a subcategory per 3D
+doors, windows, sockets and switches, radiators, building services), **Lighting**, **Sanitary**,
+**Furniture** (sofas and armchairs, beds, tables, chairs, wardrobes, storage, kitchen furniture,
+made-to-measure kitchens) and **Decor** (with rugs under it) — with the old categories under
+them and **a subcategory per 3D
 kind** under those ("Sofas & armchairs" → three-seat sofas, corner sofas, armchairs; "Storage"
 → nightstands, dressers, TV units, bookshelves, open shelving, console tables, shoe
 cabinets…), each with an icon. Every product with a kind moved to its kind's subcategory
@@ -99,9 +100,23 @@ kind only keeps it on itself (windows, wardrobes, radiators). The old categories
 names and slugs, took `inCalculator`, and lost `phase` (0017 dropped the column: the tree's
 order is the order).
 
-Migration 0018 is idempotent SQL generated from the definition: a category that exists is
-placed under its parent only while it has none; one that does not is made — so a database
-migrated before its seeds gets the whole tree too. `pnpm db:seed` / `db:seed:design` make a
+Added since, by migration 0020 in the same form: **TV sockets** (`socket_tv`) and **data
+sockets** (`socket_data`) under sockets and switches; **Building services**
+("საინჟინრო სისტემები", `engineering`) under Materials, with a subcategory per piece of
+equipment the technical points are bought as — electrical panels, boilers and water heaters,
+air conditioners, cooker hoods, extractor fans, floor drains
+([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts));
+and **made-to-measure kitchens** ("სამზარეულოს ავეჯი — ინდივიდუალური დამზადება",
+`kitchen-custom`) under Furniture, beside kitchen furniture rather than under it — the
+calculator's kitchen-furniture tab lists its whole subtree, and these are materials priced per
+m² of façade, not pieces — and not furniture to the seeds (`isFurniture: false`), which switch
+off model-less products in furniture categories. What it (or a subcategory under it) holds
+that is sold by the m² is a kitchen material, from whichever store; anything sold by the piece
+there is an ordinary product. None of them is a calculator tab.
+
+Migrations 0018 and 0020 are idempotent SQL generated from the definition: a category that
+exists is placed under its parent only while it has none; one that does not is made — so a
+database migrated before its seeds gets the whole tree too. `pnpm db:seed` / `db:seed:design` make a
 missing category where the tree puts it (`defaultPlacement`) and leave an existing one where
 admin put it. Nothing reads the definition at run time.
 

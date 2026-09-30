@@ -14,12 +14,14 @@ import { ChevronDown, Sofa } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn, formatGEL } from '@/lib/utils';
 import type { PlacedItem, PlanRoom } from '@/lib/design/types';
+import { itemCostGel } from '@/lib/design/kitchen';
 import { RoomItemsPanel } from './RoomItemsPanel';
 
 export function FurnitureDrawer({ items, rooms, focusRoomId, selectedItemId, roomLabel, onSelect, onRemove, className }: { items: PlacedItem[]; rooms: PlanRoom[]; focusRoomId: string | null; selectedItemId: string | null; roomLabel: string; onSelect: (id: string) => void; onRemove: (id: string) => void; className?: string }) {
   const t = useT();
   const shown = focusRoomId ? items.filter((i) => i.roomId === focusRoomId) : items;
-  const total = shown.reduce((sum, i) => sum + (i.product?.totalPrice ?? 0), 0);
+  // A made-to-measure kitchen at what it is made for, not the price of the model drawn.
+  const total = shown.reduce((sum, i) => sum + itemCostGel(i), 0);
 
   return (
     <Accordion.Root type="single" collapsible className={cn('glass overflow-hidden rounded-[16px] animate-fade-in', className)}>

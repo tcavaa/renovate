@@ -18,7 +18,7 @@
  */
 
 import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
-import { TECHNICAL_KINDS, technicalElevation } from './technical';
+import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, studioParts } from './studio';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
@@ -107,9 +107,11 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
   const edges = wallEdges(room).filter((edge) => !notOn.some(([a, b]) => onSegment(pointOnEdge(edge, 0.5), a, b)));
   if (edges.length === 0) return null;
 
-  // The fixture this kind serves, biggest first — a bath before a basin.
+  // The fixture this kind serves, biggest first — a bath before a basin. A kitchen's extractor
+  // is a cooker hood (`lib/design/equipment`): it serves the run, the hob being on it.
+  const hood = isHood(room, kind);
   const served = items
-    .filter((i) => i.roomId === room.id && info.attracts.includes(i.kind))
+    .filter((i) => i.roomId === room.id && (info.attracts.includes(i.kind) || (hood && i.kind === 'kitchen_run')))
     .sort((a, b) => b.size.width * b.size.depth - a.size.width * a.size.depth)[0];
 
   if (served) {
@@ -125,15 +127,22 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
 }
 
 /**
- * The wall a fitter would run it to: no door in it, and as long as possible. An extractor
- * and an air conditioner prefer an outside wall, which is where the duct and the pipes go.
+ * The wall a fitter would run it to: no door in it, and as long as possible. A bathroom's fan
+ * and an air conditioner prefer an outside wall, which is where the duct and the pipes go; a
+ * cooker hood is hung over a hob, which is not put under a window.
  */
 function bestWall(room: PlanRoom, edges: PlanEdge[], kind: TechnicalKind): PlanEdge | null {
   const doored = new Set(room.openings.filter((o) => o.kind !== 'window').map((o) => o.wallIndex));
   const windowed = new Set(room.openings.filter((o) => o.kind === 'window').map((o) => o.wallIndex));
-  const outside = kind === 'extractor' || kind === 'ac_unit';
-  const score = (edge: PlanEdge) => edge.length + (doored.has(edge.index) ? -20 : 0) + (outside && windowed.has(edge.index) ? 6 : 0);
+  const hood = isHood(room, kind);
+  const outside = (kind === 'extractor' && !hood) || kind === 'ac_unit';
+  const score = (edge: PlanEdge) => edge.length + (doored.has(edge.index) ? -20 : 0) + (windowed.has(edge.index) ? (outside ? 6 : hood ? -6 : 0) : 0);
   return [...edges].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
+/** An extractor in a kitchen (or a studio's kitchen half) is a cooker hood. */
+function isHood(room: PlanRoom, kind: TechnicalKind): boolean {
+  return kind === 'extractor' && HOOD_ROOM_TYPES.includes(room.type);
 }
 
 function onSegment(p: Vec2, a: Vec2, b: Vec2): boolean {

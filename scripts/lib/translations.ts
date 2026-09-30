@@ -106,6 +106,7 @@ export const STORE_I18N: Record<string, { en: string; ru: string }> = {
   'ლუმინა განათება': { en: 'Lumina Lighting', ru: 'Люмина Освещение' },
   'ტექსტილ+ ხალიჩები': { en: 'Textile+ Rugs', ru: 'Текстиль+ Ковры' },
   'სან-პლუს სანტექნიკა': { en: 'San-Plus Sanitary', ru: 'Сан-Плюс Сантехника' },
+  'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება': { en: 'Made-to-measure kitchens', ru: 'Кухни на заказ' },
 };
 
 /** Worker names transliterated, keyed by the Georgian name. */

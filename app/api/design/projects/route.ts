@@ -7,6 +7,7 @@ import { saveDesignSchema } from '@/lib/validations/design.schema';
 import { planToCalculatorRooms, totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { priceScene } from '@/lib/design/pricing';
 import { quantityFor } from '@/lib/design/matcher';
+import { kitchenFacadeM2 } from '@/lib/design/kitchen';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { isTrimSurface } from '@/lib/design/trims';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
@@ -67,7 +68,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   // goes for the plan's snapshots as much as the scene's: a door, a socket and a radiator
   // are order lines a store is sent, exactly as a sofa is.
   const known = await loadProductPrices([
-    ...[...submitted.items.map((i) => i.product?.productId), ...submitted.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number'),
+    ...[...submitted.items.flatMap((i) => [i.product?.productId, i.kitchenMaterial?.productId]), ...submitted.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number'),
     ...planProductIds(submittedPlan, submitted.electrical ?? []),
   ]);
 
@@ -78,13 +79,24 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
 
   const scene: DesignScene = { ...submitted, items: [], finishes: [], ...(electrical ? { electrical } : {}) };
   for (const item of submitted.items) {
+    // A made-to-measure kitchen's material is bought by the façade the piece has (`lib/design/kitchen`),
+    // and only a product the catalogue sells by the m² is one: anything else is dropped, and the
+    // kitchen is the joiner's estimate again rather than a per-piece price times square metres.
+    let kitchenMaterial = item.kitchenMaterial;
+    if (kitchenMaterial) {
+      const repriced = repriceSnapshot(kitchenMaterial, known, kitchenFacadeM2(item));
+      if (!repriced) return fail(`Unknown product ${kitchenMaterial.productId}`, 400);
+      kitchenMaterial = known.get(kitchenMaterial.productId)?.unit === 'm2' ? { ...repriced, unit: 'm2' } : undefined;
+    }
+    const { kitchenMaterial: _sent, ...bare } = item;
+    const withMaterial = kitchenMaterial ? { ...bare, kitchenMaterial } : bare;
     if (!item.product) {
-      scene.items.push(item);
+      scene.items.push(withMaterial);
       continue;
     }
     const product = repriceSnapshot(item.product, known, quantityFor(item));
     if (!product) return fail(`Unknown product ${item.product.productId}`, 400);
-    scene.items.push({ ...item, product });
+    scene.items.push({ ...withMaterial, product });
   }
   for (const finish of submitted.finishes) {
     if (!finish.product) {

@@ -71,6 +71,9 @@ vi.mock('@/lib/api/productPrices', async (importOriginal) => {
         [7, { pricePerUnit: 60, nameKa: 'იატაკის ფილა', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
         [8, { pricePerUnit: 45, nameKa: 'კედლის ფილა', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
         [9, { pricePerUnit: 700, nameKa: 'ფანჯარა', unit: 'piece', coveragePerUnit: null, model3dKind: 'window' }],
+        [10, { pricePerUnit: 1450, nameKa: 'კონდიციონერი', unit: 'piece', coveragePerUnit: null, model3dKind: 'ac_unit' }],
+        [11, { pricePerUnit: 850, nameKa: 'შეღებილი MDF', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
+        [12, { pricePerUnit: 4200, nameKa: 'სამზარეულო ცალობით', unit: 'piece', coveragePerUnit: null, model3dKind: null }],
       ]),
   };
 });
@@ -615,6 +618,39 @@ describe('POST /api/design/projects (the design)', () => {
     expect(cost.openingsTotal).toBe(620);
     expect(cost.lines.find((l: { key: string }) => l.key === 'product-5')).toMatchObject({ qty: 2, total: 60 });
     expect(cost.lines.find((l: { key: string }) => l.key === 'product-6')).toMatchObject({ qty: 8, total: 304 });
+  });
+
+  it('reprices the equipment one per point, and a kitchen’s material by the façade it measures', async () => {
+    signedIn();
+    const POST = await load();
+    const kitchen = { id: 'k1', roomId: 'living', slot: 'kitchen_run', kind: 'kitchen_run', position: { x: 2, z: 0.4 }, elevationM: 0, rotation: 0, size: { width: 3, depth: 0.62, height: 0.92 }, product: snapshot(2, 1), kitchenMaterial: { ...snapshot(11, 99), unit: 'm2', categorySlug: 'kitchen-custom' } };
+    const body = {
+      projectId: 42,
+      plan: { ...plan, technical: { points: [{ id: 'a1', kind: 'ac_unit', roomId: 'living', position: { x: 2, z: 0.1 }, elevationM: 2.22, origin: 'user', product: snapshot(10, 5) }] } },
+      scene: { ...fittedScene, electrical: [], items: [kitchen] },
+    };
+    const res = await POST(post('http://localhost/api/design/projects', body), ctx);
+    expect(res.status).toBe(200);
+    const set = lastUpdate() as { plan: { technical: { points: Array<{ product: Record<string, number> }> } }; scene: { items: Array<{ kitchenMaterial: Record<string, number> }> } };
+    expect(set.plan.technical.points[0].product).toMatchObject({ pricePerUnit: 1450, qty: 1, totalPrice: 1450 });
+    // 3 m of run: 2.7 m² of lower fronts and 1.51 m² of upper ones.
+    expect(set.scene.items[0].kitchenMaterial).toMatchObject({ pricePerUnit: 850, qty: 4.21, totalPrice: 3578.5 });
+    const { cost } = (await res.json()).data;
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-10')).toMatchObject({ qty: 1, total: 1450, estimated: false });
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-11')).toMatchObject({ qty: 4.21, total: 3578.5, estimated: false });
+  });
+
+  it('drops a kitchen “material” the catalogue does not sell by the m² — the kitchen is the estimate again', async () => {
+    signedIn();
+    const POST = await load();
+    const kitchen = { id: 'k1', roomId: 'living', slot: 'kitchen_run', kind: 'kitchen_run', position: { x: 2, z: 0.4 }, elevationM: 0, rotation: 0, size: { width: 3, depth: 0.62, height: 0.92 }, product: snapshot(2, 1), kitchenMaterial: { ...snapshot(12, 4.21), unit: 'm2', categorySlug: 'kitchen-custom' } };
+    const res = await POST(post('http://localhost/api/design/projects', { projectId: 42, plan, scene: { ...fittedScene, electrical: [], items: [kitchen] } }), ctx);
+    expect(res.status).toBe(200);
+    const set = lastUpdate() as { scene: { items: Array<{ kitchenMaterial?: unknown }> } };
+    expect(set.scene.items[0].kitchenMaterial).toBeUndefined();
+    const { cost } = (await res.json()).data;
+    expect(cost.lines.some((l: { key: string }) => l.key === 'product-12')).toBe(false);
+    expect(cost.lines.find((l: { key: string }) => l.key === 'kitchen_run_custom')).toMatchObject({ estimated: true });
   });
 
   it('refuses a door the catalogue does not know', async () => {

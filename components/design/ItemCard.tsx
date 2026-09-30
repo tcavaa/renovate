@@ -13,6 +13,7 @@ import { formatGEL } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { boughtProduct } from '@/lib/design/kitchen';
 import type { PlacedItem } from '@/lib/design/types';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +26,9 @@ interface ItemCardProps {
 export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps) {
   const t = useT();
   const locale = useLocale();
-  const product = item.product;
+  // A made-to-measure kitchen is bought as the kitchen maker's material, by the façade — that is
+  // its price and its shop; the model is only what is drawn.
+  const product = boughtProduct(item);
   const compact = variant === 'tooltip';
 
   return (

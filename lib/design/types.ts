@@ -164,11 +164,15 @@ export interface TechnicalPoint {
   /**
    * A radiator: the catalogue product it is — sold by the section, so `product.qty` is its
    * sections — what one section of it gives and measures, and the sections the person set
-   * by hand (absent: counted from the room, see `lib/design/radiators.ts`).
+   * by hand (absent: counted from the room, see `lib/design/radiators.ts`). The equipment
+   * points (panel, boiler, air conditioner, extractor, floor drain) carry theirs too, one piece
+   * each (`lib/design/equipment.ts`).
    */
   product?: SceneProduct | null;
   radiator?: { wattsPerSection: number; sectionWidthM: number; heightM: number; depthM: number };
   sections?: number | null;
+  /** A piece of equipment: its product's size, what the 3D view draws its model at (absent: the model's own). */
+  sizeM?: { width: number; depth: number; height: number } | null;
   origin: ElementOrigin;
 }
 
@@ -341,6 +345,12 @@ export interface PlacedItem {
    * catalogue price for a person who would rather buy a stock kitchen.
    */
   custom?: boolean;
+  /**
+   * A made-to-measure kitchen: the material it is made in — a product of the kitchen maker's,
+   * priced per square metre of façade, `qty` the façade it comes to (`withKitchenMaterial`).
+   * Absent: priced at `KITCHEN_RATES`, an estimate.
+   */
+  kitchenMaterial?: SceneProduct | null;
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */

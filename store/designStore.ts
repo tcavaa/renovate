@@ -66,6 +66,8 @@ import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/de
 import { technicalAnchors, technicalElevation, TECHNICAL_KINDS, type TechnicalCheck } from '@/lib/design/technical';
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
+import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';
+import { withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
@@ -306,6 +308,14 @@ interface DesignActions {
   suggestRadiators: (catalog?: CatalogProduct[]) => number;
   /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
+  /** The real product a panel, a boiler, an air conditioner, a hood or fan, a floor drain is (null: back to the estimate). */
+  setEquipmentProduct: (id: string, product: CatalogProduct | null) => void;
+  /**
+   * Gives every equipment point without a product — or with one of another kind than its room
+   * calls for now, an extractor moved into the kitchen — the catalogue's best (`withEquipmentProducts`).
+   * No history entry.
+   */
+  ensureEquipmentProducts: (catalog: CatalogProduct[]) => void;
   /**
    * Places the technical points the plan implies — water, waste, drains, gas, the panel,
    * the extractors, the air conditioners, one boiler — and returns how many went in.
@@ -328,7 +338,7 @@ interface DesignActions {
    * calculator's automatic placement. With the catalogue each is a product. Returns what went in.
    */
   placeByStandards: (catalog?: CatalogProduct[]) => { technical: number; radiators: number; electrical: number };
-  /** Gives every door, window, radiator and fitting without a product the catalogue's best — no history entry (the calculator's board, priced like a design). */
+  /** Gives every door, window, radiator, piece of equipment and fitting without a product the catalogue's best — no history entry (the calculator's board, priced like a design). */
   ensureBoardProducts: (catalog: CatalogProduct[]) => void;
   addElectricalPoint: (kind: ElectricalKind, position: Vec2, roomId: string, catalog?: CatalogProduct[]) => string | null;
   updateElectricalPoint: (id: string, patch: Partial<Omit<ElectricalPoint, 'id'>>) => void;
@@ -336,6 +346,8 @@ interface DesignActions {
   changeElectricalKind: (id: string, kind: ElectricalKind, catalog?: CatalogProduct[]) => void;
   /** The real product this fitting is (null: back to the estimate). */
   setElectricalProduct: (id: string, product: CatalogProduct | null) => void;
+  /** Gives every fitting without a product the catalogue's best of its kind, and re-counts the rest (`withFixtureProducts`) — no history entry. */
+  ensureFixtureProducts: (catalog: CatalogProduct[]) => void;
   moveElectricalPoint: (id: string, position: Vec2) => void;
   /** Slides a wall-mounted point along its wall to `t` (0..1 of the edge); the height stays. */
   slideElectricalPoint: (id: string, t: number) => void;
@@ -443,6 +455,10 @@ interface DesignActions {
   /** Flips a piece across its own facing axis. */
   mirrorItem: (itemId: string) => void;
   lockItem: (itemId: string, locked: boolean) => void;
+  /** The material a made-to-measure kitchen piece is made in, the kitchen maker's product priced per m² of façade (null: back to the estimate). */
+  setKitchenMaterial: (itemId: string, product: CatalogProduct | null) => void;
+  /** Gives every made-to-measure piece without a material the style's, and buys the rest again for the façade they have now — no history entry. */
+  ensureKitchenMaterials: (catalog: CatalogProduct[]) => void;
   /** A copy beside the original, where it fits. Returns the new id. */
   duplicateItem: (itemId: string) => string | null;
   copyItem: (itemId: string) => void;
@@ -946,6 +962,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
                     if (patch.kind && patch.kind !== p.kind && patch.elevationM === undefined) {
                       next.elevationM = technicalElevation(patch.kind, plan.rooms.find((r) => r.id === p.roomId));
                     }
+                    // A boiler made an air conditioner is not bought as the boiler any more:
+                    // the product goes, and the new kind takes the catalogue's (`ensureEquipmentProducts`).
+                    if (patch.kind && patch.kind !== p.kind && patch.product === undefined) {
+                      delete next.product;
+                      delete next.sizeM;
+                    }
                     return next;
                   }),
                 },
@@ -977,6 +999,18 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const { plan, styleId } = get();
           if (!plan || catalog.length === 0) return;
           const next = withRadiatorProducts(plan, catalog, styleId);
+          if (next !== plan) set({ plan: next });
+        },
+        setEquipmentProduct: (id, product) =>
+          commit((s) => {
+            if (!s.plan?.technical) return null;
+            const plan = s.plan;
+            return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id ? withEquipmentProduct(p, product) : p)) } } };
+          }),
+        ensureEquipmentProducts: (catalog) => {
+          const { plan, styleId } = get();
+          if (!plan || catalog.length === 0) return;
+          const next = withEquipmentProducts(plan, catalog, styleId);
           if (next !== plan) set({ plan: next });
         },
         suggestTechnical: () => {
@@ -1015,6 +1049,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
             const radiators = suggestRadiators(plan, nextId);
             plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
+            plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;
             const electrical = withFixtureProducts(standardElectrical(plan, s.electrical), catalog, s.styleId);
             placed.technical = points.length;
@@ -1027,7 +1062,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         ensureBoardProducts: (catalog) => {
           const { plan, electrical, styleId } = get();
           if (!plan || catalog.length === 0) return;
-          const withRadiators = withRadiatorProducts(plan, catalog, styleId);
+          const withRadiators = withEquipmentProducts(withRadiatorProducts(plan, catalog, styleId), catalog, styleId);
           const rooms = withOpeningProducts(withRadiators.rooms, catalog, styleId);
           const nextPlan = rooms !== withRadiators.rooms ? { ...withRadiators, rooms } : withRadiators;
           const nextElectrical = withFixtureProducts(electrical, catalog, styleId);
@@ -1070,6 +1105,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             return { electrical: s.electrical.map((p) => (p.id === id ? withFixtureProduct(changed, keep ?? candidates[0] ?? null) : p)) };
           }),
         setElectricalProduct: (id, product) => commit((s) => ({ electrical: s.electrical.map((p) => (p.id === id ? { ...withFixtureProduct(p, product), origin: 'user' } : p)) })),
+        ensureFixtureProducts: (catalog) => {
+          const { electrical, styleId } = get();
+          if (catalog.length === 0) return;
+          const next = withFixtureProducts(electrical, catalog, styleId);
+          if (next.some((p, i) => p !== electrical[i])) set({ electrical: next });
+        },
         moveElectricalPoint: (id, position) =>
           commit((s) => {
             const point = s.electrical.find((p) => p.id === id);
@@ -1531,6 +1572,13 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
 
         mirrorItem: (itemId) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, mirrored: !i.mirrored, pinned: true } : i)) })),
         lockItem: (itemId, locked) => set((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
+        setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product) : i)) })),
+        ensureKitchenMaterials: (catalog) => {
+          const { items, styleId } = get();
+          if (catalog.length === 0) return;
+          const next = withKitchenMaterials(items, catalog, styleId);
+          if (next !== items) set({ items: next });
+        },
 
         duplicateItem: (itemId) => {
           const { items, plan } = get();

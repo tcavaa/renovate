@@ -26,8 +26,8 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/studio/FurnitureTray.tsx` | the furniture shelf: admin's studio rooms → their categories (→ subcategories) → tiles, colour swatches, style chips (`lib/design/shelf.ts`, [../categories.md](../categories.md#the-studios-rooms-shelf_rooms-shelf_room_categories)) |
 | `components/studio/CatalogBrowser.tsx` + `lib/design/catalogBrowser.ts` | the whole catalogue as a modal (search, filters with counts, details, "place") |
 | `components/studio/OwnModelDialog.tsx` | adding a person's own furniture ([../catalog.md](../catalog.md)) |
-| `components/studio/FurnitureDrawer.tsx`, `RoomItemsPanel.tsx` | what is placed, by room, with its total |
-| `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, alternatives); the hover card |
+| `components/studio/FurnitureDrawer.tsx`, `RoomItemsPanel.tsx` | what is placed, by room, with its total (a made-to-measure kitchen at what it is made for — `itemCostGel`) |
+| `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, a made-to-measure kitchen's material, alternatives); the hover card |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx`, `VersionsPanel.tsx` | a fitting's card, a door/window's card, the versions list |
 | `components/studio/StudioTopBar.tsx`, `TutorialOverlay.tsx`, `NavHelp.tsx` | the top bar, the first-visit tour, the controls card |
 | `components/design/StudioControls.tsx` | `ViewSwitch` (2D / 3D / walk, walls, time of day, photo) and `ZoomControls` |
@@ -76,6 +76,19 @@ the door or window card (`OpeningPanel`), what is placed (`FurnitureDrawer`), th
 is an overlay (`z-40`) the full height of the studio, scrolling inside itself under its
 alternatives drawer: nothing is pushed aside for it; the help card and zoom sit above the
 top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row.
+
+**A made-to-measure kitchen's card is its material.** A kitchen run or island is bought as the
+kitchen maker's material by the façade ([../budget.md](../budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents)),
+so its card (`ItemCard` through `boughtProduct`) shows the material, its price for this piece
+(façade × price per m²) and the maker's shop, and `SwapPanel` lists the maker's materials
+under the actions (`KitchenMaterials`: each with its price per m² and what the piece comes to
+in it, tagged **3D** when it brings a model of this piece's kind; `setKitchenMaterial`). Choosing
+one with a model redraws the kitchen as that model (`drawnModelUrl` — the wrapper's key follows
+it, so the swap rebuilds it); without, the kitchen model placed stays. The alternatives below
+are the kitchen models — what is drawn while the material has none. The studio gives every such piece the style's material as the catalogue arrives and
+buys it again when the piece is stretched (`ensureKitchenMaterials`, watching
+`kitchenMaterialSignature`); like every re-derivation on the way in, that is not autosaved
+until the person edits something.
 
 **Choosing a fitting arms it; only the room places it.** The placing click is caught on the
 workspace in the capture phase, and the workspace holds the floating chrome as well as the

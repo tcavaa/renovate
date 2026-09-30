@@ -21,7 +21,7 @@ R.c("server/chunks/ssr/lib_finance_orders_ts_1xs47i9._.js")
 R.c("server/chunks/ssr/_1zkxoin._.js")
 R.c("server/chunks/ssr/lib_design_1dodwrb._.js")
 R.c("server/chunks/ssr/_0ca1m0d._.js")
-R.c("server/chunks/ssr/lib_1-l-tms._.js")
+R.c("server/chunks/ssr/lib_1c_9xb6._.js")
 R.c("server/chunks/ssr/_next-internal_server_app_partner_profile_page_actions_16q5-mb.js")
 R.m(653304)
 module.exports=R.m(653304).exports

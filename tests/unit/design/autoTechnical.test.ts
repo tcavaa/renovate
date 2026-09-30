@@ -51,4 +51,22 @@ describe('placing the technical points by the rules', () => {
     // The waste sits under the basin itself.
     expect(points.find((p) => p.kind === 'sewer')!.position).toEqual({ x: 2.6, z: 1 });
   });
+
+  it('hangs a kitchen’s extractor — a cooker hood — over the run, and never over a window', () => {
+    // A 4 × 3 kitchen whose longest walls are z = 0 (a window in it) and z = 3.
+    const kitchen = { ...room('kit', 'kitchen', 0, 0, 4, 3), openings: [{ id: 'w1', kind: 'window' as const, wallIndex: 0, t: 0.5, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'kit', exterior: true }] };
+    const bare = suggestTechnical(planOf([kitchen]), [], ids).points.find((p) => p.kind === 'extractor')!;
+    // No run to go over: the long wall without the window, not the window's middle.
+    expect(bare.position.z).toBeGreaterThan(2.8);
+
+    // The run along the east wall (x = 4): the hood comes to the wall behind it, at its middle.
+    const run: PlacedItem = { id: 'k1', slot: 'kitchen_run', kind: 'kitchen_run', roomId: 'kit', position: P(3.69, 1.6), rotation: -Math.PI / 2, size: { width: 2.4, depth: 0.62, height: 0.92 }, elevationM: 0, product: null, origin: 'style' };
+    const hood = suggestTechnical(planOf([kitchen]), [run], ids).points.find((p) => p.kind === 'extractor')!;
+    expect(hood.position.x).toBeGreaterThan(3.85);
+    expect(hood.position.z).toBeCloseTo(1.6, 1);
+
+    // A bathroom's fan still goes on the outside wall with the window, where the duct goes.
+    const bath = { ...room('bath', 'bathroom', 0, 0, 3, 2), openings: [{ id: 'w2', kind: 'window' as const, wallIndex: 0, t: 0.5, widthM: 0.6, heightM: 0.6, sillM: 1.5, roomId: 'bath', exterior: true }] };
+    expect(suggestTechnical(planOf([bath]), [], ids).points.find((p) => p.kind === 'extractor')!.position.z).toBeLessThan(0.2);
+  });
 });

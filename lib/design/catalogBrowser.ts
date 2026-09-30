@@ -11,12 +11,13 @@ import type { RoomType } from '@/lib/calculator/types';
 import type { Locale } from '@/lib/i18n';
 import { localizedName } from '@/lib/i18n/labels';
 import { pathOf } from '@/lib/catalog/tree';
-import { archetypeLabel } from './catalog';
+import { archetypeLabel, isKitchenMaterial } from './catalog';
 import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from './colors';
 import { isFixtureProductKind } from './electrical';
 import type { CatalogProduct } from './matcher';
 import { isOpeningProductKind } from './openings';
 import { isRadiatorProductKind } from './radiators';
+import { isEquipmentProductKind } from './equipment';
 import { inCategory, inShelfRoom, roomCategories, shelfRoomCounts, shelfRoomForType, shelfTrail, subcategoryCounts, type ShelfIndex, type ShelfRoomId } from './shelf';
 import type { SceneStore, StyleId } from './types';
 
@@ -56,10 +57,11 @@ export function hasCatalogFilters(state: CatalogBrowserState): boolean {
 
 /**
  * Furniture: a product with a model that is neither a fitting (the electric tray's), nor a
- * door or window (the wall's), nor a radiator (the technical tray's).
+ * door or window (the wall's), nor a radiator or a technical point's equipment (the technical
+ * tray's), nor a kitchen maker's material (a kitchen's card, whatever model it has).
  */
 export function isFurnitureProduct(p: CatalogProduct): boolean {
-  return !!p.model3dUrl && !!p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind) && !isRadiatorProductKind(p.model3dKind);
+  return !!p.model3dUrl && !!p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind) && !isRadiatorProductKind(p.model3dKind) && !isEquipmentProductKind(p.model3dKind) && !isKitchenMaterial(p);
 }
 
 export function productStyles(p: Pick<CatalogProduct, 'styleTags'>): StyleId[] {

@@ -8,12 +8,12 @@ import { iconNodeFor } from '@/lib/catalog/iconNodes';
 import { ARCHETYPES, SHELF_ROOMS } from '@/lib/design/catalog';
 
 /**
- * The tree the platform starts with, and migration 0018, which writes it into a database that
- * had the flat catalogue — kept in step: every category, product move and studio room the
- * definition has is in the SQL.
+ * The tree the platform starts with, and migrations 0018 and 0020, which write it into a
+ * database that had the flat catalogue (0020 the categories added since) — kept in step: every
+ * category, product move and studio room the definition has is in the SQL.
  */
 
-const MIGRATION = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0018_category_tree_defaults.sql'), 'utf8');
+const MIGRATION = ['0018_category_tree_defaults.sql', '0020_equipment_kitchen_categories.sql'].map((file) => readFileSync(path.join(process.cwd(), 'lib/db/migrations', file), 'utf8')).join('\n');
 const FLAT = ['floor-tiles', 'wall-tiles', 'laminate', 'doors', 'windows', 'paint', 'sanitary', 'lighting', 'sockets-switches', 'beds', 'sofas', 'tables', 'chairs', 'wardrobes', 'kitchen-furniture', 'storage', 'rugs', 'decor', 'radiators', 'skirting', 'cornice'];
 
 describe('the starting tree', () => {
@@ -54,7 +54,7 @@ describe('the starting tree', () => {
   });
 });
 
-describe('migration 0018', () => {
+describe('migrations 0018 and 0020', () => {
   it('makes and places every category of the starting tree', () => {
     for (const c of DEFAULT_CATEGORY_TREE) {
       expect(MIGRATION, c.slug).toContain(`WHERE \`slug\` = '${c.slug}' AND \`parent_id\` IS NULL;`);
