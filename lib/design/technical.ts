@@ -299,13 +299,13 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     const points = technicalPointsIn(plan, room);
     for (const point of points) {
       if (point.kind !== 'radiator') continue;
-      // A radiator belongs under a window, on an exterior wall.
+      // A radiator belongs under a window, on an exterior wall — or under a window onto a balcony.
       const edges = wallEdges(room);
       const near = edges
         .map((e) => ({ e, d: closestOnSegment(point.position, e.a, e.b).distance }))
         .sort((p, q) => p.d - q.d)[0];
       if (!near || near.d > 0.4) continue;
-      const exterior = room.openings.some((o) => o.wallIndex === near.e.index && o.exterior);
+      const exterior = room.openings.some((o) => o.wallIndex === near.e.index && (o.exterior || o.kind === 'window'));
       if (!exterior) out.push({ code: 'radiator_not_exterior', roomId: room.id, pointId: point.id });
     }
     if (room.type === 'bathroom' || room.type === 'toilet') {

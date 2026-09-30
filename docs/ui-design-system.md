@@ -21,7 +21,7 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 | `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`), `HingeDialog` |
 | `components/layout/*` | `Header` (`HEADER_HEIGHT_CLASS`), `Footer`, `AdminSidebar`, `LanguageSwitcher`, `UserMenu`, `NotFoundContent` |
 | `components/landing/*`, `components/motion/*` | the landing page; `CountUp`, `Marquee`, `RotatingBadge` |
-| `components/plan/palette.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, blue windows, grey built walls, dashed room separators), room-type swatches for the lists, origin colours (existing ink / changed terracotta / generated teal), technical-system colours |
+| `components/plan/palette.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, blue windows, green balcony railings, a black frame's walls still to build grey, dashed room separators), room-type swatches for the lists, origin colours (existing ink / changed terracotta / generated teal), technical-system colours |
 
 ## Rules
 

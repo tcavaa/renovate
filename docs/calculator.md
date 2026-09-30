@@ -96,7 +96,12 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   hub's tips (`tipsCalculator`) tell the person drawing. The design measures a wall the same way
   (`edgeWallAreaM2` / `roomWallAreaM2`, `lib/design/planGeometry.ts`): its length × the room's
   height, less every door, window and archway in it — an interior door in the walls of both
-  rooms. The room keeps each wall's net area (`Room.wallsM2`, the board's order; an open edge 0)
+  rooms — and less a balcony's railings, floor to ceiling (`openingWallArea`), which are priced
+  nowhere. The board's opening tools are one tile, "კარ-ფანჯარა" (door, window, plain opening,
+  railing — [design-studio/plan-board.md](design-studio/plan-board.md#the-2d-board-componentsplanplaneditortsx)),
+  and a balcony's walls stand in a black frame: never built, drawn black with the other walls
+  that stand, the walls still to build grey
+  ([design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts)). The room keeps each wall's net area (`Room.wallsM2`, the board's order; an open edge 0)
   and their sum as `wallM2`, a studio's parts theirs; so the plaster, the paint, the tiles and
   the strip-out are all counted without the openings, in the calculator and the design alike,
   and so is a wall chosen on its own on the catalogue step. An opening on a room separator's
@@ -152,7 +157,8 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   0 (`calculatorRoomsFromPlan`).
 - **A black frame asks which partitions already stand.** It is the home state that builds the
   partition walls (phase 1), and a wall selected on the board offers "already built"
-  (`Wall.built`, drawn grey; the legend sits over the area plate) — see
+  (`Wall.built`; the walls still to build are drawn grey and every wall that stands black, the
+  legend over the area plate) — see
   [design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts).
 
 ### Step 4: every room's floor and walls (`lib/calculator/roomFinishes.ts`)
@@ -184,9 +190,10 @@ the rooms. So:
   number and its m², and the product on it or nothing. Switching to per wall keeps the room's product on
   every wall; switching back keeps the product that covers the most wall (the first wall's on
   a tie). Until a wall is chosen, "per wall" is only the page's state.
-- **The walls one by one leave out what is not a wall to finish**: a room separator's open
-  side (it measures 0) and slivers under `MIN_LISTED_WALL_M` (the end face of a partial wall
-  running on as a separator); they still count in the room's walls as a whole. The numbers stay
+- **The walls one by one leave out what is not a wall to finish** (`isListedWall`): a room
+  separator's open side (it measures 0), slivers under `MIN_LISTED_WALL_M` (the end face of a
+  partial wall running on as a separator) and a wall with nothing left of it — a balcony's side a
+  railing runs the whole length of (0 m²); they still count in the room's walls as a whole. The numbers stay
   the board's, so a list can read "walls 1, 2, 3, 6". A room divided off by a separator says
   which room it opens onto under its name (`openNeighbours`), and each of the two takes its own
   floor and walls.

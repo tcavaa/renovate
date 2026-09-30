@@ -12,7 +12,19 @@ import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
 import { WallGlyph } from './PlanGlyphs';
 
 /** A wall shorter than this is left out of the list of walls one by one (see the list). */
-export const MIN_LISTED_WALL_M = 0.2;
+const MIN_LISTED_WALL_M = 0.2;
+/** Less wall than this to finish is no wall to list (a side opened by a railing end to end). */
+const MIN_LISTED_WALL_M2 = 0.01;
+
+/**
+ * Whether a wall is in the list of walls one by one: not a room separator's open edge (it
+ * measures 0), not a sliver of one (the end face of a partial wall running on as a separator),
+ * and not a wall with nothing left of it (a balcony's side a railing runs the whole length of,
+ * 0 m²). All of them still count in the room's walls as a whole.
+ */
+export function isListedWall(lengthM: number, areaM2: number): boolean {
+  return lengthM >= MIN_LISTED_WALL_M && areaM2 >= MIN_LISTED_WALL_M2;
+}
 
 /** What the product grid under the cards chooses for: one of the floor's two products, the room's walls, or one wall. */
 export type FinishTarget = { surface: 'floor'; slot: 0 | 1 } | { surface: 'wall'; wall: number | null };
@@ -162,10 +174,7 @@ export function RoomFinishCards({
         {oneByOne ? (
           <ul>
             {wallAreas.map((area, i) => {
-              // An edge on a room separator is no wall — open onto the next room, it measures 0 —
-              // and a sliver of one (the end face of a partial wall running on as a separator) is
-              // nothing to choose a finish for; both still count in the room's walls as a whole.
-              if (wallLengths[i] < MIN_LISTED_WALL_M) return null;
+              if (!isListedWall(wallLengths[i], area)) return null;
               const pick = finishes.byWall?.[i] ?? null;
               const selected = isTarget({ surface: 'wall', wall: i });
               return (

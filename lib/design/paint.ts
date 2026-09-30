@@ -16,7 +16,7 @@
  * Pure geometry over plain data; the store, the 2D board and the 3D view all call in here.
  */
 
-import { pointInPolygon, polygonAreaM2, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { openingSpanUp, pointInPolygon, polygonAreaM2, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { finishFromProduct } from './surfaces';
 import { clipPolygon } from './zones';
 import type { CatalogProduct } from './matcher';
@@ -169,7 +169,7 @@ export function patchSpansOnWall(edge: Pick<PlanEdge, 'length'>, roomHeightM: nu
   return to - up.from > 1e-3 ? { along, up: { from: up.from, to: round3(to) } } : null;
 }
 
-/** Square metres of one wall patch — the part of it a door or window takes is not painted. */
+/** Square metres of one wall patch — the part of it a door, window or railing takes is not painted. */
 export function patchAreaM2(room: PlanRoom, wallIndex: number, patch: Cell): number {
   const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
   if (!edge) return 0;
@@ -179,7 +179,8 @@ export function patchAreaM2(room: PlanRoom, wallIndex: number, patch: Cell): num
     if (opening.wallIndex !== wallIndex) continue;
     const centre = opening.t * edge.length;
     const across = Math.min(along.to, centre + opening.widthM / 2) - Math.max(along.from, centre - opening.widthM / 2);
-    const tall = Math.min(up.to, opening.sillM + opening.heightM) - Math.max(up.from, opening.sillM);
+    const gap = openingSpanUp(opening, room.heightM);
+    const tall = Math.min(up.to, gap.top) - Math.max(up.from, gap.bottom);
     if (across > 0 && tall > 0) area -= across * tall;
   }
   return Math.max(0.05, round2(area));
@@ -246,7 +247,7 @@ export function wallSpotAt(room: PlanRoom, point: Vec2, reachM: number): { edge:
   return best;
 }
 
-/** Square metres of a stretch of wall, less the parts of doors and windows that fall in it. */
+/** Square metres of a stretch of wall, less the parts of doors, windows and railings that fall in it. */
 export function spanAreaM2(room: PlanRoom, wallIndex: number, span: Span): number {
   const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
   if (!edge) return 0;
@@ -258,7 +259,10 @@ export function spanAreaM2(room: PlanRoom, wallIndex: number, span: Span): numbe
     if (opening.wallIndex !== wallIndex) continue;
     const centre = opening.t * edge.length;
     const overlap = Math.min(to, centre + opening.widthM / 2) - Math.max(from, centre - opening.widthM / 2);
-    if (overlap > 0) area -= overlap * Math.min(opening.heightM, room.heightM - opening.sillM);
+    if (overlap > 0) {
+      const gap = openingSpanUp(opening, room.heightM);
+      area -= overlap * (gap.top - gap.bottom);
+    }
   }
   return Math.max(0.05, round2(area));
 }

@@ -477,7 +477,9 @@ const WINDOW_SILL_M = 0.9;
  * correct, and the user can drag them in the plan editor.
  */
 export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void {
-  for (const room of rooms) room.openings = [];
+  // A balcony's railings are the person's, drawn where it is open: they stay, and no window
+  // goes on a wall that has one.
+  for (const room of rooms) room.openings = room.openings.filter((o) => o.kind === 'railing');
 
   const tolerance = Math.max(wallThicknessM * 2.5, 0.25);
 
@@ -754,9 +756,31 @@ export function isSharedWithAnyRoom(
 // ---------------------------------------------------------------------------
 
 /**
+ * How far up its wall an opening's gap runs, metres from the floor: from its sill to its head —
+ * a railing's from the floor to the top of the wall, since the wall is gone above it too.
+ */
+export function openingSpanUp(opening: Pick<Opening, 'kind' | 'sillM' | 'heightM'>, wallHeightM: number): { bottom: number; top: number } {
+  if (opening.kind === 'railing') return { bottom: 0, top: wallHeightM };
+  const bottom = Math.max(0, Math.min(opening.sillM, wallHeightM));
+  return { bottom, top: Math.max(bottom, Math.min(wallHeightM, opening.sillM + opening.heightM)) };
+}
+
+/** A door or an archway: a way through the wall that people walk — not a window, not a railing. */
+export function isPassage(opening: Pick<Opening, 'kind'>): boolean {
+  return opening.kind === 'door' || opening.kind === 'archway';
+}
+
+/** How much of its wall an opening takes away, m²: its width over the height of its gap (`openingSpanUp`). */
+export function openingWallArea(opening: Pick<Opening, 'kind' | 'widthM' | 'sillM' | 'heightM'>, wallHeightM: number): number {
+  const { bottom, top } = openingSpanUp(opening, wallHeightM);
+  return opening.widthM * (top - bottom);
+}
+
+/**
  * One wall of a room as every estimate counts it — the design's finishes and renovation and the
- * calculator's alike: the edge's length at the room's height, less every door, window and
- * opening cut into it. An edge on a room separator is no wall and measures nothing.
+ * calculator's alike: the edge's length at the room's height, less every door, window, opening
+ * and railing cut into it (`openingWallArea`). An edge on a room separator is no wall and
+ * measures nothing.
  */
 export function edgeWallAreaM2(room: Pick<PlanRoom, 'polygon' | 'heightM' | 'openings' | 'open'>, index: number): number {
   return round2(edgeWallAreaRaw(room, index));
@@ -774,7 +798,7 @@ function edgeWallAreaRaw(room: Pick<PlanRoom, 'polygon' | 'heightM' | 'openings'
   if (isOpenEdge(room, index)) return 0;
   const edge = roomEdges(room.polygon).find((e) => e.index === index);
   if (!edge) return 0;
-  const cut = room.openings.reduce((sum, o) => sum + (o.wallIndex === index ? o.widthM * o.heightM : 0), 0);
+  const cut = room.openings.reduce((sum, o) => sum + (o.wallIndex === index ? openingWallArea(o, room.heightM) : 0), 0);
   return Math.max(0, edge.length * room.heightM - cut);
 }
 
@@ -842,7 +866,7 @@ function partsLessOpenings(room: PlanRoom, parts: RoomPart[]): RoomPart[] {
   for (const opening of room.openings) {
     const edge = edges.find((e) => e.index === opening.wallIndex);
     if (!edge || isOpenEdge(room, opening.wallIndex)) continue;
-    off[partAt(room, pointOnEdge(edge, opening.t))] += opening.widthM * opening.heightM;
+    off[partAt(room, pointOnEdge(edge, opening.t))] += openingWallArea(opening, room.heightM);
   }
   return parts.map((part, i) => (off[i] > 0 ? { ...part, wallM2: round2(Math.max(0, part.wallM2 - off[i])) } : part));
 }

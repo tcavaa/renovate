@@ -113,11 +113,15 @@ export function trimOptions(catalog: CatalogProduct[], kind: TrimKind, styleId: 
     .sort((a, b) => styleAffinity(styleId, b.styleTags, b.tags) - styleAffinity(styleId, a.styleTags, a.tags) || a.pricePerUnit - b.pricePerUnit);
 }
 
-/** Running metres of a trim in a room: the walled perimeter for a cornice (not the edges on a room separator), less the doorways for a skirting board. */
+/**
+ * Running metres of a trim in a room: the walled perimeter (not the edges on a room separator),
+ * less the doorways and railings for a skirting board and the railings for a cornice — a
+ * balcony's open side has no wall along its foot or under its ceiling.
+ */
 export function trimLengthM(room: PlanRoom, kind: TrimKind): number {
   const perimeter = wallEdges(room).reduce((sum, e) => sum + e.length, 0);
-  const doorways = kind === 'skirting' ? room.openings.filter((o) => o.kind !== 'window').reduce((sum, o) => sum + o.widthM, 0) : 0;
-  return Math.max(0, Math.round((perimeter - doorways) * 10) / 10);
+  const gaps = room.openings.filter((o) => (kind === 'skirting' ? o.kind !== 'window' : o.kind === 'railing')).reduce((sum, o) => sum + o.widthM, 0);
+  return Math.max(0, Math.round((perimeter - gaps) * 10) / 10);
 }
 
 /** The style's own trim for a room — no product, no cost; `trim: null` where the style has none. */

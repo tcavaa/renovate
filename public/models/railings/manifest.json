@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-09-30",
+  "note": "Written by scripts/railing-models.ts. One MODULE of a balcony railing: centred on x with an x-extent of exactly pitchCm (modules at that pitch touch and share their posts), standing on y = 0, centred on z, in metres. Not a product: a railing comes with the balcony.",
+  "models": [
+    {
+      "slug": "railing",
+      "url": "/models/railings/railing.glb",
+      "pitchCm": 100,
+      "heightCm": 100,
+      "depthCm": 5,
+      "triangles": 104,
+      "bytes": 6640,
+      "author": "RenovationRoom",
+      "license": "CC0"
+    }
+  ]
+}

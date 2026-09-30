@@ -74,7 +74,7 @@ import { isBaseFinish } from '@/lib/design/zones';
 import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
 import { pruneQuantities, pruneTicks, tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
 import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
-import { roomEdges } from '@/lib/design/planGeometry';
+import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
 import type {
   Beam,
   Column,
@@ -431,6 +431,11 @@ interface DesignActions {
   addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null, catalog?: CatalogProduct[]) => string | null;
   /** A door or window dragged in from the palette onto a wall. Returns the new id, or null when refused. */
   dropOpening: (kind: OpeningKind, target: WallTarget, catalog?: CatalogProduct[]) => string | null;
+  /**
+   * A railing drawn along a balcony's outer wall, `widthM` long and centred at `target.t`.
+   * Returns its id, or null when no railing may stand there (`railingFits`).
+   */
+  addRailing: (target: WallTarget, widthM: number) => string | null;
   moveOpening: (roomId: string, openingId: string, t: number) => void;
   /** Puts an opening down on any wall of any room. Returns its id afterwards (new when it changed wall), or null when refused. */
   moveOpeningToWall: (roomId: string, openingId: string, target: WallTarget) => string | null;
@@ -1472,6 +1477,14 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit(() => ({ plan: { ...plan, rooms: withOpeningProducts(markOpeningUser(result.rooms, result.openingId!), catalog, styleId) } }));
           return result.openingId;
         },
+        addRailing: (target, widthM) => {
+          const { plan } = get();
+          if (!plan) return null;
+          const result = addOpeningTo(plan.rooms, target.roomId, 'railing', target.wallIndex, plan.wallThicknessM, { t: target.t, widthM });
+          if (!result.openingId) return null;
+          commit(() => ({ plan: { ...plan, rooms: markOpeningUser(result.rooms, result.openingId!) } }));
+          return result.openingId;
+        },
         moveOpening: (roomId, openingId, t) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, rooms: moveOpeningIn(s.plan.rooms, roomId, openingId, t) } } : null)),
         moveOpeningToWall: (roomId, openingId, target) => {
@@ -1899,7 +1912,7 @@ function repriceWall(room: PlanRoom, wallIndex: number, finish: SurfaceFinish): 
   if (!finish.product) return null;
   const edge = room.polygon.length > wallIndex ? { a: room.polygon[wallIndex], b: room.polygon[(wallIndex + 1) % room.polygon.length] } : null;
   const length = edge ? Math.hypot(edge.b.x - edge.a.x, edge.b.z - edge.a.z) : 0;
-  const openings = room.openings.filter((o) => o.wallIndex === wallIndex).reduce((s, o) => s + o.widthM * o.heightM, 0);
+  const openings = room.openings.filter((o) => o.wallIndex === wallIndex).reduce((s, o) => s + openingWallArea(o, room.heightM), 0);
   const qty = Math.max(0.1, Math.round((length * room.heightM - openings) * 10) / 10);
   return { ...finish.product, qty, totalPrice: round2(finish.product.pricePerUnit * qty) };
 }

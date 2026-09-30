@@ -131,7 +131,8 @@ export function clearOfOpenings(openings: Opening[], edge: { index: number; leng
   const clamp = (value: number) => Math.max(lo, Math.min(hi, value));
   // Where the piece's centre may not be: each opening on this wall that it would overlap in height, widened by half the piece.
   const blocked = openings
-    .filter((o) => o.wallIndex === edge.index && o.sillM < bottomM + heightM && o.sillM + o.heightM > bottomM)
+    // A railing has no wall over it at any height.
+    .filter((o) => o.wallIndex === edge.index && (o.kind === 'railing' || (o.sillM < bottomM + heightM && o.sillM + o.heightM > bottomM)))
     .map((o) => {
       const centre = o.t * edge.length;
       const reach = o.widthM / 2 + OPENING_CLEARANCE_M + widthM / 2;

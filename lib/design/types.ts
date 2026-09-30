@@ -22,7 +22,12 @@ export interface Vec2 {
 // Floor plan
 // ---------------------------------------------------------------------------
 
-export type OpeningKind = 'door' | 'window' | 'archway';
+/**
+ * What stands in a gap in a wall. A `railing` (მოაჯირი) is a balcony's open side: the wall is
+ * gone there floor to ceiling and a railing stands in the gap — drawn along an outer wall of a
+ * balcony, never sold, and taken off the wall's area like any opening (`openingWallArea`).
+ */
+export type OpeningKind = 'door' | 'window' | 'archway' | 'railing';
 
 /**
  * Who put an element there. `existing` came with the flat (the uploaded plan, or what the
@@ -42,6 +47,7 @@ export interface Opening {
   /** Position along that edge, 0..1, measured at the opening's centre. */
   t: number;
   widthM: number;
+  /** The opening's height; a railing's is the railing's own, its gap in the wall runs to the ceiling. */
   heightM: number;
   /** Height of the opening's sill above the floor. 0 for doors. */
   sillM: number;

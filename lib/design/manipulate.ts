@@ -13,6 +13,7 @@
 import {
   boxInPolygon,
   floorWalls,
+  isPassage,
   openFloor,
   pointInPolygon,
   polygonBounds,
@@ -471,7 +472,8 @@ export function buildWalkable(plan: { rooms: PlanRoom[]; wallThicknessM: number 
   for (const room of plan.rooms) {
     const edges = roomEdges(room.polygon);
     for (const opening of room.openings) {
-      if (opening.kind === 'window') continue;
+      // Only doors and archways lead anywhere: a railing is a balcony's edge, not a way out.
+      if (!isPassage(opening)) continue;
       const edge = edges.find((e) => e.index === opening.wallIndex);
       if (!edge) continue;
 

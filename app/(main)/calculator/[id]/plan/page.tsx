@@ -183,7 +183,7 @@ export default function CalculatorPlanPage() {
         <div id="rooms-list" className="container pb-10 lg:contents">
           <PlanWorkspace
             store={useCalculatorPlanStore}
-            tools={['select', 'wall', 'room', 'divider', 'door', 'window', 'technical', 'electrical']}
+            tools={['select', 'wall', 'room', 'divider', 'door', 'window', 'archway', 'railing', 'technical', 'electrical']}
             tool={tool}
             onTool={pickTool}
             boardTool={tray && !armed ? 'select' : tool}
@@ -201,7 +201,7 @@ export default function CalculatorPlanPage() {
             layers={{ zones: false }}
             bleed={FLOW_BOARD_BLEED}
             wallBuilding={wallBuilding}
-            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : t.design.openingRefused)}
+            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : t.design.openingRefused)}
           />
           {inspected && (
             <FlowPanelOverlay>

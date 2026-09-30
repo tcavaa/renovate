@@ -2,7 +2,8 @@
 
 /**
  * The properties of whatever is selected on the plan: a wall's thickness, height and
- * material; a door's width, height, sill, material, hinge and swing; a column's size; a
+ * material; a door's width, height, sill, material, hinge and swing; a balcony railing's
+ * length and height; a column's size; a
  * beam's; a technical point's kind and height; an electrical point's height, outlets and
  * whether the light is on; a room's name, type and height. Each field writes straight to the
  * store through the actions it is given.
@@ -17,15 +18,16 @@ import { cn, formatGEL, formatM2 } from '@/lib/utils';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomSplit, RoomType } from '@/lib/calculator/types';
 import { isPartType, studioParts, swapped, turned, withFirstArea, withPartType } from '@/lib/design/studio';
-import { roomEdges } from '@/lib/design/planGeometry';
+import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
 import { WALL_THICKNESS_OPTIONS_M, wallLength } from '@/lib/design/walls';
-import { partitionWall } from '@/lib/design/partitions';
+import { partitionWall, standingWallIds } from '@/lib/design/partitions';
+import { MIN_RAILING_M, RAILING_HEIGHT_RANGE_M, railingFits } from '@/lib/design/openings';
 import { partialWallIn } from '@/lib/design/separators';
 import { AC_CEILING_GAP_M, TECHNICAL_KIND_LIST, technicalElevation } from '@/lib/design/technical';
 import { ELECTRICAL_KINDS, ELECTRICAL_KIND_LIST, LIGHT_CATEGORIES, isLight } from '@/lib/design/electrical';
 import { zoneAreaM2 } from '@/lib/design/zones';
 import { isAutoRoomName, nextRoomName } from '@/lib/design/roomNames';
-import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, Opening, PlanRoom, SurfaceFinish, TechnicalKind, TechnicalPoint, Wall } from '@/lib/design/types';
+import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, Opening, OpeningKind, PlanRoom, SurfaceFinish, TechnicalKind, TechnicalPoint, Wall } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
 import type { ElementSelection } from '@/store/designStore';
 import { MAX_SECTIONS, radiatorCandidates, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';
@@ -62,7 +64,8 @@ export interface InspectorActions {
   removeWall: (id: string) => void;
   updateOpening: (roomId: string, id: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>) => void;
   removeOpening: (roomId: string, id: string) => void;
-  addOpening?: (roomId: string, kind: 'door' | 'window' | 'archway', wallIndex: number) => void;
+  /** Cuts an opening into the wall; a railing runs the whole wall (a balcony's outer wall only). */
+  addOpening?: (roomId: string, kind: OpeningKind, wallIndex: number) => void;
   updateColumn: (id: string, patch: Partial<Omit<Column, 'id'>>) => void;
   removeColumn: (id: string) => void;
   updateBeam: (id: string, patch: Partial<Omit<Beam, 'id'>>) => void;
@@ -116,6 +119,14 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
       );
     }
     const rooms = plan.rooms.filter((r) => r.wallIds?.includes(wall.id));
+    // A balcony's outer wall can be its open side: a railing the length of the wall at a click.
+    const balcony = rooms
+      .map((room) => {
+        const index = room.wallIds?.indexOf(wall.id) ?? -1;
+        const edge = roomEdges(room.polygon).find((e) => e.index === index);
+        return edge && railingFits(plan.rooms, room.id, index, 0, edge.length, plan.wallThicknessM) ? { room, index } : null;
+      })
+      .find((b) => b !== null);
     return (
       <Section title={t.build.inspectorWall} onDelete={locked ? undefined : () => actions.removeWall(wall.id)} className={className}>
         {length}
@@ -145,6 +156,11 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
                   </Chip>
                 );
               })}
+              {balcony && (
+                <Chip onClick={() => actions.addOpening?.(balcony.room.id, 'railing', balcony.index)} disabled={locked}>
+                  {t.build.railingOnWall}
+                </Chip>
+              )}
             </div>
           </Field>
         )}
@@ -157,6 +173,24 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     const opening = room?.openings.find((o) => o.id === selection.id);
     if (!room || !opening) return null;
     const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
+    if (opening.kind === 'railing') {
+      // A balcony's railing: how long it runs and how high it stands. It is not bought and has no
+      // kind to change to; the wall behind it is simply not there.
+      return (
+        <Section title={t.build.toolRailing} subtitle={room.name} onDelete={locked ? undefined : () => actions.removeOpening(room.id, opening.id)} className={className}>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Up to the wall's length as the board writes it, to the centimetre: the store keeps it to the wall. */}
+            <NumberField label={`${t.build.length} (${t.units.m})`} value={opening.widthM} min={MIN_RAILING_M} max={Math.ceil((edge?.length ?? 10) * 100) / 100} step={0.05} onCommit={(v) => actions.updateOpening(room.id, opening.id, { widthM: v })} disabled={locked} />
+            <NumberField label={`${t.build.railingHeight} (${t.units.m})`} value={opening.heightM} min={RAILING_HEIGHT_RANGE_M.min} max={RAILING_HEIGHT_RANGE_M.max} step={0.05} onCommit={(v) => actions.updateOpening(room.id, opening.id, { heightM: v })} disabled={locked} />
+          </div>
+          <p className="text-[11px] leading-snug text-ink-muted">
+            {t.build.railingNote} · <span className="tabular-nums">{formatM2(openingWallArea(opening, room.heightM))}</span>
+          </p>
+          <OriginRow origin={opening.origin ?? 'existing'} />
+          <LockRow locked={!!opening.locked} onToggle={() => actions.updateOpening(room.id, opening.id, { locked: !opening.locked })} />
+        </Section>
+      );
+    }
     const maxWidth = Math.max(0.5, (edge?.length ?? 10) - 0.3);
     const kindLabel = opening.kind === 'door' ? t.design.door : opening.kind === 'window' ? t.design.window : t.build.archway;
     return (
@@ -549,6 +583,8 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
 function WallBuildingField({ plan, wall, onChange }: { plan: FloorPlan; wall: Wall; onChange: (built: boolean) => void }) {
   const t = useT();
   const partition = partitionWall(plan, wall.id);
+  // A balcony's walls stand whatever the flat's state: nothing to ask.
+  if (standingWallIds(plan).has(wall.id)) return <p className="text-[11px] leading-snug text-ink-muted">{t.build.wallBalconyStanding}</p>;
   if (!partition) return <p className="text-[11px] leading-snug text-ink-muted">{t.build.wallOuterNotBuilt}</p>;
   const built = !!wall.built;
   return (

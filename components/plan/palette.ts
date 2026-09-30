@@ -3,7 +3,7 @@
  * and the layers panel, so a thing looks the same everywhere it is drawn.
  *
  * The plan itself reads like an architect's drawing: black walls, white floors, red doors,
- * blue windows (`EDITOR`). A room's type is its label, not a tint — the tints below mark the
+ * blue windows, green balcony railings (`EDITOR`). A room's type is its label, not a tint — the tints below mark the
  * type in the lists beside the plan (the rooms panel, a studio's parts). Structure can be
  * coloured by *origin* instead (what came with the flat, what the person changed, what the
  * app generated, the "origins" layer), and the technical systems by what flows through them.
@@ -72,8 +72,11 @@ export const EDITOR = {
   roomSelected: '#FCEBE2',
   wall: '#141414',
   wallLocked: '#2B2B2B',
-  /** A partition that already stands in a black frame (`Wall.built`): not built again, not priced. */
-  wallBuilt: '#A29C93',
+  /**
+   * A partition a black frame still has to build (`wallsToBuild`): grey until it stands. Every
+   * wall that stands — the building's outer walls, a balcony's, one marked `built` — is `wall`.
+   */
+  wallToBuild: '#A29C93',
   /** A room separator (`Wall.separator`): the dashed line where one room opens onto the next. */
   separator: '#141414',
   selected: '#E85D26',
@@ -81,6 +84,8 @@ export const EDITOR = {
   guide: '#2FA7A0',
   door: '#D92D20',
   window: '#5B8FB9',
+  /** A balcony's railing (`Opening.kind === 'railing'`): the wall's gap with a railing in it. */
+  railing: '#3F7D5A',
   label: '#161513',
   labelMuted: '#6F6A63',
   dimension: '#3A3733',

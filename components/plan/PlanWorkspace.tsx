@@ -61,7 +61,7 @@ export interface PlanWorkspaceProps {
   /** Called when the pointer tool finished a one-shot action. */
   onToolDone?: () => void;
   /** A refused drop, and why (`PlanEditor.onRefused`). */
-  onRefused?: (reason: 'opening' | 'overlap') => void;
+  onRefused?: (reason: 'opening' | 'overlap' | 'railing') => void;
   /** The paint tool's scope and what it does with a tile or a strip — see `PlanEditor.onPaint`. */
   paintScope?: 'cell' | 'strip' | 'patch' | null;
   onPaint?: (target: PaintTarget) => void;
@@ -100,8 +100,8 @@ export interface PlanWorkspaceProps {
   /** The tool's hint on the board; off where the page shows it itself (the studio floats it above its tray). */
   hint?: boolean;
   /**
-   * The estimate builds the partition walls (a black frame): the walls marked as already
-   * standing are drawn grey, and the corner says which colour is which.
+   * The estimate builds the partition walls (a black frame): the walls still to build are drawn
+   * grey, everything that stands black, and the corner says which colour is which.
    */
   wallBuilding?: boolean;
 }
@@ -236,11 +236,11 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
   const legend = wallBuilding ? (
     <>
       <span className="inline-flex items-center gap-1">
-        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wall }} aria-hidden />
+        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wallToBuild }} aria-hidden />
         {t.build.legendToBuild}
       </span>
       <span className="inline-flex items-center gap-1">
-        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wallBuilt }} aria-hidden />
+        <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: EDITOR.wall }} aria-hidden />
         {t.build.legendBuilt}
       </span>
     </>
@@ -327,6 +327,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
           onOffsetWall={actions.offsetWall}
           onMoveNode={actions.moveWallNode}
           onAddOpening={(kind, target) => actions.dropOpening(kind, target)}
+          onAddRailing={actions.addRailing}
           onMoveOpening={actions.moveOpening}
           onMoveOpeningToWall={actions.moveOpeningToWall}
           onAddColumn={(position) => actions.addColumn(position)}

@@ -248,8 +248,8 @@ export interface WallDrawOptions {
   locked?: boolean;
   /** Colour by origin instead of the plain wall colour. */
   byOrigin?: boolean;
-  /** A partition that already stands (`Wall.built`, a black frame): grey, out of the estimate. */
-  built?: boolean;
+  /** A partition a black frame still has to build (`wallsToBuild`): grey; whatever stands is black. */
+  toBuild?: boolean;
   /** How far past each end the body is drawn, metres, so it meets the wall it turns into (`wallEndExtensions`). */
   extendA?: number;
   extendB?: number;
@@ -332,7 +332,7 @@ export function drawWall(ctx: CanvasRenderingContext2D, t: Transform, wall: Wall
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  ctx.strokeStyle = options.byOrigin ? ORIGIN_COLOR[wall.origin] : options.built ? EDITOR.wallBuilt : options.locked ? EDITOR.wallLocked : EDITOR.wall;
+  ctx.strokeStyle = options.byOrigin ? ORIGIN_COLOR[wall.origin] : options.toBuild ? EDITOR.wallToBuild : options.locked ? EDITOR.wallLocked : EDITOR.wall;
   ctx.lineWidth = thickness;
   ctx.beginPath();
   ctx.moveTo(a.x, a.y);
@@ -391,7 +391,12 @@ export function drawNodeHandles(ctx: CanvasRenderingContext2D, t: Transform, wal
   }
 }
 
-export function drawOpening(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, opening: Opening, thicknessM: number, state: { selected?: boolean; hovered?: boolean; alpha?: number; dashed?: boolean } = {}): void {
+/** The colour an opening is drawn in on the plan: red doors and archways, blue windows, green railings. */
+export function openingColor(kind: Opening['kind']): string {
+  return kind === 'window' ? EDITOR.window : kind === 'railing' ? EDITOR.railing : EDITOR.door;
+}
+
+export function drawOpening(ctx: CanvasRenderingContext2D, t: Transform, room: PlanRoom, opening: Opening, thicknessM: number, state: { selected?: boolean; hovered?: boolean; alpha?: number; dashed?: boolean; /** A railing being drawn where none may stand. */ invalid?: boolean } = {}): void {
   const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
   if (!edge) return;
   const halfT = opening.widthM / 2 / edge.length;
@@ -414,10 +419,32 @@ export function drawOpening(ctx: CanvasRenderingContext2D, t: Transform, room: P
   ctx.lineTo(sao.x, sao.y);
   ctx.closePath();
   ctx.fill();
-  const color = opening.kind === 'window' ? EDITOR.window : EDITOR.door;
-  ctx.strokeStyle = state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : color;
+  const color = openingColor(opening.kind);
+  ctx.strokeStyle = state.invalid ? EDITOR.invalid : state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : color;
   ctx.lineWidth = state.selected ? 3 : 2;
-  if (opening.kind === 'window') {
+  if (opening.kind === 'railing') {
+    // A balcony railing: the handrail as a thin double line down the middle of the gap, the
+    // balusters as ticks across it every fifteen centimetres or so.
+    const along = (f: number, s: number) => toScreen(t, { x: a.x + (b.x - a.x) * s + outward.x * thicknessM * f, z: a.z + (b.z - a.z) * s + outward.z * thicknessM * f });
+    ctx.lineWidth = 1.2;
+    for (const f of [0.38, 0.62]) {
+      const p = along(f, 0);
+      const q = along(f, 1);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+    const ticks = Math.max(2, Math.round(opening.widthM / 0.15));
+    ctx.beginPath();
+    for (let i = 0; i <= ticks; i++) {
+      const p = along(0.38, i / ticks);
+      const q = along(0.62, i / ticks);
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+    }
+    ctx.stroke();
+  } else if (opening.kind === 'window') {
     // Three lines across the wall: the classic window symbol.
     const lines = [0, 0.5, 1];
     for (const f of lines) {
@@ -1149,7 +1176,8 @@ export function drawOpeningSize(ctx: CanvasRenderingContext2D, t: Transform, roo
   const p = toScreen(t, { x: mid.x - edge.inward.x * out, z: mid.z - edge.inward.z * out });
   const angle = Math.atan2(edge.dir.z, edge.dir.x);
   const upright = angle > Math.PI / 2 || angle < -Math.PI / 2 ? angle + Math.PI : angle;
-  const text = `${formatDimension(opening.widthM, '').trim()} × ${formatDimension(opening.heightM, unitM)}`;
+  // A railing's height is the railing's, not the gap's: its length is what the sheet needs.
+  const text = opening.kind === 'railing' ? formatDimension(opening.widthM, unitM) : `${formatDimension(opening.widthM, '').trim()} × ${formatDimension(opening.heightM, unitM)}`;
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(upright);
@@ -1160,7 +1188,7 @@ export function drawOpeningSize(ctx: CanvasRenderingContext2D, t: Transform, roo
   const h = 12 * ui;
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.fillStyle = opening.kind === 'window' ? EDITOR.window : EDITOR.door;
+  ctx.fillStyle = openingColor(opening.kind);
   ctx.fillText(text, 0, 0.5 * ui);
   ctx.restore();
 }

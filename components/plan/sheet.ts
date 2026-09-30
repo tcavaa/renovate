@@ -5,7 +5,7 @@
  * (`components/projects/PlanDrawing`), so the two cannot drift apart. Plain canvas, no React.
  */
 
-import { leafOnOtherSide } from '@/lib/design/openings';
+import { primaryHalf } from '@/lib/design/openings';
 import type { ElectricalPoint, FloorPlan, PlacedItem } from '@/lib/design/types';
 import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from './draw';
 
@@ -49,8 +49,9 @@ export function drawPlanSheet(ctx: CanvasRenderingContext2D, t: Transform, plan:
   for (const room of plan.rooms) {
     for (const opening of room.openings) {
       drawOpening(ctx, t, room, opening, plan.wallThicknessM, {});
-      // An interior door's size once, on the half that draws the leaf, not on each of its two halves.
-      if (options.openingSizes && opening.kind !== 'archway' && !leafOnOtherSide(opening)) drawOpeningSize(ctx, t, room, opening, plan.wallThicknessM, options.unitM, { ui });
+      // An interior door's size once, on the half that draws the leaf, not on each of its two
+      // halves — and a window onto a balcony's once, on the half that stands for both.
+      if (options.openingSizes && opening.kind !== 'archway' && primaryHalf(opening)) drawOpeningSize(ctx, t, room, opening, plan.wallThicknessM, options.unitM, { ui });
     }
   }
   if (options.structure) {

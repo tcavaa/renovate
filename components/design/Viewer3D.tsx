@@ -39,7 +39,7 @@ import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design
 import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
-import { edgeOf, projectToEdge } from '@/lib/design/openings';
+import { cornerMargin, edgeOf, projectToEdge } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { tightSpotsByItem } from '@/lib/design/clearance';
@@ -1338,7 +1338,7 @@ function SceneContent({
         }
         const ground = floorPoint(event.clientX, event.clientY, 0);
         if (!ground) return;
-        const t = projectToEdge(od.edge, ground, od.opening.widthM);
+        const t = projectToEdge(od.edge, ground, od.opening.widthM, cornerMargin(od.opening.kind));
         od.t = t;
         // Slide the whole trim (frame, leaf, slab) along the wall as a live preview; the
         // wall's hole follows when the plan commits on release.
