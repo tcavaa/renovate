@@ -417,8 +417,10 @@ whether to make a realistic photo of it. Yes saves the design first (a draft is 
 `ensureSaved` → `saveDesign({ draft: true })`), posts the PNG with the room name and the
 camera pose to `POST /api/design/renders`, which stores it under `renders/` and queues a
 `project_renders` row, and then tells the person the render is being made, that they can
-keep taking photos or moving furniture, and that it will be in their profile under the
-project — where `ProjectRenders` lists every shot with its status and a download of the
+keep taking photos or moving furniture, and that it will be in their profile's renders under
+the project: "გაგრძელება" closes the dialog and "რენდერის ნახვა" opens `/profile?view=renders`
+scrolled to the project's group (`profileRendersHref`, `lib/projects/links.ts`). The project's
+page shows them too — `ProjectRenders` lists every shot with its status and a download of the
 screenshot now and of the render once `renderUrl` is set (`GET /api/design/renders`,
 `DELETE /api/design/renders/[id]`). **No generator is wired to the queue yet**: rows wait in `queued` until an image model
 (or a person) fills `renderUrl` and flips the status.

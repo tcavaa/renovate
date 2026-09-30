@@ -9,6 +9,7 @@ import { Camera, CheckCircle2, Loader2, Lock, LogIn, UserPlus } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n/client';
+import { profileRendersHref } from '@/lib/projects/links';
 
 export interface StudioShot {
   /** PNG data URL straight off the canvas. */
@@ -160,13 +161,12 @@ export function PhotoDialog({
             </DialogHeader>
             <div className="grid gap-2 sm:grid-cols-2">
               <Button variant="ink" size="lg" onClick={() => onOpenChange(false)}>
-                OK
+                {t.design.continueButton}
               </Button>
-              {projectId != null && (
-                <Button asChild variant="outline" size="lg">
-                  <Link href={`/profile/projects/${projectId}`}>{t.design.photoOpenProject}</Link>
-                </Button>
-              )}
+              {/* The profile's renders, scrolled to this project's. */}
+              <Button asChild variant="outline" size="lg">
+                <Link href={profileRendersHref(projectId)}>{t.design.photoOpenRenders}</Link>
+              </Button>
             </div>
           </>
         )}
