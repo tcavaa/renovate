@@ -118,10 +118,12 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   which with no furniture is `standardElectrical`: a ceiling light per room, a switch by each
   door, general sockets), and clearing them. A fitting set down is its catalogue product at once
   (`PlanWorkspace`'s `catalog`), as in the studio.
-  **A tray opens with its last kind in hand, and it stays in hand**: every click on the sheet
-  sets down another (the page drives the tool — `tool`, `boardTool` — so the board does not go
-  back to "select" after one). The tile again, or Escape, puts the kind down and the tray stays,
-  the sheet selecting; Escape once more puts the tray away; with something selected, Escape lets
+  **A tray opens with nothing in hand** — the sheet selects until a kind is picked — **and a
+  kind picked stays in hand**: every click on the sheet sets down another (the page drives the
+  tool — `tool`, `boardTool` — so the board does not go back to "select" after one). The tile
+  again, or Escape, puts the kind down and the tray stays, the sheet selecting; Escape once more
+  puts the tray away (the "კარ-ფანჯარა" tile the same: it opens with no kind in hand, and Escape
+  puts a kind down before the row); with something selected, Escape lets
   go of that first. A room the person has wired by hand is kept as it is. The board is the
   design's store (`useCalculatorPlanStore`), its style the design's default (scandinavian), and
   `useCalculatorBoardProducts` makes every door, window, radiator and fitting on it a catalogue

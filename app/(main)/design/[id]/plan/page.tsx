@@ -157,7 +157,7 @@ export default function ExistingHousePage() {
             layers={{ zones: false }}
             bleed={FLOW_BOARD_BLEED}
             wallBuilding={wallBuilding}
-            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : t.design.openingRefused)}
+            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : reason === 'onRailing' ? t.design.onRailingRefused : t.design.openingRefused)}
           />
           {inspected && (
             <FlowPanelOverlay>

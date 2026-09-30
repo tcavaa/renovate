@@ -39,7 +39,7 @@ import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design
 import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
-import { cornerMargin, edgeOf, projectToEdge } from '@/lib/design/openings';
+import { cornerMargin, edgeOf, projectToEdge, railingClash } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
 import { applyOutline, disposeOutline, makeOutline } from '@/lib/design3d/outline';
 import { tightSpotsByItem } from '@/lib/design/clearance';
@@ -163,6 +163,10 @@ export interface Viewer3DProps {
 export function Viewer3D(props: Viewer3DProps) {
   const style = getStyle(props.scene.styleId);
   const daylight = useMemo(() => lightingForHour(props.daylightHour ?? 13, style), [props.daylightHour, style]);
+  // The camera is born where the framing will put it — the whole flat, or the room in focus —
+  // so the view never opens for a beat at three.js's default spot, at floor level beside the
+  // flat, before the framing catches up.
+  const [initial] = useState(() => frameFor(props.plan, props.focusRoomId ?? null));
 
   return (
     <div className={props.className}>
@@ -170,10 +174,11 @@ export function Viewer3D(props: Viewer3DProps) {
         shadows
         dpr={[1, 1.75]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
-        camera={{ fov: 48, near: 0.05, far: 200 }}
-        onCreated={({ gl }) => {
+        camera={{ fov: 48, near: 0.05, far: 200, position: initial.position }}
+        onCreated={({ gl, camera }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = daylight.exposure;
+          camera.lookAt(...initial.target);
         }}
         onPointerMissed={() => {
           props.onSelectItem?.(null);
@@ -819,7 +824,8 @@ function SceneContent({
   // flat must not move the camera (see `frameKey`).
   const planRef = useRef(plan);
   planRef.current = plan;
-  useEffect(() => {
+  // Before the frame is drawn (a layout effect), so a new framing is never seen arriving.
+  useLayoutEffect(() => {
     if (walking) return;
     const { position, target } = frameFor(planRef.current, focusRoomId);
     camera.position.set(...position);
@@ -1450,7 +1456,8 @@ function SceneContent({
         if (orbit) orbit.enabled = true;
         canvas.style.cursor = 'default';
         onSelectOpening?.(od.opening.id);
-        if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4) onMoveOpening?.(od.room.id, od.opening.id, od.t);
+        // Onto a railing's stretch (or a railing onto a door's) it does not go: back to its place.
+        if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4 && !railingClash(od.room, od.opening, od.t, od.edge.length)) onMoveOpening?.(od.room.id, od.opening.id, od.t);
         else od.trim.position.set(0, 0, 0);
         return;
       }

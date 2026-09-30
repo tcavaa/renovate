@@ -227,7 +227,30 @@ export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
 const replaceIn = (rooms: PlanRoom[], roomId: string, fn: (room: PlanRoom) => PlanRoom) => rooms.map((r) => (r.id === roomId ? fn(r) : r));
 const patchOpening = (room: PlanRoom, id: string, patch: Partial<Opening>): PlanRoom => ({ ...room, openings: room.openings.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
 
-/** Slides an opening along its wall; a paired interior door drags its twin with it. */
+/**
+ * The kinds a railing drawn over them takes the place of (`addOpening`): their wall is gone. A
+ * door is somebody's way in and is never removed by one — a railing is not drawn over a door.
+ */
+export const RAILING_REPLACES: readonly OpeningKind[] = ['window', 'archway'];
+
+/**
+ * Whether an opening at `t` on its wall would share a stretch with a railing — nothing else
+ * stands in a railing's stretch, and a railing stands in nobody's: a door, window or archway on
+ * a railing, or a railing on one of them. `spare` are the kinds that do not count (a new railing
+ * replaces `RAILING_REPLACES`); `opening.id` is left out, so an opening never clashes with itself.
+ */
+export function railingClash(room: Pick<PlanRoom, 'openings'>, opening: Pick<Opening, 'kind' | 'wallIndex' | 'widthM'> & { id?: string }, t: number, edgeLength: number, spare: readonly OpeningKind[] = []): boolean {
+  const lo = t * edgeLength - opening.widthM / 2;
+  const hi = t * edgeLength + opening.widthM / 2;
+  return room.openings.some((o) => {
+    if (o.id === opening.id || o.wallIndex !== opening.wallIndex || spare.includes(o.kind)) return false;
+    if ((o.kind === 'railing') === (opening.kind === 'railing')) return false;
+    const centre = o.t * edgeLength;
+    return lo < centre + o.widthM / 2 - 1e-3 && centre - o.widthM / 2 < hi - 1e-3;
+  });
+}
+
+/** Slides an opening along its wall; a paired interior door drags its twin with it. Onto a railing's stretch (or a railing onto a door's, a window's) it does not go: the rooms come back unchanged. */
 export function moveOpening(rooms: PlanRoom[], roomId: string, openingId: string, t: number): PlanRoom[] {
   const room = rooms.find((r) => r.id === roomId);
   const opening = room?.openings.find((o) => o.id === openingId);
@@ -235,6 +258,7 @@ export function moveOpening(rooms: PlanRoom[], roomId: string, openingId: string
   const edge = edgeOf(room, opening.wallIndex);
   if (!edge) return rooms;
   const clamped = projectToEdge(edge, pointOnEdge(edge, t), opening.widthM, cornerMargin(opening.kind));
+  if (railingClash(room, opening, clamped, edge.length)) return rooms;
   let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, { t: clamped }));
 
   const twin = twinOf(rooms, opening);
@@ -264,6 +288,8 @@ export function updateOpening(rooms: PlanRoom[], roomId: string, openingId: stri
   const edge = edgeOf(room, opening.wallIndex);
   const minWidth = opening.kind === 'railing' ? MIN_RAILING_M : 0.5;
   const widthM = patch.widthM != null ? Math.max(minWidth, Math.min(patch.widthM, (edge?.length ?? 10) - cornerMargin(opening.kind) * 2)) : opening.widthM;
+  // Widened onto a railing's stretch (or a railing onto a door's, a window's): refused.
+  if (edge && widthM > opening.widthM && railingClash(room, { ...opening, widthM }, projectToEdge(edge, pointOnEdge(edge, opening.t), widthM, cornerMargin(opening.kind)), edge.length)) return rooms;
   const clean: Partial<Opening> = { ...patch, widthM };
   const kindChanged = !!patch.kind && patch.kind !== opening.kind;
   if (patch.kind && kindChanged) {
@@ -421,13 +447,18 @@ function neighbourAt(rooms: PlanRoom[], roomId: string, edge: PlanEdge, point: V
  * the room is a balcony, the edge is a wall and not a room separator, and no room stands behind
  * any of that stretch — a railing is the balcony's open side, never a wall onto the flat.
  */
-export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number, fromM: number, toM: number, wallThicknessM: number): boolean {
+export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number, fromM: number, toM: number, wallThicknessM: number, options: { /** false: a door in the way does not count (to tell the person why it was refused). */ doors?: boolean } = {}): boolean {
   const room = rooms.find((r) => r.id === roomId);
   if (!room || !holdsRailings(room)) return false;
   const edge = wallEdges(room).find((e) => e.index === wallIndex);
   if (!edge) return false;
   const [lo, hi] = [Math.max(0, Math.min(fromM, toM)), Math.min(edge.length, Math.max(fromM, toM))];
   if (hi - lo < MIN_RAILING_M - 1e-6) return false;
+  // Not over a door, nor over another railing: a window or a plain opening under it gives way.
+  const spare = options.doors === false ? [...RAILING_REPLACES, 'door' as const] : RAILING_REPLACES;
+  const railing = { kind: 'railing' as const, wallIndex, widthM: hi - lo };
+  if (railingClash(room, railing, (lo + hi) / 2 / edge.length, edge.length, spare)) return false;
+  if (room.openings.some((o) => o.kind === 'railing' && o.wallIndex === wallIndex && lo < o.t * edge.length + o.widthM / 2 - 1e-3 && o.t * edge.length - o.widthM / 2 < hi - 1e-3)) return false;
   // A few spots along it, a little in from its ends so a corner's neighbour does not count.
   const inset = Math.min(0.05, (hi - lo) / 4);
   const spots = [lo + inset, (lo + hi) / 2, hi - inset];
@@ -467,10 +498,10 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
   const width = Math.min(options.widthM ?? (kind === 'railing' ? chosen.length : defaults.widthM), chosen.length - margin * 2);
   let t = options.t ?? 0.5;
   if (options.t == null && kind !== 'railing') {
-    // A free spot along the wall: the centre, or beside what is already there.
-    const taken = room.openings.filter((o) => o.wallIndex === chosen.index).map((o) => o.t);
+    // A free spot along the wall: the centre, or beside what is already there — never on a railing.
+    const taken = room.openings.filter((o) => o.wallIndex === chosen.index && o.kind !== 'railing').map((o) => o.t);
     for (const candidate of [0.5, 0.25, 0.75, 0.15, 0.85]) {
-      if (!taken.some((x) => Math.abs(x - candidate) * chosen.length < width + 0.2)) {
+      if (!taken.some((x) => Math.abs(x - candidate) * chosen.length < width + 0.2) && !railingClash(room, { kind, wallIndex: chosen.index, widthM: width }, candidate, chosen.length)) {
         t = candidate;
         break;
       }
@@ -484,6 +515,9 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
   if (kind === 'railing') {
     const centre = t * chosen.length;
     if (!railingFits(rooms, roomId, chosen.index, centre - width / 2, centre + width / 2, wallThicknessM)) return { rooms, openingId: null };
+  } else if (railingClash(room, { kind, wallIndex: chosen.index, widthM: width }, t, chosen.length)) {
+    // Nothing goes on a railing: there is no wall there to put it in.
+    return { rooms, openingId: null };
   }
 
   const stamp = Date.now().toString(36);

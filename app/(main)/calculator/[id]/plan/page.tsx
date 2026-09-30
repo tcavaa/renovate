@@ -28,7 +28,7 @@ import { HOME_STATES } from '@/lib/calculator/constants';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useCalculatorBoardProducts } from '@/hooks/useCalculatorBoardProducts';
-import type { EditorTool } from '@/components/plan/PlanEditor';
+import { isOpeningTool, type EditorTool } from '@/components/plan/PlanEditor';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 
 /**
@@ -112,10 +112,10 @@ export default function CalculatorPlanPage() {
 
   const technicalSetUp = points.length > 0 || electrical.length > 0;
 
-  /** A tool from the rail: a tray opens with its last kind in hand. */
+  /** A tool from the rail: a tray opens with no kind in hand — nothing is placed until one is picked. */
   const pickTool = (next: EditorTool) => {
     setTool(next);
-    setArmed(next === 'technical' || next === 'electrical');
+    setArmed(false);
   };
   /**
    * Escape, with nothing of the board's own to end first — one thing at a time: what was
@@ -124,6 +124,7 @@ export default function CalculatorPlanPage() {
   const putDown = () => {
     if (selection) return;
     if (tray && armed) setArmed(false);
+    else if (isOpeningTool(tool)) pickTool('openings');
     else if (tool !== 'select') pickTool('select');
   };
   // The studio's trays, along the bottom of the sheet (above it below `lg`).
@@ -201,7 +202,7 @@ export default function CalculatorPlanPage() {
             layers={{ zones: false }}
             bleed={FLOW_BOARD_BLEED}
             wallBuilding={wallBuilding}
-            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : t.design.openingRefused)}
+            onRefused={(reason) => setRefused(reason === 'overlap' ? t.design.roomOverlapRefused : reason === 'railing' ? t.design.railingRefused : reason === 'onRailing' ? t.design.onRailingRefused : t.design.openingRefused)}
           />
           {inspected && (
             <FlowPanelOverlay>

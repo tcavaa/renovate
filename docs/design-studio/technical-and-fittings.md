@@ -57,11 +57,15 @@ panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. Nothi
 room separator's open edge — not these points, not a socket or switch (`wallSpotNear`,
 `suggestElectrical`), not a radiator (`radiatorWallSpot`, `suggestRadiators`), not a door or a
 window (`nearestWall`, `addOpening`): they all go by `wallEdges`
-([plan-board.md](plan-board.md#room-separators-libdesignseparatorsts)). The step offers the kinds as a grid of icon tiles that is always
-on screen (`components/plan/icons.ts` is the one icon per system, shared with the toolbar
-and the inspector): a tile arms the point tool with that kind and stays armed until it is
-clicked again, and a click on a point already placed picks it up instead of stacking
-another. The works checklist is four collapsible groups by the stage the works take the
+([plan-board.md](plan-board.md#room-separators-libdesignseparatorsts)). The step offers the kinds as a tray of low chips that is always
+on screen, each its icon beside its name (`components/plan/icons.ts` is the one icon per
+system, shared with the toolbar and the inspector; between `lg` and `xl`, where the band along
+the bottom is narrow, only the icon, the name on hover): none is in hand at first, a chip arms
+the point tool with that kind and stays armed until it is clicked again, and a click on a point
+already placed picks it up instead of stacking another. **The tray's head places them by the
+rules at a click** — "ავტომატური განლაგება" (`suggestTechnical`) and "რადიატორები"
+(`suggestRadiators`, in the catalogue's radiator) — says what that did in its hint line, and
+counts as having looked at the check of the same name (`markTechnicalChecked`). The works checklist is four collapsible groups by the stage the works take the
 house through (`WORK_STAGES`: old renovation → black frame, black → white frame, white →
 green, green → moving in), each with an all / none toggle — one of the step's checks (below).
 Every action that adds points (`addTechnicalPoint`, `suggestTechnical`, `suggestRadiators`)
@@ -396,9 +400,16 @@ or puts one along a whole outer wall from the wall's card ("მოაჯირ�
   corners (`cornerMargin` is 0 for it, 15 cm for anything else — `projectToEdge`, `moveOpening`,
   `updateOpening`, the store's re-projection after every wall edit in `reprojectOpenings`, the 3D
   slab drag), at least `MIN_RAILING_M` long; with no width given it runs the whole wall.
-- **What it replaces.** Drawn over a window or a plain opening on its wall, it takes their
-  place — their wall is gone (`addOpening`). A door it is drawn over stays. `deriveOpenings`
-  keeps the railings and puts no window on a wall that has one.
+- **What it replaces, and what it keeps out.** Drawn over a window or a plain opening on its
+  wall, it takes their place — their wall is gone (`addOpening`, `RAILING_REPLACES`). It is not
+  drawn over a door (somebody's way in) nor over another railing (`railingFits`). And **nothing
+  goes on a railing** (`railingClash`): a door, window or opening put there is refused
+  (`addOpening`; with no spot asked for, the free-spot search passes railings by), one slid or
+  widened onto it stays where it was (`moveOpening`, `updateOpening`), and so does a railing slid
+  or widened onto a door or a window. The board shows the preview red there and says why
+  (`onRefused('onRailing')`: "მოაჯირის ადგილას კარი ან ფანჯარა ვერ იქნება"); a door or window
+  dragged onto one in 3D goes back to its place. `deriveOpenings` keeps the railings and puts no
+  window on a wall that has one.
 - **What it is.** Never a product, a door or a window: `openingProductKind` is null, so it has no
   candidates, no whole-flat pick reaches it and `withOpeningProducts` passes it by; `countDoors` /
   `countWindows` do not count it; `priceOpenings` and `openingEstimate` leave it out of the
@@ -464,8 +475,7 @@ have no tests of their own.
   were hung over the run stays where it was (slid off a window in 3D); moving the point on the
   board puts it over the hob.
 - A window with no product falls back to nothing — see [../3d-assets.md](../3d-assets.md#known-gaps).
-- Railings: a window is replaced only when a railing is drawn over it — one lengthened or slid
-  over a window afterwards leaves both; the plan readers (the CV parser, Claude) never produce a
+- Railings: the plan readers (the CV parser, Claude) never produce a
   railing, so a balcony read from an upload is drawn open by hand; a room retyped from a balcony
   keeps its railings (the wall stays open); the railing model is one design, ours, in painted
   steel.

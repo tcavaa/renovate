@@ -493,7 +493,7 @@ function placeSeatAroundTable(
   room: PlanRoom,
   occupied: Box[]
 ): Pose | null {
-  const seats = seatSlots(table);
+  const seats = seatSlots(table, archetype.size.depth);
   if (index >= seats.length) return null;
 
   const slot = seats[index];
@@ -501,10 +501,11 @@ function placeSeatAroundTable(
   // Chairs tuck under the table, so only test against everything else.
   const others = occupied.filter((b) => !overlaps(b, tableBox));
 
-  // Pushed in a little further each time the room turns out to be tight — a chair half under
-  // the table is what a tight kitchen looks like anyway.
+  // Every chair stands a little under the table already (`seatSlots`); it is pushed in further
+  // each time the room turns out to be tight — a chair half under the table is what a tight
+  // kitchen looks like anyway.
   const toTable = normalise({ x: table.position.x - slot.position.x, z: table.position.z - slot.position.z });
-  for (const tuck of [0, 0.12, 0.24]) {
+  for (const tuck of [0, 0.1, 0.18]) {
     const pose: Pose = {
       position: { x: slot.position.x + toTable.x * tuck, z: slot.position.z + toTable.z * tuck },
       rotation: slot.rotation,
@@ -519,16 +520,25 @@ function placeSeatAroundTable(
 }
 
 /**
- * Seat positions around a rectangular table: along both long sides first, then the ends.
- * The gap per seat (0.62 m) is the usual elbow-room allowance.
+ * How far a dining chair's seat stands under its table's edge, as the table is laid: pushed
+ * in, the way chairs are left at a table — a chair standing clear of the edge looked set out
+ * for a photograph rather than lived with.
  */
-function seatSlots(table: PlacedItem): Array<{ position: Vec2; rotation: number }> {
+export const DINING_CHAIR_TUCK_M = 0.12;
+
+/**
+ * Seat positions around a rectangular table: along both long sides first, then the ends, each
+ * chair (`chairDepth` deep) with its seat `DINING_CHAIR_TUCK_M` under the edge. The gap per
+ * seat (0.62 m) is the usual elbow-room allowance.
+ */
+function seatSlots(table: PlacedItem, chairDepth = 0.5): Array<{ position: Vec2; rotation: number }> {
   const forward = { x: Math.sin(table.rotation), z: Math.cos(table.rotation) };
   const right = { x: forward.z, z: -forward.x };
 
   const perSide = Math.max(1, Math.min(4, Math.floor(table.size.width / 0.62)));
-  const sideOffset = table.size.depth / 2 + 0.34;
-  const endOffset = table.size.width / 2 + 0.34;
+  const out = chairDepth / 2 - DINING_CHAIR_TUCK_M;
+  const sideOffset = table.size.depth / 2 + out;
+  const endOffset = table.size.width / 2 + out;
 
   const slots: Array<{ position: Vec2; rotation: number }> = [];
 

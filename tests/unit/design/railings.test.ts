@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_RAILING_M, addOpening, countDoors, countWindows, openingCandidates, openingProductKind, primaryHalf, railingFits, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
+import { MIN_RAILING_M, addOpening, countDoors, countWindows, moveOpening, openingCandidates, openingProductKind, primaryHalf, railingClash, railingFits, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
 import { deriveOpenings, edgeWallAreaM2, openingSpanUp, openingWallArea, refreshRoom, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { partitionArea, partitionWall, standingWallIds, wallsToBuild } from '@/lib/design/partitions';
 import { priceOpenings } from '@/lib/design/pricing';
@@ -79,6 +79,34 @@ describe('balcony railings', () => {
     const windows = railed.rooms[1].openings.filter((o) => o.kind === 'window');
     expect(windows.map((o) => o.t)).toEqual([0.8]);
     expect(railed.rooms[1].openings.filter((o) => o.kind === 'railing')).toHaveLength(1);
+  });
+
+  it('holds no door, window or opening, and is drawn over no door', () => {
+    const rooms = flat();
+    const outer = edgeAt(rooms[1], 'z', 4.32);
+    // A railing over the first two metres of the wall.
+    const railed = addOpening(rooms, 'balcony', 'railing', outer.index, 0.12, { t: 1 / outer.length, widthM: 2 });
+    for (const kind of ['door', 'window', 'archway'] as const) {
+      expect(addOpening(railed.rooms, 'balcony', kind, outer.index, 0.12, { t: 0.8 / outer.length, widthM: 0.8 }).openingId).toBeNull();
+    }
+    // Beside it there is wall, and a window goes in; with no spot asked for it finds that one.
+    const beside = addOpening(railed.rooms, 'balcony', 'window', outer.index, 0.12, { t: 3.2 / outer.length, widthM: 1 });
+    expect(beside.openingId).not.toBeNull();
+    const found = addOpening(railed.rooms, 'balcony', 'window', outer.index, 0.12, { widthM: 1 });
+    const placed = found.rooms[1].openings.find((o) => o.id === found.openingId)!;
+    expect(railingClash(found.rooms[1], placed, placed.t, outer.length)).toBe(false);
+    // Slid onto the railing, or widened into it, it stays where it was.
+    expect(moveOpening(beside.rooms, 'balcony', beside.openingId!, 1 / outer.length)).toBe(beside.rooms);
+    expect(updateOpening(beside.rooms, 'balcony', beside.openingId!, { widthM: 3 })).toBe(beside.rooms);
+
+    // A railing is not drawn over a door (a door is somebody's way in); over a window it replaces it.
+    const doored = addOpening(rooms, 'balcony', 'door', outer.index, 0.12, { t: 0.5 });
+    expect(railingFits(doored.rooms, 'balcony', outer.index, 0, outer.length, 0.12)).toBe(false);
+    expect(railingFits(doored.rooms, 'balcony', outer.index, 0, outer.length, 0.12, { doors: false })).toBe(true);
+    expect(addOpening(doored.rooms, 'balcony', 'railing', outer.index, 0.12).openingId).toBeNull();
+    // Nor over another railing.
+    expect(railingFits(railed.rooms, 'balcony', outer.index, 1, 3, 0.12)).toBe(false);
+    expect(railingFits(railed.rooms, 'balcony', outer.index, 2.5, 4, 0.12)).toBe(true);
   });
 
   it('lets a window onto the balcony go in the wall it shares with the flat, cut in both rooms', () => {

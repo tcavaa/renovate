@@ -57,9 +57,11 @@ export default function DesignStartPage() {
   const thickness = plan?.wallThicknessM ?? DEFAULT_WALL_THICKNESS_M;
 
   const planReady = planMode === 'upload' ? !!uploaded : true;
+  // The message goes once what it asked for is there: a plan, a choice, a renovation's home state.
+  const homeStateReady = mode !== 'full' || emptyStart || !!homeState;
   useEffect(() => {
-    if (error && planReady && modeChosen) setError(null);
-  }, [error, planReady, modeChosen]);
+    if (error && planReady && modeChosen && homeStateReady) setError(null);
+  }, [error, planReady, modeChosen, homeStateReady]);
 
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -72,6 +74,12 @@ export default function DesignStartPage() {
     }
     if (!modeChosen) {
       setError(t.design.needModeFirst);
+      scrollTo('mode-section');
+      return;
+    }
+    // A renovation starts from the flat's state, and nothing is chosen for the person.
+    if (mode === 'full' && !emptyStart && !homeState) {
+      setError(t.calculator.needHomeStateFirst);
       scrollTo('mode-section');
       return;
     }

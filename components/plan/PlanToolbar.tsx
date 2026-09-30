@@ -64,6 +64,7 @@ export const TOOL_ICON: Record<EditorTool, LucideIcon> = {
   window: RectangleHorizontal,
   archway: SquareDashedBottom,
   railing: Fence,
+  openings: DoorOpen,
   column: SquareDashed,
   beam: Minus,
   technical: Wrench,
@@ -82,6 +83,7 @@ export function toolLabel(t: Dictionary, tool: EditorTool): string {
     window: 'toolWindow',
     archway: 'toolArchway',
     railing: 'toolRailing',
+    openings: 'toolOpenings',
     column: 'toolColumn',
     beam: 'toolBeam',
     technical: 'toolTechnical',
@@ -103,6 +105,7 @@ export function toolHint(t: Dictionary, tool: EditorTool, locked: boolean): stri
     window: 'hintWindow',
     archway: 'hintArchway',
     railing: 'hintRailing',
+    openings: 'hintOpenings',
     column: 'hintColumn',
     beam: 'hintBeam',
     technical: 'hintTechnical',
@@ -194,14 +197,15 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
         const opens = id === openingTile;
         const inHand = opens && isOpeningTool(tool) ? tool : null;
         const Icon = TOOL_ICON[inHand ?? id];
-        const active = draw ? drawing : opens ? !!inHand : tool === id;
+        const active = draw ? drawing : opens ? !!inHand || tool === 'openings' : tool === id;
         const label = opens ? t.build.toolOpenings : toolLabel(t, draw ? drawFirst : id);
         return (
           <button
             key={id}
             type="button"
-            // Again while drawing keeps the shape in hand; the openings' tile keeps its kind.
-            onClick={() => onTool(draw ? (drawing ? tool : drawFirst) : opens ? (inHand ?? id) : id)}
+            // Again while drawing keeps the shape in hand; the openings' tile keeps its kind, and
+            // opens with none in hand — the kinds are offered, nothing is placed until one is picked.
+            onClick={() => onTool(draw ? (drawing ? tool : drawFirst) : opens ? (inHand ?? 'openings') : id)}
             aria-pressed={active}
             title={label}
             className={cn(
@@ -235,7 +239,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
   // bottom of a full-screen board. A room separator has no thickness.
   return (
     <>
-      {kinds.length > 1 && isOpeningTool(tool) && <OpeningKindPicker kinds={kinds} tool={tool} onTool={onTool} />}
+      {kinds.length > 1 && (isOpeningTool(tool) || tool === 'openings') && <OpeningKindPicker kinds={kinds} tool={tool} onTool={onTool} />}
       {(shapes && drawing) || (drawing && tool !== 'divider') ? (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {shapes && drawing && (
@@ -330,8 +334,9 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
 
 /**
  * The kinds of opening under the "doors & windows" tile — a door, a window, a plain opening, a
- * balcony's railing — in one row along the bottom of the board, the one in hand lit. The
- * studio's build tray shows the same row beside its tiles.
+ * balcony's railing — in one row along the bottom of the board, the one in hand lit (none at
+ * first). A kind clicked again is put down. The studio's build tray shows the same row beside
+ * its tiles.
  */
 export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: readonly OpeningTool[]; tool: EditorTool; onTool: (tool: EditorTool) => void; className?: string }) {
   const t = useT();
@@ -345,7 +350,7 @@ export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: r
             type="button"
             role="radio"
             aria-checked={tool === id}
-            onClick={() => onTool(id)}
+            onClick={() => onTool(tool === id ? 'openings' : id)}
             title={toolHint(t, id, false)}
             className={cn('flex h-8 items-center gap-1.5 rounded-[8px] px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
           >

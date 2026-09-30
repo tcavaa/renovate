@@ -40,9 +40,11 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   they were given, so a 2 m cabinet is not dropped into a 1.2 m gap beside a door.
 - A centred relative item (TV unit, coffee table) is nudged sideways in growing steps before
   giving up; the spot dead ahead of the sofa is usually a door keepout.
-- A `fill` ring of dining chairs skips a seat that hits a wall instead of ending the ring, and
-  each seat tucks in towards the table when the room is tight (12 or 24 cm, up to 15 cm under
-  its edge), tested against everything but the table. The matcher lets the products of such a
+- A `fill` ring of dining chairs skips a seat that hits a wall instead of ending the ring. **Every
+  chair stands a little under its table** — its seat `DINING_CHAIR_TUCK_M` (12 cm) under the
+  edge, from the chair's own depth (`seatSlots`): a ring standing clear of the edge looked set out
+  for a photograph — and tucks in further when the room is tight (10 or 18 cm more), tested
+  against everything but the table. The matcher lets the products of such a
   chair and its table overlap too (below), and the studio lets a chair stand under a table for
   the same reason ([studio.md](studio.md#direct-manipulation-libdesignmanipulatets)).
 

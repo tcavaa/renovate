@@ -252,10 +252,13 @@ was drawn, four walls around it; `divider` draws separators in runs exactly as `
 walls, dashed while drawn, through `onAddSeparator`), `door` / `window` / `archway` (dropped on
 the nearest wall edge, the usual twin logic) and `railing` (drawn along a balcony's outer wall
 — below), `column`, `beam`, `technical`, `electrical`, `zone`. **The four opening tools are one
-tile, "კარ-ფანჯარა"** (`OPENING_TOOLS`, `isOpeningTool`): the tile picks the door up first and
-keeps whichever kind is in hand, its icon that kind's, and while one is in hand the kinds —
-კარი, ფანჯარა, ღიობი, მოაჯირი — sit in one row along the bottom of the board in the middle,
-under the hint (`OpeningKindPicker` in `PlanToolOptions`); the studio's build tray shows the
+tile, "კარ-ფანჯარა"** (`OPENING_TOOLS`, `isOpeningTool`): the tile opens with **no kind in
+hand** (`openings`: the sheet selects, the hint asks what goes in the wall) and keeps whichever
+kind is picked, its icon that kind's, and while it is open the kinds — კარი, ფანჯარა, ღიობი,
+მოაჯირი — sit in one row along the bottom of the board in the middle, under the hint
+(`OpeningKindPicker` in `PlanToolOptions`; a kind clicked again is put down, and so does
+Escape — at once, whatever was selected, the row staying; Escape again closes it:
+`PlanWorkspace`'s `escape`, on every board); the studio's build tray shows the
 same row beside its tiles. Both plan steps (the design's and the calculator's) and the studio
 offer all four.
 
@@ -266,7 +269,10 @@ and a second click do the same, the railing following the pointer between them w
 on a plate. The ends snap onto the wall's corners within reach, else to the 5 cm grid (1 cm with
 Shift); a railing shorter than `MIN_RAILING_M` is dropped, one the plan would not take
 (`railingFits`: not a balcony, a wall another room stands behind) is refused with its own
-message (`onRefused('railing')`), and Escape or a right click gives up one half drawn. It goes
+message (`onRefused('railing')`) — one over a door with another (`'onRailing'`), which a door,
+window or opening dropped or dragged onto a railing gets too, its preview red there
+([technical-and-fittings.md](technical-and-fittings.md#balcony-railings)) — and Escape or a
+right click gives up one half drawn. It goes
 in through the store's `addRailing` and is the selection afterwards. The
 toolbar and the studio's build tray both leave `room` and `divider` out of the tile row and
 offer them as the wall tool's shapes; the shape and the thickness (none for a separator) sit

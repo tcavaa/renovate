@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, Lightbulb } from 'lucide-react';
+import { CheckCircle2, Flame, Lightbulb, Sparkles } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { TechnicalChecksCard, TechnicalChecksDialog, useTechnicalChecks } from '@/components/design/TechnicalChecks';
 import { DesignFlowGuard } from '@/components/flow/FlowGuard';
@@ -68,6 +68,8 @@ export default function TechnicalPage() {
   const { products } = useDesignCatalog();
   const [tool, setTool] = useState<EditorTool>('select');
   const [kind, setKind] = useState<TechnicalKind>('water_supply');
+  /** What the last automatic placement did, in the tray's hint line until a kind is picked. */
+  const [placed, setPlaced] = useState<string | null>(null);
   const { works, checks, unchecked } = useTechnicalChecks();
   /**
    * The checks modal: shut, or open on one check — opened by going on (its last button goes
@@ -116,6 +118,7 @@ export default function TechnicalPage() {
   const countOf = (k: TechnicalKind) => points.filter((p) => p.kind === k).length;
 
   const pickKind = (k: TechnicalKind) => {
+    setPlaced(null);
     if (tool === 'technical' && kind === k) {
       setTool('select');
       return;
@@ -142,15 +145,45 @@ export default function TechnicalPage() {
     }
   };
 
+  // What the rules place at a click — the points, the radiators — with a line saying what it
+  // did; pressing either counts as having looked at its check.
+  const autoPlace = () => {
+    const n = actions.suggestTechnical();
+    actions.markTechnicalChecked(['auto']);
+    setPlaced(n > 0 ? fill(t.build.autoTechnicalDone, { n }) : t.build.autoTechnicalNone);
+  };
+  const hangRadiators = () => {
+    const n = actions.suggestRadiators(products);
+    actions.markTechnicalChecked(['radiators']);
+    setPlaced(n > 0 ? fill(t.build.radiatorsAdded, { n }) : t.build.radiatorsNone);
+  };
+
   // The kinds, always in view: a tile arms the point tool with that kind. Along the bottom of
-  // the full-screen board, above the board below `lg`.
+  // the full-screen board, above the board below `lg`. Low chips, icon beside the name, so the
+  // tray takes as little of the plan as it can; the automatic placement in its head. Between
+  // `lg` and `xl` the band along the bottom is narrow: the chips are their icons (the name on
+  // hover) and the buttons go under the title rather than squeezing it.
   const kindsTray = (
-    <section className="rounded-[16px] border border-line bg-white p-3 lg:w-[min(46rem,100%)] lg:border-line/70 lg:bg-white/[0.97] lg:shadow-float lg:backdrop-blur-xl" aria-label={t.build.technicalPointsTitle}>
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-semibold text-ink">{t.build.technicalPointsTitle}</p>
-        <p className="text-[11px] text-ink-muted">{tool === 'technical' ? fill(t.build.kindArmedHint, { kind: technicalLabel(t, kind) }) : t.build.technicalPointsHint}</p>
+    <section className="rounded-[16px] border border-line bg-white p-2.5 lg:w-[min(46rem,100%)] lg:border-line/70 lg:bg-white/[0.97] lg:shadow-float lg:backdrop-blur-xl" aria-label={t.build.technicalPointsTitle}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="min-w-[9rem] flex-1">
+          <p className="text-sm font-semibold text-ink">{t.build.technicalPointsTitle}</p>
+          <p className="truncate text-[11px] text-ink-muted" role="status">
+            {placed ?? (tool === 'technical' ? fill(t.build.kindArmedHint, { kind: technicalLabel(t, kind) }) : t.build.technicalPointsHint)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button type="button" onClick={autoPlace} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand">
+            <Sparkles className="h-3.5 w-3.5" />
+            {t.build.autoTechnical}
+          </button>
+          <button type="button" onClick={hangRadiators} title={t.build.suggestRadiators} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink">
+            <Flame className="h-3.5 w-3.5" />
+            {t.build.hangRadiators}
+          </button>
+        </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup" aria-label={t.build.toolTechnical}>
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-5" role="radiogroup" aria-label={t.build.toolTechnical}>
         {TECHNICAL_KIND_LIST.map((k) => {
           const Icon = TECHNICAL_ICON[k];
           const active = tool === 'technical' && kind === k;
@@ -163,13 +196,13 @@ export default function TechnicalPage() {
               aria-checked={active}
               onClick={() => pickKind(k)}
               title={technicalLabel(t, k)}
-              className={cn('relative flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[14px] border text-[11px] font-semibold leading-tight transition-all lg:h-[60px] lg:gap-1', active ? 'border-ink bg-ink text-white shadow-card' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+              className={cn('relative flex h-9 items-center gap-1.5 rounded-[10px] border pl-1.5 pr-2 text-[11px] font-semibold leading-tight transition-all lg:max-xl:justify-center lg:max-xl:px-0', active ? 'border-ink bg-ink text-white shadow-card' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
             >
-              <span className="grid h-8 w-8 place-items-center rounded-full text-white lg:h-7 lg:w-7" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
-                <Icon className="h-4 w-4" />
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
+                <Icon className="h-3.5 w-3.5" />
               </span>
-              <span className="max-w-full truncate px-1">{technicalLabel(t, k)}</span>
-              {n > 0 && <span className={cn('absolute right-1.5 top-1.5 min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[10px] tabular-nums', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>}
+              <span className="min-w-0 flex-1 truncate text-left lg:max-xl:hidden">{technicalLabel(t, k)}</span>
+              {n > 0 && <span className={cn('shrink-0 rounded-full px-1.5 text-center text-[10px] leading-4 tabular-nums lg:max-xl:absolute lg:max-xl:-right-1 lg:max-xl:-top-1', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>}
             </button>
           );
         })}

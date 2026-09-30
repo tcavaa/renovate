@@ -42,7 +42,11 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 
 Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
 (`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
-(`Tray`), one at a time — build (tools + the wall's shape + thickness + the unlock button; a
+(`Tray`), one at a time — build (tools + the wall's shape + thickness + the unlock button, **on
+one line**: what the tool in hand can be told scrolls sideways in a `ScrollRow` if it runs
+long, the thicknesses are bare numbers with the unit once, and unlocked is only a green lock
+icon with its words on hover — a click on it locks the walls again, as the top bar's lock does;
+wrapped, the lock fell onto a second row; a
 drawing tool switches to the 2D view; the tools are select, the drawing tile, doors & windows
 (one tile — "კარ-ფანჯარა" — with the door, the window, the plain opening and the balcony's
 railing beside it while it is in hand), column and beam — no pan tile, because on the 2D board, in every category, the select tool
@@ -169,7 +173,11 @@ stays mounted, so a room chosen here stays chosen there.
 **The camera frames on the plan's identity, never on the plan object** (`Viewer3D.frameKey`
 ← `designStore.planSerial`). A door slid along its wall, a wall dragged, a radiator moved:
 each makes a new plan object, and framing on that threw the person's view away mid-edit —
-they lined the camera up on a door, nudged it, and were back at the doll's-house view.
+they lined the camera up on a door, nudged it, and were back at the doll's-house view. **The
+camera is born at that framing** (the `Canvas` camera starts at `frameFor`'s position looking at
+its target, and the framing runs in a layout effect): switching to 3D used to show, for the
+beat the scene took to load, three.js's default camera at floor level beside the flat before
+the framing caught up.
 
 ## Adding furniture in the studio
 
