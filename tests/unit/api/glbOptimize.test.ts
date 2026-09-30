@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { Document, getBounds, NodeIO, type Texture } from '@gltf-transform/core';
 import { dequantize } from '@gltf-transform/functions';
-import { countTriangles, optimizeGlb, plainGlassMaterials, type TextureEncoder } from '@/lib/uploads/glbOptimize';
+import { countTriangles, optimizeGlb, plainGlassMaterials, texcoordBits, type TextureEncoder } from '@/lib/uploads/glbOptimize';
 import { KHRMaterialsTransmission } from '@gltf-transform/extensions';
 import { glbServerIO, optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 
@@ -32,8 +32,8 @@ async function jpeg(size: number): Promise<Uint8Array> {
   return new Uint8Array(await sharp(pixels, { raw: { width: size, height: size, channels: 3 } }).jpeg({ quality: 95 }).toBuffer());
 }
 
-/** A unit sphere of `segments` × `rings` quads, 32-bit everything, with a colour and a normal map. */
-async function sphereGlb(segments: number, rings: number, texturePx = 256): Promise<Uint8Array> {
+/** A unit sphere of `segments` × `rings` quads, 32-bit everything, with a colour and a normal map; texture coordinates 0–1 unless `uv` says otherwise. */
+async function sphereGlb(segments: number, rings: number, texturePx = 256, uv = (s: number, r: number) => [s / segments, r / rings]): Promise<Uint8Array> {
   const doc = new Document();
   const buffer = doc.createBuffer();
   const positions: number[] = [];
@@ -46,7 +46,7 @@ async function sphereGlb(segments: number, rings: number, texturePx = 256): Prom
       const n = [Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)];
       positions.push(...n);
       normals.push(...n);
-      uvs.push(s / segments, r / rings);
+      uvs.push(...uv(s, r));
     }
   }
   const indices: number[] = [];
@@ -167,6 +167,30 @@ describe('optimizing an uploaded GLB', () => {
     const plain = await io.readBinary(await sphereGlb(8, 4, 16));
     expect(plainGlassMaterials(plain)).toBe(0);
     expect(plain.getRoot().listMaterials()[0].getAlphaMode()).toBe('OPAQUE');
+  });
+
+  it('keeps texture coordinates that run far outside 0–1, as a fabric tiled by coordinates into the thousands has them', async () => {
+    const [segments, rings] = [48, 24];
+    const u = (s: number) => (s / segments) * 1500 - 1475;
+    const v = (r: number) => r / rings;
+    const { body, result } = await optimizeUploadedModel(Buffer.from(await sphereGlb(segments, rings, 16, (s, r) => [u(s), v(r)])));
+    expect(result.status).toBe('optimized');
+
+    const uv = (await read(body)).getRoot().listMeshes()[0].listPrimitives()[0].getAttribute('TEXCOORD_0')!.getArray()!;
+    const us = Array.from({ length: segments + 1 }, (_, s) => u(s));
+    const vs = Array.from({ length: rings + 1 }, (_, r) => v(r));
+    const off = (values: number[], x: number) => Math.min(...values.map((value) => Math.abs(value - x)));
+    let worst = 0;
+    for (let i = 0; i < uv.length; i += 2) worst = Math.max(worst, off(us, uv[i]), off(vs, uv[i + 1]));
+    // Within a texel of a 2048-pixel map. At a fixed 12 bits the step over that range was 0.37,
+    // and every v fell on one of four values: hundreds of texels off, the pattern gone.
+    expect(worst).toBeLessThan(1 / 2048);
+  });
+
+  it('gives texture coordinates the bits their range needs, 12 across 0–1 and never more than 24', async () => {
+    expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16)))).toBe(12);
+    expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16, (s, r) => [(s / 8) * 1500 - 1475, r / 4])))).toBe(23);
+    expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16, (s, r) => [s * 1e6, r])))).toBe(24);
   });
 
   it('keeps a file it has already optimized byte for byte', async () => {

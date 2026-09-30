@@ -53,19 +53,31 @@ run as the last step of each pipeline and as `pnpm models:compress`):
   fixtures' maps come to about half as WebP. The pipelines write WebP themselves too
   (`compressTextures` in `scripts/lib/gltfPipeline.ts`).
 - **Geometry is Draco** (`KHR_draco_mesh_compression`: positions 14 bits, normals 10, texture
-  coordinates 12 — `DRACO_OPTIONS` in `lib/uploads/glbOptimize.ts`) where that pays: at least
-  24 KB of geometry (`DRACO_MIN_GEOMETRY_BYTES`) and at least 16 KB saved against meshopt.
-  Measured on the partner and stock models, Draco geometry is about 40 % of meshopt's as the
-  studio serves it (the production host does not gzip GLBs; meshopt with brotli was still about
-  1.6 times Draco). Everything else — sockets, switches, Kenney's pieces — stays meshopt, which
-  the browser decodes without a worker round trip.
+  coordinates as many bits as their range needs — `dracoOptions` in `lib/uploads/glbOptimize.ts`,
+  below) where that pays: at least 24 KB of geometry (`DRACO_MIN_GEOMETRY_BYTES`) and at least
+  16 KB saved against meshopt. Measured on the partner and stock models, Draco geometry is about
+  40 % of meshopt's as the studio serves it (the production host does not gzip GLBs; meshopt with
+  brotli was still about 1.6 times Draco). Everything else — sockets, switches, Kenney's pieces —
+  stays meshopt, which the browser decodes without a worker round trip.
+
+**Texture coordinates get the bits their range needs** (`texcoordBits`). Draco quantises a
+coordinate over the whole range its primitive's coordinates span, so a fixed 12 bits are a
+quarter of a texel of a 2048-pixel map only while the coordinates stay within 0–1. Several models
+tile a fabric or a veneer by coordinates that run into the hundreds or thousands — the Cloud sofa
+from −1 475 to 322, the Woody bed across 2 745 — and at 12 bits seven of them were 136–938 texels
+off: the sofa's weave was gone and stripes ran across the Meccanica chair's seat (meshopt never
+had the problem: it leaves coordinates outside 0–1 as floats). The bits now keep that quarter
+texel wherever the coordinates run: 12 across 0–1, up to 24, where float32's own precision at such
+values is about the step (the Woody bed ends within 1.5 texels; Draco's encoder aborts at 30).
+Checked triangle by triangle against the files before Draco, every model's coordinates are within
+half a texel but the Woody bed's, and no position moved more than 0.005 % of its part.
 
 Glass is stored plain too (`plainGlassMaterials`, the upload recipe's): the five models that had
 `KHR_materials_transmission` — the wall clock, three pendants, the "Industrial" wall lamp — are
 alpha-blended glass in their files. A file already WebP and Draco (or too small for Draco) with no
 transmission is not even decoded, so re-running is quick and idempotent; the manifests' `bytes`
 follow the files. Applied to the whole library
-(1 Oct 2026): 54 MB → 32 MB with WebP → 23 MB with Draco, 98 of 221 models Draco. Every reader of
+(1 Oct 2026): 55.5 MB → 32 MB with WebP → 24.2 MB with Draco, 97 of 221 models Draco. Every reader of
 the files understands both — the studio and the catalogue's turntable (`DRACO_DECODER_PATH`),
 the admin uploader's preview, the photo renderer (three's decoder from `node_modules`),
 `scripts/lib/modelColor.ts` and the upload recipe (`draco3d`, a server external).
@@ -174,7 +186,8 @@ recipe (`glbOptimize.ts`, isomorphic):
   still over **100 000 triangles** is taken down to that in steps of 0.05 %, 0.1 % and 0.2 % of
   its size and no further. `prune` keeps empty nodes (a model's named parts are its own
   business). Then compressed: **Draco on the server** (`geometry: 'draco'`, the stored file;
-  about 40 % of meshopt's bytes as served), **meshopt (level `high`) in the browser**, which has
+  about 40 % of meshopt's bytes as served; texture coordinates at the bits their range needs,
+  [above](#compression-webp-and-draco)), **meshopt (level `high`) in the browser**, which has
   no Draco encoder and only has to make the file small enough to send — the server rewrites that
   geometry as Draco and keeps its WebP textures. The studio reads both. No `flatten` and no
   `join`: the node tree stays as uploaded.

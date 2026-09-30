@@ -55598,6 +55598,26 @@ var GLB_OPTIMIZE_DEFAULTS = {
 };
 var WEBP_QUALITY = 80;
 var DRACO_OPTIONS = { method: "edgebreaker", quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12, quantizeColor: 8, quantizeGeneric: 12 };
+var TEXCOORD_STEPS_PER_UNIT = 4096;
+var MAX_TEXCOORD_BITS = 24;
+function texcoordBits(doc) {
+  let range2 = 1;
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      for (const semantic of prim.listSemantics()) {
+        if (!semantic.startsWith("TEXCOORD_")) continue;
+        const accessor = prim.getAttribute(semantic);
+        const min2 = accessor.getMinNormalized([]);
+        const max2 = accessor.getMaxNormalized([]);
+        for (let i5 = 0; i5 < min2.length; i5++) range2 = Math.max(range2, max2[i5] - min2[i5]);
+      }
+    }
+  }
+  return Math.min(MAX_TEXCOORD_BITS, Math.ceil(Math.log2(range2 * TEXCOORD_STEPS_PER_UNIT)));
+}
+function dracoOptions(doc) {
+  return { ...DRACO_OPTIONS, quantizeTexcoord: texcoordBits(doc) };
+}
 var LOSSLESS_ERROR = 1e-4;
 var CAP_ERRORS = [5e-4, 1e-3, 2e-3];
 function configureGlbIO(io, draco2) {
@@ -55697,7 +55717,7 @@ async function optimizeGlb(io, bytes, encodeTexture, overrides = {}) {
     for (const extension of doc.getRoot().listExtensionsUsed()) {
       if (/^(EXT_meshopt_compression|KHR_draco_mesh_compression)$/.test(extension.extensionName) && extension.extensionName !== geometryExtension(options)) extension.dispose();
     }
-    if (options.geometry === "draco") await doc.transform(draco(DRACO_OPTIONS));
+    if (options.geometry === "draco") await doc.transform(draco(dracoOptions(doc)));
     else await doc.transform(meshopt({ encoder: import_meshoptimizer.MeshoptEncoder, level: "high" }));
     const out = await io.writeBinary(doc);
     if (out.byteLength >= bytes.byteLength) return { status: "kept", bytes, reason: "not-smaller" };

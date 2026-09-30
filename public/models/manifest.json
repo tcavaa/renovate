@@ -17,7 +17,7 @@
       "imageUrl": "/uploads/furniture/ind-bed-woody.webp",
       "colorHex": "#C8B79A",
       "triangles": 13998,
-      "bytes": 99120,
+      "bytes": 121296,
       "textures": [
         "albedo:2b2b71175522.jpg",
         "normal:33c0abdbd8cf.jpg",
@@ -42,7 +42,7 @@
       "imageUrl": "/uploads/furniture/meccanica-chair.webp",
       "colorHex": "#2F1A11",
       "triangles": 13999,
-      "bytes": 1126752,
+      "bytes": 1155268,
       "textures": [
         "albedo:FriendlyShade_Leather02_Albedo.jpg",
         "normal:FriendlyShade_Leather02_Normal.jpg",
@@ -67,7 +67,7 @@
       "imageUrl": "/uploads/furniture/cinquanta-lamp.webp",
       "colorHex": "#2B2D31",
       "triangles": 13998,
-      "bytes": 27536,
+      "bytes": 40588,
       "textures": [],
       "colors": [
         "#2B2D31"
@@ -88,7 +88,7 @@
       "imageUrl": "/uploads/furniture/node-sofa.webp",
       "colorHex": "#4A4A48",
       "triangles": 14000,
-      "bytes": 296444,
+      "bytes": 307084,
       "textures": [
         "normal:LaCividina NODE3.jpg",
         "roughness:LaCividina NODE4.jpg"
@@ -136,7 +136,7 @@
       "imageUrl": "/uploads/furniture/industrial-divan.webp",
       "colorHex": "#A1A1A1",
       "triangles": 13998,
-      "bytes": 216452,
+      "bytes": 226032,
       "textures": [
         "albedo:divan Industrial-001.jpg",
         "normal:divan Industrial-004.jpg"
@@ -185,7 +185,7 @@
       "imageUrl": "/uploads/furniture/vadehavet-daybed.webp",
       "colorHex": "#C69C7D",
       "triangles": 13996,
-      "bytes": 106928,
+      "bytes": 132960,
       "textures": [
         "albedo:oak_natural_dif.jpg"
       ],
@@ -209,7 +209,7 @@
       "imageUrl": "/uploads/furniture/ash-wood-chair.webp",
       "colorHex": "#A68362",
       "triangles": 14000,
-      "bytes": 104052,
+      "bytes": 116340,
       "textures": [
         "albedo:Wood_Veneer_2_d.jpg",
         "normal:Wood_Veneer_2_n.jpg"
@@ -233,7 +233,7 @@
       "imageUrl": "/uploads/furniture/sca-pendant.webp",
       "colorHex": "#B08D57",
       "triangles": 7120,
-      "bytes": 12692,
+      "bytes": 17560,
       "textures": [],
       "colors": [
         "#B08D57"
@@ -254,7 +254,7 @@
       "imageUrl": "/uploads/furniture/cloud-sofa.webp",
       "colorHex": "#D9CFC6",
       "triangles": 16681,
-      "bytes": 637652,
+      "bytes": 676356,
       "textures": [
         "albedo:fabric1.jpg",
         "normal:normal.jpg",
@@ -279,7 +279,7 @@
       "imageUrl": "/uploads/furniture/sca-dining-table.webp",
       "colorHex": "#A07C57",
       "triangles": 15644,
-      "bytes": 296820,
+      "bytes": 297788,
       "textures": [
         "albedo:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-004.jpg",
         "roughness:CAYDEN CAMPAIGN RECTANGULAR EXTENSION DINING TABLE-001.jpg"
@@ -303,7 +303,7 @@
       "imageUrl": "/uploads/furniture/queen-bed.webp",
       "colorHex": "#E9E2D6",
       "triangles": 13999,
-      "bytes": 38996,
+      "bytes": 58232,
       "textures": [],
       "colors": [
         "#E9E2D6"
@@ -348,7 +348,7 @@
       "imageUrl": "/uploads/furniture/vin-rattan-chair.webp",
       "colorHex": "#2E1205",
       "triangles": 300075,
-      "bytes": 1090980,
+      "bytes": 1131264,
       "textures": [
         "albedo:Rattan Chair-bambo_diff.jpg",
         "normal:Rattan Chair-fabric_normal.jpg",
@@ -373,7 +373,7 @@
       "imageUrl": "/uploads/furniture/ektorp-sofa.webp",
       "colorHex": "#59585E",
       "triangles": 14000,
-      "bytes": 167672,
+      "bytes": 177468,
       "textures": [
         "albedo:Gray Fabrik.jpg"
       ],
@@ -396,7 +396,7 @@
       "imageUrl": "/uploads/furniture/cupola-side-table.webp",
       "colorHex": "#DACAB6",
       "triangles": 3840,
-      "bytes": 581968,
+      "bytes": 599048,
       "textures": [
         "albedo:CUPOLA CARVED ROUND SIDE TABLE-002.jpg",
         "roughness:CUPOLA CARVED ROUND SIDE TABLE-003.jpg"

@@ -15,7 +15,7 @@ import { dequantize, draco, getBounds, getTextureColorSpace, prune, simplify } f
 import draco3d from 'draco3d';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
-import { DRACO_OPTIONS } from '../../lib/uploads/glbOptimize';
+import { dracoOptions } from '../../lib/uploads/glbOptimize';
 
 export const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
 export const OBJAVERSE = 'https://huggingface.co/datasets/allenai/objaverse/resolve/main';
@@ -59,21 +59,23 @@ export async function modelIO(): Promise<NodeIO> {
   return newIO().registerDependencies({ 'draco3d.encoder': encoder, 'draco3d.decoder': decoder });
 }
 
-/** Draco's settings are the upload recipe's (`lib/uploads/glbOptimize.ts`), so shipped models and uploads match. */
-export { DRACO_OPTIONS };
-
 /**
  * Geometry under this stays meshopt: in the browser every Draco primitive is a round trip to a
  * decoder worker, and a socket's 6 KB of geometry would save 3 at best.
  */
 export const DRACO_MIN_GEOMETRY_BYTES = 24 * 1024;
 
-/** The document's geometry compressed with Draco instead of meshopt (write it with `modelIO`). */
+/**
+ * The document's geometry compressed with Draco instead of meshopt (write it with `modelIO`), at
+ * the upload recipe's settings (`dracoOptions` in lib/uploads/glbOptimize.ts), so shipped models
+ * and uploads match.
+ */
 export async function toDraco(doc: Document): Promise<void> {
   for (const extension of doc.getRoot().listExtensionsUsed()) {
     if (extension.extensionName === 'EXT_meshopt_compression') extension.dispose();
   }
-  await doc.transform(dequantize(), draco(DRACO_OPTIONS));
+  await doc.transform(dequantize());
+  await doc.transform(draco(dracoOptions(doc)));
 }
 
 // ---------------------------------------------------------------------------
