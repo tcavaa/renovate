@@ -60,9 +60,44 @@ export const WEBP_QUALITY = 80;
 /**
  * Draco's settings, for uploads and for the shipped models (`scripts/lib/gltfPipeline.ts`):
  * positions to 14 bits — a quarter of a millimetre across a four-metre kitchen run — normals to
- * 10, texture coordinates to 12.
+ * 10, texture coordinates to as many as their range needs (`dracoOptions`, never fewer than 12).
  */
 export const DRACO_OPTIONS = { method: 'edgebreaker', quantizePosition: 14, quantizeNormal: 10, quantizeTexcoord: 12, quantizeColor: 8, quantizeGeneric: 12 } as const;
+
+/** Steps per unit of texture coordinate: a quarter of a texel of a 2048-pixel map, what 12 bits give across 0–1. */
+const TEXCOORD_STEPS_PER_UNIT = 4096;
+/** Beyond this a float's own precision at such coordinates is coarser than the step. */
+const MAX_TEXCOORD_BITS = 24;
+
+/**
+ * The bits Draco needs for the document's texture coordinates. Draco quantises a coordinate over
+ * the whole range its primitive's coordinates span, so 12 bits are a quarter of a texel only while
+ * they stay within 0–1. A model can tile its fabric by coordinates that run into the thousands —
+ * the Cloud sofa's go from −1 475 to 322 — and at 12 bits those came to 37 distinct values of
+ * 8 906: the pattern was gone, a few stretched stripes left in its place. So the bits follow the
+ * widest range in the file, the same quarter texel wherever the coordinates run. (meshopt never
+ * had the problem: it leaves coordinates outside 0–1 as floats.)
+ */
+export function texcoordBits(doc: Document): number {
+  let range = 1;
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      for (const semantic of prim.listSemantics()) {
+        if (!semantic.startsWith('TEXCOORD_')) continue;
+        const accessor = prim.getAttribute(semantic)!;
+        const min = accessor.getMinNormalized([]);
+        const max = accessor.getMaxNormalized([]);
+        for (let i = 0; i < min.length; i++) range = Math.max(range, max[i] - min[i]);
+      }
+    }
+  }
+  return Math.min(MAX_TEXCOORD_BITS, Math.ceil(Math.log2(range * TEXCOORD_STEPS_PER_UNIT)));
+}
+
+/** `DRACO_OPTIONS` for this document — on its dequantised geometry, just before `draco()`. */
+export function dracoOptions(doc: Document) {
+  return { ...DRACO_OPTIONS, quantizeTexcoord: texcoordBits(doc) };
+}
 
 /** Draco's WASM modules, for an IO that reads or writes Draco geometry (`configureGlbIO`). */
 export interface DracoCodec {
@@ -232,7 +267,7 @@ export async function optimizeGlb(io: PlatformIO, bytes: Uint8Array, encodeTextu
     for (const extension of doc.getRoot().listExtensionsUsed()) {
       if (/^(EXT_meshopt_compression|KHR_draco_mesh_compression)$/.test(extension.extensionName) && extension.extensionName !== geometryExtension(options)) extension.dispose();
     }
-    if (options.geometry === 'draco') await doc.transform(draco(DRACO_OPTIONS));
+    if (options.geometry === 'draco') await doc.transform(draco(dracoOptions(doc)));
     else await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'high' }));
     const out = await io.writeBinary(doc);
 

@@ -319,7 +319,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-ArmChair_01.webp",
       "colorHex": "#989693",
       "triangles": 5626,
-      "bytes": 399608,
+      "bytes": 400536,
       "textures": [
         "Armchair_01_nor_gl",
         "Armchair_01_diff",
@@ -520,7 +520,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-Ottoman_01.webp",
       "colorHex": "#2D2522",
       "triangles": 4240,
-      "bytes": 297820,
+      "bytes": 298228,
       "textures": [
         "Ottoman_01_nor_gl",
         "Ottoman_01_diff",
@@ -553,7 +553,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-BarberShopChair_01.webp",
       "colorHex": "#7E552C",
       "triangles": 4280,
-      "bytes": 350684,
+      "bytes": 351476,
       "textures": [
         "BarberShopChair_01_nor_gl",
         "BarberShopChair_01_diff",
@@ -1169,7 +1169,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-ClassicConsole_01.webp",
       "colorHex": "#19130F",
       "triangles": 7566,
-      "bytes": 300972,
+      "bytes": 302256,
       "textures": [
         "ClassicConsole_01_nor_gl",
         "ClassicConsole_01_diff",
@@ -3553,7 +3553,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-industrial_storage_cart.webp",
       "colorHex": "#525246",
       "triangles": 18902,
-      "bytes": 131640,
+      "bytes": 134252,
       "textures": [
         "industrial_storage_cart_nor_gl",
         "industrial_storage_cart_diff",
@@ -3799,7 +3799,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-metal_stool_03.webp",
       "colorHex": "#2D3120",
       "triangles": 6576,
-      "bytes": 109380,
+      "bytes": 110340,
       "textures": [
         "metal_stool_03_nor_gl",
         "metal_stool_03_diff",
@@ -3991,7 +3991,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-Chandelier_03.webp",
       "colorHex": "#A38463",
       "triangles": 23999,
-      "bytes": 391848,
+      "bytes": 391032,
       "textures": [
         "Chandelier_03_nor_gl",
         "Chandelier_03_diff",
@@ -4057,7 +4057,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-lantern_chandelier_01.webp",
       "colorHex": "#6A4F3D",
       "triangles": 5971,
-      "bytes": 247408,
+      "bytes": 249624,
       "textures": [
         "lantern_chandelier_01_nor_gl",
         "lantern_chandelier_01_diff",
@@ -4841,7 +4841,7 @@
       "imageUrl": "/uploads/furniture/stock-ph-wall_clock.webp",
       "colorHex": "#91A3B5",
       "triangles": 3658,
-      "bytes": 65232,
+      "bytes": 64996,
       "textures": [
         "wall_clock_nor_gl",
         "wall_clock_diff",
