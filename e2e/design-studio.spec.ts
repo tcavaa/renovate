@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 /**
  * The studio journey end to end on the bundled sample plan: an account → a named project from
  * the design hub → upload → what kind of project → the existing house on the drawing board →
- * technical setup → style test → the warning and the design's fee (a test card) → a furnished
+ * technical setup → style test → the warning and the design's fee (Flitt's sandbox) → a furnished
  * 3D scene with the build bar and a price — and the
  * project reopening where it was left. Without ANTHROPIC_API_KEY the parse falls back to the CV
  * parser and asks for the total area (pre-filled for the sample), and the plan is handed over as
@@ -77,15 +77,18 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   await expect(page.getByText('შენი სტილი', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /დიზაინის გენერაცია/ }).click();
 
-  // The hinge: the warning that the plan is settled from here, then the design's fee, paid with
-  // the prefilled test card (nothing is charged), and on.
+  // The hinge: the warning that the plan is settled from here, then the design's fee, paid in
+  // Flitt's sandbox — its form fills in the test card 4444 5555 6666 1111 — through the bank
+  // emulator's 3-D Secure, and on once the server has Flitt's signed "approved".
   const hinge = page.getByRole('dialog');
   await expect(hinge.getByText(/გენერაციამდე ყველაფერი შეამოწმე/)).toBeVisible();
   await hinge.getByRole('button', { name: /ყველაფერი სწორია — გაგრძელება/ }).click();
-  const pay = hinge.getByRole('button', { name: /^გადახდა ·/ });
+  await expect(hinge.getByText(/ბანკის საკომისიო/)).toBeVisible({ timeout: 30_000 });
+  const pay = hinge.getByRole('button', { name: /^გადახდა\s+[\d,.]+\s*GEL/ });
   await expect(pay).toBeEnabled({ timeout: 30_000 });
   await pay.click();
-  await expect(hinge.getByText(/გადახდა წარმატებულია/)).toBeVisible({ timeout: 15_000 });
+  await page.frameLocator('iframe.flitt-modal-iframe').getByRole('button', { name: 'Continue' }).click({ timeout: 30_000 });
+  await expect(page.getByText(/გადახდა წარმატებულია/).first()).toBeVisible({ timeout: 30_000 });
 
   // Step 5: the studio, with the build bar and a price.
   await expect(page).toHaveURL(/\/design\/\d+\/studio/, { timeout: 15_000 });

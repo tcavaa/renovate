@@ -90,6 +90,10 @@ export const platformSettingsSchema = z.object({
   designFeePerM2: z.coerce.number().min(0).max(10000).optional(),
   storeCommissionPct: z.coerce.number().min(0).max(100).optional(),
   workerCommissionPct: z.coerce.number().min(0).max(100).optional(),
+  /** GEL for adding an own item; 0 makes it free. */
+  ownItemPrice: z.coerce.number().min(0).max(10000).optional(),
+  /** The bank's commission shown and charged on top of every card payment. */
+  bankFeePct: z.coerce.number().min(0).max(20).optional(),
   /** The store that supplies the rate book's construction materials; null for nobody. */
   materialsStoreId: z.number().int().positive().nullable().optional(),
 });

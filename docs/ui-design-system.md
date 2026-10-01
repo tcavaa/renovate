@@ -101,7 +101,11 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
   the "finish the previous step first" card; `HingeDialog` is the warning, and the payment,
   before a step that shuts the ones before it (a warning icon, a checklist, a padlock line, then
-  the fee, a card form and "paid"). `Figure` (in `MaterialsTable`) is the large
+  the card step and "paid"). The card step (`components/payments/CardPayment.tsx`) is two
+  columns in a dialogue widened to 56 rem — the bill (price · bank commission · total) and the
+  notes on the left, Flitt's embedded form on the right — and the dialogue is **not modal**
+  while it is up, drawing its own backdrop (`DialogContent backdrop`), because Flitt's 3-D Secure
+  window lives outside it ([payments.md](payments.md#the-dialogue-cardpayment)). `Figure` (in `MaterialsTable`) is the large
   number-in-a-cell used for stats and subtotals.
 - **The board steps are the whole window** (`components/flow/FlowWorkspace.tsx`, September
   2026). The steps where the 2D board or the 3D scene is open — the calculator's plan (2), the

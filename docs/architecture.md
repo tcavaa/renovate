@@ -40,6 +40,7 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
                                          │ orderedLines
                                          ▼
                     lib/finance (checkout, orders, bookings) → partners (docs/marketplace.md)
+  fees and own items paid by card: lib/payments → Flitt (docs/payments.md)
   catalogue (products, stores, categories — docs/catalog.md) feeds both: the calculator's
   catalogue step and the studio's matcher (GET /api/design/catalog); 3D files come from
   the asset pipelines (docs/3d-assets.md).
@@ -246,7 +247,9 @@ All shared route vocabulary is in `lib/api/route.ts`:
   the project is the caller's own.
 - Public writes are throttled per IP (`rateLimited(req, RATE_RULES.…)`, `lib/api/rateLimit.ts`).
 - Exceptions: `/api/health` answers its own shape; `/api/admin/revenue/export` returns CSV;
-  `/api/design/parse-plan` adds `fallback: 'cv'` to its 503; `auth/[...nextauth]` is NextAuth's.
+  `/api/design/parse-plan` adds `fallback: 'cv'` to its 503; `auth/[...nextauth]` is NextAuth's;
+  `/api/payments/flitt/callback` has no session — Flitt's signature is its guard
+  ([payments.md](payments.md)).
 
 ## Conventions to follow when extending
 

@@ -7024,6 +7024,14 @@ var init_env = __esm({
       SMTP_USER: optionalString,
       SMTP_PASSWORD: optionalString,
       SMTP_SECURE: external_exports.enum(["true", "false"]).optional(),
+      /**
+       * Flitt, the card payments (docs/payments.md). Unset, the platform pays into Flitt's public
+       * test merchant (1549901, secret `test`): the sandbox, where nothing is charged. A merchant of
+       * one's own takes both; `FLITT_TEST_MODE=false` only once that merchant is live in the portal.
+       */
+      FLITT_MERCHANT_ID: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.coerce.number().int().positive().default(1549901)),
+      FLITT_SECRET_KEY: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.string().min(1).default("test")),
+      FLITT_TEST_MODE: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.enum(["true", "false"]).default("true")),
       LOG_DIR: optionalString,
       LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional()
     }).superRefine((value, ctx) => {
@@ -7039,6 +7047,12 @@ var init_env = __esm({
         for (const key of ["SMTP_HOST", "SMTP_PORT"]) {
           if (!value[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when MAIL_DRIVER=smtp" });
         }
+      }
+      if (value.FLITT_MERCHANT_ID === 1549901 !== (value.FLITT_SECRET_KEY === "test")) {
+        ctx.addIssue({ code: "custom", path: ["FLITT_SECRET_KEY"], message: "set both FLITT_MERCHANT_ID and FLITT_SECRET_KEY or neither" });
+      }
+      if (value.FLITT_MERCHANT_ID === 1549901 && value.FLITT_TEST_MODE === "false") {
+        ctx.addIssue({ code: "custom", path: ["FLITT_TEST_MODE"], message: "Flitt's public test merchant is never live" });
       }
       for (const provider of ["GOOGLE", "FACEBOOK"]) {
         const id = `${provider}_CLIENT_ID`;

@@ -139,8 +139,8 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   from here the plan and the home's condition are settled and steps 1–2 shut; the calculation's
   fee is its rooms' floor area × `calculatorFeePerM2` (`feeAreaM2`), the calculation saved first
   (a draft — the rooms and their area reach the row while it is still pending) so the server
-  charges what is on screen, paid with a test card (`POST /api/payments`,
-  [marketplace.md](marketplace.md#how-the-platform-earns-libfinance)); a calculation already paid
+  charges what is on screen, paid by card through Flitt (`POST /api/payments/flitt`,
+  [payments.md](payments.md)); a calculation already paid
   goes straight on. The summary shows the fee as paid, under its total (`SummaryCard`'s `fee`,
   `FeePaidNote`), not in it.
 - **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free

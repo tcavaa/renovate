@@ -23,7 +23,6 @@ import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorStepHref } from '@/lib/calculator/steps';
 import { saveCalculatorProject } from '@/lib/calculator/saveProject';
-import { feeAreaM2 } from '@/lib/finance/money';
 import { HOME_STATES } from '@/lib/calculator/constants';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { useProjectId } from '@/components/projects/ProjectGate';
@@ -309,7 +308,6 @@ export default function CalculatorPlanPage() {
           onOpenChange={setHinge}
           kind="calculator"
           projectId={projectId}
-          areaM2={feeAreaM2('calculator', { rooms })}
           save={() => saveCalculatorProject({ draft: true })}
           onPaid={calculate}
         />

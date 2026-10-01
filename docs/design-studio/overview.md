@@ -167,8 +167,8 @@ The store records a snapshot (plan, items, finishes, electrical) before every ch
 (`components/flow/`): after generation the plan steps are shut, so the rooms, the walls, doors
 and windows and the technical points are checked now; then the design's fee — the plan's floor
 area × `designFeePerM2` (`feeAreaM2`), the design saved first (a draft) so the server charges
-what is on screen — paid with a test card (`POST /api/payments`,
-[marketplace.md](../marketplace.md#how-the-platform-earns-libfinance)). Only then does the style
+what is on screen — paid by card through Flitt (`POST /api/payments/flitt`,
+[payments.md](../payments.md)). Only then does the style
 step set the budget, `generate` and play the overlay; a design already paid goes straight on.
 The budget page shows the fee as paid under its total (`FeePaidNote`), not in it.
 

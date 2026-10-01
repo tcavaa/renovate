@@ -25688,6 +25688,8 @@ __export(schema_exports, {
   orderEvents: () => orderEvents,
   orderItems: () => orderItems,
   orders: () => orders,
+  paymentEvents: () => paymentEvents,
+  payments: () => payments,
   platformSettings: () => platformSettings,
   products: () => products,
   projectPayments: () => projectPayments,
@@ -26130,6 +26132,13 @@ var platformSettings = mysqlTable("platform_settings", {
   designFeePerM2: decimal("design_fee_per_m2", { precision: 8, scale: 2 }).default("12.00").notNull(),
   storeCommissionPct: decimal("store_commission_pct", { precision: 5, scale: 2 }).default("5.00").notNull(),
   workerCommissionPct: decimal("worker_commission_pct", { precision: 5, scale: 2 }).default("5.00").notNull(),
+  /** GEL for adding a piece of one's own furniture as a 3D model ("ჩემი ნივთის დამატება"); 0 = free. */
+  ownItemPrice: decimal("own_item_price", { precision: 8, scale: 2 }).default("10.00").notNull(),
+  /**
+   * The bank's commission on a card payment, percent, added on top of whatever is paid and
+   * shown to the person as a line of its own (Flitt's GEL card rate is 2.2 %).
+   */
+  bankFeePct: decimal("bank_fee_pct", { precision: 5, scale: 2 }).default("2.20").notNull(),
   /**
    * The store that supplies the construction materials of the rate book (blocks, plaster,
    * putty, pipes, cable…): a checkout sends the project's material lines to it as an order of
@@ -26169,15 +26178,80 @@ var projectPayments = mysqlTable("project_payments", {
   totalM2: decimal("total_m2", { precision: 8, scale: 2 }).notNull(),
   feePerM2: decimal("fee_per_m2", { precision: 8, scale: 2 }).notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  /** How it was paid: `test` until a payment provider is wired in. */
+  /** How it was paid: `flitt`, or `test` for the stand-in card form before the provider. */
   method: varchar("method", { length: 20 }).default("test").notNull(),
   cardLast4: varchar("card_last4", { length: 4 }),
-  /** The payment's own reference (the provider's, one day; made up for a test payment). */
+  /** The payment's own reference: the Flitt order id (`payments.orderId`), made up for a test one. */
   reference: varchar("reference", { length: 64 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull()
 }, (t) => ({
   projectKindIdx: uniqueIndex("project_payments_project_kind_idx").on(t.projectId, t.kind),
   createdIdx: index("project_payments_created_idx").on(t.createdAt)
+}));
+var payments = mysqlTable("payments", {
+  id: int("id").primaryKey().autoincrement(),
+  orderId: varchar("order_id", { length: 64 }).notNull().unique(),
+  userId: int("user_id").references(() => users.id, { onDelete: "set null" }),
+  purpose: mysqlEnum("purpose", ["calculator", "design", "own_item"]).notNull(),
+  projectId: int("project_id").references(() => projects.id, { onDelete: "set null" }),
+  /** The own item this payment was spent on. */
+  productId: int("product_id").references(() => products.id, { onDelete: "set null" }),
+  /** A half's quote as it was charged: the area and the rate. */
+  totalM2: decimal("total_m2", { precision: 8, scale: 2 }),
+  feePerM2: decimal("fee_per_m2", { precision: 8, scale: 2 }),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  bankFeePct: decimal("bank_fee_pct", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  bankFee: decimal("bank_fee", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  total: decimal("total", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("GEL").notNull(),
+  /** Flitt's `order_status`, as last heard. Only `approved` unlocks anything. */
+  status: mysqlEnum("status", ["created", "processing", "approved", "declined", "expired", "reversed"]).default("created").notNull(),
+  provider: varchar("provider", { length: 20 }).default("flitt").notNull(),
+  /** Made against a merchant in test mode: no money moved. */
+  testMode: boolean("test_mode").default(true).notNull(),
+  /** Flitt's own id for the payment (`payment_id`). */
+  providerPaymentId: varchar("provider_payment_id", { length: 32 }),
+  /** What Flitt last said about the card and the money (`payment_events` keeps every answer whole). */
+  maskedCard: varchar("masked_card", { length: 19 }),
+  cardType: varchar("card_type", { length: 20 }),
+  cardBin: varchar("card_bin", { length: 8 }),
+  /** How it was paid: `card`, or a wallet (`additional_info.payment_method`: `googlepay`, `apple`). */
+  paymentSystem: varchar("payment_system", { length: 30 }),
+  /** What was taken from the card, and what has been given back since — GEL, from Flitt's tetri. */
+  actualAmount: decimal("actual_amount", { precision: 12, scale: 2 }),
+  actualCurrency: varchar("actual_currency", { length: 3 }),
+  reversalAmount: decimal("reversal_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  /** The bank's reference and authorisation code, for a dispute or a refund. */
+  rrn: varchar("rrn", { length: 50 }),
+  approvalCode: varchar("approval_code", { length: 16 }),
+  /** Flitt's own time of the order, as it writes it (`DD.MM.YYYY hh:mm:ss`, Tbilisi). */
+  orderTime: varchar("order_time", { length: 19 }),
+  /** A decline's code and words, as Flitt gave them. */
+  responseCode: varchar("response_code", { length: 16 }),
+  responseDescription: varchar("response_description", { length: 255 }),
+  /** When Flitt last answered about it (a callback or a status). */
+  lastEventAt: timestamp("last_event_at"),
+  paidAt: timestamp("paid_at"),
+  /** When an own item's credit was claimed by an upload. */
+  consumedAt: timestamp("consumed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull()
+}, (t) => ({
+  userPurposeIdx: index("payments_user_purpose_idx").on(t.userId, t.purpose, t.status),
+  projectIdx: index("payments_project_idx").on(t.projectId),
+  createdIdx: index("payments_created_idx").on(t.createdAt)
+}));
+var paymentEvents = mysqlTable("payment_events", {
+  id: int("id").primaryKey().autoincrement(),
+  paymentId: int("payment_id").references(() => payments.id, { onDelete: "cascade" }),
+  orderId: varchar("order_id", { length: 64 }).notNull(),
+  source: mysqlEnum("source", ["callback", "status"]).notNull(),
+  signatureValid: boolean("signature_valid").notNull(),
+  orderStatus: varchar("order_status", { length: 20 }),
+  payload: json2("payload").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (t) => ({
+  paymentIdx: index("payment_events_payment_idx").on(t.paymentId, t.createdAt)
 }));
 var orders = mysqlTable("orders", {
   id: int("id").primaryKey().autoincrement(),
@@ -30357,6 +30431,14 @@ var schema = external_exports.object({
   SMTP_USER: optionalString,
   SMTP_PASSWORD: optionalString,
   SMTP_SECURE: external_exports.enum(["true", "false"]).optional(),
+  /**
+   * Flitt, the card payments (docs/payments.md). Unset, the platform pays into Flitt's public
+   * test merchant (1549901, secret `test`): the sandbox, where nothing is charged. A merchant of
+   * one's own takes both; `FLITT_TEST_MODE=false` only once that merchant is live in the portal.
+   */
+  FLITT_MERCHANT_ID: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.coerce.number().int().positive().default(1549901)),
+  FLITT_SECRET_KEY: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.string().min(1).default("test")),
+  FLITT_TEST_MODE: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.enum(["true", "false"]).default("true")),
   LOG_DIR: optionalString,
   LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional()
 }).superRefine((value, ctx) => {
@@ -30372,6 +30454,12 @@ var schema = external_exports.object({
     for (const key of ["SMTP_HOST", "SMTP_PORT"]) {
       if (!value[key]) ctx.addIssue({ code: "custom", path: [key], message: "required when MAIL_DRIVER=smtp" });
     }
+  }
+  if (value.FLITT_MERCHANT_ID === 1549901 !== (value.FLITT_SECRET_KEY === "test")) {
+    ctx.addIssue({ code: "custom", path: ["FLITT_SECRET_KEY"], message: "set both FLITT_MERCHANT_ID and FLITT_SECRET_KEY or neither" });
+  }
+  if (value.FLITT_MERCHANT_ID === 1549901 && value.FLITT_TEST_MODE === "false") {
+    ctx.addIssue({ code: "custom", path: ["FLITT_TEST_MODE"], message: "Flitt's public test merchant is never live" });
   }
   for (const provider of ["GOOGLE", "FACEBOOK"]) {
     const id = `${provider}_CLIENT_ID`;

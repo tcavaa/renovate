@@ -39,13 +39,15 @@ at runtime yet; the last one was seen on the sample plan.
   in 4–10 s, where they took 13–16 s before. What is left is a CDN or the Vercel move
   ([operations.md](operations.md#known-gaps)).
 
-- **Payments**: the platform's fee is paid at each half's hinge through a stand-in (a
-  prefilled test card, `method: 'test'`, nothing charged): a real provider goes there, and the
-  save routes must then refuse the hinge without a payment; no payouts, no invoices
-  ([marketplace.md](marketplace.md#known-gaps)).
-- **e2e**: nothing walks the calculator's payment, the checkout (its rows, the contact, the
-  thank-you) or the profile's details; the studio spec covers the design's
-  ([testing.md](testing.md#known-gaps)).
+- **Payments (Flitt, sandbox)**: going live — a merchant of our own, the company's name, code
+  and address on the site (placeholders now), Flitt's review, `FLITT_TEST_MODE=false`, Apple
+  Pay's domain file; refunds from the admin (Flitt's reversal call); own-item payments in the
+  revenue report; the save routes still accept the hinge without a payment; no payouts or
+  invoices for partners ([payments.md](payments.md#known-gaps),
+  [marketplace.md](marketplace.md#known-gaps)).
+- **e2e**: nothing walks the calculator's payment, an own item's, the checkout (its rows, the
+  contact, the thank-you) or the profile's details; the studio spec covers the design's, through
+  Flitt's sandbox — not run since it moved to Flitt ([testing.md](testing.md#known-gaps)).
 - **Realistic renders**: `project_renders` rows wait in `queued`; a worker that calls an image
   model with the screenshot and scene, writes `renderUrl` and flips the status is not built
   ([design-studio/studio.md](design-studio/studio.md#known-gaps)).

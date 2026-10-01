@@ -41,7 +41,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 - Test env: `NODE_ENV=test`, `LOG_FILE=false`, `LOG_STDOUT=false`, a test `AUTH_SECRET`.
 - **Coverage gate** (v8; lines/functions/statements 80 %, branches 65 %) over the modules that
   produce money figures or guard the API: `lib/calculator/**`, `lib/design/pricing.ts`,
-  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`,
+  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`, `lib/payments/flitt.ts`,
   `lib/account/contact.ts`,
   `lib/storage/uploadKeys.ts`, `lib/api/**`, `lib/auth/**`,
   `app/api/projects/route.ts`, `app/api/design/projects/route.ts` (excluding
@@ -59,7 +59,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 | `tests/unit/flow/` | resume, sync lines and pruning, opening a project, save helpers, legacy migration | [project-flow.md](project-flow.md) |
 | `tests/unit/projects/` | row helpers (`projectKind`, progress, `picksFromScene`), checkout parts (and which lines are furniture) | [project-flow.md](project-flow.md), [marketplace.md](marketplace.md) |
 | `tests/unit/store/` | `calculatorStore`, `designStore` | [calculator.md](calculator.md), [design-studio/studio.md](design-studio/studio.md) |
-| `tests/unit/finance/money.test.ts` | fees (and the area a half's fee is charged on), commissions, grouping by store, delivery, order lines from the budget | [marketplace.md](marketplace.md) |
+| `tests/unit/finance/money.test.ts` | fees (and the area a half's fee is charged on), commissions, grouping by store, delivery, order lines from the budget; the bank's commission on a card payment (`withBankFee`) and tetri | [marketplace.md](marketplace.md), [payments.md](payments.md) |
 | `tests/unit/account/contact.test.ts` | an order's contact: the account's name and e-mail win, a phone or address typed for the order over the profile's, what is missing is asked, what is kept; addresses | [marketplace.md](marketplace.md), [auth-and-roles.md](auth-and-roles.md) |
 | `tests/unit/finance/orderFlow.test.ts`, `materials.test.ts` | order stages, what a partner may do with its order, an edit's facts, what the customer sees changed; the construction materials to their supplier | [marketplace.md](marketplace.md) |
 | `tests/unit/api/` | route helpers (envelope, `parseId`, `requireAdmin`, `handle`, rate limiting, `safeCallbackUrl`, repricing), who sees, changes and deletes a product (`productAccess`), the session's claims at sign-in and on every later read — role changes, deactivation, the cache, the password form (`accountClaims`, through the callbacks `auth.ts` registers), account rules, role landing and who may delete (`accounts`), a partner's public face (`publicPartners`), which stored files may be deleted (`uploadKeys`), login lockout, upload byte sniffing, a texture's colours read with sharp (`textureColors`), an uploaded GLB optimized — Draco on the server and meshopt in the browser, a browser-optimized file given Draco and its WebP kept, texture coordinates far outside 0–1 kept within a texel (Draco's bits follow their range), WebP at each map's size, the triangle cap, what is kept as it came (`glbOptimize`), stored models re-optimized in place (`optimizeStored`), finish textures as WebP — a normal map told by its name and kept at a higher quality, the 2048 px cap, what an upload keeps (`textureOptimize`), photos as WebP with their transparency within 1600 px (`imageOptimize`), glass stored plain by the upload recipe (`glbOptimize`) | [auth-and-roles.md](auth-and-roles.md), [operations.md](operations.md), [3d-assets.md](3d-assets.md#uploads-are-optimized) |
@@ -72,6 +72,9 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 | `tests/unit/db/` | every migration free of the MySQL-only forms MariaDB refuses or reads differently — `CAST(… AS JSON)`, `->`, `REGEXP_LIKE`, a back-reference in REGEXP_REPLACE's replacement (the checker shown catching the first 0021) | [data-model.md](data-model.md#migrations-run-on-mysql-and-mariadb) |
 | `tests/integration/category-tree-routes.test.ts` | the tree's and the studio rooms' routes with the DB and session mocked: last among siblings, three levels, no loops, unique slugs, children kept, exact reorders, the calculator's tabs, rooms' guards | [categories.md](categories.md) |
 | `tests/integration/order-routes.test.ts` | `/api/orders/[id]`, `…/confirm`, `…/comments` with the session and the order mocked: the store sees its order only once confirmed, partners never touch lines or delivery and move only along their steps, confirm is staff-only and once, the staff note stays with the platform | [marketplace.md](marketplace.md) |
+| `tests/unit/payments/flitt.test.ts` | Flitt's protocol: the documented signing strings, verification (tampered, other key, none), reading an answer, the facts in GEL, the outcome against its payment (order, merchant, amount, currency) | [payments.md](payments.md) |
+| `tests/integration/payment-routes.test.ts` | `/api/payments/flitt`, `…/[orderId]`, `…/callback` with the session, the database and the service mocked: a forged callback changes nothing, a signed one settles (JSON, form, wrapped); a payment starts only for its owner at the server's figures, not when paid, free or already a credit; Flitt down is a 502 | [payments.md](payments.md) |
+| `tests/unit/legal/legalSections.test.ts` | the terms, privacy and refund pages have every section in three languages, with the company's details filled in | [payments.md](payments.md#what-a-card-taking-site-must-show) |
 | `e2e/public.spec.ts` | landing, health, catalogue filters via URL, workers directory redirect, 404, security headers, auth pages, callback URL safety | — |
 | `e2e/design-studio.spec.ts` | registers an account, makes a project from the design hub, then the bundled sample plan through upload → mode → board → technical (going on through its checks) → style → the warning and the design's fee (the test card) → a furnished studio with a price → summary, and the project reopening where it was left (the brigade step is not visited; the account and project stay in the database) | [design-studio/overview.md](design-studio/overview.md) |
 
@@ -89,7 +92,9 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 
 - e2e is not run in CI (it needs the database), and the studio spec stops at the summary: the
   brigade step (8) has no browser test. The studio spec pays the design's fee on its way to the
-  studio (the warning, then the test card); nothing in e2e walks the calculator's payment, the
+  studio (the warning, then Flitt's sandbox form and the bank emulator's 3-D Secure — the reason
+  `baseURL` is `renovate.localhost`, [payments.md](payments.md#local-development-and-testing));
+  nothing in e2e walks the calculator's payment, an own item's, the
   checkout, its thank-you or the profile's details (they were walked through headless by hand).
 - Components have no unit tests; the 2D board and the 3D viewer are exercised only by e2e and
   by hand.

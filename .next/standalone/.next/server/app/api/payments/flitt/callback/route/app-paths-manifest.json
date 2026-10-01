@@ -1,0 +1,3 @@
+{
+  "/api/payments/flitt/callback/route": "app/api/payments/flitt/callback/route.js"
+}

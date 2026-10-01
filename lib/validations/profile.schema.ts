@@ -24,14 +24,3 @@ export const profileSchema = z.object({
 });
 
 export type ProfileInput = z.infer<typeof profileSchema>;
-
-/** Paying a half's fee (`POST /api/payments`). The card itself never leaves the browser; only its last four digits are kept. */
-export const paymentSchema = z.object({
-  projectId: z.number().int().positive(),
-  kind: z.enum(['calculator', 'design']),
-  cardLast4: z
-    .string()
-    .regex(/^\d{4}$/)
-    .optional()
-    .nullable(),
-});

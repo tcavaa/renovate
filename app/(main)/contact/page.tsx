@@ -1,4 +1,4 @@
-import { Mail, MapPin, Phone, Clock } from 'lucide-react';
+import { Mail, MapPin, Phone, Clock, Building2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { getT } from '@/lib/i18n/server';
 import { ContactForm } from '@/components/contact/ContactForm';
@@ -15,6 +15,12 @@ export default async function ContactPage() {
       icon: Clock,
       label: ka.pages.contact.hoursLabel,
       value: ka.pages.contact.hoursValue,
+    },
+    // The legal entity behind the site, as the card schemes and the payment provider require.
+    {
+      icon: Building2,
+      label: ka.footer.requisites,
+      value: `${ka.footer.company_name} · ${ka.footer.companyIdLabel} ${ka.footer.company_id} · ${ka.footer.legal_address}`,
     },
   ];
 

@@ -25,6 +25,7 @@ export default defineConfig({
         'lib/design/matcher.ts',
         'lib/finance/money.ts',
         'lib/finance/orderFlow.ts',
+        'lib/payments/flitt.ts',
         'lib/account/contact.ts',
         'lib/storage/uploadKeys.ts',
         'lib/api/**/*.ts',

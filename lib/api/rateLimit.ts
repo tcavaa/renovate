@@ -111,6 +111,8 @@ export const RATE_RULES = {
   render: { key: 'render', limit: 60, windowMs: 60 * 60_000 },
   /** Checkouts and bookings write rows and send partners mail. */
   checkout: { key: 'checkout', limit: 10, windowMs: 60 * 60_000 },
+  /** A card payment started: each one is an order at Flitt. A declined card is tried again, so more than checkouts. */
+  payment: { key: 'payment', limit: 30, windowMs: 60 * 60_000 },
   /** Password-reset and verification mails: each one is an e-mail somebody has to receive. */
   authMail: { key: 'auth-mail', limit: 5, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;

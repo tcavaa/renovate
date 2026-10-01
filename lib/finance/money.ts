@@ -24,6 +24,10 @@ export interface PlatformSettings {
   storeCommissionPct: number;
   /** Default commission on workers, percent — a worker's own rate wins. */
   workerCommissionPct: number;
+  /** GEL for adding a piece of one's own furniture as a 3D model; 0 = free. */
+  ownItemPrice: number;
+  /** The bank's commission on a card payment, percent — added on top and shown as its own line. */
+  bankFeePct: number;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -31,6 +35,8 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   designFeePerM2: 12,
   storeCommissionPct: 5,
   workerCommissionPct: 5,
+  ownItemPrice: 10,
+  bankFeePct: 2.2,
 };
 
 export type CheckoutKind = 'calculator' | 'design';
@@ -59,6 +65,31 @@ export function platformFee(totalM2: number, feePerM2: number): number {
 export function feeAreaM2(kind: CheckoutKind, source: { rooms?: ReadonlyArray<Pick<Room, 'floorM2'>> | null; plan?: FloorPlan | null }): number {
   if (kind === 'design') return source.plan ? round2(totalFloorAreaM2(source.plan)) : 0;
   return round2((source.rooms ?? []).reduce((sum, room) => sum + (Number(room.floorM2) || 0), 0));
+}
+
+/** A price as the card is charged for it: the price, the bank's commission on top, the total. */
+export interface CardCharge {
+  amount: number;
+  bankFeePct: number;
+  bankFee: number;
+  total: number;
+}
+
+/**
+ * The bank's commission is the person's to pay, so it goes on top of the price and is shown as
+ * a line of its own: 120 ₾ at 2.2 % is 2.64 ₾ more, 122.64 ₾ charged. Rounded to the tetri;
+ * a negative or broken rate charges nothing extra.
+ */
+export function withBankFee(amount: number, pct: number): CardCharge {
+  const price = Number.isFinite(amount) && amount > 0 ? round2(amount) : 0;
+  const rate = Number.isFinite(pct) && pct > 0 ? pct : 0;
+  const bankFee = round2((price * rate) / 100);
+  return { amount: price, bankFeePct: rate, bankFee, total: round2(price + bankFee) };
+}
+
+/** GEL as the whole tetri a payment provider takes (`amount` 1020 = 10.20 ₾). */
+export function toTetri(gel: number): number {
+  return Math.round(gel * 100);
 }
 
 export function commissionFor(subtotal: number, pct: number): number {

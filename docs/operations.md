@@ -25,7 +25,8 @@ Related: [testing.md](testing.md) (what CI runs) · [data-model.md](data-model.m
 | `lib/uploads/sniff.ts`, `glb.ts` | uploads identified by their bytes, never the declared type |
 | `lib/uploads/glbOptimize.ts`, `glbOptimizeServer.ts`, `glbOptimizeBrowser.ts` | uploaded GLBs optimized — in the uploader's browser, then in the route with sharp ([3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `lib/email.ts` | `MAIL_DRIVER=log|smtp` |
-| `next.config.mjs` | security headers and the CSP, `output: 'standalone'` (off on Vercel), `NEXT_DIST_DIR`, image patterns |
+| `next.config.mjs` | security headers and the CSP (Flitt's checkout, wallets and 3-D Secure admitted — [payments.md](payments.md#configuration)), `output: 'standalone'` (off on Vercel), `NEXT_DIST_DIR`, image patterns |
+| `lib/payments/flittApi.ts` | card payments: `FLITT_MERCHANT_ID` / `FLITT_SECRET_KEY` / `FLITT_TEST_MODE` ([payments.md](payments.md)) |
 | `scripts/migrate.ts`, `deploy/migrate.cjs` | migrations (tsx locally, plain node in the cPanel release) |
 | `deploy/deploy.sh`, `rollback.sh`, `nginx.conf`, `ecosystem.config.cjs` | the VPS: release deploy with health check and rollback, Nginx, PM2 |
 | `deploy/cpanel.sh`, `.cpanel.yml`, `server.cjs`, `deploy/lib/env.cjs` | cPanel / Passenger |
@@ -149,6 +150,12 @@ Everything the app needs to run unattended, and where each piece lives.
   `pnpm uploads:cleanup` (nightly cron) deletes plans no project references.
 - **Mail** goes through `lib/email.ts` (`MAIL_DRIVER=log|smtp`). With `log`, the reset and
   verification links are written to the app log — that is how to find them in development.
+- **Card payments** go through Flitt ([payments.md](payments.md)): unset, `FLITT_MERCHANT_ID` /
+  `FLITT_SECRET_KEY` are Flitt's public test merchant (the sandbox — nothing is charged); a real
+  merchant sets both and, once Flitt has switched it live, `FLITT_TEST_MODE=false`. Flitt posts
+  each result to `NEXT_PUBLIC_APP_URL/api/payments/flitt/callback` from 54.154.216.60 and
+  3.75.125.89 (allow them through a firewall; no callback is sent to a localhost URL). Locally,
+  open the app at `http://renovate.localhost:3000` — Flitt refuses its form to `localhost`.
 - **Auth**: lockout, reset and verification tokens, social logins —
   [auth-and-roles.md](auth-and-roles.md).
 - **Tests and CI**: [testing.md](testing.md).

@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { WORKERS_DIRECTORY } from '@/lib/features';
+import { PaymentMarks } from '@/components/layout/PaymentMarks';
 
 /** Quiet footer with an oversized wordmark — the brand is the last thing on every page. */
 export async function Footer() {
@@ -24,6 +25,7 @@ export async function Footer() {
         { href: '/contact', label: t.footer.contact },
         { href: '/privacy', label: t.footer.privacy },
         { href: '/terms', label: t.footer.terms },
+        { href: '/refund', label: t.footer.refund },
       ],
     },
   ];
@@ -68,6 +70,15 @@ export async function Footer() {
           </div>
         </div>
 
+        {/* How the site takes cards — what the card schemes and Flitt ask a merchant to show. */}
+        <div className="mt-12 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 sm:flex-row sm:items-center">
+          <p className="flex items-center gap-2 text-xs text-ink-muted">
+            <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
+            {t.footer.securePayments}
+          </p>
+          <PaymentMarks />
+        </div>
+
         <div className="mt-16 select-none overflow-hidden" aria-hidden>
           <p className="display text-[clamp(3rem,13vw,13rem)] leading-[0.85] text-ink/[0.06]">{t.app.name}</p>
         </div>
@@ -75,6 +86,9 @@ export async function Footer() {
         <div className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-line pt-6 text-xs text-ink-muted sm:flex-row sm:items-center">
           <p>
             © {new Date().getFullYear()} {t.app.name}. {t.footer.rights}.
+            <span className="block sm:inline sm:before:mx-2 sm:before:content-['·']">
+              {t.footer.company_name} · {t.footer.companyIdLabel} {t.footer.company_id} · {t.footer.legal_address}
+            </span>
           </p>
           <p>{t.app.tagline}</p>
         </div>

@@ -1,0 +1,3 @@
+module.exports=[931927,a=>{"use strict";var b=a.i(833360),c=a.i(305155);async function d({children:a}){return await (0,c.requireAdminPage)("payments"),(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",0,d])},563603,function(a){a.n(a.i(931927))},305155,a=>{"use strict";a.i(138087);var b=a.i(884426),c=a.i(983479),d=a.i(291142);async function e(a){let e=await (0,c.auth)();return e?.user||(0,b.redirect)("/login?callbackUrl=/admin"),(0,d.canAdmin)(e.user.role,a)||(0,b.redirect)("/admin"),e}a.s(["requireAdminPage",0,e])}];
+
+//# sourceMappingURL=_0b0l0nm._.js.map

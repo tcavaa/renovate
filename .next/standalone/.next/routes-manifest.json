@@ -26,7 +26,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; connect-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://pay.flitt.com https://pay.google.com https://google.com https://www.google.com https://applepay.cdn-apple.com; style-src 'self' 'unsafe-inline' https://pay.flitt.com; font-src 'self' data: https://pay.flitt.com https://applepay.cdn-apple.com; img-src 'self' data: blob: https:; connect-src 'self' blob: https://pay.flitt.com https://pay.google.com https://google.com https://www.google.com https://applepay.cdn-apple.com; frame-src 'self' https:; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self' https:; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         {
           "key": "X-Frame-Options",
@@ -42,7 +42,7 @@
         },
         {
           "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+          "value": "camera=(), microphone=(), geolocation=(), payment=(self \"https://pay.flitt.com\" \"https://pay.google.com\")"
         },
         {
           "key": "Strict-Transport-Security",
@@ -132,6 +132,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/admin/orders/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/admin/payments/[id]",
+      "regex": "^/admin/payments/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/payments/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/admin/products/[id]",
@@ -244,6 +252,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/orders/(?<nxtPid>[^/]+?)/confirm(?:/)?$"
+    },
+    {
+      "page": "/api/payments/flitt/[orderId]",
+      "regex": "^/api/payments/flitt/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPorderId": "nxtPorderId"
+      },
+      "namedRegex": "^/api/payments/flitt/(?<nxtPorderId>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/products/[id]",
@@ -556,6 +572,12 @@
       "namedRegex": "^/admin/orders(?:/)?$"
     },
     {
+      "page": "/admin/payments",
+      "regex": "^/admin/payments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/payments(?:/)?$"
+    },
+    {
       "page": "/admin/products",
       "regex": "^/admin/products(?:/)?$",
       "routeKeys": {},
@@ -766,6 +788,24 @@
       "namedRegex": "^/api/payments(?:/)?$"
     },
     {
+      "page": "/api/payments/flitt",
+      "regex": "^/api/payments/flitt(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payments/flitt(?:/)?$"
+    },
+    {
+      "page": "/api/payments/flitt/callback",
+      "regex": "^/api/payments/flitt/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payments/flitt/callback(?:/)?$"
+    },
+    {
+      "page": "/api/payments/own-item",
+      "regex": "^/api/payments/own\\-item(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/payments/own\\-item(?:/)?$"
+    },
+    {
       "page": "/api/products",
       "regex": "^/api/products(?:/)?$",
       "routeKeys": {},
@@ -932,6 +972,12 @@
       "regex": "^/profile(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/profile(?:/)?$"
+    },
+    {
+      "page": "/refund",
+      "regex": "^/refund(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/refund(?:/)?$"
     },
     {
       "page": "/register",

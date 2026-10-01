@@ -1,0 +1,3 @@
+{
+  "/api/payments/flitt/[orderId]/route": "app/api/payments/flitt/[orderId]/route.js"
+}

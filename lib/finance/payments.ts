@@ -1,10 +1,9 @@
-import { randomBytes } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { checkouts, projectPayments, type Project, type ProjectPayment } from '@/lib/db/schema';
+import { checkouts, projectPayments, type Payment, type Project, type ProjectPayment } from '@/lib/db/schema';
 import type { Room } from '@/lib/calculator/types';
 import type { FloorPlan } from '@/lib/design/types';
-import { log } from '@/lib/log';
+import { cardLast4 } from '@/lib/payments/flitt';
 import { feeAreaM2, feePerM2For, platformFee, type CheckoutKind } from './money';
 import { loadPlatformSettings } from './settings';
 
@@ -12,12 +11,12 @@ import { loadPlatformSettings } from './settings';
  * The platform's fee for one half of a project, paid before that half's hinge — "start the
  * calculation" in the calculator, the generation in the studio. The payment dialogue saves the
  * half first, so the area is read off the saved row (`feeAreaM2`) at the day's rate, never the
- * browser's figure. A half is paid once (`project_payments` is unique on project and half);
- * paying again answers the payment already made.
+ * browser's figure. A half is paid once (`project_payments` is unique on project and half).
  *
- * There is no payment provider yet: the dialogue's card is a test card, nothing is charged,
- * and the row's `method` is `test`. The hinge itself is not refused without a payment by the
- * save routes — see the known gaps in docs/marketplace.md.
+ * The money goes through Flitt (`lib/payments/service.ts`, docs/payments.md): the card payment
+ * is a `payments` row, and its approval writes the half's row here (`recordHalfPayment`). The
+ * hinge itself is not refused without a payment by the save routes — see the known gaps in
+ * docs/marketplace.md.
  */
 
 /** A half's payment as the client sees it. */
@@ -97,54 +96,34 @@ export async function paymentQuote(project: Pick<Project, 'rooms' | 'plan'>, kin
   return { kind, feePerM2, totalM2, amount: platformFee(totalM2, feePerM2) };
 }
 
-/** A made-up reference for a test payment: never mistaken for a provider's. */
-function testReference(): string {
-  return `TEST-${Date.now().toString(36).toUpperCase()}-${randomBytes(3).toString('hex').toUpperCase()}`;
+/**
+ * Records a half as paid, from its approved Flitt payment (`lib/payments/service.ts` calls it
+ * once per approval): the quote the payment was made for, the platform's fee alone — the bank's
+ * commission stays on the payment. A half already paid by another payment keeps the first
+ * (the unique key refuses the second, which the caller logs for a refund).
+ */
+export async function recordHalfPayment(payment: Payment): Promise<void> {
+  if (payment.purpose !== 'calculator' && payment.purpose !== 'design') return;
+  if (!payment.projectId) return;
+  await db.insert(projectPayments).values({
+    projectId: payment.projectId,
+    userId: payment.userId,
+    kind: payment.purpose,
+    totalM2: payment.totalM2 ?? '0',
+    feePerM2: payment.feePerM2 ?? '0',
+    amount: payment.amount,
+    method: 'flitt',
+    cardLast4: cardLast4(payment.maskedCard),
+    reference: payment.orderId,
+  });
 }
 
-export type PayResult = { ok: true; payment: PaymentView; alreadyPaid: boolean } | { ok: false; error: 'NOTHING_TO_PAY' };
-
-/**
- * Records the payment of a half: the quote of the saved row, once. A second payment of the
- * same half — a double click, a second tab — finds the first and returns it.
- */
-export async function payProjectHalf(project: Project, kind: CheckoutKind, userId: number, cardLast4: string | null): Promise<PayResult> {
-  const existing = await db
-    .select()
-    .from(projectPayments)
-    .where(and(eq(projectPayments.projectId, project.id), eq(projectPayments.kind, kind)))
-    .limit(1);
-  if (existing[0]) return { ok: true, payment: paymentView(existing[0]), alreadyPaid: true };
-
-  const quote = await paymentQuote(project, kind);
-  if (quote.totalM2 <= 0) return { ok: false, error: 'NOTHING_TO_PAY' };
-  try {
-    await db.insert(projectPayments).values({
-      projectId: project.id,
-      userId,
-      kind,
-      totalM2: String(quote.totalM2),
-      feePerM2: String(quote.feePerM2),
-      amount: String(quote.amount),
-      method: 'test',
-      cardLast4: cardLast4?.slice(-4) ?? null,
-      reference: testReference(),
-    });
-  } catch (e) {
-    // Two payments of one half racing each other: the unique key lets one in; the other reads it back.
-    const again = await db
-      .select()
-      .from(projectPayments)
-      .where(and(eq(projectPayments.projectId, project.id), eq(projectPayments.kind, kind)))
-      .limit(1);
-    if (again[0]) return { ok: true, payment: paymentView(again[0]), alreadyPaid: true };
-    throw e;
-  }
+/** A half's payment, if it has one. */
+export async function halfPayment(projectId: number, kind: CheckoutKind): Promise<PaymentView | null> {
   const [row] = await db
     .select()
     .from(projectPayments)
-    .where(and(eq(projectPayments.projectId, project.id), eq(projectPayments.kind, kind)))
+    .where(and(eq(projectPayments.projectId, projectId), eq(projectPayments.kind, kind)))
     .limit(1);
-  log.info('project half paid', { projectId: project.id, kind, amount: quote.amount, totalM2: quote.totalM2, method: 'test' });
-  return { ok: true, payment: paymentView(row), alreadyPaid: false };
+  return row ? paymentView(row) : null;
 }

@@ -13,6 +13,8 @@ import {
   periodRange,
   platformFee,
   sceneLinesByStore,
+  toTetri,
+  withBankFee,
 } from '@/lib/finance/money';
 import { priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
@@ -307,5 +309,29 @@ describe('feeAreaM2', () => {
     expect(feeAreaM2('design', { plan: null })).toBe(0);
     // The fee is that area at the rate: 30.25 m² × 2 ₾.
     expect(platformFee(feeAreaM2('calculator', { rooms: [{ floorM2: 18.25 }, { floorM2: 12 }] }), 2)).toBe(60.5);
+  });
+});
+
+describe('the bank commission on a card payment', () => {
+  it('goes on top of the price, rounded to the tetri', () => {
+    expect(withBankFee(120, 2.2)).toEqual({ amount: 120, bankFeePct: 2.2, bankFee: 2.64, total: 122.64 });
+    // 221.96 × 2.2 % = 4.88312
+    expect(withBankFee(221.96, 2.2)).toEqual({ amount: 221.96, bankFeePct: 2.2, bankFee: 4.88, total: 226.84 });
+    expect(withBankFee(10, 2.2).total).toBe(10.22);
+  });
+
+  it('adds nothing at no rate or a broken one, and charges nothing for nothing', () => {
+    expect(withBankFee(50, 0)).toEqual({ amount: 50, bankFeePct: 0, bankFee: 0, total: 50 });
+    expect(withBankFee(50, -3).total).toBe(50);
+    expect(withBankFee(50, Number.NaN).total).toBe(50);
+    expect(withBankFee(0, 2.2)).toEqual({ amount: 0, bankFeePct: 2.2, bankFee: 0, total: 0 });
+    expect(withBankFee(-5, 2.2).total).toBe(0);
+  });
+
+  it('is sent to the provider in whole tetri', () => {
+    expect(toTetri(122.64)).toBe(12264);
+    expect(toTetri(10.22)).toBe(1022);
+    // A float that is a hair under its tetri still rounds to it.
+    expect(toTetri(0.1 + 0.2)).toBe(30);
   });
 });
