@@ -683,7 +683,50 @@ interface SharedRun {
   length: number;
 }
 
-/** Longest collinear overlap between the two polygons' edges. */
+/**
+ * The two faces of one wall need not be square to the plan: two room edges are, when they run
+ * side by side (parallel, either way round), their lines no further apart than `tolerance`.
+ * This was decided by the edges' axes — `'x'` for anything nearer the x axis than the z — and
+ * the gap measured as the difference of the two start points' z (or x), which only means the
+ * distance between the lines when both are square. A slanted wall was matched with any wall of
+ * the same "axis" whose start happened to share its z: a toilet cut off a bedroom by a diagonal
+ * wall got its half of the bedroom's door in its outside wall, and the diagonal stood solid
+ * behind the door.
+ */
+const PARALLEL_COS = 0.98;
+
+/** Metres along `edge` from its first corner to where `point` falls square onto its line. */
+export function alongEdge(edge: PlanEdge, point: Vec2): number {
+  return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
+}
+
+/** How far `point` stands off `edge`'s line, either side. */
+function offLine(edge: PlanEdge, point: Vec2): number {
+  return Math.abs((point.x - edge.a.x) * edge.dir.z - (point.z - edge.a.z) * edge.dir.x);
+}
+
+/** Whether two edges run side by side, either way round (`PARALLEL_COS`). */
+export function edgesParallel(a: PlanEdge, b: PlanEdge): boolean {
+  return Math.abs(a.dir.x * b.dir.x + a.dir.z * b.dir.z) >= PARALLEL_COS;
+}
+
+/**
+ * Where `b` is the other face of the wall `a` stands on: the stretch of `a` (metres along it)
+ * that `b` runs beside, within `tolerance` of it — measured in the middle of that stretch — or
+ * null. Any direction, a slanted wall's as well as a square one's.
+ */
+export function facingRun(a: PlanEdge, b: PlanEdge, tolerance: number): { from: number; to: number } | null {
+  if (!edgesParallel(a, b)) return null;
+  const sa = alongEdge(a, b.a);
+  const sb = alongEdge(a, b.b);
+  const from = Math.max(0, Math.min(sa, sb));
+  const to = Math.min(a.length, Math.max(sa, sb));
+  if (to - from <= 0) return null;
+  if (offLine(b, pointOnEdge(a, (from + to) / 2 / a.length)) > tolerance) return null;
+  return { from, to };
+}
+
+/** Longest stretch where an edge of one polygon and an edge of the other are the two faces of one wall (`facingRun`). */
 function findSharedRun(
   polyA: Vec2[],
   polyB: Vec2[],
@@ -695,32 +738,17 @@ function findSharedRun(
 
   for (const ea of edgesA) {
     for (const eb of edgesB) {
-      if (ea.axis !== eb.axis) continue;
-
-      // Perpendicular distance between the two wall lines.
-      const gap =
-        ea.axis === 'x' ? Math.abs(ea.a.z - eb.a.z) : Math.abs(ea.a.x - eb.a.x);
-      if (gap > tolerance) continue;
-
-      // Overlap along the shared axis.
-      const key = ea.axis === 'x' ? 'x' : 'z';
-      const a0 = Math.min(ea.a[key], ea.b[key]);
-      const a1 = Math.max(ea.a[key], ea.b[key]);
-      const b0 = Math.min(eb.a[key], eb.b[key]);
-      const b1 = Math.max(eb.a[key], eb.b[key]);
-      const lo = Math.max(a0, b0);
-      const hi = Math.min(a1, b1);
-      const overlap = hi - lo;
-      if (overlap <= 0) continue;
-
-      if (!best || overlap > best.length) {
-        const mid = (lo + hi) / 2;
+      const run = facingRun(ea, eb, tolerance);
+      if (!run) continue;
+      const length = run.to - run.from;
+      if (!best || length > best.length) {
+        const mid = pointOnEdge(ea, (run.from + run.to) / 2 / ea.length);
         best = {
           edgeA: ea.index,
           edgeB: eb.index,
-          tA: paramAt(ea, key, mid),
-          tB: paramAt(eb, key, mid),
-          length: overlap,
+          tA: clamp01((run.from + run.to) / 2 / ea.length),
+          tB: clamp01(alongEdge(eb, mid) / eb.length),
+          length,
         };
       }
     }
@@ -729,11 +757,6 @@ function findSharedRun(
   return best;
 }
 
-function paramAt(edge: PlanEdge, key: 'x' | 'z', value: number): number {
-  const span = edge.b[key] - edge.a[key];
-  if (Math.abs(span) < 1e-6) return 0.5;
-  return clamp01((value - edge.a[key]) / span);
-}
 
 export function isSharedWithAnyRoom(
   room: PlanRoom,

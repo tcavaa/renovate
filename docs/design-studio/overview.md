@@ -185,9 +185,12 @@ a room clicked on the plan used to carry through the style test into the studio,
 the new layout one room at a time. `generate` clears it (and the board's room selection), and
 the studio page clears it whenever it opens; a room chosen in the studio stays chosen between
 its furniture and its finishes, which are the same page.
-Generation also lays every room's floor and walls in the style's own partner products (tiles in
-the bathrooms, the style's laminate and paint elsewhere — `styleFinish`), keeping the finishes
-somebody chose, so the budget buys what the flat is shown in ([finishes.md](finishes.md)).
+Generation also lays every room's floor and walls in the style's own partner products, by the
+kind of room (`roomLook` → `styleFinish`: tiles in the bathrooms, the bedroom painted calmer than
+the living room, the kitchen and the hall tiled — the style's `rooms` and its twelve paints),
+keeping the finishes somebody chose, so the budget buys what the flat is shown in
+([finishes.md](finishes.md)). The studio then opens behind a loading screen until the flat's
+models and finishes are in ([studio.md](studio.md#the-studios-build-mode-appmaindesignidstudiopagetsx)).
 
 **The studio's baseline is where undo stops.** `ensureExistingVersion` is called whenever the
 studio mounts (and when the room count changes) and does something only while no baseline

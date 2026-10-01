@@ -43,7 +43,7 @@ import type {
   SurfaceFinish,
   TrimKind,
 } from '@/lib/design/types';
-import { WET_ROOM_TYPES } from '@/lib/calculator/constants';
+import { roomLook } from '@/lib/design/surfaces';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
 
@@ -197,14 +197,16 @@ function buildRoomShell(
   const group = new THREE.Group();
   group.name = `room-${room.id}`;
 
-  const isWet = WET_ROOM_TYPES.includes(room.type);
   const edges = roomEdges(room.polygon);
 
   const floorFinish = findFinish(finishes, room.id, 'floor');
   const ceilingFinish = findFinish(finishes, room.id, 'ceiling');
 
   // --- floor ---
-  const floorSpec = isWet ? style.surfaces.wetFloor : style.surfaces.floor;
+  // The style's look for this kind of room is the base a finish is laid over: its roughness is
+  // the surface's (a kitchen's paint is matt — it took a bathroom tile's sheen while every
+  // calculator wet room counted), and it is what shows where no finish was laid at all.
+  const floorSpec = roomLook(style, room.type, 'floor');
   const floorMaterial = materials.metreSurface(floorSpec, finishOverrides(floorFinish));
   const floor = own(new THREE.Mesh(polygonGeometry(room.polygon, 'up'), floorMaterial));
   floor.receiveShadow = true;
@@ -268,7 +270,7 @@ function buildRoomShell(
 
       // What somebody painted on this wall on their own: metre-wide strips floor to
       // ceiling, and single square metres of it.
-      const wallBase = isWet ? style.surfaces.wetWall : style.surfaces.wall;
+      const wallBase = roomLook(style, room.type, 'wall');
       const spans: WallFaceSpan[] = wallSpans(finishes, room.id, edge.index).map((finish) => ({
         from: finish.span!.from,
         to: finish.span!.to,
@@ -357,9 +359,8 @@ function buildRoomShell(
  * to it — and people took it for paint that had gone astray. It stays on the style cards.
  */
 function wallMaterialFor(room: PlanRoom, edge: PlanEdge, finishes: SurfaceFinish[], style: StyleDefinition, materials: StyleMaterials): THREE.Material {
-  const isWet = WET_ROOM_TYPES.includes(room.type);
   const edgeFinish = wallFinishFor(finishes, room.id, edge.index) ?? findFinish(finishes, room.id, 'wall');
-  return materials.metreSurface(isWet ? style.surfaces.wetWall : style.surfaces.wall, finishOverrides(edgeFinish));
+  return materials.metreSurface(roomLook(style, room.type, 'wall'), finishOverrides(edgeFinish));
 }
 
 /**

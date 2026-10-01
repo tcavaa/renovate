@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fitSwapped, footprintOf, footprintsOverlap, hangOnWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
+import { fitSwapped, footprintOf, footprintsOverlap, hangOnWall, hungWall, isPlacementValid, isWallHung, itemFootprints, rotateItem, snapPlacement } from '@/lib/design/manipulate';
 import { getArchetype } from '@/lib/design/catalog';
 import { withPartialWallSeparators, withSplitRoomTypes } from '@/lib/design/separators';
 import { rebuildRooms } from '@/lib/design/walls';
@@ -373,6 +373,48 @@ describe('hangOnWall', () => {
     const wide = { ...clock(), size: { width: 5, depth: 0.05, height: 0.7 } };
     expect(hangOnWall(room, wide, 0, { x: 3.5, z: 0 }, 1.5, [])!.position.x).toBeCloseTo(2, 6);
     expect(hangOnWall(room, clock(), 7, { x: 1, z: 0 }, 1.5, [])).toBeNull();
+  });
+});
+
+describe('turning a piece that hangs on a wall', () => {
+  /** A picture on the south wall near its east end, its centre at 1.5 m. */
+  const picture = (): PlacedItem => ({ ...hangOnWall(room, { id: 'pic', roomId: 'r1', slot: 'artwork', kind: 'artwork', position: { x: 0, z: 0 }, elevationM: 0, rotation: 0, size: { width: 0.6, depth: 0.04, height: 0.8 }, product: null }, 0, { x: 3.2, z: 0 }, 1.5, [])!, id: 'pic', roomId: 'r1', slot: 'artwork', kind: 'artwork', size: { width: 0.6, depth: 0.04, height: 0.8 }, product: null, elevationM: 1.1 });
+  const edges = roomEdges(room.polygon);
+
+  it('goes round to the next wall the way it is turned, flat against it, at the height it hung', () => {
+    const start = picture();
+    expect(hungWall(room, start)?.index).toBe(0);
+    const right = rotateItem(room, start, 1, [start]);
+    // A quarter turn, onto the wall whose face looks that way — never 45° off the plaster.
+    const east = edges.find((e) => Math.abs(Math.atan2(Math.sin(e.facing - start.rotation - Math.PI / 2), Math.cos(e.facing - start.rotation - Math.PI / 2))) < 1e-6)!;
+    expect(right.rotation).toBeCloseTo(east.facing, 6);
+    expect(hungWall(room, { ...start, position: right.position })?.index).toBe(east.index);
+    expect(right.elevationM).toBeCloseTo(1.1, 6);
+    expect(right.valid).toBe(true);
+    // Its back 1 cm off the new wall's face, at the end of it nearest where it hung.
+    const back = (right.position.x - east.a.x) * east.inward.x + (right.position.z - east.a.z) * east.inward.z;
+    expect(back).toBeCloseTo(0.02 + 0.01, 6);
+    const along = (right.position.x - east.a.x) * east.dir.x + (right.position.z - east.a.z) * east.dir.z;
+    const startAlong = (start.position.x - east.a.x) * east.dir.x + (start.position.z - east.a.z) * east.dir.z;
+    expect(Math.abs(along - startAlong)).toBeLessThan(0.4);
+
+    // The other way goes to the wall on the other side; four turns bring it back to its own.
+    const left = rotateItem(room, start, -1, [start]);
+    expect(Math.abs(Math.cos(left.rotation - right.rotation) + 1)).toBeLessThan(1e-6);
+    let turned: PlacedItem = start;
+    for (let i = 0; i < 4; i++) {
+      const next = rotateItem(room, turned, 1, [turned]);
+      turned = { ...turned, position: next.position, rotation: next.rotation, elevationM: next.elevationM ?? turned.elevationM };
+    }
+    expect(hungWall(room, turned)?.index).toBe(0);
+    expect(Math.cos(turned.rotation - start.rotation)).toBeCloseTo(1, 6);
+  });
+
+  it('puts a piece turned off its wall before back on a wall', () => {
+    const crooked = { ...picture(), rotation: picture().rotation + Math.PI / 4 };
+    const result = rotateItem(room, crooked, 1, [crooked]);
+    expect(edges.some((e) => Math.abs(Math.cos(e.facing - result.rotation) - 1) < 1e-9)).toBe(true);
+    expect(result.elevationM).toBeCloseTo(1.1, 6);
   });
 });
 

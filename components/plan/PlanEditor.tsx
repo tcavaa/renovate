@@ -34,7 +34,7 @@ import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holds
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
-import { wallNormal, wallsClash, wallsForMove } from '@/lib/design/walls';
+import { planWallThickness, wallNormal, wallsClash, wallsForMove } from '@/lib/design/walls';
 import { useLocale } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
 import { clampT, dividerSegments, effectiveSplit, isStudio, partAt, tAtCoordinate } from '@/lib/design/studio';
@@ -1042,7 +1042,7 @@ export function PlanEditor(props: PlanEditorProps) {
     return Math.max(0, Math.min(edge.length, Math.round(s / step) * step));
   };
   /** A railing may stand from `from` to `to` along this wall: a balcony's outer wall (`railingFits`). */
-  const railingOk = (room: PlanRoom, edge: PlanEdge, from: number, to: number) => railingFits(plan.rooms, room.id, edge.index, from, to, plan.wallThicknessM);
+  const railingOk = (room: PlanRoom, edge: PlanEdge, from: number, to: number) => railingFits(plan.rooms, room.id, edge.index, from, to, planWallThickness(plan));
   /** A railing may start here: the shortest railing about the spot fits. */
   const railingStartOk = (room: PlanRoom, edge: PlanEdge, s: number) => {
     if (!holdsRailings(room) || edge.length < MIN_RAILING_M) return false;
@@ -1057,7 +1057,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (hi - lo < MIN_RAILING_M - 1e-6) return;
     const id = railingOk(draft.room, draft.edge, lo, hi) ? (callbacks.current.onAddRailing?.({ roomId: draft.room.id, wallIndex: draft.edge.index, t: (lo + hi) / 2 / draft.edge.length }, round2(hi - lo)) ?? null) : null;
     // A door in the way says so; anything else is the balcony's rule.
-    if (id === null) callbacks.current.onRefused?.(railingFits(plan.rooms, draft.room.id, draft.edge.index, lo, hi, plan.wallThicknessM, { doors: false }) ? 'onRailing' : 'railing');
+    if (id === null) callbacks.current.onRefused?.(railingFits(plan.rooms, draft.room.id, draft.edge.index, lo, hi, planWallThickness(plan), { doors: false }) ? 'onRailing' : 'railing');
     else {
       edited.current = true;
       callbacks.current.onSelect({ kind: 'opening', id, roomId: draft.room.id });

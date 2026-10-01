@@ -51,6 +51,7 @@ import {
   moveWallEnd as moveWallEndIn,
   offsetWall as offsetWallIn,
   offsetWallAlone as offsetWallAloneIn,
+  planWallThickness,
   rebuildRooms,
   moveRooms as moveRoomsIn,
   roomCluster,
@@ -1466,7 +1467,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         addOpening: (roomId, kind, wallIndex = null, catalog = []) => {
           const { plan, styleId } = get();
           if (!plan) return null;
-          const result = addOpeningTo(plan.rooms, roomId, kind, wallIndex, plan.wallThicknessM);
+          const result = addOpeningTo(plan.rooms, roomId, kind, wallIndex, planWallThickness(plan));
           if (!result.openingId) return null;
           commit(() => ({ plan: { ...plan, rooms: withOpeningProducts(markOpeningUser(result.rooms, result.openingId!), catalog, styleId) } }));
           return result.openingId;
@@ -1474,7 +1475,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         dropOpening: (kind, target, catalog = []) => {
           const { plan, styleId } = get();
           if (!plan) return null;
-          const result = addOpeningTo(plan.rooms, target.roomId, kind, target.wallIndex, plan.wallThicknessM, { t: target.t });
+          const result = addOpeningTo(plan.rooms, target.roomId, kind, target.wallIndex, planWallThickness(plan), { t: target.t });
           if (!result.openingId) return null;
           commit(() => ({ plan: { ...plan, rooms: withOpeningProducts(markOpeningUser(result.rooms, result.openingId!), catalog, styleId) } }));
           return result.openingId;
@@ -1482,7 +1483,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         addRailing: (target, widthM) => {
           const { plan } = get();
           if (!plan) return null;
-          const result = addOpeningTo(plan.rooms, target.roomId, 'railing', target.wallIndex, plan.wallThicknessM, { t: target.t, widthM });
+          const result = addOpeningTo(plan.rooms, target.roomId, 'railing', target.wallIndex, planWallThickness(plan), { t: target.t, widthM });
           if (!result.openingId) return null;
           commit(() => ({ plan: { ...plan, rooms: markOpeningUser(result.rooms, result.openingId!) } }));
           return result.openingId;
@@ -1492,7 +1493,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         moveOpeningToWall: (roomId, openingId, target) => {
           const { plan } = get();
           if (!plan) return null;
-          const result = moveOpeningToWallIn(plan.rooms, roomId, openingId, target, plan.wallThicknessM);
+          const result = moveOpeningToWallIn(plan.rooms, roomId, openingId, target, planWallThickness(plan));
           if (!result.openingId) return null;
           commit(() => ({ plan: { ...plan, rooms: result.rooms } }));
           return result.openingId;
@@ -1539,7 +1540,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (next !== finishes) set({ finishes: next });
         },
         setOpeningWall: (roomId, openingId, wallIndex) =>
-          commit((s) => (s.plan ? { plan: { ...s.plan, rooms: setOpeningWallIn(s.plan.rooms, roomId, openingId, wallIndex, s.plan.wallThicknessM) } } : null)),
+          commit((s) => (s.plan ? { plan: { ...s.plan, rooms: setOpeningWallIn(s.plan.rooms, roomId, openingId, wallIndex, planWallThickness(s.plan)) } } : null)),
         removeOpening: (roomId, openingId) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, rooms: removeOpeningFrom(s.plan.rooms, roomId, openingId) }, selectedElement: s.selectedElement?.kind === 'opening' && s.selectedElement.id === openingId ? null : s.selectedElement } : null)),
 

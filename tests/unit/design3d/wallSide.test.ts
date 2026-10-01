@@ -55,6 +55,8 @@ describe('the style’s accent wall', () => {
   const style: StyleDefinition = {
     ...industrial,
     surfaces: { floor: bare(s.floor, '#101010'), wall: bare(s.wall, '#202020'), featureWall: bare(s.featureWall, '#8a4a2b'), ceiling: bare(s.ceiling, '#303030'), wetFloor: bare(s.wetFloor, '#404040'), wetWall: bare(s.wetWall, '#505050') },
+    // The living room's own look — its paint — bare too, in a colour of its own.
+    rooms: { living_room: { wall: bare(industrial.rooms.living_room!.wall!, '#606060') } },
   };
   const blank: FloorPlan = { rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, walls: [] };
 
@@ -68,6 +70,7 @@ describe('the style’s accent wall', () => {
     });
     expect(colours.size).toBeGreaterThan(0);
     expect(colours.has('8a4a2b')).toBe(false);
-    expect(colours.has('202020')).toBe(true);
+    // It wears the style's look for a living room: its paint.
+    expect(colours.has('606060')).toBe(true);
   });
 });

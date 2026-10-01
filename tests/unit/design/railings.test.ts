@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_RAILING_M, addOpening, countDoors, countWindows, moveOpening, openingCandidates, openingProductKind, primaryHalf, railingClash, railingFits, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
+import { MIN_RAILING_M, addOpening, countDoors, countWindows, moveOpening, openingCandidates, openingProductKind, primaryHalf, railingClash, railingFits, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
 import { deriveOpenings, edgeWallAreaM2, openingSpanUp, openingWallArea, refreshRoom, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { partitionArea, partitionWall, standingWallIds, wallsToBuild } from '@/lib/design/partitions';
 import { priceOpenings } from '@/lib/design/pricing';
 import { trimLengthM } from '@/lib/design/trims';
 import { standardElectrical } from '@/lib/design/electrical';
-import { rebuildRooms, reprojectOpenings } from '@/lib/design/walls';
+import { ensureWalls, planWallThickness, rebuildRooms, reprojectOpenings } from '@/lib/design/walls';
+import { planEdgeWalls, edgeWallKey } from '@/lib/design/wallPieces';
 import { buildWallGeometry, WALL_SLOT_CAP } from '@/lib/design3d/wallGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { FloorPlan, PlanRoom, Vec2, Wall } from '@/lib/design/types';
@@ -285,5 +286,80 @@ describe('a railing’s gap in 3D', () => {
     };
     expect(inCorner(0)).toBe(true);
     expect(inCorner(-Infinity)).toBe(false);
+  });
+});
+
+describe('a window onto a balcony through a thick outer wall', () => {
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const wall = (id: string, a: Vec2, b: Vec2, thicknessM = 0.12): Wall => ({ id, a, b, thicknessM, origin: 'existing' });
+  const base: FloorPlan = { rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] };
+
+  /** A bedroom in 40 cm outer walls, the balcony outside the one at z = 3 in the plan's 12 cm. */
+  function plan(): FloorPlan {
+    const built = rebuildRooms(base, [
+      wall('top', P(0, 0), P(4, 0), 0.4),
+      wall('right', P(4, 0), P(4, 3), 0.4),
+      wall('outer', P(4, 3), P(0, 3), 0.4),
+      wall('left', P(0, 3), P(0, 0), 0.4),
+      wall('b-left', P(0, 3), P(0, 4.4)),
+      wall('b-bottom', P(0, 4.4), P(4, 4.4)),
+      wall('b-right', P(4, 4.4), P(4, 3)),
+    ]);
+    return { ...built, rooms: built.rooms.map((r) => (r.polygon.every((p) => p.z > 2.9) ? { ...r, type: 'balcony' as const } : { ...r, type: 'bedroom' as const })) };
+  }
+  const bedroomOf = (p: FloorPlan) => p.rooms.find((r) => r.type === 'bedroom')!;
+  const balconyOf = (p: FloorPlan) => p.rooms.find((r) => r.type === 'balcony')!;
+  /** The bedroom's side of the outer wall. */
+  const outerEdge = (p: FloorPlan) => roomEdges(bedroomOf(p).polygon).find((e) => Math.abs((e.a.z + e.b.z) / 2 - 2.8) < 1e-6)!;
+
+  it('is cut in both rooms when the wall is measured as it is — the 3D view builds it as two halves', () => {
+    const p = plan();
+    // The 3D view: the balcony stands behind the bedroom's outer wall, so each builds half of it.
+    const pieces = planEdgeWalls(p).get(edgeWallKey(bedroomOf(p).id, outerEdge(p).index))!.pieces;
+    expect(pieces.some((piece) => piece.neighbour?.roomId === balconyOf(p).id)).toBe(true);
+    // At the plan's 12 cm the balcony 40 cm behind it was not found: one half, no twin.
+    const before = addOpening(p.rooms, bedroomOf(p).id, 'window', outerEdge(p).index, p.wallThicknessM);
+    const lone = before.rooms.find((r) => r.type === 'bedroom')!.openings.find((o) => o.id === before.openingId)!;
+    expect(lone).toMatchObject({ connectsToRoomId: null, exterior: true });
+    // At the wall's own 40 cm it is: the window is cut in the balcony's half too.
+    const added = addOpening(p.rooms, bedroomOf(p).id, 'window', outerEdge(p).index, planWallThickness(p));
+    const window = added.rooms.find((r) => r.type === 'bedroom')!.openings.find((o) => o.id === added.openingId)!;
+    expect(window).toMatchObject({ connectsToRoomId: balconyOf(p).id, exterior: false });
+    const twin = twinOf(added.rooms, window)!;
+    expect(twin.room.id).toBe(balconyOf(p).id);
+    expect([window, twin.opening].filter(primaryHalf)).toHaveLength(1);
+  });
+
+  it('gets its missing half when the plan is loaded, once, and links a window put in from both sides', () => {
+    const p = plan();
+    const lone = addOpening(p.rooms, bedroomOf(p).id, 'window', outerEdge(p).index, p.wallThicknessM);
+    const broken = { ...p, rooms: lone.rooms };
+    const repaired = ensureWalls(broken);
+    const window = bedroomOf(repaired).openings.find((o) => o.id === lone.openingId)!;
+    expect(window).toMatchObject({ connectsToRoomId: balconyOf(p).id, exterior: false });
+    expect(balconyOf(repaired).openings.filter((o) => o.kind === 'window')).toHaveLength(1);
+    expect(twinOf(repaired.rooms, window)?.room.id).toBe(balconyOf(p).id);
+    // A second load changes nothing.
+    expect(ensureWalls(repaired)).toBe(repaired);
+
+    // The same window cut again from the balcony's side, both halves alone: they become one.
+    const balconyEdge = roomEdges(balconyOf(p).polygon).find((e) => Math.abs((e.a.z + e.b.z) / 2 - 3.2) < 1e-6)!;
+    const again = addOpening(lone.rooms, balconyOf(p).id, 'window', balconyEdge.index, p.wallThicknessM, { t: 0.5 });
+    const linked = withOpeningTwins(again.rooms, planWallThickness(p));
+    const windows = linked.flatMap((r) => r.openings.filter((o) => o.kind === 'window'));
+    expect(windows).toHaveLength(2);
+    expect(windows.every((o) => o.connectsToRoomId)).toBe(true);
+    expect(windows.filter(primaryHalf)).toHaveLength(1);
+  });
+
+  it('leaves a window between two rooms of the flat alone', () => {
+    const p = plan();
+    const rooms = p.rooms.map((r) => (r.type === 'balcony' ? { ...r, type: 'bedroom' as const } : r));
+    const room = rooms[0].polygon.every((pt) => pt.z < 3) ? rooms[0] : rooms[1];
+    const lone = addOpening(rooms, room.id, 'window', outerEdge(p).index, p.wallThicknessM);
+    expect(lone.openingId).not.toBeNull();
+    expect(withOpeningTwins(lone.rooms, planWallThickness(p))).toBe(lone.rooms);
+    // And a new one there is refused, now that the room behind is found.
+    expect(addOpening(rooms, room.id, 'window', outerEdge(p).index, planWallThickness(p)).openingId).toBeNull();
   });
 });

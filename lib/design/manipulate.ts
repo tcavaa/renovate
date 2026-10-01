@@ -18,6 +18,7 @@ import {
   pointInPolygon,
   polygonBounds,
   roomEdges,
+  wallEdges,
   wallsEnterBox,
   type PlanEdge,
 } from './planGeometry';
@@ -352,6 +353,60 @@ export function hangOnWall(room: PlanRoom, item: PlacedItem, wallIndex: number, 
   return { position, rotation, elevationM, valid, snappedToWall: true };
 }
 
+/**
+ * The wall a hung piece hangs on: the one whose face its back is nearest, of those it stands
+ * alongside. Read from where it is rather than from which way it faces, so a piece turned off
+ * its wall before turns were taken round the walls still finds the wall it was on.
+ */
+export function hungWall(room: PlanRoom, item: Pick<PlacedItem, 'position' | 'size'>): PlanEdge | null {
+  let best: { edge: PlanEdge; gap: number } | null = null;
+  for (const edge of wallEdges(room)) {
+    const toItem = { x: item.position.x - edge.a.x, z: item.position.z - edge.a.z };
+    const distance = toItem.x * edge.inward.x + toItem.z * edge.inward.z;
+    const along = toItem.x * edge.dir.x + toItem.z * edge.dir.z;
+    if (distance < -0.05 || along < -0.3 || along > edge.length + 0.3) continue;
+    const gap = Math.abs(distance - item.size.depth / 2);
+    if (!best || gap < best.gap) best = { edge, gap };
+  }
+  return best?.edge ?? null;
+}
+
+/**
+ * Turns a wall-hung piece. A mirror or a clock faces out of its wall or it is not hung at all —
+ * turned like a chair, 45° at a time in place, it stood off the wall on one corner. So a turn
+ * takes it round to the next wall in that direction (a quarter turn in a square room; a slanted
+ * wall is a wall of its own): flat against it, at the height it hung at, as near as that wall
+ * comes to where it was. With no other wall to go to it is squared back onto its own.
+ */
+export function turnOnWall(room: PlanRoom, item: PlacedItem, steps: number, others: PlacedItem[]): SnapResult {
+  const current = hungWall(room, item);
+  const from = current?.facing ?? item.rotation;
+  const sign = steps < 0 ? -1 : 1;
+  const full = Math.PI * 2;
+  let best: { edge: PlanEdge; turn: number; distance: number } | null = null;
+  for (const edge of wallEdges(room)) {
+    // How far round, the way of the turn; a wall facing the way this one does is no turn at all.
+    const turn = (((sign * (edge.facing - from)) % full) + full) % full;
+    if (turn < 0.1 || turn > full - 0.1) continue;
+    const distance = distanceToEdge(item.position, edge);
+    if (!best || turn < best.turn - 1e-6 || (Math.abs(turn - best.turn) <= 1e-6 && distance < best.distance)) best = { edge, turn, distance };
+  }
+  const target = best?.edge ?? current;
+  const centreHeight = (item.elevationM ?? 0) + item.size.height / 2;
+  const hung = target ? hangOnWall(room, item, target.index, nearestOnEdge(item.position, target), centreHeight, others) : null;
+  return hung ?? { position: item.position, rotation: item.rotation, elevationM: item.elevationM, valid: false, snappedToWall: false };
+}
+
+function nearestOnEdge(point: Vec2, edge: PlanEdge): Vec2 {
+  const along = clamp((point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z, 0, edge.length);
+  return { x: edge.a.x + edge.dir.x * along, z: edge.a.z + edge.dir.z * along };
+}
+
+function distanceToEdge(point: Vec2, edge: PlanEdge): number {
+  const on = nearestOnEdge(point, edge);
+  return Math.hypot(point.x - on.x, point.z - on.z);
+}
+
 /** Squares a rotation up to the nearest wall direction when it is already close to one. */
 function snapAngle(rotation: number, edges: PlanEdge[]): number {
   let best = rotation;
@@ -603,6 +658,9 @@ export const ROTATE_STEP_RAD = Math.PI / 4; // 45°
  * of room to do it in. When nothing fits it still turns, and comes back `valid: false`: the
  * studio shows the collision and the person drags the piece somewhere it fits. Refusing the
  * turn made a sofa impossible to rotate in any room without spare floor.
+ *
+ * A piece that hangs on a wall goes round to the next wall instead (`turnOnWall`), and says the
+ * height it hangs at.
  */
 export function rotateItem(
   room: PlanRoom,
@@ -611,6 +669,7 @@ export function rotateItem(
   others: PlacedItem[],
   rooms?: readonly PlanRoom[]
 ): SnapResult {
+  if (isWallHung(item)) return turnOnWall(room, item, steps, others);
   const rotation = item.rotation + steps * ROTATE_STEP_RAD;
   const floor = floorOf(room, rooms);
   const walls = floorWalls(floor);

@@ -19,7 +19,7 @@ import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomSplit, RoomType } from '@/lib/calculator/types';
 import { isPartType, studioParts, swapped, turned, withFirstArea, withPartType } from '@/lib/design/studio';
 import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
-import { WALL_THICKNESS_OPTIONS_M, wallLength } from '@/lib/design/walls';
+import { WALL_THICKNESS_OPTIONS_M, planWallThickness, wallLength } from '@/lib/design/walls';
 import { partitionWall, standingWallIds } from '@/lib/design/partitions';
 import { MIN_RAILING_M, RAILING_HEIGHT_RANGE_M, railingFits } from '@/lib/design/openings';
 import { partialWallIn } from '@/lib/design/separators';
@@ -124,7 +124,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
       .map((room) => {
         const index = room.wallIds?.indexOf(wall.id) ?? -1;
         const edge = roomEdges(room.polygon).find((e) => e.index === index);
-        return edge && railingFits(plan.rooms, room.id, index, 0, edge.length, plan.wallThicknessM) ? { room, index } : null;
+        return edge && railingFits(plan.rooms, room.id, index, 0, edge.length, planWallThickness(plan)) ? { room, index } : null;
       })
       .find((b) => b !== null);
     return (

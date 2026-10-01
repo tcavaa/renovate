@@ -20,6 +20,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 |---|---|
 | `app/(main)/design/[id]/studio/page.tsx` | the page: view switch, categories (`CATEGORY_MODE`, `CATEGORY_TOOLS`), key handling, carry/drag/drop wiring (`pickProduct`, `onDragProduct`), the right-hand panels, hints, photos, versions |
 | `components/design/Viewer3D.tsx` | the R3F viewer and its `ViewerApi` ([3d-engine.md](3d-engine.md)) |
+| `components/design/SceneLoading.tsx` | the loading screen over the canvas until the flat's models and finishes are in ([3d-engine.md](3d-engine.md#the-loading-screen-libdesign3dloadprogressts)) |
 | `components/studio/BuildBar.tsx` | `CategoryRail` (the six categories down the left: build, furniture, electric, technical, finishes, budget) and `Tray` (the open category along the bottom) |
 | `components/studio/Trays.tsx` | `BuildTray`, `ElectricTray`, `TechnicalTray`, `FinishesTray` (with `StylePicker.tsx`), `BudgetTray` |
 | `components/studio/FinishCatalog.tsx` + `lib/design/finishBrowser.ts` | every finish as a modal, the finishes tray's "catalogue" ([finishes.md](finishes.md#browsing-finishes-the-shelfs-filters-and-the-catalogue-libdesignfinishbrowserts)) |
@@ -39,6 +40,14 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `app/api/design/renders/**` | photos: POST (queue), GET, DELETE |
 
 ## The studio's build mode (`app/(main)/design/[id]/studio/page.tsx`)
+
+**It opens behind a loading screen.** From "დიზაინის გენერაცია" the style step plays its own
+overlay (`GenerationOverlay`) and then opens the studio; there the canvas is covered by
+`SceneLoading` — first as `ViewerFallback` while three.js itself arrives, then by the viewer,
+counting the flat's models and textures in ("ჩაიტვირთა 12 / 50") — until everything the first
+build asked for is in, and it fades. The person sees the flat whole, not a sofa, a lamp and a
+floor at a time. The bars and trays around the canvas stay usable. How it decides it is done
+is in [3d-engine.md](3d-engine.md#the-loading-screen-libdesign3dloadprogressts).
 
 Full-bleed canvas; the categories are a narrow rail of tiles down the left edge
 (`CategoryRail`, the rooms list beside it) and the open category's tray runs along the bottom
@@ -375,7 +384,7 @@ direction) turns the selected piece to an exact angle in place —
 `rotateSelectedTo` in the studio is `placeItem` with the new rotation, and the outline goes
 red when the turned piece no longer fits (`isPlacementValid`), exactly as the 45° buttons
 do. A later drag still squares a rotation that is within 14° of a wall; one further off
-stays as set.
+stays as set. A wall-hung piece has no angle row (below).
 
 **A wall-hung piece goes on the wall face under the pointer, at the pointer's height**
 (`hangOnWall` in `lib/design/manipulate.ts`, `hangTargetAt` in the viewer). A mirror or a
@@ -395,6 +404,17 @@ for it. A grab off the piece's centre keeps its offset along the wall and up it 
 drag stays on that wall (`DragState.hang`). Over the floor a hung piece still snaps to the
 nearest wall from the floor point, as before; on the 2D board nothing changes, since a plan
 has no faces and no heights.
+
+**Turning a hung piece takes it round to the next wall** (`turnOnWall`, which `rotateItem`
+hands every wall-hung piece). Turned 45° in place like a chair, a picture stood off its wall on
+one corner. Now the card's turn buttons and R move it to the wall whose face looks a quarter turn
+that way (the smallest turn in that direction; a slanted wall is a wall of its own): flat
+against it, its back a centimetre off the plaster, at the height it hung at, at the spot of that
+wall nearest to where it was — round the room corner by corner, four turns bringing it back to
+its own wall. The wall it is on is read from where it stands (`hungWall`), so a piece turned off
+its wall before this still lands on one. The card offers no angle row for a hung piece
+(`onRotateTo` is left out), and R on one riding on the pointer does nothing — the wall under the
+pointer decides which way it faces. `tests/unit/design/manipulate.test.ts`.
 
 `rotateItem` deliberately does *not* go through `snapPlacement`: re-aligning the rotation to
 the nearest wall would instantly undo every rotation of anything already sitting flush. It

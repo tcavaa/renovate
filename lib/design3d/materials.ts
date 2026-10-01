@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import type { StyleDefinition, StyleSurface } from '@/lib/design/types';
+import { loadStarted } from './loadProgress';
 
 export type MaterialRole =
   | 'frame'
@@ -258,9 +259,12 @@ export class StyleMaterials {
     }
 
     this.pending.set(key, [apply]);
+    // Counted until it is in or has failed: the loading screen waits on the finishes too.
+    const done = loadStarted();
     const texture = this.loader.load(
       url,
       (loaded) => {
+        done();
         const waiting = this.pending.get(key) ?? [];
         this.pending.delete(key);
         // Disposed while the file was on its way (the style changed): nobody wants it now.
@@ -268,7 +272,10 @@ export class StyleMaterials {
         for (const callback of waiting) callback(loaded);
       },
       undefined,
-      () => this.pending.delete(key)
+      () => {
+        done();
+        this.pending.delete(key);
+      }
     );
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;

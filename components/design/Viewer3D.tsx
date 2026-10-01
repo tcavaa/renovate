@@ -16,7 +16,7 @@
  *   - `walk`  — standing inside at eye height, walls and ceilings intact
  */
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -51,7 +51,10 @@ import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
+import { cn } from '@/lib/utils';
 import { Headlamp, WalkControls } from './WalkControls';
+import { SceneLoading } from './SceneLoading';
 
 export type ViewMode = 'orbit' | 'walk';
 /**
@@ -167,9 +170,10 @@ export function Viewer3D(props: Viewer3DProps) {
   // so the view never opens for a beat at three.js's default spot, at floor level beside the
   // flat, before the framing catches up.
   const [initial] = useState(() => frameFor(props.plan, props.focusRoomId ?? null));
+  const loading = useSceneLoading();
 
   return (
-    <div className={props.className}>
+    <div className={cn('relative', props.className)}>
       <Canvas
         shadows
         dpr={[1, 1.75]}
@@ -189,11 +193,56 @@ export function Viewer3D(props: Viewer3DProps) {
         <SkyBackground top={daylight.skyTop} horizon={daylight.skyHorizon} />
         <fog attach="fog" args={[daylight.background, FOG_NEAR_M, FOG_FAR_M]} />
         <Suspense fallback={null}>
-          <SceneContent {...props} daylight={daylight} />
+          <SceneContent {...props} daylight={daylight} onBuilt={loading.built} />
         </Suspense>
       </Canvas>
+      {loading.phase !== 'ready' && <SceneLoading done={loading.done} total={loading.total} leaving={loading.phase === 'leaving'} />}
     </div>
   );
+}
+
+/** Once the flat has been shown whole on this page, a view opened again (from 2D, say) finds its models cached and skips the screen. */
+let sceneShownWhole = false;
+/** Nothing more asked for in this long after the last file came in: the flat is all there. */
+const SETTLE_MS = 300;
+/** However slow the connection, the studio is not held behind the screen longer than this. */
+const MAX_WAIT_MS = 45_000;
+const FADE_MS = 300;
+
+/**
+ * The loading screen's state: up from the moment the view mounts, through the first build of
+ * the scene (`built`, called by `SceneContent` once everything in it has asked for its files)
+ * and until every file asked for since has come in (or failed) and nothing new has been asked
+ * for in `SETTLE_MS` — a bare door leaf asks for its casing only once it is in. Then it fades.
+ */
+function useSceneLoading(): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
+  const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole ? 'ready' : 'loading'));
+  const [isBuilt, setBuilt] = useState(false);
+  const progress = useSyncExternalStore(subscribeLoadProgress, loadProgress, loadProgress);
+  const [baseline] = useState(() => loadProgress().started);
+  const built = useCallback(() => setBuilt(true), []);
+
+  useEffect(() => {
+    if (phase !== 'loading' || !isBuilt || progress.pending > 0) return;
+    const settle = window.setTimeout(() => {
+      sceneShownWhole = true;
+      setPhase('leaving');
+    }, SETTLE_MS);
+    return () => window.clearTimeout(settle);
+  }, [phase, isBuilt, progress.pending, progress.started]);
+
+  useEffect(() => {
+    if (phase === 'leaving') {
+      const fade = window.setTimeout(() => setPhase('ready'), FADE_MS);
+      return () => window.clearTimeout(fade);
+    }
+    if (phase !== 'loading') return;
+    const cap = window.setTimeout(() => setPhase('leaving'), MAX_WAIT_MS);
+    return () => window.clearTimeout(cap);
+  }, [phase]);
+
+  const total = Math.max(0, progress.started - baseline);
+  return { phase, done: Math.max(0, total - progress.pending), total, built };
 }
 
 /** The sky behind everything (`lib/design3d/environment`), remade when the hour changes its colours. */
@@ -300,7 +349,8 @@ function SceneContent({
   onApi,
   readOnly = false,
   daylight,
-}: Viewer3DProps & { daylight: Daylight }) {
+  onBuilt,
+}: Viewer3DProps & { daylight: Daylight; /** Called once, after the first build has asked for every file it needs. */ onBuilt?: () => void }) {
   const style = getStyle(scene.styleId);
   const { camera, gl, scene: threeScene } = useThree();
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
@@ -521,6 +571,13 @@ function SceneContent({
   useLayoutEffect(() => {
     syncPlacedItems(itemsGroup, scene.items, visibleRoomIds(plan, shellOptions));
   }, [itemsGroup, scene.items, plan, shellOptions]);
+
+  // The shells, fittings and radiators were built while rendering, the furniture in the layout
+  // effect above: by now the first scene has asked for every model and texture it needs.
+  const builtRef = useRef(onBuilt);
+  useEffect(() => {
+    builtRef.current?.();
+  }, []);
 
   const itemsById = useMemo(
     () => new Map(scene.items.map((item) => [item.id, item])),

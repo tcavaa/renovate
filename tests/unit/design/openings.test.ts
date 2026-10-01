@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
-import type { PlanRoom } from '@/lib/design/types';
+import { ensureWalls, planWallThickness, rebuildRooms } from '@/lib/design/walls';
+import type { FloorPlan, Opening, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
 const rect = (id: string, x: number, z: number, w: number, d: number, type: PlanRoom['type'] = 'bedroom'): PlanRoom =>
   refreshRoom({
@@ -245,5 +246,71 @@ describe('dragging openings between walls', () => {
       const aligned = alignTwins(stale);
       expect(twinOf(aligned, door)!.opening.product?.productId).toBe(door.product?.productId);
     });
+  });
+});
+
+describe('a door in a slanted wall', () => {
+  const P = (x: number, z: number): Vec2 => ({ x, z });
+  const wall = (id: string, a: Vec2, b: Vec2): Wall => ({ id, a, b, thicknessM: 0.12, origin: 'existing' });
+  const base: FloorPlan = { rooms: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] };
+
+  /**
+   * A bedroom 6 × 4 m with a toilet cut off its bottom-left corner by a diagonal wall — the
+   * toilet's bottom wall runs along the same z as the diagonal's lower end, the case that put
+   * the toilet's half of the door in its outside wall.
+   */
+  function plan(): FloorPlan {
+    const built = rebuildRooms(base, [
+      wall('top', P(0, 0), P(6, 0)),
+      wall('right', P(6, 0), P(6, 4)),
+      wall('bottom', P(6, 4), P(0, 4)),
+      wall('left', P(0, 4), P(0, 0)),
+      wall('slant', P(0, 2), P(3, 4)),
+    ]);
+    return { ...built, rooms: built.rooms.map((r) => ({ ...r, type: r.areaM2 < 5 ? ('toilet' as const) : ('bedroom' as const) })) };
+  }
+  const slantOf = (room: PlanRoom) => roomEdges(room.polygon).find((e) => Math.abs(e.dir.x) > 0.3 && Math.abs(e.dir.z) > 0.3)!;
+  /** Both halves of the door between the two rooms, each on the edge it is cut in. */
+  const halves = (rooms: PlanRoom[]) =>
+    rooms.flatMap((r) => r.openings.filter((o) => o.kind === 'door' && o.connectsToRoomId).map((o) => ({ room: r, opening: o, edge: roomEdges(r.polygon).find((e) => e.index === o.wallIndex)! })));
+  /** Where a half's centre is in the plan. */
+  const at = (h: ReturnType<typeof halves>[number]) => ({ x: h.edge.a.x + (h.edge.b.x - h.edge.a.x) * h.opening.t, z: h.edge.a.z + (h.edge.b.z - h.edge.a.z) * h.opening.t });
+
+  it('gets its door on the slanted wall in both rooms, the two halves opposite each other', () => {
+    const p = plan();
+    expect(p.rooms.map((r) => r.type).sort()).toEqual(['bedroom', 'toilet']);
+    const rooms = p.rooms.map((r) => ({ ...r, openings: [] as Opening[] }));
+    deriveOpenings(rooms, p.wallThicknessM);
+    const door = halves(rooms);
+    expect(door).toHaveLength(2);
+    for (const half of door) expect(half.edge.index).toBe(slantOf(half.room).index);
+    const [a, b] = door.map(at);
+    expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeLessThan(0.2);
+  });
+
+  it('is cut in the other room on the slanted wall when it is put in by hand', () => {
+    const p = plan();
+    const bedroom = p.rooms.find((r) => r.type === 'bedroom')!;
+    const added = addOpening(p.rooms, bedroom.id, 'door', slantOf(bedroom).index, planWallThickness(p));
+    const door = added.rooms.find((r) => r.id === bedroom.id)!.openings.find((o) => o.id === added.openingId)!;
+    const twin = twinOf(added.rooms, door)!;
+    expect(twin.room.type).toBe('toilet');
+    expect(twin.opening.wallIndex).toBe(slantOf(twin.room).index);
+  });
+
+  it('has a half that was put in another wall moved back onto the slanted one when the plan is loaded', () => {
+    const p = plan();
+    const rooms = p.rooms.map((r) => ({ ...r, openings: [] as Opening[] }));
+    deriveOpenings(rooms, p.wallThicknessM);
+    // The toilet's half, as the axis-matching put it: in its outside wall along z = 4.
+    const toilet = rooms.find((r) => r.type === 'toilet')!;
+    const outside = roomEdges(toilet.polygon).find((e) => Math.abs(e.a.z - e.b.z) < 1e-6 && e.a.z > 3.9)!;
+    const broken = rooms.map((r) => (r.id === toilet.id ? { ...r, openings: r.openings.map((o) => (o.kind === 'door' ? { ...o, wallIndex: outside.index, t: 0.3 } : o)) } : r));
+    const repaired = ensureWalls({ ...p, rooms: broken });
+    const door = halves(repaired.rooms);
+    for (const half of door) expect(half.edge.index).toBe(slantOf(half.room).index);
+    const [a, b] = door.map(at);
+    expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeLessThan(0.2);
+    expect(ensureWalls(repaired)).toBe(repaired);
   });
 });

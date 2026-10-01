@@ -162,6 +162,13 @@
       "when": 1790809798864,
       "tag": "0022_seed_photos_webp",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1790850088290,
+      "tag": "0023_room_paints",
+      "breakpoints": true
     }
   ]
 }
