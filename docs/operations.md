@@ -164,11 +164,16 @@ Everything the app needs to run unattended, and where each piece lives.
   studio downloaded about 8.5 MB (≈ 6.6 MB of models, ≈ 1.9 MB of textures) and took
   **13–16 s** to finish drawing there, against 0.8 s locally; a repeat visit is about 1.2 s,
   because `/models` is cached for 7 days and `/_next/static` for a year. The models are now
-  WebP and Draco ([3d-assets.md](3d-assets.md#compression-webp-and-draco)): the same flat's
-  models went from 5.2 to 2.2 MB, so a first visit should take about half as long — to be
-  measured there after the deploy. What is left is the host's bandwidth: a CDN in front of the
-  domain, or the planned move to Vercel (whose CDN serves `/public` and `/_next/static`). The
-  finish textures are WebP too, 47 → 9.2 MB ([3d-assets.md](3d-assets.md#finish-textures-are-webp)).
+  WebP and Draco ([3d-assets.md](3d-assets.md#compression-webp-and-draco)) and the finish
+  textures WebP ([3d-assets.md](3d-assets.md#finish-textures-are-webp)). Measured there after
+  the deploy (1 Oct 2026, the sample plan furnished with 55 items — more than the 41 above): a
+  first visit's 3D files are 96 downloads and 6.35 MB (59 models 3.6 MB, 35 finish textures
+  2.5 MB, the Draco decoder 0.25 MB), where the old files would have been about 24 MB (7.7 MB of
+  models, 16.1 MB of finish-texture JPEGs); all of them at once came in 3.7–10 s, the host
+  swinging between 0.6 and 1.7 MB/s within minutes (a single file still about 1.0 MB/s). A
+  repeat visit has the whole scene drawn 2.2 s after the navigation, the models out of the cache
+  at 1.4 s. What is left is the host's bandwidth: a CDN in front of the domain, or the planned
+  move to Vercel (whose CDN serves `/public` and `/_next/static`).
 
 - Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
   Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget

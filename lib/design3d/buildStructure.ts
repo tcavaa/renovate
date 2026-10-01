@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { pointOnEdge, roomEdges } from '@/lib/design/planGeometry';
+import { pointOnEdge, polygonBounds, polygonCentroid, roomEdges } from '@/lib/design/planGeometry';
 import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { cellPolygon } from '@/lib/design/paint';
@@ -82,10 +82,26 @@ export function buildStructure(plan: FloorPlan, style: StyleDefinition, material
 export interface ElectricalBuildOptions {
   /** Only these rooms' points (a room in focus); every point otherwise. */
   rooms?: Set<string> | null;
-  /** The furniture: a ceiling point under a hanging lamp product shows only its rose. */
-  items?: PlacedItem[];
+  /** Where the furniture's hanging lamps hang: a ceiling point under one shows only its rose. */
+  hangingLamps?: HangingLamp[];
   /** A ghost riding on the pointer: one translucent material, no models. */
   preview?: boolean;
+}
+
+/** A hanging lamp from the catalogue, as much of it as the fittings read: its room and where it hangs. */
+export interface HangingLamp {
+  roomId: string;
+  x: number;
+  z: number;
+}
+
+/**
+ * The furniture's hanging lamps as a key. The fittings read nothing else of the furniture, so
+ * the viewer builds them again when this changes and not when a sofa moves: every drop used to
+ * clone every socket, switch and lamp in the flat anew. `JSON.parse` of the key is the lamps.
+ */
+export function hangingLampsKey(items: readonly PlacedItem[]): string {
+  return JSON.stringify(items.filter((item) => item.slot === 'pendant').map((item): HangingLamp => ({ roomId: item.roomId, x: item.position.x, z: item.position.z })));
 }
 
 /** The model a kind is drawn with, when one exists. */
@@ -200,7 +216,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
     piece.add(holder);
     // A hanging lamp from the catalogue already hangs here: the lamp is the fitting and the
     // point shows only its rose.
-    const lampNearby = point.kind === 'light_ceiling' && options.items?.some((i) => i.roomId === room.id && i.slot === 'pendant' && Math.hypot(i.position.x - point.position.x, i.position.z - point.position.z) < LAMP_NEAR_M);
+    const lampNearby = point.kind === 'light_ceiling' && options.hangingLamps?.some((lamp) => lamp.roomId === room.id && Math.hypot(lamp.x - point.position.x, lamp.z - point.position.z) < LAMP_NEAR_M);
     const rose = lampNearby ? fixtureRole('rose') : null;
     const spec = rose ? { url: rose.url, framed: true } : modelFor(point);
     if (spec) attach(holder, spec, 'ceiling');
@@ -449,8 +465,9 @@ export interface SceneLight {
 }
 
 /**
- * The lights the electrical layer turns on, as point lights for the viewer. Intensity
- * follows the category — a main light lights the room, a bedside lamp a corner.
+ * The lights the electrical layer turns on, one per fitting. Intensity follows the category — a
+ * main light lights the room, a bedside lamp a corner. The viewer lights rooms, not fittings
+ * (`nightLights` merges these room by room).
  */
 export function lightsFrom(plan: FloorPlan, points: ElectricalPoint[], rooms?: Set<string> | null): SceneLight[] {
   const out: SceneLight[] = [];
@@ -470,6 +487,57 @@ export function lightsFrom(plan: FloorPlan, points: ElectricalPoint[], rooms?: S
     });
   }
   return out;
+}
+
+/** A room's light after dusk (`nightLights`). */
+export interface NightLight extends SceneLight {
+  /**
+   * A lamp the room is lent because none of the flat's own lights is on: sized to the room and
+   * dimmed with the hour like the evening, where a fitting's light holds up through the night.
+   */
+  standIn: boolean;
+}
+
+/**
+ * The flat's lights after dusk: one point light for each room in view that has lights of its
+ * own. A point light is paid for on every lit pixel, and three compiles the number of them into
+ * every material's shader — one added or taken away recompiles every material in the flat, a
+ * stutter at each switch. So the fittings switched on in a room light it together, from where
+ * their light is centred (each weighted by how bright it is), as bright as they are together and
+ * reaching as far as the furthest of them did; with all of them off the room keeps its light at
+ * zero. A switch changes intensities, never the count, and a flat lit fitting by fitting — a
+ * dozen point lights for five rooms — is lit room by room. The fittings that are on still glow
+ * where they hang (`litModel`). With no light on anywhere every room in view is lent a lamp under
+ * its ceiling, sized to it.
+ */
+export function nightLights(plan: FloorPlan, points: ElectricalPoint[], rooms?: Set<string> | null): NightLight[] {
+  const inView = plan.rooms.filter((room) => !rooms || rooms.has(room.id));
+  const roomOf = new Map(points.map((point) => [point.id, point.roomId]));
+  const on = new Map<string, SceneLight[]>();
+  for (const light of lightsFrom(plan, points, rooms)) {
+    const roomId = roomOf.get(light.id);
+    if (roomId) on.set(roomId, [...(on.get(roomId) ?? []), light]);
+  }
+  if (on.size === 0) return inView.map(standInLamp);
+  const lightRooms = new Set(points.filter((point) => ELECTRICAL_KINDS[point.kind].light).map((point) => point.roomId));
+  return inView
+    .filter((room) => lightRooms.has(room.id))
+    .map((room): NightLight => {
+      const lights = on.get(room.id);
+      if (!lights) return { ...standInLamp(room), intensity: 0, distance: 1, standIn: false };
+      const total = lights.reduce((sum, light) => sum + light.intensity, 0);
+      const position = [0, 1, 2].map((axis) => lights.reduce((sum, light) => sum + light.position[axis] * light.intensity, 0) / total) as [number, number, number];
+      const distance = Math.max(...lights.map((light) => light.distance + Math.hypot(light.position[0] - position[0], light.position[1] - position[1], light.position[2] - position[2])));
+      return { id: room.id, position, intensity: total, distance, standIn: false };
+    });
+}
+
+/** A room's own lamp when the flat has none on: under the ceiling at its centre, sized to it so a hallway is not lit like a living room. */
+function standInLamp(room: PlanRoom): NightLight {
+  const centre = polygonCentroid(room.polygon);
+  const bounds = polygonBounds(room.polygon);
+  const span = Math.max(bounds.width, bounds.depth, 2);
+  return { id: room.id, position: [centre.x, Math.max(1.8, room.heightM - 0.35), centre.z], distance: span * 1.6, intensity: 6 + room.areaM2 * 0.9, standIn: true };
 }
 
 /** A flat patch of floor from a plan polygon, facing up; its UVs are the plan's metres. */

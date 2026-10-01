@@ -34,6 +34,18 @@ describe('lightingForHour', () => {
     expect(Math.sign(morning.sunPosition[0])).not.toBe(Math.sign(evening.sunPosition[0]));
   });
 
+  it('lights a room’s shaded side by day: the sky more than the style’s own ambient, and a flat fill', () => {
+    // Indoors most of what is seen stands in a wall's shadow, and by day no lamp is a light
+    // (gotcha 22): the sky and the fill alone keep a room from looking dim.
+    for (const hour of [DAYLIGHT_HOURS.morning, DAYLIGHT_HOURS.noon, DAYLIGHT_HOURS.evening]) {
+      const day = lightingForHour(hour, style);
+      expect(day.hemisphereIntensity).toBeGreaterThan(style.lighting.ambientIntensity * 0.55);
+      expect(day.ambientIntensity).toBeGreaterThanOrEqual(0.14);
+      expect(day.exposure).toBeGreaterThan(1);
+    }
+    expect(lightingForHour(DAYLIGHT_HOURS.noon, style).hemisphereIntensity).toBeGreaterThan(style.lighting.ambientIntensity);
+  });
+
   it('is darker at night than by day', () => {
     const night = lightingForHour(DAYLIGHT_HOURS.night, style);
     const noon = lightingForHour(DAYLIGHT_HOURS.noon, style);

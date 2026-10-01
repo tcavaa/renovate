@@ -175,8 +175,10 @@ light that is both the rose and the recessed spot, a square spot) — two or thr
 per kind so the card has something to swap to — and `pnpm models:photos` renders each
 one's product photo from the model itself (a transparent PNG under `uploads/furniture`,
 lit and framed like the studio; the sources' own thumbnails sit on garish gradients). From dusk
-the lights that are on become point lights (`lightsFrom`; they replace the per-room lamps); by
-day a light that is on only glows — a dozen point lights cost a third of the frame for a glow
+the lights that are on light their room — one point light per room, the room's switched-on
+fittings merged, kept at zero while they are all off so a switch never changes the number of lights
+three compiles into its shaders (`nightLights`; with no light on anywhere each room is lent a lamp);
+by day a light that is on only glows — a dozen point lights cost a third of the frame for a glow
 the sun drowns ([3d-engine.md](3d-engine.md), gotcha 22). The glass of the industrial wall lamp
 and the glass globe pendant is drawn as plain transparency (gotcha 20). With
 one room in focus, the other rooms' fittings, lights and tight-passage outlines are left out
