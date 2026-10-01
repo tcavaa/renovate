@@ -24,7 +24,8 @@ const vintage = getStyle('vintage');
 const bare = <S extends object>(spec: S): S => ({ ...spec, textureUrl: null, normalUrl: null, roughnessUrl: null });
 const s = vintage.surfaces;
 const plain: StyleDefinition['surfaces'] = { floor: bare(s.floor), wall: bare(s.wall), featureWall: bare(s.featureWall), ceiling: bare(s.ceiling), wetFloor: bare(s.wetFloor), wetWall: bare(s.wetWall) };
-const style: StyleDefinition = { ...vintage, surfaces: plain };
+// The rooms' own looks (paint, tiles) are left out with their maps: every room wears the plain wall.
+const style: StyleDefinition = { ...vintage, surfaces: plain, rooms: {} };
 
 /** Where every cornice in the shells stands, by the wall it belongs to; `nose*` is the part that stands out from the wall. */
 interface CorniceBox { low: number; high: number; reach: number; noseFrom: number; noseTo: number }

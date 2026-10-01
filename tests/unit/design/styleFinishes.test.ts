@@ -1,6 +1,8 @@
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { refreshRoom } from '@/lib/design/planGeometry';
-import { getStyle } from '@/lib/design/styles';
+import { PAINT_COLORS, STYLE_IDS, getStyle, paintLook, type PaintName } from '@/lib/design/styles';
 import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, styleFinishProduct, withStyleFinishes } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { PlanRoom, SurfaceFinish } from '@/lib/design/types';
@@ -97,5 +99,67 @@ describe('withStyleFinishes', () => {
     expect(withStyleFinishes(bare, rooms, 'modern', [])).toBe(bare);
     // A catalogue with nothing for a surface changes nothing there.
     expect(withStyleFinishes(bare, [bedroom], 'modern', [sofa])).toBe(bare);
+  });
+});
+
+describe('each kind of room in its own look', () => {
+  /** The catalogue's finish for a look, as `textures:stock` writes it. */
+  const productFor = (id: number, textureUrl: string, surfaces: Array<'floor' | 'wall'>, wet = false) => surfaceProduct(id, textureUrl, surfaces, { wet, styleTags: ['scandinavian', 'modern', 'industrial', 'vintage'] });
+  const styleLooks = STYLE_IDS.flatMap((id) => {
+    const style = getStyle(id);
+    return [...Object.values(style.surfaces), ...Object.values(style.rooms).flatMap((r) => [r?.floor, r?.wall])].filter((l): l is NonNullable<typeof l> => !!l);
+  });
+
+  it('is a file the app serves, maps and all', () => {
+    const files = new Set(styleLooks.flatMap((l) => [l.textureUrl, l.normalUrl, l.roughnessUrl]).filter((u): u is string => !!u));
+    for (const url of files) expect(existsSync(path.join(process.cwd(), 'public', url)), url).toBe(true);
+  });
+
+  it('paints and floors the rooms of one flat apart — and tiles a bathroom whatever its style', () => {
+    const kitchen = room('kitchen', 'kitchen');
+    const living = room('living', 'living_room');
+    for (const id of STYLE_IDS) {
+      const style = getStyle(id);
+      const wall = (r: PlanRoom) => defaultFinish(r, 'wall', id).textureUrl;
+      expect(wall(bedroom), id).not.toBe(wall(living));
+      expect(defaultFinish(kitchen, 'floor', id).textureUrl, id).not.toBe(defaultFinish(living, 'floor', id).textureUrl);
+      expect(defaultFinish(bathroom, 'floor', id).textureUrl).toBe(style.surfaces.wetFloor.textureUrl);
+      expect(defaultFinish(bathroom, 'wall', id).textureUrl).toBe(style.surfaces.wetWall.textureUrl);
+      // A bedroom's walls are paint: one of the paints, in its colour.
+      expect(Object.keys(PAINT_COLORS).map((name) => paintLook(name as PaintName).textureUrl)).toContain(wall(bedroom));
+    }
+  });
+
+  it('is bought as the product of that look — the bedroom’s paint, the kitchen’s tiles — and stands in with the style’s own where the catalogue lacks it', () => {
+    const sage = productFor(20, paintLook('sage').textureUrl!, ['wall']);
+    const warmWhite = productFor(21, paintLook('warm-white').textureUrl!, ['wall']);
+    const terrazzo = productFor(22, getStyle('scandinavian').rooms.kitchen!.floor!.textureUrl!, ['floor', 'wall'], true);
+    const oak = productFor(23, getStyle('scandinavian').surfaces.floor.textureUrl!, ['floor']);
+    const plasterWarm = productFor(24, getStyle('scandinavian').surfaces.wall.textureUrl!, ['wall']);
+    const shop = [sage, warmWhite, terrazzo, oak, plasterWarm];
+    const kitchen = room('kitchen', 'kitchen');
+    expect(styleFinishProduct(shop, bedroom, 'wall', 'scandinavian')?.id).toBe(20);
+    expect(styleFinishProduct(shop, room('living', 'living_room'), 'wall', 'scandinavian')?.id).toBe(21);
+    expect(styleFinishProduct(shop, kitchen, 'floor', 'scandinavian')?.id).toBe(22);
+    expect(styleFinishProduct(shop, bedroom, 'floor', 'scandinavian')?.id).toBe(23);
+    // A database the room paints have not reached: the style's own wall, in its own colour.
+    const without = shop.filter((p) => p.id !== 20);
+    expect(styleFinishProduct(without, bedroom, 'wall', 'scandinavian')?.id).toBe(24);
+    expect(styleFinish(bedroom, 'wall', 'scandinavian', without).colorHex).toBe(getStyle('scandinavian').surfaces.wall.colorHex);
+    expect(styleFinish(bedroom, 'wall', 'scandinavian', shop).colorHex).toBe(PAINT_COLORS.sage);
+    // A room retyped is laid again in its new look.
+    const laid = withStyleFinishes([styleFinish(bedroom, 'wall', 'scandinavian', shop)], [{ ...bedroom, type: 'living_room' }], 'scandinavian', shop);
+    expect(laid[0].product?.productId).toBe(21);
+  });
+
+  it('ships every paint the styles lay in the migration that brings them to a database', () => {
+    const migration = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0023_room_paints.sql'), 'utf8');
+    const laid = new Set(styleLooks.map((l) => l.textureUrl).filter((u): u is string => !!u && u.includes('/paint-')));
+    expect(laid.size).toBeGreaterThan(0);
+    for (const name of Object.keys(PAINT_COLORS)) {
+      expect(migration).toContain(`'paint-interior-${name}'`);
+      expect(migration).toContain(`'/textures/paint-${name}-diffuse.webp'`);
+    }
+    for (const url of laid) expect(migration).toContain(`'${url}'`);
   });
 });

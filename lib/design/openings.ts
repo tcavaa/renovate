@@ -16,7 +16,7 @@
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
 import type { RoomType } from '@/lib/calculator/types';
-import { roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
+import { alongEdge, edgesParallel, roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import type { FloorPlan, Opening, OpeningKind, PlanRoom, StyleId, Vec2 } from './types';
 
@@ -54,6 +54,20 @@ export const RAILING_HEIGHT_RANGE_M = { min: 0.8, max: 1.5 } as const;
 
 export function edgeOf(room: PlanRoom, wallIndex: number): PlanEdge | null {
   return roomEdges(room.polygon).find((e) => e.index === wallIndex) ?? null;
+}
+
+/**
+ * How thick the wall behind a room's edge is: one figure for the whole plan, or each edge's
+ * own (the store passes `wallThicknessForEdge`). The other room's copy of a wall is looked for
+ * within reach of that thickness (`neighbourTolerance`), and an outer wall onto a balcony is
+ * often three times the plan's default: looked for at the default, the balcony was not found
+ * behind it, so a window was cut in the room's half of the wall only, and the balcony's half —
+ * built as half of a shared wall (`planEdgeWalls`) — stood solid in front of it.
+ */
+export type WallThickness = number | ((room: PlanRoom, edge: PlanEdge) => number);
+
+function thicknessAt(thickness: WallThickness, room: PlanRoom, edge: PlanEdge): number {
+  return typeof thickness === 'number' ? thickness : thickness(room, edge);
 }
 
 /** A spot on a wall: which room, which of its edges, and how far along it. */
@@ -105,15 +119,20 @@ export function projectToEdge(edge: PlanEdge, point: Vec2, widthM: number, corne
   return Math.min(1 - margin, Math.max(margin, raw));
 }
 
-/** Edge of `room` that runs along the same line as `edge` (a shared wall), if any. */
+/**
+ * Edge of `room` that is the other face of the wall `edge` is on (a shared wall), at `point`, if
+ * any: side by side with it and within `tolerance` of the point, in any direction — a slanted
+ * wall's too (`edgesParallel`; this went by the edges' axes once, and a diagonal wall's door got
+ * its other half on whichever wall of the next room started at the same z).
+ */
 function twinEdge(room: PlanRoom, edge: PlanEdge, point: Vec2, tolerance: number): PlanEdge | null {
   for (const candidate of roomEdges(room.polygon)) {
-    // Parallel — same axis — and within a wall's thickness of the line.
-    if (candidate.axis !== edge.axis) continue;
-    const across = edge.axis === 'x' ? Math.abs(candidate.a.z - edge.a.z) : Math.abs(candidate.a.x - edge.a.x);
+    if (!edgesParallel(candidate, edge)) continue;
+    // The point lies on `edge`; how far it stands off the candidate's line is the wall between.
+    const across = Math.abs((point.x - candidate.a.x) * candidate.dir.z - (point.z - candidate.a.z) * candidate.dir.x);
     if (across > tolerance) continue;
     // And the point lies within the candidate's span.
-    const along = ((point.x - candidate.a.x) * candidate.dir.x + (point.z - candidate.a.z) * candidate.dir.z) / candidate.length;
+    const along = alongEdge(candidate, point) / candidate.length;
     if (along >= -0.02 && along <= 1.02) return candidate;
   }
   return null;
@@ -447,11 +466,12 @@ function neighbourAt(rooms: PlanRoom[], roomId: string, edge: PlanEdge, point: V
  * the room is a balcony, the edge is a wall and not a room separator, and no room stands behind
  * any of that stretch — a railing is the balcony's open side, never a wall onto the flat.
  */
-export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number, fromM: number, toM: number, wallThicknessM: number, options: { /** false: a door in the way does not count (to tell the person why it was refused). */ doors?: boolean } = {}): boolean {
+export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number, fromM: number, toM: number, wallThickness: WallThickness, options: { /** false: a door in the way does not count (to tell the person why it was refused). */ doors?: boolean } = {}): boolean {
   const room = rooms.find((r) => r.id === roomId);
   if (!room || !holdsRailings(room)) return false;
   const edge = wallEdges(room).find((e) => e.index === wallIndex);
   if (!edge) return false;
+  const wallThicknessM = thicknessAt(wallThickness, room, edge);
   const [lo, hi] = [Math.max(0, Math.min(fromM, toM)), Math.min(edge.length, Math.max(fromM, toM))];
   if (hi - lo < MIN_RAILING_M - 1e-6) return false;
   // Not over a door, nor over another railing: a window or a plain opening under it gives way.
@@ -475,7 +495,7 @@ export function railingFits(rooms: PlanRoom[], roomId: string, wallIndex: number
  * wall unless a width is given, and takes the place of the windows and plain openings it
  * covers — the wall they were in is gone.
  */
-export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThicknessM: number, options: AddOpeningOptions = {}): { rooms: PlanRoom[]; openingId: string | null } {
+export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind, wallIndex: number | null, wallThickness: WallThickness, options: AddOpeningOptions = {}): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);
   if (!room) return { rooms, openingId: null };
   if (kind === 'railing' && !holdsRailings(room)) return { rooms, openingId: null };
@@ -509,12 +529,12 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
   }
   t = projectToEdge(chosen, pointOnEdge(chosen, t), width, margin);
   const point = pointOnEdge(chosen, t);
-  const neighbour = neighbourAt(rooms, roomId, chosen, point, wallThicknessM);
+  const neighbour = neighbourAt(rooms, roomId, chosen, point, thicknessAt(wallThickness, room, chosen));
 
   if (kind === 'window' && neighbour && !holdsRailings(room) && !holdsRailings(neighbour.room)) return { rooms, openingId: null };
   if (kind === 'railing') {
     const centre = t * chosen.length;
-    if (!railingFits(rooms, roomId, chosen.index, centre - width / 2, centre + width / 2, wallThicknessM)) return { rooms, openingId: null };
+    if (!railingFits(rooms, roomId, chosen.index, centre - width / 2, centre + width / 2, wallThickness)) return { rooms, openingId: null };
   } else if (railingClash(room, { kind, wallIndex: chosen.index, widthM: width }, t, chosen.length)) {
     // Nothing goes on a railing: there is no wall there to put it in.
     return { rooms, openingId: null };
@@ -542,19 +562,99 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
   const covered = (o: Opening) => kind === 'railing' && o.wallIndex === chosen.index && (o.kind === 'window' || o.kind === 'archway') && Math.abs(o.t * chosen.length - centre) < (o.widthM + width) / 2 - 1e-6;
   let next = replaceIn(rooms, roomId, (r) => ({ ...r, openings: [...r.openings.filter((o) => !covered(o)), opening] }));
   if (neighbour && neighbour.edge) {
-    // The twin is the same leaf seen from the other room: the other jamb, the other way.
-    const twin: Opening = {
-      ...opening,
-      id: `${neighbour.room.id}-${roomId}-d-${stamp}`,
-      wallIndex: neighbour.edge.index,
-      t: projectToEdge(neighbour.edge, point, width),
-      roomId: neighbour.room.id,
-      connectsToRoomId: roomId,
-      ...(kind === 'door' ? { hinge: mirrorHinge(opening.hinge), swing: mirrorSwing(opening.swing) } : {}),
-    };
+    const twin = twinIn(neighbour, opening, point, `${neighbour.room.id}-${roomId}-d-${stamp}`);
     next = replaceIn(next, neighbour.room.id, (r) => ({ ...r, openings: [...r.openings, twin] }));
   }
   return { rooms: next, openingId: id };
+}
+
+/** The twin is the same leaf seen from the other room: the other jamb, the other way. */
+function twinIn(neighbour: { room: PlanRoom; edge: PlanEdge }, opening: Opening, point: Vec2, id: string): Opening {
+  return {
+    ...opening,
+    id,
+    wallIndex: neighbour.edge.index,
+    t: projectToEdge(neighbour.edge, point, opening.widthM),
+    roomId: neighbour.room.id,
+    connectsToRoomId: opening.roomId,
+    exterior: false,
+    ...(opening.kind === 'door' ? { hinge: mirrorHinge(opening.hinge), swing: mirrorSwing(opening.swing) } : {}),
+  };
+}
+
+/**
+ * Puts each opening's two halves on the two faces of one wall (`onOneWall`), and cuts the
+ * missing half of every door, window and archway that has a room behind its wall but no twin
+ * there: the window onto a balcony through a thick outer wall that `addOpening` cut in
+ * the room's half only, while the neighbour was still looked for at the plan's default thickness
+ * (`WallThickness`), and a door through such a wall the same way — priced as an entrance door,
+ * and a solid wall from the other room. A window between two rooms of the flat is left as it is
+ * (`addOpening` refuses a new one; a person's window is not taken away). The twin's id is the
+ * opening's own, prefixed, so every load agrees on it. Same array when nothing is missing.
+ */
+export function withOpeningTwins(rooms: PlanRoom[], wallThickness: WallThickness): PlanRoom[] {
+  let next = rooms;
+  for (const { id: roomId, openings } of rooms) {
+    for (const { id } of openings) {
+      // Read as it is now: an opening linked to its other half a moment ago is done.
+      const room = next.find((r) => r.id === roomId)!;
+      const opening = room.openings.find((o) => o.id === id)!;
+      if (opening.kind === 'railing') continue;
+      if (opening.connectsToRoomId) {
+        next = onOneWall(next, room, opening, wallThickness);
+        continue;
+      }
+      const edge = edgeOf(room, opening.wallIndex);
+      if (!edge) continue;
+      const point = pointOnEdge(edge, opening.t);
+      const neighbour = neighbourAt(next, room.id, edge, point, thicknessAt(wallThickness, room, edge));
+      if (!neighbour) continue;
+      if (opening.kind === 'window' && !holdsRailings(room) && !holdsRailings(neighbour.room)) continue;
+      const linked = { connectsToRoomId: neighbour.room.id, exterior: false };
+      // The same opening cut from the other side too (a window put in again from the balcony,
+      // to see it from there): the two become one opening's halves rather than two windows.
+      const across = projectToEdge(neighbour.edge, point, opening.widthM) * neighbour.edge.length;
+      const facing = neighbour.room.openings.find((o) => o.kind === opening.kind && o.wallIndex === neighbour.edge.index && Math.abs(o.t * neighbour.edge.length - across) < Math.max(o.widthM, opening.widthM) / 2);
+      if (facing) {
+        if (facing.connectsToRoomId) continue;
+        next = replaceIn(next, room.id, (r) => patchOpening(r, opening.id, linked));
+        next = replaceIn(next, neighbour.room.id, (r) => patchOpening(r, facing.id, { connectsToRoomId: room.id, exterior: false }));
+        continue;
+      }
+      const twin = twinIn(neighbour, { ...opening, ...linked }, point, `${neighbour.room.id}-${room.id}-d-${opening.id}`);
+      next = replaceIn(next, room.id, (r) => patchOpening(r, opening.id, linked));
+      next = replaceIn(next, neighbour.room.id, (r) => ({ ...r, openings: [...r.openings, twin] }));
+    }
+  }
+  return next;
+}
+
+/**
+ * Puts the two halves of an opening back on the two faces of one wall. A pair made while the
+ * other face of a slanted wall was found by its axis (`twinEdge`, `findSharedRun`) could have
+ * one half on another wall of its room altogether — a toilet's half of the bedroom's door in its
+ * outside wall, and the slanted wall between them solid behind the door. The half that is on
+ * the wall the other room stands behind stays; the other is moved onto that wall's other face,
+ * opposite it. Same rooms when they agree, or when neither is on such a wall.
+ */
+function onOneWall(rooms: PlanRoom[], room: PlanRoom, opening: Opening, wallThickness: WallThickness): PlanRoom[] {
+  const twin = twinOf(rooms, opening);
+  const edge = edgeOf(room, opening.wallIndex);
+  const twinEdgeNow = twin ? edgeOf(twin.room, twin.opening.wallIndex) : null;
+  if (!twin || !edge || !twinEdgeNow) return rooms;
+  const point = pointOnEdge(edge, opening.t);
+  const tolerance = neighbourTolerance(thicknessAt(wallThickness, room, edge));
+  const across = Math.abs((point.x - twinEdgeNow.a.x) * twinEdgeNow.dir.z - (point.z - twinEdgeNow.a.z) * twinEdgeNow.dir.x);
+  const along = alongEdge(twinEdgeNow, point) / twinEdgeNow.length;
+  if (edgesParallel(edge, twinEdgeNow) && across <= tolerance && along >= -0.02 && along <= 1.02) return rooms;
+  // This half's wall has the other room behind it: the twin goes onto that wall's other face.
+  const right = twinEdge(twin.room, edge, point, tolerance);
+  if (right) return replaceIn(rooms, twin.room.id, (r) => patchOpening(r, twin.opening.id, { wallIndex: right.index, t: projectToEdge(right, point, twin.opening.widthM) }));
+  // Or the twin's has this room behind it: this half goes there.
+  const twinPoint = pointOnEdge(twinEdgeNow, twin.opening.t);
+  const back = twinEdge(room, twinEdgeNow, twinPoint, neighbourTolerance(thicknessAt(wallThickness, twin.room, twinEdgeNow)));
+  if (back) return replaceIn(rooms, room.id, (r) => patchOpening(r, opening.id, { wallIndex: back.index, t: projectToEdge(back, twinPoint, opening.widthM) }));
+  return rooms;
 }
 
 /**
@@ -564,7 +664,7 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
  * new id, which is returned. A window dropped on a shared wall (but a balcony's) is refused:
  * `openingId` is null and the rooms come back unchanged.
  */
-export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: string, target: WallTarget, wallThicknessM: number): { rooms: PlanRoom[]; openingId: string | null } {
+export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: string, target: WallTarget, wallThickness: WallThickness): { rooms: PlanRoom[]; openingId: string | null } {
   const room = rooms.find((r) => r.id === roomId);
   const opening = room?.openings.find((o) => o.id === openingId);
   if (!room || !opening) return { rooms, openingId: null };
@@ -576,7 +676,7 @@ export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: 
     return { rooms: moveOpening(rooms, twin.room.id, twin.opening.id, target.t), openingId };
   }
   const removed = removeOpening(rooms, roomId, openingId);
-  const added = addOpening(removed, target.roomId, opening.kind, target.wallIndex, wallThicknessM, {
+  const added = addOpening(removed, target.roomId, opening.kind, target.wallIndex, wallThickness, {
     t: target.t,
     widthM: opening.widthM,
     heightM: opening.heightM,
@@ -592,12 +692,12 @@ export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: 
 }
 
 /** Moves an opening to a different wall of the same room, centred on it. */
-export function setOpeningWall(rooms: PlanRoom[], roomId: string, openingId: string, wallIndex: number, wallThicknessM: number): PlanRoom[] {
+export function setOpeningWall(rooms: PlanRoom[], roomId: string, openingId: string, wallIndex: number, wallThickness: WallThickness): PlanRoom[] {
   const room = rooms.find((r) => r.id === roomId);
   const opening = room?.openings.find((o) => o.id === openingId);
   if (!room || !opening || opening.wallIndex === wallIndex) return rooms;
   const removed = removeOpening(rooms, roomId, openingId);
-  const added = addOpening(removed, roomId, opening.kind, wallIndex, wallThicknessM);
+  const added = addOpening(removed, roomId, opening.kind, wallIndex, wallThickness);
   if (!added.openingId) return rooms;
   // Keep the size the user had set.
   return updateOpening(added.rooms, roomId, added.openingId, { widthM: opening.widthM, heightM: opening.heightM, sillM: opening.sillM });

@@ -14,6 +14,9 @@
  *   - the partner asset drop, already extracted to public/textures by `pnpm assets:extract`
  *   - Poly Haven textures (1k jpg diffuse / normal / roughness)
  *   - ambientCG materials (1K-JPG zips: Color / NormalGL / Roughness)
+ * and the interior paints the styles colour their rooms in (`PAINT_COLORS` in
+ * lib/design/styles.ts), each the ambientCG plaster coloured to the paint here (`tinted`), with
+ * the plaster's own normal and roughness maps.
  *
  * Every map lands as WebP (`lib/uploads/textureOptimize.ts`: colour and roughness at 80, normal
  * maps at 90), and the products' URLs name the `.webp`.
@@ -35,6 +38,7 @@ import { colorsOfImage } from '../lib/uploads/textureColors';
 import { encodeTextureWebp, textureKind } from '../lib/uploads/textureOptimize';
 import { PHOTO_WEBP_QUALITY } from '../lib/uploads/imageOptimize';
 import { humanizeSlug } from './lib/translations';
+import { PAINT_BASE_TEXTURE, PAINT_COLORS, type PaintName } from '../lib/design/styles';
 import type { StyleId } from '../lib/design/types';
 
 const ROOT = process.cwd();
@@ -53,8 +57,8 @@ type Surface = 'floor' | 'wall';
 interface TextureEntry {
   /** Product slug — an existing calculator product gets its texture; a new slug is created. */
   slug: string;
-  source: 'local' | 'polyhaven' | 'ambientcg';
-  /** Local: base name in public/textures without `-diffuse.webp`. Others: the asset id. */
+  source: 'local' | 'polyhaven' | 'ambientcg' | 'tint';
+  /** Local: base name in public/textures without `-diffuse.webp`. Tint: the paint's name. Others: the asset id. */
   id: string;
   nameKa: string;
   categorySlug: 'laminate' | 'floor-tiles' | 'wall-tiles' | 'paint';
@@ -69,6 +73,11 @@ interface TextureEntry {
   /** Local textures that ship only a diffuse map. */
   noNormal?: boolean;
   noRough?: boolean;
+  /** A new product sold by the litre rather than the m² (a paint): `priceGel` is per litre, and one covers this many m². */
+  perLitreM2?: number;
+  /** Names in the other languages, for a new product (otherwise the slug, humanised). */
+  nameEn?: string;
+  nameRu?: string;
 }
 
 const local = (slug: string, id: string, nameKa: string, categorySlug: TextureEntry['categorySlug'], surfaces: Surface[], scaleM: number, styles: StyleId[], priceGel: number | undefined, storeSlug: string, extra: Partial<TextureEntry> = {}): TextureEntry =>
@@ -77,6 +86,22 @@ const ph = (slug: string, id: string, nameKa: string, categorySlug: TextureEntry
   ({ slug, source: 'polyhaven', id, nameKa, categorySlug, surfaces, scaleM, styles, priceGel, storeSlug, ...extra });
 const acg = (slug: string, id: string, nameKa: string, categorySlug: TextureEntry['categorySlug'], surfaces: Surface[], scaleM: number, styles: StyleId[], priceGel: number | undefined, storeSlug: string, extra: Partial<TextureEntry> = {}): TextureEntry =>
   ({ slug, source: 'ambientcg', id, nameKa, categorySlug, surfaces, scaleM, styles, priceGel, storeSlug, ...extra });
+/** An interior paint: matt, by the litre, eight square metres a litre (two coats of a wall's four). */
+const paint = (name: PaintName, colourKa: string, colourEn: string, colourRu: string, styles: StyleId[]): TextureEntry => ({
+  slug: `paint-interior-${name}`,
+  source: 'tint',
+  id: `paint-${name}`,
+  nameKa: `ინტერიერის საღებავი, მქრქალი — ${colourKa}`,
+  nameEn: `Interior paint, matt — ${colourEn}`,
+  nameRu: `Интерьерная краска, матовая — ${colourRu}`,
+  categorySlug: 'paint',
+  surfaces: ['wall'],
+  scaleM: 2,
+  styles,
+  priceGel: 21,
+  perLitreM2: 8,
+  storeSlug: 'kartuli-aveji',
+});
 
 const LIBRARY: TextureEntry[] = [
   // --- wood floors (the calculator's laminates get the partner drop's floors) ---------
@@ -107,6 +132,20 @@ const LIBRARY: TextureEntry[] = [
   acg('paint-budget-white-10l', 'Plaster002', 'საღებავი თეთრი, ეკონომ 10ლ', 'paint', ['wall'], 2, ALL, undefined, 'kartuli-aveji'),
   local('plaster-decorative-vintage', 'plaster-vintage', 'დეკორატიული ბათქაში „ვინტაჟი“', 'paint', ['wall'], 2.5, ['vintage'], 16, 'kartuli-aveji', { noNormal: true, noRough: true }),
   ph('plaster-grey-concrete-look', 'plaster_grey_04', 'ბათქაში ბეტონის ეფექტით', 'paint', ['wall'], 1.5, ['industrial', 'modern'], 19, 'kartuli-aveji'),
+
+  // --- walls: the room paints the styles lay (lib/design/styles.ts, `rooms`) -------------------
+  paint('white', 'თეთრი', 'white', 'белая', ALL),
+  paint('warm-white', 'თბილი თეთრი', 'warm white', 'тёплая белая', ['scandinavian', 'vintage', 'modern']),
+  paint('greige', 'ნაცრისფერ-ბეჟი', 'greige', 'серо-бежевая', ['modern', 'scandinavian']),
+  paint('light-grey', 'ღია ნაცრისფერი', 'light grey', 'светло-серая', ['modern', 'industrial', 'scandinavian']),
+  paint('warm-grey', 'თბილი ნაცრისფერი', 'warm grey', 'тёплая серая', ['industrial', 'modern']),
+  paint('slate', 'ფიქლისფერი', 'slate grey', 'сланцево-серая', ['industrial', 'modern']),
+  paint('taupe', 'მოყავისფრო-ნაცრისფერი', 'taupe', 'серо-коричневая', ['modern', 'vintage']),
+  paint('sage', 'სალბისფერი', 'sage', 'шалфейная', ['scandinavian', 'vintage']),
+  paint('dusty-blue', 'მკრთალი ცისფერი', 'dusty blue', 'пыльно-голубая', ['scandinavian', 'modern']),
+  paint('dusty-rose', 'მკრთალი ვარდისფერი', 'dusty rose', 'пыльно-розовая', ['vintage', 'scandinavian']),
+  paint('cream', 'კრემისფერი', 'cream', 'кремовая', ['vintage', 'scandinavian']),
+  paint('olive', 'ზეთისხილისფერი', 'olive', 'оливковая', ['vintage', 'industrial']),
 
   // --- walls: coverings ------------------------------------------------------------------
   local('wall-brick-red-exposed', 'brick-01', 'ღია აგურის კედელი, წითელი', 'wall-tiles', ['wall'], 1.2, ['industrial', 'vintage'], 35, 'kartuli-aveji', { noRough: true }),
@@ -175,6 +214,7 @@ interface Maps {
 
 /** Puts the three maps in public/textures under a predictable name, as WebP, and returns their URLs. */
 async function materialise(entry: TextureEntry): Promise<Maps> {
+  if (entry.source === 'tint') return tinted(entry);
   const base = entry.source === 'local' ? entry.id : `${entry.source === 'polyhaven' ? 'ph' : 'acg'}-${entry.id}`;
   const stem = (kind: string) => path.join(TEX_DIR, `${base}-${kind}`);
   const url = (kind: string) => `/textures/${base}-${kind}.webp`;
@@ -232,6 +272,39 @@ async function materialise(entry: TextureEntry): Promise<Maps> {
   };
 }
 
+/** How much of the plaster's own light and shade a paint keeps: enough to read as a wall, not as a stain. */
+const TINT_RELIEF = 0.85;
+
+/**
+ * A paint's colour map: the plaster (`PAINT_BASE_TEXTURE`) coloured so that it averages the
+ * paint's colour, its light and shade kept (`TINT_RELIEF`) — and the plaster's normal and
+ * roughness maps as they are. Made once; delete the file to make it again.
+ */
+async function tinted(entry: TextureEntry): Promise<Maps> {
+  const out = path.join(TEX_DIR, `${entry.id}-diffuse.webp`);
+  if (!existsSync(out)) {
+    const { data, info } = await sharp(path.join(TEX_DIR, `${PAINT_BASE_TEXTURE}-diffuse.webp`)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const luma = (i: number) => 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 3) sum += luma(i);
+    const mean = sum / (data.length / 3);
+    const hex = PAINT_COLORS[entry.id.replace(/^paint-/, '') as PaintName];
+    const target = [1, 3, 5].map((k) => parseInt(hex.slice(k, k + 2), 16));
+    const pixels = Buffer.alloc(data.length);
+    for (let i = 0; i < data.length; i += 3) {
+      const shade = 1 + (luma(i) / mean - 1) * TINT_RELIEF;
+      for (let c = 0; c < 3; c++) pixels[i + c] = Math.max(0, Math.min(255, Math.round(target[c] * shade)));
+    }
+    const png = await sharp(pixels, { raw: { width: info.width, height: info.height, channels: 3 } }).png().toBuffer();
+    await writeFile(out, await encodeTextureWebp(new Uint8Array(png), 'colour'));
+  }
+  return {
+    diffuse: `/textures/${entry.id}-diffuse.webp`,
+    normal: `/textures/${PAINT_BASE_TEXTURE}-normal.webp`,
+    rough: `/textures/${PAINT_BASE_TEXTURE}-rough.webp`,
+  };
+}
+
 /** `<stem>.webp` exists, made now from a JPEG or PNG beside it (which then goes) when it did not. */
 async function ensureWebp(stem: string): Promise<boolean> {
   if (existsSync(`${stem}.webp`)) return true;
@@ -283,6 +356,8 @@ async function upsert(
     styleTags: entry.styles,
     tags: [...entry.styles, ...entry.surfaces, ...(entry.wet ? ['bathroom'] : [])],
     isActive: true,
+    // A paint is its colour: what the studio shows until the texture is in, and the 2D sheet's tint.
+    ...(entry.source === 'tint' ? { colorHex: PAINT_COLORS[entry.id.replace(/^paint-/, '') as PaintName] } : {}),
   };
   if (existing.length) {
     // A calculator product keeps its price, unit and coverage; it only gains a texture.
@@ -295,12 +370,13 @@ async function upsert(
     categoryId,
     storeId: storeBySlug.get(entry.storeSlug) ?? null,
     nameKa: entry.nameKa,
-    nameEn: humanizeSlug(entry.slug),
+    nameEn: entry.nameEn ?? humanizeSlug(entry.slug),
+    nameRu: entry.nameRu ?? null,
     slug: entry.slug,
     sku: `TX-${entry.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
     pricePerUnit: String(entry.priceGel),
-    unit: 'm2',
-    coveragePerUnit: '1',
+    unit: entry.perLitreM2 ? 'liter' : 'm2',
+    coveragePerUnit: String(entry.perLitreM2 ?? 1),
     brand: entry.source === 'polyhaven' ? 'Poly Haven' : entry.source === 'ambientcg' ? 'ambientCG' : null,
     isFeatured: false,
   });

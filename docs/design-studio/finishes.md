@@ -20,7 +20,8 @@ per-room floor and wall picks, carried into 3D).
 
 | File | Responsibility |
 |---|---|
-| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), the style's look per wetness (`defaultFinish`, `isWetRoom`) and the product it is (`styleFinishProduct`, `styleFinish`, `isStyleFinish`, `withStyleFinishes`), `pricePerM2` |
+| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), the style's look for a kind of room (`roomLook`, `defaultFinish`, `isWetRoom`) and the product it is (`styleFinishProduct`, `styleFinish`, `isStyleFinish`, `withStyleFinishes`), `pricePerM2` |
+| `lib/design/styles.ts` | each style's `rooms` — the floor and wall of each kind of dry room — and the paints they are painted in (`PAINT_COLORS`, `paintLook`) |
 | `lib/design/zones.ts` | finishes on part of a surface: one wall (`wallIndex`), floor zones (`halfZone`, `wallStripZone`, `zoneFromRect`, clipped to the room), `wallFinishFor`, `finishCoverage`, `isBaseFinish` |
 | `lib/design/paint.ts` | the brush: floor cells, wall strips (`span`) and wall patches (`cells` as [column, row]) — `paintCell`, `paintSpan`, `paintPatch`, `patchAt`, `patchSpans`, `patchSpansOnWall`, `erasePatchFromStrip`, `patchesAreaM2` |
 | `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
@@ -127,20 +128,45 @@ calculator's "size: 60×60", the stock textures' maps); `productSpecsSchema` che
 studio's cached catalogue is invalidated by the save, so the finish is on the shelf on the next
 load of the studio.
 
-The style's look comes first: bathrooms and toilets take the style's `wetFloor` / `wetWall`
-(tiles) rather than its parquet and plaster (`defaultFinish`). A finish with a product carries
+The style's look comes first, and it depends on the room (`roomLook`): bathrooms and toilets
+take the style's `wetFloor` / `wetWall` (tiles); every other kind of room takes its own look from
+the style's `rooms` (`StyleDefinition.rooms` in `lib/design/styles.ts`), else the style's
+`floor` / `wall`. A generated flat used to wear one plaster and one laminate in every room —
+bare plaster, the kitchen floored in laminate — and looked unpainted. Now each style paints and
+floors its rooms apart:
+
+| | living room / studio | bedroom | kitchen | hallway | office | balcony |
+|---|---|---|---|---|---|---|
+| modern | greige | taupe | white · porcelain 60×60 | light grey · microcement | light grey | white · porcelain |
+| scandinavian | warm white | sage | warm white · terrazzo | greige · terrazzo | dusty blue | warm white · terracotta |
+| industrial | warm grey | slate | light grey · microcement | concrete panel · microcement | exposed brick | warm grey · slate |
+| vintage | cream · herringbone | dusty rose | cream · chequered marble | floral wallpaper · terracotta | olive · parquet | cream · terracotta |
+
+(A floor not named is the style's own laminate; storage and closets take the hallway's or the
+plain colours.) **The paints are products**: twelve interior paints (`PAINT_COLORS`, one place
+for the colours) — `paint-interior-<name>`, matt, by the litre, eight m² a litre — each the
+ambientCG plaster `acg-Plaster002` coloured to the paint by `pnpm textures:stock` (the `tint`
+source: the plaster's light and shade kept at 85 %, its normal and roughness maps as they are),
+the product's `colorHex` the paint's. Migration `0023_room_paints.sql` brings the same twelve to
+a database the script has not been run on (the host's), and a test keeps it in step with the
+styles. The floors are existing `textures:stock` products. The 3D builder takes the room's look
+as the base its finish is laid over (`roomLook` in `buildRoomShell` / `wallMaterialFor`): its
+roughness is the surface's, so a kitchen's paint is matt — it took a bathroom tile's sheen while
+the builder counted the calculator's wet rooms, which include the kitchen. A finish with a product carries
 its own maps and scale into `StyleMaterials.surface`, replacing the style's — a marble tile with
 the oak floor's normal map underneath was the first bug here. Re-laying out the furniture keeps
 chosen finishes; switching style resets them.
 
 **The style's own floors and walls are partner products, and the budget buys them.** The
 textures the styles lay are the textures of `textures:stock` products (modern's bathroom walls
-are *wall-tile-textured-grey*, its bedroom floor *laminate-grey-10mm*, scandinavian's walls
-*paint-marshall-eco-5l*…), so `styleFinishProduct` finds, for each room and surface, the
-catalogue finish whose texture is the style's look (compared by path, whatever host or query
-the URL carries); a catalogue without it gives the best-ranked finish of the same wetness
-(`surfaceOptions` — never a laminate in a bathroom), one without any leaves the look alone,
-unpriced. `styleFinish` lays that product over the whole surface as `origin: 'style'` — nobody
+are *wall-tile-textured-grey*, its bedroom floor *laminate-grey-10mm*, scandinavian's bedroom
+walls *paint-interior-sage*…), so `styleFinishProduct` finds, for each room and surface, the
+catalogue finish whose texture is the room's look (compared by path, whatever host or query
+the URL carries); a catalogue without it gives the style's plain floor or wall for any room (a
+database the room paints have not reached), then the best-ranked finish of the same wetness
+(`surfaceOptions` — never a laminate in a bathroom); one without any leaves the look alone,
+unpriced. A plain wall standing in for a room's paint is shown in its own colour, not the
+paint's. `styleFinish` lays that product over the whole surface as `origin: 'style'` — nobody
 chose it — in the style's colour when the product has none of its own (what shows until the
 texture loads). The flat was generated in the style's look with nothing behind it, so a person
 had to paint every wall and tile every bathroom again before any of it reached the summary.
@@ -310,7 +336,8 @@ off by a wall that stops short), and so does the brush's glow.
 (finishes; the style's bought in a renovation for every home state and in a design-only
 project, a line ticked off not),
 `visibleFinishes.test.ts` (what shows is what is bought, strips painted twice),
-`styleFinishes.test.ts` (the style's product, the fallbacks, `withStyleFinishes`),
+`styleFinishes.test.ts` (the style's product, the fallbacks, `withStyleFinishes`; each kind of
+room in its own look, every look a file the app serves, every paint in migration 0023),
 `finishBrowser.test.ts` (a surface's finishes best first, the shelf's style and colour filters,
 the catalogue's categories, bathroom filter, price per m², sorts and stand-asides),
 `colors.test.ts` (colours read off pixels), `tests/unit/api/textureColors.test.ts` (off an image

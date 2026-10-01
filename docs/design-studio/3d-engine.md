@@ -25,6 +25,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `lib/design3d/wallSide.ts` | `wallSideAt` — whose wall a hit on a wall face is (the outside of the flat is nobody's) |
 | `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded`; `releaseUnused` lets go of the finishes no shell wears (gotcha 23) |
 | `lib/design3d/modelLoader.ts` | `loadModel` / `loadFixture`: one GLB per URL (meshopt or Draco), clones out, pivot onto y = 0, glass made plain, footprint mask registration; a failed load is forgotten so the next placement asks again |
+| `lib/design3d/loadProgress.ts` + `components/design/SceneLoading.tsx` | how many files the view asked for are still on their way (`trackLoad`, `loadStarted`), and the loading screen that waits on it (`useSceneLoading` in the viewer) |
 | `lib/design3d/glass.ts` | `plainGlass`: a transmissive glTF material (`KHR_materials_transmission`) turned into plain transparency (gotcha 20) |
 | `lib/design3d/instancing.ts` | `instanced` / `alongX`: one model at several places as one `InstancedMesh` per mesh — radiator sections, a socket's plates, railing modules (gotcha 21) |
 | `lib/design3d/draco.ts` | `DRACO_DECODER_PATH`: where every browser loader finds the Draco decoder (`public/vendor/draco`, `pnpm draco:decoder`) |
@@ -207,6 +208,34 @@ decoders: meshopt's is inline, Draco's is fetched from `public/vendor/draco` the
 Draco model arrives and decodes in web workers of its own (the CSP allows `worker-src blob:` and
 `'wasm-unsafe-eval'`). Textures are WebP. How the files are made: [../3d-assets.md](../3d-assets.md).
 
+## The loading screen (`lib/design3d/loadProgress.ts`)
+
+A freshly generated flat used to appear piece by piece: the walls at once, then each sofa,
+lamp and floor as its file landed. Now `SceneLoading` covers the canvas until the flat is all
+there:
+
+- `loadProgress` counts the files the view asks for and has not got yet — a model's or a
+  fixture's first load in `modelLoader` (the promise up to the parsed, readied model) and a
+  texture's in `StyleMaterials.whenLoaded` — and tells its listeners once per batch (a scene
+  build asks for dozens in one go). A file already in a cache is not counted; a failed one is
+  done.
+- `Viewer3D`'s `useSceneLoading` puts the screen up from the moment the viewer mounts, waits for
+  `SceneContent`'s first build (`onBuilt`, an effect that runs after the shells, fittings and
+  radiators were built while rendering and the furniture in its layout effect — by then every
+  file the first scene needs has been asked for), then for nothing to be pending for 300 ms (a
+  bare door leaf asks for its casing only once it is in, a finish product may arrive with the
+  catalogue), and fades out. The bar counts the files asked for since the viewer mounted.
+- It never holds the studio longer than 45 s, however slow the connection.
+- Once a flat has been shown whole on the page, a viewer mounted again (from the 2D board, or
+  the walk-through) skips the screen: the models are cached, and only textures — per viewer —
+  come again. Later loads (a piece added, a style changed) show as before, as each arrives.
+- The studio's `ViewerFallback` (while three.js and the viewer's chunk arrive) is the same
+  screen without a count, so the two follow on without a jump. The project page's viewer gets
+  the screen too.
+
+Measured on the sample flat over a throttled 1.5 MB/s link, cache off: the screen is up from
+1.8 s, counts 50 files (36 GLBs, the rest textures) from 5 s and is gone at 9 s.
+
 ## Time of day and the world around the flat
 
 **Time of day** is a preset in the top bar (morning / noon / evening / night → hours 8, 13,
@@ -246,9 +275,8 @@ asynchronously, so anything waiting for the first model (e2e, screenshots) has t
 
 - At night the viewer still tints the cached `glass` material, but windows are GLB models with
   their own materials now, so no window glows (gotcha 17 describes the intent).
-- Kitchens count as wet rooms for the 3D builder's default wall and floor (`WET_ROOM_TYPES` in
-  `buildScene.ts`), while the defaults and pricing use `surfaces.isWetRoom` (bathroom and toilet
-  only) — the two can disagree about a kitchen's default finish.
+- The first-visit tour (`TutorialOverlay`) opens at once, over the loading screen, rather than
+  after it.
 ### Performance
 
 **Measured** on an Apple M4 with the sample-plan flat furnished (about 40 items, 37 fittings,

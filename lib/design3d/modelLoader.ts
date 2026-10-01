@@ -16,6 +16,7 @@ import { DRACO_DECODER_PATH } from './draco';
 import { registerFootprintMask } from '@/lib/design/footprintMasks';
 import { footprintMaskOf } from './footprintFromModel';
 import { plainGlass } from './glass';
+import { trackLoad } from './loadProgress';
 
 interface CachedModel {
   object: THREE.Object3D;
@@ -41,7 +42,8 @@ const modelCache = new Map<string, Promise<CachedModel>>();
 export function loadModel(url: string): Promise<THREE.Object3D> {
   let entry = modelCache.get(url);
   if (!entry) {
-    entry = gltfLoader.loadAsync(url).then((gltf) => {
+    // Counted until the file is in and readied — what the loading screen waits on.
+    entry = trackLoad(gltfLoader.loadAsync(url).then((gltf) => {
       const object = gltf.scene;
       object.traverse((child) => {
         if (child instanceof THREE.Mesh && !child.geometry.attributes.normal) {
@@ -72,7 +74,7 @@ export function loadModel(url: string): Promise<THREE.Object3D> {
         registerFootprintMask(url, null);
       }
       return { object: root, size };
-    });
+    }));
     remember(modelCache, url, entry);
   }
   return entry.then(({ object, size }) => {
@@ -93,14 +95,14 @@ export function loadModel(url: string): Promise<THREE.Object3D> {
 export function loadFixture(url: string): Promise<THREE.Object3D> {
   let entry = fixtureCache.get(url);
   if (!entry) {
-    entry = gltfLoader.loadAsync(url).then((gltf) => {
+    entry = trackLoad(gltfLoader.loadAsync(url).then((gltf) => {
       const object = gltf.scene;
       object.traverse((child) => {
         if (child instanceof THREE.Mesh && !child.geometry.attributes.normal) child.geometry.computeVertexNormals();
       });
       plainGlass(object);
       return object;
-    });
+    }));
     remember(fixtureCache, url, entry);
   }
   return entry.then((object) => object.clone(true));

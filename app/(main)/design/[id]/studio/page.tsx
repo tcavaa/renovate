@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { AlertTriangle, Eraser, LayoutGrid, Loader2, PaintBucket, X } from 'lucide-react';
+import { AlertTriangle, Eraser, LayoutGrid, PaintBucket, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -49,7 +49,7 @@ import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { formatGEL, cn } from '@/lib/utils';
-import { ROTATE_STEP_RAD, isPlacementValid, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
+import { ROTATE_STEP_RAD, isPlacementValid, isWallHung, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
 import { isStyleFinish } from '@/lib/design/surfaces';
@@ -62,6 +62,7 @@ import type { ElectricalKind, OpeningKind, PlacedItem, TechnicalKind, Vec2 } fro
 import { openingProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
+import { SceneLoading } from '@/components/design/SceneLoading';
 
 /**
  * Three.js touches `window` at import time, so the viewport is client-only. Everything else
@@ -406,6 +407,8 @@ export default function StudioPage() {
     (steps: number) => {
       if (!selected || !plan || selected.locked) return;
       if (carryingItemId && selected.id === carryingItemId) {
+        // A hung piece on the pointer faces out of whichever wall it is over; a turn means nothing.
+        if (isWallHung(selected)) return;
         const pose = view === '2d' ? planApi?.carryPose() : viewerApi?.carryPose();
         store.placeItem(selected.id, pose?.position ?? selected.position, selected.rotation + steps * ROTATE_STEP_RAD, pose?.roomId ?? selected.roomId, pose?.elevationM);
         setRotateBlocked(false);
@@ -415,7 +418,8 @@ export default function StudioPage() {
       if (!room) return;
       const result = rotatePlacement(room, selected, steps, items, plan.rooms);
       setRotateBlocked(!result.valid);
-      store.placeItem(selected.id, result.position, result.rotation, room.id);
+      // A hung piece goes round to the next wall at the height it hung at (`turnOnWall`).
+      store.placeItem(selected.id, result.position, result.rotation, room.id, result.elevationM);
     },
     [selected, plan, items, store, carryingItemId, viewerApi, planApi, view]
   );
@@ -1083,7 +1087,8 @@ export default function StudioPage() {
                   // Escape brings the old one back.
                   onSwap={(product) => store.swapProduct(selected.id, product, { carry: view === '3d' })}
                   onRotate={rotateSelected}
-                  onRotateTo={rotateSelectedTo}
+                  // A hung piece faces out of its wall: no angle but its walls' (the turn buttons go round them).
+                  onRotateTo={isWallHung(selected) ? undefined : rotateSelectedTo}
                   rotateBlocked={rotateBlocked}
                   onRemove={() => store.removeItem(selected.id)}
                   onMirror={() => store.mirrorItem(selected.id)}
@@ -1385,12 +1390,11 @@ function RoomRow({ label, count, active, onClick }: { label: string; count: numb
   );
 }
 
+/** While three.js itself arrives: the same screen the viewer then counts the flat's files on (`SceneLoading`). */
 function ViewerFallback() {
   return (
-    <div className="grid h-full w-full place-items-center bg-sand-light">
-      <div className="flex flex-col items-center gap-3 text-ink-muted">
-        <Loader2 className="h-7 w-7 animate-spin text-brand" />
-      </div>
+    <div className="relative h-full w-full">
+      <SceneLoading />
     </div>
   );
 }

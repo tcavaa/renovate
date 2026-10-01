@@ -633,6 +633,13 @@ export interface StyleDefinition {
     wetFloor: StyleSurface;
     wetWall: StyleSurface;
   };
+  /**
+   * What each kind of dry room is floored and painted in, over `floor` / `wall`: the bedroom a
+   * calmer colour than the living room, the kitchen and the hall in tiles (`roomLook`). Every
+   * look is a catalogue product's texture, which is how `styleFinishProduct` finds the product
+   * to buy. A type not listed keeps the style's own; a bathroom always takes `wetFloor` / `wetWall`.
+   */
+  rooms: Partial<Record<RoomType, { floor?: StyleSurface; wall?: StyleSurface }>>;
   lighting: {
     /** Ambient light colour and intensity. */
     ambient: string;

@@ -28,7 +28,7 @@
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
-import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge } from './openings';
+import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge, withOpeningTwins, type WallThickness } from './openings';
 import { nextRoomName } from './roomNames';
 import type { Column, ElementOrigin, FloorPlan, Opening, PlanRoom, Vec2, Wall } from './types';
 
@@ -710,9 +710,13 @@ export function ensureWalls(plan: FloorPlan): FloorPlan {
   return withAlignedTwins(withBounds({ ...plan, walls, rooms: rooms.length > 0 ? rooms : plan.rooms }));
 }
 
-/** The two halves of every interior door agree on one leaf (see `alignTwins`); same plan object when they already do. */
+/**
+ * Every opening with a room behind its wall is cut in both rooms (`withOpeningTwins` — a window
+ * onto a balcony through a thick outer wall was cut in one), and the two halves of every
+ * interior door agree on one leaf (see `alignTwins`); same plan object when they already do.
+ */
 function withAlignedTwins(plan: FloorPlan): FloorPlan {
-  const rooms = alignTwins(plan.rooms);
+  const rooms = alignTwins(withOpeningTwins(plan.rooms, planWallThickness(plan)));
   return rooms === plan.rooms ? plan : { ...plan, rooms };
 }
 
@@ -1133,6 +1137,11 @@ export function wallForEdge(plan: FloorPlan, room: PlanRoom, edge: PlanEdge): Wa
 /** The thickness of the wall behind a room edge — the wall's own, or the plan's default. */
 export function wallThicknessForEdge(plan: FloorPlan, room: PlanRoom, edge: PlanEdge): number {
   return wallForEdge(plan, room, edge)?.thicknessM ?? plan.wallThicknessM;
+}
+
+/** Each edge's own wall thickness, for the openings' edits (`addOpening`, `railingFits` …) to find the room behind it by. */
+export function planWallThickness(plan: FloorPlan): WallThickness {
+  return (room, edge) => wallThicknessForEdge(plan, room, edge);
 }
 
 /** The height a wall stands: its own, else the room's, else the plan's default. */

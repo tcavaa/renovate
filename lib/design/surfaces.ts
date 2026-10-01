@@ -17,7 +17,7 @@ import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
 import { roomWallAreaM2 } from './planGeometry';
-import type { ItemOrigin, PlanRoom, StyleId, StyleSurface, SurfaceFinish } from './types';
+import type { ItemOrigin, PlanRoom, StyleDefinition, StyleId, StyleSurface, SurfaceFinish } from './types';
 
 export type Surface = 'floor' | 'wall';
 
@@ -86,20 +86,23 @@ export function wallAreaM2(room: PlanRoom): number {
   return roomWallAreaM2(room);
 }
 
-/** The style's own finish for this surface in this room — tiles in a bathroom. */
+/**
+ * How the style lays this surface in a room of this kind: tiles in a bathroom; elsewhere the
+ * room's own look (`StyleDefinition.rooms` — the bedroom's paint, the kitchen's tiles), else
+ * the style's floor and wall. With `generic`, the style's floor and wall whatever the room —
+ * what a catalogue without the room's own product falls back to. The ceiling is the style's.
+ */
+export function roomLook(style: StyleDefinition, type: PlanRoom['type'], surface: 'floor' | 'wall' | 'ceiling', generic = false): StyleSurface {
+  if (surface === 'ceiling') return style.surfaces.ceiling;
+  if (isWetRoom(type)) return surface === 'floor' ? style.surfaces.wetFloor : style.surfaces.wetWall;
+  const own = generic ? undefined : style.rooms[type]?.[surface];
+  return own ?? (surface === 'floor' ? style.surfaces.floor : style.surfaces.wall);
+}
+
+/** The style's own finish for this surface in this room — tiles in a bathroom, the bedroom's paint. */
 export function defaultFinish(room: PlanRoom, surface: SurfaceFinish['surface'], styleId: StyleId): SurfaceFinish {
   const style = getStyle(styleId);
-  const wet = isWetRoom(room.type);
-  const spec: StyleSurface =
-    surface === 'ceiling'
-      ? style.surfaces.ceiling
-      : surface === 'floor'
-        ? wet
-          ? style.surfaces.wetFloor
-          : style.surfaces.floor
-        : wet
-          ? style.surfaces.wetWall
-          : style.surfaces.wall;
+  const spec = roomLook(style, room.type, surface === 'ceiling' ? 'ceiling' : surface === 'floor' ? 'floor' : 'wall');
   return {
     roomId: room.id,
     surface,
@@ -148,16 +151,19 @@ function sameTexture(a: string | null | undefined, b: string | null | undefined)
 
 /**
  * The product a style's own finish *is*: the catalogue finish whose texture the style lays on
- * this surface of this room (`defaultFinish` — tiles in a bathroom, laminate in a bedroom),
- * so what the studio shows is what the budget buys. A catalogue without that one gives the
- * room's best finish of the same kind instead — a wet one in a bathroom, a dry one anywhere
- * else (`surfaceOptions`); one without any leaves the style's look to stand unpriced (null).
+ * this surface of this room (`roomLook` — tiles in a bathroom, the bedroom's paint, the
+ * kitchen's tiles), so what the studio shows is what the budget buys. A catalogue without that
+ * one gives the style's own floor or wall for any room (a database the room paints have not
+ * reached yet), then the room's best finish of the same kind — a wet one in a bathroom, a dry
+ * one anywhere else (`surfaceOptions`); one without any leaves the look to stand unpriced (null).
  */
 export function styleFinishProduct(catalog: CatalogProduct[], room: PlanRoom, surface: Surface, styleId: StyleId): CatalogProduct | null {
   const options = surfaceOptions(catalog, surface, room, styleId);
-  const look = defaultFinish(room, surface, styleId).textureUrl;
-  const own = look ? options.find((p) => sameTexture(p.textureUrl, look)) : undefined;
-  if (own) return own;
+  const style = getStyle(styleId);
+  for (const look of [roomLook(style, room.type, surface), roomLook(style, room.type, surface, true)]) {
+    const own = look.textureUrl ? options.find((p) => sameTexture(p.textureUrl, look.textureUrl)) : undefined;
+    if (own) return own;
+  }
   const wet = isWetRoom(room.type);
   return options.find((p) => !!surfaceSpecs(p).wet === wet) ?? null;
 }
@@ -173,9 +179,12 @@ export function styleFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling
   const product = styleFinishProduct(catalog, room, surface, styleId);
   if (!product) return look;
   // A texture product seldom has a colour of its own; the style's is the one its look was
-  // picked to — what shows until the texture is in, and what the 2D sheet is tinted with.
+  // picked to — what shows until the texture is in, and what the 2D sheet is tinted with: the
+  // style's plain wall's colour when that is what stood in for the room's paint.
   const finish = finishFromProduct(room, surface, product, 'style');
-  return product.colorHex ? finish : { ...finish, colorHex: look.colorHex };
+  if (product.colorHex) return finish;
+  const generic = roomLook(getStyle(styleId), room.type, surface, true);
+  return { ...finish, colorHex: !sameTexture(product.textureUrl, look.textureUrl) && sameTexture(product.textureUrl, generic.textureUrl) ? generic.colorHex : look.colorHex };
 }
 
 /** A whole-room finish the style laid rather than a person: marked so, or from before finishes had an origin and bare. */
