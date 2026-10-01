@@ -98,7 +98,7 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 | Role | Works in | May | May not |
 |---|---|---|---|
 | `user` | the site | their own projects (calculator, design studio), profile — and their own details (name, phone, default delivery address) — own furniture, render photos; pay a half's fee; order a saved project; book a brigade | open `/admin` or `/partner`; change their own e-mail (it is the sign-in) |
-| `admin` | `/admin`, every section | everything: accounts (create, role and link, deactivate, password, delete), orders, projects, the catalogue, stores, workers, brigades, the rate book, revenue and its CSV, platform settings (fees, commissions, the building-materials supplier); the partner portal as any partner (`?store=` / `?worker=` / `?team=`); delete any project or photo | demote, deactivate or delete themselves |
+| `admin` | `/admin`, every section | everything: accounts (create, role and link, deactivate, password, delete), orders, projects, the catalogue, stores, workers, brigades, the rate book, revenue and its CSV, the card transactions, platform settings (fees, commissions, the own item's price, the bank commission, the building-materials supplier); the partner portal as any partner (`?store=` / `?worker=` / `?team=`); delete any project or photo | demote, deactivate or delete themselves |
 | `agent_orders` | `/admin`: dashboard, orders, projects | work every order: keep or strike lines, change quantities, prices and the delivery, add lines, **confirm a store's order and send it to the store**, set any status (reopen a closed order), write to the customer, keep a staff note, comment for the partner; see every project and its orders | products, categories, stores, workers, brigades, rates, revenue, settings, accounts; the partner portal; deleting projects |
 | `agent_catalog` | `/admin`: dashboard, products, categories, stores | products (any store's: add, edit, show/hide, in bulk, 3D models), the category tree (add, edit, move, reorder, hide) and the studio's rooms (add, edit, reorder, hide), stores (add, edit, switch off, approve or reject) | **delete** a product, a category, a studio room or a store (admin's — `canDeleteIn`; the buttons are not shown and the routes answer 403); orders of any kind, projects, revenue, a store's commission rate, workers, brigades, rates, settings, accounts |
 | `store` | `/partner` | its own orders once the platform has sent them (move along: in progress → done, message the customer, comment), its own products (add, edit, delete, show/hide, in bulk; `storeId` forced, never featured), its sales figures; image and GLB uploads | change an order's lines, prices or delivery; cancel or reopen an order; see the staff note or other partners |
@@ -181,7 +181,8 @@ the phone and the address.
    another brigade or a store included, gets a 404 — and render nothing that writes.
 5. **Money is admin's.** A store's commission rate is shown and saved only for admin: the
    store form hides the field from a catalogue agent and `POST`/`PUT /api/stores` ignore it
-   from anybody else; revenue, settings and the dashboard's money tiles are admin-only.
+   from anybody else; revenue, the card transactions (`/admin/payments`), settings and the
+   dashboard's money tiles are admin-only.
 6. **What the public reads.** `GET /api/stores`, `/api/stores/[id]`, `/api/workers` and
    `/api/workers/[id]` answer staff (and a worker reading themself) with the whole row, and
    everybody else with the listed partners only — approved and active — and only their public

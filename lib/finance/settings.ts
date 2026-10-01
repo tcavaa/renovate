@@ -9,7 +9,8 @@ import { DEFAULT_PLATFORM_SETTINGS, type PlatformSettings } from './money';
  *
  * Same contract as the rate book: an unseeded table is not an error, and admin's change
  * takes effect on the next request without a restart. Every price the platform charges for
- * itself is read through here — the summaries, the checkout, the partner commission.
+ * itself is read through here — the summaries, the checkout, the partner commission, the
+ * price of an own item and the bank's commission every card payment shows.
  */
 export interface PlatformSettingsWithMeta extends PlatformSettings {
   /** The store that supplies the rate book's construction materials; null = nobody yet. */
@@ -26,6 +27,8 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
     designFeePerM2: Number(row.designFeePerM2),
     storeCommissionPct: Number(row.storeCommissionPct),
     workerCommissionPct: Number(row.workerCommissionPct),
+    ownItemPrice: Number(row.ownItemPrice),
+    bankFeePct: Number(row.bankFeePct),
     materialsStoreId: row.materialsStoreId ?? null,
     updatedAt: row.updatedAt,
   };
@@ -59,6 +62,8 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     designFeePerM2: patch.designFeePerM2 ?? current.designFeePerM2,
     storeCommissionPct: patch.storeCommissionPct ?? current.storeCommissionPct,
     workerCommissionPct: patch.workerCommissionPct ?? current.workerCommissionPct,
+    ownItemPrice: patch.ownItemPrice ?? current.ownItemPrice,
+    bankFeePct: patch.bankFeePct ?? current.bankFeePct,
   };
   const materialsStoreId = patch.materialsStoreId !== undefined ? patch.materialsStoreId : current.materialsStoreId;
   const values = {
@@ -66,6 +71,8 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     designFeePerM2: String(next.designFeePerM2),
     storeCommissionPct: String(next.storeCommissionPct),
     workerCommissionPct: String(next.workerCommissionPct),
+    ownItemPrice: String(next.ownItemPrice),
+    bankFeePct: String(next.bankFeePct),
     materialsStoreId,
   };
   const existing = await db.select({ id: platformSettings.id }).from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);

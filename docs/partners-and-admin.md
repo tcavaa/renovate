@@ -40,7 +40,8 @@ Related: [auth-and-roles.md](auth-and-roles.md) (roles and guards — who may op
 ## The admin panel
 
 One folder per section under `app/admin/` (dashboard, orders, projects, products, categories,
-stores, workers, teams, rates, revenue, users, settings). Which role sees which section is
+stores, workers, teams, rates, revenue, payments — the card transactions,
+[payments.md](payments.md#admin) — users, settings). Which role sees which section is
 `canAdmin` in `lib/auth/roles.ts` ([auth-and-roles.md](auth-and-roles.md)); every page and every
 section layout calls `requireAdminPage(section)`.
 

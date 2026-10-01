@@ -79,6 +79,10 @@ export const API_ERRORS = {
   ADDRESS_REQUIRED: 'ADDRESS_REQUIRED',
   /** A half with no floor area has no fee to pay: the rooms are drawn first. */
   NOTHING_TO_PAY: 'NOTHING_TO_PAY',
+  /** Flitt refused or could not be reached: nothing was charged, try again. */
+  PAYMENT_UNAVAILABLE: 'PAYMENT_UNAVAILABLE',
+  /** An own item costs money and this person has no paid credit for one. */
+  PAYMENT_REQUIRED: 'PAYMENT_REQUIRED',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];

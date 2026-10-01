@@ -41,23 +41,33 @@ const s3ImagePattern = s3Url
  * partner stores. Fonts are self-hosted through `next/font`, so no font origin is listed.
  * Development additionally needs `eval` for React Refresh and a websocket for HMR.
  *
- * `form-action` lists Google because the sign-in form posts to NextAuth, which then redirects
- * to accounts.google.com — Chrome applies `form-action` to that redirect too.
+ * `form-action` must admit Google because the sign-in form posts to NextAuth, which then
+ * redirects to accounts.google.com — Chrome applies `form-action` to that redirect too (and
+ * 3-D Secure, below, needs any https origin anyway).
+ *
+ * Card payments (docs/payments.md): Flitt's embedded form is its script and styles from
+ * pay.flitt.com, its fonts, and its gateway in an iframe from the same host; Google Pay and
+ * Apple Pay load their own scripts when the merchant has them. 3-D Secure is the card's bank
+ * — any bank — and Flitt's SDK posts a form from this page into an iframe it puts over it, so
+ * `frame-src` and `form-action` take any https origin.
  */
+const flitt = 'https://pay.flitt.com';
+const wallets = 'https://pay.google.com https://google.com https://www.google.com https://applepay.cdn-apple.com';
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self' data:",
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''} ${flitt} ${wallets}`,
+  `style-src 'self' 'unsafe-inline' ${flitt}`,
+  `font-src 'self' data: ${flitt} https://applepay.cdn-apple.com`,
   "img-src 'self' data: blob: https:",
   // `blob:` because GLTFLoader hands the textures packed inside each GLB to the browser as
   // blob URLs and fetches them back — without it every partner model loads untextured.
-  `connect-src 'self' blob:${s3Origin ? ` ${s3Origin}` : ''}${isDev ? ' ws: wss:' : ''}`,
+  `connect-src 'self' blob: ${flitt} ${wallets}${s3Origin ? ` ${s3Origin}` : ''}${isDev ? ' ws: wss:' : ''}`,
+  "frame-src 'self' https:",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self' https://accounts.google.com",
+  "form-action 'self' https:",
   "frame-ancestors 'none'",
   ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
@@ -67,7 +77,8 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
+  // `payment` for Google Pay and Apple Pay inside Flitt's form.
+  { key: 'Permissions-Policy', value: `camera=(), microphone=(), geolocation=(), payment=(self "${flitt}" "https://pay.google.com")` },
   // Two years, subdomains included. Browsers ignore this over plain HTTP, so it is harmless
   // in development and only takes effect once Nginx terminates TLS.
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },

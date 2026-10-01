@@ -5,7 +5,8 @@ partner order), how a project is ordered (checkout → one order per store, the 
 materials to their supplier, all to the customer's address), how the orders agent confirms
 every store order before the store sees it, how a brigade is booked for the labour, how
 partners move their orders along in their portal, and what admin sees of the money. Read this
-before touching `lib/finance/`, `lib/account/`, `lib/teams/`, the payment step, the checkout or
+before touching `lib/finance/`, `lib/account/`, `lib/teams/`, the payment step (with
+[payments.md](payments.md)), the checkout or
 booking dialogues, the order pages and components, or the admin's orders, revenue and settings
 pages.
 
@@ -22,7 +23,7 @@ profile's phone and address) · [data-model.md](data-model.md) (`checkouts`, `or
 | File | Responsibility |
 |---|---|
 | `lib/finance/money.ts` | the arithmetic, no DB: fees (`platformFee`, `feeAreaM2` — the area a half's fee is charged on), commissions (`effectiveCommissionPct`), `mergeLines`, grouping by store (`buildStoreOrders`, `costLinesByStore`), delivery (`deliveryFeeFor`), `lineTotal`, report periods |
-| `lib/finance/payments.ts` | the fee paid before a half's hinge: `paymentQuote` (the saved row's area × the day's rate), `payProjectHalf` (once per half; a second payment finds the first), `paymentsOf`, `PaymentView`; `projectFees` — every fee a project paid, at its hinges or (before) at checkout, which both project pages show beside their orders (`components/orders/FeeSummary.tsx`) |
+| `lib/finance/payments.ts` | the fee paid before a half's hinge: `paymentQuote` (the saved row's area × the day's rate), `recordHalfPayment` (the half's row, from its approved Flitt payment — [payments.md](payments.md)), `halfPayment`, `paymentsOf`, `PaymentView`; `projectFees` — every fee a project paid, at its hinges or (before) at checkout, which both project pages show beside their orders (`components/orders/FeeSummary.tsx`) |
 | `lib/account/contact.ts`, `lib/account/server.ts` | an order's contact, pure: `resolveContact` (the account's name and e-mail; the phone and the address typed or the profile's; what to keep on the account), `addressOf`, `formatAddress`; server: `loadAccountContact`, `updateAccountContact` |
 | `lib/finance/orders.ts` | writing and reading orders: `createCheckoutForProject`, `createTeamBooking` (+ `projectLabour`), `projectMaterials` / `checkoutPreview` (the materials and the reserve the dialogue shows), `projectOrderState`, `applyOrderEdit`, `confirmOrder`, `addOrderComment`, `orderEventsFor`, `recordOrderEvent`, `partnerOwnsOrder`, `partnerCondition`, `ordersForProject`, `orderCustomer` |
 | `lib/finance/orderFlow.ts` | the rules, pure: `orderStage`, `awaitsConfirmation`, `partnerNextStatuses` / `partnerMayMove`, `summariseEdit` (an edit event's facts), `lineDiff` (what the customer sees changed) |
@@ -35,7 +36,7 @@ profile's phone and address) · [data-model.md](data-model.md) (`checkouts`, `or
 | `lib/projects/checkoutParts.ts` | the checkout dialogue's lines per half, each marked furniture or not |
 | `lib/validations/checkout.schema.ts`, `profile.schema.ts` | `checkoutSchema`, `contactSchema`, `bookingSchema`, `orderEditSchema`, `platformSettingsSchema`; `profileSchema`, `paymentSchema` |
 | `components/checkout/CheckoutDialog.tsx`, `BookingDialog.tsx`, `ContactFields.tsx`, `FeePaidNote.tsx` | ordering a project (three rows and the total, then a thank-you and the orders); booking a brigade; the contact and address block both share; the fee as paid on a summary |
-| `components/flow/HingeDialog.tsx` | the warning and the fee before "გამოთვლის დაწყება" and "დიზაინის გენერაცია" (a test card for now) |
+| `components/flow/HingeDialog.tsx` | the warning and the fee before "გამოთვლის დაწყება" and "დიზაინის გენერაცია", paid by card through Flitt (`components/payments/CardPayment.tsx`, [payments.md](payments.md)) |
 | `components/orders/OrderEditor.tsx` | the platform's order page: keep/strike lines, quantities, prices, delivery, add lines, status, message, staff note, "confirm and send" |
 | `components/orders/PartnerOrderView.tsx` | a partner's order: read-only lines, the next steps as buttons, the message to the customer |
 | `components/orders/OrderTimeline.tsx` | an order's history and the comments between the platform and the partner |
@@ -43,7 +44,7 @@ profile's phone and address) · [data-model.md](data-model.md) (`checkouts`, `or
 | `components/orders/ProjectOrders.tsx` (`OrderCards`), `OrderStatusBadge.tsx` (`OrderStageBadge`), `useOrderActions.ts` | the customer's view on the project page and on the hubs' orders list (every change shown against what was ordered); the stage badge; saving and confirming from the client |
 | `components/projects/OrderProjectButton.tsx` | ordering a saved project from its page |
 | `app/api/checkout/route.ts` | GET what was ordered before, the materials and the reserve; POST a checkout |
-| `app/api/payments/route.ts` | GET a project's payments and what each half would cost; POST pay a half |
+| `app/api/payments/route.ts` | GET a project's payments and what each half would cost; paying is `POST /api/payments/flitt` ([payments.md](payments.md)) |
 | `app/api/profile/route.ts` | GET / PATCH the person's own contact ([auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)) |
 | `app/api/bookings/route.ts` | GET bookings of a project; POST a brigade booking |
 | `app/api/orders/[id]/`, `…/confirm/`, `…/comments/` | read and change an order (staff and its partner, by the rules above), confirm a store's order (staff with `orders`), comment on it |
@@ -130,25 +131,27 @@ workers who do, and takes a cut at every step. Two revenue lines, both recorded:
    style step) open `HingeDialog`: first the warning that the plan is settled from here (the
    steps before shut — [project-flow.md §12](project-flow.md#12-locks-and-why-there-is-no-start-over))
    with what to check, then the fee — the half is saved (`saveCalculatorProject` /
-   `saveDesign`, a draft), `GET /api/payments?projectId=` says whether it is paid and what it
-   costs on the saved row (`paymentQuote`: `feeAreaM2` — the calculation's rooms' floors, the
-   design's plan — × the day's rate), a card form filled with the published test card
-   (4242 4242 4242 4242), and `POST /api/payments { projectId, kind, cardLast4 }` →
-   `payProjectHalf` → one `project_payments` row per half (unique on project and half; a second
-   payment finds the first). "Paid", a moment, and the hinge itself (`setCalculated` /
-   `generate`). A half already paid goes straight on. **There is no payment provider yet**:
-   nothing is charged, the row's `method` is `test`, its `reference` made up. The summaries show
-   the fee as paid, a line of its own under the total (`FeePaidNote`), and the checkout charges
-   none; checkouts placed before carry theirs in `checkouts.platformFee`, and the revenue report
-   counts both.
+   `saveDesign`, a draft) and **paid by card through Flitt** (`CardPayment`,
+   [payments.md](payments.md)): `POST /api/payments/flitt { purpose, projectId }` quotes the saved
+   row (`paymentQuote`: `feeAreaM2` — the calculation's rooms' floors, the design's plan — × the
+   day's rate), adds the bank's commission (`platform_settings.bankFeePct`, shown as a line of its
+   own) and opens Flitt's embedded form; once Flitt's signed status (or callback) says
+   `approved`, `recordHalfPayment` writes one `project_payments` row per half (unique on project
+   and half; `method` `flitt`, `reference` the Flitt order id, `amount` the fee alone). "Paid", a
+   moment, and the hinge itself (`setCalculated` / `generate`). A half already paid goes straight
+   on. The summaries show the fee as paid, a line of its own under the total (`FeePaidNote`), and
+   the checkout charges none; checkouts placed before carry theirs in `checkouts.platformFee`, and
+   the revenue report counts both (rows from the stand-in card form before Flitt have `method`
+   `test`).
 2. **A commission on every partner order** — `storeCommissionPct` / `workerCommissionPct`
    (default 5 %), overridden per store / worker by their own `commissionRate`. Frozen into
    `orders.commissionPct` when the order is placed so a later rate change does not rewrite history.
 
 ```
 calculator step 2 "გამოთვლის დაწყება" · design step 4 "დიზაინის გენერაცია" → HingeDialog
-  → the warning → save the half → GET /api/payments (paid? the quote) → the test card
-  → POST /api/payments { projectId, kind } → project_payments → the hinge (calculated / generate)
+  → the warning → save the half → POST /api/payments/flitt (paid? else the quote + bank fee
+    and a Flitt token) → Flitt's form → the signed status → project_payments → the hinge
+    (calculated / generate) — docs/payments.md
 summary → "შეკვეთის გაფორმება" → CheckoutDialog (materials · reserve · furniture · total; the
           phone and the address the profile lacks; the project's owner only)
   → saves the project if it is not saved yet (each summary in its own shape)
@@ -400,14 +403,14 @@ exercised by the routes, not by unit tests.
   calculator's. The tick on either summary is the way out.
 - The checkout dialogue totals the goods and the reserve; the delivery each store will add is
   on the budget (`cost.baskets`) and on the order, not in the dialogue (it says so).
-- **The fee's payment is a stand-in**: a card form filled with a test card, nothing charged,
-  `method: 'test'`. A payment provider goes where `POST /api/payments` is; and the save routes
-  do not refuse the hinge without a payment (`calculated` / `generated` are the browser's word)
-  — a real provider must make them. A half that passed its hinge before the fee moved there has
-  no payment and is not asked for one, and a design-first project opened in the calculator opens
-  already calculated, so its calculation is never charged on its own (the design's fee covers
-  it).
-- The marketplace records money but does not move it: no payout to partners, no invoices. Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
+- **The fee is paid through Flitt, in its sandbox for now** ([payments.md](payments.md)): the
+  save routes still do not refuse the hinge without a payment (`calculated` / `generated` are
+  the browser's word) — the dialogue enforces it, the server does not yet. A half that passed
+  its hinge before the fee moved there has no payment and is not asked for one, and a
+  design-first project opened in the calculator opens already calculated, so its calculation is
+  never charged on its own (the design's fee covers it).
+- The marketplace records partner money but does not move it: no payout to partners, no
+  invoices, no split payments — only the platform's own fees are taken by card (Flitt). Stores add and edit their own products and workers their own card, but reviews and portfolio are still seeded, not partner-managed, and an approved store's new products go live at once with no moderation step.
 - One address per account (the default) and one per order: there is no address book, and a
   guest's booking carries none.
 - **Brigade orders are missing from the money pages**: the revenue report counts store and worker

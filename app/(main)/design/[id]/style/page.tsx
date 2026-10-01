@@ -24,7 +24,6 @@ import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
 import { designStepHref, designStepPosition, previousStepHref } from '@/lib/design/steps';
 import { saveDesign } from '@/lib/design/saveDesign';
-import { feeAreaM2 } from '@/lib/finance/money';
 
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
@@ -140,7 +139,7 @@ export default function StylePage() {
         }}
       />
       {hinge && (
-        <HingeDialog open onOpenChange={setHinge} kind="design" projectId={projectId} areaM2={feeAreaM2('design', { plan })} save={() => saveDesign({ draft: true })} onPaid={generateNow} />
+        <HingeDialog open onOpenChange={setHinge} kind="design" projectId={projectId} save={() => saveDesign({ draft: true })} onPaid={generateNow} />
       )}
       <GenerationOverlay open={generating} onDone={() => router.push(designStepHref(projectId, 5))} />
     </>

@@ -8,6 +8,9 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * These need the database, so they are not part of the CI `checks` job; run them before a
  * release tag, or point them at the deployed site after one.
+ *
+ * Locally the flows open the app as `renovate.localhost` — the same server, but Flitt refuses
+ * to serve its payment form to a page on `localhost` (docs/payments.md).
  */
 export default defineConfig({
   testDir: './e2e',
@@ -17,7 +20,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://renovate.localhost:3000',
     locale: 'ka-GE',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

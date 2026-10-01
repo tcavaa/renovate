@@ -10,12 +10,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { commissionFor, platformFee, type PlatformSettings } from '@/lib/finance/money';
-import { cn, formatDateTime, formatGEL } from '@/lib/utils';
+import { commissionFor, platformFee, withBankFee, type PlatformSettings } from '@/lib/finance/money';
+import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
 
 /**
- * The platform's own prices. Four numbers, but the ones the whole business model hangs on,
- * so the form shows what they mean on a real flat before you save.
+ * The platform's own prices — the fees, the commissions, what adding an own item costs and the
+ * bank's commission every card payment shows — the numbers the business model hangs on, so the
+ * form shows what they mean on a real flat before you save.
  */
 export function SettingsForm({ initial, stores }: { initial: PlatformSettings & { materialsStoreId: number | null; updatedAt: string | null }; stores: Array<{ id: number; name: string }> }) {
   const t = useT();
@@ -26,6 +27,8 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
     designFeePerM2: String(initial.designFeePerM2),
     storeCommissionPct: String(initial.storeCommissionPct),
     workerCommissionPct: String(initial.workerCommissionPct),
+    ownItemPrice: String(initial.ownItemPrice),
+    bankFeePct: String(initial.bankFeePct),
     materialsStoreId: initial.materialsStoreId != null ? String(initial.materialsStoreId) : '',
   });
   const [saving, setSaving] = useState(false);
@@ -47,6 +50,8 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
           designFeePerM2: num(form.designFeePerM2),
           storeCommissionPct: num(form.storeCommissionPct),
           workerCommissionPct: num(form.workerCommissionPct),
+          ownItemPrice: num(form.ownItemPrice),
+          bankFeePct: num(form.bankFeePct),
           materialsStoreId: form.materialsStoreId ? Number(form.materialsStoreId) : null,
         }),
       });
@@ -68,6 +73,16 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
     calc: formatGEL(platformFee(75, num(form.calculatorFeePerM2))),
     design: formatGEL(platformFee(75, num(form.designFeePerM2))),
     store: formatGEL(commissionFor(10000, num(form.storeCommissionPct))),
+  });
+
+  // The design fee of the same 75 m² flat, as the person pays it by card.
+  const designCharge = withBankFee(platformFee(75, num(form.designFeePerM2)), num(form.bankFeePct));
+  const ownCharge = withBankFee(num(form.ownItemPrice), num(form.bankFeePct));
+  const paymentsExample = fill(s.paymentsExample, {
+    fee: formatGEL(designCharge.amount, true),
+    bank: formatGEL(designCharge.bankFee, true),
+    total: formatGEL(designCharge.total, true),
+    own: ownCharge.amount > 0 ? formatGEL(ownCharge.total, true) : s.ownItemFree,
   });
 
   return (
@@ -108,6 +123,29 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
       </div>
 
       <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">{example}</p>
+
+      {/* Card payments: what an own item costs, and the bank's cut every payment shows. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif">{s.payments}</CardTitle>
+          <p className="text-sm text-ink-muted">{s.paymentsHint}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="own-item-price">{s.ownItemPrice}</Label>
+              <Input id="own-item-price" type="number" step="0.5" min={0} value={form.ownItemPrice} onChange={(e) => update('ownItemPrice', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank-fee-pct">{s.bankFeePct}</Label>
+              <Input id="bank-fee-pct" type="number" step="0.1" min={0} max={20} value={form.bankFeePct} onChange={(e) => update('bankFeePct', e.target.value)} />
+            </div>
+          </div>
+          <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">
+            {paymentsExample} <span className="text-ink-muted">({fill(s.bankFeeShown, { pct: `${formatNumber(num(form.bankFeePct))}%` })})</span>
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Who is sent the rate book's construction materials with every order. */}
       <Card>

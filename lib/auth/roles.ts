@@ -54,10 +54,11 @@ export type AdminSection =
   | 'teams'
   | 'rates'
   | 'revenue'
+  | 'payments'
   | 'users'
   | 'settings';
 
-export const ADMIN_SECTIONS: readonly AdminSection[] = ['dashboard', 'orders', 'projects', 'products', 'categories', 'stores', 'workers', 'teams', 'rates', 'revenue', 'users', 'settings'];
+export const ADMIN_SECTIONS: readonly AdminSection[] = ['dashboard', 'orders', 'projects', 'products', 'categories', 'stores', 'workers', 'teams', 'rates', 'revenue', 'payments', 'users', 'settings'];
 
 /**
  * What each role may open. An agent's list is their job description: taking orders needs the

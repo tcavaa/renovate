@@ -64,6 +64,15 @@ const schema = z
     SMTP_PASSWORD: optionalString,
     SMTP_SECURE: z.enum(['true', 'false']).optional(),
 
+    /**
+     * Flitt, the card payments (docs/payments.md). Unset, the platform pays into Flitt's public
+     * test merchant (1549901, secret `test`): the sandbox, where nothing is charged. A merchant of
+     * one's own takes both; `FLITT_TEST_MODE=false` only once that merchant is live in the portal.
+     */
+    FLITT_MERCHANT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().int().positive().default(1549901)),
+    FLITT_SECRET_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(1).default('test')),
+    FLITT_TEST_MODE: z.preprocess((v) => (v === '' ? undefined : v), z.enum(['true', 'false']).default('true')),
+
     LOG_DIR: optionalString,
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
   })
@@ -80,6 +89,14 @@ const schema = z
       for (const key of ['SMTP_HOST', 'SMTP_PORT'] as const) {
         if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required when MAIL_DRIVER=smtp' });
       }
+    }
+    // A merchant of one's own comes with its own key: the test key on a real merchant (or a
+    // real key on the test merchant) is refused by Flitt as an invalid signature, on every payment.
+    if ((value.FLITT_MERCHANT_ID === 1549901) !== (value.FLITT_SECRET_KEY === 'test')) {
+      ctx.addIssue({ code: 'custom', path: ['FLITT_SECRET_KEY'], message: 'set both FLITT_MERCHANT_ID and FLITT_SECRET_KEY or neither' });
+    }
+    if (value.FLITT_MERCHANT_ID === 1549901 && value.FLITT_TEST_MODE === 'false') {
+      ctx.addIssue({ code: 'custom', path: ['FLITT_TEST_MODE'], message: "Flitt's public test merchant is never live" });
     }
     // A social login is offered only when both halves of its key pair are present: half a
     // pair is a typo, not a configuration, and NextAuth would fail at the redirect instead.

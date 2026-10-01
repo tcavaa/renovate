@@ -30,10 +30,16 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     /** The backdrop's look, merged over the default (a dialog that should leave what is under it in view). */
     overlayClassName?: string;
+    /**
+     * A backdrop for a dialog that is not modal (Radix draws its overlay only for a modal one):
+     * the payment dialogues while Flitt's form is up — see `components/payments/CardPayment.tsx`.
+     */
+    backdrop?: boolean;
   }
->(({ className, overlayClassName, children, ...props }, ref) => (
+>(({ className, overlayClassName, backdrop, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay className={overlayClassName} />
+    {backdrop && <div className={cn('fixed inset-0 z-50 bg-black/40 backdrop-blur-sm', overlayClassName)} aria-hidden />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(

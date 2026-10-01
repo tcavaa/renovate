@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { Calculator, ClipboardList, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Receipt, Settings, Store, TrendingUp, Users as UsersIcon, UsersRound } from 'lucide-react';
+import { Calculator, ClipboardList, CreditCard, FolderTree, Hammer, Home, LayoutDashboard, LogOut, Package, Receipt, Settings, Store, TrendingUp, Users as UsersIcon, UsersRound } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
@@ -33,6 +33,7 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
     { section: 'projects', href: '/admin/projects', label: ka.admin.projects, icon: ClipboardList },
     { section: 'orders', href: '/admin/orders', label: ka.admin.orders, icon: Receipt },
     { section: 'revenue', href: '/admin/revenue', label: ka.admin.revenue.title, icon: TrendingUp },
+    { section: 'payments', href: '/admin/payments', label: ka.admin.paymentsPage.title, icon: CreditCard },
     { section: 'users', href: '/admin/users', label: ka.admin.users, icon: UsersIcon },
     { section: 'settings', href: '/admin/settings', label: ka.admin.settings.title, icon: Settings },
   ];

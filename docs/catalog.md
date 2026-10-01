@@ -159,8 +159,12 @@ base seed's plain products there stay on sale beside the modelled ones).
 `components/studio/OwnModelDialog.tsx`). The wardrobe they are keeping, the table they
 already have: the "+" on the furniture shelf (and in the catalogue modal) takes a GLB or a
 photo and makes a *product* of it — a real row, so the layout, the carry, the budget and
-the saves all work unchanged — owned by that person (`ownerUserId`), priced at nothing,
-sold by nobody, in the archetype's category (`ARCHETYPES[kind].categorySlug`). A GLB is
+the saves all work unchanged — owned by that person (`ownerUserId`), priced at nothing in
+the budget, sold by nobody, in the archetype's category (`ARCHETYPES[kind].categorySlug`).
+**Adding a model costs** `platform_settings.ownItemPrice` (admin, default 10 ₾, plus the bank's
+commission): the dialogue shows the price and pays by card through Flitt first, the approval is
+a credit, and the route spends one (claimed before anything is stored, given back if the upload
+fails; none → 402 `PAYMENT_REQUIRED`) — [payments.md](payments.md#own-items). A photo is free. A GLB is
 optimized in the browser as it is picked (the admin uploader's `optimizeModelForUpload`; the
 dialog shows the size it went from and to), inspected and optimized by the route like a
 partner's (`sniffModel`, `inspectGlb`, no Draco/Basis, `optimizeUploadedModel`), shown on the

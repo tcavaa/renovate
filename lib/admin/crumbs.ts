@@ -15,7 +15,7 @@ export interface Crumb {
   list?: boolean;
 }
 
-export type CrumbSection = 'products' | 'categories' | 'shelfRooms' | 'stores' | 'rates' | 'workers' | 'teams' | 'projects' | 'orders' | 'revenue' | 'users' | 'settings';
+export type CrumbSection = 'products' | 'categories' | 'shelfRooms' | 'stores' | 'rates' | 'workers' | 'teams' | 'projects' | 'orders' | 'revenue' | 'payments' | 'users' | 'settings';
 
 const SECTION_HREF: Record<CrumbSection, string> = {
   products: '/admin/products',
@@ -28,6 +28,7 @@ const SECTION_HREF: Record<CrumbSection, string> = {
   projects: '/admin/projects',
   orders: '/admin/orders',
   revenue: '/admin/revenue',
+  payments: '/admin/payments',
   users: '/admin/users',
   settings: '/admin/settings',
 };
@@ -54,6 +55,8 @@ function sectionLabel(t: Dictionary, section: CrumbSection): string {
       return t.admin.ordersPage.title;
     case 'revenue':
       return t.admin.revenue.title;
+    case 'payments':
+      return t.admin.paymentsPage.title;
     case 'users':
       return t.admin.users;
     case 'settings':

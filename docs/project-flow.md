@@ -436,8 +436,9 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
   from here — what to check (the home's condition, the rooms, the walls, doors and windows, the
   technical points) and that the steps before will be shut, a new project being the way to start
   again — then the half's platform fee, the half saved first so it is charged on what is on
-  screen, paid with a test card (`POST /api/payments`,
-  [marketplace.md](marketplace.md#how-the-platform-earns-libfinance)); "paid", a moment, and
+  screen, paid by card through Flitt with the bank's commission on top (`CardPayment`,
+  [payments.md](payments.md), [marketplace.md](marketplace.md#how-the-platform-earns-libfinance));
+  "paid" only once Flitt's signed status says so, a moment, and
   only then the hinge itself. A half already paid goes straight on. The page mounts the dialogue
   only while it is open, so every press starts from the warning.
 - **Calculator.** "გამოთვლის დაწყება" on the plan step sets `calculated`, which shuts steps 1–2
