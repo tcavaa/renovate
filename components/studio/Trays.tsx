@@ -321,6 +321,14 @@ export function paintScopeOf(scope: FinishScope): 'cell' | 'strip' | 'patch' | n
   return isPaintScope(scope) ? scope : null;
 }
 
+/**
+ * The scope a surface opens on — its first chip, the square metre (a moulding has only the
+ * room). On the board a wall's square metre stands in as the metre-wide strip.
+ */
+export function firstFinishScope(surface: FinishSurface): FinishScope {
+  return surface === 'wall' ? 'patch' : surface === 'floor' ? 'cell' : 'room';
+}
+
 /** What is being finished, down the left edge of the tray (and of the finishes catalogue). */
 export const SURFACE_TABS: Array<{ id: FinishSurface; icon: LucideIcon }> = [
   { id: 'floor', icon: Grid2x2 },
@@ -346,23 +354,22 @@ export interface FinishScopeChip {
 /**
  * Where a pick goes on this surface, smallest first — a square metre, a strip, one wall —
  * the whole room last: painting a piece at a time is what the tray is for, and "the whole
- * room" is the one that erases. A moulding runs round the whole room.
+ * room" is the one that erases. A moulding runs round the whole room. With no room in focus
+ * the last chip is every room, and says so.
  */
-export function finishScopeChips(t: Dictionary, surface: FinishSurface, { hasWall, flat }: { hasWall: boolean; flat: boolean }): FinishScopeChip[] {
-  if (isTrimFinishSurface(surface)) return [{ id: 'room', label: t.build.applyRoom, icon: LayoutGrid }];
+export function finishScopeChips(t: Dictionary, surface: FinishSurface, { hasWall, flat, allRooms }: { hasWall: boolean; flat: boolean; allRooms: boolean }): FinishScopeChip[] {
+  const room: FinishScopeChip = { id: 'room', label: allRooms ? t.build.applyAllRooms : t.build.applyRoom, icon: LayoutGrid };
+  if (isTrimFinishSurface(surface)) return [room];
   if (surface === 'wall') {
     return [
       // A square metre of wall needs the height of the click, which the board has not.
       { id: 'patch', label: t.build.applyPatch, icon: Grid2x2, disabled: flat, title: flat ? t.build.patchIn3d : undefined },
       { id: 'strip', label: t.build.applyStrip, icon: Paintbrush },
       { id: 'wall', label: t.build.applyWall, icon: Square, disabled: !hasWall },
-      { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
+      room,
     ];
   }
-  return [
-    { id: 'cell', label: t.build.applyCell, icon: Paintbrush },
-    { id: 'room', label: t.build.applyRoom, icon: LayoutGrid },
-  ];
+  return [{ id: 'cell', label: t.build.applyCell, icon: Paintbrush }, room];
 }
 
 /** A finish's price as the shelf shows it: per m² for a floor or walls, per running metre for a moulding. */
@@ -384,11 +391,11 @@ export function finishPriceLabel(t: Dictionary, product: CatalogProduct, surface
  * surface now stays on the shelf whatever they say: it is the one swatch a person must always
  * find.
  */
-export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false, styleId, onOpenCatalog }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean; /** The project's style: ticked on the style filter to begin with. */ styleId: StyleId; /** Opens every finish as a page (`FinishCatalog`): search, filters, details. */ onOpenCatalog?: () => void }) {
+export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false, styleId, onOpenCatalog, emptyHint }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean; /** The project's style: ticked on the style filter to begin with. */ styleId: StyleId; /** Opens every finish as a page (`FinishCatalog`): search, filters, details. */ onOpenCatalog?: () => void; /** What an empty shelf says instead of "nothing here" (a balcony's mouldings). */ emptyHint?: string | null }) {
   const t = useT();
   const locale = useLocale();
   const trim = isTrimFinishSurface(surface);
-  const chips = finishScopeChips(t, surface, { hasWall, flat });
+  const chips = finishScopeChips(t, surface, { hasWall, flat, allRooms: roomName === null });
   const painting = isPaintScope(scope);
 
   const [styles, setStyles] = useState<StyleId[]>(() => [styleId]);
@@ -490,7 +497,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
               onClick={() => onPick(p)}
             />
           ))}
-          {swatches.length === 0 && <p className="py-3 text-xs text-ink-muted">{options.length === 0 ? t.design.noAlternatives : t.design.noMatches}</p>}
+          {swatches.length === 0 && <p className="py-3 text-xs text-ink-muted">{options.length === 0 ? (emptyHint ?? t.design.noAlternatives) : t.design.noMatches}</p>}
         </ScrollRow>
         {/* What the tool does, and the room and area a pick goes on. */}
         <div className="flex items-center gap-2">

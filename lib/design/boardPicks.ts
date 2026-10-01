@@ -16,7 +16,7 @@ import { FIXTURE_PRODUCT_KIND, withFixtureProduct } from './electrical';
 import { isEquipmentProductKind, pointProductKind, withEquipmentProduct, type EquipmentProductKind } from './equipment';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { withRadiatorProduct } from './radiators';
-import { trimFromProduct } from './trims';
+import { hasTrims, trimFromProduct } from './trims';
 import type { ElectricalPoint, FloorPlan, SurfaceFinish, TechnicalPoint } from './types';
 
 /**
@@ -86,7 +86,7 @@ export function dressBoard(board: FloorPlan, electrical: ElectricalPoint[], prod
         n = hung;
       }
     } else if (target === 'skirting' || target === 'cornice') {
-      for (const room of plan.rooms) {
+      for (const room of plan.rooms.filter(hasTrims)) {
         trims.push(trimFromProduct(room, target, product, 'calculator'));
         n += 1;
       }

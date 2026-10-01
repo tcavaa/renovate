@@ -17,6 +17,7 @@ import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
 import { roomWallAreaM2 } from './planGeometry';
+import { hasTrims, isTrimSurface } from './trims';
 import type { ItemOrigin, PlanRoom, StyleDefinition, StyleId, StyleSurface, SurfaceFinish } from './types';
 
 export type Surface = 'floor' | 'wall';
@@ -202,8 +203,10 @@ export function isStyleFinish(finish: Pick<SurfaceFinish, 'origin' | 'product'>)
  * there is nothing to change; a catalogue with no finish for a surface changes nothing there.
  */
 export function withStyleFinishes(finishes: SurfaceFinish[], rooms: PlanRoom[], styleId: StyleId, catalog: CatalogProduct[]): SurfaceFinish[] {
-  if (catalog.length === 0) return finishes;
-  let next = finishes;
+  // A balcony wears no skirting or cornice: one laid before it was a balcony (or before the rule) goes.
+  const bare = new Set(rooms.filter((r) => !hasTrims(r)).map((r) => r.id));
+  let next = bare.size > 0 && finishes.some((f) => bare.has(f.roomId) && isTrimSurface(f.surface)) ? finishes.filter((f) => !(bare.has(f.roomId) && isTrimSurface(f.surface))) : finishes;
+  if (catalog.length === 0) return next;
   for (const room of rooms) {
     for (const surface of ['floor', 'wall'] as const) {
       const index = next.findIndex((f) => f.roomId === room.id && f.surface === surface && isBaseFinish(f));

@@ -24,7 +24,7 @@ per-room floor and wall picks, carried into 3D).
 | `lib/design/styles.ts` | each style's `rooms` — the floor and wall of each kind of dry room — and the paints they are painted in (`PAINT_COLORS`, `paintLook`) |
 | `lib/design/zones.ts` | finishes on part of a surface: one wall (`wallIndex`), floor zones (`halfZone`, `wallStripZone`, `zoneFromRect`, clipped to the room), `wallFinishFor`, `finishCoverage`, `isBaseFinish` |
 | `lib/design/paint.ts` | the brush: floor cells, wall strips (`span`) and wall patches (`cells` as [column, row]) — `paintCell`, `paintSpan`, `paintPatch`, `patchAt`, `patchSpans`, `patchSpansOnWall`, `erasePatchFromStrip`, `patchesAreaM2` |
-| `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
+| `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `hasTrims`, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
 | `lib/design/finishQuantity.ts` | `finishQuantity` / `finishUnit` — what a finish covers, shared by the store and the save route; `visibleFinishes` — what of it shows, which is what the budget buys |
 | `lib/design/finishBrowser.ts` | `FinishSurface`, `finishOptions` (a surface's finishes, best first), `finishUnitPrice` (per m², per m for a moulding), `narrowFinishShelf` (the tray's style and colour filters), `browseFinishes` (the catalogue's filters with counts) |
 | `lib/design3d/wallGeometry.ts` | spans on a wall face (`buildWallGeometry`), `buildMouldingGeometry` |
@@ -43,9 +43,14 @@ per-room floor and wall picks, carried into 3D).
 |---|---|
 | floor | a square metre (a cell of the room's grid) · the whole room |
 | walls | a square metre (3D only) · a metre-wide strip · one wall · the whole room |
-| skirting, cornice | the whole room |
+| skirting, cornice | the whole room (none on a balcony) |
 
-With no room in focus the tray applies to every room. Floor zones (half a room, a strip along
+**Every surface opens on its first chip, the square metre** (`firstFinishScope`): when the
+finishes category is opened, when the surface tab changes, and when a floor or a wall is
+clicked; on the 2D board a wall's square metre stands in as the metre-wide strip. With no room
+in focus the tray applies to every room, and its last chip says so — "ყველა ოთახს" (all
+rooms) instead of "მთელ ოთახს" (the whole room), in the catalogue's chips as well
+(`finishScopeChips(…, { allRooms })`). Floor zones (half a room, a strip along
 a wall, a drawn rectangle) are still in the data model, drawn, selectable (the inspector shows
 `FinishPanel` for a selected zone) and priced — but nothing in the UI creates one at the moment:
 no page offers the board's `zone` tool and the tray has no zone scope (see Known gaps).
@@ -203,9 +208,13 @@ A wall wears what was chosen for it, or the style's `wall` / `wetWall`; the acce
 style cards (`wallMaterialFor` in `buildScene`, `tests/unit/design3d/wallSide.test.ts`).
 
 In the finishes category, clicking a floor or a wall in the 3D view selects that surface
-(`onSelectSurface`): the tray opens on that surface, on the one-wall scope for a wall and the
-square-metre scope for a floor, and a choice there applies to that room only. In every other
-category a click on a floor or a wall is just the room.
+(`onSelectSurface`): the tray opens on that surface, on its square-metre scope, and a choice
+there applies to that room only ("one wall" is enabled for a clicked wall). **The selected
+surface belongs to the room in focus when it was clicked**: putting another room — or the whole
+flat — in focus lets go of it (the studio page follows `focusRoomId` while rendering). It used
+to stay, so a floor clicked in a bedroom, then "მთელი ბინა" and "every room", laid the pick in
+that bedroom only. A click that brings its own room into focus keeps the surface. In every
+other category a click on a floor or a wall is just the room.
 
 ## Walls and floor zones
 
@@ -317,6 +326,11 @@ finish never lands on a separator's open edge either: the room's wall area (`wal
 wall's (`wallEdgeAreaM2`, 0 there), the visible-finish sums and the paint brush all go by
 `wallEdges`. A room with no product wears the style's own
 moulding for nothing (`STYLE_TRIMS`; modern and industrial have no cornice at all).
+**A balcony has neither** (`hasTrims`): its walls are the building's outside, so no skirting or
+cornice is drawn there (`buildTrim`), laid there (`setFinish`, the style's defaults, the
+calculator's and the board's whole-flat picks), offered there (`finishOptions` is empty and the
+tray says why) or bought (`trimLengthM` is 0); `withStyleFinishes` takes one off a balcony that
+still has it — a design saved before, a room retyped as a balcony.
 `scripts/lib/trimProducts.ts` is the seeded range — profile, height and depth in `specs`.
 
 **A cornice runs along the top of *its wall*, not at the room's ceiling height.** A wall can be

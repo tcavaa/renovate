@@ -92,6 +92,16 @@ describe('withStyleFinishes', () => {
     expect(next.slice(3).map((f) => [f.roomId, f.surface, f.product?.productId])).toEqual([['bath', 'wall', 4]]);
   });
 
+  it('takes the skirting and the cornice off a balcony, with or without a catalogue', () => {
+    const balcony = room('bal', 'balcony', 3, 1.2);
+    const trim = (roomId: string, surface: 'skirting' | 'cornice'): SurfaceFinish => ({ roomId, surface, colorHex: '#FFFFFF', textureUrl: null, textureScaleM: 1, product: null, trim: { profile: 'flat', heightM: 0.08, depthM: 0.015 }, origin: 'style' });
+    const finishes = [trim('bal', 'skirting'), trim('bal', 'cornice'), trim('bed', 'skirting')];
+    for (const list of [catalog, []]) {
+      const next = withStyleFinishes(finishes, [bedroom, balcony], 'modern', list);
+      expect(next.filter((f) => f.surface === 'skirting' || f.surface === 'cornice').map((f) => f.roomId)).toEqual(['bed']);
+    }
+  });
+
   it('is the same list when every floor and wall already is what it should be, or there is no catalogue', () => {
     const done: SurfaceFinish[] = rooms.flatMap((r) => [styleFinish(r, 'floor', 'modern', catalog), styleFinish(r, 'wall', 'modern', catalog)]);
     expect(withStyleFinishes(done, rooms, 'modern', catalog)).toBe(done);
