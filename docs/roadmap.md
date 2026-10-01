@@ -28,15 +28,16 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
-- **3D performance, what is left**: the canvas still redraws while nothing moves
-  (`frameloop="demand"`); the fittings are rebuilt on every furniture move and the shells on
-  every paint click; switching 2D ↔ 3D rebuilds the view; night lights and the 1.75 pixel ratio
-  still cost on weak GPUs; textures are not GPU-compressed (KTX2 — waiting on a look at the
-  quality) ([design-studio/3d-engine.md](design-studio/3d-engine.md#performance)).
-- **Production delivery**: the cPanel host serves files at about 1 MB/s, so a first studio
-  visit took 13–16 s to finish drawing (0.8 s locally). The models are now WebP + Draco (about
-  half the bytes), the finish textures WebP (47 → 9.2 MB); measure again there after the
-  deploy. What is left is a CDN or the Vercel move ([operations.md](operations.md#known-gaps)).
+- **3D performance, what is left**: every paint click rebuilds every room's shell; switching
+  2D ↔ 3D rebuilds the view; the 1.75 pixel ratio still costs on weak GPUs; textures are not
+  GPU-compressed — about 400 MB of GPU memory for a
+  furnished flat; KTX2 ETC1S at full quality was compared (about the same download, a quarter of
+  the memory, a little softer up close) and left for when phones run short of memory
+  ([design-studio/3d-engine.md](design-studio/3d-engine.md#performance)).
+- **Production delivery**: the cPanel host serves files at 0.6–1.7 MB/s. Since the WebP and
+  Draco deploy a first visit's 3D files are 6.35 MB (about 24 MB with the old files) and arrive
+  in 4–10 s, where they took 13–16 s before. What is left is a CDN or the Vercel move
+  ([operations.md](operations.md#known-gaps)).
 
 - **Payments**: the platform's fee is paid at each half's hinge through a stand-in (a
   prefilled test card, `method: 'test'`, nothing charged): a real provider goes there, and the

@@ -20,7 +20,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `components/design/WalkControls.tsx` | the walk-through (no collision; `findStandingSpot` picks the start) |
 | `components/projects/ProjectViewer.tsx` | the same `Viewer3D` with `readOnly` — hover, picking and dragging off, the camera and the walk-through kept — for a brigade looking at the flat it is hired for ([../partners-and-admin.md](../partners-and-admin.md)) |
 | `lib/design3d/buildScene.ts` | `buildRoomShells` (floors, walls, ceilings, trims, openings), `syncPlacedItems` / `buildPlacedItem` (furniture wrappers reconciled by product and size; `fitToItem`, ghost box on a failed load), `attachOpeningModel`, `wallMaterialFor`, `HIDDEN_LAYER`, `disposeOwnedGeometry`. The viewer composes these itself (`buildScene()` has no callers) |
-| `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), the technical points' equipment (`buildEquipment`: a panel, boiler, air conditioner, hood or fan on its wall at the product's size, a drain set into the floor), lights from fittings (`lightsFrom`), floor zones and painted cells |
+| `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), the technical points' equipment (`buildEquipment`: a panel, boiler, air conditioner, hood or fan on its wall at the product's size, a drain set into the floor), the lights after dusk — one per room (`nightLights`, from the fittings' `lightsFrom`; gotcha 25) — the hanging lamps the fittings read (`hangingLampsKey`), floor zones and painted cells |
 | `lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts` | each room edge cut into pieces by what stands behind it; each piece's mesh face by face (mitres, spans, far-face material slots); `buildMouldingGeometry` |
 | `lib/design3d/wallSide.ts` | `wallSideAt` — whose wall a hit on a wall face is (the outside of the flat is nobody's) |
 | `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded`; `releaseUnused` lets go of the finishes no shell wears (gotcha 23) |
@@ -84,6 +84,9 @@ Each of these cost real debugging time. Don't undo them.
     size are unchanged and replaces the rest; the room shells are a separate group memoised on
     the plan, finishes, style, materials and the shell options (walls, ceiling, focused room),
     and the fittings, the radiators and the equipment are groups of their own. Rebuilding everything on every drag was the studio's biggest stutter.
+    The fittings read one thing of the furniture — where its hanging lamps hang (a ceiling point
+    under one shows only the rose) — so they are memoised on that (`hangingLampsKey`), not on the
+    items: every drop of a sofa used to clone every socket, switch and lamp in the flat anew.
 14. **A wall is written out face by face, mitred, and cut where what is behind it changes**
     (`lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts`). `ExtrudeGeometry` could
     not do any of the three: a slab as long as the room's inner edge stopped short of the
@@ -162,6 +165,33 @@ Each of these cost real debugging time. Don't undo them.
     30 s first (a room back in view, an undo), unless more than 24 idle textures pile up, when
     the longest idle go at once. A 1024-pixel map is about 5.6 MB of GPU memory with its mips,
     and every tile tried used to stay until the studio closed.
+24. **The canvas draws when something changes, not every frame** (`frameloop="demand"`; the
+    walk-through, which moves the camera every frame, keeps `always`). An idle studio used to
+    draw its whole frame sixty times a second. A frame is drawn when R3F sees a React change (a
+    new shell, a prop on a light), when drei's `OrbitControls` moves the camera or eases it, and
+    when `SceneContent` asks with `invalidate()` — after everything it changes outside React: the
+    furniture synced (`syncPlacedItems`), an outline, the carry and every drag step, the paint
+    glow, the fitting's preview, the framing and the zoom, the exposure and the night glass, the
+    keyboard pan (whose frame loop asks for the next frame while a key is held). Models, fixtures
+    and textures land in the scene asynchronously, so the viewer also asks for a frame whenever
+    `loadProgress` changes: every first load is counted there, and the frame comes after the
+    handlers that put the file in place have run (a cached one is in place before the frame its
+    change asked for). **Anything new that changes the scene outside React must call
+    `invalidate()`**, or it shows only when the camera next moves. The cutaway's `useFrame` runs in
+    each frame drawn, which is all it needs: it follows the camera. A frame-counting measurement
+    sees nothing while the studio rests — time a render with `ViewerApi.screenshot()` instead.
+25. **After dusk a room is lit by one light, not one per fitting** (`nightLights`). Every point
+    light is paid on every lit pixel, and their number is part of three's shader key: a lamp
+    switched off took one away and recompiled every lit material in the flat (22 programs on the
+    sample flat), a stutter at each switch. Now the switched-on fittings of a room light it
+    together — from where their light is centred, weighted by brightness, as bright as they are
+    together and reaching as far as the furthest did — and a room whose lights are all off keeps
+    its light at zero, so a switch changes an intensity and never the count. A room with no light
+    fittings gets none; with no light on anywhere every room in view is lent a lamp under its
+    ceiling (`standIn`, dimmed with the evening). The fittings that are on still glow where they
+    hang (`litModel`). On the sample flat (12 lights on in 7 rooms) the night's lighting went from
+    ≈ 2.4 to ≈ 1.0 ms of a 2520 × 1361 render on an M4; the first switch compiles only that lamp's
+    own unlit materials (3 programs), later ones nothing.
 
 ## A gap to the top of the wall: a balcony's railing
 
@@ -241,10 +271,15 @@ Measured on the sample flat over a throttled 1.5 MB/s link, cache off: the scree
 **Time of day** is a preset in the top bar (morning / noon / evening / night → hours 8, 13,
 19, 23). `lightingForHour(hour, style)` is pure arithmetic over a 24-hour clock: the sun's
 position swings east to west and rises and sets, its colour warms when low, the sky and the
-exposure follow, and from dusk the flat's own lights come on: the light fittings that are
-switched on become point lights (`lightsFrom`), and when the flat has none, one `pointLight` per
-room under the ceiling, sized to the room. By day a fitting that is on only glows — its lamp
-materials lit (`litModel`) — and is no light (gotcha 22). (The viewer also turns the cached window glass
+exposure follow, and from dusk the flat's own lights come on: each room with lights of its own is
+lit by one `pointLight`, its switched-on fittings merged (`nightLights`, gotcha 25), and when the
+flat has none on, one per room under the ceiling, sized to the room. By day a fitting that is on
+only glows — its lamp materials lit (`litModel`) — and is no light (gotcha 22), so a room's
+shaded walls and floor — most of what is seen indoors — are lit by the sky alone: the day's sky
+light is 1.25 × the style's `ambientIntensity` (`DAY_SKY_LIGHT`), the flat fill 0.14 at noon and
+0.22 with the sun low, the exposure 1.02–1.14. That brightened the sample flat's rooms by about a
+fifth at noon (the shadowed quarter by two fifths) and an eighth morning and evening; the night
+is unchanged. (The viewer also turns the cached window glass
 emissive, which no longer shows — see gotcha 17.) The style still tints the sun and the lamps.
 Tested in `tests/unit/design/daylight.test.ts`.
 
@@ -266,7 +301,8 @@ is not tone-mapped, so one hex colour comes out the same on both.
 ## Tests
 
 `tests/unit/design3d/wallGeometry.test.ts`, `wallSide.test.ts` (including the removed accent
-wall), `environment.test.ts`, `cornice.test.ts`, `footprintFromModel.test.ts`;
+wall), `environment.test.ts`, `cornice.test.ts`, `footprintFromModel.test.ts`, `nightLights.test.ts`
+(a light per room, a switch that keeps the count, the stand-in lamps, the hanging-lamp key);
 `tests/unit/design/wallPieces.test.ts`, `daylight.test.ts`. Pure three.js runs under Vitest's
 `node` environment as long as nothing needs a WebGL context. R3F 9 configures the renderer
 asynchronously, so anything waiting for the first model (e2e, screenshots) has to poll.
@@ -295,20 +331,25 @@ are the firmer evidence.
 | Point lights by day | 12 | 0 |
 | Shader programs | 39 | 25 |
 
+Since then (October 2026, the sample flat with 45 items, headless Chrome on the M4): **resting, the
+studio draws nothing** — 0 frames in 3 s — where it drew sixty a second; an orbit drag draws while
+it moves and eases, a drop draws its steps and a few frames when the autosave answers. **At night**
+the flat's 12 lights on are 7 point lights, one per room: ≈ 4.7 ms a render against ≈ 6.0 ms for
+twelve (3.6 ms by day). **On production** (1 Oct 2026, Chrome 154, 55 items, a 2520 × 1065 canvas):
+GPU ≈ 5.4 ms and JavaScript ≈ 5 ms a frame, 545 draw calls (338 for the picture, 207 in the shadow
+pass), 0.67 million triangles; **GPU memory ≈ 424 MB**, 401 MB of it textures (65 at 1024 px, 41
+at 512) — WebP files do not shrink that, a texture is uncompressed on the GPU — 5.4 MB of buffers
+(Draco decodes geometry to floats: the same 59 models hold 5.1 MB where meshopt's quantised
+buffers held 3.5) and 17.5 MB of the canvas's own buffers. The Claude app's Browser pane measures
+the same scene far slower (≈ 40 ms of JavaScript a frame under its viewport emulation): compare
+pane with pane.
+
 What is still open, in order of expected payoff:
 
-- **The canvas renders every frame while nothing moves.** `<Canvas>` has no `frameloop`, so
-  an idle studio keeps the GPU drawing that whole frame continuously. `frameloop="demand"`
-  needs `invalidate()` wherever the scene changes outside React: a model or texture arriving,
-  a drag, a carry, the keyboard pan. The walk-through needs continuous frames while it is on.
-  drei's `OrbitControls` already invalidates while it moves and damps.
 - **The cost grows with pixels.** The pixel-ratio cap of 1.75 draws three times the pixels of
   a 1.0 canvas on a retina screen; drei's `PerformanceMonitor` could lower it when frames fall.
-  At night the switched-on fittings are point lights again, which a flat with a dozen of them
-  pays for on every lit pixel.
-- **Every furniture move rebuilds all the fittings.** `hangingLamps` is a new array whenever
-  `scene.items` changes, so `buildElectrical` re-clones every socket, switch and lamp on each
-  drop. Every paint click rebuilds every room's shell (`shell` depends on `scene.finishes`).
+  At night each lit room still adds a point light (gotcha 25).
+- **Every paint click rebuilds every room's shell** (`shell` depends on `scene.finishes`).
 - **Switching between the 2D board and 3D rebuilds the 3D view from scratch.** `Viewer3D` is
   unmounted while the board shows, so coming back makes a new WebGL context, compiles every
   shader and uploads every model and texture again. Only the parsed GLBs survive in

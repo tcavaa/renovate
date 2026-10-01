@@ -52,6 +52,8 @@ export interface Daylight {
 
 const SUNRISE = 6;
 const SUNSET = 20;
+/** How much more the day's sky lights than the style's own `ambientIntensity` says: a room's shaded walls and floor live on it. */
+const DAY_SKY_LIGHT = 1.25;
 
 /**
  * The sky the flat stands under, overhead and at the horizon: a clear blue paling to a haze by
@@ -143,18 +145,21 @@ export function lightingForHour(hour: number, style: StyleDefinition): Daylight 
   const daylit = Math.min(1, elevation * 1.4);
   const skyTop = mixHex(mixHex(low.top, '#2B3A66', dusk ? 0.35 : 0), SKY.day.top, daylit);
   const skyHorizon = mixHex(low.horizon, SKY.day.horizon, daylit);
+  // Inside a room most of what is seen stands in a wall's shadow, lit by the sky alone: the sky's
+  // light and the flat fill carry the interior by day, and with the lamps no lights by day
+  // (`lightsFrom`, gotcha 22 in docs/design-studio/3d-engine.md) they carry it alone.
   return {
     sunPosition,
     sunColor,
     sunIntensity,
     skyColor,
     groundColor: '#8A8078',
-    hemisphereIntensity: style.lighting.ambientIntensity * (0.55 + 0.45 * elevation),
-    ambientIntensity: 0.05 + 0.1 * (1 - elevation),
+    hemisphereIntensity: DAY_SKY_LIGHT * style.lighting.ambientIntensity * (0.55 + 0.45 * elevation),
+    ambientIntensity: 0.14 + 0.08 * (1 - elevation),
     skyTop,
     skyHorizon,
     background: skyHorizon,
-    exposure: 0.95 + 0.12 * elevation,
+    exposure: 1.02 + 0.12 * elevation,
     interiorLightsOn: dusk,
     interiorIntensity: dusk ? 0.6 : 0,
     daylight: elevation,

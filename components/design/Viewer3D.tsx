@@ -33,7 +33,7 @@ import {
   visibleRoomIds,
   type SceneUserData,
 } from '@/lib/design3d/buildScene';
-import { buildFitting, lightsFrom } from '@/lib/design3d/buildStructure';
+import { buildFitting, hangingLampsKey, nightLights, type HangingLamp } from '@/lib/design3d/buildStructure';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
 import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
 import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
@@ -47,7 +47,6 @@ import { StyleMaterials } from '@/lib/design3d/materials';
 import { wallSideAt, type WallSide } from '@/lib/design3d/wallSide';
 import { getStyle } from '@/lib/design/styles';
 import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
-import { polygonCentroid, polygonBounds } from '@/lib/design/planGeometry';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -176,6 +175,11 @@ export function Viewer3D(props: Viewer3DProps) {
     <div className={cn('relative', props.className)}>
       <Canvas
         shadows
+        // A frame is drawn when something changes, not sixty times a second while nothing does
+        // (gotcha 24): R3F draws on a React change, drei's orbit on a camera move and its easing,
+        // and `SceneContent` asks for one wherever it changes the scene itself — a file landing,
+        // a drag, an outline, the keyboard pan. The walk-through moves the camera every frame.
+        frameloop={props.viewMode === 'walk' ? 'always' : 'demand'}
         dpr={[1, 1.75]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ fov: 48, near: 0.05, far: 200, position: initial.position }}
@@ -352,7 +356,7 @@ function SceneContent({
   onBuilt,
 }: Viewer3DProps & { daylight: Daylight; /** Called once, after the first build has asked for every file it needs. */ onBuilt?: () => void }) {
   const style = getStyle(scene.styleId);
-  const { camera, gl, scene: threeScene } = useThree();
+  const { camera, gl, scene: threeScene, invalidate } = useThree();
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -380,7 +384,19 @@ function SceneContent({
   // Exposure follows the hour: a touch over 1 by day, well under at night.
   useEffect(() => {
     gl.toneMappingExposure = daylight.exposure;
-  }, [gl, daylight.exposure]);
+    invalidate();
+  }, [gl, daylight.exposure, invalidate]);
+
+  // A model, a fixture or a texture landing is put into the scene as it arrives, outside React:
+  // every first load is counted (`loadProgress`), and the frame asked for here is drawn after
+  // the handlers that put it in place have run. A file already in a cache is put in place while
+  // the change that asked for it is drawn.
+  useEffect(() => {
+    const unsubscribe = subscribeLoadProgress(() => invalidate());
+    return () => {
+      unsubscribe();
+    };
+  }, [invalidate]);
 
   // -------------------------------------------------------------------------
   // Keyboard panning (orbit view)
@@ -419,6 +435,8 @@ function SceneContent({
       if (!PAN_KEYS.has(event.code)) return;
       pressed.add(event.code);
       event.preventDefault();
+      // The slide runs in the frame loop below, which asks for the next frame while a key is held.
+      invalidate();
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.code === 'Space' || event.key === 'Shift') setButtons(THREE.MOUSE.ROTATE);
@@ -437,7 +455,7 @@ function SceneContent({
       window.removeEventListener('blur', onBlur);
       pressed.clear();
     };
-  }, [walking]);
+  }, [walking, invalidate]);
 
   useFrame((_, delta) => {
     if (walking) return;
@@ -461,6 +479,7 @@ function SceneContent({
       orbit.target.add(tempVector3);
       orbit.update();
     }
+    invalidate();
   });
 
   /**
@@ -494,20 +513,8 @@ function SceneContent({
       glass.opacity = 0.28;
     }
     glass.needsUpdate = true;
-  }, [materials, daylight.interiorLightsOn, daylight.interiorIntensity, style.lighting.lamp]);
-
-  // One lamp per room when the flat's lights are on, hung just under the ceiling and sized
-  // to the room so a hallway is not lit like a living room.
-  const roomLamps = useMemo(
-    () =>
-      plan.rooms.map((room) => {
-        const centre = polygonCentroid(room.polygon);
-        const bounds = polygonBounds(room.polygon);
-        const span = Math.max(bounds.width, bounds.depth, 2);
-        return { id: room.id, position: [centre.x, Math.max(1.8, room.heightM - 0.35), centre.z] as [number, number, number], distance: span * 1.6, intensity: 6 + room.areaM2 * 0.9 };
-      }),
-    [plan.rooms]
-  );
+    invalidate();
+  }, [materials, daylight.interiorLightsOn, daylight.interiorIntensity, style.lighting.lamp, invalidate]);
 
   // The electrical layer's fittings, rebuilt when the layer or the plan changes; the lights
   // that are switched on become point lights below.
@@ -522,10 +529,14 @@ function SceneContent({
   );
   // With one room in focus the others are gone — their fittings, lights and warnings too.
   const roomFilter = useMemo(() => visibleRoomIds(plan, shellOptions), [plan, shellOptions]);
-  const hangingLamps = useMemo(() => scene.items.filter((i) => i.slot === 'pendant'), [scene.items]);
-  const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, items: hangingLamps }), [plan, electrical, materials, roomFilter, hangingLamps]);
+  // The fittings read only where the hanging lamps hang, so moving the rest of the furniture
+  // leaves them as they are.
+  const lampsKey = hangingLampsKey(scene.items);
+  const hangingLamps = useMemo(() => JSON.parse(lampsKey) as HangingLamp[], [lampsKey]);
+  const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, hangingLamps }), [plan, electrical, materials, roomFilter, hangingLamps]);
   useEffect(() => () => disposeOwnedGeometry(electricalGroup), [electricalGroup]);
-  const sceneLights = useMemo(() => lightsFrom(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
+  // After dusk: a light per room, its switched-on fittings merged (`nightLights`, gotcha 25).
+  const roomLights = useMemo(() => nightLights(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
   // The radiators hang on the plan's technical points; they change with the plan alone.
   const radiatorGroup = useMemo(() => buildRadiators(plan, style, roomFilter), [plan, style, roomFilter]);
   // Its sections are instanced runs, whose per-section buffers go with the group.
@@ -560,7 +571,8 @@ function SceneContent({
       child.layers.set(editingOpenings ? 0 : HIDDEN_LAYER);
       (child.material as THREE.MeshBasicMaterial).opacity = selected ? 0.55 : 0.28;
     });
-  }, [shell, editingOpenings, selectedOpeningId]);
+    invalidate();
+  }, [shell, editingOpenings, selectedOpeningId, invalidate]);
 
   // The furniture lives in one long-lived group that is reconciled against the item list.
   const itemsGroup = useMemo(() => {
@@ -570,7 +582,8 @@ function SceneContent({
   }, []);
   useLayoutEffect(() => {
     syncPlacedItems(itemsGroup, scene.items, visibleRoomIds(plan, shellOptions));
-  }, [itemsGroup, scene.items, plan, shellOptions]);
+    invalidate();
+  }, [itemsGroup, scene.items, plan, shellOptions, invalidate]);
 
   // The shells, fittings and radiators were built while rendering, the furniture in the layout
   // effect above: by now the first scene has asked for every model and texture it needs.
@@ -598,7 +611,10 @@ function SceneContent({
       warnings.remove(child);
       disposeOutline(child as THREE.LineSegments);
     }
-    if (walking) return;
+    if (walking) {
+      invalidate();
+      return;
+    }
     const flagged = tightSpotsByItem(plan.rooms, scene.items);
     for (const item of scene.items) {
       if (!flagged.has(item.id) || !item.product) continue;
@@ -607,7 +623,8 @@ function SceneContent({
       applyOutline(line, item, 0xf59e0b);
       warnings.add(line);
     }
-  }, [warnings, plan.rooms, scene.items, walking, roomFilter]);
+    invalidate();
+  }, [warnings, plan.rooms, scene.items, walking, roomFilter, invalidate]);
   useEffect(() => () => warnings.children.forEach((c) => disposeOutline(c as THREE.LineSegments)), [warnings]);
 
   useEffect(() => {
@@ -631,7 +648,8 @@ function SceneContent({
       hoveredId && hoveredId !== selectedItemId ? itemsById.get(hoveredId) : null,
       0xf5a623
     );
-  }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items]);
+    invalidate();
+  }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items, invalidate]);
 
   /**
    * Carrying: an item just added rides on the pointer. The camera stays put (orbit off), the
@@ -654,6 +672,7 @@ function SceneContent({
     carryRef.current = { itemId: carryingItemId, room, result: initial };
     applyOutline(outlines.active, { ...item, position: initial.position, rotation: initial.rotation }, initial.valid ? 0x22c55e : 0xef4444);
     outlines.hover.visible = false;
+    invalidate();
     const orbit = orbitRef.current;
     if (orbit) orbit.enabled = false;
     canvas.style.cursor = 'crosshair';
@@ -661,7 +680,7 @@ function SceneContent({
       if (orbit) orbit.enabled = true;
       canvas.style.cursor = 'default';
     };
-  }, [carryingItemId, itemsById, plan.rooms, scene.items, outlines, gl]);
+  }, [carryingItemId, itemsById, plan.rooms, scene.items, outlines, gl, invalidate]);
 
   /** Converts a screen position into a point on the horizontal plane at `planeY`. */
   const floorPoint = useCallback(
@@ -818,6 +837,7 @@ function SceneContent({
       const key = !target ? '' : target.surface === 'floor' ? `${target.roomId}|f|${target.cell[0]}|${target.cell[1]}` : `${target.roomId}|w|${target.wallIndex}|${target.patch ? target.patch.join(',') : target.span.from}`;
       if (paintGlow.userData.key === key) return;
       paintGlow.userData.key = key;
+      invalidate();
       const room = target ? plan.rooms.find((r) => r.id === target.roomId) : null;
       if (!target || !room) {
         paintGlow.visible = false;
@@ -847,9 +867,8 @@ function SceneContent({
       paintGlow.geometry = new THREE.BufferGeometry();
       paintGlow.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
       paintGlow.visible = positions.length > 0;
-
     },
-    [paintGlow, plan]
+    [paintGlow, plan, invalidate]
   );
   // Leaving the paint scope, or a plan that changed under the glow, puts it out.
   useEffect(() => {
@@ -881,7 +900,8 @@ function SceneContent({
     previewRef.current = null;
     threeScene.remove(ghost);
     disposeOwnedGeometry(ghost);
-  }, [threeScene]);
+    invalidate();
+  }, [threeScene, invalidate]);
   useEffect(() => () => clearPreview(), [clearPreview]);
 
   // -------------------------------------------------------------------------
@@ -908,8 +928,9 @@ function SceneContent({
     } else {
       camera.lookAt(...target);
     }
+    invalidate();
     // A new flat, a different room in focus, or stepping out of the walk-through.
-  }, [frameKey, focusRoomId, camera, walking]);
+  }, [frameKey, focusRoomId, camera, walking, invalidate]);
 
   // The overlay's zoom and frame buttons drive the camera through this.
   useEffect(() => {
@@ -921,6 +942,7 @@ function SceneContent({
         const target = orbit.target;
         camera.position.sub(target).multiplyScalar(factor).add(target);
         orbit.update();
+        invalidate();
       },
       reset: () => {
         const { position, target } = frameFor(planRef.current, focusRoomId);
@@ -930,6 +952,7 @@ function SceneContent({
           orbit.target.set(...target);
           orbit.update();
         }
+        invalidate();
       },
       carryPose: () => {
         const carry = carryRef.current;
@@ -966,6 +989,7 @@ function SceneContent({
         ghost.renderOrder = 6;
         threeScene.add(ghost);
         previewRef.current = ghost;
+        invalidate();
         return true;
       },
       clearElectricalPreview: clearPreview,
@@ -985,7 +1009,7 @@ function SceneContent({
     };
     onApi(api);
     return () => onApi(null);
-  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, fixtureSpotAt, electricalAt, materials, clearPreview]);
+  }, [onApi, camera, gl, threeScene, plan, focusRoomId, floorPoint, fixtureSpotAt, electricalAt, materials, clearPreview, invalidate]);
 
   // -------------------------------------------------------------------------
   // Doll's-house cutaway
@@ -1336,6 +1360,7 @@ function SceneContent({
       wrapper.rotation.y = result.rotation;
       applyOutline(outlines.active, { ...item, position: result.position, rotation: result.rotation, elevationM }, result.valid ? 0x22c55e : 0xef4444);
       outlines.hover.visible = false;
+      invalidate();
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -1364,6 +1389,7 @@ function SceneContent({
         wd.ghost.visible = true;
         wd.ghost.position.x = (wall.a.x + wall.b.x) / 2 + wd.normal.x * wd.distance;
         wd.ghost.position.z = (wall.a.z + wall.b.z) / 2 + wd.normal.z * wd.distance;
+        invalidate();
         return;
       }
       const pd = pointDragRef.current;
@@ -1392,11 +1418,13 @@ function SceneContent({
           pd.position = { x: Math.round(spot.position.x * 100) / 100, z: Math.round(spot.position.z * 100) / 100 };
           pd.object.position.set(spot.position.x + spot.edge.inward.x * 0.006, pd.origin.y, spot.position.z + spot.edge.inward.z * 0.006);
           pd.object.rotation.y = spot.edge.facing;
+          invalidate();
           return;
         }
         pd.position = { x: Math.round((pd.start.x + dx) * 100) / 100, z: Math.round((pd.start.z + dz) * 100) / 100 };
         // Slide the piece live; the store re-projects it on release.
         pd.object.position.set(pd.origin.x + dx, pd.origin.y, pd.origin.z + dz);
+        invalidate();
         return;
       }
       const od = openingDragRef.current;
@@ -1419,6 +1447,7 @@ function SceneContent({
         const from = pointOnEdge(od.edge, od.opening.t);
         const to = pointOnEdge(od.edge, t);
         od.trim.position.set(to.x - from.x, 0, to.z - from.z);
+        invalidate();
         return;
       }
       const drag = dragRef.current;
@@ -1470,6 +1499,7 @@ function SceneContent({
         result.valid ? 0x22c55e : 0xef4444
       );
       outlines.hover.visible = false;
+      invalidate();
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -1481,6 +1511,7 @@ function SceneContent({
         threeScene.remove(wd.ghost);
         wd.ghost.geometry.dispose();
         (wd.ghost.material as THREE.Material).dispose();
+        invalidate();
         const orbit = orbitRef.current;
         if (orbit) orbit.enabled = true;
         canvas.style.cursor = 'default';
@@ -1500,6 +1531,7 @@ function SceneContent({
         } else {
           pd.object.position.copy(pd.origin);
           pd.object.rotation.y = pd.originYaw;
+          invalidate();
         }
         return;
       }
@@ -1526,7 +1558,10 @@ function SceneContent({
         onSelectOpening?.(od.opening.id);
         // Onto a railing's stretch (or a railing onto a door's) it does not go: back to its place.
         if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4 && !railingClash(od.room, od.opening, od.t, od.edge.length)) onMoveOpening?.(od.room.id, od.opening.id, od.t);
-        else od.trim.position.set(0, 0, 0);
+        else {
+          od.trim.position.set(0, 0, 0);
+          invalidate();
+        }
         return;
       }
 
@@ -1560,6 +1595,7 @@ function SceneContent({
         // Refused: put it back where it came from rather than leave it overlapping.
         drag.wrapper.position.set(drag.item.position.x, drag.item.elevationM, drag.item.position.z);
         drag.wrapper.rotation.y = drag.item.rotation;
+        invalidate();
       }
     };
 
@@ -1574,7 +1610,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow]);
+  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {
@@ -1601,12 +1637,6 @@ function SceneContent({
       />
       {/* A soft fill from the opposite side keeps interiors from going flat black by day. */}
       <directionalLight position={[-daylight.sunPosition[0], 9, -daylight.sunPosition[2]]} intensity={0.35 * (0.3 + 0.7 * daylight.daylight)} color={style.lighting.lamp} />
-      {/* Evening and night: the flat's own lamps, one per room. */}
-      {daylight.interiorLightsOn &&
-        sceneLights.length === 0 &&
-        roomLamps.map((lamp) => (
-          <pointLight key={lamp.id} position={lamp.position} intensity={lamp.intensity * daylight.interiorIntensity} distance={lamp.distance} decay={1.5} color={style.lighting.lamp} />
-        ))}
       {/*
         Standing inside, sunlight through the windows alone leaves the far side of a room
         black, so walk mode adds flat fill plus a soft light that travels with the viewer.
@@ -1631,14 +1661,22 @@ function SceneContent({
         <primitive object={equipmentGroup} />
       </group>
       {/*
-        The lights that are switched on light the rooms from dusk. By day a lamp that is on only
-        glows — its shade's lit material (`litModel`) — and is no light at all: every point light
-        is paid for on every lit pixel, and a flat's dozen of them cost a third of the frame for a
-        glow the sun drowns anyway.
+        The lights that are switched on light the rooms from dusk — a light per room, keyed by the
+        room so a switch changes an intensity and not the number of lights (`nightLights`). By day
+        a lamp that is on only glows — its shade's lit material (`litModel`) — and is no light at
+        all: every point light is paid for on every lit pixel, for a glow the sun drowns anyway.
+        A lamp lent to a room because nothing is on dims with the evening; a fitting's light holds.
       */}
       {daylight.interiorLightsOn &&
-        sceneLights.map((light) => (
-          <pointLight key={light.id} position={light.position} intensity={light.intensity * Math.max(0.6, daylight.interiorIntensity)} distance={light.distance} decay={1.5} color={style.lighting.lamp} />
+        roomLights.map((light) => (
+          <pointLight
+            key={light.id}
+            position={light.position}
+            intensity={light.intensity * (light.standIn ? daylight.interiorIntensity : Math.max(0.6, daylight.interiorIntensity))}
+            distance={light.distance}
+            decay={1.5}
+            color={style.lighting.lamp}
+          />
         ))}
 
       <primitive object={ground} position={[groundCentre.x, ground.position.y, groundCentre.z]} />
