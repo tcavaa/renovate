@@ -172,10 +172,14 @@ describe('balcony railings', () => {
     const added = addOpening(rooms, 'balcony', 'railing', outer.index, 0.12, { widthM: 3 });
     const balcony = added.rooms[1];
     expect(edgeWallAreaM2(balcony, outer.index)).toBeCloseTo((4 - 3) * 2.8, 2);
-    // No skirting at its foot and no cornice under the ceiling there.
-    const perimeter = roomEdges(balcony.polygon).reduce((s, e) => s + e.length, 0);
-    expect(trimLengthM(balcony, 'skirting')).toBeCloseTo(perimeter - 3, 1);
-    expect(trimLengthM(balcony, 'cornice')).toBeCloseTo(perimeter - 3, 1);
+    // A balcony wears no skirting and no cornice at all.
+    expect(trimLengthM(balcony, 'skirting')).toBe(0);
+    expect(trimLengthM(balcony, 'cornice')).toBe(0);
+    // A room with a railing that is not a balcony: none at the railing's foot or under the ceiling there.
+    const loggia = { ...balcony, type: 'living_room' as const };
+    const perimeter = roomEdges(loggia.polygon).reduce((s, e) => s + e.length, 0);
+    expect(trimLengthM(loggia, 'skirting')).toBeCloseTo(perimeter - 3, 1);
+    expect(trimLengthM(loggia, 'cornice')).toBeCloseTo(perimeter - 3, 1);
   });
 
   it('keeps a railing drawn the whole length of its wall through an edit', () => {

@@ -74,7 +74,7 @@ import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
 import { cellPolygon, paintCell, paintPatch, paintSpan, patchInRange, type PaintTarget } from '@/lib/design/paint';
 import { pruneQuantities, pruneTicks, tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
-import { defaultTrim, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
+import { defaultTrim, hasTrims, isTrimSurface, trimFromProduct } from '@/lib/design/trims';
 import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
 import type {
   Beam,
@@ -1317,7 +1317,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // who wants the accent back has Ctrl+Z, or paints it again over the new colour.
             const next = s.finishes.filter((f) => !(f.surface === surface && roomIds.includes(f.roomId)));
             for (const room of rooms) {
-              if (isTrimSurface(surface)) next.push(product ? trimFromProduct(room, surface, product) : defaultTrim(room, surface, s.styleId));
+              if (isTrimSurface(surface)) {
+                if (hasTrims(room)) next.push(product ? trimFromProduct(room, surface, product) : defaultTrim(room, surface, s.styleId));
+              }
               else next.push(product ? finishFromProduct(room, surface, product) : styleFinish(room, surface, s.styleId, catalog));
             }
             // A zone that was selected may be one of those just painted over.
@@ -1815,7 +1817,7 @@ function withStudioLine(room: PlanRoom): PlanRoom {
 function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = []): SurfaceFinish[] {
   if (!plan) return [];
   const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => styleFinish(room, surface, styleId, catalog)), defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)]);
+  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => styleFinish(room, surface, styleId, catalog)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
 }
 
 /**

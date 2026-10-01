@@ -100,7 +100,7 @@ export function FinishCatalog({
   const selected = state.selectedId != null ? (catalog.find((p) => p.id === state.selectedId) ?? null) : null;
   const trim = isTrimFinishSurface(surface);
   const painting = isPaintScope(scope);
-  const chips = finishScopeChips(t, surface, { hasWall, flat });
+  const chips = finishScopeChips(t, surface, { hasWall, flat, allRooms: room === null });
   const pickLabel = painting ? t.design.finishTakeBrush : scope === 'wall' ? t.design.finishLayWall : room ? t.design.finishLayRoom : t.design.finishLayAllRooms;
   const PickIcon = painting ? Paintbrush : scope === 'wall' ? Square : LayoutGrid;
 

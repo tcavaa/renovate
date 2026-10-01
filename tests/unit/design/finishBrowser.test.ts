@@ -71,6 +71,12 @@ describe('the finishes a surface can be given', () => {
     expect(ids(finishOptions(CATALOG, 'skirting', null, 'modern'))).toEqual([6]);
   });
 
+  it('offers no skirting or cornice on a balcony', () => {
+    const balcony = { id: 'bal', type: 'balcony' } as PlanRoom;
+    expect(finishOptions(CATALOG, 'skirting', balcony, 'modern')).toEqual([]);
+    expect(finishOptions(CATALOG, 'cornice', balcony, 'modern')).toEqual([]);
+  });
+
   it('compares a floor or a wall by the square metre and a moulding by the metre', () => {
     expect(finishUnitPrice(CATALOG[4], 'wall')).toBe(2.25);
     expect(finishUnitPrice(CATALOG[5], 'skirting')).toBe(9);

@@ -22,7 +22,7 @@ import { COLOR_FAMILIES, productColorFamilies, type ColorFamily } from './colors
 import type { CatalogProduct } from './matcher';
 import type { ShelfCategory } from './shelf';
 import { pricePerM2, surfaceOptions, surfaceSpecs } from './surfaces';
-import { trimOptions } from './trims';
+import { hasTrims, trimOptions } from './trims';
 import type { PlanRoom, SceneStore, StyleId } from './types';
 
 /** What the finishes tray finishes: a room's floor or walls, or the mouldings along them. */
@@ -39,7 +39,9 @@ export function isTrimFinishSurface(surface: FinishSurface): surface is 'skirtin
  * moulding the style's own, then the price (`trimOptions`).
  */
 export function finishOptions(catalog: CatalogProduct[], surface: FinishSurface, room: PlanRoom | null, styleId: StyleId): CatalogProduct[] {
-  return isTrimFinishSurface(surface) ? trimOptions(catalog, surface, styleId) : surfaceOptions(catalog, surface, room, styleId);
+  // A balcony has no skirting or cornice to choose (`hasTrims`).
+  if (isTrimFinishSurface(surface)) return room && !hasTrims(room) ? [] : trimOptions(catalog, surface, styleId);
+  return surfaceOptions(catalog, surface, room, styleId);
 }
 
 /** The price finishes are compared by: per m² on a floor or a wall (paint by the litre over its coverage), per running metre for a moulding. */

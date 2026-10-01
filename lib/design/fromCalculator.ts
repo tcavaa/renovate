@@ -18,7 +18,7 @@ import type { CatalogProduct } from './matcher';
 import { quantityFor, toSceneProduct } from './matcher';
 import { finishFromProduct, isSurfaceProduct, isWetRoom, surfaceSpecs } from './surfaces';
 import { dressBoard, pickTarget } from './boardPicks';
-import { trimFromProduct } from './trims';
+import { hasTrims, trimFromProduct } from './trims';
 import type { ElectricalPoint, FloorPlan, PlacedItem, SurfaceFinish } from './types';
 
 export interface CalculatorPicks {
@@ -190,7 +190,7 @@ export function applyFinishPicks(
     const product = byId.get(id);
     const kind = product?.categorySlug === 'skirting' || product?.categorySlug === 'cornice' ? product.categorySlug : null;
     if (!product || !kind) continue;
-    for (const room of plan.rooms) {
+    for (const room of plan.rooms.filter(hasTrims)) {
       if (next.some((f) => f.roomId === room.id && f.surface === kind && f.origin === 'studio')) continue;
       next = next.filter((f) => !(f.roomId === room.id && f.surface === kind));
       next.push(trimFromProduct(room, kind, product, 'calculator'));

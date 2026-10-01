@@ -27,7 +27,7 @@ import { primaryHalf } from '@/lib/design/openings';
 import { CUSTOM_KITCHEN_SLOTS, drawnModelUrl } from '@/lib/design/kitchen';
 import { wallFinishFor } from '@/lib/design/zones';
 import { patchSpansOnWall, wallPatches, wallSpans } from '@/lib/design/paint';
-import { STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
+import { hasTrims, STYLE_TRIMS, trimFor, trimOutline } from '@/lib/design/trims';
 import { edgeWallKey, planEdgeWalls, type EdgeWall, type WallPiece } from '@/lib/design/wallPieces';
 import { buildElectrical, buildEquipment, buildPaintedCells, buildRadiators, buildStructure, buildZones, fixtureRole } from './buildStructure';
 import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP, type WallFaceSpan, type WallHole } from './wallGeometry';
@@ -382,6 +382,7 @@ function buildTrim(
   style: StyleDefinition,
   materials: StyleMaterials
 ): THREE.Group | null {
+  if (!hasTrims(room)) return null;
   const chosen = trimFor(finishes, room.id, kind);
   const fallback = STYLE_TRIMS[style.id][kind];
   const spec = chosen ? chosen.trim : fallback;

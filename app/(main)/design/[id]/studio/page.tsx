@@ -24,7 +24,7 @@ import { FinishCatalog } from '@/components/studio/FinishCatalog';
 import { OwnModelDialog } from '@/components/studio/OwnModelDialog';
 import { initialCatalogBrowserState, type CatalogBrowserState } from '@/lib/design/catalogBrowser';
 import { finishOptions, initialFinishBrowserState, type FinishBrowserState } from '@/lib/design/finishBrowser';
-import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
+import { BuildTray, BudgetTray, ElectricTray, ELECTRICAL_DRAG_TYPE, FinishesTray, firstFinishScope, isPaintScope, paintScopeOf, TechnicalTray, type FinishScope, type FinishSurface } from '@/components/studio/Trays';
 import { StudioTopBar } from '@/components/studio/StudioTopBar';
 import { toolHint } from '@/components/plan/PlanToolbar';
 import { TutorialOverlay, tutorialSeen } from '@/components/studio/TutorialOverlay';
@@ -53,7 +53,7 @@ import { ROTATE_STEP_RAD, isPlacementValid, isWallHung, rotateItem as rotatePlac
 import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
 import { isStyleFinish } from '@/lib/design/surfaces';
-import { isTrimSurface, trimFor, trimLengthM } from '@/lib/design/trims';
+import { hasTrims, isTrimSurface, trimFor, trimLengthM } from '@/lib/design/trims';
 import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
@@ -212,6 +212,15 @@ export default function StudioPage() {
   const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [rotateBlocked, setRotateBlocked] = useState(false);
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
+  // A floor or wall picked out belongs to the room in focus when it was picked. Another room
+  // in focus — or the whole flat — lets go of it: kept, "every room" went on laying the pick
+  // in the room clicked before, and only there. Followed while rendering, as React asks; a
+  // click that brings its own room into focus keeps the surface it picked.
+  const [surfaceFocus, setSurfaceFocus] = useState(focusRoomId);
+  if (surfaceFocus !== focusRoomId) {
+    setSurfaceFocus(focusRoomId);
+    if (selectedSurface && selectedSurface.roomId !== focusRoomId) setSelectedSurface(null);
+  }
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   // The controls card starts folded: it is a reminder, not a panel, and open by default it
@@ -346,7 +355,7 @@ export default function StudioPage() {
         store.selectItem(null);
         store.selectElement(null);
         setFinishSurface(sel.surface);
-        setFinishScope(sel.surface === 'wall' ? (sel.wallIndex != null ? 'wall' : 'patch') : 'cell');
+        setFinishScope(firstFinishScope(sel.surface));
         setTrayOpen(true);
       }
     },
@@ -595,6 +604,8 @@ export default function StudioPage() {
     else {
       setCategory(next);
       setTrayOpen(true);
+      // The finishes open on the surface's first chip, the square metre, whatever was left before.
+      if (next === 'finishes') setFinishScope(firstFinishScope(finishSurface));
     }
     setElectricalArmed(false);
     setTechnicalArmed(false);
@@ -788,7 +799,7 @@ export default function StudioPage() {
    */
   const chooseFinishSurface = (surface: FinishSurface) => {
     setFinishSurface(surface);
-    setFinishScope(surface === 'wall' ? (finishScope === 'strip' ? 'strip' : 'patch') : surface === 'floor' ? 'cell' : 'room');
+    setFinishScope(firstFinishScope(surface));
     setBrush(undefined);
   };
 
@@ -1246,6 +1257,7 @@ export default function StudioPage() {
                       flat={view === '2d'}
                       styleId={styleId}
                       onOpenCatalog={() => setFinishCatalog('open')}
+                      emptyHint={trimSurface && finishRoom && !hasTrims(finishRoom) ? t.design.trimNoneOnBalcony : null}
                     />
                   )}
                   {category === 'budget' && cost && <BudgetTray cost={cost} />}

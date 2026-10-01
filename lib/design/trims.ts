@@ -114,11 +114,21 @@ export function trimOptions(catalog: CatalogProduct[], kind: TrimKind, styleId: 
 }
 
 /**
+ * Whether a room wears a skirting board and a cornice at all. A balcony does not: its walls are
+ * the building's outside, rendered or tiled to the floor, with no ceiling to run a cornice
+ * under — it is neither drawn nor bought there, whatever the flat's other rooms wear.
+ */
+export function hasTrims(room: Pick<PlanRoom, 'type'>): boolean {
+  return room.type !== 'balcony';
+}
+
+/**
  * Running metres of a trim in a room: the walled perimeter (not the edges on a room separator),
  * less the doorways and railings for a skirting board and the railings for a cornice — a
- * balcony's open side has no wall along its foot or under its ceiling.
+ * balcony's open side has no wall along its foot or under its ceiling. None on a balcony.
  */
 export function trimLengthM(room: PlanRoom, kind: TrimKind): number {
+  if (!hasTrims(room)) return 0;
   const perimeter = wallEdges(room).reduce((sum, e) => sum + e.length, 0);
   const gaps = room.openings.filter((o) => (kind === 'skirting' ? o.kind !== 'window' : o.kind === 'railing')).reduce((sum, o) => sum + o.widthM, 0);
   return Math.max(0, Math.round((perimeter - gaps) * 10) / 10);
