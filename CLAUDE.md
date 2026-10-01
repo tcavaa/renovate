@@ -112,7 +112,9 @@ be absent in a fresh cloud checkout — `pnpm install` before running anything.
    through `lib/calculator/steps.ts` / `lib/design/steps.ts`.
 5. **Schema changes** go `lib/db/schema.ts` → `pnpm db:generate` → a committed migration;
    payloads get a Zod schema in `lib/validations/`. Decimals are strings: `Number()` before
-   arithmetic, `String()` before insert.
+   arithmetic, `String()` before insert. **A migration runs on MySQL 8 and on MariaDB** (the
+   cPanel host): no `CAST(… AS JSON)`, no back-references in `REGEXP_REPLACE` —
+   [docs/data-model.md](docs/data-model.md#migrations-run-on-mysql-and-mariadb).
 6. **API routes** use `handle()` / `ok()` / `fail()` and the guards in `lib/api/route.ts`,
    answer `{ data, error }`, and `safeParse` every JSON body.
 7. **Every object in the studio is a GLB** with a manifest entry; only the architecture is built

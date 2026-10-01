@@ -79,7 +79,9 @@ Everything the app needs to run unattended, and where each piece lives.
   copied over the shared folder, so a re-rendered product photo replaces the old one; uploads
   made through the app carry a timestamp prefix and are never touched), `node
   deploy/migrate.cjs` (drizzle's migrator re-done in plain node with the standalone's own
-  `mysql2`, which `serverExternalPackages` keeps out of the server chunks for exactly this),
+  `mysql2`, which `serverExternalPackages` keeps out of the server chunks for exactly this; one
+  transaction per migration, and the host's database is MariaDB, so every migration has to run
+  there as well as on MySQL — [data-model.md](data-model.md#migrations-run-on-mysql-and-mariadb)),
   `node .next/standalone/seed-models.cjs` — `scripts/seed-models.ts` bundled by the workflow
   with esbuild (`pnpm deploy:bundle-seed`, drizzle, mysql2 and dotenv inside), so **the
   catalogue follows the model manifests on every deploy**: new models become products, models

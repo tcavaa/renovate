@@ -5,11 +5,14 @@
  * only the standalone server CI built; `mysql2` is loaded from that server's node_modules
  * (next.config.mjs lists it in serverExternalPackages so the build ships it).
  *
- * It does exactly what drizzle-orm's mysql2 migrator does, so the two can be used
- * interchangeably on the same database: same `__drizzle_migrations` table, same sha256 of
- * the whole .sql file as the hash, and a migration counts as pending when its journal
- * timestamp is newer than the last recorded one. Statements are split on drizzle's
- * `--> statement-breakpoint` marker.
+ * It does what drizzle-orm's mysql2 migrator does, so the two can be used interchangeably on
+ * the same database: same `__drizzle_migrations` table, same sha256 of the whole .sql file as
+ * the hash, and a migration counts as pending when its journal timestamp is newer than the last
+ * recorded one. Statements are split on drizzle's `--> statement-breakpoint` marker. Each
+ * migration runs in a transaction (drizzle puts all pending ones in one), so a statement that
+ * fails takes back the rows the migration's earlier statements changed and nothing is recorded —
+ * without it, a data migration that failed halfway on the MariaDB host had already rewritten
+ * 35 rows. DDL commits by itself in MySQL and MariaDB alike; a schema change is not undone.
  *
  *   node deploy/migrate.cjs            apply everything pending
  *   NEXT_DIST_DIR=.next-build node deploy/migrate.cjs   (a build made beside the dev server)
@@ -80,8 +83,15 @@ async function main() {
     for (const m of readMigrations()) {
       if (m.when <= last) continue;
       console.log(`+ ${m.tag}`);
-      for (const statement of m.statements) await conn.query(statement);
-      await conn.query(`INSERT INTO \`${TABLE}\` (hash, created_at) VALUES (?, ?)`, [m.hash, m.when]);
+      await conn.beginTransaction();
+      try {
+        for (const statement of m.statements) await conn.query(statement);
+        await conn.query(`INSERT INTO \`${TABLE}\` (hash, created_at) VALUES (?, ?)`, [m.hash, m.when]);
+        await conn.commit();
+      } catch (err) {
+        await conn.rollback().catch(() => {});
+        throw err;
+      }
       applied++;
     }
     console.log(applied ? `✅ ${applied} migration(s) applied` : '✅ migrations up to date');

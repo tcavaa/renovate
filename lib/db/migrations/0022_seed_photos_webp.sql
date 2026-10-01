@@ -7,24 +7,32 @@
 -- Only a seed picture's name is rewritten: a runtime upload (`<13-digit ms>-<hex>.png`, or
 -- `own-<user>-….png` — lib/storage/uploadKeys.ts) starts with a digit or `own-<digit>` and has no
 -- WebP twin; the path must start at `/uploads/` and the extension end the name. Idempotent.
-UPDATE `products` SET `image_url` = REGEXP_REPLACE(`image_url`, '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') WHERE `image_url` REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])';
+--
+-- Written for MySQL 8 and MariaDB alike, the way 0021 is: a single URL rewritten whole, JSON
+-- rewritten reversed with lookaheads and a constant replacement (`"gnp.`, `"gpj.` or `"gepj.` →
+-- `"pbew.`) — reversed, the name's first letter and the `own-<digit>` it must not start with come
+-- right before the folder.
+UPDATE `products` SET `image_url` = CONCAT(LEFT(`image_url`, CHAR_LENGTH(`image_url`) - CHAR_LENGTH(SUBSTRING_INDEX(`image_url`, '.', -1)) - 1), '.webp')
+WHERE `image_url` REGEXP '^/uploads/(products|furniture)/[A-Za-z][A-Za-z0-9_.-]*[.](png|jpg|jpeg)$'
+  AND `image_url` NOT REGEXP '^/uploads/(products|furniture)/own-[0-9]';
 --> statement-breakpoint
-UPDATE `products` SET `images` = CAST(REGEXP_REPLACE(CAST(`images` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON) WHERE CAST(`images` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])';
+UPDATE `products` SET `images` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`images` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.'))
+WHERE REVERSE(CAST(`images` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")';
 --> statement-breakpoint
 UPDATE `projects` SET
-  `rooms` = CAST(REGEXP_REPLACE(CAST(`rooms` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON),
-  `selected_products` = IF(`selected_products` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`selected_products` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
-  `selected_furniture` = IF(`selected_furniture` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`selected_furniture` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
-  `calculator_board` = IF(`calculator_board` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`calculator_board` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
-  `plan` = IF(`plan` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`plan` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
-  `scene` = IF(`scene` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`scene` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
-  `versions` = IF(`versions` IS NULL, NULL, CAST(REGEXP_REPLACE(CAST(`versions` AS CHAR), '(^|[^A-Za-z0-9_./-])(/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*)\\.(png|jpe?g)(?![A-Za-z0-9_.-])', '$1$2.webp') AS JSON)),
+  `rooms` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`rooms` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `selected_products` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`selected_products` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `selected_furniture` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`selected_furniture` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `calculator_board` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`calculator_board` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `plan` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`plan` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `scene` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`scene` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
+  `versions` = REVERSE(REGEXP_REPLACE(REVERSE(CAST(`versions` AS CHAR CHARACTER SET utf8mb4)), '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")', '"pbew.')),
   `design_rev` = `design_rev` + 1,
   `calculator_rev` = `calculator_rev` + 1
-WHERE CAST(`rooms` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`selected_products` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`selected_furniture` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`calculator_board` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`plan` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`scene` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])'
-   OR CAST(`versions` AS CHAR) REGEXP '(^|[^A-Za-z0-9_./-])/uploads/(products|furniture)/(?!own-[0-9])[A-Za-z][A-Za-z0-9_.-]*\\.(png|jpe?g)(?![A-Za-z0-9_.-])';
+WHERE REVERSE(CAST(`rooms` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`selected_products` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`selected_furniture` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`calculator_board` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`plan` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`scene` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")'
+   OR REVERSE(CAST(`versions` AS CHAR CHARACTER SET utf8mb4)) REGEXP '"(gnp|gpj|gepj)[.](?=[A-Za-z0-9_.-]*[A-Za-z]/(stcudorp|erutinruf)/sdaolpu/")(?![A-Za-z0-9_.-]*[0-9]-nwo/(stcudorp|erutinruf)/sdaolpu/")';
