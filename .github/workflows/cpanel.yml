@@ -61,7 +61,18 @@ jobs:
         run: NODE_ENV=development pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        # Sentry (docs/operations.md#errors-go-to-sentry): the DSN is baked into the bundle; the
+        # token uploads the source maps. Either missing, the build goes on without that part. The
+        # DSN is exported only when the variable has a value: Next bakes in an empty one too, and
+        # that would override a DSN in the host's own .env even for the server.
+        run: |
+          set -euo pipefail
+          if [ -n "${DSN_VARIABLE:-}" ]; then export NEXT_PUBLIC_SENTRY_DSN="${DSN_VARIABLE}"; fi
+          pnpm build
+        env:
+          DSN_VARIABLE: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Assemble the standalone server
         run: |

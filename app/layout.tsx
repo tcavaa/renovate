@@ -51,7 +51,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const dictionary = await getT();
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
-      <body>
+      {/* Browser extensions write their own attributes on <body> before React hydrates
+          (ColorZilla's `cz-shortcut-listen`, a VPN's `bis_register`). This silences the mismatch
+          for <body>'s own attributes only — none are ours — not for anything inside it. */}
+      <body suppressHydrationWarning>
         <LocaleProvider locale={locale} dictionary={dictionary}>
           <SessionProvider>
             <StoreOwnerGuard />

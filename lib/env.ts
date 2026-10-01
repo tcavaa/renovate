@@ -75,6 +75,9 @@ const schema = z
 
     LOG_DIR: optionalString,
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).optional(),
+
+    /** Sentry; unset, it is off. Validated here, read by `lib/sentry.ts` (the browser needs it too). */
+    NEXT_PUBLIC_SENTRY_DSN: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
   })
   .superRefine((value, ctx) => {
     if (isProduction && !value.DATABASE_PASSWORD) {

@@ -29,8 +29,8 @@ Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · MySQL 8 + 
 pnpm 9 · Tailwind 3 + Radix-based components, lucide-react · Zustand + `persist` (three stores
 per project) · React Hook Form + Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
 JWT; seven roles) · three / @react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru`
-· Vitest + Playwright · deploy targets: Vercel (from September 2026), a VPS (PM2 + Nginx) and
-cPanel. Details: [docs/architecture.md](docs/architecture.md).
+· Vitest + Playwright · Sentry (`@sentry/nextjs`, off without a DSN) · deploy targets: cPanel
+(production) and a VPS (PM2 + Nginx). Details: [docs/architecture.md](docs/architecture.md).
 
 ## Commands
 
@@ -155,7 +155,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |
 | [docs/design-studio/technical-and-fittings.md](docs/design-studio/technical-and-fittings.md) | technical points and works, sockets/switches/lights, radiators, doors and windows | `technical.ts`, `electrical.ts`, `radiators.ts`, `openings.ts`, the technical step |
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
-| [docs/operations.md](docs/operations.md) | environment, logs, health, deploys (VPS, cPanel, Vercel), storage, mail | `lib/env.ts`, `lib/log.ts`, `lib/storage/`, `deploy/`, workflows, `next.config.mjs` |
+| [docs/operations.md](docs/operations.md) | environment, logs, Sentry, health, deploys (cPanel, VPS), storage, mail | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/storage/`, `deploy/`, workflows, `next.config.mjs` |
 | [docs/testing.md](docs/testing.md) | test commands, what CI runs, the coverage gate, where each area's tests are | before declaring work done; adding tests |
 | [docs/roadmap.md](docs/roadmap.md) | **next tasks**: bugs found and not fixed, planned features, links to every area's known gaps | planning work, "what's next", before starting a feature |
 

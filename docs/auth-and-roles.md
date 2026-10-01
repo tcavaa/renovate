@@ -79,8 +79,7 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   `/admin` lands in its portal, an orders agent who types `/partner` in the admin. The user menu
   links staff to the admin and every partner (a brigade too) to the portal, first.
 - **Lockout**: five wrong passwords within fifteen minutes lock the account for fifteen minutes
-  (`lib/auth/lockout.ts`, in memory like the rate limiter — per process, per instance on
-  Vercel).
+  (`lib/auth/lockout.ts`, in memory like the rate limiter — per process).
 - **Verification and reset** use single-use, SHA-256-hashed tokens in `auth_tokens`
   (`lib/auth/tokens.ts`); issuing a new one retires the older unused ones. Verification is
   encouraged, not required: an unverified account still works. Google and Facebook accounts
@@ -221,4 +220,5 @@ order), `e2e/public.spec.ts` (auth pages, callback URL safety). `lib/auth/**` an
 - Admin can set a new password but cannot send a password-reset link from the account page
   (the person can use "forgot password"); account changes are logged to the app log, not kept
   as an audit trail in the database.
-- Lockout and rate limits are in memory: per process on the VPS, per instance on Vercel.
+- Lockout and rate limits are in memory, per process: a restart forgets them, and two
+  processes behind one domain would each keep their own.

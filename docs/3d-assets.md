@@ -212,8 +212,8 @@ recipe (`glbOptimize.ts`, isomorphic):
 (`components/admin/ModelUploader.tsx`, shared by `components/studio/OwnModelDialog.tsx`)
 imports `glbOptimizeBrowser.ts` on demand (one lazy chunk, ~300 kB, 83 kB gzipped, never in
 the pages' initial JavaScript) and re-encodes textures through a canvas; the uploader shows
-"optimizing…" and then the size it went from and to. This is what lets a typical upload fit
-the 4.5 MB a Vercel function accepts. A browser that cannot write WebP (Safari: `convertToBlob`
+"optimizing…" and then the size it went from and to: a quicker upload, and less for the
+server's pass to do on a memory-capped host. A browser that cannot write WebP (Safari: `convertToBlob`
 quietly answers with a PNG) shrinks an oversized JPEG as a JPEG and leaves the rest — the
 geometry is still compressed, and the three uploads below came to 1.8–3.6 MB that way. Then in
 the route — `optimizeUploadedModel` (`glbOptimizeServer.ts`, sharp, Lanczos, and `draco3d`,
