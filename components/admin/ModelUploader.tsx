@@ -61,7 +61,7 @@ export type PreviewHandle = {
 
 /**
  * The picked GLB made small in this browser before it is sent (`glbOptimizeBrowser`): a
- * quicker upload, and one that fits the 4.5 MB a Vercel function accepts. The libraries load
+ * quicker upload, and less work for the server's pass on a memory-capped host. The libraries load
  * only now; if anything fails the file goes as it was, and the server's pass does the work.
  * Shared with the studio's own-model dialog.
  */

@@ -34,10 +34,12 @@ at runtime yet; the last one was seen on the sample plan.
   furnished flat; KTX2 ETC1S at full quality was compared (about the same download, a quarter of
   the memory, a little softer up close) and left for when phones run short of memory
   ([design-studio/3d-engine.md](design-studio/3d-engine.md#performance)).
+- **Sentry, what is left**: name it in the privacy policy as a processor; set the signed-in
+  user on server events ([operations.md](operations.md#known-gaps)).
 - **Production delivery**: the cPanel host serves files at 0.6–1.7 MB/s. Since the WebP and
   Draco deploy a first visit's 3D files are 6.35 MB (about 24 MB with the old files) and arrive
-  in 4–10 s, where they took 13–16 s before. What is left is a CDN or the Vercel move
-  ([operations.md](operations.md#known-gaps)).
+  in 4–10 s, where they took 13–16 s before. What is left is a CDN in front of the domain or a
+  faster host ([operations.md](operations.md#known-gaps)).
 
 - **Payments (Flitt, sandbox)**: going live — a merchant of our own, the company's name, code
   and address on the site (placeholders now), Flitt's review, `FLITT_TEST_MODE=false`, Apple
@@ -51,11 +53,6 @@ at runtime yet; the last one was seen on the sample plan.
 - **Realistic renders**: `project_renders` rows wait in `queued`; a worker that calls an image
   model with the screenshot and scene, writes `renderUrl` and flips the status is not built
   ([design-studio/studio.md](design-studio/studio.md#known-gaps)).
-- **Uploads on Vercel**: request bodies are capped at 4.5 MB, so plan images, photos and the
-  rare GLB still over it after the browser's optimization need a direct-to-bucket upload (a
-  presigned PUT, then the byte sniff, the GLB optimization and the record); the planned
-  storage driver writing to the cPanel box over WebDAV is not built either
-  ([operations.md](operations.md)).
 - **Models uploaded before optimization** stay as they came (locally #500 and #503); nothing
   re-optimizes stored files in bulk — re-upload them in the product form
   ([3d-assets.md](3d-assets.md#known-gaps)).

@@ -1,9 +1,10 @@
-# Operations: environment, deploys, storage, mail, logs
+# Operations: environment, deploys, storage, mail, logs, errors
 
-Everything the app needs to run unattended: environment validation, logs, health, migrations
-in deploys, the three deploy targets (VPS, cPanel, Vercel), uploads storage, mail, and CI.
-Read this before touching `lib/env.ts`, `lib/log.ts`, `lib/storage/`, `lib/email.ts`,
-`next.config.mjs`, `deploy/`, `.github/workflows/`, `vercel.json`, `server.cjs` or
+Everything the app needs to run unattended: environment validation, logs, error tracking
+(Sentry), health, migrations in deploys, the two deploy targets (cPanel, which is production,
+and a VPS), uploads storage, mail, and CI. Read this before touching `lib/env.ts`, `lib/log.ts`,
+`lib/sentry.ts`, the `instrumentation*.ts` and `sentry.*.config.ts` files, `lib/storage/`,
+`lib/email.ts`, `next.config.mjs`, `deploy/`, `.github/workflows/`, `server.cjs` or
 `.cpanel.yml`.
 
 Related: [testing.md](testing.md) (what CI runs) · [data-model.md](data-model.md) (migrations)
@@ -17,7 +18,11 @@ Related: [testing.md](testing.md) (what CI runs) · [data-model.md](data-model.m
 | `lib/env.ts` | server environment validated with Zod at startup |
 | `scripts/lib/loadEnv.ts` | loads `.env.local` / `.env` for `tsx` scripts — must be the script's first import |
 | `.env.example` | every variable the app reads (names and comments; never commit real values) |
-| `lib/log.ts` | structured JSON logging to stdout/stderr and a daily file |
+| `lib/log.ts` | structured JSON logging to stdout/stderr and a daily file; `setLogSink` hands every line to Sentry |
+| `lib/sentry.ts` | Sentry's options, shared by the browser and the server: DSN, environment, sample rates |
+| `instrumentation.ts`, `sentry.server.config.ts` | Sentry on the Node server: `onRequestError`, the log forwarded |
+| `instrumentation-client.ts` | Sentry in the browser, Replay on error |
+| `app/global-error.tsx`, `app/(main)/error.tsx` | the error boundaries, which send what they catch to Sentry |
 | `lib/api/route.ts` → `handle()` | logs every request (route, status, duration) and every unhandled exception |
 | `lib/api/rateLimit.ts` | per-IP sliding-window limits (`RATE_RULES`), in memory |
 | `app/api/health/route.ts` | `GET /api/health` |
@@ -25,12 +30,11 @@ Related: [testing.md](testing.md) (what CI runs) · [data-model.md](data-model.m
 | `lib/uploads/sniff.ts`, `glb.ts` | uploads identified by their bytes, never the declared type |
 | `lib/uploads/glbOptimize.ts`, `glbOptimizeServer.ts`, `glbOptimizeBrowser.ts` | uploaded GLBs optimized — in the uploader's browser, then in the route with sharp ([3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `lib/email.ts` | `MAIL_DRIVER=log|smtp` |
-| `next.config.mjs` | security headers and the CSP (Flitt's checkout, wallets and 3-D Secure admitted — [payments.md](payments.md#configuration)), `output: 'standalone'` (off on Vercel), `NEXT_DIST_DIR`, image patterns |
+| `next.config.mjs` | security headers and the CSP (Flitt's checkout, wallets and 3-D Secure admitted — [payments.md](payments.md#configuration)), `output: 'standalone'`, `NEXT_DIST_DIR`, image patterns, `withSentryConfig` (the `/monitoring` tunnel, source maps) |
 | `lib/payments/flittApi.ts` | card payments: `FLITT_MERCHANT_ID` / `FLITT_SECRET_KEY` / `FLITT_TEST_MODE` ([payments.md](payments.md)) |
 | `scripts/migrate.ts`, `deploy/migrate.cjs` | migrations (tsx locally, plain node in the cPanel release) |
 | `deploy/deploy.sh`, `rollback.sh`, `nginx.conf`, `ecosystem.config.cjs` | the VPS: release deploy with health check and rollback, Nginx, PM2 |
 | `deploy/cpanel.sh`, `.cpanel.yml`, `server.cjs`, `deploy/lib/env.cjs` | cPanel / Passenger |
-| `vercel.json` | Vercel: region `fra1`, the `cpanel` branch not deployed |
 | `.github/workflows/ci.yml`, `cpanel.yml`, `deploy.yml` | CI checks; the cPanel build; the VPS deploy on `v*` tags |
 | `scripts/cleanup-plans.ts` | `pnpm uploads:cleanup` — plan uploads no project references |
 
@@ -49,7 +53,8 @@ Everything the app needs to run unattended, and where each piece lives.
   `logs/app-YYYY-MM-DD.log` (`LOG_DIR`, git-ignored; `LOG_FILE=false` / `LOG_STDOUT=false` turn
   either off, `LOG_LEVEL` sets the threshold). `handle()` in `lib/api/route.ts` logs every request with route,
   status and duration, and every unhandled exception with its stack. PM2 captures stdout into
-  `logs/pm2-*.log`. There is no error tracker yet; `tail -f logs/app-*.log` is the tool.
+  `logs/pm2-*.log`; `tail -f logs/app-*.log` is the tool on the box. With Sentry on, every line
+  is also in Sentry and every `error` line is an issue there ([below](#errors-go-to-sentry)).
 - **Health** is `GET /api/health`: 200 with `{ status, checks.db, uptimeSec, version }`, 503
   when MySQL does not answer within 3 s (`status: 'degraded'`). Unauthenticated and
   unthrottled — `deploy/deploy.sh`, `deploy/rollback.sh`, Playwright's web server and any uptime
@@ -66,6 +71,9 @@ Everything the app needs to run unattended, and where each piece lives.
   (`lib/db/index.ts`), so timestamps MySQL fills in and those the app writes agree whatever the
   server's own zone ([data-model.md](data-model.md#rules-for-working-with-the-data)). A running
   `pnpm dev` keeps its pool across edits — restart it after changing `lib/db/index.ts`.
+- **A database across the internet** takes `DATABASE_SSL=true` when the server offers TLS (hosted
+  ones refuse plain connections) and `DATABASE_SSL_CA` for a provider's own CA; `lib/db`,
+  `scripts/migrate.ts` and `drizzle.config.ts` all honour them.
 - **cPanel / Passenger** (shared hosting, no login shell): the app runs under cPanel's "Setup
   Node.js App" (Node 22, mode Production, application root `renovate`, startup file
   `server.cjs`, which loads `~/renovate/.env` through `deploy/lib/env.cjs` and hands off to
@@ -105,32 +113,6 @@ Everything the app needs to run unattended, and where each piece lives.
   cPanel's copy in `~/.cpanel/logs`; Passenger's log is `~/renovate/logs/main.logs`. Two
   things bit there already: the nodevenv `activate` file needs `set +eu` (it reads variables
   a background task lacks), and `exec > >(tee …)` needs `/dev/fd`, which CageFS has not.
-- **Vercel** (September 2026, replacing cPanel): the Git integration builds `main` with the
-  ordinary `pnpm build`; nothing under `deploy/`, `server.cjs` or `.cpanel.yml` is involved.
-  `vercel.json` pins the functions to Frankfurt (`fra1`, next to the Hetzner box that holds
-  MySQL and the uploads) and disables deployments of the `cpanel` branch, which the cPanel
-  workflow keeps publishing.
-  `next.config.mjs` switches `output: 'standalone'` off when Vercel's own `VERCEL=1` is set —
-  Vercel traces and packages the server itself, and on Next 16.3.x standalone is fatal there
-  (its build adapter makes Turbopack skip `.next/next-server.js.nft.json`, which the
-  standalone finaliser then fails to open; vercel/next.js#97287 fixes it for 16.4). The
-  function filesystem is read-only, so uploads cannot live on it: `STORAGE_DRIVER=s3` (R2
-  or S3; `S3_PUBLIC_URL` feeds both the CSP's `connect-src` and `images.remotePatterns`)
-  works today, and the plan for this deployment is a driver that writes to the cPanel box
-  over Web Disk (WebDAV, port 2078) and serves from a subdomain of it — not built yet.
-  `LOG_FILE=false` (`lib/log.ts` also gives up on the file after the first EROFS). MySQL is
-  reached over the internet — the cPanel box's own (Hetzner Falkenstein, a few ms from
-  `fra1`) once its provider opens port 3306, or a hosted one — with `DATABASE_SSL=true`
-  when the server offers TLS and `DATABASE_SSL_CA` for a provider's own CA (`lib/db`,
-  `scripts/migrate.ts` and `drizzle.config.ts` all honour it). Migrations run from a laptop
-  against that database (`pnpm db:migrate` with the production variables), not in the
-  build, so a preview branch never migrates production. Every request to a
-  Vercel function is capped at 4.5 MB, which `/api/design/upload-plan` (12 MB), `/api/upload`
-  and the photo and render routes (8 MB) exceed. A GLB (40 MB allowed) is optimized in the
-  uploader's browser before it is sent, and a typical 5–10 MB export arrives under 1 MB
-  (1.8–3.6 MB from Safari, whose canvas cannot write WebP and leaves the colour maps as JPEG
-  for the route to convert); one still over 4.5 MB after that — a browser pass that failed, an
-  export with many large colour maps — is refused there. See the roadmap. The in-memory rate limiter and login lockout are per instance there.
 - **Deploy** is `deploy/deploy.sh <tag>`: clone → install → migrate → build → switch the
   `current` symlink → `pm2 startOrReload` → health check, with automatic rollback to the
   previous release on a failed check. `deploy/rollback.sh` does the switch by hand. The
@@ -141,7 +123,8 @@ Everything the app needs to run unattended, and where each piece lives.
   `ecosystem.config.cjs` is the PM2 definition and `deploy/nginx.conf` the site config.
 - **Uploads** go through `lib/storage` (`STORAGE_DRIVER=local|s3`). Keys look like
   `plans/<file>`; the local driver writes under `public/uploads`, the S3 driver to any
-  S3-compatible bucket (R2, MinIO) served from `S3_PUBLIC_URL`. Every upload is identified
+  S3-compatible bucket (R2, MinIO) served from `S3_PUBLIC_URL` (which `next.config.mjs` adds to
+  the CSP's `connect-src`, for the models, and to `images.remotePatterns`). Every upload is identified
   by its bytes (`lib/uploads/sniff.ts`), never by the declared type. A GLB is stored
   optimized (`lib/uploads/glbOptimizeServer.ts`): the routes run the recipe in process with
   sharp — about 0.4 s and a few hundred MB for a typical upload, 0.8 s and ~500 MB for a
@@ -160,7 +143,74 @@ Everything the app needs to run unattended, and where each piece lives.
   [auth-and-roles.md](auth-and-roles.md).
 - **Tests and CI**: [testing.md](testing.md).
 
+## Errors go to Sentry
+
+Sentry (organisation `project-renovation`, project `javascript-nextjs`, `@sentry/nextjs` 11) is
+**off unless `NEXT_PUBLIC_SENTRY_DSN` is set**, like every other key: `lib/sentry.ts` starts the
+SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a URL.
+
+- **What reaches it.** In the browser (`instrumentation-client.ts`): uncaught errors and
+  rejections, what the two error boundaries catch (`app/(main)/error.tsx` — a boundary keeps the
+  error from the browser's handler, so it sends it itself — and `app/global-error.tsx`, an
+  error in the root layout, rendered as Next's own error page because no dictionary is left),
+  navigation traces, and a Replay of the minute before an error (everything masked; the 3D
+  canvas and Flitt's iframe are never recorded). On the server: `onRequestError` in
+  `instrumentation.ts` sends what a page, layout, server action or the proxy did not catch. API
+  routes catch their own exceptions in `handle()` and only log them, so **the server's log is
+  forwarded whole**: `sentry.server.config.ts` sets `lib/log.ts`'s sink, every line goes to
+  Sentry's Logs with its context as attributes, and every `error` line is an issue too — its
+  `Error` as the exception (grouped by stack, tagged with the route `handle()` names), or the
+  message when the line carries no error (a Flitt answer that does not match its payment, a
+  notification that failed).
+- **The sink sits on `globalThis`**, not in a module variable: `instrumentation.ts` and the
+  routes are separate server bundles that may each carry their own copy of `lib/log.ts`. And
+  `lib/log.ts` does not import Sentry itself, because esbuild bundles it into the cPanel
+  deploy's plain-node `optimize-models.cjs`.
+- **Environment and sampling.** `environment` is `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, else
+  `NODE_ENV` (`development` locally, `production` on cPanel and the VPS). Errors are never sampled; traces are, at 1 in 5 in production (a studio visit is
+  about a hundred spans, one per model and texture) and all of them elsewhere. Unit tests
+  (`NODE_ENV=test`) never send. `sendDefaultPii` is off: no IPs, cookies or bodies.
+- **The CSP needs nothing.** The browser sends to `/monitoring` on the app's own origin
+  (`tunnelRoute`), which Next rewrites to Sentry's ingest host — ad blockers let it through too.
+  The path is fixed, not random per build, so `proxy.ts`'s matcher keeps missing it. A DSN that
+  is not a `*.ingest.sentry.io` one (a self-hosted Sentry, a local fake) skips the tunnel, and
+  the CSP then blocks the browser's events.
+- **The DSN is baked in at build time** (`NEXT_PUBLIC_`), so it is set where `pnpm build` runs:
+  the repository variable `NEXT_PUBLIC_SENTRY_DSN` for the cPanel build
+  (`.github/workflows/cpanel.yml`) and the VPS's `.env.local` (the build there reads it). On
+  cPanel, `~/renovate/.env` is read only when the server starts: a DSN there alone reaches the
+  server's half (the build left `process.env.NEXT_PUBLIC_SENTRY_DSN` to be read at run time)
+  but never the browser's.
+- **Source maps.** With `SENTRY_AUTH_TOKEN` at build time (an organisation token; the
+  repository secret of the same name for the cPanel build, the VPS's `.env.local`), the build uploads the browser source maps to Sentry and deletes them from the
+  output, so stack traces read as source and no `.map` is served. Without it the build makes
+  no browser source maps at all. The cPanel build names the release after the commit it built
+  (`SENTRY_RELEASE`); elsewhere the SDK finds the commit itself.
+- **Server request sessions are off** (`httpIntegration({ sessions: false })` in
+  `sentry.server.config.ts`, beside the `disableIncomingRequestSpans` the Next SDK sets
+  itself). Each `/monitoring` call is a response Next's proxy pipes the ingest's answer into,
+  and with the session's `close` listener it carried eleven: Node printed a
+  `MaxListenersExceededWarning` (a false "possible leak" — the listeners die with the response)
+  for every event the browser sent. The tunnel's calls were also counted as sessions.
+- **`Experiments: clientTraceMetadata`** in `pnpm dev`'s banner is Sentry's: it puts the trace
+  ids in the page's `<meta>` tags so the browser's trace continues the server's.
+- **`withSentryConfig` comes from `@sentry/nextjs/config`** since SDK v11 — the package root
+  no longer exports it, and `next.config.mjs` importing it from there fails to load (a running
+  `pnpm dev` dies at the restart it does on a config change).
+- **Checking it.** Set the DSN in `.env.local`, restart `pnpm dev`, and an error on any page
+  shows up under Issues within seconds, environment `development`. Without a DSN to hand, a
+  fake one checks the server half: point `NEXT_PUBLIC_SENTRY_DSN` at
+  `http://public@localhost:9999/1`, run a listener on 9999 that records the posted envelopes,
+  and each `log.error` arrives there as an `event` and each line as a `log` item.
+
 ## Known gaps
+
+- **Sentry**: the privacy policy (`/privacy`, section 4, "Who we share it with") does not name
+  Sentry, which now receives technical data, masked replays and the ids in log lines (user,
+  order, project). Server events carry no user (`Sentry.setUser` is never called), so an issue
+  says which route failed but not for whom. React's dev server fails to rebuild a mysql2
+  `AggregateError` (the database refusing a connection) when rendering a page and reports
+  `TypeError: object null is not iterable` as well — a development-only extra issue.
 
 - **Production on the cPanel host is slow to deliver files, about 1 MB/s per download**
   (measured from Tbilisi: 0.9–1.0 MB/s for a single file, about 1.45 MB/s for six at once,
@@ -179,18 +229,12 @@ Everything the app needs to run unattended, and where each piece lives.
   models, 16.1 MB of finish-texture JPEGs); all of them at once came in 3.7–10 s, the host
   swinging between 0.6 and 1.7 MB/s within minutes (a single file still about 1.0 MB/s). A
   repeat visit has the whole scene drawn 2.2 s after the navigation, the models out of the cache
-  at 1.4 s. What is left is the host's bandwidth: a CDN in front of the domain, or the planned
-  move to Vercel (whose CDN serves `/public` and `/_next/static`).
+  at 1.4 s. What is left is the host's bandwidth: a CDN in front of the domain, or a faster
+  host.
 
-- Uploads are local disk on the VPS and cPanel hosts, a bucket on Vercel (`STORAGE_DRIVER`).
-  Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget
+- Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget
   sheet. No SMS.
-- On Vercel a request body is capped at 4.5 MB, so a large plan image, a studio photo, or a
-  GLB still above it after the browser's optimization (when that pass failed, or an export
-  with many large colour maps) is refused with 413 before the route runs. The fix is a direct upload into the bucket (a
-  presigned PUT handed out by `/api/upload/*`, then the byte sniff, the GLB optimization and
-  the record); not built.
 - `lib/log.ts` reads `LOG_FILE`, `LOG_STDOUT` and `LOG_LEVEL` straight from `process.env`
   (not through `env`), and a few other places do too (`lib/design/aiPlan.ts` for
   `ANTHROPIC_API_KEY`, the health route for `APP_VERSION`, `lib/auth/social.ts`,
-  `app/layout.tsx`).
+  `app/layout.tsx`, and `lib/sentry.ts`, which the browser runs too).

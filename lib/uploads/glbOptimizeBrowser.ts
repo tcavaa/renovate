@@ -1,7 +1,7 @@
 /**
  * The uploader's own pass of the GLB recipe (`glbOptimize.ts`), run in the browser before the
- * file is sent: the upload is quicker, and a 5–10 MB export comes out at 0.4–1 MB — under the
- * 4.5 MB a Vercel function accepts at all. Textures go through a canvas. A browser that cannot
+ * file is sent: the upload is quicker, and a 5–10 MB export comes out at 0.4–1 MB. Textures go
+ * through a canvas. A browser that cannot
  * write WebP (Safari: `convertToBlob` quietly answers with a PNG) shrinks an oversized JPEG as a
  * JPEG and leaves the rest to the server's pass (`glbOptimizeServer.ts`), which finishes the job
  * either way. The two upload forms import this on demand: its libraries are a few hundred kB

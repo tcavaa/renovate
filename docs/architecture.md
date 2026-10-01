@@ -161,7 +161,8 @@ public/        models/ (partner GLBs + manifest.json, stock/, fixtures/, radiato
                uploads/, samples/plan-2br.png, vendor/pdf.worker.min.mjs
 docs/          these documents
 proxy.ts auth.ts auth.config.ts next.config.mjs tailwind.config.ts vitest.config.mts
-playwright.config.ts drizzle.config.ts vercel.json ecosystem.config.cjs server.cjs .cpanel.yml
+playwright.config.ts drizzle.config.ts ecosystem.config.cjs server.cjs .cpanel.yml
+instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry — operations.md)
 ```
 
 ### API routes (`app/api/`)
@@ -288,3 +289,8 @@ was the first to break.
 - `revalidateTag(tag, 'max')` — the second argument is required now.
 - React Three Fiber 9 configures the renderer asynchronously; anything that waits for the
   first model fetch (tests, screenshots) has to poll rather than assert immediately.
+- `pnpm dev` keeps Turbopack's cache on disk (`.next/dev/cache/turbopack`, on by default) and
+  never trims it. Over weeks it reached 24 GB (6,500 files; a fresh one after the main pages is
+  under 0.4 GB), and every restart then loaded it: the dev server peaked at 16 GB of memory and
+  took 109 s over a route that compiles in 0.2 s. When `pnpm dev` grows large or slow, stop it,
+  delete `.next/dev/cache/turbopack`, and start it again — never while it runs (see CLAUDE.md).

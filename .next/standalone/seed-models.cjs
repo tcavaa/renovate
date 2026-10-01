@@ -19765,7 +19765,7 @@ var import_dotenv = __toESM(require_main());
 var import_promises = require("node:fs/promises");
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/entity.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
 function is(value, type) {
   if (!value || typeof value !== "object") {
@@ -19791,7 +19791,7 @@ function is(value, type) {
   return false;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column.js
 var Column = class {
   constructor(table, config2) {
     this.table = table;
@@ -19842,7 +19842,7 @@ var Column = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column-builder.js
 var ColumnBuilder = class {
   static [entityKind] = "ColumnBuilder";
   config;
@@ -19946,10 +19946,10 @@ var ColumnBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.utils.js
 var TableName = /* @__PURE__ */ Symbol.for("drizzle:Name");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/foreign-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/foreign-keys.js
 var ForeignKeyBuilder = class {
   static [entityKind] = "PgForeignKeyBuilder";
   /** @internal */
@@ -20006,12 +20006,12 @@ var ForeignKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing-utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing-utils.js
 function iife(fn, ...args) {
   return fn(...args);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/unique-constraint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/unique-constraint.js
 function uniqueKeyName(table, columns) {
   return `${table[TableName]}_${columns.join("_")}_unique`;
 }
@@ -20061,7 +20061,7 @@ var UniqueConstraint = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/utils/array.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/utils/array.js
 function parsePgArrayValue(arrayString, startFrom, inQuotes) {
   for (let i = startFrom; i < arrayString.length; i++) {
     const char2 = arrayString[i];
@@ -20137,7 +20137,7 @@ function makePgArray(array) {
   }).join(",")}}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/common.js
 var PgColumnBuilder = class extends ColumnBuilder {
   foreignKeyConfigs = [];
   static [entityKind] = "PgColumnBuilder";
@@ -20322,7 +20322,7 @@ var PgArray = class _PgArray extends PgColumn {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/enum.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/enum.js
 var isPgEnumSym = /* @__PURE__ */ Symbol.for("drizzle:isPgEnum");
 function isPgEnum(obj) {
   return !!obj && typeof obj === "function" && isPgEnumSym in obj && obj[isPgEnumSym] === true;
@@ -20354,7 +20354,7 @@ var PgEnumColumn = class extends PgColumn {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/subquery.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
   constructor(sql2, selection, alias, isWith = false) {
@@ -20374,10 +20374,10 @@ var WithSubquery = class extends Subquery {
   static [entityKind] = "WithSubquery";
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/version.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/version.js
 var version = "0.38.4";
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing.js
 var otel;
 var rawTracer;
 var tracer = {
@@ -20412,10 +20412,10 @@ var tracer = {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/view-common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/view-common.js
 var ViewBaseConfig = /* @__PURE__ */ Symbol.for("drizzle:ViewBaseConfig");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.js
 var Schema = /* @__PURE__ */ Symbol.for("drizzle:Schema");
 var Columns = /* @__PURE__ */ Symbol.for("drizzle:Columns");
 var ExtraConfigColumns = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigColumns");
@@ -20477,7 +20477,7 @@ function getTableUniqueName(table) {
   return `${table[Schema] ?? "public"}.${table[TableName]}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/sql.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/sql.js
 var FakePrimitiveParam = class {
   static [entityKind] = "FakePrimitiveParam";
 };
@@ -20861,7 +20861,7 @@ Subquery.prototype.getSQL = function() {
   return new SQL([this]);
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/alias.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/alias.js
 var ColumnAliasProxyHandler = class {
   constructor(table) {
     this.table = table;
@@ -20957,7 +20957,7 @@ function mapColumnsInSQLToAlias(query, alias) {
   }));
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/errors.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/errors.js
 var DrizzleError = class extends Error {
   static [entityKind] = "DrizzleError";
   constructor({ message, cause }) {
@@ -20973,7 +20973,7 @@ var TransactionRollbackError = class extends DrizzleError {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/conditions.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/conditions.js
 function bindIfParam(value, column) {
   if (isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder) && !is(value, Column) && !is(value, Table) && !is(value, View)) {
     return new Param(value, column);
@@ -21088,7 +21088,7 @@ function notIlike(column, value) {
   return sql`${column} not ilike ${value}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/select.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/select.js
 function asc(column) {
   return sql`${column} asc`;
 }
@@ -21096,7 +21096,7 @@ function desc(column) {
   return sql`${column} desc`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/logger.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/logger.js
 var ConsoleLogWriter = class {
   static [entityKind] = "ConsoleLogWriter";
   write(message) {
@@ -21127,7 +21127,7 @@ var NoopLogger = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-promise.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-promise.js
 var QueryPromise = class {
   static [entityKind] = "QueryPromise";
   [Symbol.toStringTag] = "QueryPromise";
@@ -21151,7 +21151,7 @@ var QueryPromise = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/utils.js
 function mapResultRow(columns, row, joinsNotNullableMap) {
   const nullifyMap = {};
   const result = columns.reduce(
@@ -21309,7 +21309,7 @@ function isConfig(data) {
   return false;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/table.js
 var InlineForeignKeys = /* @__PURE__ */ Symbol.for("drizzle:PgInlineForeignKeys");
 var EnableRLS = /* @__PURE__ */ Symbol.for("drizzle:EnableRLS");
 var PgTable = class extends Table {
@@ -21327,7 +21327,7 @@ var PgTable = class extends Table {
   [Table.Symbol.ExtraConfigBuilder] = void 0;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/primary-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/primary-keys.js
 var PrimaryKeyBuilder = class {
   static [entityKind] = "PgPrimaryKeyBuilder";
   /** @internal */
@@ -21357,7 +21357,7 @@ var PrimaryKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/relations.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/relations.js
 var Relation = class {
   constructor(sourceTable, referencedTable, relationName) {
     this.sourceTable = sourceTable;
@@ -21618,10 +21618,10 @@ function mapRelationalRow(tablesConfig, tableConfig, row, buildQueryResultSelect
   return result;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
 var import_mysql2 = __toESM(require_mysql2(), 1);
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/selection-proxy.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/selection-proxy.js
 var SelectionProxyHandler = class _SelectionProxyHandler {
   static [entityKind] = "SelectionProxyHandler";
   config;
@@ -21689,7 +21689,7 @@ var SelectionProxyHandler = class _SelectionProxyHandler {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/count.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/count.js
 var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
   constructor(params) {
     super(_MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
@@ -21734,7 +21734,7 @@ var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/delete.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/delete.js
 var MySqlDeleteBase = class extends QueryPromise {
   constructor(table, session, dialect, withList) {
     super();
@@ -21827,7 +21827,7 @@ var MySqlDeleteBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/casing.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/casing.js
 function toSnakeCase(input) {
   const words = input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
   return words.map((word) => word.toLowerCase()).join("_");
@@ -21880,7 +21880,7 @@ var CasingCache = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/foreign-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/foreign-keys.js
 var ForeignKeyBuilder2 = class {
   static [entityKind] = "MySqlForeignKeyBuilder";
   /** @internal */
@@ -21937,7 +21937,7 @@ var ForeignKey2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/unique-constraint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/unique-constraint.js
 function uniqueKeyName2(table, columns) {
   return `${table[TableName]}_${columns.join("_")}_unique`;
 }
@@ -21980,7 +21980,7 @@ var UniqueConstraint2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/common.js
 var MySqlColumnBuilder = class extends ColumnBuilder {
   static [entityKind] = "MySqlColumnBuilder";
   foreignKeyConfigs = [];
@@ -22047,7 +22047,7 @@ var MySqlColumnWithAutoIncrement = class extends MySqlColumn {
   autoIncrement = this.config.autoIncrement;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/bigint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/bigint.js
 var MySqlBigInt53Builder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlBigInt53Builder";
   constructor(name, unsigned = false) {
@@ -22106,7 +22106,7 @@ function bigint(a, b) {
   return new MySqlBigInt64Builder(name, config2.unsigned);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/binary.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/binary.js
 var MySqlBinaryBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlBinaryBuilder";
   constructor(name, length) {
@@ -22130,7 +22130,7 @@ function binary(a, b = {}) {
   return new MySqlBinaryBuilder(name, config2.length);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/boolean.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/boolean.js
 var MySqlBooleanBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlBooleanBuilder";
   constructor(name) {
@@ -22160,7 +22160,7 @@ function boolean(name) {
   return new MySqlBooleanBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/char.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/char.js
 var MySqlCharBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlCharBuilder";
   constructor(name, config2) {
@@ -22189,7 +22189,7 @@ function char(a, b = {}) {
   return new MySqlCharBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/custom.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/custom.js
 var MySqlCustomColumnBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlCustomColumnBuilder";
   constructor(name, fieldConfig, customTypeParams) {
@@ -22233,7 +22233,7 @@ function customType(customTypeParams) {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.js
 var MySqlDateBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateBuilder";
   constructor(name) {
@@ -22286,7 +22286,7 @@ function date(a, b) {
   return new MySqlDateBuilder(name);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/datetime.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/datetime.js
 var MySqlDateTimeBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateTimeBuilder";
   constructor(name, config2) {
@@ -22353,7 +22353,7 @@ function datetime(a, b) {
   return new MySqlDateTimeBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/decimal.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/decimal.js
 var MySqlDecimalBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlDecimalBuilder";
   constructor(name, config2) {
@@ -22393,7 +22393,7 @@ function decimal(a, b = {}) {
   return new MySqlDecimalBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/double.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/double.js
 var MySqlDoubleBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlDoubleBuilder";
   constructor(name, config2) {
@@ -22429,7 +22429,7 @@ function double(a, b) {
   return new MySqlDoubleBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/enum.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/enum.js
 var MySqlEnumColumnBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlEnumColumnBuilder";
   constructor(name, values) {
@@ -22459,7 +22459,7 @@ function mysqlEnum(a, b) {
   return new MySqlEnumColumnBuilder(name, values);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/float.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/float.js
 var MySqlFloatBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlFloatBuilder";
   constructor(name, config2) {
@@ -22495,7 +22495,7 @@ function float(a, b) {
   return new MySqlFloatBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/int.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/int.js
 var MySqlIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlIntBuilder";
   constructor(name, config2) {
@@ -22524,7 +22524,7 @@ function int(a, b) {
   return new MySqlIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/json.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/json.js
 var MySqlJsonBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlJsonBuilder";
   constructor(name) {
@@ -22548,7 +22548,7 @@ function json(name) {
   return new MySqlJsonBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/mediumint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/mediumint.js
 var MySqlMediumIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlMediumIntBuilder";
   constructor(name, config2) {
@@ -22580,7 +22580,7 @@ function mediumint(a, b) {
   return new MySqlMediumIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/real.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/real.js
 var MySqlRealBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlRealBuilder";
   constructor(name, config2) {
@@ -22612,7 +22612,7 @@ function real(a, b = {}) {
   return new MySqlRealBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/serial.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/serial.js
 var MySqlSerialBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlSerialBuilder";
   constructor(name) {
@@ -22641,7 +22641,7 @@ function serial(name) {
   return new MySqlSerialBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/smallint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/smallint.js
 var MySqlSmallIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlSmallIntBuilder";
   constructor(name, config2) {
@@ -22673,7 +22673,7 @@ function smallint(a, b) {
   return new MySqlSmallIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/text.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/text.js
 var MySqlTextBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlTextBuilder";
   constructor(name, textType, config2) {
@@ -22711,7 +22711,7 @@ function longtext(a, b = {}) {
   return new MySqlTextBuilder(name, "longtext", config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/time.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/time.js
 var MySqlTimeBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlTimeBuilder";
   constructor(name, config2) {
@@ -22736,7 +22736,7 @@ function time(a, b) {
   return new MySqlTimeBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.common.js
 var MySqlDateColumnBaseBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateColumnBuilder";
   defaultNow() {
@@ -22754,7 +22754,7 @@ var MySqlDateBaseColumn = class extends MySqlColumn {
   hasOnUpdateNow = this.config.hasOnUpdateNow;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/timestamp.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/timestamp.js
 var MySqlTimestampBuilder = class extends MySqlDateColumnBaseBuilder {
   static [entityKind] = "MySqlTimestampBuilder";
   constructor(name, config2) {
@@ -22813,7 +22813,7 @@ function timestamp(a, b = {}) {
   return new MySqlTimestampBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/tinyint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/tinyint.js
 var MySqlTinyIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlTinyIntBuilder";
   constructor(name, config2) {
@@ -22845,7 +22845,7 @@ function tinyint(a, b) {
   return new MySqlTinyIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varbinary.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varbinary.js
 var MySqlVarBinaryBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlVarBinaryBuilder";
   /** @internal */
@@ -22873,7 +22873,7 @@ function varbinary(a, b) {
   return new MySqlVarBinaryBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varchar.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varchar.js
 var MySqlVarCharBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlVarCharBuilder";
   /** @internal */
@@ -22903,7 +22903,7 @@ function varchar(a, b) {
   return new MySqlVarCharBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/year.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/year.js
 var MySqlYearBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlYearBuilder";
   constructor(name) {
@@ -22924,7 +22924,7 @@ function year(name) {
   return new MySqlYearBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/all.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/all.js
 function getMySqlColumnBuilders() {
   return {
     bigint,
@@ -22957,7 +22957,7 @@ function getMySqlColumnBuilders() {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/table.js
 var InlineForeignKeys2 = /* @__PURE__ */ Symbol.for("drizzle:MySqlInlineForeignKeys");
 var MySqlTable = class extends Table {
   static [entityKind] = "MySqlTable";
@@ -22996,12 +22996,12 @@ var mysqlTable = (name, columns, extraConfig) => {
   return mysqlTableWithSchema(name, columns, extraConfig, void 0, name);
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/view-base.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/view-base.js
 var MySqlViewBase = class extends View {
   static [entityKind] = "MySqlViewBase";
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/dialect.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/dialect.js
 var MySqlDialect = class {
   static [entityKind] = "MySqlDialect";
   /** @internal */
@@ -23815,7 +23815,7 @@ var MySqlDialect = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-builders/query-builder.js
 var TypedQueryBuilder = class {
   static [entityKind] = "TypedQueryBuilder";
   /** @internal */
@@ -23824,7 +23824,7 @@ var TypedQueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/indexes.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/indexes.js
 var IndexBuilderOn = class {
   constructor(name, unique) {
     this.name = name;
@@ -23877,7 +23877,7 @@ function uniqueIndex(name) {
   return new IndexBuilderOn(name, true);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
 function primaryKey(...config2) {
   if (config2[0].columns) {
     return new PrimaryKeyBuilder2(config2[0].columns, config2[0].name);
@@ -23913,7 +23913,7 @@ var PrimaryKey2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/utils.js
 function convertIndexToString(indexes) {
   return indexes.map((idx) => {
     return typeof idx === "object" ? idx.config.name : idx;
@@ -23923,7 +23923,7 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/select.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/select.js
 var MySqlSelectBuilder = class {
   static [entityKind] = "MySqlSelectBuilder";
   fields;
@@ -24700,7 +24700,7 @@ var intersectAll = createSetOperator("intersect", true);
 var except = createSetOperator("except", false);
 var exceptAll = createSetOperator("except", true);
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query-builder.js
 var QueryBuilder = class {
   static [entityKind] = "MySqlQueryBuilder";
   dialect;
@@ -24764,7 +24764,7 @@ var QueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/insert.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/insert.js
 var MySqlInsertBuilder = class {
   constructor(table, session, dialect) {
     this.table = table;
@@ -24886,7 +24886,7 @@ var MySqlInsertBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/update.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/update.js
 var MySqlUpdateBuilder = class {
   constructor(table, session, dialect, withList) {
     this.table = table;
@@ -24994,7 +24994,7 @@ var MySqlUpdateBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query.js
 var RelationalQueryBuilder = class {
   constructor(fullSchema, schema2, tableNamesMap, table, tableConfig, dialect, session, mode) {
     this.fullSchema = fullSchema;
@@ -25102,7 +25102,7 @@ var MySqlRelationalQuery = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/db.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/db.js
 var MySqlDatabase = class {
   constructor(dialect, session, schema2, mode) {
     this.dialect = dialect;
@@ -25317,10 +25317,10 @@ var MySqlDatabase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
 var import_node_events = require("node:events");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/session.js
 var MySqlPreparedQuery = class {
   static [entityKind] = "MySqlPreparedQuery";
   /** @internal */
@@ -25373,7 +25373,7 @@ var MySqlTransaction = class extends MySqlDatabase {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
 var MySql2PreparedQuery = class extends MySqlPreparedQuery {
   constructor(client, queryString, params, logger, fields, customResultMapper, generatedIds, returningIds) {
     super();
@@ -25598,7 +25598,7 @@ function isPool(client) {
   return "getConnection" in client;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
 var MySql2Driver = class {
   constructor(client, dialect, options = {}) {
     this.client = client;
@@ -30440,7 +30440,9 @@ var schema = external_exports.object({
   FLITT_SECRET_KEY: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.string().min(1).default("test")),
   FLITT_TEST_MODE: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.enum(["true", "false"]).default("true")),
   LOG_DIR: optionalString,
-  LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional()
+  LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional(),
+  /** Sentry; unset, it is off. Validated here, read by `lib/sentry.ts` (the browser needs it too). */
+  NEXT_PUBLIC_SENTRY_DSN: external_exports.string().trim().url().optional().or(external_exports.literal("").transform(() => void 0))
 }).superRefine((value, ctx) => {
   if (isProduction && !value.DATABASE_PASSWORD) {
     ctx.addIssue({ code: "custom", path: ["DATABASE_PASSWORD"], message: "required in production" });

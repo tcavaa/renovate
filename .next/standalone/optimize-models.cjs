@@ -7033,7 +7033,9 @@ var init_env = __esm({
       FLITT_SECRET_KEY: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.string().min(1).default("test")),
       FLITT_TEST_MODE: external_exports.preprocess((v) => v === "" ? void 0 : v, external_exports.enum(["true", "false"]).default("true")),
       LOG_DIR: optionalString,
-      LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional()
+      LOG_LEVEL: external_exports.enum(["debug", "info", "warn", "error"]).optional(),
+      /** Sentry; unset, it is off. Validated here, read by `lib/sentry.ts` (the browser needs it too). */
+      NEXT_PUBLIC_SENTRY_DSN: external_exports.string().trim().url().optional().or(external_exports.literal("").transform(() => void 0))
     }).superRefine((value, ctx) => {
       if (isProduction && !value.DATABASE_PASSWORD) {
         ctx.addIssue({ code: "custom", path: ["DATABASE_PASSWORD"], message: "required in production" });
@@ -48212,6 +48214,7 @@ function fileFor(now) {
     return null;
   }
 }
+var SINK = /* @__PURE__ */ Symbol.for("renovate.logSink");
 function serialize(value) {
   if (value instanceof Error) {
     return { name: value.name, message: value.message, stack: value.stack };
@@ -48231,6 +48234,13 @@ function write(level, msg, context) {
     else process.stdout.write(line + "\n");
   }
   fileFor(now)?.write(line + "\n");
+  const sink = globalThis[SINK];
+  if (sink) {
+    try {
+      sink(level, msg, context);
+    } catch {
+    }
+  }
 }
 var log = {
   debug: (msg, context) => write("debug", msg, context),

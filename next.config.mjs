@@ -1,13 +1,7 @@
-const isDev = process.env.NODE_ENV !== 'production';
+// Since SDK v11 the build wrapper is its own entry point; the package root is the runtime SDK.
+import { withSentryConfig } from '@sentry/nextjs/config';
 
-// Vercel sets `VERCEL=1` in every build. Its builder installs a build adapter and traces and
-// packages the server itself, so `output: 'standalone'` has no use there — and on Next 16.3.x
-// it is fatal: once an adapter is configured Turbopack no longer writes
-// `.next/next-server.js.nft.json` (vercel/next.js#93684), while the standalone finaliser
-// still opens that file unconditionally. "ENOENT … next-server.js.nft.json" was the whole of
-// the first Vercel build. Fixed upstream for 16.4 (vercel/next.js#97287); the switch stays,
-// because only deploy/deploy.sh and deploy/cpanel.sh ever consume the standalone output.
-const onVercel = !!process.env.VERCEL;
+const isDev = process.env.NODE_ENV !== 'production';
 
 /**
  * With `STORAGE_DRIVER=s3` the uploaded GLBs are fetched from the bucket's public origin, so
@@ -50,6 +44,9 @@ const s3ImagePattern = s3Url
  * Apple Pay load their own scripts when the merchant has them. 3-D Secure is the card's bank
  * — any bank — and Flitt's SDK posts a form from this page into an iframe it puts over it, so
  * `frame-src` and `form-action` take any https origin.
+ *
+ * Sentry needs nothing here: the browser sends its events to `/monitoring` on this origin
+ * (`tunnelRoute` below), which Next rewrites to Sentry's ingest host.
  */
 const flitt = 'https://pay.flitt.com';
 const wallets = 'https://pay.google.com https://google.com https://www.google.com https://applepay.cdn-apple.com';
@@ -121,8 +118,8 @@ const nextConfig = {
   // .wasm made a second node_modules/draco3d of the two files alone and broke the require.
   serverExternalPackages: ['mysql2', 'draco3d'],
   // Self-contained server for PM2 / Passenger: deploy/deploy.sh and deploy/cpanel.sh copy
-  // public/ and .next/static beside it. Never on Vercel — see `onVercel`.
-  output: onVercel ? undefined : 'standalone',
+  // public/ and .next/static beside it.
+  output: 'standalone',
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
   // over it — the two sharing `.next` is what 404s every page (see CLAUDE.md).
   distDir: process.env.NEXT_DIST_DIR || '.next',
@@ -153,4 +150,24 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Sentry (docs/operations.md#errors-go-to-sentry). The runtime side is `lib/sentry.ts` and the
+ * instrumentation files; this is the build: the `/monitoring` tunnel, and the browser source
+ * maps uploaded to Sentry and then deleted from the build, so stack traces read as source while
+ * no `.map` is served. Without `SENTRY_AUTH_TOKEN` (a local build, CI) no source maps are made
+ * at all — with nowhere to upload them they would only be published.
+ */
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN || undefined;
+
+export default withSentryConfig(nextConfig, {
+  org: 'project-renovation',
+  project: 'javascript-nextjs',
+  authToken: sentryAuthToken,
+  sourcemaps: { disable: !sentryAuthToken },
+  // Next's own chunks too, so a stack through the router or React reads as source.
+  widenClientFileUpload: true,
+  // A fixed path, not `true` (a random one per build): proxy.ts's matcher must keep missing it.
+  tunnelRoute: '/monitoring',
+  silent: !process.env.CI,
+  telemetry: false,
+});

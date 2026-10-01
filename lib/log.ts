@@ -4,10 +4,11 @@ import path from 'node:path';
 /**
  * Structured logging for the server.
  *
- * One JSON object per line, written to stdout (which PM2, or Vercel's runtime logs, capture)
- * and appended to a daily file under `LOG_DIR` (default `logs/`, git-ignored). No external service is involved: this
- * is the file-based stand-in until an error tracker is wired in, and it is what to `tail`
- * when something goes wrong on the VPS.
+ * One JSON object per line, written to stdout (which PM2 and Passenger capture)
+ * and appended to a daily file under `LOG_DIR` (default `logs/`, git-ignored) — what to `tail`
+ * when something goes wrong on the VPS. With Sentry on, every line is handed to it too
+ * (`setLogSink`, set by `sentry.server.config.ts`): each one goes to its Logs, and an `error`
+ * line becomes an issue.
  *
  * Server-side only — it touches the filesystem. Route handlers reach it through `handle()`
  * in `lib/api/route.ts`, which logs every request and every unhandled exception.
@@ -41,11 +42,25 @@ function fileFor(now: Date): WriteStream | null {
     streamDay = day;
     return stream;
   } catch {
-    // A read-only filesystem (Vercel's functions, a locked-down host): stdout only from here
+    // A read-only filesystem (a locked-down host): stdout only from here
     // on. Before this every line paid for the same failed mkdir again.
     fileGivenUp = true;
     return null;
   }
+}
+
+/** Where every written line also goes: Sentry, once `sentry.server.config.ts` has started it. */
+export type LogSink = (level: LogLevel, msg: string, context?: Record<string, unknown>) => void;
+
+// On `globalThis`, not in a module variable: `instrumentation.ts`, which sets the sink, and the
+// routes, which log, are separate server bundles, each of which may carry its own copy of this
+// module. Not imported from Sentry here either — esbuild bundles this file into the cPanel
+// deploy's plain-node scripts (`deploy:bundle-optimize`).
+const SINK = Symbol.for('renovate.logSink');
+type SinkHolder = { [SINK]?: LogSink };
+
+export function setLogSink(sink: LogSink | undefined): void {
+  (globalThis as SinkHolder)[SINK] = sink;
 }
 
 function serialize(value: unknown): unknown {
@@ -69,6 +84,15 @@ function write(level: LogLevel, msg: string, context?: Record<string, unknown>):
     else process.stdout.write(line + '\n');
   }
   fileFor(now)?.write(line + '\n');
+
+  const sink = (globalThis as SinkHolder)[SINK];
+  if (sink) {
+    try {
+      sink(level, msg, context);
+    } catch {
+      // The line is already on stdout and in the file; a tracker that fails must not fail the request.
+    }
+  }
 }
 
 export const log = {
