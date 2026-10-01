@@ -54,6 +54,7 @@ import { tightSpotsByItem, type TightSpot } from '@/lib/design/clearance';
 import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
 import { isStyleFinish } from '@/lib/design/surfaces';
 import { hasTrims, isTrimSurface, trimFor, trimLengthM } from '@/lib/design/trims';
+import { DEFAULT_WALL_MODE, type WallMode } from '@/lib/design3d/wallMode';
 import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
@@ -208,7 +209,7 @@ export default function StudioPage() {
    * brush, which paints nothing until a swatch is picked.
    */
   const [brush, setBrush] = useState<CatalogProduct | null | undefined>(undefined);
-  const [showWalls, setShowWalls] = useState(true);
+  const [wallMode, setWallMode] = useState<WallMode>(DEFAULT_WALL_MODE);
   const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [rotateBlocked, setRotateBlocked] = useState(false);
   const [selectedSurface, setSelectedSurface] = useState<SurfaceSelection>(null);
@@ -461,7 +462,8 @@ export default function StudioPage() {
     setBuildTool('select');
     setElectricalArmed(false);
     setTechnicalArmed(false);
-    setFinishScope((scope) => (isPaintScope(scope) ? 'room' : scope));
+    // The brush is emptied, but where a pick goes stays as it was: Escape in another category
+    // (building, say) used to switch the finishes tray to "the whole room" behind the person's back.
     setBrush(undefined);
   }, []);
 
@@ -983,7 +985,7 @@ export default function StudioPage() {
               selectedItemId={selectedItemId}
               selectedElement={selectedElement}
               structureLocked={structureLocked}
-              showWalls={showWalls}
+              wallMode={wallMode}
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
               editMode={editMode}
               daylightHour={DAYLIGHT_HOURS[daylight]}
@@ -1015,8 +1017,8 @@ export default function StudioPage() {
           saveState={saveState}
           view={view}
           onView={setView}
-          showWalls={showWalls}
-          onToggleWalls={() => setShowWalls((v) => !v)}
+          wallMode={wallMode}
+          onWallMode={setWallMode}
           onClear={() => setClearOpen(true)}
           daylight={daylight}
           onDaylight={setDaylight}
@@ -1268,8 +1270,10 @@ export default function StudioPage() {
         </div>
 
         {/* ---- help and zoom ---- */}
-        {/* Open, the card is what the person is reading, so it goes above the right panel. */}
-        <div data-board-edge="right" className={cn('pointer-events-auto absolute right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown ? 'bottom-[9.5rem]' : 'bottom-20')}>
+        {/* In the bottom corner, beside the tray (it is 880 px at most, centred) wherever the
+            window leaves room for the column; a narrower window lifts them over it. Open, the
+            card is what the person is reading, so it goes above the right panel. */}
+        <div data-board-edge="right" className={cn('pointer-events-auto absolute bottom-4 right-4 flex flex-col items-end gap-2', navOpen ? 'z-50' : 'z-30', trayShown && 'max-[1039px]:bottom-[9.5rem]')}>
           <NavHelp walking={view === 'walk'} onTour={() => setTourOpen(true)} open={navOpen} onOpenChange={setNavOpen} />
           {/* The same buttons zoom the 2D sheet (its scale goes the other way from the camera's distance). */}
           <ZoomControls

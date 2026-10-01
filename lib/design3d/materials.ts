@@ -51,6 +51,17 @@ export interface TextureSource {
 }
 
 /**
+ * Where there is no `document` to load an image into — a test building the shell in Node —
+ * every map fails at once and the surface keeps its flat colour.
+ */
+const NO_IMAGES: TextureSource = {
+  load(_url, _onLoad, _onProgress, onError) {
+    onError?.(new Error('no document'));
+    return new THREE.Texture();
+  },
+};
+
+/**
  * Owns every material and texture for one rendered scene.
  *
  * Call `dispose()` when the viewer unmounts — Three.js does not garbage-collect GPU
@@ -73,7 +84,7 @@ export class StyleMaterials {
 
   constructor(
     public style: StyleDefinition,
-    loader: TextureSource = new THREE.TextureLoader()
+    loader: TextureSource = typeof document === 'undefined' ? NO_IMAGES : new THREE.TextureLoader()
   ) {
     this.loader = loader;
   }

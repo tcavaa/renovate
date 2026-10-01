@@ -25,7 +25,7 @@
  * Pure geometry: no React, no THREE, no `window`. Tested in `tests/unit/design/walls.test.ts`.
  */
 
-import { ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
 import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge, withOpeningTwins, type WallThickness } from './openings';
@@ -302,7 +302,8 @@ export function roomsFromWalls(walls: Wall[], options: RoomsFromWallsOptions = {
     if (match) taken.add(match.id);
     const areaM2 = round2(polygonAreaM2(inner.polygon));
     const type: RoomType = match?.type ?? guessType(areaM2);
-    const heightM = match?.heightM ?? options.defaultHeightM ?? ROOM_TYPES[type].defaultHeight;
+    // A new room stands as high as the flat's others.
+    const heightM = match?.heightM ?? options.defaultHeightM ?? previous[0]?.heightM ?? DEFAULT_CEILING_M;
     const room: PlanRoom = {
       id: match?.id ?? `w${rooms.length + 1}-${shortHash(inner.polygon)}`,
       type,

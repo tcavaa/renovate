@@ -2,12 +2,14 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useMemo, useState } from 'react';
-import { Download, Eye, FileImage, Loader2, Minus, Moon, Plus, Scan, SquareDashed, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
+import { Download, Eye, FileImage, Loader2, Minus, Plus, Scan } from 'lucide-react';
 import { ALL_LAYERS, PlanEditor, type EditorLayers, type PlanEditorApi } from '@/components/plan/PlanEditor';
 import { PlanViewControls } from '@/components/plan/PlanToolbar';
 import type { ViewerApi } from '@/components/design/Viewer3D';
 import type { DesignScene, ElectricalPoint, FloorPlan, SurfaceFinish } from '@/lib/design/types';
-import { DAYLIGHT_HOURS, DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
+import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
+import { DEFAULT_WALL_MODE, type WallMode } from '@/lib/design3d/wallMode';
+import { DaylightMenu, WallModeMenu } from '@/components/design/StudioControls';
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { archetypeLabel } from '@/lib/design/catalog';
@@ -20,7 +22,6 @@ const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) =
 
 type View = '2d' | '3d' | 'walk';
 
-const PRESET_ICONS: Record<DaylightPreset, LucideIcon> = { morning: Sunrise, noon: Sun, evening: Sunset, night: Moon };
 const NO_SELECTION = null;
 const noop = () => undefined;
 
@@ -65,7 +66,7 @@ export function ProjectViewer({
   const [layers, setLayers] = useState<EditorLayers>({ ...ALL_LAYERS, furniture: has3d, origins: false, zones: false });
   const [planApi, setPlanApi] = useState<PlanEditorApi | null>(null);
   const [viewerApi, setViewerApi] = useState<ViewerApi | null>(null);
-  const [showWalls, setShowWalls] = useState(true);
+  const [wallMode, setWallMode] = useState<WallMode>(DEFAULT_WALL_MODE);
   const [daylight, setDaylight] = useState<DaylightPreset>('noon');
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +108,6 @@ export function ProjectViewer({
     { id: '3d', label: v.tab3d, disabled: !has3d },
     { id: 'walk', label: t.design.walkthrough, disabled: !has3d },
   ];
-  const presetLabel: Record<DaylightPreset, string> = { morning: t.design.daylightMorning, noon: t.design.daylightNoon, evening: t.design.daylightEvening, night: t.design.daylightNight };
 
   return (
     <section className="border border-line bg-bg-surface">
@@ -138,19 +138,8 @@ export function ProjectViewer({
         <div className="flex flex-wrap items-center gap-2">
           {view !== '2d' && (
             <>
-              <button type="button" onClick={() => setShowWalls((w) => !w)} disabled={view === 'walk'} aria-pressed={showWalls} title={t.design.showWalls} aria-label={t.design.showWalls} className={cn('grid h-8 w-8 place-items-center border transition-colors disabled:opacity-40', showWalls ? 'border-ink bg-ink text-white' : 'border-line text-ink-soft hover:text-ink')}>
-                <SquareDashed className="h-4 w-4" />
-              </button>
-              <div className="flex border border-line p-0.5" role="radiogroup" aria-label={t.design.daylight}>
-                {DAYLIGHT_PRESETS.map((preset) => {
-                  const Icon = PRESET_ICONS[preset];
-                  return (
-                    <button key={preset} type="button" role="radio" aria-checked={daylight === preset} title={presetLabel[preset]} aria-label={presetLabel[preset]} onClick={() => setDaylight(preset)} className={cn('grid h-7 w-7 place-items-center transition-colors', daylight === preset ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}>
-                      <Icon className="h-3.5 w-3.5" />
-                    </button>
-                  );
-                })}
-              </div>
+              <WallModeMenu value={wallMode} onChange={setWallMode} disabled={view === 'walk'} compact />
+              <DaylightMenu value={daylight} onChange={setDaylight} compact />
             </>
           )}
           {floorPlanUrl && (
@@ -197,7 +186,7 @@ export function ProjectViewer({
           </>
         ) : (
           <>
-            <Viewer3D plan={plan} scene={scene!} electrical={electrical} showWalls={view === 'walk' ? true : showWalls} viewMode={view === 'walk' ? 'walk' : 'orbit'} daylightHour={DAYLIGHT_HOURS[daylight]} readOnly frameKey={frameKey} onApi={setViewerApi} className="h-full w-full" />
+            <Viewer3D plan={plan} scene={scene!} electrical={electrical} wallMode={wallMode} viewMode={view === 'walk' ? 'walk' : 'orbit'} daylightHour={DAYLIGHT_HOURS[daylight]} readOnly frameKey={frameKey} onApi={setViewerApi} className="h-full w-full" />
             {view === '3d' && (
               <div className="absolute bottom-3 right-3 flex flex-col border border-line bg-white/90 p-1 backdrop-blur">
                 <IconAction label={t.design.zoomIn} onClick={() => viewerApi?.zoom(0.8)} disabled={!viewerApi}>

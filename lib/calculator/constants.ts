@@ -37,18 +37,26 @@ export const HOME_STATES: Record<
   },
 };
 
-export const ROOM_TYPES: Record<RoomType, { labelKa: string; defaultHeight: number }> = {
-  living_room: { labelKa: 'მისაღები ოთახი', defaultHeight: 2.8 },
-  bedroom: { labelKa: 'საძინებელი', defaultHeight: 2.8 },
-  kitchen: { labelKa: 'სამზარეულო', defaultHeight: 2.7 },
-  bathroom: { labelKa: 'სველი წერტილი', defaultHeight: 2.5 },
-  toilet: { labelKa: 'ტუალეტი', defaultHeight: 2.5 },
-  hallway: { labelKa: 'დერეფანი', defaultHeight: 2.8 },
-  balcony: { labelKa: 'აივანი', defaultHeight: 2.5 },
-  storage: { labelKa: 'საწყობი', defaultHeight: 2.5 },
-  office: { labelKa: 'საოფისე ოთახი', defaultHeight: 2.8 },
-  closet: { labelKa: 'გარდერობი', defaultHeight: 2.6 },
-  studio: { labelKa: 'სტუდიო', defaultHeight: 2.8 },
+/**
+ * A flat has one ceiling: every new room, whatever kind it is, starts at this height. Each kind
+ * had its own once (a kitchen 2.7 m, a bathroom 2.5 m), so a studio flat came out with a short
+ * kitchen and bathroom — walls a step lower than the rest. A room may still be given its own
+ * height in the inspector or the calculator's form.
+ */
+export const DEFAULT_CEILING_M = 2.8;
+
+export const ROOM_TYPES: Record<RoomType, { labelKa: string }> = {
+  living_room: { labelKa: 'მისაღები ოთახი' },
+  bedroom: { labelKa: 'საძინებელი' },
+  kitchen: { labelKa: 'სამზარეულო' },
+  bathroom: { labelKa: 'სველი წერტილი' },
+  toilet: { labelKa: 'ტუალეტი' },
+  hallway: { labelKa: 'დერეფანი' },
+  balcony: { labelKa: 'აივანი' },
+  storage: { labelKa: 'საწყობი' },
+  office: { labelKa: 'საოფისე ოთახი' },
+  closet: { labelKa: 'გარდერობი' },
+  studio: { labelKa: 'სტუდიო' },
 };
 
 /** The two parts a studio starts with, in the order of its line: kitchen first, then the living room. */

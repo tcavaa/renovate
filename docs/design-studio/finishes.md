@@ -47,7 +47,9 @@ per-room floor and wall picks, carried into 3D).
 
 **Every surface opens on its first chip, the square metre** (`firstFinishScope`): when the
 finishes category is opened, when the surface tab changes, and when a floor or a wall is
-clicked; on the 2D board a wall's square metre stands in as the metre-wide strip. With no room
+clicked; on the 2D board a wall's square metre stands in as the metre-wide strip. Escape
+empties the brush and leaves the scope as it was (it used to switch the tray to the whole
+room, from any category). With no room
 in focus the tray applies to every room, and its last chip says so — "ყველა ოთახს" (all
 rooms) instead of "მთელ ოთახს" (the whole room), in the catalogue's chips as well
 (`finishScopeChips(…, { allRooms })`). Floor zones (half a room, a strip along

@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel, formatM2L } from '@/lib/i18n/labels';
-import { ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
 import { computeRoomAreas } from '@/lib/calculator/materials';
 import type { Room, RoomType } from '@/lib/calculator/types';
 
@@ -19,7 +19,7 @@ export function RoomForm({ onAdd }: { onAdd: (room: Room) => void }) {
   const [type, setType] = useState<RoomType>('living_room');
   const [width, setWidth] = useState('4');
   const [length, setLength] = useState('5');
-  const [height, setHeight] = useState(String(ROOM_TYPES.living_room.defaultHeight));
+  const [height, setHeight] = useState(String(DEFAULT_CEILING_M));
   const [name, setName] = useState(roomTypeLabel(t, 'living_room'));
 
   const widthNum = Number(width) || 0;
@@ -29,7 +29,6 @@ export function RoomForm({ onAdd }: { onAdd: (room: Room) => void }) {
 
   const handleTypeChange = (v: RoomType) => {
     setType(v);
-    setHeight(String(ROOM_TYPES[v].defaultHeight));
     setName(roomTypeLabel(t, v));
   };
 
@@ -43,7 +42,7 @@ export function RoomForm({ onAdd }: { onAdd: (room: Room) => void }) {
         nameKa: name.trim() || roomTypeLabel(t, type),
         width: widthNum,
         length: lengthNum,
-        height: Number(height) || ROOM_TYPES[type].defaultHeight,
+        height: Number(height) || DEFAULT_CEILING_M,
       })
     );
   };

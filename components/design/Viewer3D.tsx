@@ -32,6 +32,7 @@ import {
   syncPlacedItems,
   visibleRoomIds,
   type SceneUserData,
+  type WallCut,
 } from '@/lib/design3d/buildScene';
 import { buildFitting, hangingLampsKey, nightLights, type HangingLamp } from '@/lib/design3d/buildStructure';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
@@ -48,6 +49,7 @@ import { wallSideAt, type WallSide } from '@/lib/design3d/wallSide';
 import { getStyle } from '@/lib/design/styles';
 import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, type SnapResult } from '@/lib/design/manipulate';
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
+import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } from '@/lib/design3d/wallMode';
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
@@ -107,7 +109,8 @@ export interface Viewer3DProps {
   scene: DesignScene;
   focusRoomId?: string | null;
   selectedItemId?: string | null;
-  showWalls?: boolean;
+  /** How the walls show from outside (`lib/design3d/wallMode`); the walk-through always has the cutaway. */
+  wallMode?: WallMode;
   viewMode?: ViewMode;
   editMode?: EditMode;
   /** Hour on a 24-hour clock that sets the sun, the sky and whether the lamps are on. */
@@ -328,7 +331,7 @@ function SceneContent({
   scene,
   focusRoomId = null,
   selectedItemId = null,
-  showWalls = true,
+  wallMode = DEFAULT_WALL_MODE,
   viewMode = 'orbit',
   editMode = 'furniture',
   carryingItemId = null,
@@ -520,12 +523,11 @@ function SceneContent({
   // that are switched on become point lights below.
   const shellOptions = useMemo(
     () => ({
-      // Inside the flat you want the walls and the ceiling; from outside you want to see in.
-      showWalls: walking ? true : showWalls,
+      // Inside the flat you want the ceiling; from outside you want to see in.
       showCeiling: walking,
       onlyRoomId: walking ? null : focusRoomId,
     }),
-    [walking, showWalls, focusRoomId]
+    [walking, focusRoomId]
   );
   // With one room in focus the others are gone — their fittings, lights and warnings too.
   const roomFilter = useMemo(() => visibleRoomIds(plan, shellOptions), [plan, shellOptions]);
@@ -1024,30 +1026,47 @@ function SceneContent({
    * you are standing in is on the inward side of its own wall and on the outward side of its
    * neighbour's, so the same rule keeps exactly one of them.
    */
-  // Everything that stands with a wall — the wall, its skirting board and cornice — found
-  // once per shell rather than by walking the whole graph every frame.
+  // Everything that stands with a wall — the wall and its low stub, its skirting board and
+  // cornice, the doors and windows in it, a beam — found once per shell rather than by walking
+  // the whole graph every frame.
   const wallParts = useMemo(() => {
-    const parts: Array<{ object: THREE.Object3D; outward: { x: number; z: number }; mid: { x: number; z: number } }> = [];
+    const parts: Array<{ object: THREE.Object3D; cut: WallCut }> = [];
     shell.traverse((child) => {
-      const data = child.userData as SceneUserData;
-      if (data?.surface === 'wall' && data.outward && data.wallFrame && child instanceof THREE.Mesh) parts.push({ object: child, outward: data.outward, mid: data.wallFrame.mid });
+      const cut = child.userData.wallCut as WallCut | undefined;
+      if (cut) parts.push({ object: child, cut });
     });
     return parts;
   }, [shell]);
 
+  // Inside the flat the walk-through keeps the cutaway: it takes away the neighbour's half of
+  // a shared wall, which is behind the one you see.
+  const shownWallMode: WallMode = walking ? 'cutaway' : wallMode;
+  const editingOpeningsRef = useRef(editingOpenings);
+  useEffect(() => {
+    editingOpeningsRef.current = editingOpenings;
+  }, [editingOpenings]);
+  useEffect(() => invalidate(), [shownWallMode, invalidate]);
+  /** Whether each part was shown last frame, so its layers are walked only when that changes. */
+  const partShown = useRef(new WeakMap<THREE.Object3D, boolean>());
+
   useFrame(() => {
     for (const part of wallParts) {
-      // How far the camera stands beyond the wall's own face, on its outward side; > 0 means
-      // this wall is between the camera and its room. Measured from the wall — its mesh sits
-      // at the origin with the geometry in world coordinates, and measuring from *there*
+      // Whether this wall is between the camera and its room. Measured from the wall — its mesh
+      // sits at the origin with the geometry in world coordinates, and measuring from *there*
       // hid whichever half of a shared wall faced away from the plan's corner, so up close
       // the camera saw the back of the other room's half, and a click painted that room.
-      const facing = part.outward.x * (camera.position.x - part.mid.x) + part.outward.z * (camera.position.z - part.mid.z);
-      const visible = facing <= 0.35;
+      const { cut } = part;
+      const facing = !!cut.outward && !!cut.mid && cameraFacesWall(cut.outward, cut.mid, camera.position);
+      const visible = wallPartVisible(shownWallMode, cut.kind, facing, cut.exterior);
       part.object.visible = visible;
-      // A cut-away wall must not catch the pointer either: the raycaster ignores this layer,
-      // so the furniture behind it stays clickable.
-      part.object.layers.set(visible ? 0 : HIDDEN_LAYER);
+      // A part taken away must not catch the pointer either: the raycaster ignores this layer,
+      // so the furniture behind it stays clickable. A door's or window's model arrives after
+      // the shell is built, so a hidden one is put on the layer again every frame.
+      if (partShown.current.get(part.object) !== visible || !visible) {
+        // The opening's slab answers only in openings mode (the effect above).
+        part.object.traverse((child) => child.layers.set(visible && (child.name !== OPENING_SLAB_NAME || editingOpeningsRef.current) ? 0 : HIDDEN_LAYER));
+        partShown.current.set(part.object, visible);
+      }
     }
   });
 

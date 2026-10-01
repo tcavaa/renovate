@@ -26,7 +26,7 @@ import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalcul
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
-import { ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
 import { layoutPlan } from '@/lib/design/autoLayout';
 import {
   DEFAULT_WALL_THICKNESS_M,
@@ -850,7 +850,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               created = room.id;
               const roomType = type ?? room.type;
               const roomName = name ?? (isAutoRoomName(room.name) ? nextRoomName(plan.rooms, roomType, room.id) : room.name);
-              plan.rooms = plan.rooms.map((r) => (r.id === room.id ? { ...r, type: roomType, name: roomName, heightM: base.wallHeightM ?? ROOM_TYPES[roomType].defaultHeight, origin: 'user' as const } : r));
+              plan.rooms = plan.rooms.map((r) => (r.id === room.id ? { ...r, type: roomType, name: roomName, heightM: base.wallHeightM ?? base.rooms[0]?.heightM ?? DEFAULT_CEILING_M, origin: 'user' as const } : r));
             }
             return reconcile(s, plan);
           });

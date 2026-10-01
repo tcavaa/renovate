@@ -78,6 +78,14 @@ const LOOKS = {
   wallpaper: { colorHex: '#DCD3BC', textureUrl: `${T}/wallpaper-vintage.webp`, textureScaleM: 1.2, roughness: 0.95, metalness: 0 } satisfies StyleSurface,
 };
 
+/**
+ * The outside of the flat's walls, in every style: the building's brick (the exposed red brick
+ * finish's texture). Seen with every wall up from outside; nobody paints it, so it is no
+ * product and never priced. A balcony's outside is left as it was — the balcony is the
+ * person's to finish.
+ */
+export const FACADE_LOOK: StyleSurface = LOOKS.brick;
+
 export const STYLES: Record<StyleId, StyleDefinition> = {
   // -------------------------------------------------------------------------
   modern: {

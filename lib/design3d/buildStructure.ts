@@ -24,7 +24,8 @@ import { box, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
 import { loadFixture, loadModel } from './modelLoader';
 import { alongX, instanced } from './instancing';
-import type { SceneUserData } from './buildScene';
+import type { SceneUserData, WallCut } from './buildScene';
+import { WALL_STUB_M } from './wallMode';
 import { RADIATOR_MODELS } from './radiatorManifest';
 import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
@@ -54,7 +55,14 @@ export function buildStructure(plan: FloorPlan, style: StyleDefinition, material
   for (const { wall, a, b } of orphanWallSegments(plan)) {
     const mesh = slab(a, b, wall.thicknessM, wallHeightFor(plan, wall), 0, wallMaterial);
     tag(mesh, { pickKind: 'wall', roomId: '', wallId: wall.id } satisfies SceneUserData);
+    mesh.userData.wallCut = { kind: 'wall' } satisfies WallCut;
     group.add(mesh);
+    // Lowered with the room walls (the walls menu): a free-standing wall has no side to face.
+    const stub = slab(a, b, wall.thicknessM, WALL_STUB_M, 0, wallMaterial);
+    tag(stub, { pickKind: 'wall', roomId: '', wallId: wall.id } satisfies SceneUserData);
+    stub.userData.wallCut = { kind: 'stub' } satisfies WallCut;
+    stub.visible = false;
+    group.add(stub);
   }
 
   for (const column of plan.columns ?? []) {
@@ -70,6 +78,7 @@ export function buildStructure(plan: FloorPlan, style: StyleDefinition, material
     const material = beam.material === 'wood' ? materials.get('wood') : beam.material === 'metal' ? materials.get('metal') : concrete;
     const mesh = slab(beam.a, beam.b, beam.widthM, beam.depthM, beam.elevationM, material);
     tag(mesh, { pickKind: 'beam', roomId: '', beamId: beam.id } satisfies SceneUserData);
+    mesh.userData.wallCut = { kind: 'beam' } satisfies WallCut;
     group.add(mesh);
   }
   return group;
