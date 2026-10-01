@@ -15,7 +15,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import type { RoomType } from '@/lib/calculator/types';
-import { ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
 import { detectUnitSystem, parseLength } from './measure';
 import { solvePlan, type RoughRoom } from './planSolver';
 import { deriveOpenings, polygonAreaM2, polygonPerimeterM, roomEdges, toCounterClockwise } from './planGeometry';
@@ -344,7 +344,7 @@ export function buildPlanFromReading(
       type: room.type,
       name: room.name,
       polygon,
-      heightM: options.ceilingHeightM ?? ROOM_TYPES[room.type].defaultHeight,
+      heightM: options.ceilingHeightM ?? DEFAULT_CEILING_M,
       areaM2: round2(polygonAreaM2(polygon)),
       perimeterM: round2(polygonPerimeterM(polygon)),
       openings: [],

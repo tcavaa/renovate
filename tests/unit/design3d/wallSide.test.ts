@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { buildRoomShells, type SceneUserData } from '@/lib/design3d/buildScene';
 import { StyleMaterials } from '@/lib/design3d/materials';
 import { wallSideAt } from '@/lib/design3d/wallSide';
-import { getStyle } from '@/lib/design/styles';
+import { WALL_SLOT_BASE } from '@/lib/design3d/wallGeometry';
+import { FACADE_LOOK, getStyle } from '@/lib/design/styles';
 import { rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
 import type { FloorPlan, StyleDefinition } from '@/lib/design/types';
 
@@ -66,11 +67,44 @@ describe('the style’s accent wall', () => {
     const colours = new Set<string>();
     buildRoomShells(plan, [], style, new StyleMaterials(style)).traverse((node) => {
       if (!(node instanceof THREE.Mesh) || (node.userData as SceneUserData).surface !== 'wall') return;
-      for (const material of [node.material].flat()) if (material instanceof THREE.MeshStandardMaterial) colours.add(material.color.getHexString());
+      // The room face (slot 0): the outside of the flat is the building's brick, which is not the accent.
+      const material = [node.material].flat()[WALL_SLOT_BASE];
+      if (material instanceof THREE.MeshStandardMaterial) colours.add(material.color.getHexString());
     });
     expect(colours.size).toBeGreaterThan(0);
     expect(colours.has('8a4a2b')).toBe(false);
     // It wears the style's look for a living room: its paint.
     expect(colours.has('606060')).toBe(true);
+  });
+
+  /** The colour of the outside face of every wall of a room of this type, standing alone. */
+  const outsides = (type: 'living_room' | 'balcony') => {
+    const built = rebuildRooms(blank, wallsForRectangle({ x: 0, z: 0, width: 5, depth: 3 }, 0.12, 'user', 'r'));
+    const plan: FloorPlan = { ...built, rooms: built.rooms.map((r) => ({ ...r, type })) };
+    const colours = new Set<string>();
+    buildRoomShells(plan, [], style, new StyleMaterials(style)).traverse((node) => {
+      if (!(node instanceof THREE.Mesh) || node.userData.wallCut?.kind !== 'wall') return;
+      const materials = [node.material].flat();
+      const geometry = node.geometry as THREE.BufferGeometry;
+      // The outside face is the far face: the one facing away from the room.
+      const normal = geometry.getAttribute('normal');
+      const outward = node.userData.outward as { x: number; z: number };
+      for (const group of geometry.groups) {
+        const i = group.start;
+        if (normal.getX(i) * outward.x + normal.getZ(i) * outward.z > 0.9) {
+          const material = materials[group.materialIndex ?? 0];
+          if (material instanceof THREE.MeshStandardMaterial) colours.add(material.color.getHexString());
+        }
+      }
+    });
+    return colours;
+  };
+
+  it('dresses the outside of the flat in the building’s brick', () => {
+    expect([...outsides('living_room')]).toEqual([FACADE_LOOK.colorHex.slice(1).toLowerCase()]);
+  });
+
+  it('leaves the outside of a balcony as it was: the balcony is the person’s to finish', () => {
+    expect(outsides('balcony').has(FACADE_LOOK.colorHex.slice(1).toLowerCase())).toBe(false);
   });
 });

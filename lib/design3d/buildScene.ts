@@ -44,8 +44,10 @@ import type {
   TrimKind,
 } from '@/lib/design/types';
 import { roomLook } from '@/lib/design/surfaces';
+import { FACADE_LOOK } from '@/lib/design/styles';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
+import { WALL_STUB_M, type WallPartKind } from './wallMode';
 
 export interface SceneUserData {
   pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical';
@@ -75,6 +77,23 @@ export interface SceneUserData {
   zoneId?: string;
 }
 
+/**
+ * What the walls mode needs of a part that stands with a wall (`lib/design3d/wallMode`): what
+ * it is, and for one in a room's wall which way that wall faces and where its middle is. Kept
+ * on the part's own `userData.wallCut`, not spread to its children as `tag` does.
+ */
+export interface WallCut {
+  kind: WallPartKind;
+  outward?: { x: number; z: number };
+  mid?: { x: number; z: number };
+  /** An opening to the outside, not into another room. */
+  exterior?: boolean;
+}
+
+function cutWith(object: THREE.Object3D, cut: WallCut): void {
+  object.userData.wallCut = cut;
+}
+
 export interface BuildSceneOptions {
   /**
    * Ceilings are off by default and the studio does not currently expose a toggle for them:
@@ -83,8 +102,6 @@ export interface BuildSceneOptions {
    * only place it reads.
    */
   showCeiling?: boolean;
-  /** Draw walls at all — off gives a doll's-house floor plan view. */
-  showWalls?: boolean;
   /** Only build this room (used by the per-room camera focus). */
   onlyRoomId?: string | null;
 }
@@ -109,12 +126,12 @@ export function buildRoomShells(
 
   // How every room edge's wall is cut up — mitred corners, half depth where it is shared —
   // worked out once for the whole flat, also when only one room of it is shown.
-  const edgeWalls = options.showWalls !== false ? planEdgeWalls(plan) : new Map<string, EdgeWall>();
+  const edgeWalls = planEdgeWalls(plan);
   for (const [index, room] of visibleRooms(plan, options).entries()) {
     root.add(buildRoomShell(room, index, plan, finishes, style, materials, options, edgeWalls));
   }
   // Free-standing walls, columns and beams, and the floor patches with their own finish.
-  if (options.showWalls !== false && !options.onlyRoomId) root.add(buildStructure(plan, style, materials));
+  if (!options.onlyRoomId) root.add(buildStructure(plan, style, materials));
   const shown = visibleRoomIds(plan, options);
   root.add(buildZones(plan, finishes, materials, style, shown));
   root.add(buildPaintedCells(plan, finishes, materials, style, shown));
@@ -223,10 +240,13 @@ function buildRoomShell(
   }
 
   // --- walls ---
-  if (options.showWalls !== false) {
+  // Every wall is built twice: at its height, and as the low stub the walls menu lowers it to
+  // (`wallMode.ts`); the viewer shows one or the other, so a change of mode rebuilds nothing.
+  {
     // No wall is given an accent of its own: a brick wall nobody chose looked like paint gone
     // astray, and was priced nowhere. A wall wears what was chosen for it, or the style's.
     const cut = materials.metreSurface({ colorHex: WALL_CUT_COLOR, roughness: 0.9 });
+    const facade = materials.metreSurface(FACADE_LOOK);
     const roomsById = new Map(plan.rooms.map((r) => [r.id, r]));
     // How high each side of the room stands: the wall's own height when it was given one in
     // the inspector, the room's otherwise. The wall is built to it, and so is whatever is
@@ -261,7 +281,10 @@ function buildRoomShell(
       // finish, so either half alone still looks like the whole wall (gotcha 13).
       const behind: NonNullable<SceneUserData['wallFrame']>['behind'] = [];
       const farSlots = pieces.map((piece) => {
-        const neighbour = piece.neighbour ? roomsById.get(piece.neighbour.roomId) : undefined;
+        // Nobody behind: the outside of the building, in its brick — but a balcony's own walls
+        // keep the plain cut outside, the balcony being the person's to finish.
+        if (!piece.neighbour) return room.type === 'balcony' ? WALL_SLOT_CAP : slotOf(facade);
+        const neighbour = roomsById.get(piece.neighbour.roomId);
         const neighbourEdge = neighbour ? roomEdges(neighbour.polygon).find((e) => e.index === piece.neighbour!.wallIndex) : undefined;
         if (!neighbour || !neighbourEdge) return WALL_SLOT_CAP;
         behind.push({ from: piece.from, to: piece.to, roomId: neighbour.id, wallIndex: neighbourEdge.index });
@@ -315,7 +338,21 @@ function buildRoomShell(
       const wallFrame = { mid: pointOnEdge(edge, 0.5), a: { x: edge.a.x, z: edge.a.z }, dir: { x: edge.dir.x, z: edge.dir.z }, length: edge.length, behind };
       const wallData = { pickKind: 'surface', roomId: room.id, surface: 'wall', outward, wallId: planWall?.id, wallIndex: edge.index, wallFrame } satisfies SceneUserData;
       tag(wall, wallData);
+      cutWith(wall, { kind: 'wall', outward, mid: wallFrame.mid });
       group.add(wall);
+
+      // The same wall lowered: cut at the stub's height, holed only where a door, a railing or
+      // a floor-length window comes down that far; the stub's top is the wall's section.
+      const stubHeight = WALL_STUB_M + index * 0.0006;
+      const stubHoles = holes.filter((h) => h.bottom < stubHeight - 0.02).map((h) => ({ ...h, top: stubHeight }));
+      const stub = own(new THREE.Mesh(buildWallGeometry({ edge, height: stubHeight, pieces, holes: stubHoles, spans, farSlots }), slots));
+      stub.name = 'wall-stub';
+      stub.castShadow = true;
+      stub.receiveShadow = true;
+      stub.visible = false;
+      tag(stub, wallData);
+      cutWith(stub, { kind: 'stub', outward, mid: wallFrame.mid });
+      group.add(stub);
 
       // The mouldings belong to their wall, so they hide and show with it — and the cornice
       // runs along the top of *this* wall, not at the room's ceiling height: a wall raised in
@@ -327,6 +364,7 @@ function buildRoomShell(
         const trim = buildTrim(kind, room, edge, edges[before], edges[after], corner, openings, finishes, style, materials);
         if (!trim) continue;
         tag(trim, wallData);
+        cutWith(trim, { kind, outward, mid: wallFrame.mid });
         group.add(trim);
       }
 
@@ -340,6 +378,9 @@ function buildRoomShell(
         trim.traverse((child) => {
           if (child instanceof THREE.Mesh) tag(child, { pickKind: 'opening', roomId: room.id, openingId: opening.id } satisfies SceneUserData);
         });
+        // A window to the outside goes with its wall; a door into the next room stays, since
+        // that room's half of the wall is standing.
+        cutWith(trim, { kind: 'opening', outward, mid: wallFrame.mid, exterior: !opening.connectsToRoomId });
         group.add(trim);
       }
     });

@@ -22,6 +22,7 @@ import {
   wallsFromRooms,
   wallThicknessForEdge, offsetWallAlone, moveWallEnd, wallNormal } from '@/lib/design/walls';
 import { addOpening } from '@/lib/design/openings';
+import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
 import { polygonAreaM2, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { FloorPlan, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
@@ -474,5 +475,19 @@ describe('lookups', () => {
     expect(moved[0].wallIndex).toBe(0);
     const far = rect('r', 0, 2, 4, 3);
     expect(reprojectOpenings(withDoor, far)).toHaveLength(0);
+  });
+});
+
+describe('a flat has one ceiling', () => {
+  it('starts every new room at the same height, whatever kind it is', () => {
+    const rooms = roomsFromWalls([...wallsForRectangle({ x: 0, z: 0, width: 4, depth: 4 }, 0.12, 'user', 'a'), ...wallsForRectangle({ x: 6, z: 0, width: 2, depth: 2 }, 0.12, 'user', 'b')]);
+    expect(rooms.length).toBe(2);
+    expect(new Set(rooms.map((r) => r.heightM))).toEqual(new Set([DEFAULT_CEILING_M]));
+  });
+
+  it('gives a new room the height the flat’s rooms already have', () => {
+    const first = roomsFromWalls(wallsForRectangle({ x: 0, z: 0, width: 4, depth: 4 }, 0.12, 'user', 'a')).map((r) => ({ ...r, heightM: 3.1 }));
+    const next = roomsFromWalls([...wallsForRectangle({ x: 0, z: 0, width: 4, depth: 4 }, 0.12, 'user', 'a'), ...wallsForRectangle({ x: 6, z: 0, width: 2, depth: 2 }, 0.12, 'user', 'b')], { previous: first });
+    expect(next.map((r) => r.heightM)).toEqual([3.1, 3.1]);
   });
 });

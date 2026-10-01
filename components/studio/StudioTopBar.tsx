@@ -2,7 +2,7 @@
 
 /**
  * The studio's top bar: the room in focus and the autosave state on the left; the view
- * switch, walls, start-from-scratch, time of day and photo in the middle; undo/redo, the structure
+ * switch, the walls and time-of-day menus, start-from-scratch and photo in the middle; undo/redo, the structure
  * lock, versions, help and the way to the next step on the right.
  *
  * One row at any width. The bar is a size container (`.studio-bar`, `app/globals.css`) and
@@ -20,11 +20,12 @@ import { ViewSwitch, type StudioView } from '@/components/design/StudioControls'
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import type { DaylightPreset } from '@/lib/design3d/daylight';
+import type { WallMode } from '@/lib/design3d/wallMode';
 
-export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, showWalls, onToggleWalls, onClear, daylight, onDaylight, onPhoto, canUndo, canRedo, onUndo, onRedo, locked, onToggleLock, versionsOpen, onVersions, onHelp, nextHref, nextLabel }: { roomLabel: string; itemCount: number; saveState: 'idle' | 'saving' | 'saved' | 'error'; view: StudioView; onView: (view: StudioView) => void; showWalls: boolean; onToggleWalls: () => void; onClear: () => void; daylight: DaylightPreset; onDaylight: (preset: DaylightPreset) => void; onPhoto?: () => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; locked: boolean; onToggleLock: () => void; versionsOpen: boolean; onVersions: () => void; onHelp: () => void; nextHref: string; nextLabel: string }) {
+export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, wallMode, onWallMode, onClear, daylight, onDaylight, onPhoto, canUndo, canRedo, onUndo, onRedo, locked, onToggleLock, versionsOpen, onVersions, onHelp, nextHref, nextLabel }: { roomLabel: string; itemCount: number; saveState: 'idle' | 'saving' | 'saved' | 'error'; view: StudioView; onView: (view: StudioView) => void; wallMode: WallMode; onWallMode: (mode: WallMode) => void; onClear: () => void; daylight: DaylightPreset; onDaylight: (preset: DaylightPreset) => void; onPhoto?: () => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; locked: boolean; onToggleLock: () => void; versionsOpen: boolean; onVersions: () => void; onHelp: () => void; nextHref: string; nextLabel: string }) {
   const t = useT();
   return (
-    <div data-board-edge="top" className="studio-bar pointer-events-none absolute inset-x-4 top-4 z-20 flex flex-nowrap items-start justify-between gap-3">
+    <div data-board-edge="top" className="studio-bar pointer-events-none absolute inset-x-4 top-4 z-[45] flex flex-nowrap items-start justify-between gap-3">
       <div className="bar-gap pointer-events-auto flex min-w-0 shrink items-center gap-2 rounded-[14px] bg-white/85 py-1.5 pl-4 pr-2 shadow-glass backdrop-blur-xl">
         <span className="bar-room max-w-[240px] truncate text-sm font-medium" title={roomLabel}>
           {roomLabel}
@@ -49,7 +50,7 @@ export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, sh
       </div>
 
       <div className="pointer-events-auto shrink-0">
-        <ViewSwitch view={view} onView={onView} showWalls={showWalls} onToggleWalls={onToggleWalls} onClear={onClear} daylight={daylight} onDaylight={onDaylight} onPhoto={onPhoto} />
+        <ViewSwitch view={view} onView={onView} wallMode={wallMode} onWallMode={onWallMode} onClear={onClear} daylight={daylight} onDaylight={onDaylight} onPhoto={onPhoto} />
       </div>
 
       <div className="bar-gap pointer-events-auto flex shrink-0 items-center gap-2">

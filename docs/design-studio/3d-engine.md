@@ -114,11 +114,30 @@ Each of these cost real debugging time. Don't undo them.
     material of whoever stands behind *that stretch* (`farSlots`, from `piece.neighbour`).
     Before this the bathroom's tiles showed up on the living-room side of the wall whenever
     the living room's half was cut away. A far face with nobody behind it (the outside of the
-    flat) gets the neutral cut material (`WALL_SLOT_CAP`).
+    flat) is the building's brick (`FACADE_LOOK` in `lib/design/styles.ts`, the exposed red
+    brick finish's texture, no product, never priced) — except a balcony's own walls, whose
+    outside keeps the neutral cut material (`WALL_SLOT_CAP`): the balcony is the person's to
+    finish. The tops and ends of every wall are always the cut.
+    **A flat has one ceiling.** Every new room starts at `DEFAULT_CEILING_M` (2.8 m,
+    `lib/calculator/constants.ts`) — or the flat's `wallHeightM`, or the height its rooms
+    already have — whatever kind it is (`roomsFromWalls`, the CV and Claude readers, a room
+    drawn in the studio). Each kind had a height of its own once (a kitchen 2.7 m, a bathroom
+    2.5 m), so a kitchen's walls stood a step lower than the rest. A room's height can still be
+    set by hand (the inspector, the calculator's form); rooms saved before keep theirs.
 15. **`visible = false` does not stop a raycast.** Three's raycaster honours `layers` and
     ignores `visible`, so a cut-away wall still caught every click aimed at the sofa behind it.
     Anything hidden from the pointer goes on `HIDDEN_LAYER` (the cutaway walls, the idle
     opening slabs); the default raycaster only tests layer 0.
+    **The walls menu works the same way** (`lib/design3d/wallMode.ts`). Every room wall is built
+    twice — at its height and as a 25 cm stub (`WALL_STUB_M`, holed only where a door, a railing
+    or a floor-length window comes down that far) — and each part that stands with a wall
+    carries `userData.wallCut` (`WallCut`: wall, stub, skirting, cornice, opening, beam; its
+    wall's outward side and middle; whether an opening is to the outside). Free-standing walls
+    get a stub too and beams are tagged. The viewer's `useFrame` asks `wallPartVisible(mode,
+    kind, cameraFacesWall(…), exterior)` for each part and moves a hidden one's whole subtree
+    to `HIDDEN_LAYER` — every frame while hidden, since a door's model lands in its group after
+    the shell is built (the opening slab keeps its own rule). A change of mode rebuilds
+    nothing: it only asks for a frame.
 16. **`fetch(dataUrl)` is refused by the CSP.** `connect-src` has no `data:`, so the usual
     trick for turning a canvas data URL into a Blob dies silently in the console. The photo
     dialog decodes the base64 by hand (`dataUrlToBlob`). Images may *display* data URLs

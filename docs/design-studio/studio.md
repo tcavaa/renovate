@@ -31,7 +31,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, a made-to-measure kitchen's material, alternatives); the hover card |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx`, `VersionsPanel.tsx` | a fitting's card, a door/window's card, the versions list |
 | `components/studio/StudioTopBar.tsx`, `TutorialOverlay.tsx`, `NavHelp.tsx` | the top bar, the first-visit tour, the controls card |
-| `components/design/StudioControls.tsx` | `ViewSwitch` (2D / 3D / walk, walls, time of day, photo) and `ZoomControls` |
+| `components/design/StudioControls.tsx` | `ViewSwitch` (2D / 3D / walk, the walls and time-of-day menus — `WallModeMenu`, `DaylightMenu` — start from scratch, photo) and `ZoomControls` |
 | `components/design/PhotoDialog.tsx`, `components/projects/ProjectRenders.tsx` | photos and the realistic renders queued from them |
 | `components/ui/scroll-row.tsx` | rows that scroll without a scrollbar |
 | `lib/design/manipulate.ts` | snapping, collision, rotation, hanging on walls, swaps that must fit, the walk-through's start spot |
@@ -82,14 +82,25 @@ Dragging from a tray is shown live and the tile's own picture is never dragged
 fitting shows a ghost snapped to the nearest wall (`previewElectricalAt`) and is added on
 drop. Placed fittings drag along the walls of their room in 3D (hopping to the nearest
 wall) and are re-projected on release. The top bar carries the room chip, undo/redo, the
-view switch, the walls toggle, the time of day (four presets), photo, the structure lock,
-versions, the item count, the save state, help and the next step.
+view switch, the walls and time-of-day menus, start from scratch, photo, the structure lock,
+versions, the item count, the save state, help and the next step. The middle of the bar is one
+glass group (`ViewSwitch`): 2D · 3D · the walk-through as its eye alone, then two menu buttons
+that show what is on and open their choices below (`WallModeMenu`, `DaylightMenu`, the
+project page's viewer uses the same two), then the eraser and the camera. The bar sits at
+`z-[45]` so an open menu lies over the right panel. **The walls menu** has four modes
+(`lib/design3d/wallMode.ts`): all walls up; the cutaway (the default — a wall between the
+camera and its room goes, with its mouldings and its windows and doors to the outside, so none
+hangs in the air); the low cutaway (those walls drop to a 25 cm stub instead); walls down
+(every wall a 25 cm stub, no doors, windows, cornices or beams — the walls used to vanish
+whole and leave white strips where the floor stops at their face). The walk-through always
+has the cutaway. **ნავიგაცია and the zoom column** sit in the bottom-right corner beside the
+tray (880 px at most, centred); a window narrower than 1040 px lifts them over it.
 Whatever opens on the right — the item card (`SwapPanel`), the fitting card (`FixturePanel`),
 the door or window card (`OpeningPanel`), what is placed (`FurnitureDrawer`), the inspector
 (`ElementInspector`, with `FinishPanel` under it for a selected floor zone), the versions —
 is an overlay (`z-40`) the full height of the studio, scrolling inside itself under its
-alternatives drawer: nothing is pushed aside for it; the help card and zoom sit above the
-top bar (`z-30`) so their buttons are never covered. The electric tray is one compact row.
+alternatives drawer: nothing is pushed aside for it; the help card and zoom (`z-30`) are
+the bottom-right corner's. The electric tray is one compact row.
 
 **A made-to-measure kitchen's card is its material.** A kitchen run or island is bought as the
 kitchen maker's material by the façade ([../budget.md](../budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents)),

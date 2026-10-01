@@ -142,10 +142,10 @@ describe('the sample plan (სანიმუშო გეგმა)', () => {
   it('buys a window for the whole flat for its eight windows, and paints the walls without the doors and windows in them', () => {
     expect(countWindows(board)).toBe(8);
     expect(suggestedQuantity('windows', aggregateRoomTotals(rooms, boardCounts(board)))).toBe(8);
-    // Its walls whole: 233.35 m². The eight windows come to 19.6 m², the three doors and the
+    // Its walls whole, every room 2.8 m high: 234.96 m². The eight windows come to 19.6 m², the three doors and the
     // archway — each cut into the walls of both rooms — to 17.5 m² more.
     const whole = calculatorRoomsFromPlan({ ...board, rooms: board.rooms.map((r) => ({ ...r, openings: [] })) });
-    expect(labour('paint_walls', whole)?.qty).toBe(233.35);
-    expect(labour('paint_walls')?.qty).toBe(196.25);
+    expect(labour('paint_walls', whole)?.qty).toBe(234.96);
+    expect(labour('paint_walls')?.qty).toBe(197.85);
   });
 });

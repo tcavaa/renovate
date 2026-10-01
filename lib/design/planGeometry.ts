@@ -9,7 +9,7 @@
  */
 
 import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
-import { ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { effectiveSplit, partAt, roomPartsFor } from './studio';
 import { roomTypeName, withRoomNames } from './roomNames';
 import type {
@@ -333,7 +333,7 @@ export function buildPlanFromRegions(
       type,
       name: roomTypeName(type),
       polygon: r.polygon,
-      heightM: options.ceilingHeightM ?? ROOM_TYPES[type].defaultHeight,
+      heightM: options.ceilingHeightM ?? DEFAULT_CEILING_M,
       areaM2: round2(areaM2),
       perimeterM: round2(polygonPerimeterM(r.polygon)),
       openings: [],
