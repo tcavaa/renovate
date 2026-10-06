@@ -978,6 +978,7 @@ export default function StudioPage() {
             />
           ) : (
             <Viewer3D
+              sceneKey={projectId}
               plan={plan}
               scene={scene}
               electrical={electrical}

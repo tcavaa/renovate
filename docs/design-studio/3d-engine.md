@@ -275,15 +275,39 @@ there:
   bare door leaf asks for its casing only once it is in, a finish product may arrive with the
   catalogue), and fades out. The bar counts the files asked for since the viewer mounted.
 - It never holds the studio longer than 45 s, however slow the connection.
-- Once a flat has been shown whole on the page, a viewer mounted again (from the 2D board, or
-  the walk-through) skips the screen: the models are cached, and only textures — per viewer —
-  come again. Later loads (a piece added, a style changed) show as before, as each arrives.
+- Once a flat has been shown whole on the page, a viewer of *that flat* mounted again (from the
+  2D board, or the walk-through) skips the screen (`sceneShownWhole`, by the viewer's `sceneKey`
+  — the project id in the studio): the models are cached, and only textures — per viewer — come
+  again. It was one flag for the page, so the next project opened in the tab skipped its screen. Later loads (a piece added, a style changed) show as before, as each arrives.
 - The studio's `ViewerFallback` (while three.js and the viewer's chunk arrive) is the same
   screen without a count, so the two follow on without a jump. The project page's viewer gets
   the screen too.
 
 Measured on the sample flat over a throttled 1.5 MB/s link, cache off: the screen is up from
 1.8 s, counts 50 files (36 GLBs, the rest textures) from 5 s and is gone at 9 s.
+
+## When the 3D view fails (`components/design/ViewerGuard.tsx`)
+
+The viewer's `<Canvas>` and its loading screen sit inside `ViewerGuard`:
+
+- **No WebGL** (`webglAvailable()`, asked once with a throwaway canvas): a notice in the person's
+  language says so, and the rest of the page — trays, the 2D board, the budget — works. R3F's
+  renderer used to reject unhandled, and the loading screen spun for its 45 s cap over a blank
+  canvas.
+- **A builder that throws** while the scene is built (R3F re-throws its errors into the page's
+  tree): an error boundary shows "the 3D view could not be built" with *try again* (a fresh
+  canvas and build), and the error goes to Sentry (`area: viewer3d`). It used to take the whole
+  studio down to the page's error screen.
+- **A lost GPU context** (a driver reset, a tab long in the background): three takes the context
+  back by itself, and `webglcontextrestored` asks for a frame — under demand rendering nothing
+  else would, and the view stayed black until the next touch.
+- **A texture that failed** is forgotten (`whenLoaded`), so the next surface that wears it asks
+  again; kept, the image-less texture sampled black on every later use. Tested in
+  `tests/unit/design3d/materials.test.ts`.
+- **A Draco decoder that failed to arrive** is replaced (`modelLoader`'s `dracoDecoder` /
+  `replaceDecoder`): DRACOLoader keeps its decoder promise for good, a rejected one too, so every
+  Draco model was a ghost box until a reload. The replacement fetches the decoder again when the
+  next Draco model asks (`tests/unit/design3d/dracoRecovery.test.ts`).
 
 ## Time of day and the world around the flat
 

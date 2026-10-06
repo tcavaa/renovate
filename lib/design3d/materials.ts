@@ -272,7 +272,10 @@ export class StyleMaterials {
     this.pending.set(key, [apply]);
     // Counted until it is in or has failed: the loading screen waits on the finishes too.
     const done = loadStarted();
-    const texture = this.loader.load(
+    let failedAtOnce = false;
+    // Null until `load` returns: a loader that fails at once calls back before that.
+    let loading: THREE.Texture | null = null;
+    loading = this.loader.load(
       url,
       (loaded) => {
         done();
@@ -286,8 +289,19 @@ export class StyleMaterials {
       () => {
         done();
         this.pending.delete(key);
+        // Forgotten, so the next surface that wants it asks again: kept, the image-less texture
+        // sampled black on every later use until the page was reloaded.
+        if (loading && this.textures.get(key) === loading) {
+          this.textures.delete(key);
+          loading.dispose();
+        } else failedAtOnce = true;
       }
     );
+    const texture = loading;
+    if (failedAtOnce) {
+      texture.dispose();
+      return key;
+    }
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(repeatU, repeatV);

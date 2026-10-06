@@ -132,3 +132,30 @@ describe('painted floor tiles', () => {
     expect(oak!.userData).toMatchObject({ pickKind: 'surface', roomId: 'r', surface: 'floor' });
   });
 });
+
+describe('a finish whose picture did not arrive', () => {
+  /** Fails every load, later (as a browser does) or at once (as the node stand-in does). */
+  class FailingLoader implements TextureSource {
+    calls = 0;
+    pending: Array<() => void> = [];
+    constructor(private readonly atOnce: boolean) {}
+    load(_url: string, _onLoad?: (texture: THREE.Texture) => void, _onProgress?: unknown, onError?: (error: unknown) => void): THREE.Texture {
+      this.calls += 1;
+      const texture = new THREE.Texture();
+      if (this.atOnce) onError?.(new Error('404'));
+      else this.pending.push(() => onError?.(new Error('404')));
+      return texture;
+    }
+  }
+
+  it.each([false, true])('is asked for again by the next surface that wears it (failing at once: %s)', (atOnce) => {
+    const loader = new FailingLoader(atOnce);
+    const materials = new StyleMaterials(style, loader);
+    materials.metreSurface(spec, tile('/gone.jpg'));
+    for (const fail of loader.pending.splice(0)) fail();
+    // Another surface with the same picture at the same scale (the same texture, a new material):
+    // the texture is not kept image-less, it is loaded again.
+    materials.metreSurface(spec, { ...tile('/gone.jpg'), colorHex: '#123456' });
+    expect(loader.calls).toBe(2);
+  });
+});

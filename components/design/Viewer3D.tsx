@@ -53,6 +53,7 @@ import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } fr
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
+import { ViewerGuard } from './ViewerGuard';
 import { cn } from '@/lib/utils';
 import { Headlamp, WalkControls } from './WalkControls';
 import { SceneLoading } from './SceneLoading';
@@ -162,6 +163,8 @@ export interface Viewer3DProps {
    * picked, hovered or dragged — a brigade looking at the flat it is hired for.
    */
   readOnly?: boolean;
+  /** Which flat this is (the project id): the loading screen is skipped only for one shown whole before. */
+  sceneKey?: string | number;
   className?: string;
 }
 
@@ -172,10 +175,11 @@ export function Viewer3D(props: Viewer3DProps) {
   // so the view never opens for a beat at three.js's default spot, at floor level beside the
   // flat, before the framing catches up.
   const [initial] = useState(() => frameFor(props.plan, props.focusRoomId ?? null));
-  const loading = useSceneLoading();
+  const loading = useSceneLoading(props.sceneKey ?? 'flat');
 
   return (
     <div className={cn('relative', props.className)}>
+      <ViewerGuard>
       <Canvas
         shadows
         // A frame is drawn when something changes, not sixty times a second while nothing does
@@ -186,10 +190,14 @@ export function Viewer3D(props: Viewer3DProps) {
         dpr={[1, 1.75]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ fov: 48, near: 0.05, far: 200, position: initial.position }}
-        onCreated={({ gl, camera }) => {
+        onCreated={({ gl, camera, invalidate }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = daylight.exposure;
           camera.lookAt(...initial.target);
+          // three takes the context back after the GPU dropped it (a driver reset, a tab long in
+          // the background), but frames are drawn on demand: nothing asked for one, and the view
+          // stayed black until the next touch.
+          gl.domElement.addEventListener('webglcontextrestored', () => invalidate());
         }}
         onPointerMissed={() => {
           props.onSelectItem?.(null);
@@ -204,12 +212,17 @@ export function Viewer3D(props: Viewer3DProps) {
         </Suspense>
       </Canvas>
       {loading.phase !== 'ready' && <SceneLoading done={loading.done} total={loading.total} leaving={loading.phase === 'leaving'} />}
+      </ViewerGuard>
     </div>
   );
 }
 
-/** Once the flat has been shown whole on this page, a view opened again (from 2D, say) finds its models cached and skips the screen. */
-let sceneShownWhole = false;
+/**
+ * The flats shown whole on this page (by `sceneKey`): a view of one opened again (from 2D, say)
+ * finds its models cached and skips the screen. It was one flag for the page, so a second
+ * project opened in the same tab skipped its loading screen and showed its flat half-built.
+ */
+const sceneShownWhole = new Set<unknown>();
 /** Nothing more asked for in this long after the last file came in: the flat is all there. */
 const SETTLE_MS = 300;
 /** However slow the connection, the studio is not held behind the screen longer than this. */
@@ -222,8 +235,8 @@ const FADE_MS = 300;
  * and until every file asked for since has come in (or failed) and nothing new has been asked
  * for in `SETTLE_MS` — a bare door leaf asks for its casing only once it is in. Then it fades.
  */
-function useSceneLoading(): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
-  const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole ? 'ready' : 'loading'));
+function useSceneLoading(sceneKey: string | number): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
+  const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole.has(sceneKey) ? 'ready' : 'loading'));
   const [isBuilt, setBuilt] = useState(false);
   const progress = useSyncExternalStore(subscribeLoadProgress, loadProgress, loadProgress);
   const [baseline] = useState(() => loadProgress().started);
@@ -232,7 +245,7 @@ function useSceneLoading(): { phase: 'loading' | 'leaving' | 'ready'; done: numb
   useEffect(() => {
     if (phase !== 'loading' || !isBuilt || progress.pending > 0) return;
     const settle = window.setTimeout(() => {
-      sceneShownWhole = true;
+      sceneShownWhole.add(sceneKey);
       setPhase('leaving');
     }, SETTLE_MS);
     return () => window.clearTimeout(settle);
