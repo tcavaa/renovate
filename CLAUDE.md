@@ -157,6 +157,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
 | [docs/operations.md](docs/operations.md) | environment, logs, Sentry, health, deploys (cPanel, VPS), storage, mail | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/storage/`, `deploy/`, workflows, `next.config.mjs` |
 | [docs/testing.md](docs/testing.md) | test commands, what CI runs, the coverage gate, where each area's tests are | before declaring work done; adding tests |
+| [docs/audit-checklist.md](docs/audit-checklist.md) | the codebase audit's open items, top 10 by urgency, and a done log with commits | picking the next audit fix; tick the item and move it to the done log in the fixing commit |
 | [docs/roadmap.md](docs/roadmap.md) | **next tasks**: bugs found and not fixed, planned features, links to every area's known gaps | planning work, "what's next", before starting a feature |
 
 Other files: `README.md` (user-facing setup, partly out of date), `AI_FEATURE_PLAN.md` (the
