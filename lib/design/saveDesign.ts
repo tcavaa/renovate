@@ -18,6 +18,14 @@ import { markClean } from '@/lib/flow/projectSync';
 import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
 import type { SavedRow } from '@/lib/calculator/saveProject';
 
+/**
+ * The kept versions each store last had confirmed by the server. They run to megabytes (0.7 MB at
+ * ten items and twelve versions, 6.4 MB at 600) and change only when one is kept, restored,
+ * renamed or deleted, so a save carries them only when they differ from the last confirmed —
+ * the route keeps the row's when a save names none. The first save of a page load sends them.
+ */
+const versionsConfirmed = new WeakMap<object, unknown>();
+
 export function saveDesign(options: { draft: boolean; projectId?: number; force?: boolean }): Promise<SavedRow> {
   const id = options.projectId ?? activeProjectId();
   if (id == null) return Promise.reject(new Error('no-project'));
@@ -46,7 +54,7 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
         scene: s.scene(),
         floorPlanUrl: s.floorPlanUrl,
         draft: options.draft,
-        versions: s.versions,
+        ...(versionsConfirmed.get(store) === s.versions ? {} : { versions: s.versions }),
       }),
     });
     const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
@@ -54,6 +62,7 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
     if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');
     // Nothing touched the design while this was being written: the server has all of it.
     const unchanged = store.getState() === s;
+    versionsConfirmed.set(store, s.versions);
     store.setState({ baseRev: json.data.rev, pendingSaveId: null });
     useSaveProblems.getState().report('design', id, null);
     if (unchanged) markClean('design', id);

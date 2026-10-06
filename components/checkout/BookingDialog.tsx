@@ -17,7 +17,8 @@ interface ProjectOption {
   nameKa: string | null;
   totalM2: string | number;
   totalWorkersCost: string | number | null;
-  plan: unknown;
+  /** Designed in 3D as well (`GET /api/projects`). */
+  hasPlan: boolean;
 }
 
 /** The project a booking is for, when it is made from inside that project's own flow. */
@@ -67,7 +68,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
       .then((json: { data: ProjectOption[] | null }) => {
         // A brigade is hired for a flat that has been designed as well as calculated, so a
         // team's dialogue offers every project; one trade is still booked off a calculation.
-        if (!cancelled) setProjects((json.data ?? []).filter((p) => (teamId ? true : !p.plan)));
+        if (!cancelled) setProjects((json.data ?? []).filter((p) => (teamId ? true : !p.hasPlan)));
       })
       .catch(() => undefined);
     return () => {

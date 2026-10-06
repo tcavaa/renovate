@@ -171,3 +171,28 @@ describe('what a failed save says', () => {
     expect(problemOf(new TypeError('network'))).toBe('error');
   });
 });
+
+describe('the stores’ writes', () => {
+  it('gather into one write, serialised once, that a read sees before it lands', () => {
+    vi.useFakeTimers();
+    try {
+      const store = storage.debouncedStorage<{ n: number }>();
+      store.setItem('renovate-design:30', { state: { n: 1 }, version: 1 });
+      store.setItem('renovate-design:30', { state: { n: 2 }, version: 1 });
+      expect(memory.has('renovate-design:30')).toBe(false);
+      expect(store.getItem('renovate-design:30')).toEqual({ state: { n: 2 }, version: 1 });
+      vi.advanceTimersByTime(storage.PERSIST_DELAY_MS);
+      expect(JSON.parse(memory.get('renovate-design:30')!)).toEqual({ state: { n: 2 }, version: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never brings back a cache removed while its write was waiting', () => {
+    const store = storage.debouncedStorage<{ n: number }>();
+    store.setItem('renovate-design:31', { state: { n: 1 }, version: 1 });
+    storage.safeLocalStorage.removeItem('renovate-design:31');
+    storage.flushPendingWrites();
+    expect(memory.has('renovate-design:31')).toBe(false);
+  });
+});

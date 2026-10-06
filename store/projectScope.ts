@@ -23,6 +23,7 @@
  */
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
+import { safeLocalStorage } from '@/lib/flow/storage';
 
 interface ActiveProjectState {
   id: number | null;
@@ -90,7 +91,7 @@ export function projectScopedStore<S extends AnyStore>(prefix: string, make: (st
     drop: (id: number) => {
       stores.delete(id);
       try {
-        localStorage.removeItem(storageKey(id));
+        safeLocalStorage.removeItem(storageKey(id));
       } catch {
         // Storage unavailable: nothing was cached.
       }

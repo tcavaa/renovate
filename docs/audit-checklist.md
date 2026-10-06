@@ -30,10 +30,12 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
    project** — fix it or stop promising it; real company name/code/address
    (`footer.*` in `lib/i18n`); confirm the PCI SAQ level with Flitt (likely A-EP: script
    integrity per 6.4.3 / 11.6.1).
-5. [ ] **Persistence out of the hot path** (R3, P6, perf #2/#4, 2.4): a debounced `StateStorage`
+5. [x] **Persistence out of the hot path** (R3, P6, perf #2/#4, 2.4): a debounced `StateStorage`
    (flush on `pagehide`); versions to their own endpoint + IndexedDB, lazy-loaded, out of every
    autosave body and the step RSC payload; projected columns in `GET /api/projects`; UI/session
-   fields out of the persisted store.
+   fields out of the persisted store. *Done: debounced storage, versions only on change,
+   projected `GET /api/projects`. Left (moved below): versions still in the step's RSC payload
+   (N1) and in the local cache — a versions endpoint + IndexedDB, lazily loaded.*
 6. [ ] **3D failure modes** (P10, 3.1): an error boundary around `<Viewer3D>` that keeps trays and
    2D usable; a WebGL probe with a translated fallback (not a 45 s spinner); evict failed
    textures (render black next time); reset the Draco loader after a failure; redraw on
@@ -102,6 +104,8 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] Benchmark scene at 50/150/500 items (4.1)
 
 ### Next.js and delivery
+- [ ] Versions out of the step RSC payload and the local cache: their own endpoint + IndexedDB,
+  lazily loaded (`ensureExistingVersion`, `restoreVersion` and the versions panel must wait for them)
 - [ ] Step HTML inlines the whole row; rate book from the server layout; server-side resume
   `redirect()` (N1, 2.11)
 - [ ] Dictionary split by area (N4); nothing static, `ORDER BY RAND()` on the landing (N5);
@@ -152,4 +156,5 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | Open redirect; social sign-in needs a vouched e-mail; `users.session_version` ends sessions after a reset or admin password; `next` 16.3.8, nodemailer, nanoid, mysql2; `pnpm audit --prod --audit-level critical` in CI | S4, S5, S6, S9 (but drizzle), 2.7, 1.7 (part) | `9b034c52` |
 | Nullable timestamps `NULL DEFAULT NULL` (migration 0026), reproduced and fixed on MariaDB 10.6; a test refuses bare timestamps | OPS-4, 1.9 | `fd9aaa6e` |
 | Autosave watches exactly what the save sends (board sockets were missed) + a guard test; storage-full, signed-out and 401 on the banner; another tab's clean mark no longer clears this tab's unsaved work | top 10 #1 (state §11, 1.8, test #4 in part) | `7ea4d94d` |
+| Undo: a slider drag is one step; version 01 never evicted; style in the snapshot and `setStyle` one step; locks in the store and the 3D drag; `lockItem` undoable; wall-less `resizeRoom` no longer mutates history | top 10 #2 (P4, P5 in part, 1.8) | `d1090928` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |

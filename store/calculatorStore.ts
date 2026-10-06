@@ -1,8 +1,8 @@
 'use client';
 
 import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { safeLocalStorage } from '@/lib/flow/storage';
+import { persist } from 'zustand/middleware';
+import { debouncedStorage } from '@/lib/flow/storage';
 import { projectScopedStore } from './projectScope';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
@@ -286,8 +286,8 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
   return create<CalculatorStore>()(
     persist(creator, {
       name: storageName,
-      // A full localStorage never breaks the page (`lib/flow/storage`).
-      storage: createJSONStorage(() => safeLocalStorage),
+      // Written once per burst of changes, and a full localStorage never breaks the page (`lib/flow/storage`).
+      storage: debouncedStorage(),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
       merge: (persisted, current) => liftFlags({ ...current, ...(persisted as Partial<Persisted>) }),

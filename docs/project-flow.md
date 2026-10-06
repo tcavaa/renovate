@@ -266,6 +266,14 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
   version kept it in the line, which every tab shares: one tab's save lent its revision to
   another tab's older copy, which then passed the server's check and wrote over newer work.
 
+**Written once per burst.** The stores persist through `debouncedStorage()`
+(`lib/flow/storage.ts`): writes gather for `PERSIST_DELAY_MS` (400 ms) and go out as one,
+serialised then; a read sees a write still waiting; `pagehide` and a hidden tab flush them, and
+removing a cache (`safeLocalStorage.removeItem`, a store's `drop`) cancels its waiting write.
+`createJSONStorage` serialised the whole persisted document — kept versions included — on every
+`set`, a selection or a save status too: about 8 ms at 50 items with twelve versions, 45 ms at
+600, on the main thread, per click. The unsaved mark (`markDirty`) is still written at once.
+
 **Keeping the cache small.**
 
 - `safeLocalStorage` evicts the clean caches used longest ago when a write hits the quota. It
@@ -318,6 +326,10 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 
 **Sending.**
 - `enqueueSave` sends one save at a time per half.
+- **The design's kept versions go only when they changed** since the last save the server
+  confirmed (`saveDesign`, a `WeakMap` per store; the first save of a page load sends them) —
+  the route keeps the row's when a save names none. They are megabytes at scale (0.7 MB with
+  ten items and twelve versions, 6.4 MB at 600 items) and went with every autosave.
 - Each save carries `baseRev` (the store's), a fresh `saveId` (`newSaveId`), and `prevSaveId`
   (the store's `pendingSaveId`: a save sent whose answer has not arrived) and `force`.
 - The calculator sends its board: the plan (its doors, windows and technical points, each a

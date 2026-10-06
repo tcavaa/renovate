@@ -16,8 +16,8 @@
 
 import { projectScopedStore } from './projectScope';
 import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { safeLocalStorage } from '@/lib/flow/storage';
+import { persist } from 'zustand/middleware';
+import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
@@ -1725,8 +1725,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
   return create<DesignStore>()(
     persist(creator, {
       name: storageName,
-      // A full localStorage never breaks the page (`lib/flow/storage`).
-      storage: createJSONStorage(() => safeLocalStorage),
+      // Written once per burst of changes, and a full localStorage never breaks the page (`lib/flow/storage`).
+      storage: debouncedStorage(),
       version: PERSIST_VERSION,
       migrate: migratePersisted,
       // `migrate` only runs when the version changed; a plan of the current version is

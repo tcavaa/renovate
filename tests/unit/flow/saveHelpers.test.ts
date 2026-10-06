@@ -114,3 +114,20 @@ describe('the design’s save', () => {
     expect(designStores.useDesignStore.for(id).getState().baseRev).toBe(8);
   });
 });
+
+describe('the design’s kept versions', () => {
+  it('go with the first save and then only when they changed', async () => {
+    const id = nextId;
+    const store = designStores.useDesignStore.for(id);
+    const plan = { rooms: [], walls: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8 } as unknown as FloorPlan;
+    store.setState({ projectId: id, baseRev: 0, plan, versions: [] });
+    const ok = (rev: number) => ({ status: 200, body: { data: { id, rev }, error: null } });
+    const sent = server([ok(1), ok(2), ok(3)]);
+    await saveDesign({ draft: true, projectId: id });
+    await saveDesign({ draft: true, projectId: id });
+    store.getState().saveVersion('kept');
+    await saveDesign({ draft: true, projectId: id });
+    expect(sent.map((b) => 'versions' in b)).toEqual([true, false, true]);
+    expect((sent[2].versions as unknown[]).length).toBe(1);
+  });
+});

@@ -17,16 +17,25 @@ import { fail, handle, ok } from '@/lib/api/route';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/** The signed-in person's projects, for the booking dialogue's list. */
 export const GET = handle('GET /api/projects', 'Failed to load projects', async () => {
   const session = await auth();
   if (!session?.user?.id) return ok([]);
 
+  // What the booking dialogue lists, and no more: the whole row carried the plans, the scenes
+  // and every kept version of every project.
   const data = await db
-    .select()
+    .select({
+      id: projects.id,
+      nameKa: projects.nameKa,
+      totalM2: projects.totalM2,
+      totalWorkersCost: projects.totalWorkersCost,
+      hasPlan: sql<number>`(${projects.plan} IS NOT NULL AND CAST(${projects.plan} AS CHAR) <> 'null')`,
+    })
     .from(projects)
     .where(eq(projects.userId, Number(session.user.id)))
     .orderBy(desc(projects.createdAt));
-  return ok(data);
+  return ok(data.map((p) => ({ ...p, hasPlan: Boolean(Number(p.hasPlan)) })));
 });
 
 /**
