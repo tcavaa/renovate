@@ -46,15 +46,23 @@ function sweep(now: number, maxWindowMs: number): void {
 /**
  * The caller's IP as the reverse proxy reports it.
  *
- * Nginx sits in front of the app and sets `X-Forwarded-For`; the first entry is the client.
- * Without a proxy (local development) there is no reliable address, so every caller shares
- * one bucket — which is fine for a laptop and wrong for production, hence the proxy.
+ * `X-Forwarded-For` is a list each proxy *appends* to, so only its last entry was written by a
+ * proxy we run (nginx's `$proxy_add_x_forwarded_for` on the VPS); everything before it is
+ * whatever the client sent. The first entry was read once, and a script sending a new made-up
+ * address with each request was never limited. Next itself fills the header with the socket's
+ * address when no proxy did. Without a proxy (local development) every caller shares the
+ * socket's bucket — fine for a laptop.
+ *
+ * On cPanel (Apache → Passenger) what arrives here has not been confirmed: if Passenger passes
+ * the client's header through without appending, the last entry is the client's too
+ * (docs/operations.md#rate-limits-and-the-client-address says how to check).
  */
 export function clientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim();
-    if (first) return first;
+    const hops = forwarded.split(',').map((hop) => hop.trim()).filter(Boolean);
+    const last = hops[hops.length - 1];
+    if (last) return last;
   }
   return req.headers.get('x-real-ip')?.trim() || 'unknown';
 }

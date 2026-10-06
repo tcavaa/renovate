@@ -259,3 +259,28 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
   (not through `env`), and a few other places do too (`lib/design/aiPlan.ts` for
   `ANTHROPIC_API_KEY`, the health route for `APP_VERSION`, `lib/auth/social.ts`,
   `app/layout.tsx`, and `lib/sentry.ts`, which the browser runs too).
+
+## Rate limits and the client address
+
+`lib/api/rateLimit.ts` keys every limit on `clientIp(req)`: the **last** `X-Forwarded-For`
+entry, else `X-Real-IP`. A proxy appends the address it saw to that header, so only the last
+entry comes from a proxy we run; the ones before it are whatever the client sent. (The first
+entry was read once, and a script sending a new invented address each time was never limited.)
+
+- **VPS:** nginx appends (`$proxy_add_x_forwarded_for`, `deploy/nginx.conf`), so the last entry
+  is the real client.
+- **cPanel (production): not yet confirmed.** If Apache/Passenger appends the client's address,
+  the limits work; if it passes the client's own header through untouched, the last entry is
+  still the client's to choose; if it sends none, Next fills in the socket's address and every
+  visitor shares one bucket. To check, from any machine (it spends one login bucket for 15
+  minutes and fails eleven sign-ins for an address that has no account):
+
+  ```bash
+  for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code} " -H "X-Forwarded-For: 10.9.8.$i" -X POST https://renovate.rretrocar.ge/api/auth/callback/credentials -d "email=nobody-$i@example.invalid&password=x"; done
+  ```
+
+  Then sign in normally from another network. If the eleventh request was refused, Passenger
+  appends and the limit holds. If none was refused, the forged header wins: ask the host what
+  Passenger forwards (or put the site behind a proxy that sets `X-Real-IP`). If an ordinary
+  sign-in from another network is refused too, everyone shares one bucket.
+

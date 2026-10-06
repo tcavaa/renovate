@@ -83,7 +83,9 @@ describe('rateLimit', () => {
   });
 
   it('reads the client IP from the proxy headers', () => {
-    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': '203.0.113.1, 10.0.0.1' } }))).toBe('203.0.113.1');
+    // The last hop is the one our proxy appended; what came before is the client's to make up.
+    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.1' } }))).toBe('203.0.113.1');
+    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': ' 203.0.113.1 ,' } }))).toBe('203.0.113.1');
     expect(clientIp(new Request('http://x', { headers: { 'x-real-ip': '203.0.113.2' } }))).toBe('203.0.113.2');
     expect(clientIp(new Request('http://x'))).toBe('unknown');
   });
