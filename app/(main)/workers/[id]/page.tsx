@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { notFound, redirect } from 'next/navigation';
 import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, ChevronRight, MapPin, Phone } from 'lucide-react';
@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { BookingDialog } from '@/components/checkout/BookingDialog';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName, localizedText, workerSpecialtyLabel } from '@/lib/i18n/labels';
-import { formatGEL, formatM2 } from '@/lib/utils';
+import { formatGEL, formatM2, TIME_ZONE } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,7 +205,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
                           </div>
                           <div className="flex items-center gap-3 text-xs text-ink-muted">
                             <Stars rating={r.rating} />
-                            <time dateTime={r.createdAt.toISOString()}>{r.createdAt.toLocaleDateString(dateLocale, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
+                            <time dateTime={r.createdAt.toISOString()}>{r.createdAt.toLocaleDateString(dateLocale, { timeZone: TIME_ZONE, year: 'numeric', month: 'short', day: 'numeric' })}</time>
                           </div>
                         </div>
                         {text && <p className="mt-3 text-sm leading-relaxed text-ink-soft">{text}</p>}

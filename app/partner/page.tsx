@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { ArrowRight, Box, Phone } from 'lucide-react';
 import { asc } from 'drizzle-orm';
@@ -16,7 +16,7 @@ import { Figure } from '@/components/calculator/MaterialsTable';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { localizedName } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { formatGEL, formatNumber, cn } from '@/lib/utils';
+import { formatGEL, formatNumber, cn, TIME_ZONE } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -232,7 +232,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
                         <Phone className="h-3 w-3" />
                         {o.customerPhone}
                       </a>
-                      <span>{new Date(o.sentAt ?? o.createdAt).toLocaleDateString(dateLocale)}</span>
+                      <span>{new Date(o.sentAt ?? o.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</span>
                       <span>{fill(t.market.itemsCount, { n: o.itemCount })}</span>
                     </p>
                   </div>

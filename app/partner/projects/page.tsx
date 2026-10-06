@@ -7,6 +7,7 @@ import { orderStage } from '@/lib/finance/orderFlow';
 import { homeStateShortLabel, formatM2L } from '@/lib/i18n/labels';
 import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
+import { TIME_ZONE } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +67,7 @@ export default async function PartnerProjectsPage(props: { searchParams: Promise
                   <td className="px-4 py-3">
                     <OrderStageBadge stage={orderStage(r)} t={t} />
                   </td>
-                  <td className="px-4 py-3 text-ink-muted">{r.sentAt ? new Date(r.sentAt).toLocaleDateString(dateLocale) : '—'}</td>
+                  <td className="px-4 py-3 text-ink-muted">{r.sentAt ? new Date(r.sentAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE }) : '—'}</td>
                   <td className="px-4 py-3 text-right">
                     <Link href={partnerHref(`/partner/projects/${r.projectId}`, ctx)} className="inline-flex items-center gap-1 text-sm font-medium text-ink hover:text-brand">
                       {p.openProject}

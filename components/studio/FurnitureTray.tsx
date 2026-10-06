@@ -22,7 +22,7 @@
  * Both lines scroll without a scrollbar and fade at the edge they continue past (`ScrollRow`).
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, LayoutGrid, Package, Palette, Plus, Search, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';

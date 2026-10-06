@@ -6,11 +6,11 @@ import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
 import { PaymentStatusBadge } from '@/components/admin/PaymentStatusBadge';
 import { sectionCrumb } from '@/lib/admin/crumbs';
-import { fill, parseListParams, type SearchParams } from '@/lib/admin/list';
+import { fill, parseListParams, type SearchParams, dateRange } from '@/lib/admin/list';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import type { PaymentStatus } from '@/lib/payments/flitt';
 
 export const dynamic = 'force-dynamic';
@@ -45,10 +45,9 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
   if (userId && userId > 0) where.push(eq(payments.userId, userId));
   const projectId = p.num('project');
   if (projectId && projectId > 0) where.push(eq(payments.projectId, projectId));
-  const dateFrom = p.get('dateFrom');
-  if (dateFrom) where.push(gte(payments.createdAt, new Date(dateFrom)));
-  const dateTo = p.get('dateTo');
-  if (dateTo) where.push(lte(payments.createdAt, new Date(`${dateTo}T23:59:59`)));
+  const dates = dateRange(p);
+  if (dates.from) where.push(gte(payments.createdAt, dates.from));
+  if (dates.to) where.push(lte(payments.createdAt, dates.to));
 
   const condition = where.length ? and(...where) : undefined;
   const sortColumn = p.sort === 'total' ? payments.total : payments.createdAt;
@@ -193,7 +192,7 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
               </td>
               <td className="px-4 py-2.5 text-xs text-ink-muted">
                 {r.orderTime ?? '—'}
-                <span className="block">{new Date(r.createdAt).toLocaleString(dateLocale)}</span>
+                <span className="block">{new Date(r.createdAt).toLocaleString(dateLocale, { timeZone: TIME_ZONE })}</span>
               </td>
             </Tr>
           ))}

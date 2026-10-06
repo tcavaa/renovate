@@ -93,3 +93,18 @@ export function pageWindow(page: number, pageCount: number, width = 5): number[]
   for (let p = start; p <= end; p++) pages.push(p);
   return pages;
 }
+
+/**
+ * The `dateFrom` / `dateTo` filter of an admin list (`YYYY-MM-DD`, as the date inputs write
+ * them), as the first and last instant of those days in Tbilisi. Anything else is no bound: a
+ * hand-edited `?dateFrom=x` made an Invalid Date that crashed the page's query. It was copied
+ * into three pages; this is the one.
+ */
+export function dateRange(p: Pick<ListParams, 'get'>): { from: Date | null; to: Date | null } {
+  const day = (value: string, end: boolean): Date | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const date = new Date(`${value}T${end ? '23:59:59.999' : '00:00:00'}+04:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+  return { from: day(p.get('dateFrom'), false), to: day(p.get('dateTo'), true) };
+}

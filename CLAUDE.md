@@ -121,8 +121,9 @@ be absent in a fresh cloud checkout — `pnpm install` before running anything.
    from the plan. Keyboard shortcuts match `event.code`, never `event.key`.
 8. **The app must work without any API key**: Claude is optional and only reads plans; card
    payments fall back to Flitt's public sandbox merchant ([docs/payments.md](docs/payments.md)).
-9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates in
-   client components through `formatDateTime()`.
+9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates
+   through `formatDateTime()` or a `toLocale…` call with `{ timeZone: TIME_ZONE }` (Tbilisi, on
+   both sides — `lib/utils.ts`); pictures through `@/components/ui/image`, not `next/image`.
 10. **Before calling a change done**: `pnpm type-check`, `pnpm lint`, `pnpm test` (plus
     `test:parser` / `test:solver` when the plan pipeline changed), and update the docs (below).
 

@@ -16,7 +16,7 @@ import {
   roleLabel,
   statusLabel,
 } from '@/lib/i18n/labels';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { sectionCrumb } from '@/lib/admin/crumbs';
 import { AdminPageHeader } from '@/components/admin/AdminList';
@@ -106,11 +106,11 @@ export default async function AdminUserDetailPage(
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="h-4 w-4" />
-                {new Date(user.createdAt).toLocaleString(dateLocale)}
+                {new Date(user.createdAt).toLocaleString(dateLocale, { timeZone: TIME_ZONE })}
               </span>
               <span className="inline-flex items-center gap-1.5" title={ka.accounts.lastLogin}>
                 <LogIn className="h-4 w-4" />
-                {ka.accounts.lastLogin}: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString(dateLocale) : ka.accounts.never}
+                {ka.accounts.lastLogin}: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString(dateLocale, { timeZone: TIME_ZONE }) : ka.accounts.never}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Shield className="h-4 w-4" />
@@ -205,7 +205,7 @@ export default async function AdminUserDetailPage(
                     )}
                   </td>
                   <td className="px-4 py-3 text-ink-muted">
-                    {new Date(p.createdAt).toLocaleDateString(dateLocale)}
+                    {new Date(p.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

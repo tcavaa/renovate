@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { BadgeCheck, MapPin, Star, UsersRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { localizedName, workerSpecialtyLabel, type Locale } from '@/lib/i18n/labels';

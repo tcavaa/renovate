@@ -16,7 +16,7 @@
  * page, since Radix unmounts a closed dialog).
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { useEffect, useMemo, useRef } from 'react';
 import { Check, Droplets, ExternalLink, LayoutGrid, Package, PaintBucket, Paintbrush, Search, Square, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';

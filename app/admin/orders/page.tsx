@@ -8,12 +8,12 @@ import { sectionCrumb } from '@/lib/admin/crumbs';
 import { OrderStageBadge } from '@/components/orders/OrderStatusBadge';
 import { Badge } from '@/components/ui/badge';
 import { getLocale, getT } from '@/lib/i18n/server';
-import { hrefWith, parseListParams, type SearchParams } from '@/lib/admin/list';
+import { hrefWith, parseListParams, type SearchParams, dateRange } from '@/lib/admin/list';
 import { orderStage } from '@/lib/finance/orderFlow';
 import { ORDER_STATUSES, type OrderStatus } from '@/lib/finance/money';
 import { orderStatusLabel } from '@/lib/i18n/labels';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL, formatNumber } from '@/lib/utils';
+import { formatGEL, formatNumber, TIME_ZONE } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
 
 export const dynamic = 'force-dynamic';
@@ -52,10 +52,9 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
   if (Number.isInteger(teamId) && teamId > 0) where.push(eq(orders.teamId, teamId));
   // Unread by the partner: only an order the partner has been sent can be unread.
   if (p.get('unread') === 'yes') where.push(and(isNotNull(orders.sentAt), isNull(orders.viewedAt))!);
-  const dateFrom = p.get('dateFrom');
-  if (dateFrom) where.push(gte(orders.createdAt, new Date(dateFrom)));
-  const dateTo = p.get('dateTo');
-  if (dateTo) where.push(lte(orders.createdAt, new Date(`${dateTo}T23:59:59`)));
+  const dates = dateRange(p);
+  if (dates.from) where.push(gte(orders.createdAt, dates.from));
+  if (dates.to) where.push(lte(orders.createdAt, dates.to));
 
   const sortColumn = p.sort === 'subtotal' ? orders.subtotal : p.sort === 'commission' ? orders.commissionAmount : orders.createdAt;
   const orderBy = p.dir === 'asc' ? asc(sortColumn) : desc(sortColumn);
@@ -181,7 +180,7 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
                 <OrderStageBadge stage={orderStage(r)} t={ka} />
                 {r.sentAt && !r.viewedAt && r.status !== 'cancelled' && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-brand">{o.unread}</span>}
               </td>
-              <td className="px-4 py-2.5 text-ink-muted">{new Date(r.createdAt).toLocaleDateString(dateLocale)}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{new Date(r.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</td>
             </Tr>
           ))}
           {rows.length === 0 && <EmptyRow colSpan={7} text={where.length ? f.noResults : o.empty} />}

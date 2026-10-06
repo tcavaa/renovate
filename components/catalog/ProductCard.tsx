@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { ArrowUpRight, Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';

@@ -2,7 +2,7 @@ import { Fragment, cache } from 'react';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import type { Metadata } from 'next';
 import { Box, ChevronRight, ExternalLink, MapPin, Phone, Truck } from 'lucide-react';
 import { and, desc, eq, ne } from 'drizzle-orm';

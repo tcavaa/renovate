@@ -6,7 +6,7 @@
  * the piece is wanted; this list is for looking after them.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';

@@ -7,9 +7,9 @@ import { FilterBar } from '@/components/admin/FilterBar';
 import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/components/admin/AdminList';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateShortLabel, statusLabel } from '@/lib/i18n/labels';
-import { inIdOrder, parseListParams, type SearchParams } from '@/lib/admin/list';
+import { inIdOrder, parseListParams, type SearchParams, dateRange } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import { HOME_STATE_VALUES, type HomeState } from '@/lib/calculator/types';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { sectionCrumb } from '@/lib/admin/crumbs';
@@ -35,8 +35,9 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
   if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as HomeState));
   if (p.get('kind') === 'design') where.push(isNotNull(projects.plan));
   if (p.get('kind') === 'calculator') where.push(or(isNotNull(projects.selectedProducts), eq(projects.mode, 'full'))!);
-  if (p.get('dateFrom')) where.push(gte(projects.createdAt, new Date(p.get('dateFrom'))));
-  if (p.get('dateTo')) where.push(lte(projects.createdAt, new Date(`${p.get('dateTo')}T23:59:59`)));
+  const dates = dateRange(p);
+  if (dates.from) where.push(gte(projects.createdAt, dates.from));
+  if (dates.to) where.push(lte(projects.createdAt, dates.to));
   if (p.num('costMin') != null) where.push(gte(projects.totalCost, String(p.num('costMin'))));
   if (p.num('costMax') != null) where.push(lte(projects.totalCost, String(p.num('costMax'))));
   const filter = where.length ? and(...where) : undefined;
@@ -165,7 +166,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
               <td className="px-4 py-2.5">
                 {r.status === 'saved' ? <Badge variant="success">{statusLabel(ka, r.status)}</Badge> : <Badge variant="outline">{statusLabel(ka, r.status ?? 'draft')}</Badge>}
               </td>
-              <td className="px-4 py-2.5 text-ink-muted">{new Date(r.createdAt).toLocaleDateString(dateLocale)}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{new Date(r.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</td>
             </Tr>
           ))}
           {rows.length === 0 && <EmptyRow colSpan={9} text={p.hasFilters ? f.noResults : ka.admin.projectsEmpty} />}

@@ -51,15 +51,23 @@ export function slugify(text: string): string {
 }
 
 /**
- * `08.09.2026, 06:45` — the same string on the server and in the browser, whatever ICU each
- * ships. `toLocaleString` in a client component hydrated differently on the two sides (the
- * order editor hit this); this is for client components, server components may keep
- * `toLocaleString`. Local time of wherever it runs.
+ * The time zone every date is shown in: the platform is Georgian, and a time shown is
+ * Tbilisi's whatever zone the server (UTC on the hosts) or the browser runs in. Dates were
+ * written in each side's own zone, so a UTC server and a Tbilisi browser disagreed by four hours
+ * and hydration failed on every date in a client component.
+ */
+export const TIME_ZONE = 'Asia/Tbilisi';
+
+const tbilisiParts = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+/**
+ * `08.09.2026, 06:45` in Tbilisi time — the same string on the server and in the browser,
+ * whatever ICU and time zone each has (`toLocaleString` hydrated differently on the two sides).
  */
 export function formatDateTime(value: string | number | Date, withTime = true): string {
   const d = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  const two = (n: number) => String(n).padStart(2, '0');
-  const date = `${two(d.getDate())}.${two(d.getMonth() + 1)}.${d.getFullYear()}`;
-  return withTime ? `${date}, ${two(d.getHours())}:${two(d.getMinutes())}` : date;
+  const part = Object.fromEntries(tbilisiParts.formatToParts(d).map((p) => [p.type, p.value]));
+  const date = `${part.day}.${part.month}.${part.year}`;
+  return withTime ? `${date}, ${part.hour}:${part.minute}` : date;
 }

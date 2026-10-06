@@ -228,6 +228,19 @@ have a "Translations" section; `scripts/lib/translations.ts` holds the seed tran
 "archetype + model name", textures a humanised slug). The i18n rule applies to data as well
 as UI copy: nothing user-facing is Georgian-only by construction.
 
+## Dates and pictures
+
+- **Every date is shown in Tbilisi time** (`TIME_ZONE` in `lib/utils.ts`): `formatDateTime()`
+  (`08.09.2026, 06:45`, assembled from `Intl` parts so both sides write the same string), or a
+  `toLocaleDateString` / `toLocaleString` with `{ timeZone: TIME_ZONE }`. The servers run in UTC:
+  dates were four hours off on the server's pages and hydration failed on every date in a client
+  component. A day label built from a local `new Date(y, m, d)` (a chart's axis) keeps no zone.
+- **Pictures go through `@/components/ui/image`**, which is `next/image` except for a host the
+  optimiser does not fetch from (`images.remotePatterns`): those are shown as they are. A
+  partner's picture URL is any URL, and `/_next/image` answered it with a 400.
+- **Admin lists' date filters** go through `dateRange()` (`lib/admin/list.ts`): `YYYY-MM-DD` as
+  the whole day in Tbilisi, anything else no bound (an invalid one crashed the payments page).
+
 ## API conventions
 
 All shared route vocabulary is in `lib/api/route.ts`:
@@ -281,7 +294,8 @@ All shared route vocabulary is in `lib/api/route.ts`:
 
 ## Dates in client components
 
-**Date formatting in client components** goes through `formatDateTime` (`lib/utils.ts`):
+**Date formatting** goes through `formatDateTime` or a `toLocale…` call with
+`{ timeZone: TIME_ZONE }` (`lib/utils.ts`; see [Dates and pictures](#dates-and-pictures)):
 `toLocaleString` hydrated differently on the server and in the browser and the order editor
 was the first to break.
 

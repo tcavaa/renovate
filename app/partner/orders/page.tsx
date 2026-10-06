@@ -10,7 +10,7 @@ import { FilterBar } from '@/components/admin/FilterBar';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { orderStatusLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { formatGEL, cn } from '@/lib/utils';
+import { formatGEL, cn, TIME_ZONE } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +98,7 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
                   <td className="px-4 py-3">
                     <OrderStageBadge stage={orderStage(o)} t={t} />
                   </td>
-                  <td className="px-4 py-3 text-ink-muted">{new Date(o.sentAt ?? o.createdAt).toLocaleDateString(dateLocale)}</td>
+                  <td className="px-4 py-3 text-ink-muted">{new Date(o.sentAt ?? o.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</td>
                 </tr>
               ))}
             </tbody>

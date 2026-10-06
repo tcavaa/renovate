@@ -18,7 +18,7 @@ import { designEntryHref, designStepPosition } from '@/lib/design/steps';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { calculatorStepLabels, formatM2L } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL } from '@/lib/utils';
+import { cn, formatGEL, TIME_ZONE } from '@/lib/utils';
 import type { Dictionary } from '@/lib/i18n';
 import type { StudioStep } from '@/store/designStore';
 
@@ -91,7 +91,7 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
 
   const all = await loadHubProjects(userId);
   const listed = all.filter((p) => (calculator ? p.hasCalculator : p.hasDesign));
-  const dateOf = (p: HubProject) => new Date(p.updatedAt).toLocaleDateString(dateLocaleFor(locale), { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateOf = (p: HubProject) => new Date(p.updatedAt).toLocaleDateString(dateLocaleFor(locale), { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric' });
   // What the "from the other product" button offers: the projects that have the other half and
   // not this one, with something to start this one from.
   const picks: HubPick[] = all

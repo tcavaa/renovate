@@ -3,6 +3,7 @@
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import type { Locale } from '@/lib/i18n';
+import { TIME_ZONE } from '@/lib/utils';
 
 const DATE_LOCALE: Record<Locale, string> = { ka: 'ka-GE', en: 'en-GB', ru: 'ru-RU' };
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +28,7 @@ export function HubDate({ at, className }: { at: number | string; className?: st
         ? fill(t.hub.yesterdayAt, { time })
         : days < 7
           ? fill(t.hub.daysAgoAt, { n: days, time })
-          : when.toLocaleDateString(DATE_LOCALE[locale], { day: 'numeric', month: 'long', year: 'numeric' });
+          : when.toLocaleDateString(DATE_LOCALE[locale], { timeZone: TIME_ZONE, day: 'numeric', month: 'long', year: 'numeric' });
   return (
     <time dateTime={when.toISOString()} className={className} suppressHydrationWarning>
       {label}

@@ -6,7 +6,7 @@
  */
 
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { ArrowUpRight, BrickWall, Cable, Check, DoorOpen, Droplets, Ellipsis, Flame, Grid2x2, Hammer, LayoutGrid, Lightbulb, LockOpen, Minus, MousePointer2, Package, PaintBucket, Paintbrush, Palette, Sofa, Sparkles, Square, SquareDashed, Trash2, Truck, Wind, X, type LucideIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useLocale, useT } from '@/lib/i18n/client';

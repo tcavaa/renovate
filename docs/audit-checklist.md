@@ -49,7 +49,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
    export (S12); Origin check or JSON content-type in `handle()` (S18); bounds on calculator
    `rooms` / `floorM2 ≥ 0` / `specs` / render `camera` (S16); asset URLs overwritten from the
    catalogue on save (S14); `cpanel.yml`'s manual trigger runs CI first.
-9. [ ] **Visible Next.js bugs** (N2, N3, NX-6, 2.10): time-zone hydration mismatches
+9. [x] **Visible Next.js bugs** (N2, N3, NX-6, 2.10): time-zone hydration mismatches
    (`formatDateTime` with `Asia/Tbilisi` via `Intl`); `next/image` refusing partner image hosts
    (allow them or `unoptimized`); an invalid date param crashes `/admin/payments`.
 10. [ ] **Dead code and repo hygiene** (§6, R8, 1.10): `.gitignore` misses
@@ -139,8 +139,9 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] cPanel deploy health check and rollback; log rotation; the migrator honours `DATABASE_SSL` (5.3)
 
 ### Duplicates and types (do when touching the area)
+- [x] Admin `dateRange()` helper (was 3 copies) — done with top 10 #9
 - [ ] Payment enums, `BuildMaterial` and technical/electrical kinds from one `as const` array each
-- [ ] Own-item "free or paid" rule in one function (3 routes); admin `dateRange()` helper (3 copies)
+- [ ] Own-item "free or paid" rule in one function (3 routes)
 - [ ] Label helpers out of `PlanToolbar`, generic fields out of `ElementInspector`; budget line
   keys built and parsed in `lib/design/ticks.ts`; fit-to-view ×3; one client envelope type
 - [ ] `noUncheckedIndexedAccess` for `lib/design`, `lib/design3d`; typed i18n lookups
@@ -160,4 +161,5 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | Persistence: debounced store writes (one per 400 ms burst, flushed on pagehide), versions sent only when changed, projected `GET /api/projects` | top 10 #5 (R3 in part, P6 in part, perf #2/#4 in part) | `b769566d` |
 | 3D failures: WebGL probe + error boundary (`ViewerGuard`), redraw on context restore, failed textures retried, failed Draco decoder replaced, loading screen per flat | top 10 #6 (P10, 3.1) | `86ec03bb` |
 | Re-render storms: stable `useDesignActions` + shallow picks on the editor pages and `PlanWorkspace`, `memo(Viewer3D)`, shadow map only on scene changes | top 10 #7 (P8, R4 in part, perf #1a/#1b/#3) | `30db0c1a` |
+| Security batch: `GET /api/checkout` 401 first, cross-site writes refused in `handle()`, CSV formula escaping, bounded save payloads, catalogue asset URLs on reprice, manual cPanel publish runs CI | top 10 #8 (S12, S14, S16, S18, S20, 1.7 rest) | `cc2a767f` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |
