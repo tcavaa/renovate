@@ -160,7 +160,7 @@ describe('budget lines', () => {
   });
 
   it('names the trades the labour needs, biggest first', () => {
-    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'tiling', 'painting'] });
+    const cost = priceScene(plan(), scene('full', [socket('s1', 'generated'), light]), { homeState: 'white_frame', works: ['plumbing', 'electrical', 'bathroom_tiling', 'painting'] });
     const trades = tradesNeeded(cost);
     const slugs = trades.map((t) => t.slug);
     expect(slugs).toContain('electrical');

@@ -1,5 +1,4 @@
 import { db } from '@/lib/db';
-import { CALCULATOR_STEPS } from '@/lib/calculator/steps';
 import { projects } from '@/lib/db/schema';
 import { createProjectSchema } from '@/lib/validations/project.schema';
 import { emptyPlan, emptyScene } from '@/lib/projects/saved';
@@ -36,7 +35,7 @@ export const POST = handle('POST /api/projects/create', 'Failed to create projec
           mode: 'full',
           selectedProducts: {},
           selectedFurniture: {},
-          calculatorEdits: { progress: { step: 1, calculated: false, at: 1, steps: CALCULATOR_STEPS } },
+          calculatorEdits: { progress: { step: 1, calculated: false, at: 1 } },
         })
       : await db.insert(projects).values({
           ...common,

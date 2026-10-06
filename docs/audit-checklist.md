@@ -83,10 +83,12 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
   history (`setWorks`, `setExisting`, `lockItem`, `applyPendingPicks`, `setStyle`, `ensure*`…);
   write the "undo restores the pre-state" property test first (R1, 2.6)
 - [ ] Split the design store by lifecycle: document / session / sync / versions / calculator board (R2)
-- [ ] Validate DB JSON on read (`lib/projects/saved.ts`, `json<T>()` returns a string as `T` on
-  parse failure); drop the read-time row shims (`fromSevenSteps`, `saved.ts`' row shims,
-  `migrateFinishPicks`, `liftFlags`, `LEGACY_WORKS`, `RETIRED_RATE_KEYS`, the `loadCalculatorHalf`
-  rescue) — no backfill needed, old rows may break (R7, 2.9). *The persist `merge` now validates.*
+- [x] Read-time row shims removed: `fromSevenSteps` and the `steps` marker, progress guessed from
+  status, the old-pick migration and cart keys, room walls read off the board, the board rescue,
+  per-pick `excluded` flags (`liftFlags`), the old work keys, `RETIRED_RATE_KEYS` (rows deleted by
+  migration 0027); a save without progress is no longer "calculated"
+- [ ] Validate DB JSON on read (`lib/projects/saved.ts` casts; `json<T>()` returns a string as `T`
+  on a parse failure) (R7, 2.9)
 - [ ] Editor shortcuts change the document behind open dialogs (ST-3); Escape/✕ closes the
   non-modal payment dialogue during 3-D Secure, reopening makes a new Flitt order (NX-7)
 - [ ] Item/room/wall caps only in the server schema — enforce in the client with a message (perf #17)

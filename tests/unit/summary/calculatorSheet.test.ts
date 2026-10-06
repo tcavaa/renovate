@@ -188,10 +188,4 @@ describe('a calculation is priced as a design', () => {
     expect(both.lines.find((l) => l.tick === basinTick)?.excluded).toBe(true);
     expect(both.subtotalProducts).toBeCloseTo(sheet.subtotalProducts - 1080, 1);
   });
-
-  it('reads a pick flagged by the first version of the summary as ticked off', () => {
-    const base = input();
-    const flagged = { ...base.picks, selectedProducts: { ...base.picks.selectedProducts, sanitary_global: { ...basin, excluded: true } } };
-    expect(calculatorSheet({ ...base, picks: flagged }).lines.find((l) => l.tick === tickFor.pick('sanitary_global'))?.excluded).toBe(true);
-  });
 });

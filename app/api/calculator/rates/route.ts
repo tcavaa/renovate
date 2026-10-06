@@ -1,7 +1,6 @@
-import { asc, eq, notInArray } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { rates } from '@/lib/db/schema';
-import { RETIRED_RATE_KEYS } from '@/lib/calculator/constants';
 import { rateSchema, toRateRow } from '@/lib/validations/rate.schema';
 import { API_ERRORS, fail, handle, ok, requireAdmin } from '@/lib/api/route';
 
@@ -13,7 +12,6 @@ export const GET = handle('GET /api/calculator/rates', 'Failed to load rates', a
   const rows = await db
     .select()
     .from(rates)
-    .where(notInArray(rates.key, [...RETIRED_RATE_KEYS]))
     .orderBy(asc(rates.phase), asc(rates.sortOrder), asc(rates.id));
   return ok(rows);
 });

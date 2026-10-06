@@ -48,7 +48,8 @@ export const saveCalculatorSchema = z
     draft: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
-    const calculated = data.edits?.progress?.calculated !== false;
+    // Worked out only when the save says so: a save without its progress is not "calculated".
+    const calculated = data.edits?.progress?.calculated === true;
     if (calculated && (!data.homeState || data.rooms.length === 0)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A worked-out calculation needs a home state and at least one room' });
   });
 

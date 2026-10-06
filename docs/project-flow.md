@@ -157,11 +157,10 @@ none for it, the project page shows a note instead of its sheet, the hubs and th
 "not calculated / generated yet", and the checkout, the order button and a brigade booking
 leave it out.
 
-**Progress from before this was recorded** is read by `calculatorProgress` / `designProgress`: a
-saved or ordered project was finished; a draft counts as calculated only when products were
-picked, and as generated only when furnished. **Calculator progress recorded before 26
-September 2026 is in seven steps** (it had a placement step): it has no `steps: 6`, and
-`calculatorProgress` maps it with `fromSevenSteps` ([calculator.md](calculator.md#the-six-steps)).
+**A half without recorded progress has not been worked out** (`calculatorProgress` /
+`designProgress`: step 1, not calculated / generated). Every save records it and a new row starts
+with it. Rows from before progress was recorded, and the seven-step numbering, are no longer
+read — the app keeps no compatibility with older versions while it holds no real data.
 
 ## 7. Opening a project (`ProjectGate`)
 
@@ -195,24 +194,16 @@ every page — the calculator's step, the design's step with `?tool=finishes` as
 
 - **From the cache** when the calculation is this project's own (`calculatorStarted`, or this
   browser has unsaved changes to it), the cache is current (`cacheIsCurrent`, §9) and both the
-  calculator store and the board store carry this project's id. The picks are normalised
-  (below) and, if that changed anything, the half is marked dirty.
+  calculator store and the board store carry this project's id.
 - **Otherwise from the row**:
   - `openSavedProject` with the rooms, home state, picks, edits and progress;
-  - the board from `calculatorBoard`. If the row has no board but this browser has a drawing
-    of the same rooms (a calculation from before the board was saved), that drawing is kept
-    and marked to be written (the *rescue*). Otherwise the design's plan is used if it has
-    rooms, or the plan step rebuilds rectangles from the rooms;
+  - the board from `calculatorBoard`; with none, the design's plan if it has rooms, or the
+    plan step draws the rooms;
   - a project designed first: the plan's rooms, the studio's products as picks
-    (`picksFromScene`, per room), the home state only for a renovation with rooms (it then
+    (`picksFromScene`, per room, each room's floor and walls counted from the room —
+    `withRoomFinishQuantities`), the home state only for a renovation with rooms (it then
     opens calculated, on step 3), otherwise step 1. Opening it writes nothing;
-  - `baseRev` = the row's revision, the sync line clean. The picks are then normalised and
-    written back once when they came from before (the calculation's own only).
-- **Normalising the picks** (`normalizeFinishPicks`): rooms saved before they carried their
-  walls read them off the board (`withBoardWalls` — worked out, so not marked unsaved), then
-  `migrateFinishPicks` (old cart and whole-flat finishes onto the rooms, §13), then
-  `withRoomFinishQuantities` (every room's floor and walls put in shape and counted from the
-  room — see [calculator.md](calculator.md#step-4-every-rooms-floor-and-walls-libcalculatorroomfinishests)).
+  - `baseRev` = the row's revision, the sync line clean.
 
 **`loadDesignHalf(project)`** — from the cache under the same rule (dirty, or `baseRev` at
 `designRev`, and the store's `projectId` is this one), else `openSaved(row)` (plan, scene,
@@ -510,8 +501,7 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 
 Moved to [calculator.md](calculator.md#the-six-steps): the steps and their paths, steps 1–2,
 step 4's floor and wall for every room (`lib/calculator/roomFinishes.ts`), per-room quantities
-on both sides, where the finishes go, old picks moved onto the rooms, and the seven steps
-before the six (`fromSevenSteps`).
+on both sides, and where the finishes go.
 
 ## 14. The design's ways in (step 1)
 
@@ -597,7 +587,7 @@ to save gets the conflict banner.
 ## 16. Tests, and checking by hand
 
 - **Unit** (`tests/unit/flow/`): `resume`, `projectSync` (lines, pruning, quota),
-  `openProject` (cache vs row, rescue, design-first, handoff, old picks moved), `owner`,
+  `openProject` (cache vs row, design-first, handoff), `owner`,
   `saveHelpers` (base revision, save ids, clean-after-save, the kept versions),
   `autosaveSignature`.
 - **Calculator** (`tests/unit/calculator/roomFinishes.test.ts`, `tests/unit/store/calculatorStore.test.ts`):
@@ -639,8 +629,7 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
    retry was a "conflict" with the person's own work.
 3. **Forced saves still need `WHERE rev =`**, and the answer's revision is `read + 1`, not a
    re-read — two racing saves otherwise interleave, or report somebody else's revision.
-4. **Old browser copies are not current**, even when they look it: every row started at
-   revision 0. Only the calculator's drawing, which the row never had, is carried over.
+4. **A browser copy that names no revision is not current**, even when it looks it.
 5. **A hub restored by Back has an old list**: pruning must never drop an id newer than the
    newest listed, or a project just made loses its unsaved work.
 6. **Mark dirty before checking the session**, or an edit made while the session reads as

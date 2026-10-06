@@ -63,10 +63,7 @@ export function suggestedQuantityForRoom(categorySlug: string, room: Room): numb
 
 /**
  * Calculator selection keys: `<slug>_global` is a product chosen for the whole flat (a socket,
- * a door), `<slug>_room:<roomId>` a room's floor or walls (`lib/calculator/roomFinishes`), and
- * `<slug>_item:<productId>` a floor or wall material from the cart that was laid on the rooms
- * by hand on the placement step, until September 2026 — no longer made, still read, and moved
- * onto the rooms when its project opens (`migrateFinishPicks`).
+ * a door) and `<slug>_room:<roomId>` a room's floor or walls (`lib/calculator/roomFinishes`).
  *
  * A room's surface in more than one product adds a part after the room: `/<part>` — the
  * floor's second product (`floor2`), or one product over the walls it was chosen for one by
@@ -78,19 +75,9 @@ export function selectionKey(categorySlug: string, roomId?: string | null, part?
   return part ? `${categorySlug}_room:${roomId}/${part}` : `${categorySlug}_room:${roomId}`;
 }
 
-/** The key a finish had in the cart (one per product), before every room took its own. */
-export function cartKey(categorySlug: string, productId: number): string {
-  return `${categorySlug}_item:${productId}`;
-}
-
-/** A cart key — a finish whose quantity was the area it was laid on by hand (see `selectionKey`). */
-export function isCartKey(key: string): boolean {
-  return /_item:\d+$/.test(key);
-}
-
 /** The category slug a calculator selection key was made from (`laminate_global` → `laminate`). */
 export function categorySlugFromKey(key: string): string {
-  return key.replace(/_room:.*$/, '').replace(/_item:\d+$/, '').replace(/_global$/, '');
+  return key.replace(/_room:.*$/, '').replace(/_global$/, '');
 }
 
 /** Cutting waste on a finish bought by the square metre: a tenth more tiles or boards than the floor measures. */

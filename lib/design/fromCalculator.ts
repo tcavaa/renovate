@@ -10,7 +10,7 @@
  */
 
 import type { SelectedProduct } from '@/lib/calculator/types';
-import { categorySlugFromKey, isCartKey, surfaceOfPick } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, surfaceOfPick } from '@/lib/calculator/quantities';
 import { calculatorSurfaceFinishes, type LaidFinish } from '@/lib/calculator/roomFinishes';
 import { placeAdditional } from './autoLayout';
 import { getArchetype } from './catalog';
@@ -44,7 +44,7 @@ export function picksFromCalculator(
     furniture: Object.entries(selectedFurniture).flatMap(([roomId, list]) =>
       list.map((p) => ({ roomId, productId: p.productId }))
     ),
-    productIds: entries.filter(([key, p]) => !p.roomId && !isCartKey(key)).map(([, p]) => p.productId),
+    productIds: entries.filter(([, p]) => !p.roomId).map(([, p]) => p.productId),
     roomProducts: entries
       .filter(([, p]) => !!p.roomId)
       .map(([key, p]) => {

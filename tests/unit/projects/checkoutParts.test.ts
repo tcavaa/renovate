@@ -36,7 +36,7 @@ describe('calculatorCheckoutPart', () => {
 
   it('lists the priced calculation’s product lines still ticked, and names the room of each', () => {
     const part = calculatorCheckoutPart(
-      input({ sanitary_global: pick(1, { categorySlug: 'sanitary' }), 'laminate_room:r2': pick(2, { roomId: 'r2', surface: 'floor', unit: 'm2', categorySlug: 'laminate' }) }, { r1: [pick(3), pick(4, { excluded: true })] }),
+      input({ sanitary_global: pick(1, { categorySlug: 'sanitary' }), 'laminate_room:r2': pick(2, { roomId: 'r2', surface: 'floor', unit: 'm2', categorySlug: 'laminate' }) }, { r1: [pick(3), pick(4)] }, { edits: { excluded: ['furniture:r1:4:0'] } }),
       'ka'
     );
     expect(part.lines.map((l) => l.productId).sort()).toEqual([1, 2, 3]);

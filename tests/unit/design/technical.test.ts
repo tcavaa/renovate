@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, normalizeWorks, phasesForWorks, technicalAnchors, technicalChecks, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, uncheckedTechnical, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
+import { AC_CEILING_GAP_M, AC_MIN_ELEVATION_M, AC_UNIT_HEIGHT_M, anchorsFor, defaultWorksForHomeState, effectivePhases, phasesForWorks, technicalAnchors, technicalChecks, technicalElevation, technicalSuggestions, TECHNICAL_KINDS, uncheckedTechnical, WORK_ITEMS, WORK_STAGES, worksForStage } from '@/lib/design/technical';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
 import { HOME_STATES } from '@/lib/calculator/constants';
 import { HOME_STATE_VALUES } from '@/lib/calculator/types';
@@ -36,12 +36,6 @@ describe('works and phases', () => {
     expect(effectivePhases('green_frame', ['screed', 'painting'])).toEqual([3, 6]);
     expect(new Set(WORK_ITEMS.map((w) => w.key)).size).toBe(WORK_ITEMS.length);
     for (const state of HOME_STATE_VALUES) expect(phasesForWorks(defaultWorksForHomeState(state))).toEqual(HOME_STATES[state].includedPhases);
-  });
-
-  it('reads a list saved under the old works in today’s keys', () => {
-    expect(normalizeWorks(['tiling', 'doors_windows', 'electrical_finish', 'electrical', 'insulation', 'furniture'])).toEqual(['electrical', 'bathroom_tiling', 'kitchen_tiling', 'doors']);
-    // A list that names nothing that still exists is the home state's.
-    expect(effectivePhases('green_frame', ['furniture'])).toEqual(HOME_STATES.green_frame.includedPhases);
   });
 
   it('starts an old renovation with the strip-out, and no other home state with it', () => {

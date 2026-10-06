@@ -13,8 +13,6 @@ export const selectedProductSchema = z.object({
   imageUrl: z.string().max(1024).nullable().optional(),
   categorySlug: z.string().max(128).optional(),
   roomId: z.string().max(64).optional(),
-  /** Ticked off the order on the summary; still part of the estimate. */
-  excluded: z.boolean().optional(),
   /** A finish in the cart: which surface it is laid on, and what the board shows it with (see `SelectedProduct`). */
   surface: z.enum(['floor', 'wall']).optional(),
   /** Its part of a floor laid in two products, and the walls it was chosen for one by one (see `SelectedProduct`). */
@@ -42,7 +40,7 @@ export const calculatorEditsSchema = z.object({
   quantities: z.record(z.string().min(3).max(96), z.number().min(0).max(1_000_000)).optional(),
   choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
   progress: z
-    .object({ step: z.number().int().min(1).max(7), calculated: z.boolean(), at: z.number().int().min(1).max(7).nullable().optional(), steps: z.number().int().min(1).max(12).optional() })
+    .object({ step: z.number().int().min(1).max(6), calculated: z.boolean(), at: z.number().int().min(1).max(6).nullable().optional() })
     .optional(),
 });
 

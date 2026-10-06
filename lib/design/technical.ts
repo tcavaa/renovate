@@ -108,31 +108,10 @@ export const WORK_ITEMS: WorkItem[] = [
   { key: 'debris', phase: 14 },
 ];
 
-/**
- * The works of the book before the team's, as a saved plan may still carry them, and what
- * each became. Works that no longer exist (insulation, the furniture "phase") map to nothing.
- */
-const LEGACY_WORKS: Record<string, string[]> = {
-  demolition: [],
-  insulation: [],
-  waterproofing: ['bathroom_prep'],
-  tiling: ['bathroom_tiling', 'kitchen_tiling'],
-  doors_windows: ['doors'],
-  electrical_finish: ['electrical'],
-  plumbing_finish: ['plumbing'],
-  sanitary: ['plumbing'],
-  furniture: [],
-  cleaning: ['debris'],
-};
-
-/** A stored works list in today's keys: old keys translated, unknown ones dropped, no repeats. */
+/** A stored works list in the book's order: unknown keys dropped, no repeats. */
 export function normalizeWorks(works: readonly string[]): string[] {
-  const known = new Set(WORK_ITEMS.map((w) => w.key));
-  const out = new Set<string>();
-  for (const key of works) {
-    for (const next of LEGACY_WORKS[key] ?? [key]) if (known.has(next)) out.add(next);
-  }
-  return WORK_ITEMS.filter((w) => out.has(w.key)).map((w) => w.key);
+  const chosen = new Set(works);
+  return WORK_ITEMS.filter((w) => chosen.has(w.key)).map((w) => w.key);
 }
 
 /**

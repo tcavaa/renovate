@@ -16,7 +16,6 @@
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { boardFinishesFromPicks } from '@/lib/calculator/roomFinishes';
-import { CALCULATOR_STEPS } from '@/lib/calculator/steps';
 import { activeProjectId } from '@/store/projectScope';
 import { markClean } from '@/lib/flow/projectSync';
 import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
@@ -56,7 +55,7 @@ export function saveCalculatorProject(options: { draft: boolean; projectId?: num
         selectedFurniture: s.selectedFurniture,
         // What was ticked off the summary and the quantities changed on it, and where the
         // journey is. The estimate is worked out again on the server; these are laid over it.
-        edits: { excluded: s.excluded, quantities: s.quantities, choices: s.choices, progress: { step: s.step, calculated: s.calculated, at: s.at, steps: CALCULATOR_STEPS } },
+        edits: { excluded: s.excluded, quantities: s.quantities, choices: s.choices, progress: { step: s.step, calculated: s.calculated, at: s.at } },
         // The drawing board — walls, doors, windows — so the project reopens as drawn, on any
         // computer; and each room in the floor and walls chosen for it, as the PDF draws it.
         board: { plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: boardFinishesFromPicks(board.plan, s.selectedProducts), electrical: board.electrical },

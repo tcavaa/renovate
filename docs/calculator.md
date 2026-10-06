@@ -19,13 +19,13 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | File | Responsibility |
 |---|---|
 | `lib/calculator/materials.ts` | the pure engine: `computeRoomAreas`, `aggregateRoomTotals`, `calculateMaterials`, `calculateWorkerCosts`, `expandStudios`, `estimateCounts`; `buildProjectSummary` (only the landing page's sample now — the sheet is `calculationCost`) |
-| `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, wet rooms), `ROOM_POINTS`, `RETIRED_RATE_KEYS`, `PHASE_NAMES` |
+| `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, wet rooms), `ROOM_POINTS`, `PHASE_NAMES` |
 | `lib/calculator/rates.ts` | rows of the `rates` table → a `RateBook` (`rateBookFromRows`, `defaultRateRows`, `DEFAULT_RATE_BOOK`, `LABOUR_PHASE`) |
 | `lib/calculator/types.ts` | `HomeState`, `Room`, `SelectedProduct`, `WorkChoices`, … |
 | `lib/calculator/quantities.ts` | selection keys (`selectionKey`, `categorySlugFromKey`, `roomIdFromKey`, `partFromKey`), `suggestedQuantity`, a room's walls (`roomWalls`, `roomWallAreasM2`), `roomFinishAreaM2` / `roomFinishQuantity` / `finishPickQuantity` |
 | `lib/calculator/roomFinishes.ts` | each room's floor and walls: `roomFinishesOf`, `withRoomFinish`, `withFloorProduct`, `withFloorShare`, `withWallProduct`, `withWallsOneByOne`, `withSameFinish`, `normalizeRoomFinishes`, `withRoomFinishQuantities`, `roomsLike`, `migrateFinishPicks`, `boardFinishesFromPicks` / `calculatorSurfaceFinishes` |
-| `lib/calculator/steps.ts` | step URLs (`calculatorStepHref`, `calculatorEntryHref`, `calculatorStepFromPath`), `fromSevenSteps` |
-| `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`); `withBoardWalls` for rooms saved without their walls |
+| `lib/calculator/steps.ts` | step URLs (`calculatorStepHref`, `calculatorEntryHref`, `calculatorStepFromPath`) |
+| `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`) |
 | `lib/calculator/boardCounts.ts` | what the calculator counts off the board (`boardCounts`): the partition walls (`boardPartitionCounts`), the doors (`boardDoorCounts`) and the windows (`boardWindowCounts`) — every place that prices a calculation passes it as `counts` |
 | `lib/design/freeSpot.ts` | `findFreeSpot` for rooms typed by size (the last of the old rectangle editor) |
 | `lib/calculator/saveProject.ts` | the client save (`saveCalculatorProject`: queue, `baseRev`, save ids, board finishes) |
@@ -33,7 +33,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/design/boardPicks.ts` | `dressBoard` / `pickTarget`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind, a moulding round every room — one rule for the calculator's board and the design (`applyBoardPicks`) |
 | `lib/projects/saved.ts` | `calculationInput(project)`: a saved calculation as `calculationCost`'s input (its board, fittings, picks, edits) — the project page, the orders and the checkout price it from this |
 | `hooks/useCalculatorBoardProducts.ts` | the design catalogue for the board: every door, window, radiator and fitting on it a product (`ensureBoardProducts`), as the design has them |
-| `store/calculatorStore.ts` | rooms, home state, picks, furniture, edits (`excluded`, `quantities`), `choices`, progress; persist version 4 (`migratePersisted`, `liftFlags`) |
+| `store/calculatorStore.ts` | rooms, home state, picks, furniture, edits (`excluded`, `quantities`), `choices`, progress; persist version 4 (another version's copy is discarded) |
 | `hooks/useRateBook.ts` / `lib/api/rateBook.ts` | the rate book on the client / server (`loadRateBook`) |
 | `hooks/usePickStores.ts` | who sells each pick (for the summary's shop cards) |
 | `lib/api/projectSave.ts` | server: `repriceCalculatorPicks` (prices and per-room quantities recomputed from the catalogue), `ownProject` |
@@ -164,11 +164,9 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 
 ### Step 4: every room's floor and walls (`lib/calculator/roomFinishes.ts`)
 
-Until 26 September the catalogue was a **cart**: floor and wall materials went in under
-`<slug>_item:<productId>` with no quantity, and a fifth step, **placement**, had the person lay
-them on the rooms of the board by hand (whole floors, walls, square metres, strips). The area laid
-was the quantity. It was an extra step and a confusing one: everything it asked for is known from
-the rooms. So:
+Until 26 September the catalogue was a **cart** with a fifth step, **placement**, where the person
+laid the materials on the rooms of the board by hand. Everything it asked for is known from the
+rooms. So:
 
 **The page.**
 - The rooms stand in a row under the step's head (`RoomRow`: a `ScrollRow`, sideways on a
@@ -248,11 +246,9 @@ the rooms. So:
   comes with them (`Room.wallsM2`, m², the same order: the length × the height less the doors,
   windows and archways in it, `edgeWallAreaM2`), compared and carried the same way, and the room
   schema keeps it (`room.schema.ts`).
-- A room saved before it carried its walls reads their lengths off the board when the project
-  opens (`withBoardWalls`, in the loader's `normalizeFinishPicks`). That is worked out, not work:
-  it is not marked unsaved, and the next save carries it. A room with none at all is the four
-  sides of its rectangle (`roomWalls`); either way, without net areas beside the walls they were
-  read with, a wall counts whole (`roomWallAreasM2`) until the plan step reads the room again.
+- A room with no walls of its own is the four sides of its rectangle (`roomWalls`); without net
+  areas beside the walls, a wall counts whole (`roomWallAreasM2`) until the plan step reads the
+  room again.
 
 **The quantity is the room's** (`roomFinishQuantity` in `lib/calculator/quantities.ts`).
 - The area the pick covers (`roomFinishAreaM2`): the room's floor m² times its share; its wall
@@ -291,25 +287,11 @@ the rooms. So:
 - **Studios** (kitchen + living room in one room) can take two floor products and a split, but
   the split is a share of the floor, not the studio's parts — a known gap.
 
-**Picks from before** are moved onto the rooms when the project opens (`migrateFinishPicks`,
-run by the loader, written back once).
-- A cart pick goes to the rooms whose floor or walls the board had in that product. A whole-room
-  finish counts; a tile or a strip does not. Laid nowhere, it is dropped.
-- A whole-flat finish (`<slug>_global` of a finish category — the first catalogue, and projects
-  designed first) goes to every room its kind of work suits.
-- Never over a room's own pick. `picksFromScene` (a project designed first) now makes per-room
-  picks from each room's whole-room finish too.
-
-**Six steps, and the seven before them.**
-- The placement step's page, `lib/calculator/placement.ts` and their strings are gone. Steps
-  renumber: old 1–4 stay, old 5 (placement) → 4, 6 → 5, 7 → 6 (`fromSevenSteps`,
-  `lib/calculator/steps.ts`).
-- A browser copy from before (persist version 3) is discarded, not translated: the project opens
-  from its row ([project-flow.md](project-flow.md)).
-- The row's progress is recorded with `steps: 6` from now on, and `calculatorProgress` maps any
-  progress without it. The schema still accepts a step up to 7, so a tab left open from before
-  can save, and its progress is read as the seven steps it is.
-- The proxy sends `/calculator/<id>/placement` to the catalogue.
+**Six steps.** The placement step is gone; a project designed first gets per-room picks from
+each room's whole-room finish (`picksFromScene`). The row's progress is in the six steps (the
+schema takes a step up to 6); rows, picks and browser copies from the cart and seven-step days
+are no longer read — no compatibility with older app versions is kept while there is no real
+data. The proxy still sends `/calculator/<id>/placement` to the catalogue (an old bookmark).
 
 ### Step 5: furniture
 
@@ -418,12 +400,10 @@ come to the same sheet, line for line, the design's placed furniture aside**
 (`tests/unit/summary/calculatorSheet.test.ts`). **A point's
 labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the phase when that
 phase runs (it counts every point the plan holds), to the point's own line when it does not —
-never both. The book before the team's is `RETIRED_RATE_KEYS`: `rateBookFromRows` never reads a
-row under one, the admin list and `GET /api/calculator/rates` hide them, the schema refuses
-them, and `pnpm db:seed:rates` deletes them locally; left in a production table they are inert.
-No new key may reuse a retired one.
-The studio's works checklist (`WORK_ITEMS`, one per phase) keeps a legacy map
-(`normalizeWorks`) for plans saved with the old work keys. A green frame's default "already
+never both. The rate rows of the book before the team's were deleted by migration
+`0027_drop_retired_rates.sql` (on every database), so nothing filters them any more.
+The studio's works checklist (`WORK_ITEMS`, one per phase) reads a stored list in its own order,
+unknown keys dropped (`normalizeWorks`); the old work keys are no longer translated. A green frame's default "already
 has" is openings, electrical, plumbing and heating (not the finishes), and every "already has"
 tick drops the phase that would redo it (`withoutExisting`).
 Wet rooms = bathroom, toilet, kitchen. The per-point labour keys the studio also prices points
@@ -450,17 +430,13 @@ apart. `lib/calculator/quantities.ts` owns the format — `selectionKey`, `categ
 summaries, the order lines and the studio can name the room. Never build or parse these
 strings by hand.
 
-The first catalogue's cart key, `<slug>_item:<productId>` (no room, no quantity), is still read
-(`cartKey` / `isCartKey`) so old projects open; `migrateFinishPicks` moves such picks onto the
-rooms when the project is loaded (see "Picks from before" above).
-
 ## Tests
 
 - `tests/unit/calculator/materials.test.ts` — areas and totals, materials by phase and basis,
   every home state's labour, a lighter state's lines being the same lines in a heavier one,
   work choices, phase overrides, the contingency.
 - `tests/unit/calculator/rates.test.ts` — `rateBookFromRows` (defaults, unseeded keys, inactive
-  and retired rows), `defaultRateRows`.
+  rows), `defaultRateRows`.
 - `tests/unit/calculator/quantities.test.ts`, `roomFinishes.test.ts` — keys and their parts,
   suggested and per-room quantities, a room's walls one by one, a floor in two products and its
   split, walls chosen one by one and the switch back, the shape every edit is put back in,

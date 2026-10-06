@@ -1,5 +1,5 @@
 import { aggregateRoomTotals, type OpeningCounts } from '@/lib/calculator/materials';
-import { categorySlugFromKey, isCartKey, roomFinishQuantity, roomIdFromKey, SURFACE_OF_SLUG, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
+import { categorySlugFromKey, roomFinishQuantity, roomIdFromKey, SURFACE_OF_SLUG, suggestedQuantity, suggestedQuantityForRoom } from '@/lib/calculator/quantities';
 import { normalizeRoomFinishes } from '@/lib/calculator/roomFinishes';
 import type { Room, SelectedProduct } from '@/lib/calculator/types';
 import type { ElectricalPoint, FloorPlan } from '@/lib/design/types';
@@ -72,14 +72,11 @@ export async function repriceCalculatorPicks(
       selectedProducts[key] = { ...repriced, roomId: room.id, ...(surface ? { surface } : {}) };
       continue;
     }
-    // A material from the cart, laid on the rooms by hand on the placement step before every
-    // room took its own (no longer made; a tab left open from before can still send one), is
-    // bought at the area it was laid on, held within what the flat could possibly take;
-    // everything else is quantified from the rooms alone.
+    // Everything else is quantified from the board's fittings, or the rooms alone.
     // What the product is comes from the catalogue, not from the snapshot: it decides what on the board it goes on.
     const kinded = { ...snapshot, categorySlug, model3dKind: catalogue.model3dKind };
-    const placed = board && !isCartKey(key) ? placedQuantity(board.plan, board.electrical, key, kinded) : null;
-    const qty = isCartKey(key) ? cartQuantity(snapshot.qty, totals) : (placed ?? suggestedQuantity(categorySlug, totals));
+    const placed = board ? placedQuantity(board.plan, board.electrical, key, kinded) : null;
+    const qty = placed ?? suggestedQuantity(categorySlug, totals);
     const repriced = repriceSnapshot(kinded, known, qty);
     if (!repriced) return { unknownProductId: snapshot.productId };
     selectedProducts[key] = repriced;
@@ -99,11 +96,6 @@ export async function repriceCalculatorPicks(
 }
 
 /** A laid area, as the client counted it, kept within a few times the flat's whole surface. */
-function cartQuantity(sent: number, totals: ReturnType<typeof aggregateRoomTotals>): number {
-  const ceiling = (totals.totalFloorM2 + totals.totalWallM2) * 3 + 10;
-  return Number.isFinite(sent) && sent > 0 ? Math.min(Math.round(sent * 100) / 100, ceiling) : 0;
-}
-
 export function isUnknownProduct(result: RepricedPicks | { unknownProductId: number }): result is { unknownProductId: number } {
   return 'unknownProductId' in result;
 }

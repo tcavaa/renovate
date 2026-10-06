@@ -749,8 +749,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             floorPlanUrl,
             homeState,
             mode: scene.mode,
-            // A scene from before these were saved had answered step 1 and had no empty start.
-            modeChosen: scene.progress?.modeChosen ?? true,
+            modeChosen: scene.progress?.modeChosen ?? false,
             emptyStart: scene.progress?.emptyStart ?? false,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
@@ -767,10 +766,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             focusRoomId: null,
             selectedItemId: null,
             selectedElement: null,
-            // Where the journey was when it was saved; a scene from before that was recorded was laid out.
-            generated: scene.progress?.generated ?? true,
+            // Where the journey was when it was saved (every save records it).
+            generated: scene.progress?.generated ?? false,
             planFromCalculator: scene.progress?.planFromCalculator ?? false,
-            step: (scene.progress?.step ?? 5) as StudioStep,
+            step: (scene.progress?.step ?? 1) as StudioStep,
             at: scene.progress?.at != null ? (Math.min(8, Math.max(1, Math.round(scene.progress.at))) as StudioStep) : null,
             history: emptyHistory(),
           })),

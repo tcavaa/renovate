@@ -190,6 +190,13 @@
       "when": 1791285936524,
       "tag": "0026_nullable_timestamps",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1791317587476,
+      "tag": "0027_drop_retired_rates",
+      "breakpoints": true
     }
   ]
 }

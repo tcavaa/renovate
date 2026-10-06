@@ -23,7 +23,7 @@ import type { RateBook } from '@/lib/calculator/rates';
 import { estimateCounts, type EstimateCounts } from '@/lib/calculator/materials';
 import { boardDoorCounts } from '@/lib/calculator/boardCounts';
 import { boardFinishesFromPicks, catalogProductFromPick } from '@/lib/calculator/roomFinishes';
-import { isCartKey, roomIdFromKey } from '@/lib/calculator/quantities';
+import { roomIdFromKey } from '@/lib/calculator/quantities';
 import { orderedLines, priceScene, renovationEstimate, type BudgetLine, type ProductLabels, type ProductLine, type SurfaceLabels } from '@/lib/design/pricing';
 import { boardPartitionCounts } from '@/lib/design/partitions';
 import { FIXTURE_PRODUCT_KIND } from '@/lib/design/electrical';
@@ -131,18 +131,6 @@ export function furnitureTicks(selectedFurniture: Record<string, SelectedProduct
   return out;
 }
 
-/**
- * The ticks a project's edits come to, with the picks ticked off in the first version of
- * the calculator's summary — a flag on the pick itself — read as the ticks they are now.
- */
-export function effectiveExcluded(picks: CalculatorPicks, edits?: CalculatorEdits | null): Tick[] {
-  const excluded: Tick[] = [...(edits?.excluded ?? [])];
-  // A room's floor or walls are its product's finish line now; the rest keep their pick's key.
-  for (const [key, pick] of Object.entries(picks.selectedProducts)) if (pick.excluded) excluded.push(roomIdFromKey(key) && !isCartKey(key) ? tickFor.finish(pick.productId) : tickFor.pick(key));
-  for (const { pick, tick } of furnitureTicks(picks.selectedFurniture)) if (pick.excluded) excluded.push(tick);
-  return excluded;
-}
-
 /** The board as the calculation's picks for the whole flat dress it. */
 export type BoardWithPicks = DressedBoard;
 
@@ -155,7 +143,7 @@ export type BoardWithPicks = DressedBoard;
  */
 export function boardWithPicks(board: FloorPlan, electrical: ElectricalPoint[], selectedProducts: Record<string, SelectedProduct>, storeOf: (productId: number) => SceneStore | null | undefined = () => null): BoardWithPicks {
   const products = Object.entries(selectedProducts)
-    .filter(([key]) => !roomIdFromKey(key) && !isCartKey(key))
+    .filter(([key]) => !roomIdFromKey(key))
     .map(([key, pick]) => ({ key, product: { ...catalogProductFromPick(pick), store: storeOf(pick.productId) ?? null } }));
   return dressBoard(board, electrical, products);
 }
@@ -232,7 +220,7 @@ export function calculationCost(input: CalculationInput, options: { edited?: boo
     items: [],
     finishes,
     electrical,
-    ...(edited ? { excluded: effectiveExcluded(input.picks, input.edits), quantities: input.edits?.quantities ?? {} } : {}),
+    ...(edited ? { excluded: input.edits?.excluded ?? [], quantities: input.edits?.quantities ?? {} } : {}),
   };
   return priceScene(plan, scene, {
     homeState: input.homeState,
@@ -259,13 +247,13 @@ export function calculationEstimate(input: Pick<CalculationInput, 'rooms' | 'hom
 /**
  * The calculator's own lines: the picks the design has no place for — a product for the whole
  * flat that is none of the board's doors, fittings and mouldings (or found none of them to go
- * on), a cart pick from before rooms took their own — and the furniture, picked room by room.
+ * on) — and the furniture, picked room by room.
  */
 function ownLines(picks: CalculatorPicks, placed: Record<string, number>, rooms: Room[], board: FloorPlan, storeOf: (productId: number) => SceneStore | null | undefined): BudgetLine[] {
   const roomName = new Map([...board.rooms.map((r) => [r.id, r.name] as const), ...rooms.map((r) => [r.id, r.nameKa] as const)]);
   const lines: BudgetLine[] = [];
   for (const [key, pick] of Object.entries(picks.selectedProducts)) {
-    if (placed[key] || (roomIdFromKey(key) && !isCartKey(key))) continue;
+    if (placed[key] || roomIdFromKey(key)) continue;
     lines.push({
       section: 'products',
       bucket: 'products',

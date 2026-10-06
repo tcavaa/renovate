@@ -9,7 +9,6 @@ import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.s
 import { withFloorProduct, withFloorShare, withRoomFinish, withRoomFinishQuantities, withSameFinish, withWallProduct, withWallsOneByOne, type FinishSurface } from '@/lib/calculator/roomFinishes';
 import { CALCULATOR_STEPS } from '@/lib/calculator/steps';
 import { tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
-import { effectiveExcluded } from '@/lib/summary/calculatorSheet';
 import type {
   CalculatorState,
   CalculatorStepNumber,
@@ -143,22 +142,6 @@ const initial: Persisted = {
 
 const clampStep = (step: number): CalculatorStepNumber => Math.min(CALCULATOR_STEPS, Math.max(1, Math.round(step))) as CalculatorStepNumber;
 
-/**
- * The first version of the summary's ticks was a flag on the pick itself. They are line keys
- * now, like every other line's; a flag found in stored state becomes the key it meant.
- */
-function liftFlags<T extends Pick<Persisted, 'selectedProducts' | 'selectedFurniture' | 'excluded'>>(state: T): T {
-  const flagged = Object.values(state.selectedProducts).some((p) => p.excluded) || Object.values(state.selectedFurniture).some((list) => list.some((p) => p.excluded));
-  if (!flagged) return state;
-  const strip = ({ excluded: _flag, ...pick }: SelectedProduct): SelectedProduct => pick;
-  return {
-    ...state,
-    excluded: [...new Set(effectiveExcluded(state, { excluded: state.excluded }))],
-    selectedProducts: Object.fromEntries(Object.entries(state.selectedProducts).map(([k, p]) => [k, strip(p)])),
-    selectedFurniture: Object.fromEntries(Object.entries(state.selectedFurniture).map(([k, list]) => [k, list.map(strip)])),
-  };
-}
-
 type CalculatorStoreHook = UseBoundStore<StoreApi<CalculatorStore>>;
 
 /** One project's calculator; `storageName` null makes one kept in memory only (outside a project, tests). */
@@ -186,7 +169,7 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
       setChoices: (choices) => set((s) => ({ choices: { ...s.choices, ...choices } })),
       openSavedProject: ({ projectId, rooms, homeState, selectedProducts, selectedFurniture, edits, progress }) =>
         set((s) => ({
-          ...liftFlags({
+          ...{
             projectId,
             rooms,
             homeState,
@@ -201,7 +184,7 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
               : progress
                 ? { calculated: progress.calculated, step: clampStep(progress.step), at: progress.at != null ? clampStep(progress.at) : null }
                 : { calculated: true, step: CALCULATOR_STEPS as CalculatorStepNumber, at: null }),
-          }),
+          },
           loadSerial: s.loadSerial + 1,
         })),
       setHomeState: (homeState) => set({ homeState }),
@@ -296,7 +279,7 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
       merge: (persisted, current) => {
         const parsed = persistedSchema.safeParse(persisted);
         if (!parsed.success) return current;
-        return liftFlags({ ...current, ...(parsed.data as unknown as Partial<Persisted>) });
+        return { ...current, ...(parsed.data as unknown as Partial<Persisted>) };
       },
       // The autosave's status is a fact about this session, not about the project.
       partialize: (s) => ({
@@ -338,7 +321,6 @@ const selectedProductSchema = z.object({
   imageUrl: z.string().nullable(),
   categorySlug: z.string().optional(),
   roomId: z.string().optional(),
-  excluded: z.boolean().optional(),
   // A room's finish carries what the board and the studio need to show it (see `SelectedProduct`).
   surface: z.enum(['floor', 'wall']).optional(),
   share: z.number().min(0).max(1).optional(),
