@@ -15,7 +15,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
    project over the localStorage quota silently loses its local copy (`lib/flow/storage.ts`);
    two tabs share one dirty flag (no `storage` listener); a 401 during autosave shows as a
    generic error.
-2. [ ] **Undo integrity, the cheap part** (P4, P5, 1.8): one commit per slider gesture
+2. [x] **Undo integrity, the cheap part** (P4, P5, 1.8): one commit per slider gesture
    (`SwapPanel`, `FixturePanel`, `ElementInspector` → `placeItem`); pin version 01 (the 13th
    version evicts it and `ensureExistingVersion` wipes history); `restoreVersion` snapshots
    `styleId`; `locked` enforced in store actions (drag, mirror, delete ignore it today);
@@ -151,4 +151,5 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | Rate limiter keys on the last `X-Forwarded-For` hop | S2 key (cPanel check still open — top 10 #3) | `34dc503b` |
 | Open redirect; social sign-in needs a vouched e-mail; `users.session_version` ends sessions after a reset or admin password; `next` 16.3.8, nodemailer, nanoid, mysql2; `pnpm audit --prod --audit-level critical` in CI | S4, S5, S6, S9 (but drizzle), 2.7, 1.7 (part) | `9b034c52` |
 | Nullable timestamps `NULL DEFAULT NULL` (migration 0026), reproduced and fixed on MariaDB 10.6; a test refuses bare timestamps | OPS-4, 1.9 | `fd9aaa6e` |
+| Autosave watches exactly what the save sends (board sockets were missed) + a guard test; storage-full, signed-out and 401 on the banner; another tab's clean mark no longer clears this tab's unsaved work | top 10 #1 (state §11, 1.8, test #4 in part) | `7ea4d94d` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |

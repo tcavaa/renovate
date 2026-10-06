@@ -1473,6 +1473,8 @@ function SceneContent({
       if (!drag) return;
       // Inside the flat, dragging the view takes priority over dragging furniture.
       if (walking) return;
+      // A locked piece is selected by a click and never lifted: the drag orbits the view.
+      if (drag.item.locked) return;
 
       const travel = Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY);
       if (!drag.moved) {

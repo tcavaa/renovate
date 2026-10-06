@@ -19,6 +19,7 @@ import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zu
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { safeLocalStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
+import { historyGroup } from '@/lib/design/historyGroup';
 import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
 import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
 import { finishQuantity } from '@/lib/design/finishQuantity';
@@ -112,6 +113,8 @@ export interface DesignSnapshot {
   items: PlacedItem[];
   finishes: SurfaceFinish[];
   electrical: ElectricalPoint[];
+  /** A restored version or a style switch changes it; undo puts it back with the rest. */
+  styleId: StyleId;
 }
 
 /** Something picked in the plan or the 3D view that is not a piece of furniture. */
@@ -564,10 +567,16 @@ type DesignStoreBound = UseBoundStore<StoreApi<DesignStore>>;
 function createDesignStore(storageName: string | null): DesignStoreBound {
   const creator: StateCreator<DesignStore> = (set, get) => {
       /** Applies a change after recording the present, so it can be undone. */
+      /** The slider group (`lib/design/historyGroup`) whose first commit was recorded. */
+      let recordedGroup: number | null = null;
       const commit = (recipe: (s: DesignState & DesignActions) => Partial<DesignState> | null) =>
         set((s) => {
           const next = recipe(s);
           if (!next) return s;
+          // The rest of a slider drag applies without a step of its own: the drag is one undo.
+          const group = historyGroup();
+          if (group != null && group === recordedGroup) return next;
+          recordedGroup = group;
           return { ...next, history: pushHistory(s.history, beforeCarry(s)) };
         });
 
@@ -652,22 +661,23 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             history: emptyHistory(),
           })),
 
-        setStyle: (styleId, catalog) => {
-          const { plan, items, budgetGel } = get();
-          set({ styleId, finishes: defaultFinishes(plan, styleId, catalog) });
-          if (items.length === 0 || catalog.length === 0) return;
-          // Keep the layout, re-pick the products: switching style should redress the room,
-          // not rearrange it.
-          set({
-            items: placeableOnly(
+        // One undo step: the style and what it re-dressed. Undo put the old finishes and
+        // furniture back under the new style's name before the style was in the snapshot.
+        setStyle: (styleId, catalog) =>
+          commit((s) => {
+            const finishes = defaultFinishes(s.plan, styleId, catalog);
+            if (s.items.length === 0 || catalog.length === 0) return { styleId, finishes };
+            // Keep the layout, re-pick the products: switching style should redress the room,
+            // not rearrange it.
+            const items = placeableOnly(
               matchProducts(
-                items.map((i) => ({ ...i, pinned: false })),
+                s.items.map((i) => ({ ...i, pinned: false })),
                 catalog,
-                { styleId, budgetGel, rooms: plan?.rooms }
+                { styleId, budgetGel: s.budgetGel, rooms: s.plan?.rooms }
               )
-            ),
-          });
-        },
+            );
+            return { styleId, finishes, items };
+          }),
         setStyleProfile: (styleProfile) => set({ styleProfile }),
         toggleExcluded: (tick, productId) => set((s) => ({ excluded: toggleTick(s.excluded, tick, productId) })),
         setExcluded: (excluded) => set({ excluded: [...new Set(excluded)] }),
@@ -812,7 +822,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
                 z: bounds.minZ + (p.z - bounds.minZ) * scaleZ,
               })),
             });
-            const rooms = s.plan.rooms.map((r) => (r.id === roomId ? resized : r));
+            // Copies: `deriveOpenings` rewrites each room's openings in place, and the rooms as they
+            // were are the undo history's.
+            const rooms = s.plan.rooms.map((r) => (r.id === roomId ? resized : { ...r }));
             deriveOpenings(rooms, s.plan.wallThicknessM);
             return {
               plan: withBounds({ ...s.plan, rooms }),
@@ -1571,6 +1583,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
 
         placeItem: (itemId, position, rotation, roomId, elevationM) => {
+          // A locked piece stays where it is, whoever asks (the 3D drag, a slider, a nudge).
+          if (get().items.find((i) => i.id === itemId)?.locked) return;
           const place = (s: DesignState): Partial<DesignState> => ({
             items: s.items.map((item) => (item.id === itemId ? { ...item, position, rotation, roomId: roomId ?? item.roomId, elevationM: elevationM ?? item.elevationM } : item)),
           });
@@ -1581,15 +1595,17 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
 
         removeItem: (itemId) =>
-          commit((s) => ({
+          commit((s) => (s.items.find((i) => i.id === itemId)?.locked ? null : {
             items: s.items.filter((i) => i.id !== itemId),
             selectedItemId: s.selectedItemId === itemId ? null : s.selectedItemId,
             // Deleting the piece on the pointer ends the carry; of a swap, neither sofa is left.
             ...(s.carryingItemId === itemId ? { carryingItemId: null, carryRestore: null } : {}),
           })),
 
-        mirrorItem: (itemId) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, mirrored: !i.mirrored, pinned: true } : i)) })),
-        lockItem: (itemId, locked) => set((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
+        mirrorItem: (itemId) => commit((s) => (s.items.find((i) => i.id === itemId)?.locked ? null : { items: s.items.map((i) => (i.id === itemId ? { ...i, mirrored: !i.mirrored, pinned: true } : i)) })),
+        // Locking is an edit like any other: undo takes it back (it went around the history,
+        // and an undo after it quietly unlocked the piece).
+        lockItem: (itemId, locked) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
         setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product) : i)) })),
         ensureKitchenMaterials: (catalog) => {
           const { items, styleId } = get();
@@ -1659,11 +1675,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // The undo history starts here too. Drawing a flat on step 2 is a long run of
             // undoable edits, and carrying it into the studio meant one Ctrl+Z too many
             // walked the walls back to the blank sheet.
-            return { versions: [versionOf(s, name, 'existing'), ...s.versions].slice(0, MAX_VERSIONS), history: emptyHistory() };
+            return { versions: capVersions([versionOf(s, name, 'existing'), ...s.versions]), history: emptyHistory() };
           }),
         saveVersion: (name, kind = 'manual') => {
           const version = versionOf(get(), name, kind);
-          set((s) => ({ versions: [...s.versions, version].slice(-MAX_VERSIONS) }));
+          set((s) => ({ versions: capVersions([...s.versions, version]) }));
           return version.id;
         },
         restoreVersion: (versionId, keepCurrentAs) =>
@@ -1673,7 +1689,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // The present is kept as a version, unless it is already identical to one.
             const current = versionOf(s, keepCurrentAs, 'auto');
             const unchanged = s.versions.some((v) => JSON.stringify(v.plan) === JSON.stringify(current.plan) && JSON.stringify(v.scene) === JSON.stringify(current.scene));
-            const versions = unchanged ? s.versions : [...s.versions, current].slice(-MAX_VERSIONS);
+            const versions = unchanged ? s.versions : capVersions([...s.versions, current]);
             return {
               versions,
               plan: version.plan,
@@ -1769,7 +1785,19 @@ export const useCalculatorPlanStore = projectScopedStore('renovate-calculator-pl
 export type DesignStoreHook = typeof useDesignStore;
 
 function snapshotOf(s: DesignState): DesignSnapshot {
-  return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical };
+  return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical, styleId: s.styleId };
+}
+
+/**
+ * The versions kept, at most `MAX_VERSIONS`: the newest — and always the baseline (`existing`,
+ * version 01). Slicing the newest alone dropped the baseline at the thirteenth version, and
+ * `ensureExistingVersion` then took a new one and wiped the undo history.
+ */
+export function capVersions(versions: DesignVersion[]): DesignVersion[] {
+  if (versions.length <= MAX_VERSIONS) return versions;
+  const baseline = versions.find((v) => v.kind === 'existing');
+  if (!baseline) return versions.slice(-MAX_VERSIONS);
+  return [baseline, ...versions.filter((v) => v !== baseline).slice(-(MAX_VERSIONS - 1))];
 }
 
 /**

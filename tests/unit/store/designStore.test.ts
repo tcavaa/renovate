@@ -409,3 +409,76 @@ describe('room separators', () => {
     expect(separators()).toHaveLength(0);
   });
 });
+
+describe('undo stays whole', () => {
+  const store = () => useDesignStore.getState();
+
+  it('makes one step of a slider drag, however many ticks it fired', async () => {
+    const { holdHistory, releaseHistory } = await import('@/lib/design/historyGroup');
+    useDesignStore.setState({ items: [placed('sofa', 2, 1.5, 2, 0.9)], history: { past: [], future: [] } });
+    store().placeItem('sofa', { x: 2, z: 1.5 }, 0.1, 'r1');
+    holdHistory();
+    for (let i = 1; i <= 360; i++) store().placeItem('sofa', { x: 2, z: 1.5 }, (i * Math.PI) / 180, 'r1');
+    releaseHistory();
+    // The step before the drag is still there; the drag is one more.
+    expect(store().history.past).toHaveLength(2);
+    store().undo();
+    expect(item('sofa')?.rotation).toBe(0.1);
+    // A later drag is a step of its own.
+    holdHistory();
+    store().placeItem('sofa', { x: 2, z: 1.5 }, 1, 'r1');
+    store().placeItem('sofa', { x: 2, z: 1.5 }, 2, 'r1');
+    releaseHistory();
+    expect(store().history.past).toHaveLength(2);
+  });
+
+  it('keeps version 01 however many versions are saved, and the undo history with it', async () => {
+    const { MAX_VERSIONS } = await import('@/lib/validations/design.schema');
+    store().ensureExistingVersion('01');
+    const baseline = store().versions[0];
+    store().placeItem('x', { x: 0, z: 0 }, 0);
+    useDesignStore.setState({ items: [placed('sofa', 2, 1.5, 2, 0.9)] });
+    store().mirrorItem('sofa');
+    for (let i = 0; i < MAX_VERSIONS + 3; i++) store().saveVersion(`v${i}`);
+    expect(store().versions).toHaveLength(MAX_VERSIONS);
+    expect(store().versions[0].id).toBe(baseline.id);
+    expect(store().versions.at(-1)?.name).toBe(`v${MAX_VERSIONS + 2}`);
+    const past = store().history.past.length;
+    store().ensureExistingVersion('01');
+    expect(store().history.past).toHaveLength(past);
+  });
+
+  it('takes the style back with the version it restored', () => {
+    useDesignStore.setState({ styleId: 'modern' as never });
+    const kept = store().saveVersion('kept');
+    useDesignStore.setState({ styleId: 'classic' as never });
+    store().restoreVersion(kept, 'now');
+    expect(store().styleId).toBe('modern');
+    store().undo();
+    expect(store().styleId).toBe('classic');
+  });
+
+  it('leaves a locked piece where it is, and undoes the lock like any edit', () => {
+    useDesignStore.setState({ items: [placed('sofa', 2, 1.5, 2, 0.9)], history: { past: [], future: [] } });
+    store().lockItem('sofa', true);
+    store().placeItem('sofa', { x: 1, z: 1 }, 1, 'r1');
+    store().mirrorItem('sofa');
+    store().removeItem('sofa');
+    expect(item('sofa')).toMatchObject({ position: { x: 2, z: 1.5 }, rotation: 0, locked: true });
+    expect(item('sofa')?.mirrored).toBeFalsy();
+    expect(store().history.past).toHaveLength(1);
+    store().undo();
+    expect(item('sofa')?.locked).toBeFalsy();
+  });
+
+  it('resizes a room without walls without touching the rooms the history holds', () => {
+    const two = plan();
+    two.rooms.push(refreshRoom({ ...two.rooms[0], id: 'r2', name: 'other', polygon: [{ x: 4, z: 0 }, { x: 7, z: 0 }, { x: 7, z: 3 }, { x: 4, z: 3 }] }));
+    useDesignStore.setState({ plan: { ...two, walls: [] }, history: { past: [], future: [] } });
+    const before = store().plan!.rooms.map((r) => ({ id: r.id, openings: r.openings }));
+    store().resizeRoom('r1', 3, 3);
+    const remembered = store().history.past[0].plan!.rooms;
+    expect(remembered.map((r) => ({ id: r.id, openings: r.openings }))).toEqual(before);
+    expect(store().plan!.rooms[1]).not.toBe(remembered[1]);
+  });
+});

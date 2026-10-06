@@ -160,8 +160,26 @@ directly (`StylePicker`) marks `direct`.
 
 ## Generation, versions and undo
 
-The store records a snapshot (plan, items, finishes, electrical) before every change
-(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts`.
+The store records a snapshot (plan, items, finishes, electrical, the style) before every change
+(`commit`), so Ctrl+Z / Ctrl+Y walk `lib/design/history.ts` (80 deep).
+
+- **A slider drag is one step.** While a range input is held down (`lib/design/historyGroup.ts`,
+  a document listener — every slider takes part), the store's commits share one group: the first
+  records the present, the rest only apply. A sweep of the rotation slider used to push about 360
+  snapshots and with them every step before it. Arrow keys on a focused slider stay a step each.
+- **The style is in the snapshot** and `setStyle` (the style and what it re-dresses) is one
+  commit; a restored version's style comes back on undo.
+- **Locks are the store's** (`placeItem`, `mirrorItem`, `removeItem` leave a locked piece alone —
+  the 3D drag, the M key and the card's delete ignored the lock) and `lockItem` is an undoable
+  edit; the 3D view does not lift a locked piece (a drag on it orbits).
+- **Version 01 is never pushed out** (`capVersions`): the cap keeps the baseline and the newest
+  others. Slicing the newest dropped it at the thirteenth version, and `ensureExistingVersion`
+  then took a new baseline and wiped the undo history.
+- `resizeRoom`'s path for a plan without walls copies the rooms before `deriveOpenings`, which
+  rewrites openings in place — it changed the rooms the history held.
+- Still outside the history (R1 in [the audit checklist](../audit-checklist.md)): about twenty
+  plain-`set` actions (`setWorks`, `setExisting`, `applyPendingPicks`, `setBudget`, the
+  `ensure*` passes); an undo after one of them takes the state back past it.
 
 **Before it, the warning and the fee.** "დიზაინის გენერაცია" opens `HingeDialog`
 (`components/flow/`): after generation the plan steps are shut, so the rooms, the walls, doors
