@@ -196,8 +196,8 @@ the phone and the address.
    store form hides the field from a catalogue agent and `POST`/`PUT /api/stores` ignore it
    from anybody else; revenue, the card transactions (`/admin/payments`), settings and the
    dashboard's money tiles are admin-only.
-6. **What the public reads.** `GET /api/stores`, `/api/stores/[id]`, `/api/workers` and
-   `/api/workers/[id]` answer staff (and a worker reading themself) with the whole row, and
+6. **What the public reads.** `GET /api/stores`, `/api/stores/[id]` and `/api/workers/[id]`
+   answer staff (and a worker reading themself) with the whole row, and
    everybody else with the listed partners only — approved and active — and only their public
    fields (`lib/api/publicPartners.ts`): never the commission, the private e-mail or the
    approval state. A pending or switched-off partner is a 404 to the public.

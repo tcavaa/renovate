@@ -170,9 +170,9 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
 |---|---|
 | Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) |
 | Design | `design/projects` (the design's save) · `design/catalog` · `design/upload-plan` · `design/parse-plan` · `design/renders`, `design/renders/[id]` · `design/models`, `design/models/[id]` (a person's own furniture) |
-| Calculator | `calculator/materials` · `calculator/rates`, `calculator/rates/[id]` |
+| Calculator | `calculator/rates`, `calculator/rates/[id]` |
 | Catalogue | `products`, `products/[id]`, `products/bulk` · `categories`, `categories/[id]`, `categories/reorder` · `shelf-rooms`, `shelf-rooms/[id]`, `shelf-rooms/reorder` · `stores`, `stores/[id]`, `stores/[id]/approval` |
-| People | `workers`, `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
+| People | `workers` (POST, admin), `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
 | Marketplace | `payments` (the fee at the hinge) · `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
 | Auth | `auth/[...nextauth]` · `auth/register` · `auth/register-partner` · `auth/forgot` · `auth/reset` · `auth/verify` |
 | Uploads | `upload` (images) · `upload/model` (GLB) |

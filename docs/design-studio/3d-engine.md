@@ -144,9 +144,11 @@ Each of these cost real debugging time. Don't undo them.
     (`img-src` allows them); nothing may fetch them.
 17. **The shared glass material was the night-time windows.** Every window pane used one
     cached `glass` material, so setting its `emissive` at night lit every window at once — the
-    one place tinting a shared material is the point, not the bug of gotcha 7. The viewer still
-    does this, but windows are now GLB models with their own materials, so nothing uses the
-    cached `glass` any more and no window glows at night (Known gaps).
+    one place tinting a shared material is the point, not the bug of gotcha 7. Windows are GLB
+    models with their own materials now, so nothing wore it, and the tint and the role were
+    removed (`MaterialRole` is `frame`, `wood`, `metal`, `stone` — the procedural frames and
+    the columns and beams). No window glows at night (Known gaps); a glow would go on the
+    window models' own glass.
 18. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
     between frames, so `ViewerApi.screenshot` calls `gl.render(scene, camera)` and reads the
     canvas in the same tick.
@@ -365,8 +367,8 @@ asynchronously, so anything waiting for the first model (e2e, screenshots) has t
 
 ## Known gaps
 
-- At night the viewer still tints the cached `glass` material, but windows are GLB models with
-  their own materials now, so no window glows (gotcha 17 describes the intent).
+- No window glows at night: windows are GLB models with their own glass (gotcha 17); a glow
+  would have to go on those models' glass material.
 - The first-visit tour (`TutorialOverlay`) opens at once, over the loading screen, rather than
   after it.
 ### Performance

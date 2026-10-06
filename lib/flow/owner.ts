@@ -37,6 +37,8 @@ function setOwner(owner: string): void {
 export function claimBrowser(userId: number | string): void {
   const owner = `user:${userId}`;
   const previous = previousOwner();
+  // 'guest' is written by no version since sign-in became required, but a tester's browser may
+  // still hold it with old work under it: it goes with `lib/flow/legacy.ts`, after its cut-off.
   if (previous && previous !== owner && previous !== 'guest') {
     forgetAllProjects();
     forgetLegacyCaches();

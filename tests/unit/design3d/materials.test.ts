@@ -92,9 +92,9 @@ describe('StyleMaterials.releaseUnused', () => {
 
   it('never lets go of the role materials, which carry no map', () => {
     const materials = new StyleMaterials(style, new FakeLoader());
-    const glass = materials.get('glass');
+    const frame = materials.get('frame');
     materials.releaseUnused(new Set(), IDLE_GRACE_MS * 10);
-    expect(materials.get('glass')).toBe(glass);
+    expect(materials.get('frame')).toBe(frame);
   });
 
   it('drops a map that arrives after its finish was let go', () => {

@@ -423,9 +423,6 @@ export default function StudioPage() {
   const onMoveColumn = useCallback((id: string, position: Vec2) => store.updateColumn(id, { position }), [store]);
   const onMoveElectrical = useCallback((id: string, position: Vec2) => store.moveElectricalPoint(id, position), [store]);
   const onMoveOpening = useCallback((roomId: string, openingId: string, tt: number) => store.moveOpening(roomId, openingId, tt), [store]);
-  const onSelectOpening = useCallback((id: string | null) => {
-    if (!id) store.selectElement(null);
-  }, [store]);
 
   // The 3D view and the 2D board both carry; the walk-through has no pointer to carry on, so
   // entering it with a piece still on the pointer gives the piece up the way Escape does — an
@@ -1025,7 +1022,6 @@ export default function StudioPage() {
               frameKey={planSerial}
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
-              onSelectOpening={onSelectOpening}
               onSelectElement={onSelectElement}
               onOffsetWall={onOffsetWall}
               onMoveColumn={onMoveColumn}

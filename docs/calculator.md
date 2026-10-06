@@ -521,4 +521,3 @@ rooms when the project is loaded (see "Picks from before" above).
   walls and its perimeter are the outline's own, as the design measures them.
 - The rate API accepts a new `labour` row with any key (`rate.schema.ts`) although the engine
   only knows fixed labour keys; such a row is ignored. The admin UI only creates material rows.
-- Dead code: nothing calls `POST /api/calculator/materials` (which also ignores work choices).

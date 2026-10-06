@@ -230,7 +230,7 @@ project id**, persisted to its own localStorage key — `renovate-calculator:<id
 `renovate-calculator-plan:<id>`, `renovate-design:<id>`.
 
 - The hooks and `getState()` reach the **open** project's (`useActiveProject`, set by the
-  gate). `.for(id)` addresses one by id; `peek`, `drop`, `storageKey(id)`, `cachedIds()`.
+  gate). `.for(id)` addresses one by id; `drop`, `storageKey(id)`.
 - **Anything that can run late addresses by id**: the save helpers capture the store instances
   before they queue, the loaders and the autosave use `.for(id)`. So a save finishing after the
   person moved to another project writes into the right one.

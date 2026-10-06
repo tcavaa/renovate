@@ -58,11 +58,11 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
     unused `skeleton`/`accordion`, the `layout.ts` legacy (keep `findFreeSpot`), the dead 3D
     symbols, `FLITT_TEST_SECRET` duplicate; unused deps `react-hook-form`, `@hookform/resolvers`,
     `@radix-ui/react-tabs`; an unused-locals lint rule; CLAUDE.md still lists React Hook Form.
-    *Done (also `nanoid`, `buildScene()`, `photo`/`highlight`, `cylinder`, 36 unused i18n keys).
-    Left, below: the `'openings'` edit mode and night glass tint in `Viewer3D`, `onSelectOpening`,
-    `POST /api/calculator/materials`, `GET /api/workers`, `projectScope` `peek`/`cachedIds`, the
-    `'guest'` branch in `lib/flow/owner.ts`, unused `MaterialRole`s, the dead `serverActions`
-    config (a `next.config.mjs` edit restarts the dev server — do it when it is convenient).*
+    *Done in two rounds (also `nanoid`, `buildScene()`, `photo`/`highlight`, `cylinder`, 36 unused
+    i18n keys; then the `'openings'` edit mode, the night glass tint and nine unused
+    `MaterialRole`s, `onSelectOpening`, `POST /api/calculator/materials`, `GET /api/workers`,
+    `peek`/`cachedIds`, the `serverActions` config). The `'guest'` owner branch is not dead:
+    older versions wrote it and testers' browsers may hold it — it goes with `legacy.ts`.*
 
 ## Parked by decision (not to do now)
 
@@ -88,7 +88,8 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] Editor shortcuts change the document behind open dialogs (ST-3); Escape/✕ closes the
   non-modal payment dialogue during 3-D Secure, reopening makes a new Flitt order (NX-7)
 - [ ] Item/room/wall caps only in the server schema — enforce in the client with a message (perf #17)
-- [ ] Remove `lib/flow/legacy.ts`, persist v1–3 migrations after a dated cut-off
+- [ ] Remove `lib/flow/legacy.ts`, persist v1–3 migrations and the `'guest'` owner branch
+  (`lib/flow/owner.ts`) after a dated cut-off
 
 ### 3D
 - [ ] Decompose `Viewer3D` (1,705 lines): scene groups + id→object registries, camera rig,
@@ -122,8 +123,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] Lazy-load Sentry Replay, trim tracing on public routes (perf #15, NX-3, 4.6)
 - [ ] nginx `client_max_body_size 16m` vs the 40 MB model limit (N12); rate-book defaults stick
   after a failed fetch (N11); English-only titles on terms/privacy/refund (NX-8); small items
-  (favicon, robots/sitemap, `server-only` guards — also on `lib/payments/service.ts`, dead
-  `serverActions` config) (N13)
+  (favicon, robots/sitemap, `server-only` guards — also on `lib/payments/service.ts`) (N13)
 - [ ] GLB processing in a worker/queue; a CDN for `/models` and `/textures` (perf #13/#14, 4.7)
 
 ### Security and accounts
@@ -142,12 +142,6 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] Scene-building invariants and the demand-render contract tested (`buildScene` 35%,
   `buildStructure` 28%, `modelLoader` 16%)
 - [ ] cPanel deploy health check and rollback; log rotation; the migrator honours `DATABASE_SSL` (5.3)
-
-### Dead code left from top 10 #10
-- [ ] `Viewer3D`'s `'openings'` edit mode and night glass tint; `onSelectOpening`; unused `MaterialRole`s
-- [ ] `POST /api/calculator/materials`, `GET /api/workers` (decide with `WORKERS_DIRECTORY`)
-- [ ] `projectScope` `peek` / `cachedIds`; the `'guest'` branch in `lib/flow/owner.ts`
-- [ ] `experimental.serverActions` in `next.config.mjs` (no `'use server'` anywhere)
 
 ### Duplicates and types (do when touching the area)
 - [x] Admin `dateRange()` helper (was 3 copies) — done with top 10 #9

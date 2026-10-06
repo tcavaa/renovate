@@ -64,7 +64,7 @@ export type ViewMode = 'orbit' | 'walk';
  * (walls, columns, beams — moved only when unlocked), the sockets and lights, or the
  * finishes (a click on a floor or a wall opens its picker).
  */
-export type EditMode = 'furniture' | 'openings' | 'build' | 'electrical' | 'finishes';
+export type EditMode = 'furniture' | 'build' | 'electrical' | 'finishes';
 
 /** Camera actions the studio's overlay buttons call. */
 export interface ViewerApi {
@@ -123,7 +123,6 @@ export interface Viewer3DProps {
   selectedOpeningId?: string | null;
   /** An opening was dragged along its wall to a new `t`. */
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
-  onSelectOpening?: (openingId: string | null) => void;
   /** Sockets, switches and lights; drawn as fittings, and the lights that are on light the rooms. */
   electrical?: ElectricalPoint[];
   /** Walls, doors, windows, columns and beams stay where they are until unlocked. */
@@ -352,7 +351,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
 
 function SceneContent({
   plan,
@@ -378,7 +377,6 @@ function SceneContent({
   onPaint,
   onPlaceItem,
   onMoveOpening,
-  onSelectOpening,
   frameKey,
   onApi,
   readOnly = false,
@@ -527,9 +525,10 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
-  const editingOpenings = editMode === 'openings' || (editMode === 'build' && !structureLocked);
+  // Doors and windows are grabbed in build mode once the structure is unlocked.
+  const editingOpenings = editMode === 'build' && !structureLocked;
   const building = editMode === 'build';
   const wiring = editMode === 'electrical';
   const finishing = editMode === 'finishes';
@@ -537,23 +536,6 @@ function SceneContent({
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
   useEffect(() => () => materials.dispose(), [materials]);
-
-  // At night the windows glow: every pane shares one glass material, so lighting it up
-  // lights every window in the flat at once — which, seen from outside, is the point.
-  useEffect(() => {
-    const glass = materials.get('glass');
-    if (daylight.interiorLightsOn) {
-      glass.emissive = new THREE.Color(style.lighting.lamp);
-      glass.emissiveIntensity = 0.55 * daylight.interiorIntensity;
-      glass.opacity = 0.5;
-    } else {
-      glass.emissive = new THREE.Color('#000000');
-      glass.emissiveIntensity = 0;
-      glass.opacity = 0.28;
-    }
-    glass.needsUpdate = true;
-    invalidate();
-  }, [materials, daylight.interiorLightsOn, daylight.interiorIntensity, style.lighting.lamp, invalidate]);
 
   // The electrical layer's fittings, rebuilt when the layer or the plan changes; the lights
   // that are switched on become point lights below.
@@ -1560,7 +1542,7 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
+      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
 
       const wd = wallDragRef.current;
       if (wd) {
@@ -1612,7 +1594,6 @@ function SceneContent({
         const orbit = orbitRef.current;
         if (orbit) orbit.enabled = true;
         canvas.style.cursor = 'default';
-        onSelectOpening?.(od.opening.id);
         // Onto a railing's stretch (or a railing onto a door's) it does not go: back to its place.
         if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4 && !railingClash(od.room, od.opening, od.t, od.edge.length)) onMoveOpening?.(od.room.id, od.opening.id, od.t);
         else {

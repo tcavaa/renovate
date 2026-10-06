@@ -14,20 +14,12 @@ import * as THREE from 'three';
 import type { StyleDefinition, StyleSurface } from '@/lib/design/types';
 import { loadStarted } from './loadProgress';
 
-export type MaterialRole =
-  | 'frame'
-  | 'wood'
-  | 'upholstery'
-  | 'metal'
-  | 'accent'
-  | 'textile'
-  | 'glass'
-  | 'mirror'
-  | 'ceramic'
-  | 'stone'
-  | 'foliage'
-  | 'lampshade'
-  | 'emissive';
+/**
+ * What the procedural parts are made of: a door or window frame, and a column's or a beam's
+ * wood, metal or concrete. Furniture is real models with their own materials; the roles the
+ * procedural furniture had (upholstery, glass, foliage, lampshades…) went with it.
+ */
+export type MaterialRole = 'frame' | 'wood' | 'metal' | 'stone';
 
 export interface MaterialOptions {
   /** Overrides the palette colour — used when a real product has a known colour. */
@@ -112,15 +104,6 @@ export class StyleMaterials {
       side: THREE.FrontSide,
     });
 
-    if (role === 'emissive') {
-      material.emissive = new THREE.Color(this.style.lighting.lamp);
-      material.emissiveIntensity = 1.4;
-    }
-    if (role === 'lampshade') {
-      material.emissive = new THREE.Color(this.style.lighting.lamp);
-      material.emissiveIntensity = 0.35;
-    }
-
     this.materials.set(key, material);
     return material;
   }
@@ -137,28 +120,10 @@ export class StyleMaterials {
         return { color: p.frame, roughness: 0.62, metalness: 0.05, opacity: 1 };
       case 'wood':
         return { color: p.wood, roughness: 0.58, metalness: 0, opacity: 1 };
-      case 'upholstery':
-        return { color: p.upholstery, roughness: 0.92, metalness: 0, opacity: 1 };
       case 'metal':
         return { color: p.metal, roughness: 0.32, metalness: 0.85, opacity: 1 };
-      case 'accent':
-        return { color: p.accent, roughness: 0.55, metalness: 0.1, opacity: 1 };
-      case 'textile':
-        return { color: p.textile, roughness: 0.95, metalness: 0, opacity: 1 };
-      case 'glass':
-        return { color: '#CFE0E6', roughness: 0.06, metalness: 0.1, opacity: 0.28 };
-      case 'mirror':
-        return { color: '#DCE6EA', roughness: 0.04, metalness: 0.95, opacity: 1 };
-      case 'ceramic':
-        return { color: '#F6F6F4', roughness: 0.16, metalness: 0.02, opacity: 1 };
       case 'stone':
         return { color: '#8E8E8A', roughness: 0.5, metalness: 0.05, opacity: 1 };
-      case 'foliage':
-        return { color: '#4C7A4A', roughness: 0.85, metalness: 0, opacity: 1 };
-      case 'lampshade':
-        return { color: '#F5EFE2', roughness: 0.8, metalness: 0, opacity: 1 };
-      case 'emissive':
-        return { color: '#FFF6E0', roughness: 1, metalness: 0, opacity: 1 };
       default:
         return { color: p.frame, roughness: 0.7, metalness: 0, opacity: 1 };
     }

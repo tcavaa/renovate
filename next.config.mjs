@@ -131,10 +131,8 @@ const nextConfig = {
       ...(s3ImagePattern ? [s3ImagePattern] : []),
     ],
   },
+  // No server actions anywhere (no 'use server'): uploads are route handlers with their own limits.
   experimental: {
-    serverActions: {
-      bodySizeLimit: '10mb',
-    },
     ...(lowMemory ? { cpus: 1 } : {}),
   },
   async headers() {
