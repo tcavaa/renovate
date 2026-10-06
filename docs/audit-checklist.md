@@ -52,12 +52,17 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 9. [x] **Visible Next.js bugs** (N2, N3, NX-6, 2.10): time-zone hydration mismatches
    (`formatDateTime` with `Asia/Tbilisi` via `Intl`); `next/image` refusing partner image hosts
    (allow them or `unoptimized`); an invalid date param crashes `/admin/payments`.
-10. [ ] **Dead code and repo hygiene** (§6, R8, 1.10): `.gitignore` misses
+10. [x] **Dead code and repo hygiene** (§6, R8, 1.10): `.gitignore` misses
     `public/uploads/products/own-*` (4 files committed — untrack them); remove `RoomForm`/`RoomList`,
     `useWorkers`, `usePlatformFees` + `GET /api/settings`, `GET /api/design/projects`, `types/*`,
     unused `skeleton`/`accordion`, the `layout.ts` legacy (keep `findFreeSpot`), the dead 3D
     symbols, `FLITT_TEST_SECRET` duplicate; unused deps `react-hook-form`, `@hookform/resolvers`,
     `@radix-ui/react-tabs`; an unused-locals lint rule; CLAUDE.md still lists React Hook Form.
+    *Done (also `nanoid`, `buildScene()`, `photo`/`highlight`, `cylinder`, 36 unused i18n keys).
+    Left, below: the `'openings'` edit mode and night glass tint in `Viewer3D`, `onSelectOpening`,
+    `POST /api/calculator/materials`, `GET /api/workers`, `projectScope` `peek`/`cachedIds`, the
+    `'guest'` branch in `lib/flow/owner.ts`, unused `MaterialRole`s, the dead `serverActions`
+    config (a `next.config.mjs` edit restarts the dev server — do it when it is convenient).*
 
 ## Parked by decision (not to do now)
 
@@ -138,6 +143,12 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
   `buildStructure` 28%, `modelLoader` 16%)
 - [ ] cPanel deploy health check and rollback; log rotation; the migrator honours `DATABASE_SSL` (5.3)
 
+### Dead code left from top 10 #10
+- [ ] `Viewer3D`'s `'openings'` edit mode and night glass tint; `onSelectOpening`; unused `MaterialRole`s
+- [ ] `POST /api/calculator/materials`, `GET /api/workers` (decide with `WORKERS_DIRECTORY`)
+- [ ] `projectScope` `peek` / `cachedIds`; the `'guest'` branch in `lib/flow/owner.ts`
+- [ ] `experimental.serverActions` in `next.config.mjs` (no `'use server'` anywhere)
+
 ### Duplicates and types (do when touching the area)
 - [x] Admin `dateRange()` helper (was 3 copies) — done with top 10 #9
 - [ ] Payment enums, `BuildMaterial` and technical/electrical kinds from one `as const` array each
@@ -162,4 +173,5 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | 3D failures: WebGL probe + error boundary (`ViewerGuard`), redraw on context restore, failed textures retried, failed Draco decoder replaced, loading screen per flat | top 10 #6 (P10, 3.1) | `86ec03bb` |
 | Re-render storms: stable `useDesignActions` + shallow picks on the editor pages and `PlanWorkspace`, `memo(Viewer3D)`, shadow map only on scene changes | top 10 #7 (P8, R4 in part, perf #1a/#1b/#3) | `30db0c1a` |
 | Security batch: `GET /api/checkout` 401 first, cross-site writes refused in `handle()`, CSV formula escaping, bounded save payloads, catalogue asset URLs on reprice, manual cPanel publish runs CI | top 10 #8 (S12, S14, S16, S18, S20, 1.7 rest) | `cc2a767f` |
+| Visible Next.js bugs: dates in Tbilisi time on both sides, partner pictures shown as they are, validated `dateRange()` in the admin lists | top 10 #9 (N2, N3, NX-6, 2.10) | `e99d1ecf` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |

@@ -367,7 +367,6 @@ function SceneContent({
   selectedOpeningId = null,
   electrical = [],
   structureLocked = true,
-  selectedElement = null,
   onSelectElement,
   onOffsetWall,
   onMoveColumn,

@@ -9,7 +9,7 @@
  */
 
 import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
-import { DEFAULT_CEILING_M, ROOM_TYPES, WET_ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { effectiveSplit, partAt, roomPartsFor } from './studio';
 import { roomTypeName, withRoomNames } from './roomNames';
 import type {
@@ -22,7 +22,6 @@ import type {
 } from './types';
 
 export const DEFAULT_WALL_THICKNESS_M = 0.12;
-export const DEFAULT_CEILING_HEIGHT_M = 2.8;
 
 // ---------------------------------------------------------------------------
 // Polygon basics
@@ -388,14 +387,6 @@ function polygonAreaPx(points: Array<{ x: number; y: number }>): number {
     sum += a.x * b.y - b.x * a.y;
   }
   return sum / 2;
-}
-
-export function metresPerPixelFromRoomWidth(
-  region: ParsedRegion,
-  realWidthM: number
-): number {
-  if (region.bboxPx.w <= 0 || realWidthM <= 0) return 0.02;
-  return realWidthM / region.bboxPx.w;
 }
 
 // ---------------------------------------------------------------------------

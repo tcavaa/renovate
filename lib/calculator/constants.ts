@@ -110,8 +110,6 @@ export const HEATING_PIPE_M_PER_RADIATOR = 25;
  */
 export type { WorkChoices };
 
-export const DEFAULT_WORK_CHOICES: WorkChoices = { floor: 'laminate', ceiling: 'gypsum' };
-
 /** A stored choice, read defensively: anything unknown is the default. */
 export function workChoices(input?: Partial<WorkChoices> | null): WorkChoices {
   return {

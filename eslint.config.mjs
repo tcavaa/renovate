@@ -25,6 +25,15 @@ export default defineConfig([
     },
     linterOptions: { reportUnusedDisableDirectives: 'off' },
   },
+  {
+    // Where Next's config registers the TypeScript plugin.
+    files: ['**/*.ts', '**/*.tsx'],
+    rules: {
+      // Unused imports and locals are dead code (the audit found a dozen). A name kept on
+      // purpose — a destructured field set aside, an argument a signature needs — starts with `_`.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
+    },
+  },
   globalIgnores([
     '.next/**',
     '.next-build/**',

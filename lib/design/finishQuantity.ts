@@ -13,7 +13,7 @@
  */
 
 import { cellSquare, cellsAreaM2, patchAreaM2, patchesAreaM2, patchSpans, spanAreaM2 } from './paint';
-import { polygonAreaM2, roomEdges, wallEdges } from './planGeometry';
+import { polygonAreaM2, wallEdges } from './planGeometry';
 import { wallAreaM2 } from './surfaces';
 import { isTrimSurface, trimLengthM } from './trims';
 import { clipPolygon, isBaseFinish, wallEdgeAreaM2, zoneAreaM2 } from './zones';

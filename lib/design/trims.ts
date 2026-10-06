@@ -20,8 +20,6 @@ import { wallEdges } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { styleAffinity } from './styles';
 import type { ItemOrigin, PlanRoom, StyleId, SurfaceFinish, TrimKind, TrimProfile, TrimSpec } from './types';
-
-export const TRIM_KINDS: TrimKind[] = ['skirting', 'cornice'];
 export { TRIM_CATEGORY_SLUGS } from './catalog';
 
 export function isTrimSurface(surface: SurfaceFinish['surface']): surface is TrimKind {

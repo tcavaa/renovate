@@ -75,7 +75,6 @@ export function ProjectDetail({
   const plan = (project.plan as FloorPlan | null) ?? null;
   const { calculator, design } = sheets;
   const kind = projectKind(project);
-  const isDesign = kind.hasDesign;
   const kindLabel = [kind.hasCalculator ? t.profile.typeCalculator : null, kind.hasDesign ? t.profile.typeDesign : null].filter(Boolean).join(' + ') || t.profile.typeCalculator;
   const facts: Array<{ label: string; value: string }> = [
     { label: 'ID', value: `#${project.id}` },

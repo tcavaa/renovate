@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
 import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, FolderTree, Hammer, Package, Plus, Receipt, Send, Settings, Store, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, orders, products, projects, stores, users, workers } from '@/lib/db/schema';

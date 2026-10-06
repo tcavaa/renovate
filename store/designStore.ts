@@ -28,7 +28,7 @@ import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalcul
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
-import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
 import { layoutPlan } from '@/lib/design/autoLayout';
 import {
   DEFAULT_WALL_THICKNESS_M,
@@ -45,28 +45,10 @@ import { isAutoRoomName, nextRoomName, withRoomNames } from '@/lib/design/roomNa
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
 import { addOpening as addOpeningTo, mirrorHinge, mirrorSwing, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningProduct as setOpeningProductIn, setOpeningWall as setOpeningWallIn, twinOf, updateOpening as updateOpeningIn, withOpeningProducts, type WallTarget } from '@/lib/design/openings';
-import {
-  addWalls,
-  columnFootprints,
-  ensureWalls,
-  moveNode as moveWallNodeIn,
-  moveWallEnd as moveWallEndIn,
-  offsetWall as offsetWallIn,
-  offsetWallAlone as offsetWallAloneIn,
-  planWallThickness,
-  rebuildRooms,
-  moveRooms as moveRoomsIn,
-  roomCluster,
-  removeWall as removeWallIn,
-  resizeWall as resizeWallIn,
-  updateWall as updateWallIn,
-  wallsBoundingRoom,
-  wallsForRectangle,
-  withBounds,
-} from '@/lib/design/walls';
+import { addWalls, columnFootprints, ensureWalls, moveNode as moveWallNodeIn, moveWallEnd as moveWallEndIn, offsetWall as offsetWallIn, offsetWallAlone as offsetWallAloneIn, planWallThickness, rebuildRooms, moveRooms as moveRoomsIn, roomCluster, resizeWall as resizeWallIn, updateWall as updateWallIn, wallsBoundingRoom, wallsForRectangle, withBounds } from '@/lib/design/walls';
 import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, standardElectrical, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
-import { technicalAnchors, technicalElevation, TECHNICAL_KINDS, type TechnicalCheck } from '@/lib/design/technical';
+import { technicalAnchors, technicalElevation, type TechnicalCheck } from '@/lib/design/technical';
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';

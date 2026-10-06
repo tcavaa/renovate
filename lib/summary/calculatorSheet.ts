@@ -31,7 +31,7 @@ import { dressBoard, pickTarget, type DressedBoard } from '@/lib/design/boardPic
 import { planFromCalculatorRooms } from '@/lib/design/planGeometry';
 import { ensureWalls } from '@/lib/design/walls';
 import { tickFor, type Quantities, type Tick } from '@/lib/design/ticks';
-import type { DesignCost, DesignScene, ElectricalPoint, FloorPlan, SceneProduct, SceneStore, SurfaceFinish } from '@/lib/design/types';
+import type { DesignCost, DesignScene, ElectricalPoint, FloorPlan, SceneProduct, SceneStore } from '@/lib/design/types';
 
 /** What the person made of the estimate: lines ticked off, quantities of their own. */
 export interface CalculatorEdits {

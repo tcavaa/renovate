@@ -34,12 +34,6 @@ export const ORIGIN_COLOR: Record<ElementOrigin, string> = {
   generated: '#2E8B85',
 };
 
-export const ORIGIN_SOFT: Record<ElementOrigin, string> = {
-  existing: '#8A8378',
-  user: '#F19E73',
-  generated: '#7FC1BC',
-};
-
 /** Technical systems by what runs through them. */
 export const TECHNICAL_COLOR: Record<TechnicalKind, string> = {
   water_supply: '#2F7FD6',

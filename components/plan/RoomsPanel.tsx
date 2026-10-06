@@ -13,7 +13,7 @@ import { roomTypeLabel } from '@/lib/i18n/labels';
 import { cn, formatM2 } from '@/lib/utils';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
-import { findFreeSpot } from '@/lib/calculator/layout';
+import { findFreeSpot } from '@/lib/design/freeSpot';
 import type { FloorPlan, PlanRoom } from '@/lib/design/types';
 import { ROOM_TINT_STRONG } from './palette';
 import { Field, RoomFields, type InspectorActions, type RoomPartPick } from './ElementInspector';
@@ -34,7 +34,7 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAd
     const rects = plan.rooms.map((r) => {
       const xs = r.polygon.map((p) => p.x);
       const zs = r.polygon.map((p) => p.z);
-      return { id: r.id, x: Math.min(...xs) - gap, z: Math.min(...zs) - gap, width: Math.max(...xs) - Math.min(...xs) + gap * 2, length: Math.max(...zs) - Math.min(...zs) + gap * 2 } as unknown as Parameters<typeof findFreeSpot>[0][number];
+      return { x: Math.min(...xs) - gap, z: Math.min(...zs) - gap, width: Math.max(...xs) - Math.min(...xs) + gap * 2, length: Math.max(...zs) - Math.min(...zs) + gap * 2 };
     });
     const spot = findFreeSpot(rects, w + gap * 2, d + gap * 2, 16);
     onAddRectangle({ x: Math.round((spot.x + gap) * 100) / 100, z: Math.round((spot.z + gap) * 100) / 100, width: w, depth: d }, type);

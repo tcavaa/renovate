@@ -906,13 +906,6 @@ export function drawGhostPoint(ctx: CanvasRenderingContext2D, t: Transform, p: V
   ctx.restore();
 }
 
-export function drawOriginLegendDot(ctx: CanvasRenderingContext2D, x: number, y: number, color: string): void {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, 4, 0, Math.PI * 2);
-  ctx.fill();
-}
-
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

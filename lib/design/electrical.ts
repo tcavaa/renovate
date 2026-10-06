@@ -457,11 +457,6 @@ export function withFixtureProduct(point: ElectricalPoint, product: CatalogProdu
   return { ...point, product: toSceneProduct(product, fixtureQuantity(point)), ...(sizeM ? { sizeM } : {}) };
 }
 
-/** The best product for a point, or null when the catalogue has none of its kind. */
-export function fixtureProductFor(point: ElectricalPoint, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct | null {
-  return fixtureCandidates(point.kind, catalog, styleId)[0] ?? null;
-}
-
 /**
  * Gives every point without a product the best one the catalogue has, and re-prices the
  * ones that have one (a socket that became a double needs two). A product that is not of

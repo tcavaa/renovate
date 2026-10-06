@@ -27,7 +27,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | `lib/calculator/steps.ts` | step URLs (`calculatorStepHref`, `calculatorEntryHref`, `calculatorStepFromPath`), `fromSevenSteps` |
 | `lib/calculator/planSync.ts` + `hooks/useCalculatorPlan.ts` | keep the calculator's rooms and its drawing board agreeing (`reconcileCalculatorPlan`); `withBoardWalls` for rooms saved without their walls |
 | `lib/calculator/boardCounts.ts` | what the calculator counts off the board (`boardCounts`): the partition walls (`boardPartitionCounts`), the doors (`boardDoorCounts`) and the windows (`boardWindowCounts`) — every place that prices a calculation passes it as `counts` |
-| `lib/calculator/layout.ts` | `findFreeSpot` for rooms typed by size |
+| `lib/design/freeSpot.ts` | `findFreeSpot` for rooms typed by size (the last of the old rectangle editor) |
 | `lib/calculator/saveProject.ts` | the client save (`saveCalculatorProject`: queue, `baseRev`, save ids, board finishes) |
 | `lib/summary/calculatorSheet.ts`, `lib/summary/quantity.ts` | the calculation priced as a design: `calculationCost` (the board dressed in the picks → `priceScene`), `calculationEstimate` (its works, for the materials step), `calculatorSheet`, `orderedCalculationLines`, `boardWithPicks` / `placedQuantity`; the quantity dropdown |
 | `lib/design/boardPicks.ts` | `dressBoard` / `pickTarget`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind, a moulding round every room — one rule for the calculator's board and the design (`applyBoardPicks`) |
@@ -144,10 +144,9 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   goes straight on. The summary shows the fee as paid, under its total (`SummaryCard`'s `fee`,
   `FeePaidNote`), not in it.
 - **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free
-  spot (`findFreeSpot`, `lib/calculator/layout.ts`). Sizes are exact to the centimetre; a
+  spot (`findFreeSpot`, `lib/design/freeSpot.ts`). Sizes are exact to the centimetre; a
   dragged room snaps wall to wall exactly as on the design's board (`snapRoomMove`,
   `lib/design/drawing.ts` — see [design-studio/plan-board.md](design-studio/plan-board.md)).
-  `snapToNeighbours` in `layout.ts` is only exercised by its test now.
 - **A re-uploaded plan** is a new plan in the same project: `replaceRooms` drops every pick
   with the rooms, and the id stays. `setRooms` prunes the furniture of rooms that vanished
   and re-counts or drops their floors and walls.
@@ -465,8 +464,8 @@ rooms when the project is loaded (see "Picks from before" above).
   suggested and per-room quantities, a room's walls one by one, a floor in two products and its
   split, walls chosen one by one and the switch back, the shape every edit is put back in,
   groups, the migration of old picks, the board's finishes.
-- `tests/unit/calculator/planSync.test.ts`, `layout.test.ts` — rooms ⇄ board, the walls read
-  off it and filled in for rooms saved without them; free spots.
+- `tests/unit/calculator/planSync.test.ts`, `tests/unit/design/freeSpot.test.ts` — rooms ⇄
+  board, the walls read off it and filled in for rooms saved without them; free spots.
 - `tests/unit/calculator/boardCounts.test.ts` — `countDoors` (twins once), `countWindows`, the
   board's doors and windows and when it has none drawn, the counts together, and the sample plan
   read the way step 1 reads it: three doors ("კარის დაყენება" 3), eight windows, its walls
@@ -522,5 +521,4 @@ rooms when the project is loaded (see "Picks from before" above).
   walls and its perimeter are the outline's own, as the design measures them.
 - The rate API accepts a new `labour` row with any key (`rate.schema.ts`) although the engine
   only knows fixed labour keys; such a row is ignored. The admin UI only creates material rows.
-- Dead code: `components/calculator/RoomForm.tsx` and `RoomList.tsx` have no importers, and
-  nothing calls `POST /api/calculator/materials` (which also ignores work choices).
+- Dead code: nothing calls `POST /api/calculator/materials` (which also ignores work choices).

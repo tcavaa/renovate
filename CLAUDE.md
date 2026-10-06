@@ -27,7 +27,7 @@ with English and Russian. Tagline: გეგმე. გამოთვალე.
 
 Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · MySQL 8 + Drizzle ORM ·
 pnpm 9 · Tailwind 3 + Radix-based components, lucide-react · Zustand + `persist` (three stores
-per project) · React Hook Form + Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
+per project) · Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
 JWT; seven roles) · three / @react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru`
 · Vitest + Playwright · Sentry (`@sentry/nextjs`, off without a DSN) · deploy targets: cPanel
 (production) and a VPS (PM2 + Nginx). Details: [docs/architecture.md](docs/architecture.md).

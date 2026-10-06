@@ -47,7 +47,7 @@ import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
-import { designStepHref, designStepPosition, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
+import { designStepHref, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, isWallHung, rotateItem as rotatePlacement } from '@/lib/design/manipulate';

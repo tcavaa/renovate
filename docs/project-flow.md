@@ -401,8 +401,8 @@ first too.
   [auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)). The
   profile's layout sets no width: the profile is full width, a project's page
   (`/profile/projects/[id]`) its own column.
-- `GET /api/projects`, `GET /api/projects/[id]` and `GET /api/design/projects` read projects
-  back (the caller's own).
+- `GET /api/projects` (the five fields the booking dialogue lists) and `GET /api/projects/[id]`
+  read projects back (the caller's own).
 
 ### The project page (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
 

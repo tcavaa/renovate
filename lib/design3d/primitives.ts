@@ -24,24 +24,6 @@ export function box(
   return mesh;
 }
 
-export function cylinder(
-  radiusTop: number,
-  radiusBottom: number,
-  height: number,
-  material: THREE.Material,
-  position: [number, number, number] = [0, 0, 0],
-  segments = 12
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(radiusTop, radiusBottom, height, segments),
-    material
-  );
-  mesh.position.set(position[0], position[1], position[2]);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
 /** Tags a whole subtree so raycasting can find the item it belongs to. */
 export function tag(object: THREE.Object3D, data: Record<string, unknown>): void {
   object.traverse((child) => {

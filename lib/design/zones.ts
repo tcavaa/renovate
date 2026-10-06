@@ -146,10 +146,6 @@ export function wallFinishFor(finishes: SurfaceFinish[], roomId: string, wallInd
   );
 }
 
-export function floorZones(finishes: SurfaceFinish[], roomId: string): SurfaceFinish[] {
-  return finishes.filter((f) => f.roomId === roomId && f.surface === 'floor' && !!f.zone);
-}
-
 export interface FinishCoverage {
   product: SceneProduct;
   /**

@@ -18,7 +18,7 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
 | Domain logic | `lib/<area>/` | Pure, isomorphic TypeScript: no React, no `window` (the few browser-only files say so, e.g. `lib/design/planImage.ts`, `lib/design/planPdf.ts`). This is what the unit tests cover. |
 | 3D | `lib/design3d/` + `components/design/Viewer3D.tsx` | Three.js scene building is plain three.js in `lib/design3d/`; the React/R3F viewer is client-only and dynamically imported with `ssr: false`. |
 | Client state | `store/` (zustand + `persist`) | One set of stores per project — see [project-flow.md §8](project-flow.md#8-one-set-of-stores-per-project-storeprojectscopets). |
-| Data hooks | `hooks/` | Fetch-once hooks (`useDesignCatalog`, `useRateBook`, `usePlatformFees`, `usePickStores`, `useProducts`/`useCategories`, `useWorkers`) plus `useAutosave` and `useCalculatorPlan`. |
+| Data hooks | `hooks/` | Fetch-once hooks (`useDesignCatalog`, `useRateBook`, `usePickStores`, `useProducts`/`useCategories`) plus `useAutosave` and `useCalculatorPlan`. |
 | Database | `lib/db/` (Drizzle, MySQL 8) | Schema in `lib/db/schema.ts`, migrations in `lib/db/migrations/` — see [data-model.md](data-model.md). |
 | Scripts | `scripts/` (run with `tsx`) | Seeds, migrations, the 3D asset pipelines, plan-reader test harnesses. |
 | Tests | `tests/unit`, `tests/integration` (Vitest), `e2e/` (Playwright) | See [testing.md](testing.md). |
@@ -86,14 +86,14 @@ app/
                                     brigades), projects (a brigade's booked projects, read-only)
   api/                              route handlers (list below)
 components/
-  ui/          button button-3d card dialog input label select textarea accordion badge skeleton
+  ui/          button button-3d card dialog input label select textarea badge image (next/image, see below)
                money-row stat-card scroll-row node-icon
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu NotFoundContent
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
   motion/      CountUp Marquee RotatingBadge
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief FlowGuard FlowWorkspace
                HingeDialog (the warning and the fee before a half's hinge)
-  calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard
+  calculator/  StepIndicator HomeStateSelector MaterialsTable SummaryCard
                WorkChoicesPicker AskFurnitureDialog CalculatorAutosave RoomFinishCards PlanGlyphs
                RoomRow
   plan/        PlanEditor (the 2D board) PlanWorkspace PlanToolbar ElementInspector RoomsPanel
@@ -149,11 +149,10 @@ lib/
   validations/ zod schemas per payload
   env.ts log.ts email.ts features.ts utils.ts
 store/         calculatorStore.ts designStore.ts projectScope.ts
-hooks/         useAutosave useCalculatorPlan useDesignCatalog usePickStores usePlatformFees
+hooks/         useAutosave useCalculatorPlan useDesignCatalog usePickStores
                useProjectPayments useAccountContact useProducts (+ useCategories) useRateBook
-               useWorkers
 scripts/       seeds, migrate, 3D/texture pipelines, plan tools (see docs/operations.md, docs/3d-assets.md)
-types/         shared API types (ApiResponse, Paginated), calculator/product re-exports
+types/         obj2gltf.d.ts (the script's typings); the API envelope is `ApiBody` in lib/api/route.ts
 tests/         unit/<area>/*.test.ts, integration/save-routes.test.ts
 e2e/           public.spec.ts, design-studio.spec.ts
 deploy/        VPS and cPanel deploy scripts, nginx.conf, migrate.cjs
@@ -191,7 +190,7 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
   and versions, and the carry state. `store/calculatorStore.ts` owns rooms, home state, picks,
   edits and progress.
 - Catalogue-wide data is fetched once per page load and cached at module scope
-  (`hooks/useDesignCatalog.ts`, `hooks/useRateBook.ts`, `hooks/usePlatformFees.ts`).
+  (`hooks/useDesignCatalog.ts`, `hooks/useRateBook.ts`).
 
 ## i18n
 
@@ -247,7 +246,7 @@ All shared route vocabulary is in `lib/api/route.ts`:
 
 - Routes export `runtime = 'nodejs'` and `dynamic = 'force-dynamic'`, wrap the handler in
   `handle(label, message, fn)` and answer with `ok(data)` / `fail(error, status)` — always the
-  `{ data, error }` envelope (`types/index.ts` → `ApiResponse`). Errors the UI translates are
+  `{ data, error }` envelope (`ApiBody` in `lib/api/route.ts`). Errors the UI translates are
   codes in `API_ERRORS` (`apiErrorMessage` in `lib/i18n/labels.ts` turns them into words).
 - `handle` logs every request (route, status, duration) and any exception through `lib/log`
   and answers a generic 500 — never leak internals. It also awaits `ctx.params`, so handlers

@@ -311,33 +311,6 @@ export class StyleMaterials {
     return key;
   }
 
-  /** A product photo shown on a billboard when there is no better geometry for it. */
-  photo(url: string): THREE.MeshStandardMaterial {
-    const key = `photo|${url}`;
-    const cached = this.materials.get(key);
-    if (cached) return cached;
-
-    const texture = this.loader.load(url);
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    const material = new THREE.MeshStandardMaterial({
-      map: texture,
-      roughness: 0.9,
-      metalness: 0,
-      transparent: true,
-      side: THREE.DoubleSide,
-    });
-    this.textures.set(key, texture);
-    this.materials.set(key, material);
-    this.surfaceTextures.set(material, [key]);
-    return material;
-  }
-
-  /** Highlight applied to whatever the pointer is over. */
-  highlight(): THREE.MeshStandardMaterial {
-    return this.get('accent', { roughness: 0.3, metalness: 0.2 });
-  }
-
   /**
    * Lets go of the surface materials nothing wears any more, and of the textures only they
    * held. `inUse` is every material on screen that came from here (the viewer collects the

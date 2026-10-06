@@ -163,11 +163,6 @@ function stretches(room: PlanRoom, edge: PlanEdge, thickness: number, rooms: Pla
   return pieces;
 }
 
-/** The piece of an edge that covers the spot `s` metres along it. */
-export function pieceAt(wall: EdgeWall, s: number): WallPiece | null {
-  return wall.pieces.find((p) => s >= p.from - 1e-6 && s <= p.to + 1e-6) ?? wall.pieces[wall.pieces.length - 1] ?? null;
-}
-
 function along(edge: PlanEdge, point: Vec2): number {
   return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
 }

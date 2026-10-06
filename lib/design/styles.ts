@@ -341,10 +341,6 @@ export function getStyle(id: StyleId | string | null | undefined): StyleDefiniti
   return STYLES.scandinavian;
 }
 
-export function isStyleId(value: unknown): value is StyleId {
-  return typeof value === 'string' && (STYLE_IDS as string[]).includes(value);
-}
-
 /**
  * How well a product's tags match a style.
  *   2 = explicitly tagged with this style

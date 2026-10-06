@@ -171,11 +171,6 @@ export function openingKinds(tools: readonly EditorTool[]): OpeningTool[] {
   return OPENING_TOOLS.filter((id) => tools.includes(id));
 }
 
-/** The tile the opening tools stand under: the door's, whichever kind is in hand. */
-export function openingTileTool(tools: readonly EditorTool[]): OpeningTool | null {
-  return openingKinds(tools)[0] ?? null;
-}
-
 export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, style }: Pick<PlanToolbarProps, 'tools' | 'tool' | 'onTool' | 'vertical'> & { edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
   const t = useT();
   const drawing = tool === 'wall' || tool === 'room' || tool === 'divider';

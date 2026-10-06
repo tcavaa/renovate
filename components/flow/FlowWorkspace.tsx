@@ -31,8 +31,6 @@ import type { StudioStep } from '@/store/designStore';
  * `FlowPanel` (340 px wide, 16 px in from the edge, 12 px of air). Change them with those.
  */
 export const FLOW_BOARD_BLEED = { top: 88, right: 368 } as const;
-/** The same, for a step with no panel down the right. */
-export const FLOW_BOARD_BLEED_NO_PANEL = { top: 88, right: 16 } as const;
 
 /** The step itself: the whole window under the header and the step strip from `lg` up. */
 export function FlowWorkspace({ children, className }: { children: React.ReactNode; className?: string }) {

@@ -9,7 +9,6 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 /** Flitt's public test merchant and its payment key (`api/testing.md`): the sandbox. */
 export const FLITT_TEST_MERCHANT_ID = 1549901;
-export const FLITT_TEST_SECRET = 'test';
 
 /** Where every API request goes, and where the embedded form's script and styles come from. */
 export const FLITT_ORIGIN = 'https://pay.flitt.com';

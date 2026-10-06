@@ -13,7 +13,6 @@ import { loadCategoryTree } from '@/lib/catalog/queries';
 import { canViewProductPage, isPublicProduct, productViewer, publicProductCondition, visibilityOf } from '@/lib/api/productAccess';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
 import { ProductModelDrawer } from '@/components/catalog/ProductModelDrawer';
-import { Button } from '@/components/ui/button';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { localizedName, localizedText, pickLocalizedName, styleLabel, unitLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
