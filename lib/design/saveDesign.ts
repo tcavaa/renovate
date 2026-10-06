@@ -17,14 +17,40 @@ import { activeProjectId } from '@/store/projectScope';
 import { markClean } from '@/lib/flow/projectSync';
 import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
 import type { SavedRow } from '@/lib/calculator/saveProject';
+import type { DesignVersion } from '@/lib/design/types';
 
 /**
  * The kept versions each store last had confirmed by the server. They run to megabytes (0.7 MB at
  * ten items and twelve versions, 6.4 MB at 600) and change only when one is kept, restored,
- * renamed or deleted, so a save carries them only when they differ from the last confirmed —
- * the route keeps the row's when a save names none. The first save of a page load sends them.
+ * renamed or deleted, so a save carries them only once they have arrived (`versionsLoaded` —
+ * the empty placeholder is never sent over the saved ones) and when they differ from the last
+ * confirmed; the route keeps the row's when a save names none.
  */
 const versionsConfirmed = new WeakMap<object, unknown>();
+
+/**
+ * Fetches a project's kept versions into its design store (`GET /api/projects/[id]/versions`),
+ * once: the step page's payload and the browser's copy leave them out. What arrives is what the
+ * server has, so the next save does not send it back.
+ */
+export function loadDesignVersions(projectId: number): Promise<void> {
+  const store = useDesignStore.for(projectId);
+  if (store.getState().versionsLoaded) return Promise.resolve();
+  // One request for every caller while it is on its way (React runs a mounting effect twice in development).
+  const waiting = versionsInFlight.get(projectId);
+  if (waiting) return waiting;
+  const request = (async () => {
+    const res = await fetch(`/api/projects/${projectId}/versions`, { cache: 'no-store' });
+    const json = (await res.json().catch(() => null)) as { data: { versions: DesignVersion[] } | null } | null;
+    if (!res.ok || !json?.data) throw new Error('versions-unavailable');
+    store.getState().receiveVersions(projectId, json.data.versions);
+    if (store.getState().versionsLoaded) versionsConfirmed.set(store, store.getState().versions);
+  })().finally(() => versionsInFlight.delete(projectId));
+  versionsInFlight.set(projectId, request);
+  return request;
+}
+
+const versionsInFlight = new Map<number, Promise<void>>();
 
 export function saveDesign(options: { draft: boolean; projectId?: number; force?: boolean }): Promise<SavedRow> {
   const id = options.projectId ?? activeProjectId();
@@ -54,7 +80,7 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
         scene: s.scene(),
         floorPlanUrl: s.floorPlanUrl,
         draft: options.draft,
-        ...(versionsConfirmed.get(store) === s.versions ? {} : { versions: s.versions }),
+        ...(!s.versionsLoaded || versionsConfirmed.get(store) === s.versions ? {} : { versions: s.versions }),
       }),
     });
     const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
@@ -62,7 +88,7 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
     if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');
     // Nothing touched the design while this was being written: the server has all of it.
     const unchanged = store.getState() === s;
-    versionsConfirmed.set(store, s.versions);
+    if (s.versionsLoaded) versionsConfirmed.set(store, s.versions);
     store.setState({ baseRev: json.data.rev, pendingSaveId: null });
     useSaveProblems.getState().report('design', id, null);
     if (unchanged) markClean('design', id);

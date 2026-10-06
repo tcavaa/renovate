@@ -86,7 +86,7 @@ at runtime yet; the last one was seen on the sample plan.
   ([budget.md](budget.md#known-gaps)); the style's skirting boards and cornices as products like
   its floors and walls ([design-studio/finishes.md](design-studio/finishes.md#known-gaps)).
 - **Projects**: live updates between two tabs on one project
-  ([project-flow.md §19](project-flow.md#19-known-gaps)).
+  ([project-flow.md §18](project-flow.md#18-known-gaps)).
 - **Calculator finishes**: a floor in two products has a share, not a place (both are bought;
   the board and 3D show the larger), and the summary and the orders do not name a pick's walls
   or share ([calculator.md](calculator.md#known-gaps)).
@@ -115,7 +115,7 @@ at runtime yet; the last one was seen on the sample plan.
 
 Each topic document ends with its own "Known gaps" section:
 [calculator.md](calculator.md#known-gaps) ·
-[project-flow.md §19](project-flow.md#19-known-gaps) ·
+[project-flow.md §18](project-flow.md#18-known-gaps) ·
 [budget.md](budget.md#known-gaps) ·
 [marketplace.md](marketplace.md#known-gaps) ·
 [partners-and-admin.md](partners-and-admin.md#known-gaps) ·

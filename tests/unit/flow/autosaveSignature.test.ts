@@ -90,4 +90,10 @@ describe('the autosave watches what the save sends', () => {
     expect(sig.autosaveSignature(base)).toBe(sig.autosaveSignature({ ...base, versions: [{ id: 'v1', name: '01', scene: { items: [2] } }] }));
     expect(sig.autosaveSignature(base)).not.toBe(sig.autosaveSignature({ ...base, versions: [{ id: 'v1', name: 'renamed' }] }));
   });
+
+  it('counts the design’s versions by the serial a person’s change bumps, not by their arrival', () => {
+    const before = { plan: null, versions: [], versionsSerial: 0 };
+    expect(sig.autosaveSignature(before)).toBe(sig.autosaveSignature({ ...before, versions: [{ id: 'v1', name: '01' }] }));
+    expect(sig.autosaveSignature(before)).not.toBe(sig.autosaveSignature({ ...before, versionsSerial: 1 }));
+  });
 });

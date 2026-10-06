@@ -11,7 +11,6 @@ import { HubModels } from '@/components/projects/hub/HubModels';
 import { CARD_FRAME, HubShell, ProjectThumbnail } from '@/components/projects/hub/HubShell';
 import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/ProjectCardMenu';
 import { HubCachePrune } from '@/components/projects/hub/HubCachePrune';
-import { LegacyWorkNotice } from '@/components/projects/hub/LegacyWorkNotice';
 import { loadHubProjects, type HubProject } from '@/lib/projects/hub';
 import { CALCULATOR_STEPS, calculatorEntryHref } from '@/lib/calculator/steps';
 import { designEntryHref, designStepPosition } from '@/lib/design/steps';
@@ -128,8 +127,6 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
         <HubModels userId={userId} />
       ) : (
         <>
-          <LegacyWorkNotice userId={userId} journey={journey} />
-
           <HubTiles journey={journey} defaultName={fill(t.hub.defaultName, { n: listed.length + 1 })} picks={picks} />
 
           <section className="mt-12" aria-labelledby="hub-projects">

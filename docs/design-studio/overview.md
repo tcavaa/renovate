@@ -217,7 +217,10 @@ furniture, and the undo history starts there. Taken when step 2 was left, as it 
 was an empty flat, so restoring it emptied the rooms. The working state is the implicit
 "modified house", `saveVersion` keeps a named one, `restoreVersion` keeps the present first,
 and "empty the rooms" (`clearDesign`, `build.emptyRooms`, behind a dialogue of ours) takes out
-the furniture, fittings and chosen finishes while the flat and version 01 stay. Versions are persisted locally and in `projects.versions`.
+the furniture, fittings and chosen finishes while the flat and version 01 stay. Versions are kept in
+`projects.versions` only — not in the browser's copy, not in the step page — and the studio fetches
+them when it opens; until they are here the version actions wait (`versionsLoaded`,
+[project-flow.md](../project-flow.md#the-kept-versions)).
 
 ## AI is optional, and only at the plan
 

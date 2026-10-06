@@ -304,7 +304,8 @@ run by the loader, written back once).
 - The placement step's page, `lib/calculator/placement.ts` and their strings are gone. Steps
   renumber: old 1–4 stay, old 5 (placement) → 4, 6 → 5, 7 → 6 (`fromSevenSteps`,
   `lib/calculator/steps.ts`).
-- The browser's copy migrates with the store's persist version (3 → 4, `migratePersisted`).
+- A browser copy from before (persist version 3) is discarded, not translated: the project opens
+  from its row ([project-flow.md](project-flow.md)).
 - The row's progress is recorded with `steps: 6` from now on, and `calculatorProgress` maps any
   progress without it. The schema still accepts a step up to 7, so a tab left open from before
   can save, and its progress is read as the seven steps it is.
@@ -478,7 +479,7 @@ rooms when the project is loaded (see "Picks from before" above).
   given them back from the catalogue (`applyBoardPicks`); a whole-flat pick on every one of its
   kind and bought for them; own lines; the contingency; the counts the board cannot give; ticks
   and quantities; `quantity.test.ts` — the quantity dropdown.
-- `tests/unit/store/calculatorStore.test.ts` — the seven-to-six step migration, re-counting
+- `tests/unit/store/calculatorStore.test.ts` — a copy of another version discarded, re-counting
   finishes when rooms change, the floor and wall actions.
 - `tests/unit/design/fromCalculator.test.ts` — the picks in 3D on their surface, their walls
   and a floor two products share; `tests/unit/design/electrical.test.ts` — the standard

@@ -21,7 +21,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
-import { designVersionSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
+import { electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
 import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
@@ -159,6 +159,16 @@ interface DesignState {
   electrical: ElectricalPoint[];
   /** The kept versions of the flat, oldest first; the first is the existing house. */
   versions: DesignVersion[];
+  /**
+   * Whether `versions` holds the project's kept versions. They are megabytes at scale, so neither
+   * the step page's payload nor the browser's copy carries them: the studio fetches them
+   * (`loadDesignVersions`). Until they arrive the version actions do nothing and a save never
+   * sends the empty placeholder over the saved ones. A new flat (generation, a new plan, the
+   * empty start) has none to wait for.
+   */
+  versionsLoaded: boolean;
+  /** Bumped by every change a person makes to the versions — what the autosave watches, not their arrival. */
+  versionsSerial: number;
   /**
    * Room the camera is focused on — and the one room picked out on the 2D board, a click at a
    * time — or null for the whole flat.
@@ -377,7 +387,7 @@ export interface DesignActions {
   /** Puts pending calculator picks into the existing design without re-laying it out. */
   applyPendingPicks: (catalog: CatalogProduct[]) => void;
   /** Reopens a saved design project in the studio exactly as it was saved. */
-  openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null; versions?: DesignVersion[] }) => void;
+  openSaved: (input: { projectId?: number | null; plan: FloorPlan; scene: DesignScene; floorPlanUrl: string | null; homeState: HomeState | null }) => void;
   /**
    * Gives rooms a floor or wall finish, a skirting board or a cornice; null returns them to
    * the style's own — for a floor or walls the product the style's look is, when `catalog`
@@ -483,13 +493,20 @@ export interface DesignActions {
   restoreVersion: (versionId: string, keepCurrentAs: string) => void;
   renameVersion: (versionId: string, name: string) => void;
   deleteVersion: (versionId: string) => void;
+  /** The project's kept versions arrived from the server (ignored once they are here, or after a reset made them new). */
+  receiveVersions: (projectId: number, versions: DesignVersion[]) => void;
   setStep: (step: StudioStep) => void;
   reset: () => void;
   scene: () => DesignScene;
 }
 
 /** Bump when the persisted shape changes — see the Persistence section at the bottom. */
-const PERSIST_VERSION = 2;
+/**
+ * The browser copy's format. A copy of another version is discarded — the server's row opens
+ * instead (no compatibility with older app versions is kept: there is no real data yet). 3: the
+ * kept versions left the copy.
+ */
+const PERSIST_VERSION = 3;
 
 const initial: DesignState = {
   mode: 'design_only',
@@ -512,6 +529,8 @@ const initial: DesignState = {
   finishes: [],
   electrical: [],
   versions: [],
+  versionsLoaded: false,
+  versionsSerial: 0,
   focusRoomId: null,
   selectedItemId: null,
   selectedElement: null,
@@ -625,6 +644,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             generated: true,
             step: 5,
             versions: [],
+            versionsLoaded: true,
+            versionsSerial: s.versionsSerial + 1,
             history: emptyHistory(),
           })),
         setHomeState: (homeState) => set({ homeState }),
@@ -698,6 +719,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               items: [],
               electrical: [],
               versions: [],
+              versionsLoaded: true,
+              versionsSerial: s.versionsSerial + 1,
               calculatorPicks: null,
               focusRoomId: null,
               selectedItemId: null,
@@ -716,7 +739,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         setPlanDefaults: (patch) =>
           commit((s) => (s.plan ? { plan: { ...s.plan, ...patch } } : null)),
 
-        openSaved: ({ projectId = null, plan, scene, floorPlanUrl, homeState, versions = [] }) =>
+        openSaved: ({ projectId = null, plan, scene, floorPlanUrl, homeState }) =>
           set((s) => ({
             loadSerial: s.loadSerial + 1,
             planSerial: s.planSerial + 1,
@@ -737,7 +760,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             items: scene.items,
             finishes: scene.finishes,
             electrical: scene.electrical ?? [],
-            versions,
+            // The kept versions come on their own (`loadDesignVersions`), when the studio opens.
+            versions: [],
+            versionsLoaded: false,
             calculatorPicks: null,
             focusRoomId: null,
             selectedItemId: null,
@@ -1186,6 +1211,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               ...(dressed.plan !== plan ? { plan: dressed.plan } : {}),
               generated: true,
               versions: [],
+              versionsLoaded: true,
+              versionsSerial: s.versionsSerial + 1,
               history: emptyHistory(),
             };
           });
@@ -1650,7 +1677,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
 
         ensureExistingVersion: (name) =>
           set((s) => {
-            if (!s.plan || s.versions.some((v) => v.kind === 'existing')) return s;
+            if (!s.versionsLoaded || !s.plan || s.versions.some((v) => v.kind === 'existing')) return s;
             // The baseline is the flat as the studio first found it — furniture, fittings,
             // finishes and all. It used to be taken when step 2 was left, which is before
             // anything has been laid out, so restoring it emptied the rooms.
@@ -1658,16 +1685,17 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // The undo history starts here too. Drawing a flat on step 2 is a long run of
             // undoable edits, and carrying it into the studio meant one Ctrl+Z too many
             // walked the walls back to the blank sheet.
-            return { versions: capVersions([versionOf(s, name, 'existing'), ...s.versions]), history: emptyHistory() };
+            return { versions: capVersions([versionOf(s, name, 'existing'), ...s.versions]), versionsSerial: s.versionsSerial + 1, history: emptyHistory() };
           }),
         saveVersion: (name, kind = 'manual') => {
+          if (!get().versionsLoaded) return '';
           const version = versionOf(get(), name, kind);
-          set((s) => ({ versions: capVersions([...s.versions, version]) }));
+          set((s) => ({ versions: capVersions([...s.versions, version]), versionsSerial: s.versionsSerial + 1 }));
           return version.id;
         },
         restoreVersion: (versionId, keepCurrentAs) =>
           set((s) => {
-            const version = s.versions.find((v) => v.id === versionId);
+            const version = s.versionsLoaded ? s.versions.find((v) => v.id === versionId) : null;
             if (!version) return s;
             // The present is kept as a version, unless it is already identical to one.
             const current = versionOf(s, keepCurrentAs, 'auto');
@@ -1675,6 +1703,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const versions = unchanged ? s.versions : capVersions([...s.versions, current]);
             return {
               versions,
+              versionsSerial: s.versionsSerial + 1,
               plan: version.plan,
               items: version.scene.items,
               finishes: version.scene.finishes,
@@ -1687,8 +1716,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               history: pushHistory(s.history, snapshotOf(s)),
             };
           }),
-        renameVersion: (versionId, name) => set((s) => ({ versions: s.versions.map((v) => (v.id === versionId ? { ...v, name } : v)) })),
-        deleteVersion: (versionId) => set((s) => ({ versions: s.versions.filter((v) => v.id !== versionId) })),
+        renameVersion: (versionId, name) => set((s) => (s.versionsLoaded ? { versions: s.versions.map((v) => (v.id === versionId ? { ...v, name } : v)), versionsSerial: s.versionsSerial + 1 } : s)),
+        deleteVersion: (versionId) => set((s) => (s.versionsLoaded ? { versions: s.versions.filter((v) => v.id !== versionId), versionsSerial: s.versionsSerial + 1 } : s)),
+        receiveVersions: (projectId, versions) =>
+          set((s) => (s.projectId !== projectId || s.versionsLoaded ? s : { versions: capVersions(versions), versionsLoaded: true })),
 
         setStep: (step) => set({ step }),
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
@@ -1711,12 +1742,17 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
       // Written once per burst of changes, and a full localStorage never breaks the page (`lib/flow/storage`).
       storage: debouncedStorage(),
       version: PERSIST_VERSION,
-      migrate: migratePersisted,
+      // Another version's copy is not translated: the project opens from its row.
+      migrate: () => ({ ...initial }),
       // `migrate` only runs when the version changed; a plan of the current version is
       // rehydrated as it was saved, so what `ensureWalls` normalises (door twins agreeing on
       // one leaf, walls for an old polygon plan) is put right here on every load.
+      // A copy that does not read as one (edited by hand, cut short by a full storage) is
+      // discarded and the project opens from its row; it used to be spread in unchecked.
       merge: (persisted, current) => {
-        const next = { ...current, ...(persisted as Partial<DesignState>) };
+        const parsed = persistedSchema.safeParse(persisted);
+        if (!parsed.success) return current;
+        const next = { ...current, ...(parsed.data as unknown as Partial<DesignState>) };
         return next.plan ? { ...next, plan: ensureWalls(next.plan) } : next;
       },
       // `scene` is a getter, not state; persisting the catalogue would go stale; the history
@@ -1744,7 +1780,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         items: withoutCarry(s),
         finishes: s.finishes,
         electrical: s.electrical,
-        versions: s.versions,
+        // Not the kept versions: megabytes, written on every change. They come from the server.
         step: s.step,
         generated: s.generated,
         planFromCalculator: s.planFromCalculator,
@@ -1999,34 +2035,9 @@ const persistedSchema = z.object({
   items: z.array(placedItemSchema),
   finishes: z.array(surfaceFinishSchema),
   electrical: z.array(electricalPointSchema).optional(),
-  versions: z.array(designVersionSchema).optional(),
   step: z.number().int().min(1).max(8),
-});
-
-const V1_STEP: Record<number, StudioStep> = { 1: 1, 2: 2, 3: 4, 4: 5, 5: 7 };
-
-function migratePersisted(persisted: unknown, version: number): DesignState {
-  if (version !== PERSIST_VERSION && version !== 1) return { ...initial };
-  const parsed = persistedSchema.safeParse(persisted);
-  if (!parsed.success) return { ...initial };
-  const plan = parsed.data.plan ? ensureWalls(parsed.data.plan as FloorPlan) : null;
-  const step = version === 1 ? (V1_STEP[parsed.data.step] ?? 1) : (parsed.data.step as StudioStep);
-  return {
-    ...initial,
-    ...parsed.data,
-    // Work saved before the choice existed already has a mode; only a blank slate asks.
-    modeChosen: parsed.data.modeChosen ?? parsed.data.plan != null,
-    projectId: parsed.data.projectId ?? null,
-    styleProfile: parsed.data.styleProfile ?? null,
-    plan,
-    items: parsed.data.items as PlacedItem[],
-    finishes: parsed.data.finishes as SurfaceFinish[],
-    electrical: (parsed.data.electrical ?? []) as ElectricalPoint[],
-    versions: (parsed.data.versions ?? []) as DesignVersion[],
-    step,
-    history: emptyHistory(),
-  };
-}
+  // The rest of what `partialize` keeps (save bookkeeping, ticks, the journey) rides along as it is.
+}).passthrough();
 
 /**
  * The items with whatever is riding on the pointer given up, the way Escape gives it up: a

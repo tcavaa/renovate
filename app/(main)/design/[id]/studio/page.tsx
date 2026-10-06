@@ -45,7 +45,7 @@ import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
-import { saveDesign } from '@/lib/design/saveDesign';
+import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { designStepHref, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
@@ -212,12 +212,19 @@ export default function StudioPage() {
     if (products.length > 0 && kitchenKey) store.ensureKitchenMaterials(products);
   }, [products, kitchenKey, store]);
 
-  // The existing house is kept the first time the studio opens on a plan.
+  // The kept versions arrive on their own (they are left out of the page and the browser's copy).
+  const versionsLoaded = useDesignStore((s) => s.versionsLoaded);
   useEffect(() => {
-    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
+    if (!versionsLoaded) void loadDesignVersions(projectId).catch(() => undefined);
+  }, [versionsLoaded, projectId]);
+
+  // The existing house is kept the first time the studio opens on a plan — once the versions
+  // are here, so a baseline already kept is found rather than taken again.
+  useEffect(() => {
+    if (versionsLoaded && plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
     // Once per plan identity is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.rooms.length]);
+  }, [plan?.rooms.length, versionsLoaded]);
 
   const [view, setView] = useState<StudioView>('3d');
   const [category, setCategory] = useState<StudioCategory>(() => (searchParams.get('tool') === 'finishes' ? 'finishes' : 'furniture'));

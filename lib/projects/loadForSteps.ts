@@ -24,6 +24,7 @@ export async function loadProjectForSteps(rawId: string, journey: 'calculator' |
     .limit(1);
   if (!rows[0]) notFound();
   const project = savedProjectInput(rows[0]);
-  // The calculator never opens the design's kept versions — they can run to megabytes.
-  return { project: journey === 'calculator' ? { ...project, versions: [] } : project, userId: Number(session.user.id) };
+  // The kept versions run to megabytes and are not part of the page: the studio fetches them
+  // (`GET /api/projects/[id]/versions`); the calculator never opens them.
+  return { project: { ...project, versions: [] }, userId: Number(session.user.id) };
 }

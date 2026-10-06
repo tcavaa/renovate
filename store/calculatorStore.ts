@@ -7,7 +7,7 @@ import { projectScopedStore } from './projectScope';
 import { z } from 'zod';
 import { calculatorRequestSchema, homeStateEnum } from '@/lib/validations/room.schema';
 import { withFloorProduct, withFloorShare, withRoomFinish, withRoomFinishQuantities, withSameFinish, withWallProduct, withWallsOneByOne, type FinishSurface } from '@/lib/calculator/roomFinishes';
-import { CALCULATOR_STEPS, fromSevenSteps } from '@/lib/calculator/steps';
+import { CALCULATOR_STEPS } from '@/lib/calculator/steps';
 import { tickedOff, toggleTick, withQuantity, type Quantities, type Tick } from '@/lib/design/ticks';
 import { effectiveExcluded } from '@/lib/summary/calculatorSheet';
 import type {
@@ -289,8 +289,15 @@ function createCalculatorStore(storageName: string | null): CalculatorStoreHook 
       // Written once per burst of changes, and a full localStorage never breaks the page (`lib/flow/storage`).
       storage: debouncedStorage(),
       version: PERSIST_VERSION,
-      migrate: migratePersisted,
-      merge: (persisted, current) => liftFlags({ ...current, ...(persisted as Partial<Persisted>) }),
+      // Another version's copy is not translated (no compatibility with older app versions is
+      // kept): it is discarded and the project opens from its row.
+      migrate: () => ({ ...initial }),
+      // A copy that does not read as one is discarded too; it used to be spread in unchecked.
+      merge: (persisted, current) => {
+        const parsed = persistedSchema.safeParse(persisted);
+        if (!parsed.success) return current;
+        return liftFlags({ ...current, ...(parsed.data as unknown as Partial<Persisted>) });
+      },
       // The autosave's status is a fact about this session, not about the project.
       partialize: (s) => ({
         homeState: s.homeState,
@@ -359,40 +366,5 @@ const persistedSchema = z.object({
   at: z.number().int().min(1).max(6).nullable().optional(),
   baseRev: z.number().int().nullable().optional(),
   pendingSaveId: z.string().nullable().optional(),
-});
+}).passthrough();
 
-function migratePersisted(persisted: unknown, version: number): Persisted {
-  // Version 1 had five steps; the placement step went in as the fourth, so a journey that
-  // had reached the furniture (4) or the summary (5) is one further on now (version 2).
-  // Version 3 put the plan on a step of its own, the second, so everything from the
-  // materials on is one further on again — seven steps. Version 4 took the placement out
-  // again (the catalogue finishes each room itself): six steps, `fromSevenSteps`.
-  if (!persisted || typeof persisted !== 'object') return { ...initial };
-  const old = persisted as { step?: number; at?: number | null };
-  let step = typeof old.step === 'number' ? old.step : 1;
-  let at = typeof old.at === 'number' ? old.at : null;
-  if (version === 1) step = step >= 4 ? step + 1 : step;
-  if (version === 1 || version === 2) step = step >= 2 ? step + 1 : step;
-  if (version >= 1 && version <= 3) {
-    step = fromSevenSteps(step);
-    at = at != null ? fromSevenSteps(at) : null;
-  } else if (version !== PERSIST_VERSION) return { ...initial };
-  persisted = { ...old, step, at };
-  const parsed = persistedSchema.safeParse(persisted);
-  if (!parsed.success) return { ...initial };
-  return {
-    ...initial,
-    ...parsed.data,
-    projectId: parsed.data.projectId ?? null,
-    calculated: parsed.data.calculated ?? false,
-    excluded: parsed.data.excluded ?? [],
-    quantities: parsed.data.quantities ?? {},
-    choices: parsed.data.choices ?? {},
-    at: parsed.data.at != null ? clampStep(parsed.data.at) : null,
-    baseRev: parsed.data.baseRev ?? null,
-    pendingSaveId: parsed.data.pendingSaveId ?? null,
-    rooms: parsed.data.rooms as Room[],
-    selectedProducts: parsed.data.selectedProducts as Record<string, SelectedProduct>,
-    selectedFurniture: parsed.data.selectedFurniture as Record<string, SelectedProduct[]>,
-  };
-}

@@ -20,6 +20,7 @@ export const DESIGN_SAVED = [
   'plan',
   'floorPlanUrl',
   'versions',
+  'versionsSerial',
   'styleId',
   'mode',
   'budgetGel',
@@ -45,12 +46,13 @@ export function pickFields<S extends object, K extends keyof S>(state: S, keys: 
 }
 
 /**
- * One string that changes whenever any saved field does. Kept versions count by id and name —
- * their content never changes under an id, and writing them all out on every edit would cost
- * as much as the save.
+ * One string that changes whenever any saved field does. The design's kept versions count by
+ * `versionsSerial`, which only a person's change to them bumps — their arrival from the server
+ * (`loadDesignVersions`) is not an edit to write back; without a serial they count by id and
+ * name (their content never changes under an id).
  */
 export function autosaveSignature(fields: Record<string, unknown>): string {
-  const versions = fields.versions;
-  const light = Array.isArray(versions) ? { ...fields, versions: versions.map((v: { id?: unknown; name?: unknown }) => [v.id, v.name]) } : fields;
-  return JSON.stringify(light);
+  const { versions, ...rest } = fields;
+  if ('versionsSerial' in fields) return JSON.stringify(rest);
+  return JSON.stringify(Array.isArray(versions) ? { ...rest, versions: versions.map((v: { id?: unknown; name?: unknown }) => [v.id, v.name]) } : fields);
 }

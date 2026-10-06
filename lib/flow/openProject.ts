@@ -156,7 +156,6 @@ export function loadDesignHalf(project: SavedProjectInput): LoadedFrom {
       scene: { ...project.scene, progress: project.designProgress },
       floorPlanUrl: project.floorPlanUrl,
       homeState: project.homeState,
-      versions: project.versions,
     });
     // A design carried in from the calculation applies the calculation's picks (to a layout
     // still to be generated, or when "see it in 3D" brings new ones). They are the calculator's

@@ -110,7 +110,7 @@ components/
                ProjectViewer (read-only 2D / 3D / walk-through)
                ProjectKindTags OpenIn3dButton CalculateCostsButton OrderProjectButton
                DeleteProjectButton · hub/ (ProjectHub HubShell HubTiles HubRenders HubOrders
-               HubModels HubDate ProjectCardMenu LegacyWorkNotice HubCachePrune)
+               HubModels HubDate ProjectCardMenu HubCachePrune)
   checkout/    CheckoutDialog BookingDialog ContactFields FeePaidNote
   orders/      OrderEditor PartnerOrderView OrderTimeline OrderReviewCard ProjectOrdersReview
                ProjectOrders OrderStatusBadge (OrderStageBadge) useOrderActions.ts
@@ -168,7 +168,7 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
 
 | Area | Routes |
 |---|---|
-| Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) |
+| Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) · `projects/[id]/versions` (the design's kept versions, fetched by the studio) |
 | Design | `design/projects` (the design's save) · `design/catalog` · `design/upload-plan` · `design/parse-plan` · `design/renders`, `design/renders/[id]` · `design/models`, `design/models/[id]` (a person's own furniture) |
 | Calculator | `calculator/rates`, `calculator/rates/[id]` |
 | Catalogue | `products`, `products/[id]`, `products/bulk` · `categories`, `categories/[id]`, `categories/reorder` · `shelf-rooms`, `shelf-rooms/[id]`, `shelf-rooms/reorder` · `stores`, `stores/[id]`, `stores/[id]/approval` |

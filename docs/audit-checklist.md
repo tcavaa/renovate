@@ -84,12 +84,14 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
   write the "undo restores the pre-state" property test first (R1, 2.6)
 - [ ] Split the design store by lifecycle: document / session / sync / versions / calculator board (R2)
 - [ ] Validate DB JSON on read (`lib/projects/saved.ts`, `json<T>()` returns a string as `T` on
-  parse failure) and the persist `merge`; DB backfill, then drop read-time shims (R7, 2.9)
+  parse failure); drop the read-time row shims (`fromSevenSteps`, `saved.ts`' row shims,
+  `migrateFinishPicks`, `liftFlags`, `LEGACY_WORKS`, `RETIRED_RATE_KEYS`, the `loadCalculatorHalf`
+  rescue) — no backfill needed, old rows may break (R7, 2.9). *The persist `merge` now validates.*
 - [ ] Editor shortcuts change the document behind open dialogs (ST-3); Escape/✕ closes the
   non-modal payment dialogue during 3-D Secure, reopening makes a new Flitt order (NX-7)
 - [ ] Item/room/wall caps only in the server schema — enforce in the client with a message (perf #17)
-- [ ] Remove `lib/flow/legacy.ts`, persist v1–3 migrations and the `'guest'` owner branch
-  (`lib/flow/owner.ts`) after a dated cut-off
+- [x] Remove `lib/flow/legacy.ts`, the persisted stores' old-version migrations and the `'guest'`
+  owner branch (no compatibility with older app versions is kept — no real data yet)
 
 ### 3D
 - [ ] Decompose `Viewer3D` (1,705 lines): scene groups + id→object registries, camera rig,
@@ -110,8 +112,9 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 - [ ] Benchmark scene at 50/150/500 items (4.1)
 
 ### Next.js and delivery
-- [ ] Versions out of the step RSC payload and the local cache: their own endpoint + IndexedDB,
-  lazily loaded (`ensureExistingVersion`, `restoreVersion` and the versions panel must wait for them)
+- [x] Versions out of the step RSC payload and the local cache: their own endpoint
+  (`GET /api/projects/[id]/versions`), fetched by the studio, the version actions waiting for them
+  (`versionsLoaded`); no IndexedDB — a version kept and not yet saved is lost on an offline reload
 - [ ] Step HTML inlines the whole row; rate book from the server layout; server-side resume
   `redirect()` (N1, 2.11)
 - [ ] Dictionary split by area (N4); nothing static, `ORDER BY RAND()` on the landing (N5);
