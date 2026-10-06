@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs';
 import { setLogSink, type LogLevel } from '@/lib/log';
-import { sentryOptions } from '@/lib/sentry';
+import { scrubContext, sentryOptions } from '@/lib/sentry';
 
 /**
  * Sentry on the Node server, started by `instrumentation.ts` (docs/operations.md#errors-go-to-sentry).
@@ -9,7 +9,9 @@ import { sentryOptions } from '@/lib/sentry';
  * see them; the server's log is therefore forwarded whole. Every line goes to Sentry's Logs, and
  * an `error` line becomes an issue as well — its `Error` as the exception (so issues group by
  * stack), or the message itself when the line carries none (a payment that does not match its
- * order, a notification that failed).
+ * order, a notification that failed). The context goes through `scrubContext` first: a mail's
+ * address and text (with `MAIL_DRIVER=log`, a live reset link), an e-mail anywhere, a link's
+ * token — those stay in the local log file and never reach Sentry.
  */
 Sentry.init({
   ...sentryOptions,
@@ -41,7 +43,7 @@ function attributes(context: Record<string, unknown> | undefined): Record<string
 }
 
 function forward(level: LogLevel, msg: string, context?: Record<string, unknown>): void {
-  const attrs = attributes(context);
+  const attrs = attributes(scrubContext(context));
   Sentry.logger[level](msg, attrs);
   if (level !== 'error') return;
   const err = Object.values(context ?? {}).find((value) => value instanceof Error);
