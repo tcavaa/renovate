@@ -156,6 +156,8 @@ export function HingeDialog({
               prepare={prepare}
               onNothingToPay={(why) => {
                 if ('paid' in why) setPaidBefore(why.paid);
+                // A fee of 0 (admin's rate): nothing to pay, the hinge goes on.
+                else if ('free' in why) onPaid();
               }}
               onApproved={(payment, half) => {
                 setPaid({ amount: payment.total, reference: half?.reference ?? payment.orderId });

@@ -31,7 +31,7 @@ vi.mock('@/lib/db', () => ({
 }));
 const authMock = vi.fn<() => Promise<unknown>>(async () => null);
 vi.mock('@/auth', () => ({ auth: () => authMock() }));
-vi.mock('@/lib/api/rateLimit', () => ({ RATE_RULES: { payment: {} }, rateLimited: () => null }));
+vi.mock('@/lib/api/rateLimit', () => ({ RATE_RULES: { payment: {}, paymentStatus: {}, paymentCallback: {} }, rateLimited: () => null }));
 vi.mock('@/lib/i18n/server', async () => {
   const { ka } = await import('@/lib/i18n/ka');
   return { getT: async () => ka, getLocale: async () => 'ka' };
@@ -169,6 +169,23 @@ describe('starting a payment', () => {
     expect(empty.status).toBe(400);
     expect(((await empty.json()) as { error: string }).error).toBe('NOTHING_TO_PAY');
     expect(state.started).toHaveLength(0);
+  });
+
+  it('lets a half through for free when admin set its rate to 0, with no order at Flitt', async () => {
+    as('35');
+    state.project = { id: 9, userId: 35, nameKa: 'ბინა' };
+    state.quote = { kind: 'design', feePerM2: 0, totalM2: 50, amount: 0 };
+    const res = await start({ purpose: 'design', projectId: 9 });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: Row }).data).toEqual({ free: true });
+    expect(state.started).toHaveLength(0);
+  });
+
+  it('refuses an oversized callback body without reading it as a payment', async () => {
+    const res = await (await callbackRoute()).POST(new Request('http://localhost/api/payments/flitt/callback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...callback(), junk: 'x'.repeat(40_000) }) }), ctx);
+    expect(res.status).toBe(400);
+    expect(state.settled).toHaveLength(0);
+    expect(state.events).toHaveLength(0);
   });
 
   it("charges an own item at admin's price — unless it is free or already paid for", async () => {

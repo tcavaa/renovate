@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 /**
  * Flitt's protocol, without the network: the signature every request and every answer carries,
@@ -44,7 +44,8 @@ export function flittSignature(secret: string, params: FlittParams): string {
 export function verifyFlittSignature(secret: string, params: FlittParams): boolean {
   const given = params.signature;
   if (typeof given !== 'string' || !/^[0-9a-f]{40}$/i.test(given)) return false;
-  return flittSignature(secret, params) === given.toLowerCase();
+  // Compared in constant time: how long a wrong guess took says nothing about how close it was.
+  return timingSafeEqual(Buffer.from(flittSignature(secret, params), 'hex'), Buffer.from(given.toLowerCase(), 'hex'));
 }
 
 /**
@@ -66,6 +67,27 @@ const STATUSES: readonly PaymentStatus[] = ['created', 'processing', 'approved',
 /** A status that will not change by itself: `approved` can still be reversed, but only by someone. */
 export function isFinalStatus(status: PaymentStatus): boolean {
   return status !== 'created' && status !== 'processing';
+}
+
+/**
+ * What a signed answer about our payment does to it, from the status it has to the one Flitt
+ * reports (docs/payments.md#settling):
+ *
+ * - `approve` — not approved before: approved now, and what it paid for unlocked, in one
+ *   transaction. Never out of `reversed`: a reversed payment's money went back, and a replayed
+ *   (or late) "approved" once re-approved it and unlocked it again.
+ * - `reverse` — the money went back: the status, and what it unlocked taken back.
+ * - `status` — still on its way (created, processing) or ended without money (declined,
+ *   expired): the status is written — only over a payment that is neither approved nor reversed.
+ * - `facts` — nothing changes but the card's and the money's facts (a partial refund's
+ *   `reversal_amount` on an approved payment, a late answer about a settled one).
+ */
+export type Settlement = 'approve' | 'reverse' | 'status' | 'facts';
+
+export function settlementFor(current: PaymentStatus, next: PaymentStatus): Settlement {
+  if (next === 'reversed') return current === 'reversed' ? 'facts' : 'reverse';
+  if (current === 'approved' || current === 'reversed') return 'facts';
+  return next === 'approved' ? 'approve' : 'status';
 }
 
 /** What the payment we hold looks like to Flitt's answer. */

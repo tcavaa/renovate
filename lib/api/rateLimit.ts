@@ -121,6 +121,10 @@ export const RATE_RULES = {
   checkout: { key: 'checkout', limit: 10, windowMs: 60 * 60_000 },
   /** A card payment started: each one is an order at Flitt. A declined card is tried again, so more than checkouts. */
   payment: { key: 'payment', limit: 30, windowMs: 60 * 60_000 },
+  /** The payment dialogue's checks while a payment settles: each one may ask Flitt. Eight per payment, a few payments. */
+  paymentStatus: { key: 'payment-status', limit: 120, windowMs: 10 * 60_000 },
+  /** Flitt's callbacks come from two addresses; a burst past this is answered 429 and Flitt retries later. */
+  paymentCallback: { key: 'payment-callback', limit: 600, windowMs: 10 * 60_000 },
   /** Password-reset and verification mails: each one is an e-mail somebody has to receive. */
   authMail: { key: 'auth-mail', limit: 5, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;

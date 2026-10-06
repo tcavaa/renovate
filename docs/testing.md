@@ -42,7 +42,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 - Test env: `NODE_ENV=test`, `LOG_FILE=false`, `LOG_STDOUT=false`, a test `AUTH_SECRET`.
 - **Coverage gate** (v8; lines/functions/statements 80 %, branches 65 %) over the modules that
   produce money figures or guard the API: `lib/calculator/**`, `lib/design/pricing.ts`,
-  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`, `lib/payments/flitt.ts`,
+  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`, `lib/payments/flitt.ts`, `lib/payments/service.ts`,
   `lib/account/contact.ts`,
   `lib/storage/uploadKeys.ts`, `lib/api/**`, `lib/auth/**`,
   `app/api/projects/route.ts`, `app/api/design/projects/route.ts` (excluding

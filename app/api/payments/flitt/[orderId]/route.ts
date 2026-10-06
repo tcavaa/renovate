@@ -1,3 +1,4 @@
+import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok, requireSession } from '@/lib/api/route';
 import { halfPayment } from '@/lib/finance/payments';
 import { cardPaymentView, paymentByOrderId, refreshCardPayment } from '@/lib/payments/service';
@@ -11,7 +12,9 @@ export const dynamic = 'force-dynamic';
  * reads once the embedded form says it is done (the form's word is not proof; Flitt's signed
  * status is). An approved half answers with its recorded fee too. The payer (or admin) only.
  */
-export const GET = handle('GET /api/payments/flitt/[orderId]', 'Failed to load the payment', async (_req, { params }) => {
+export const GET = handle('GET /api/payments/flitt/[orderId]', 'Failed to load the payment', async (req, { params }) => {
+  const limited = rateLimited(req, RATE_RULES.paymentStatus);
+  if (limited) return limited;
   const { session, response } = await requireSession();
   if (response) return response;
   const orderId = orderIdSchema.safeParse(params.orderId);
