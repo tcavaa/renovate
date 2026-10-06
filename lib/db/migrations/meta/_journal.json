@@ -183,6 +183,13 @@
       "when": 1791285387495,
       "tag": "0025_session_version",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1791285936524,
+      "tag": "0026_nullable_timestamps",
+      "breakpoints": true
     }
   ]
 }
