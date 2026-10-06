@@ -264,7 +264,7 @@ function useSceneLoading(sceneKey: string | number): { phase: 'loading' | 'leavi
       setPhase('leaving');
     }, SETTLE_MS);
     return () => window.clearTimeout(settle);
-  }, [phase, isBuilt, progress.pending, progress.started]);
+  }, [phase, isBuilt, progress.pending, progress.started, sceneKey]);
 
   useEffect(() => {
     if (phase === 'leaving') {
