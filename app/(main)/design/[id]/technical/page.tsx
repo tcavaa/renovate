@@ -13,7 +13,7 @@ import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { FLOW_BOARD_BLEED, FlowBar, FlowPanel, FlowWorkspace } from '@/components/flow/FlowWorkspace';
-import { useDesignStore } from '@/store/designStore';
+import { useDesignActions, useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -63,7 +63,9 @@ export default function TechnicalPage() {
   const selection = useDesignStore((s) => s.selectedElement);
   const mode = useDesignStore((s) => s.mode);
   const homeState = useDesignStore((s) => s.homeState);
-  const actions = useDesignStore();
+  // Stable: the whole state here re-rendered the page on every store change.
+  const actions = useDesignActions();
+  const selectedRoomPart = useDesignStore((s) => s.selectedRoomPart);
   const styleId = useDesignStore((s) => s.styleId);
   const { products } = useDesignCatalog();
   const [tool, setTool] = useState<EditorTool>('select');
@@ -262,7 +264,7 @@ export default function TechnicalPage() {
           <FlowPanel className="mt-6 lg:mt-0">
             {selection?.kind === 'technical' && (
               <ElementInspector
-              roomPart={actions.selectedRoomPart}
+              roomPart={selectedRoomPart}
                 plan={plan}
                 electrical={electrical}
                 selection={selection}

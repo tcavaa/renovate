@@ -16,7 +16,7 @@
  *   - `walk`  — standing inside at eye height, walls and ceilings intact
  */
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -168,7 +168,17 @@ export interface Viewer3DProps {
   className?: string;
 }
 
-export function Viewer3D(props: Viewer3DProps) {
+/** The next frame draws the shadow map again (it is not redrawn by itself: `autoUpdate` is off). */
+function redrawShadows(renderer: THREE.WebGLRenderer): void {
+  renderer.shadowMap.needsUpdate = true;
+}
+
+/**
+ * Memoised: the studio re-renders for many things the view does not show (a tray, a dialogue,
+ * the save status), and under demand rendering every re-render of the canvas's children drew a
+ * frame. Its props are stable (the page's callbacks are `useCallback`s over stable actions).
+ */
+export const Viewer3D = memo(function Viewer3D(props: Viewer3DProps) {
   const style = getStyle(props.scene.styleId);
   const daylight = useMemo(() => lightingForHour(props.daylightHour ?? 13, style), [props.daylightHour, style]);
   // The camera is born where the framing will put it — the whole flat, or the room in focus —
@@ -193,11 +203,16 @@ export function Viewer3D(props: Viewer3DProps) {
         onCreated={({ gl, camera, invalidate }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = daylight.exposure;
+          gl.shadowMap.autoUpdate = false;
+          gl.shadowMap.needsUpdate = true;
           camera.lookAt(...initial.target);
           // three takes the context back after the GPU dropped it (a driver reset, a tab long in
           // the background), but frames are drawn on demand: nothing asked for one, and the view
           // stayed black until the next touch.
-          gl.domElement.addEventListener('webglcontextrestored', () => invalidate());
+          gl.domElement.addEventListener('webglcontextrestored', () => {
+            gl.shadowMap.needsUpdate = true;
+            invalidate();
+          });
         }}
         onPointerMissed={() => {
           props.onSelectItem?.(null);
@@ -215,7 +230,7 @@ export function Viewer3D(props: Viewer3DProps) {
       </ViewerGuard>
     </div>
   );
-}
+});
 
 /**
  * The flats shown whole on this page (by `sceneKey`): a view of one opened again (from 2D, say)
@@ -372,7 +387,16 @@ function SceneContent({
   onBuilt,
 }: Viewer3DProps & { daylight: Daylight; /** Called once, after the first build has asked for every file it needs. */ onBuilt?: () => void }) {
   const style = getStyle(scene.styleId);
-  const { camera, gl, scene: threeScene, invalidate } = useThree();
+  const { camera, gl, scene: threeScene, invalidate: requestFrame } = useThree();
+  // The shadow map is drawn only when the scene changed (gotcha 26): every frame asked for from
+  // here — a file landing, a drag, a light — flags it, and so does every render of this
+  // component (below). The frames drei's orbit asks for, and the walk-through's, only move the
+  // camera: they draw the picture with the shadows as they were, not the 2048² map again.
+  const invalidate = useCallback(() => {
+    redrawShadows(gl);
+    requestFrame();
+  }, [gl, requestFrame]);
+  useEffect(() => redrawShadows(gl));
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);

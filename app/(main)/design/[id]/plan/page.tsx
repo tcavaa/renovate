@@ -13,7 +13,7 @@ import { StepNav } from '@/components/flow/StepNav';
 import { StageBrief } from '@/components/flow/StageBrief';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowBarButton, FlowPanel, FlowPanelOverlay, FlowWorkspace } from '@/components/flow/FlowWorkspace';
-import { useDesignStore } from '@/store/designStore';
+import { useDesignActions, useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
@@ -45,7 +45,9 @@ export default function ExistingHousePage() {
   const homeState = useDesignStore((s) => s.homeState);
   const mode = useDesignStore((s) => s.mode);
   const emptyStart = useDesignStore((s) => s.emptyStart);
-  const actions = useDesignStore();
+  // Stable: the whole state here re-rendered the page on every store change.
+  const actions = useDesignActions();
+  const selectedRoomPart = useDesignStore((s) => s.selectedRoomPart);
   const [refused, setRefused] = useState<string | null>(null);
 
   useEffect(() => {
@@ -163,7 +165,7 @@ export default function ExistingHousePage() {
             <FlowPanelOverlay>
               <InspectorClose.Provider value={() => actions.selectElement(null)}>
                 <ElementInspector
-                  roomPart={actions.selectedRoomPart}
+                  roomPart={selectedRoomPart}
                   plan={plan}
                   electrical={electrical}
                   wallBuilding={wallBuilding}

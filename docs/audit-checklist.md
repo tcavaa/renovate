@@ -40,7 +40,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
    2D usable; a WebGL probe with a translated fallback (not a 45 s spinner); evict failed
    textures (render black next time); reset the Draco loader after a failure; redraw on
    context restore; reset `sceneShownWhole` per project.
-7. [ ] **Re-render storms** (P8, R4, perf #1a/#1b/#3, 2.5): atomic selectors + `useShallow` on the
+7. [x] **Re-render storms** (P8, R4, perf #1a/#1b/#3, 2.5): atomic selectors + `useShallow` on the
    studio, design plan/technical and calculator plan pages and `PlanWorkspace`; a stable
    `useDesignActions()`; `memo(Viewer3D)` with stable handlers; `shadowMap.autoUpdate = false`
    with `needsUpdate` on change.
@@ -158,4 +158,5 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | Autosave watches exactly what the save sends (board sockets were missed) + a guard test; storage-full, signed-out and 401 on the banner; another tab's clean mark no longer clears this tab's unsaved work | top 10 #1 (state §11, 1.8, test #4 in part) | `7ea4d94d` |
 | Undo: a slider drag is one step; version 01 never evicted; style in the snapshot and `setStyle` one step; locks in the store and the 3D drag; `lockItem` undoable; wall-less `resizeRoom` no longer mutates history | top 10 #2 (P4, P5 in part, 1.8) | `d1090928` |
 | Persistence: debounced store writes (one per 400 ms burst, flushed on pagehide), versions sent only when changed, projected `GET /api/projects` | top 10 #5 (R3 in part, P6 in part, perf #2/#4 in part) | `b769566d` |
+| 3D failures: WebGL probe + error boundary (`ViewerGuard`), redraw on context restore, failed textures retried, failed Draco decoder replaced, loading screen per flat | top 10 #6 (P10, 3.1) | `86ec03bb` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |

@@ -33,7 +33,8 @@ import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
 import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
-import { useDesignStore } from '@/store/designStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useDesignActions, useDesignStore } from '@/store/designStore';
 import { useDesignCatalog, refreshDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -114,7 +115,9 @@ export default function StudioPage() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const projectId = useProjectId();
-  const store = useDesignStore();
+  // The actions keep their identity, the fields are picked one by one: the page (and every
+  // callback it hands the 3D view) re-renders for what it shows, not for every store change.
+  const store = useDesignActions();
   const {
     plan,
     styleId,
@@ -131,10 +134,39 @@ export default function StudioPage() {
     carryingItemId,
     carryRestore,
     structureLocked,
-    history,
+    canUndo,
+    canRedo,
     saveState,
     pendingPicks,
-  } = store;
+    selectedRoomPart,
+    versionCount,
+    planSerial,
+  } = useDesignStore(
+    useShallow((s) => ({
+      plan: s.plan,
+      styleId: s.styleId,
+      mode: s.mode,
+      homeState: s.homeState,
+      budgetGel: s.budgetGel,
+      items: s.items,
+      finishes: s.finishes,
+      electrical: s.electrical,
+      styleProfile: s.styleProfile,
+      focusRoomId: s.focusRoomId,
+      selectedItemId: s.selectedItemId,
+      selectedElement: s.selectedElement,
+      carryingItemId: s.carryingItemId,
+      carryRestore: s.carryRestore,
+      structureLocked: s.structureLocked,
+      canUndo: s.history.past.length > 0,
+      canRedo: s.history.future.length > 0,
+      saveState: s.saveState,
+      pendingPicks: s.pendingPicks,
+      selectedRoomPart: s.selectedRoomPart,
+      versionCount: s.versions.length,
+      planSerial: s.planSerial,
+    }))
+  );
   const { products, shelf } = useDesignCatalog();
   const { book } = useRateBook();
   // A renovation that builds the partition walls (a black frame) shows which of them already stand.
@@ -270,7 +302,7 @@ export default function StudioPage() {
   useEffect(() => {
     // A studio with no plan is the "upload one first" card; claiming step 5 there would
     // make the journey's resume send people back to it for ever.
-    const ready = (store.plan?.rooms.length ?? 0) > 0;
+    const ready = (useDesignStore.getState().plan?.rooms.length ?? 0) > 0;
     if (searchParams.get('tool') === 'finishes') {
       setCategory('finishes');
       if (ready) store.setStep(6);
@@ -593,7 +625,7 @@ export default function StudioPage() {
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;
   // The shelf opens on a studio as the half picked out on the board, the living half otherwise.
-  const focusShelfType = focusRoom?.type === 'studio' ? (effectiveSplit(focusRoom).parts[store.selectedRoomPart?.roomId === focusRoom.id ? store.selectedRoomPart.part : 1]) : (focusRoom?.type ?? null);
+  const focusShelfType = focusRoom?.type === 'studio' ? (effectiveSplit(focusRoom).parts[selectedRoomPart?.roomId === focusRoom.id ? selectedRoomPart.part : 1]) : (focusRoom?.type ?? null);
   const visibleItems = focusRoom ? items.filter((i) => i.roomId === focusRoom.id) : items;
   const tightSpots: Map<string, TightSpot> = tightSpotsByItem(plan.rooms, items);
   const roomNameOf = (id: string) => plan.rooms.find((r) => r.id === id)?.name ?? '';
@@ -990,7 +1022,7 @@ export default function StudioPage() {
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
               editMode={editMode}
               daylightHour={DAYLIGHT_HOURS[daylight]}
-              frameKey={store.planSerial}
+              frameKey={planSerial}
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
               onSelectOpening={onSelectOpening}
@@ -1024,8 +1056,8 @@ export default function StudioPage() {
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
-          canUndo={history.past.length > 0}
-          canRedo={history.future.length > 0}
+          canUndo={canUndo}
+          canRedo={canRedo}
           onUndo={store.undo}
           onRedo={store.redo}
           locked={structureLocked}
@@ -1087,7 +1119,7 @@ export default function StudioPage() {
         {showRightPanel && (
           <div data-board-edge="right" className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
             {versionsOpen ? (
-              <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
+              <FloatingPanel title={t.build.versions} subtitle={`${versionCount}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
               </FloatingPanel>
             ) : selected && category !== 'finishes' && view !== '2d' ? (

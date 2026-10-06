@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatM2 } from '@/lib/utils';
-import { useDesignStore, type DesignStoreHook } from '@/store/designStore';
+import { useDesignActions, useDesignStore, type DesignStoreHook } from '@/store/designStore';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 import type { PaintTarget } from '@/lib/design/paint';
@@ -121,7 +121,8 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
   const focusRoomId = useStore((s) => s.focusRoomId);
   const carryingItemId = useStore((s) => s.carryingItemId);
   const selectedRoomPart = useStore((s) => s.selectedRoomPart);
-  const actions = useStore();
+  // Stable: the whole state here cancelled the fine-grained selectors above.
+  const actions = useDesignActions(useStore);
 
   const [innerTool, setInnerTool] = useState<EditorTool>(controlledTool ?? defaultTool ?? tools[0] ?? 'select');
   const tool = controlledTool ?? innerTool;

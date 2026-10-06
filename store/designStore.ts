@@ -17,6 +17,7 @@
 import { projectScopedStore } from './projectScope';
 import { create, type StateCreator, type StoreApi, type UseBoundStore } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
@@ -231,7 +232,7 @@ interface DesignState {
   planSerial: number;
 }
 
-interface DesignActions {
+export interface DesignActions {
   setSaveState: (state: DesignState['saveState']) => void;
   setMode: (mode: DesignMode) => void;
   /** Chooses the empty start (see `emptyStart`): design only, and the studio opened on empty rooms. */
@@ -1783,6 +1784,23 @@ export const useCalculatorPlanStore = projectScopedStore('renovate-calculator-pl
 
 /** Either board, for a component that can be pointed at one (`PlanWorkspace`). */
 export type DesignStoreHook = typeof useDesignStore;
+
+/** The actions of a design store: its function-valued members, which never change. */
+export function actionsOf(s: DesignStore): DesignActions {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(s)) if (typeof value === 'function') out[key] = value;
+  return out as unknown as DesignActions;
+}
+
+/**
+ * The open project's design-store actions as one object that keeps its identity while the
+ * store changes (`useShallow` over functions that never change). `useDesignStore()` with no
+ * selector handed pages the whole state: every `[store]` dependency, every callback given to
+ * the viewer, changed with every set — a hover, a save status — and each one drew a frame.
+ */
+export function useDesignActions(store: DesignStoreHook | typeof useCalculatorPlanStore = useDesignStore): DesignActions {
+  return store(useShallow(actionsOf));
+}
 
 function snapshotOf(s: DesignState): DesignSnapshot {
   return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical, styleId: s.styleId };

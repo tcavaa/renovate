@@ -18,7 +18,7 @@ import { StepNav } from '@/components/flow/StepNav';
 import { EmptyStep } from '@/components/flow/EmptyStep';
 import { FLOW_BOARD_BLEED, FlowAlert, FlowBar, FlowPanel, FlowPanelOverlay, FlowWorkspace } from '@/components/flow/FlowWorkspace';
 import { useCalculatorStore } from '@/store/calculatorStore';
-import { useCalculatorPlanStore } from '@/store/designStore';
+import { useCalculatorPlanStore, useDesignActions } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
 import { calculatorStepHref } from '@/lib/calculator/steps';
@@ -59,7 +59,9 @@ export default function CalculatorPlanPage() {
   const focusRoomId = useCalculatorPlanStore((s) => s.focusRoomId);
   const electrical = useCalculatorPlanStore((s) => s.electrical);
   const styleId = useCalculatorPlanStore((s) => s.styleId);
-  const actions = useCalculatorPlanStore();
+  // Stable: the whole state here re-rendered the page on every store change.
+  const actions = useDesignActions(useCalculatorPlanStore);
+  const selectedRoomPart = useCalculatorPlanStore((s) => s.selectedRoomPart);
   // Every door, window, radiator and fitting on the board a product, as in a design.
   const catalog = useCalculatorBoardProducts();
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +209,7 @@ export default function CalculatorPlanPage() {
             <FlowPanelOverlay>
               <InspectorClose.Provider value={() => actions.selectElement(null)}>
                 <ElementInspector
-                  roomPart={actions.selectedRoomPart}
+                  roomPart={selectedRoomPart}
                   plan={plan}
                   electrical={electrical}
                   wallBuilding={wallBuilding}

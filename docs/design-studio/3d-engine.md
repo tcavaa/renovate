@@ -211,6 +211,19 @@ Each of these cost real debugging time. Don't undo them.
     hang (`litModel`). On the sample flat (12 lights on in 7 rooms) the night's lighting went from
     ≈ 2.4 to ≈ 1.0 ms of a 2520 × 1361 render on an M4; the first switch compiles only that lamp's
     own unlit materials (3 programs), later ones nothing.
+26. **The shadow map is drawn when the scene changes, not when the camera moves.**
+    `gl.shadowMap.autoUpdate` is off. `SceneContent`'s own `invalidate` (every frame asked for
+    from the scene: a file landing, a drag, a light, the cutaway) flags `needsUpdate`, and so does
+    every render of it; the frames drei's orbit asks for, and the walk-through's, draw the picture
+    with the shadows as they were — the 2048² shadow pass (207 of the sample flat's 545 draw
+    calls) was redrawn on every one of them. A change made outside those paths that moves a
+    caster must call that `invalidate`, not R3F's (checked in the Browser pane by counting the
+    2048² viewport switches: placing a piece draws the map, orbiting draws none).
+27. **`Viewer3D` is memoised, and the pages hand it stable props.** The pages read the store
+    through `useDesignActions()` (the actions, one object that keeps its identity) and a
+    `useShallow` pick of the fields they show; `useDesignStore()` with no selector gave them the
+    whole state, so every `[store]` dependency — every callback handed to the view — changed with
+    each set (a hover, a save status) and each re-render of the canvas's children drew a frame.
 
 ## A gap to the top of the wall: a balcony's railing
 
