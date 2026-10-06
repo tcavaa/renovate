@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/auth', () => ({ auth: vi.fn() }));
 
 import { auth } from '@/auth';
-import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, crossSiteWrite, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
 import { RATE_RULES, clientIp, rateLimit, rateLimited } from '@/lib/api/rateLimit';
 import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
 import { repriceFinishSnapshot, repriceSnapshot, type KnownPrice } from '@/lib/api/productPrices';
@@ -122,6 +122,14 @@ describe('repriceSnapshot', () => {
     expect(repriceSnapshot(snapshot, known)).toMatchObject({ qty: 2, totalPrice: 200 });
   });
 
+  it('takes the catalogue’s files over the ones the client wrote', () => {
+    const catalogue = new Map<number, KnownPrice>([[1, { ...known.get(1)!, assets: { imageUrl: '/uploads/sofa.webp', textureUrl: null, model3dUrl: '/models/sofa.glb' } }]]);
+    const forged = { ...snapshot, imageUrl: 'https://tracker.example/pixel.png', model3dUrl: 'https://evil.example/x.glb' };
+    expect(repriceSnapshot(forged, catalogue)).toMatchObject({ imageUrl: '/uploads/sofa.webp', model3dUrl: '/models/sofa.glb' });
+    // A field the snapshot does not have is not added.
+    expect(repriceSnapshot(snapshot, catalogue)).not.toHaveProperty('textureUrl');
+  });
+
   it('refuses unknown products and negative quantities', () => {
     expect(repriceSnapshot({ ...snapshot, productId: 99 }, known)).toBeNull();
     expect(repriceSnapshot(snapshot, known, -5)?.totalPrice).toBe(0);
@@ -137,5 +145,27 @@ describe('repriceSnapshot', () => {
 describe('API_ERRORS', () => {
   it('uses the code as its own value so the client can translate it', () => {
     for (const [key, value] of Object.entries(API_ERRORS)) expect(key).toBe(value);
+  });
+});
+
+describe('a write from another site', () => {
+  const write = (origin: string | null, host = 'renovate.rretrocar.ge', method = 'POST') =>
+    new Request(`http://localhost:3000/api/x`, { method, headers: { host, ...(origin ? { origin } : {}) } });
+
+  it('is refused when a browser sends it from a page that is not ours', async () => {
+    expect(crossSiteWrite(write('https://evil.example'))).toBe(true);
+    expect(crossSiteWrite(write('null'))).toBe(true);
+    const handler = handle('POST /api/x', 'nope', async () => ok({ done: true }));
+    expect((await handler(write('https://evil.example'), { params: {} })).status).toBe(403);
+  });
+
+  it('goes through from our own pages, from servers, and for reads', async () => {
+    expect(crossSiteWrite(write('https://renovate.rretrocar.ge'))).toBe(false);
+    expect(crossSiteWrite(write('http://localhost:3000', 'localhost:3000'))).toBe(false);
+    // Behind a proxy that names the public host.
+    expect(crossSiteWrite(new Request('http://127.0.0.1:3000/api/x', { method: 'POST', headers: { host: '127.0.0.1:3000', 'x-forwarded-host': 'renovate.rretrocar.ge', origin: 'https://renovate.rretrocar.ge' } }))).toBe(false);
+    // Flitt's callback and other servers send no Origin.
+    expect(crossSiteWrite(write(null))).toBe(false);
+    expect(crossSiteWrite(write('https://evil.example', 'renovate.rretrocar.ge', 'GET'))).toBe(false);
   });
 });

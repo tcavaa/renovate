@@ -185,9 +185,53 @@ type IncomingContext = { params: Promise<Record<string, string>> | Record<string
 type RouteContext = { params: Record<string, string> };
 type RouteHandler<R extends Request> = (req: R, ctx: RouteContext) => Promise<Response>;
 
+/** The hosts this app answers on: the request's own (behind a proxy, the forwarded one) and the configured URLs. */
+function ownHosts(req: Request): Set<string> {
+  const hosts = new Set<string>();
+  const add = (value: string | null | undefined) => {
+    const host = value?.split(',')[0]?.trim().toLowerCase();
+    if (host) hosts.add(host);
+  };
+  add(req.headers.get('host'));
+  add(req.headers.get('x-forwarded-host'));
+  for (const url of [process.env.NEXT_PUBLIC_APP_URL, process.env.AUTH_URL]) {
+    try {
+      if (url) add(new URL(url).host);
+    } catch {
+      // Not a URL: nothing to add.
+    }
+  }
+  try {
+    add(new URL(req.url).host);
+  } catch {
+    // A request always has one.
+  }
+  return hosts;
+}
+
+/**
+ * A write sent from another site's page (S18 in docs/audit-checklist.md). The session cookie is
+ * `SameSite=Lax`, which a top-level cross-site POST of a form still carries on some browsers,
+ * and `req.json()` reads a `text/plain` body such a form can send — so a browser's write must
+ * come from one of our own pages: its `Origin` names one of our hosts. A request with no
+ * `Origin` (a server — Flitt's callback — or an old browser on a same-origin form) is let through.
+ */
+export function crossSiteWrite(req: Request): boolean {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return false;
+  const origin = req.headers.get('origin');
+  if (!origin) return false;
+  if (origin === 'null') return true;
+  try {
+    return !ownHosts(req).has(new URL(origin).host.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Wraps a handler in the standard try/catch: the route label and the exception go to the
- * server log, the client gets a generic message and a 500. Handlers throw freely.
+ * server log, the client gets a generic message and a 500. Handlers throw freely. A browser's
+ * write from another site is refused first (`crossSiteWrite`).
  */
 export function handle<R extends Request = Request>(
   label: string,
@@ -196,6 +240,10 @@ export function handle<R extends Request = Request>(
 ): (req: R, ctx: IncomingContext) => Promise<Response> {
   return async (req, incoming) => {
     const started = Date.now();
+    if (crossSiteWrite(req)) {
+      log.warn('cross-site write refused', { route: label, origin: req.headers.get('origin') });
+      return fail(API_ERRORS.FORBIDDEN, 403);
+    }
     try {
       const ctx: RouteContext = { params: (await incoming.params) ?? {} };
       const response = await fn(req, ctx);

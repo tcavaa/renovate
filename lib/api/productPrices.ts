@@ -24,6 +24,12 @@ export interface KnownPrice {
   coveragePerUnit: number | null;
   /** What the product is on a plan — a door, a radiator, a socket — as the catalogue says, whatever a snapshot claims. */
   model3dKind: string | null;
+  /**
+   * Its files as the catalogue has them. A saved scene is opened by staff and by the brigade it
+   * is hired for; a snapshot's own URLs (any host the client wrote) would load in their browsers
+   * (S14 in docs/audit-checklist.md), so a repriced snapshot takes these instead.
+   */
+  assets?: { imageUrl: string | null; textureUrl: string | null; model3dUrl: string | null };
 }
 
 export async function loadProductPrices(ids: Iterable<number>): Promise<Map<number, KnownPrice>> {
@@ -39,6 +45,9 @@ export async function loadProductPrices(ids: Iterable<number>): Promise<Map<numb
       unit: products.unit,
       coveragePerUnit: products.coveragePerUnit,
       model3dKind: products.model3dKind,
+      imageUrl: products.imageUrl,
+      textureUrl: products.textureUrl,
+      model3dUrl: products.model3dUrl,
     })
     .from(products)
     .where(inArray(products.id, unique));
@@ -50,6 +59,7 @@ export async function loadProductPrices(ids: Iterable<number>): Promise<Map<numb
       unit: row.unit,
       coveragePerUnit: row.coveragePerUnit != null ? Number(row.coveragePerUnit) : null,
       model3dKind: row.model3dKind ?? null,
+      assets: { imageUrl: row.imageUrl ?? null, textureUrl: row.textureUrl ?? null, model3dUrl: row.model3dUrl ?? null },
     });
   }
   return known;
@@ -69,7 +79,15 @@ export function repriceSnapshot<T extends PricedSnapshot>(
 ): T | null {
   const price = known.get(snapshot.productId);
   if (!price) return null;
-  return withPrice(snapshot, price.pricePerUnit, qty);
+  return withAssets(withPrice(snapshot, price.pricePerUnit, qty), price);
+}
+
+/** The catalogue's files on a snapshot, for the URL fields it has (`KnownPrice.assets`). */
+function withAssets<T extends object>(snapshot: T, price: KnownPrice): T {
+  if (!price.assets) return snapshot;
+  const out = { ...snapshot } as Record<string, unknown>;
+  for (const key of ['imageUrl', 'textureUrl', 'model3dUrl'] as const) if (key in out) out[key] = price.assets[key];
+  return out as T;
 }
 
 /**
@@ -89,7 +107,7 @@ export function repriceFinishSnapshot<T extends PricedSnapshot & { unit: string 
     price.unit === 'm2'
       ? price.pricePerUnit
       : price.pricePerUnit / Math.max(price.coveragePerUnit ?? (price.unit === 'liter' ? 8 : 1), 0.01);
-  return { ...withPrice(snapshot, perM2, areaM2), unit: 'm2', sale: { unit: price.unit, pricePerUnit: price.pricePerUnit, coveragePerUnit: price.coveragePerUnit } };
+  return { ...withAssets(withPrice(snapshot, perM2, areaM2), price), unit: 'm2', sale: { unit: price.unit, pricePerUnit: price.pricePerUnit, coveragePerUnit: price.coveragePerUnit } };
 }
 
 function withPrice<T extends PricedSnapshot>(snapshot: T, pricePerUnit: number, qty: number): T {

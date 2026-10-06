@@ -2,15 +2,16 @@ import { z } from 'zod';
 
 export const selectedProductSchema = z.object({
   productId: z.number().int(),
-  nameKa: z.string(),
-  nameEn: z.string().nullable().optional(),
-  nameRu: z.string().nullable().optional(),
-  pricePerUnit: z.number(),
-  unit: z.string(),
-  qty: z.number(),
-  totalPrice: z.number(),
-  imageUrl: z.string().nullable().optional(),
-  categorySlug: z.string().optional(),
+  nameKa: z.string().max(255),
+  nameEn: z.string().max(255).nullable().optional(),
+  nameRu: z.string().max(255).nullable().optional(),
+  // The server reprices from the catalogue; these only have to be sane.
+  pricePerUnit: z.number().min(0).max(1e8),
+  unit: z.string().max(32),
+  qty: z.number().min(0).max(1e6),
+  totalPrice: z.number().min(0).max(1e10),
+  imageUrl: z.string().max(1024).nullable().optional(),
+  categorySlug: z.string().max(128).optional(),
   roomId: z.string().max(64).optional(),
   /** Ticked off the order on the summary; still part of the estimate. */
   excluded: z.boolean().optional(),
@@ -23,7 +24,8 @@ export const selectedProductSchema = z.object({
   textureUrl: z.string().max(1024).nullable().optional(),
   colorHex: z.string().max(16).nullable().optional(),
   coveragePerUnit: z.number().nullable().optional(),
-  specs: z.unknown().optional(),
+  /** The catalogue product's own specs, carried along; bounded so a save cannot carry megabytes in it. */
+  specs: z.unknown().optional().refine((v) => v === undefined || JSON.stringify(v).length <= 8000, 'specs too large'),
   /** What the product is on a plan, and its model (see `SelectedProduct`). */
   model3dKind: z.string().max(64).nullable().optional(),
   model3dUrl: z.string().max(1024).nullable().optional(),

@@ -45,14 +45,27 @@ env:
   NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL || 'https://renovate.rretrocar.ge' }}
 
 jobs:
+  # A manual run publishes whatever main is now, which no CI run may have checked yet: it runs
+  # the checks itself first. A run after CI needs none — CI has just passed on that commit.
+  checks:
+    name: Checks before a manual publish
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish:
     name: Build and publish the cpanel branch
+    needs: checks
+    # `always()`: the checks job is skipped on a run after CI, and a skipped need would skip this.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
+      always() &&
+      ((github.event_name == 'workflow_dispatch' && needs.checks.result == 'success') ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

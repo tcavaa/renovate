@@ -239,6 +239,17 @@ All shared route vocabulary is in `lib/api/route.ts`:
 - `handle` logs every request (route, status, duration) and any exception through `lib/log`
   and answers a generic 500 — never leak internals. It also awaits `ctx.params`, so handlers
   keep the plain `{ params }` shape; `parseId` validates a numeric id.
+- `handle` refuses a browser's write from another site first (`crossSiteWrite`, 403): a
+  `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not one of the app's hosts (the request's
+  `Host`, `X-Forwarded-Host`, `NEXT_PUBLIC_APP_URL`, `AUTH_URL`). No `Origin` — a server, such
+  as Flitt's callback — goes through. The session cookie is `SameSite=Lax` and `req.json()`
+  reads a `text/plain` body a cross-site form can send; this closes that.
+- Repricing (`lib/api/productPrices.ts`) also replaces a snapshot's `imageUrl`, `textureUrl` and
+  `model3dUrl` with the catalogue's, so a saved scene opened by staff or a brigade loads only
+  our files; and the save schemas bound what a save may carry (room measurements ≥ 0 and
+  capped, at most 80 rooms and 600 picks, a product's `specs` ≤ 8 KB, a render's camera two
+  points). The revenue CSV's cells go through `csvCell` (a text a spreadsheet would read as a
+  formula is shown as text).
 - JSON bodies are `safeParse`d with the Zod schema from `lib/validations/` →
   `fail(parsed.error.message, 400)`. Multipart uploads are validated by their bytes
   (`lib/uploads/sniff.ts`, `glb.ts`) instead.

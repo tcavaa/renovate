@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -7,6 +8,9 @@ import { API_ERRORS, fail, handle, ok, requireSession } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
 import { IMAGE_EXTENSION, sniffImage } from '@/lib/uploads/sniff';
 import { log } from '@/lib/log';
+
+const point = z.array(z.number().finite().min(-1000).max(1000)).length(3);
+const cameraSchema = z.object({ position: point, target: point });
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,11 +47,14 @@ export const POST = handle('POST /api/design/renders', 'Failed to save the photo
   if (!mime || mime === 'image/gif') return fail('Unsupported file type', 400);
 
   const roomName = String(form.get('roomName') ?? '').slice(0, 255) || null;
-  let camera: unknown = null;
+  // Where the photo was taken from — kept to redo the render from the same spot. Only that:
+  // two points of three finite numbers each (it was any JSON the form carried).
+  let camera: { position: number[]; target: number[] } | null = null;
   const rawCamera = form.get('camera');
-  if (typeof rawCamera === 'string' && rawCamera) {
+  if (typeof rawCamera === 'string' && rawCamera.length <= 500) {
     try {
-      camera = JSON.parse(rawCamera);
+      const parsed = cameraSchema.safeParse(JSON.parse(rawCamera));
+      camera = parsed.success ? parsed.data : null;
     } catch {
       camera = null;
     }

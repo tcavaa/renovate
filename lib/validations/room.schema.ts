@@ -46,16 +46,18 @@ export const calculatorRequestSchema = z.object({
   rooms: z
     .array(
       z.object({
-        id: z.string(),
+        id: z.string().max(64),
         type: roomTypeEnum,
-        nameKa: z.string(),
-        width: z.number(),
-        length: z.number(),
-        height: z.number(),
-        floorM2: z.number(),
-        wallM2: z.number(),
-        ceilingM2: z.number(),
-        perimeterM: z.number(),
+        nameKa: z.string().max(255),
+        // Never negative, never absurd: the fee is charged on the floors' sum (S16 in the audit
+        // checklist — a negative `floorM2` once lowered it).
+        width: z.number().min(0).max(100),
+        length: z.number().min(0).max(100),
+        height: z.number().min(0).max(20),
+        floorM2: z.number().min(0).max(2000),
+        wallM2: z.number().min(0).max(5000),
+        ceilingM2: z.number().min(0).max(2000),
+        perimeterM: z.number().min(0).max(1000),
         isWetRoom: z.boolean(),
         x: z.number().optional(),
         z: z.number().optional(),
@@ -67,5 +69,6 @@ export const calculatorRequestSchema = z.object({
         wallsM2: z.array(z.number().min(0).max(1000)).max(64).optional(),
       })
     )
-    .min(1),
+    .min(1)
+    .max(80),
 });

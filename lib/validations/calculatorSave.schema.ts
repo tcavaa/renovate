@@ -33,9 +33,15 @@ export const saveCalculatorSchema = z
     saveId: z.string().min(1).max(64).optional(),
     prevSaveId: z.string().min(1).max(64).nullable().optional(),
     homeState: homeStateEnum.nullable(),
-    rooms: z.array(calculatorRequestSchema.shape.rooms.element),
-    selectedProducts: z.record(selectedProductSchema).default({}),
-    selectedFurniture: z.record(z.array(selectedProductSchema)).default({}),
+    rooms: z.array(calculatorRequestSchema.shape.rooms.element).max(80),
+    selectedProducts: z
+      .record(z.string().max(160), selectedProductSchema)
+      .default({})
+      .refine((r) => Object.keys(r).length <= 600, 'too many picks'),
+    selectedFurniture: z
+      .record(z.string().max(160), z.array(selectedProductSchema).max(200))
+      .default({})
+      .refine((r) => Object.keys(r).length <= 100, 'too many rooms of furniture'),
     edits: calculatorEditsSchema.optional(),
     board: calculatorBoardSchema.nullable().optional(),
     /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
