@@ -37,7 +37,13 @@ export class ProjectChangedError extends Error {
   }
 }
 
-export type SaveProblem = 'conflict' | 'error' | 'unknown-product' | 'gone';
+/**
+ * Why work is not safely stored: a save refused as out of date (`conflict`), failed (`error`),
+ * naming a product the catalogue dropped (`unknown-product`), into a deleted project (`gone`), or
+ * without a session (`signed-out` — it expired); or this browser could not keep its own copy
+ * (`no-local-copy` — storage full: the work is only in this tab until a save goes through).
+ */
+export type SaveProblem = 'conflict' | 'error' | 'unknown-product' | 'gone' | 'signed-out' | 'no-local-copy';
 
 interface SaveProblemsState {
   /** By `<half>:<id>`: why the last save of that half did not go through. */
@@ -65,5 +71,6 @@ export function problemOf(error: unknown): SaveProblem {
   // The project was deleted (in another tab, on another computer): there is nothing to save into.
   if (error instanceof Error && (error.message === 'PROJECT_NOT_FOUND' || error.message === 'no-project')) return 'gone';
   if (error instanceof Error && /^Unknown product/.test(error.message)) return 'unknown-product';
+  if (error instanceof Error && error.message === 'UNAUTHORIZED') return 'signed-out';
   return 'error';
 }

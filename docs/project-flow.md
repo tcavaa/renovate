@@ -270,7 +270,9 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 
 - `safeLocalStorage` evicts the clean caches used longest ago when a write hits the quota. It
   never evicts a dirty one, nor the project being written. If the write still does not fit,
-  it drops the stale key rather than leave an older copy under a key that claims to be current.
+  it drops the stale key rather than leave an older copy under a key that claims to be current,
+  and puts `no-local-copy` on the project's banner ("no copy is kept in this browser — keep the
+  tab open until it says saved"; a write that fits again takes it off). It used to go silently.
 - `pruneCaches(openId, knownIds?)`: the gate calls it with the open project only, which trims
   the clean caches beyond the four used last (never the open one or a dirty one);
   `HubCachePrune` passes the hub's full list, which also drops the caches of projects that are
@@ -285,8 +287,13 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 
 `CalculatorAutosave` and `DesignAutosave` are mounted inside the gate with the project id.
 
-- **What it watches.** The signature is the whole payload: the calculator's board and picks,
-  ticks, quantities, the design's version names, step 1's answers, `at`.
+- **What it watches.** The signature is the whole payload: the store fields each save sends,
+  named once in `lib/flow/autosaveSignature.ts` (`CALCULATOR_SAVED` + `BOARD_SAVED`,
+  `DESIGN_SAVED`) and picked with `useShallow` — the calculator's board (its fittings too) and
+  picks, ticks, quantities, the design's scene and versions (by id and name), step 1's answers,
+  `at`. `tests/unit/flow/autosaveSignature.test.ts` runs both saves and fails on a field sent
+  but not watched: the board's sockets (`board.electrical`) were sent and not watched, so a
+  socket placed on the calculator's board was saved only if something else changed after it.
 - **When it writes.** 2.5 s after the last change, one write at a time, never the same
   signature twice. A signature that returns to the last saved one marks the half clean.
 - **Dirty first.** The half is marked dirty as soon as the signature changes, before the
@@ -298,6 +305,12 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
   `drop` listener) and the half is not dirty. Re-derivation on the way in is therefore not
   written back. An edit in the first seconds is, and so is a calculation carried into 3D (it
   marks itself dirty).
+- **Signed out.** A session that ran out while there is work to write puts `signed-out` on the
+  banner (it used to wait in silence), and so does a save answered 401; the banner opens the
+  sign-in in a new tab — this tab holds the work — and retries.
+- **Another tab.** Two tabs on one project share the half's line. A save in the other tab marking
+  it clean is put back to dirty by this tab's `storage` listener while this tab still has work
+  waiting or on its way — otherwise a reload here took the server's copy over it.
 - **Stops.** Nothing is saved for a project that is gone. Autosaves have their own rate bucket
   (`RATE_RULES.autosave`, 400 an hour).
 

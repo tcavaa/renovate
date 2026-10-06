@@ -10,7 +10,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 
 ## Top 10 by urgency
 
-1. [ ] **Editor data loss** (state §11, 1.8): calculator board sockets not in the autosave
+1. [x] **Editor data loss** (state §11, 1.8): calculator board sockets not in the autosave
    signature (`CalculatorAutosave.tsx` vs `saveProject.ts`) + a "signature ⊇ payload" test; a
    project over the localStorage quota silently loses its local copy (`lib/flow/storage.ts`);
    two tabs share one dirty flag (no `storage` listener); a 401 during autosave shows as a

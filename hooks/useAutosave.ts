@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { isDirty, markClean, markDirty, type ProjectHalf } from '@/lib/flow/projectSync';
+import { SYNC_PREFIX } from '@/lib/flow/storage';
 import { problemOf, useSaveProblems } from '@/lib/flow/saveQueue';
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -125,7 +126,12 @@ export function useAutosave({
     // Unsaved from the moment it is made — also while the session cannot be read (it expired,
     // the network dropped): only the write needs one.
     if (!pendingBaseline.current || mustWrite()) markDirty(half, projectId);
-    if (status !== 'authenticated') return;
+    if (status !== 'authenticated') {
+      // The session ran out while there is work to write: the banner says so (it was silent).
+      if (status === 'unauthenticated' && !pendingBaseline.current) useSaveProblems.getState().report(half, projectId, 'signed-out');
+      return;
+    }
+    if (useSaveProblems.getState().problems[`${half}:${projectId}`] === 'signed-out') useSaveProblems.getState().report(half, projectId, null);
     waiting.current = signature;
     const handle = window.setTimeout(() => {
       if (waiting.current === signature) waiting.current = null;
@@ -141,6 +147,20 @@ export function useAutosave({
     }, delayMs);
     return () => window.clearTimeout(handle);
   }, [enabled, status, signature, delayMs, half, projectId, run, mustWrite, gone]);
+
+  // Another tab on the same project shares this half's unsaved mark (one line in localStorage):
+  // its save marking the half clean must not clear the mark of work still waiting here, or a
+  // reload would take the server's copy over it. Such a mark is put back.
+  useEffect(() => {
+    const line = `${SYNC_PREFIX}:${half}:${projectId}`;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== line || gone()) return;
+      const pending = waiting.current != null || inFlight.current > 0 || (lastSaved.current != null && latest.current !== lastSaved.current);
+      if (pending && !isDirty(half, projectId)) markDirty(half, projectId);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [half, projectId, gone]);
 
   // Leaving the project, hiding the tab, closing it: what is waiting goes now — the state as it
   // is, which is what the save sends (a signature waited for may have been undone since).

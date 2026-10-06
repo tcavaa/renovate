@@ -1815,6 +1815,9 @@ export const en: Dictionary = {
     saveErrorText: 'Your latest changes could not be saved yet. They are kept in this browser and are saved as soon as the connection is back.',
     retry: 'Try again',
     goneText: 'This project has been deleted — in another tab or on another computer — so changes made here can no longer be saved.',
+    signedOutText: 'Your session has ended, so changes cannot be saved. Sign in in a new tab, then press “try again” here — your work is kept in this browser.',
+    signInNewTab: 'Sign in (new tab)',
+    noLocalCopyText: 'This browser’s storage is full, so no copy of your work is kept here — only on the server. Keep this tab open until it says saved.',
   },
   common: {
     step: 'Step',
