@@ -83,7 +83,12 @@ Everything the app needs to run unattended, and where each piece lives.
   memory cap kills `pnpm install` (a worker pool of V8 instances) and `next build`, so the
   `cPanel build` GitHub Actions workflow builds on Linux after CI passes on `main` and
   publishes `main`'s tree plus `.next/standalone` (marker `.next/standalone/.prebuilt`) as
-  one new commit on `cpanel`, every time — pulls always fast-forward. The script sees the
+  one new commit on `cpanel`, every time — pulls always fast-forward. **The repository is
+  public**, so the workflow builds only CI runs started by a *push* to this repository's
+  `main` (a fork's pull request also completes CI, and `branches: [main]` alone matches a
+  fork's branch named main), keeps the token out of `.git/config` until the publish step,
+  and pins every action (here, in `ci.yml` and `deploy.yml`) to a commit SHA; `ci.yml` runs
+  with a read-only token. The script sees the
   marker and runs in **release mode**: copy `public/`, link uploads (the repo's seed images
   copied over the shared folder, so a re-rendered product photo replaces the old one; uploads
   made through the app carry a timestamp prefix and are never touched), `node
