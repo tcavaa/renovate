@@ -42,6 +42,12 @@ export const users = mysqlTable('users', {
   /** The last successful sign-in, password or social. */
   lastLoginAt: timestamp('last_login_at'),
   /**
+   * Raised whenever the password is set anew (a reset, admin's new password): a session signed
+   * in under an older value ends at its next request (`refreshSessionToken`), so a reset locks
+   * out whoever had the old password and a session made with it.
+   */
+  sessionVersion: int('session_version').default(0).notNull(),
+  /**
    * The person's own contact, from their profile (`/profile?view=account`) or kept from a
    * checkout ("make it my default address"): a checkout or a booking asks only for what is
    * missing here. The address is the default delivery address — city, street and number,

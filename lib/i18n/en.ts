@@ -444,6 +444,7 @@ export const en: Dictionary = {
     facebookLogin: 'Sign in with Facebook',
     orContinueWith: 'or continue with',
     socialNoEmail: 'That account gave us no e-mail address. Sign in with an e-mail and password, or allow access to your e-mail.',
+    socialLinkRefused: 'An account with this e-mail already has a password. Sign in with your e-mail and password.',
     noAccount: "Don't have an account?",
     haveAccount: 'Already have an account?',
     forgotPassword: 'Forgot password?',

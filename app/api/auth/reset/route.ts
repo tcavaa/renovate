@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
 import { consumeToken, markEmailVerified } from '@/lib/auth/tokens';
 import { clearFailures } from '@/lib/auth/lockout';
+import { forgetAccount } from '@/lib/auth/accountClaims';
 import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -29,7 +30,9 @@ export const POST = handle('POST /api/auth/reset', 'Failed to reset password', a
   if (!userId) return fail(API_ERRORS.INVALID_TOKEN, 400);
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  // Every session signed in before this one ends: whoever knew the old password is out.
+  await db.update(users).set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, userId));
+  forgetAccount(userId);
   // Proving control of the inbox verifies the address as a side effect.
   await markEmailVerified(userId);
 

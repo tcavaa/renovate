@@ -27,6 +27,7 @@ and `pnpm test:solver` after touching `lib/design/planSolver.ts`, `measure.ts` o
 
 On every push to `main` and every pull request — and, through `on: workflow_call`, as the
 `verify` job of the tag deploy (`deploy.yml`) — one job: install (`--frozen-lockfile`) →
+`pnpm audit --prod --audit-level critical` (a critical advisory in a production dependency fails it) →
 `pnpm type-check` → `pnpm lint` → `pnpm test -- --coverage` (coverage gate) → `pnpm test:parser`
 → `pnpm test:solver` → `pnpm build`. pnpm 9 drops the `--` and runs `vitest run --coverage`, so
 the gate is enforced there exactly as by `pnpm test:coverage` (a threshold forced above the

@@ -442,6 +442,7 @@ export const ru: Dictionary = {
     facebookLogin: 'Войти через Facebook',
     orContinueWith: 'или продолжите через',
     socialNoEmail: 'Этот аккаунт не передал адрес электронной почты. Войдите по почте и паролю или разрешите доступ к адресу.',
+    socialLinkRefused: 'Для этого адреса уже есть аккаунт с паролем. Войдите по почте и паролю.',
     noAccount: 'Нет аккаунта?',
     haveAccount: 'Уже есть аккаунт?',
     forgotPassword: 'Забыли пароль?',

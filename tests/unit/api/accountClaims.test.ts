@@ -96,7 +96,7 @@ describe('claimsOf / isSocialSignIn', () => {
 describe('accountClaimsByEmail', () => {
   it('finds the account behind an e-mail', async () => {
     users.rows = [row()];
-    expect(await accountClaimsByEmail('Nino@Example.ge')).toEqual({ id: '12', role: 'admin', storeId: null, workerId: null, teamId: null });
+    expect(await accountClaimsByEmail('Nino@Example.ge')).toEqual({ id: '12', role: 'admin', storeId: null, workerId: null, teamId: null, sessionVersion: 0 });
   });
 
   it('is nobody for a deactivated account', async () => {
@@ -127,7 +127,7 @@ describe('sessionTokenAfterSignIn', () => {
   it('puts the account\'s own claims on a social sign-in\'s token, `sub` included', async () => {
     const lookup = vi.fn(async () => claims);
     const token = { id: 'e3b0c442-uuid', sub: 'e3b0c442-uuid', role: 'user', email: 'nino@example.ge' };
-    expect(await sessionTokenAfterSignIn(token, { account: google, user: { email: 'nino@example.ge' } }, lookup)).toEqual({ ...token, ...claims, sub: '12' });
+    expect(await sessionTokenAfterSignIn(token, { account: google, user: { email: 'nino@example.ge' } }, lookup)).toEqual({ ...token, ...claims, sub: '12', sv: 0 });
     expect(lookup).toHaveBeenCalledWith('nino@example.ge');
   });
 
@@ -197,8 +197,40 @@ describe('the callbacks auth.ts gives NextAuth', () => {
     users.rows = [row({ isActive: false })];
     expect(await signIn({ user: googleUser('nino@example.ge'), account: google })).toBe('/login?error=account_disabled');
     users.rows = [row()];
-    expect(await signIn({ user: googleUser('nino@example.ge'), account: google })).toBe(true);
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: google, profile: { email_verified: true } })).toBe(true);
     expect(users.updates).toEqual([expect.objectContaining({ lastLoginAt: expect.any(Date) })]);
+  });
+
+  it('lets a social sign-in become a password account only when the provider vouches for the address', async () => {
+    const signIn = authOptions.callbacks.signIn as unknown as (p: unknown) => Promise<string | boolean>;
+    const facebook = { ...google, provider: 'facebook' };
+    users.rows = [row({ passwordHash: 'x' })];
+    // Facebook does not say it checked the address: an admin's password account is not its to take.
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: facebook })).toBe('/login?error=social_link_refused');
+    // Google says it did not.
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: google, profile: { email_verified: false } })).toBe('/login?error=social_link_refused');
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: google, profile: { email_verified: true } })).toBe(true);
+    // An account a social sign-in made (no password) is joined by either.
+    users.rows = [row({ passwordHash: null })];
+    expect(await signIn({ user: googleUser('nino@example.ge'), account: facebook })).toBe(true);
+  });
+
+  it('ends every session signed in before the password was set anew', async () => {
+    // Signed in at version 0; a reset raised the account to 1.
+    users.rows = [row({ sessionVersion: 1 })];
+    expect(await jwt({ token: { id: '12', role: 'admin', sv: 0 }, user: undefined, account: null })).toBeNull();
+    forgetAccount(12);
+    // A token from before there were versions counts as 0.
+    expect(await jwt({ token: { id: '12', role: 'admin' }, user: undefined, account: null })).toBeNull();
+    forgetAccount(12);
+    // The session signed in after the reset carries 1 and goes on.
+    expect(await jwt({ token: { id: '12', role: 'admin', sv: 1 }, user: undefined, account: null })).toMatchObject({ id: '12', sv: 1 });
+  });
+
+  it('stamps a sign-in with the version it was made under', async () => {
+    expect(await jwt({ token: {}, user: { id: '5', role: 'user', sessionVersion: 3 }, account: credentials, trigger: 'signIn' })).toMatchObject({ id: '5', sv: 3 });
+    users.rows = [row({ sessionVersion: 2 })];
+    expect(await jwt({ token: {}, user: googleUser(), account: google, trigger: 'signIn' })).toMatchObject({ id: '12', sv: 2 });
   });
 });
 
@@ -235,7 +267,7 @@ describe('refreshSessionToken / currentAccount / accountById', () => {
 
   it('reads the row: the account when it is active, nobody when it is switched off or gone', async () => {
     users.rows = [row({ role: 'team', teamId: 3 })];
-    expect(await accountById(12)).toEqual({ id: '12', role: 'team', storeId: null, workerId: null, teamId: 3, name: 'Nino', email: 'nino@example.ge' });
+    expect(await accountById(12)).toEqual({ id: '12', role: 'team', storeId: null, workerId: null, teamId: 3, name: 'Nino', email: 'nino@example.ge', sessionVersion: 0 });
     users.rows = [row({ isActive: false })];
     expect(await accountById(12)).toBeNull();
     users.rows = [];

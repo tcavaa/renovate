@@ -10,7 +10,7 @@ import { users } from '@/lib/db/schema';
 import { authConfig } from '@/auth.config';
 import { env } from '@/lib/env';
 import { clearFailures, isLockedOut, recordFailure } from '@/lib/auth/lockout';
-import { ACCOUNT_DISABLED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
+import { ACCOUNT_DISABLED, SOCIAL_LINK_REFUSED, SOCIAL_NO_EMAIL, maySocialJoin } from '@/lib/auth/social';
 import { refreshSessionToken, sessionTokenAfterSignIn } from '@/lib/auth/accountClaims';
 import { log } from '@/lib/log';
 import type { UserRole } from '@/lib/auth/roles';
@@ -88,6 +88,7 @@ export const authOptions = {
           storeId: user.storeId ?? null,
           workerId: user.workerId ?? null,
           teamId: user.teamId ?? null,
+          sessionVersion: user.sessionVersion ?? 0,
         };
       },
     }),
@@ -129,7 +130,7 @@ export const authOptions = {
       if (current === null) log.info('session ended: account deactivated or removed', { userId: token.id ?? token.sub ?? null });
       return current;
     },
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // Every social login lands here: the first sign-in creates the account, later ones
       // find it by e-mail. Facebook is allowed to withhold the address (the person can
       // deny the permission, and an account signed up by telephone has none), and without
@@ -150,13 +151,16 @@ export const authOptions = {
             email,
             name: user.name ?? email.split('@')[0],
             role: 'user',
-            // Google and Facebook have both verified the address before handing it over.
-            emailVerifiedAt: new Date(),
+            // Google says whether it checked the address; Facebook hands over only a confirmed one.
+            emailVerifiedAt: account.provider === 'google' && profile?.email_verified !== true ? null : new Date(),
             lastLoginAt: new Date(),
           });
         } else if (existing[0].isActive === false) {
           log.info('social login refused: account deactivated', { userId: existing[0].id, provider: account.provider });
           return `/login?error=${ACCOUNT_DISABLED}`;
+        } else if (!maySocialJoin(account.provider, profile, existing[0])) {
+          log.warn('social login refused: the provider does not vouch for the e-mail of a password account', { userId: existing[0].id, provider: account.provider });
+          return `/login?error=${SOCIAL_LINK_REFUSED}`;
         } else {
           await recordLogin(existing[0].id);
         }

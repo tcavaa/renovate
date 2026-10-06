@@ -8,7 +8,7 @@ import { canOpenAdmin, canOpenPartnerPortal, homePathFor, type UserRole } from '
  * `session.user.storeId`, `session.user.workerId` and `session.user.teamId` without
  * touching the database.
  */
-type SignedInUser = { id: string; role?: UserRole; storeId?: number | null; workerId?: number | null; teamId?: number | null };
+type SignedInUser = { id: string; role?: UserRole; storeId?: number | null; workerId?: number | null; teamId?: number | null; sessionVersion?: number };
 
 export const authConfig = {
   session: { strategy: 'jwt' },
@@ -25,6 +25,8 @@ export const authConfig = {
         token.storeId = u.storeId ?? null;
         token.workerId = u.workerId ?? null;
         token.teamId = u.teamId ?? null;
+        // The password's generation it was signed in under: a reset raises it and ends this session.
+        token.sv = u.sessionVersion ?? 0;
       }
       return token;
     },

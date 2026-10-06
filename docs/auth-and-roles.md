@@ -52,8 +52,13 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   that withholds the address — and `auth.ts`'s `jwt` callback then looks the row up by that
   e-mail (`sessionTokenAfterSignIn`) and puts its claims, and `sub`, on the token in place of
   the provider's; with no row there is no token (the sign-in fails) rather than a session for
-  nobody. A person who has a password account and signs in with Google on the same e-mail is
-  the same account, admin role included.
+  nobody. **Joining an existing account needs the provider to vouch for the address**
+  (`maySocialJoin` in `lib/auth/social.ts`): Google's `email_verified` must be true; Facebook,
+  which does not say, joins only an account with no password (one a social sign-in made). A
+  password account — an admin's included — is otherwise refused with
+  `/login?error=social_link_refused` ("sign in with your password"): anyone able to put the
+  address on a Facebook profile used to be signed in as its owner. A Google account Google has
+  not verified is created unverified.
 - **Every later read of the session re-reads the account** (`refreshSessionToken`, called by
   the `jwt` callback whenever there is no sign-in in progress — `auth()` in a page or a route,
   the client's `/api/auth/session`). The role, the partner link, the name and the e-mail are the
@@ -66,6 +71,13 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   `auth.ts`, never in `auth.config.ts`: the edge proxy still reads the claims the cookie last
   carried (the cookie is rewritten with the fresh ones whenever a route handler reads the
   session), which is why pages and routes check again.
+- **A new password ends every older session.** `users.sessionVersion` is raised by a reset
+  (`/api/auth/reset`) and by admin setting a password; the token carries the version it was
+  signed in under (`sv`, put on it at sign-in by `authConfig`'s `jwt` callback or
+  `sessionTokenAfterSignIn`), and `refreshSessionToken` gives no session to a token whose `sv`
+  is not the account's (a token from before the column counts as 0). A reset used to leave the
+  old sessions — the one an attacker made with the old password — signed in for their thirty
+  days. An admin who sets their own password signs themselves out too.
 - **Deactivated accounts** (`users.isActive = false`, admin's switch): the password form checks
   the password first and only then refuses with `code = ACCOUNT_DISABLED` (a stranger learns
   nothing about which accounts exist), which the login page turns into "this account has been
@@ -85,8 +97,10 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   encouraged, not required: an unverified account still works. Google and Facebook accounts
   are created verified; admin may create an account verified. With `MAIL_DRIVER=log` the links
   are written to the app log ([operations.md](operations.md)).
-- `callbackUrl` is attacker-controlled; `safeCallbackUrl` keeps it on this site
-  (`e2e/public.spec.ts` pins it).
+- `callbackUrl` is attacker-controlled; `safeCallbackUrl` keeps it on this site, checking the
+  path again after the URL parser normalised it (`/.//evil.example` comes out as
+  `//evil.example`, a protocol-relative link off the site) — `tests/unit/api/helpers.test.ts`
+  and `e2e/public.spec.ts` pin it.
 
 ## The roles (`lib/auth/roles.ts`)
 

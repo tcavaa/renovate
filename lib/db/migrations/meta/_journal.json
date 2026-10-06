@@ -176,6 +176,13 @@
       "when": 1790859214831,
       "tag": "0024_flitt_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1791285387495,
+      "tag": "0025_session_version",
+      "breakpoints": true
     }
   ]
 }

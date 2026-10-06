@@ -102,7 +102,7 @@ describe('safeCallbackUrl', () => {
   it('keeps same-origin paths and rejects everything else', () => {
     expect(safeCallbackUrl('/profile')).toBe('/profile');
     expect(safeCallbackUrl('/admin/products?page=2#x')).toBe('/admin/products?page=2#x');
-    for (const bad of [null, '', 'https://evil.example/', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'profile']) {
+    for (const bad of [null, '', 'https://evil.example/', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'profile', '/.//evil.example', '/x/..//evil.example', '/%2e//evil.example', '/\t/evil.example']) {
       expect(safeCallbackUrl(bad)).toBe('/');
     }
     expect(safeCallbackUrl(undefined, '/home')).toBe('/home');

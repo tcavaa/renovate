@@ -11,7 +11,7 @@ import { AuthForm, Field, Notice } from '@/components/auth/AuthForm';
 import { useT } from '@/lib/i18n/client';
 import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
 import { homePathFor } from '@/lib/auth/roles';
-import { ACCOUNT_DISABLED, FACEBOOK_ENABLED, GOOGLE_ENABLED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
+import { ACCOUNT_DISABLED, FACEBOOK_ENABLED, GOOGLE_ENABLED, SOCIAL_LINK_REFUSED, SOCIAL_NO_EMAIL } from '@/lib/auth/social';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +25,8 @@ export default function LoginPage() {
   // A social login that came back without an e-mail address, or for a deactivated account,
   // redirects here with ?error=.
   const errorParam = searchParams.get('error');
-  const socialError = errorParam === SOCIAL_NO_EMAIL ? t.auth.socialNoEmail : errorParam === ACCOUNT_DISABLED ? t.auth.accountDisabled : null;
+  const socialError =
+    errorParam === SOCIAL_NO_EMAIL ? t.auth.socialNoEmail : errorParam === SOCIAL_LINK_REFUSED ? t.auth.socialLinkRefused : errorParam === ACCOUNT_DISABLED ? t.auth.accountDisabled : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
