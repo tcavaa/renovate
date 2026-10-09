@@ -24,7 +24,7 @@ import { CheckoutDialog, type CheckoutPart } from '@/components/checkout/Checkou
 import { FeePaidNote } from '@/components/checkout/FeePaidNote';
 import { calculatorCheckoutPart, designCheckoutPart } from '@/lib/projects/checkoutParts';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import { cn, formatGEL, formatM2, formatNumber, TIME_ZONE } from '@/lib/utils';
 import { MoneyRow } from '@/components/ui/money-row';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
@@ -161,7 +161,7 @@ export default function BudgetPage() {
       const title = project.name || t.design.title;
       await downloadPlanPdf(plan, `${title}-${new Date().toISOString().slice(0, 10)}`, {
         title,
-        subtitle: `${styleLabel(t, styleId)} · ${new Date().toLocaleDateString('ka-GE')}`,
+        subtitle: `${styleLabel(t, styleId)} · ${new Date().toLocaleDateString('ka-GE', { timeZone: TIME_ZONE })}`,
         areaLabel: formatM2(areaM2),
         roomsLabel: fill(t.build.roomCount, { n: plan.rooms.length }),
         unitM2: t.units.m2,

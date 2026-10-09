@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { and, asc, count, desc, eq, isNotNull, like, or, type SQL } from 'drizzle-orm';
 import { Plus, Star } from 'lucide-react';
 import { db } from '@/lib/db';

@@ -1,5 +1,5 @@
-;!function(){try { var e="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof global?global:"undefined"!=typeof window?window:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&((e._debugIds|| (e._debugIds={}))[n]="ae487ee8-4878-46d4-ae57-45961f235a75")}catch(e){}}();
-module.exports=[367867,a=>{"use strict";var b=a.i(638496),c=a.i(305155);async function d({children:a}){return await (0,c.requireAdminPage)("teams"),(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",0,d])},188991,function(a){a.n(a.i(367867))},305155,a=>{"use strict";a.i(361769);var b=a.i(160042),c=a.i(983479),d=a.i(291142);async function e(a){let e=await (0,c.auth)();return e?.user||(0,b.redirect)("/login?callbackUrl=/admin"),(0,d.canAdmin)(e.user.role,a)||(0,b.redirect)("/admin"),e}a.s(["requireAdminPage",0,e])}];
+;!function(){try { var e="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof global?global:"undefined"!=typeof window?window:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&((e._debugIds|| (e._debugIds={}))[n]="0a3344b9-79a7-8609-fae3-5138383a8aac")}catch(e){}}();
+module.exports=[367867,a=>{"use strict";var b=a.i(593738),c=a.i(305155);async function d({children:a}){return await (0,c.requireAdminPage)("teams"),(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",0,d])},188991,function(a){a.n(a.i(367867))},305155,a=>{"use strict";a.i(370136);var b=a.i(244913),c=a.i(983479),d=a.i(291142);async function e(a){let e=await (0,c.auth)();return e?.user||(0,b.redirect)("/login?callbackUrl=/admin"),(0,d.canAdmin)(e.user.role,a)||(0,b.redirect)("/admin"),e}a.s(["requireAdminPage",0,e])}];
 
-//# debugId=ae487ee8-4878-46d4-ae57-45961f235a75
+//# debugId=0a3344b9-79a7-8609-fae3-5138383a8aac
 //# sourceMappingURL=_1d8mfjv._.js.map

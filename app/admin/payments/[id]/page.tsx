@@ -12,7 +12,7 @@ import { fill } from '@/lib/admin/list';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL, formatNumber } from '@/lib/utils';
+import { formatGEL, formatNumber, TIME_ZONE } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +54,7 @@ export default async function AdminPaymentPage(props: { params: Promise<{ id: st
   const pay = row.payment;
   const s = ka.admin.paymentsPage;
   const dateLocale = dateLocaleFor(locale);
-  const when = (d: Date | null) => (d ? new Date(d).toLocaleString(dateLocale) : '—');
+  const when = (d: Date | null) => (d ? new Date(d).toLocaleString(dateLocale, { timeZone: TIME_ZONE }) : '—');
   const money = (v: string | null) => (v == null ? '—' : formatGEL(Number(v), true));
 
   const facts: Array<[string, React.ReactNode]> = [

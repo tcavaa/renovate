@@ -25,6 +25,12 @@ const transport =
       })
     : null;
 
+// A production server that sends no mail cannot reset a password or verify an address; the
+// link is then only in the local log file (never in Sentry — lib/sentry.ts scrubs it).
+if (!transport && env.NODE_ENV === 'production') {
+  log.warn('MAIL_DRIVER=log in production: reset and verification mails are written to the log, not sent');
+}
+
 export async function sendMail(message: MailMessage): Promise<void> {
   if (!transport) {
     log.info('mail (not sent: MAIL_DRIVER=log)', { to: message.to, subject: message.subject, text: message.text });

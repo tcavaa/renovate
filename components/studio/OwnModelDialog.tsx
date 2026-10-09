@@ -15,7 +15,7 @@
  * again; a photo is free while nothing turns it into a model.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';

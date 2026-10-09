@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { desc, eq } from 'drizzle-orm';
 import { Camera, Download, Loader2 } from 'lucide-react';
 import { db } from '@/lib/db';
@@ -6,7 +6,7 @@ import { projectRenders } from '@/lib/db/schema';
 import type { Dictionary, Locale } from '@/lib/i18n';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { FoldSection } from '@/components/projects/FoldSection';
-import { cn } from '@/lib/utils';
+import { cn, TIME_ZONE } from '@/lib/utils';
 
 /**
  * The photos taken in the studio for this project and the realistic renders made from
@@ -43,7 +43,7 @@ export async function ProjectRenders({ projectId, t, locale }: { projectId: numb
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2 text-xs text-ink-muted">
                   <span className="truncate">
-                    {r.roomName ?? t.design.wholeFlat} · {new Date(r.createdAt).toLocaleString(dateLocale)}
+                    {r.roomName ?? t.design.wholeFlat} · {new Date(r.createdAt).toLocaleString(dateLocale, { timeZone: TIME_ZONE })}
                   </span>
                   <span className="flex items-center gap-3">
                     <a href={r.sourceUrl} download className="inline-flex items-center gap-1 font-medium text-ink hover:text-brand">

@@ -1,5 +1,5 @@
-;!function(){try { var e="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof global?global:"undefined"!=typeof window?window:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&((e._debugIds|| (e._debugIds={}))[n]="27e18899-3b29-9b4c-c2aa-7b2439ab2f98")}catch(e){}}();
-module.exports=[602697,a=>{"use strict";var b=a.i(638496),c=a.i(305155);async function d({children:a}){return await (0,c.requireAdminPage)("rates"),(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",0,d])},652159,function(a){a.n(a.i(602697))},305155,a=>{"use strict";a.i(361769);var b=a.i(160042),c=a.i(983479),d=a.i(291142);async function e(a){let e=await (0,c.auth)();return e?.user||(0,b.redirect)("/login?callbackUrl=/admin"),(0,d.canAdmin)(e.user.role,a)||(0,b.redirect)("/admin"),e}a.s(["requireAdminPage",0,e])}];
+;!function(){try { var e="undefined"!=typeof globalThis?globalThis:"undefined"!=typeof global?global:"undefined"!=typeof window?window:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&((e._debugIds|| (e._debugIds={}))[n]="445e9791-8447-bbfc-3f20-d35c3fb0c563")}catch(e){}}();
+module.exports=[602697,a=>{"use strict";var b=a.i(593738),c=a.i(305155);async function d({children:a}){return await (0,c.requireAdminPage)("rates"),(0,b.jsx)(b.Fragment,{children:a})}a.s(["default",0,d])},652159,function(a){a.n(a.i(602697))},305155,a=>{"use strict";a.i(370136);var b=a.i(244913),c=a.i(983479),d=a.i(291142);async function e(a){let e=await (0,c.auth)();return e?.user||(0,b.redirect)("/login?callbackUrl=/admin"),(0,d.canAdmin)(e.user.role,a)||(0,b.redirect)("/admin"),e}a.s(["requireAdminPage",0,e])}];
 
-//# debugId=27e18899-3b29-9b4c-c2aa-7b2439ab2f98
+//# debugId=445e9791-8447-bbfc-3f20-d35c3fb0c563
 //# sourceMappingURL=_0om0bgc._.js.map

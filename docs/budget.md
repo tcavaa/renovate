@@ -91,9 +91,7 @@ Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …
   numbers applied on top (`calculatorSheet` in `POST /api/projects`, `priceScene` in the design
   save), and the cost columns are the totals *as edited*. `orderedLines` (the calculator's
   through `orderedCalculationLines`) is what the checkout dialogue and the store orders are made
-  from, so a changed quantity is the quantity a shop is sent. A flag on the pick itself
-  (`SelectedProduct.excluded`, the first version) is still read, as the key it meant, and
-  lifted into `excluded` when a stored calculator is rehydrated (`liftFlags`).
+  from, so a changed quantity is the quantity a shop is sent.
 - The sheet rounds each line and adds the lines up, so what is read down the page comes to
   the figure under it; the engine rounds the sum once. They can differ by a few tetri.
 - **Every product line shows its product**: the photo from the snapshot beside the name, and

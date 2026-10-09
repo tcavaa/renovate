@@ -33,7 +33,8 @@ import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
 import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
-import { useDesignStore } from '@/store/designStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useDesignActions, useDesignStore } from '@/store/designStore';
 import { useDesignCatalog, refreshDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useRateBook } from '@/hooks/useRateBook';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -44,9 +45,9 @@ import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
-import { saveDesign } from '@/lib/design/saveDesign';
+import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
-import { designStepHref, designStepPosition, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
+import { designStepHref, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, isWallHung, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
@@ -114,7 +115,9 @@ export default function StudioPage() {
   const locale = useLocale();
   const searchParams = useSearchParams();
   const projectId = useProjectId();
-  const store = useDesignStore();
+  // The actions keep their identity, the fields are picked one by one: the page (and every
+  // callback it hands the 3D view) re-renders for what it shows, not for every store change.
+  const store = useDesignActions();
   const {
     plan,
     styleId,
@@ -131,10 +134,39 @@ export default function StudioPage() {
     carryingItemId,
     carryRestore,
     structureLocked,
-    history,
+    canUndo,
+    canRedo,
     saveState,
     pendingPicks,
-  } = store;
+    selectedRoomPart,
+    versionCount,
+    planSerial,
+  } = useDesignStore(
+    useShallow((s) => ({
+      plan: s.plan,
+      styleId: s.styleId,
+      mode: s.mode,
+      homeState: s.homeState,
+      budgetGel: s.budgetGel,
+      items: s.items,
+      finishes: s.finishes,
+      electrical: s.electrical,
+      styleProfile: s.styleProfile,
+      focusRoomId: s.focusRoomId,
+      selectedItemId: s.selectedItemId,
+      selectedElement: s.selectedElement,
+      carryingItemId: s.carryingItemId,
+      carryRestore: s.carryRestore,
+      structureLocked: s.structureLocked,
+      canUndo: s.history.past.length > 0,
+      canRedo: s.history.future.length > 0,
+      saveState: s.saveState,
+      pendingPicks: s.pendingPicks,
+      selectedRoomPart: s.selectedRoomPart,
+      versionCount: s.versions.length,
+      planSerial: s.planSerial,
+    }))
+  );
   const { products, shelf } = useDesignCatalog();
   const { book } = useRateBook();
   // A renovation that builds the partition walls (a black frame) shows which of them already stand.
@@ -180,12 +212,19 @@ export default function StudioPage() {
     if (products.length > 0 && kitchenKey) store.ensureKitchenMaterials(products);
   }, [products, kitchenKey, store]);
 
-  // The existing house is kept the first time the studio opens on a plan.
+  // The kept versions arrive on their own (they are left out of the page and the browser's copy).
+  const versionsLoaded = useDesignStore((s) => s.versionsLoaded);
   useEffect(() => {
-    if (plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
+    if (!versionsLoaded) void loadDesignVersions(projectId).catch(() => undefined);
+  }, [versionsLoaded, projectId]);
+
+  // The existing house is kept the first time the studio opens on a plan — once the versions
+  // are here, so a baseline already kept is found rather than taken again.
+  useEffect(() => {
+    if (versionsLoaded && plan && plan.rooms.length > 0) store.ensureExistingVersion(t.build.versionStart);
     // Once per plan identity is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan?.rooms.length]);
+  }, [plan?.rooms.length, versionsLoaded]);
 
   const [view, setView] = useState<StudioView>('3d');
   const [category, setCategory] = useState<StudioCategory>(() => (searchParams.get('tool') === 'finishes' ? 'finishes' : 'furniture'));
@@ -270,7 +309,7 @@ export default function StudioPage() {
   useEffect(() => {
     // A studio with no plan is the "upload one first" card; claiming step 5 there would
     // make the journey's resume send people back to it for ever.
-    const ready = (store.plan?.rooms.length ?? 0) > 0;
+    const ready = (useDesignStore.getState().plan?.rooms.length ?? 0) > 0;
     if (searchParams.get('tool') === 'finishes') {
       setCategory('finishes');
       if (ready) store.setStep(6);
@@ -391,9 +430,6 @@ export default function StudioPage() {
   const onMoveColumn = useCallback((id: string, position: Vec2) => store.updateColumn(id, { position }), [store]);
   const onMoveElectrical = useCallback((id: string, position: Vec2) => store.moveElectricalPoint(id, position), [store]);
   const onMoveOpening = useCallback((roomId: string, openingId: string, tt: number) => store.moveOpening(roomId, openingId, tt), [store]);
-  const onSelectOpening = useCallback((id: string | null) => {
-    if (!id) store.selectElement(null);
-  }, [store]);
 
   // The 3D view and the 2D board both carry; the walk-through has no pointer to carry on, so
   // entering it with a piece still on the pointer gives the piece up the way Escape does — an
@@ -593,7 +629,7 @@ export default function StudioPage() {
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;
   // The shelf opens on a studio as the half picked out on the board, the living half otherwise.
-  const focusShelfType = focusRoom?.type === 'studio' ? (effectiveSplit(focusRoom).parts[store.selectedRoomPart?.roomId === focusRoom.id ? store.selectedRoomPart.part : 1]) : (focusRoom?.type ?? null);
+  const focusShelfType = focusRoom?.type === 'studio' ? (effectiveSplit(focusRoom).parts[selectedRoomPart?.roomId === focusRoom.id ? selectedRoomPart.part : 1]) : (focusRoom?.type ?? null);
   const visibleItems = focusRoom ? items.filter((i) => i.roomId === focusRoom.id) : items;
   const tightSpots: Map<string, TightSpot> = tightSpotsByItem(plan.rooms, items);
   const roomNameOf = (id: string) => plan.rooms.find((r) => r.id === id)?.name ?? '';
@@ -978,6 +1014,7 @@ export default function StudioPage() {
             />
           ) : (
             <Viewer3D
+              sceneKey={projectId}
               plan={plan}
               scene={scene}
               electrical={electrical}
@@ -989,10 +1026,9 @@ export default function StudioPage() {
               viewMode={view === 'walk' ? 'walk' : 'orbit'}
               editMode={editMode}
               daylightHour={DAYLIGHT_HOURS[daylight]}
-              frameKey={store.planSerial}
+              frameKey={planSerial}
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
-              onSelectOpening={onSelectOpening}
               onSelectElement={onSelectElement}
               onOffsetWall={onOffsetWall}
               onMoveColumn={onMoveColumn}
@@ -1023,8 +1059,8 @@ export default function StudioPage() {
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
-          canUndo={history.past.length > 0}
-          canRedo={history.future.length > 0}
+          canUndo={canUndo}
+          canRedo={canRedo}
           onUndo={store.undo}
           onRedo={store.redo}
           locked={structureLocked}
@@ -1086,7 +1122,7 @@ export default function StudioPage() {
         {showRightPanel && (
           <div data-board-edge="right" className={cn('pointer-events-auto absolute right-4 top-20 z-40 flex w-[360px] flex-col', itemsPanelOpen ? 'max-h-[calc(100%-6rem)]' : 'bottom-4')}>
             {versionsOpen ? (
-              <FloatingPanel title={t.build.versions} subtitle={`${store.versions.length}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
+              <FloatingPanel title={t.build.versions} subtitle={`${versionCount}`} onClose={() => setVersionsOpen(false)} className="h-full rounded-[16px]">
                 <VersionsPanel />
               </FloatingPanel>
             ) : selected && category !== 'finishes' && view !== '2d' ? (

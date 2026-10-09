@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { ArrowDown, ArrowUpRight, Check } from 'lucide-react';
 import { RotatingBadge } from '@/components/motion/RotatingBadge';

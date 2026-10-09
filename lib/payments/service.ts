@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq, gte, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { paymentEvents, payments, type Payment } from '@/lib/db/schema';
+import { paymentEvents, payments, projectPayments, type Payment } from '@/lib/db/schema';
 import { env } from '@/lib/env';
 import { log } from '@/lib/log';
 import { toTetri, withBankFee, type CardCharge } from '@/lib/finance/money';
 import { recordHalfPayment } from '@/lib/finance/payments';
-import { cardLast4, flittOutcome, isFinalStatus, storedPayload, type FlittParams, type PaymentStatus } from './flitt';
+import { cardLast4, flittOutcome, isFinalStatus, settlementFor, storedPayload, type FlittParams, type PaymentStatus } from './flitt';
 import { createCheckoutToken, fetchOrderStatus, flittConfig, FlittError } from './flittApi';
 
 /**
@@ -66,6 +66,12 @@ function callbackUrl(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+// A production server Flitt cannot call back settles a payment only while its payer's dialogue
+// is open (or when they start the same payment again): NEXT_PUBLIC_APP_URL left at its default.
+if (env.NODE_ENV === 'production' && !callbackUrl()) {
+  log.warn('flitt callbacks are off: NEXT_PUBLIC_APP_URL is not a public URL', { appUrl: env.NEXT_PUBLIC_APP_URL });
 }
 
 /** How long a payment stays payable: the dialogue makes a new one when the person comes back. */
@@ -169,9 +175,12 @@ export async function recordFlittEvent(input: { paymentId: number | null; orderI
 /**
  * Settles a payment by Flitt's signed answer (the caller has checked the signature). The answer
  * is kept whole, then it must be about this order, this merchant, this amount and currency;
- * then the status and the card's facts are written, and an approval unlocks what was paid for —
- * once, however many answers arrive: the update to `approved` matches only a row that is not
- * approved yet. Later answers about an approved payment (a partial refund) still update its facts.
+ * then `settlementFor` says what it does (docs/payments.md#settling). An approval and what it
+ * unlocks are one transaction, so a payment is never approved with its half unrecorded: if the
+ * record fails, nothing is approved, the callback is answered 500 and Flitt asks again (the
+ * dialogue's status check too). Every write is conditional on the status it was decided
+ * from, so a callback and a status check racing each other approve once, and a late
+ * "processing" never overwrites an "approved".
  */
 export async function settleCardPayment(params: FlittParams, source: 'callback' | 'status'): Promise<SettleResult> {
   const orderId = String(params.order_id ?? '');
@@ -204,37 +213,72 @@ export async function settleCardPayment(params: FlittParams, source: 'callback' 
     responseDescription: outcome.responseDescription,
     lastEventAt: now,
   };
+  const unsettled = and(eq(payments.id, row.id), notInArray(payments.status, ['approved', 'reversed']));
 
-  if (outcome.status === 'approved') {
-    const [result] = await db
-      .update(payments)
-      .set({ ...facts, status: 'approved', paidAt: now })
-      .where(and(eq(payments.id, row.id), ne(payments.status, 'approved')));
-    if (!result.affectedRows) await db.update(payments).set(facts).where(eq(payments.id, row.id));
-    const updated = (await paymentByOrderId(orderId))!;
-    if (result.affectedRows) {
-      log.info('card payment approved', { orderId, purpose: row.purpose, projectId: row.projectId, total: Number(row.total), source, testMode: row.testMode });
-      await fulfil(updated);
+  switch (settlementFor(row.status, outcome.status)) {
+    case 'approve': {
+      const approved = await db.transaction(async (tx) => {
+        const [result] = await tx.update(payments).set({ ...facts, status: 'approved', paidAt: now }).where(unsettled);
+        if (!result.affectedRows) return false;
+        await fulfil(tx, { ...row, ...facts, status: 'approved', paidAt: now });
+        return true;
+      });
+      if (approved) log.info('card payment approved', { orderId, purpose: row.purpose, projectId: row.projectId, total: Number(row.total), source, testMode: row.testMode });
+      // Lost the race: the other answer approved it; this one's facts are kept as well.
+      else await db.update(payments).set(facts).where(eq(payments.id, row.id));
+      break;
     }
-    return { ok: true, payment: updated };
+    case 'reverse':
+      await db.transaction(async (tx) => {
+        await tx.update(payments).set({ ...facts, status: 'reversed' }).where(eq(payments.id, row.id));
+        if (row.status === 'approved') await revoke(tx, row);
+      });
+      log.warn('card payment reversed', { orderId, purpose: row.purpose, projectId: row.projectId, wasApproved: row.status === 'approved' });
+      break;
+    case 'status':
+      await db.update(payments).set({ ...facts, status: outcome.status }).where(unsettled);
+      break;
+    case 'facts':
+      await db.update(payments).set(facts).where(eq(payments.id, row.id));
+      break;
   }
-
-  // Never back from approved to "still paying"; a reversal of an approved payment is recorded.
-  if (row.status === 'approved' && outcome.status !== 'reversed') return { ok: true, payment: row };
-  await db.update(payments).set({ ...facts, status: outcome.status }).where(eq(payments.id, row.id));
-  if (outcome.status === 'reversed') log.warn('card payment reversed', { orderId, purpose: row.purpose, projectId: row.projectId });
   return { ok: true, payment: (await paymentByOrderId(orderId))! };
 }
 
-/** What an approved payment unlocks: a half's fee is recorded; an own item's credit simply exists. */
-async function fulfil(payment: Payment): Promise<void> {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * What an approved payment unlocks, inside its approval's transaction: a half's fee is recorded;
+ * an own item's credit is the approved row itself. A half another payment paid first (two tabs,
+ * two cards) keeps that one, and this payment is logged for a refund — the approval stands, the
+ * money was taken. A failure of any other kind rolls the approval back.
+ */
+async function fulfil(tx: Tx, payment: Payment): Promise<void> {
   if (payment.purpose !== 'calculator' && payment.purpose !== 'design') return;
-  try {
-    await recordHalfPayment(payment);
-  } catch (e) {
-    // A half paid twice (two tabs, two cards): the first stands, the second needs a refund.
-    log.error('half payment could not be recorded — refund it in the Flitt portal', { orderId: payment.orderId, projectId: payment.projectId, err: e });
+  if (payment.projectId) {
+    const [first] = await tx
+      .select({ reference: projectPayments.reference })
+      .from(projectPayments)
+      .where(and(eq(projectPayments.projectId, payment.projectId), eq(projectPayments.kind, payment.purpose)))
+      .limit(1);
+    if (first) {
+      log.error('half paid twice — refund this payment in the Flitt portal', { orderId: payment.orderId, projectId: payment.projectId, paidBy: first.reference });
+      return;
+    }
   }
+  await recordHalfPayment(payment, tx);
+}
+
+/**
+ * What a reversed payment unlocked, taken back: the half's record (so it is neither "paid" nor
+ * revenue), or an own item's credit not yet spent. A model already made from the credit stays.
+ */
+async function revoke(tx: Tx, payment: Payment): Promise<void> {
+  if (payment.purpose === 'own_item') {
+    await tx.update(payments).set({ consumedAt: new Date() }).where(and(eq(payments.id, payment.id), isNull(payments.consumedAt)));
+    return;
+  }
+  await tx.delete(projectPayments).where(eq(projectPayments.reference, payment.orderId));
 }
 
 /**
@@ -252,8 +296,13 @@ export async function refreshCardPayment(row: Payment): Promise<Payment> {
   }
 }
 
-/** How far back an unsettled payment is worth asking Flitt about: past its lifetime it has expired. */
-const RECENT_MS = 2 * ORDER_LIFETIME_S * 1000;
+/**
+ * How far back an unsettled payment is asked about. Not just its hour of lifetime: one paid in
+ * that hour whose answer never reached us (no callback, a closed tab) is still approved at
+ * Flitt days later, and starting a new one would charge the card twice. Flitt answers
+ * "expired" for the rest, which settles them.
+ */
+const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Asks Flitt about this person's unsettled payments for the same thing before a new one is
@@ -275,7 +324,7 @@ export async function settleRecentPayments(where: { userId: number; purpose: Pay
       ),
     )
     .orderBy(desc(payments.id))
-    .limit(5);
+    .limit(10);
   for (const row of rows) await refreshCardPayment(row);
 }
 

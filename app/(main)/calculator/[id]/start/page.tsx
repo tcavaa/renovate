@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AlertCircle, PenLine, Upload } from 'lucide-react';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { CalculatorFlowGuard } from '@/components/flow/FlowGuard';
 import { HomeStateSelector } from '@/components/calculator/HomeStateSelector';

@@ -29,12 +29,12 @@ beforeEach(() => {
   nextId += 1;
 });
 
-describe('a copy kept in the seven-step numbering', () => {
-  it('opens on the same page in the six steps: the summary is the sixth, the placement the catalogue', () => {
+describe('a browser copy of another version', () => {
+  it('is discarded — the project opens from its row (no older app versions are translated)', () => {
     const id = nextId;
-    const state = { homeState: 'white_frame', rooms: [], selectedProducts: {}, selectedFurniture: {}, step: 7, at: 5, projectId: id, calculated: true };
+    const state = { homeState: 'white_frame', rooms: [], selectedProducts: {}, selectedFurniture: {}, step: 6, at: 5, projectId: id, calculated: true };
     memory.set(`renovate-calculator:${id}`, JSON.stringify({ state, version: 3 }));
-    expect(stores.useCalculatorStore.for(id).getState()).toMatchObject({ projectId: id, step: 6, at: 4, calculated: true, homeState: 'white_frame' });
+    expect(stores.useCalculatorStore.for(id).getState()).toMatchObject({ projectId: null, step: 1, calculated: false, homeState: null });
   });
 });
 

@@ -23,6 +23,7 @@
  */
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
+import { safeLocalStorage } from '@/lib/flow/storage';
 
 interface ActiveProjectState {
   id: number | null;
@@ -43,14 +44,10 @@ type AnyStore = UseBoundStore<StoreApi<any>>;
 export interface ProjectScoped<S extends AnyStore> {
   /** The store of project `id` (created, and read back from its cache, on first use); `null` is the in-memory one. */
   for: (id: number | null) => S;
-  /** The store of project `id` if this page has already made it. */
-  peek: (id: number) => S | undefined;
   /** Forgets project `id`: its store in memory and its cache in localStorage. */
   drop: (id: number) => void;
   /** The localStorage key project `id`'s store is cached under. */
   storageKey: (id: number) => string;
-  /** Every project id with a cache under this store's prefix. */
-  cachedIds: () => number[];
   /** The prefix of this store's keys, `<prefix>:<id>`. */
   prefix: string;
 }
@@ -79,35 +76,21 @@ export function projectScopedStore<S extends AnyStore>(prefix: string, make: (st
     const store = forId(id);
     return selector ? store(selector) : store();
   }) as unknown as S;
-  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(\\d+)$`);
   return Object.assign(hook, {
     getState: () => active().getState(),
     getInitialState: () => active().getInitialState(),
     setState: ((...args: Parameters<S['setState']>) => (active().setState as (...a: unknown[]) => void)(...args)) as S['setState'],
     subscribe: ((listener: Parameters<S['subscribe']>[0]) => active().subscribe(listener)) as S['subscribe'],
     for: forId,
-    peek: (id: number) => stores.get(id),
     drop: (id: number) => {
       stores.delete(id);
       try {
-        localStorage.removeItem(storageKey(id));
+        safeLocalStorage.removeItem(storageKey(id));
       } catch {
         // Storage unavailable: nothing was cached.
       }
     },
     storageKey,
-    cachedIds: () => {
-      const ids: number[] = [];
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const match = pattern.exec(localStorage.key(i) ?? '');
-          if (match) ids.push(Number(match[1]));
-        }
-      } catch {
-        // Storage unavailable: nothing cached.
-      }
-      return ids;
-    },
     prefix,
   });
 }

@@ -1,25 +1,23 @@
 /* eslint-disable no-console */
 /**
- * Creates the `rates` table if it is missing, deletes the rows of the rate book the renovation
- * team's replaced (`RETIRED_RATE_KEYS` — they are never read anyway), and fills in every
- * default the calculator ships with — without touching a row admin has already edited.
+ * Creates the `rates` table if it is missing and fills in every default the calculator ships
+ * with — without touching a row admin has already edited.
  *
  *   pnpm db:seed:rates
  *
  * Optional, and never needed in production: the engine prices a default the table has no row
  * for, and the admin rates page lists those defaults and creates a row when one is saved
- * (`ratesForAdmin`). Retired rows are ignored wherever they are read.
+ * (`ratesForAdmin`).
  *
  * `drizzle-kit push` is interactive and hangs in scripts, so the DDL is applied directly.
  */
 
 import './lib/loadEnv';
 
-import { inArray, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { rates } from '../lib/db/schema';
 import { defaultRateRows } from '../lib/calculator/rates';
-import { RETIRED_RATE_KEYS } from '../lib/calculator/constants';
 
 async function main() {
   await db.execute(sql`
@@ -40,9 +38,6 @@ async function main() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
-
-  const [retired] = await db.delete(rates).where(inArray(rates.key, [...RETIRED_RATE_KEYS]));
-  console.log(`🗑  rates: ${retired.affectedRows} rows of the retired book deleted`);
 
   const existing = new Set((await db.select({ key: rates.key }).from(rates)).map((r) => r.key));
   let inserted = 0;

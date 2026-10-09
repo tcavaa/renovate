@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RATE_BOOK, defaultRateRows, rateBookFromRows, ratesForAdmin, type RateRow } from '@/lib/calculator/rates';
-import { MATERIAL_RATES_PER_M2, RETIRED_RATE_KEYS, WORKER_RATES } from '@/lib/calculator/constants';
+import { MATERIAL_RATES_PER_M2, WORKER_RATES } from '@/lib/calculator/constants';
 
 function row(overrides: Partial<RateRow>): RateRow {
   return {
@@ -63,31 +63,6 @@ describe('rateBookFromRows', () => {
     expect(book.materials.plaster_mix.estimatedPriceGEL).toBe(MATERIAL_RATES_PER_M2.plaster_mix.estimatedPriceGEL);
   });
 
-  it('never reads a row of the retired book, whatever it says', () => {
-    // A database seeded with the book before the renovation team's: its rows are all still there.
-    const old = [
-      row({ kind: 'labour', key: 'plastering', phase: 7, unit: 'm2', pricePerUnit: '18' }),
-      row({ id: 2, kind: 'labour', key: 'electrical_point', phase: 14, unit: 'unit', pricePerUnit: '25' }),
-      row({ id: 3, key: 'gas_block', phase: 1, unit: 'm3', basis: 'floor', pricePerUnit: '320' }),
-      row({ id: 4, key: 'cement', phase: 6, unit: 'kg', basis: 'floor', pricePerUnit: '0.65' }),
-    ];
-    const book = rateBookFromRows(old);
-    expect(book).toBe(DEFAULT_RATE_BOOK);
-    for (const key of RETIRED_RATE_KEYS) {
-      expect(book.labour[key]).toBeUndefined();
-      expect(book.materials[key]).toBeUndefined();
-    }
-    // …and alongside rows of today's book, they are ignored just the same.
-    const mixed = rateBookFromRows([...old, row({ id: 5, kind: 'labour', key: 'paint_walls', phase: 6, unit: 'm2', pricePerUnit: '36' })]);
-    expect(mixed.labour.paint_walls.price).toBe(36);
-    expect(mixed.labour.plastering).toBeUndefined();
-    expect(mixed.materials.gas_block).toBeUndefined();
-  });
-
-  it('shares no key between the retired book and today’s', () => {
-    for (const key of [...Object.keys(WORKER_RATES), ...Object.keys(MATERIAL_RATES_PER_M2)]) expect(RETIRED_RATE_KEYS).not.toContain(key);
-  });
-
   it('keeps the merged book in phase order, so the strip-out leads the ledger', () => {
     const seededBefore = defaultRateRows()
       .filter((r) => r.phase !== 0)
@@ -121,16 +96,11 @@ describe('defaultRateRows', () => {
 });
 
 describe('ratesForAdmin', () => {
-  it('lists every rate the estimate uses: the table’s rows, then the defaults it has no row for, never a retired one', () => {
-    const table = [
-      row({ id: 7, kind: 'labour', key: 'paint_walls', phase: 6, unit: 'm2', pricePerUnit: '36' }),
-      row({ id: 8, kind: 'labour', key: 'plastering', phase: 7, unit: 'm2', pricePerUnit: '18' }),
-    ];
+  it('lists every rate the estimate uses: the table’s rows, then the defaults it has no row for', () => {
+    const table = [row({ id: 7, kind: 'labour', key: 'paint_walls', phase: 6, unit: 'm2', pricePerUnit: '36' })];
     const listed = ratesForAdmin(table);
     // The table's own row, as it is.
     expect(listed.find((r) => r.key === 'paint_walls')).toMatchObject({ id: 7, pricePerUnit: '36' });
-    // A retired row is not offered.
-    expect(listed.some((r) => r.key === 'plastering')).toBe(false);
     // Every other rate of the book is there, as a default to be created on save.
     const defaults = listed.filter((r) => r.id < 0);
     expect(defaults).toHaveLength(defaultRateRows().length - 1);

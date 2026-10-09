@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@/auth', () => ({ auth: vi.fn() }));
 
 import { auth } from '@/auth';
-import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
+import { API_ERRORS, crossSiteWrite, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
 import { RATE_RULES, clientIp, rateLimit, rateLimited } from '@/lib/api/rateLimit';
 import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
 import { repriceFinishSnapshot, repriceSnapshot, type KnownPrice } from '@/lib/api/productPrices';
@@ -83,7 +83,9 @@ describe('rateLimit', () => {
   });
 
   it('reads the client IP from the proxy headers', () => {
-    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': '203.0.113.1, 10.0.0.1' } }))).toBe('203.0.113.1');
+    // The last hop is the one our proxy appended; what came before is the client's to make up.
+    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': '6.6.6.6, 203.0.113.1' } }))).toBe('203.0.113.1');
+    expect(clientIp(new Request('http://x', { headers: { 'x-forwarded-for': ' 203.0.113.1 ,' } }))).toBe('203.0.113.1');
     expect(clientIp(new Request('http://x', { headers: { 'x-real-ip': '203.0.113.2' } }))).toBe('203.0.113.2');
     expect(clientIp(new Request('http://x'))).toBe('unknown');
   });
@@ -100,7 +102,7 @@ describe('safeCallbackUrl', () => {
   it('keeps same-origin paths and rejects everything else', () => {
     expect(safeCallbackUrl('/profile')).toBe('/profile');
     expect(safeCallbackUrl('/admin/products?page=2#x')).toBe('/admin/products?page=2#x');
-    for (const bad of [null, '', 'https://evil.example/', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'profile']) {
+    for (const bad of [null, '', 'https://evil.example/', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'profile', '/.//evil.example', '/x/..//evil.example', '/%2e//evil.example', '/\t/evil.example']) {
       expect(safeCallbackUrl(bad)).toBe('/');
     }
     expect(safeCallbackUrl(undefined, '/home')).toBe('/home');
@@ -120,6 +122,14 @@ describe('repriceSnapshot', () => {
     expect(repriceSnapshot(snapshot, known)).toMatchObject({ qty: 2, totalPrice: 200 });
   });
 
+  it('takes the catalogue’s files over the ones the client wrote', () => {
+    const catalogue = new Map<number, KnownPrice>([[1, { ...known.get(1)!, assets: { imageUrl: '/uploads/sofa.webp', textureUrl: null, model3dUrl: '/models/sofa.glb' } }]]);
+    const forged = { ...snapshot, imageUrl: 'https://tracker.example/pixel.png', model3dUrl: 'https://evil.example/x.glb' };
+    expect(repriceSnapshot(forged, catalogue)).toMatchObject({ imageUrl: '/uploads/sofa.webp', model3dUrl: '/models/sofa.glb' });
+    // A field the snapshot does not have is not added.
+    expect(repriceSnapshot(snapshot, catalogue)).not.toHaveProperty('textureUrl');
+  });
+
   it('refuses unknown products and negative quantities', () => {
     expect(repriceSnapshot({ ...snapshot, productId: 99 }, known)).toBeNull();
     expect(repriceSnapshot(snapshot, known, -5)?.totalPrice).toBe(0);
@@ -135,5 +145,27 @@ describe('repriceSnapshot', () => {
 describe('API_ERRORS', () => {
   it('uses the code as its own value so the client can translate it', () => {
     for (const [key, value] of Object.entries(API_ERRORS)) expect(key).toBe(value);
+  });
+});
+
+describe('a write from another site', () => {
+  const write = (origin: string | null, host = 'renovate.rretrocar.ge', method = 'POST') =>
+    new Request(`http://localhost:3000/api/x`, { method, headers: { host, ...(origin ? { origin } : {}) } });
+
+  it('is refused when a browser sends it from a page that is not ours', async () => {
+    expect(crossSiteWrite(write('https://evil.example'))).toBe(true);
+    expect(crossSiteWrite(write('null'))).toBe(true);
+    const handler = handle('POST /api/x', 'nope', async () => ok({ done: true }));
+    expect((await handler(write('https://evil.example'), { params: {} })).status).toBe(403);
+  });
+
+  it('goes through from our own pages, from servers, and for reads', async () => {
+    expect(crossSiteWrite(write('https://renovate.rretrocar.ge'))).toBe(false);
+    expect(crossSiteWrite(write('http://localhost:3000', 'localhost:3000'))).toBe(false);
+    // Behind a proxy that names the public host.
+    expect(crossSiteWrite(new Request('http://127.0.0.1:3000/api/x', { method: 'POST', headers: { host: '127.0.0.1:3000', 'x-forwarded-host': 'renovate.rretrocar.ge', origin: 'https://renovate.rretrocar.ge' } }))).toBe(false);
+    // Flitt's callback and other servers send no Origin.
+    expect(crossSiteWrite(write(null))).toBe(false);
+    expect(crossSiteWrite(write('https://evil.example', 'renovate.rretrocar.ge', 'GET'))).toBe(false);
   });
 });

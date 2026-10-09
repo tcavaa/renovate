@@ -14,7 +14,11 @@ export function safeCallbackUrl(value: string | null | undefined, fallback = '/'
   try {
     const url = new URL(value, 'http://placeholder.local');
     if (url.origin !== 'http://placeholder.local') return fallback;
-    return url.pathname + url.search + url.hash;
+    const path = url.pathname + url.search + url.hash;
+    // Normalising can make a protocol-relative URL of a path: `/.//evil.example` and
+    // `/x/..//evil.example` both come out as `//evil.example`. The result is checked again.
+    if (path.startsWith('//') || path.startsWith('/\\')) return fallback;
+    return path;
   } catch {
     return fallback;
   }

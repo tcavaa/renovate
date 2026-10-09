@@ -73,8 +73,6 @@ export const STYLE_QUIZ: QuizQuestion[] = [
   },
 ];
 
-export const QUIZ_QUESTION_IDS = STYLE_QUIZ.map((q) => q.id);
-
 /** True once every question has an answer. */
 export function quizComplete(answers: Record<string, string>): boolean {
   return STYLE_QUIZ.every((q) => q.options.some((o) => o.id === answers[q.id]));

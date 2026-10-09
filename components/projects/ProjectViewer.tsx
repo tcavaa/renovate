@@ -186,7 +186,7 @@ export function ProjectViewer({
           </>
         ) : (
           <>
-            <Viewer3D plan={plan} scene={scene!} electrical={electrical} wallMode={wallMode} viewMode={view === 'walk' ? 'walk' : 'orbit'} daylightHour={DAYLIGHT_HOURS[daylight]} readOnly frameKey={frameKey} onApi={setViewerApi} className="h-full w-full" />
+            <Viewer3D sceneKey={`viewer:${title}:${subtitle}`} plan={plan} scene={scene!} electrical={electrical} wallMode={wallMode} viewMode={view === 'walk' ? 'walk' : 'orbit'} daylightHour={DAYLIGHT_HOURS[daylight]} readOnly frameKey={frameKey} onApi={setViewerApi} className="h-full w-full" />
             {view === '3d' && (
               <div className="absolute bottom-3 right-3 flex flex-col border border-line bg-white/90 p-1 backdrop-blur">
                 <IconAction label={t.design.zoomIn} onClick={() => viewerApi?.zoom(0.8)} disabled={!viewerApi}>

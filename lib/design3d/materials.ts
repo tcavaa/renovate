@@ -14,20 +14,12 @@ import * as THREE from 'three';
 import type { StyleDefinition, StyleSurface } from '@/lib/design/types';
 import { loadStarted } from './loadProgress';
 
-export type MaterialRole =
-  | 'frame'
-  | 'wood'
-  | 'upholstery'
-  | 'metal'
-  | 'accent'
-  | 'textile'
-  | 'glass'
-  | 'mirror'
-  | 'ceramic'
-  | 'stone'
-  | 'foliage'
-  | 'lampshade'
-  | 'emissive';
+/**
+ * What the procedural parts are made of: a door or window frame, and a column's or a beam's
+ * wood, metal or concrete. Furniture is real models with their own materials; the roles the
+ * procedural furniture had (upholstery, glass, foliage, lampshades…) went with it.
+ */
+export type MaterialRole = 'frame' | 'wood' | 'metal' | 'stone';
 
 export interface MaterialOptions {
   /** Overrides the palette colour — used when a real product has a known colour. */
@@ -112,15 +104,6 @@ export class StyleMaterials {
       side: THREE.FrontSide,
     });
 
-    if (role === 'emissive') {
-      material.emissive = new THREE.Color(this.style.lighting.lamp);
-      material.emissiveIntensity = 1.4;
-    }
-    if (role === 'lampshade') {
-      material.emissive = new THREE.Color(this.style.lighting.lamp);
-      material.emissiveIntensity = 0.35;
-    }
-
     this.materials.set(key, material);
     return material;
   }
@@ -137,28 +120,10 @@ export class StyleMaterials {
         return { color: p.frame, roughness: 0.62, metalness: 0.05, opacity: 1 };
       case 'wood':
         return { color: p.wood, roughness: 0.58, metalness: 0, opacity: 1 };
-      case 'upholstery':
-        return { color: p.upholstery, roughness: 0.92, metalness: 0, opacity: 1 };
       case 'metal':
         return { color: p.metal, roughness: 0.32, metalness: 0.85, opacity: 1 };
-      case 'accent':
-        return { color: p.accent, roughness: 0.55, metalness: 0.1, opacity: 1 };
-      case 'textile':
-        return { color: p.textile, roughness: 0.95, metalness: 0, opacity: 1 };
-      case 'glass':
-        return { color: '#CFE0E6', roughness: 0.06, metalness: 0.1, opacity: 0.28 };
-      case 'mirror':
-        return { color: '#DCE6EA', roughness: 0.04, metalness: 0.95, opacity: 1 };
-      case 'ceramic':
-        return { color: '#F6F6F4', roughness: 0.16, metalness: 0.02, opacity: 1 };
       case 'stone':
         return { color: '#8E8E8A', roughness: 0.5, metalness: 0.05, opacity: 1 };
-      case 'foliage':
-        return { color: '#4C7A4A', roughness: 0.85, metalness: 0, opacity: 1 };
-      case 'lampshade':
-        return { color: '#F5EFE2', roughness: 0.8, metalness: 0, opacity: 1 };
-      case 'emissive':
-        return { color: '#FFF6E0', roughness: 1, metalness: 0, opacity: 1 };
       default:
         return { color: p.frame, roughness: 0.7, metalness: 0, opacity: 1 };
     }
@@ -272,7 +237,10 @@ export class StyleMaterials {
     this.pending.set(key, [apply]);
     // Counted until it is in or has failed: the loading screen waits on the finishes too.
     const done = loadStarted();
-    const texture = this.loader.load(
+    let failedAtOnce = false;
+    // Null until `load` returns: a loader that fails at once calls back before that.
+    let loading: THREE.Texture | null = null;
+    loading = this.loader.load(
       url,
       (loaded) => {
         done();
@@ -286,8 +254,19 @@ export class StyleMaterials {
       () => {
         done();
         this.pending.delete(key);
+        // Forgotten, so the next surface that wants it asks again: kept, the image-less texture
+        // sampled black on every later use until the page was reloaded.
+        if (loading && this.textures.get(key) === loading) {
+          this.textures.delete(key);
+          loading.dispose();
+        } else failedAtOnce = true;
       }
     );
+    const texture = loading;
+    if (failedAtOnce) {
+      texture.dispose();
+      return key;
+    }
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(repeatU, repeatV);
@@ -295,33 +274,6 @@ export class StyleMaterials {
     if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
     this.textures.set(key, texture);
     return key;
-  }
-
-  /** A product photo shown on a billboard when there is no better geometry for it. */
-  photo(url: string): THREE.MeshStandardMaterial {
-    const key = `photo|${url}`;
-    const cached = this.materials.get(key);
-    if (cached) return cached;
-
-    const texture = this.loader.load(url);
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    const material = new THREE.MeshStandardMaterial({
-      map: texture,
-      roughness: 0.9,
-      metalness: 0,
-      transparent: true,
-      side: THREE.DoubleSide,
-    });
-    this.textures.set(key, texture);
-    this.materials.set(key, material);
-    this.surfaceTextures.set(material, [key]);
-    return material;
-  }
-
-  /** Highlight applied to whatever the pointer is over. */
-  highlight(): THREE.MeshStandardMaterial {
-    return this.get('accent', { roughness: 0.3, metalness: 0.2 });
   }
 
   /**

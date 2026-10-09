@@ -387,29 +387,36 @@ var require_main = __commonJS({
   }
 });
 
-// node_modules/.pnpm/sql-escaper@1.3.3/node_modules/sql-escaper/lib/index.js
+// node_modules/.pnpm/sql-escaper@1.5.2/node_modules/sql-escaper/lib/index.js
 var require_lib = __commonJS({
-  "node_modules/.pnpm/sql-escaper@1.3.3/node_modules/sql-escaper/lib/index.js"(exports2) {
+  "node_modules/.pnpm/sql-escaper@1.5.2/node_modules/sql-escaper/lib/index.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.raw = exports2.format = exports2.escape = exports2.arrayToList = exports2.bufferToString = exports2.objectToValues = exports2.escapeId = exports2.dateToString = void 0;
-    var node_buffer_1 = require("node:buffer");
+    exports2.raw = exports2.format = exports2.escape = exports2.arrayToList = exports2.bufferToString = exports2.objectToValues = exports2.escapeId = exports2.temporalToString = exports2.dateToString = void 0;
+    var buffer_1 = require("buffer");
+    var CONTEXT_TRIGGER = new Uint8Array(128);
+    var SET_CLAUSE_TERMINATORS_BY_FIRST = {};
+    var SET_CLAUSE_TERMINATORS = [
+      "where",
+      "order",
+      "group",
+      "having",
+      "limit",
+      "union",
+      "returning",
+      "into",
+      "for",
+      "lock",
+      "offset",
+      "window",
+      "procedure",
+      "on"
+    ];
     var regex = {
       backtick: /`/g,
       dot: /\./g,
       timezone: /([+\-\s])(\d\d):?(\d\d)?/,
       escapeChars: /[\0\b\t\n\r\x1a"'\\]/g
-    };
-    var CHARS_ESCAPE_MAP = {
-      "\0": "\\0",
-      "\b": "\\b",
-      "	": "\\t",
-      "\n": "\\n",
-      "\r": "\\r",
-      "": "\\Z",
-      '"': '\\"',
-      "'": "\\'",
-      "\\": "\\\\"
     };
     var charCode = {
       singleQuote: 39,
@@ -418,31 +425,41 @@ var require_lib = __commonJS({
       dash: 45,
       slash: 47,
       asterisk: 42,
+      exclamation: 33,
+      plus: 43,
       questionMark: 63,
+      comma: 44,
+      openParen: 40,
+      closeParen: 41,
+      semicolon: 59,
       newline: 10,
       space: 32,
       tab: 9,
       carriageReturn: 13
     };
-    var isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
+    CONTEXT_TRIGGER[charCode.singleQuote] = 1;
+    CONTEXT_TRIGGER[charCode.backtick] = 1;
+    CONTEXT_TRIGGER[charCode.dash] = 1;
+    CONTEXT_TRIGGER[charCode.slash] = 1;
+    for (const word of SET_CLAUSE_TERMINATORS) {
+      const first = word.charCodeAt(0);
+      const bucket = SET_CLAUSE_TERMINATORS_BY_FIRST[first];
+      if (bucket)
+        bucket.push(word);
+      else
+        SET_CLAUSE_TERMINATORS_BY_FIRST[first] = [word];
+    }
+    var hasOwnProperty = Object.prototype.hasOwnProperty;
+    var isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value) && !(value instanceof Set) && !(value instanceof Map);
     var isWordChar = (code) => code >= 65 && code <= 90 || code >= 97 && code <= 122 || code >= 48 && code <= 57 || code === 95;
     var isWhitespace = (code) => code === charCode.space || code === charCode.tab || code === charCode.newline || code === charCode.carriageReturn;
-    var hasOnlyWhitespaceBetween = (sql2, start, end) => {
-      if (start >= end)
-        return true;
-      for (let i = start; i < end; i++) {
-        const code = sql2.charCodeAt(i);
-        if (code !== charCode.space && code !== charCode.tab && code !== charCode.newline && code !== charCode.carriageReturn)
-          return false;
-      }
-      return true;
-    };
     var toLower = (code) => code | 32;
     var matchesWord = (sql2, position, word, length) => {
-      for (let offset = 0; offset < word.length; offset++)
+      const wordLength = word.length;
+      for (let offset = 0; offset < wordLength; offset++)
         if (toLower(sql2.charCodeAt(position + offset)) !== word.charCodeAt(offset))
           return false;
-      return (position === 0 || !isWordChar(sql2.charCodeAt(position - 1))) && (position + word.length >= length || !isWordChar(sql2.charCodeAt(position + word.length)));
+      return (position === 0 || !isWordChar(sql2.charCodeAt(position - 1))) && (position + wordLength >= length || !isWordChar(sql2.charCodeAt(position + wordLength)));
     };
     var skipSqlContext = (sql2, position) => {
       const currentChar = sql2.charCodeAt(position);
@@ -470,10 +487,17 @@ var require_lib = __commonJS({
         return length;
       }
       if (currentChar === charCode.dash && nextChar === charCode.dash) {
-        const lineBreak = sql2.indexOf("\n", position + 2);
-        return lineBreak === -1 ? sql2.length : lineBreak + 1;
+        const afterDash = sql2.charCodeAt(position + 2);
+        if (Number.isNaN(afterDash) || afterDash <= charCode.space) {
+          const lineBreak = sql2.indexOf("\n", position + 2);
+          return lineBreak === -1 ? sql2.length : lineBreak + 1;
+        }
+        return -1;
       }
       if (currentChar === charCode.slash && nextChar === charCode.asterisk) {
+        const markerChar = sql2.charCodeAt(position + 2);
+        if (markerChar === charCode.exclamation || markerChar === charCode.plus)
+          return -1;
         const commentEnd = sql2.indexOf("*/", position + 2);
         return commentEnd === -1 ? sql2.length : commentEnd + 2;
       }
@@ -485,7 +509,7 @@ var require_lib = __commonJS({
         const code = sql2.charCodeAt(position);
         if (code === charCode.questionMark)
           return position;
-        if (code === charCode.singleQuote || code === charCode.backtick || code === charCode.dash || code === charCode.slash) {
+        if (code < 128 && CONTEXT_TRIGGER[code]) {
           const contextEnd = skipSqlContext(sql2, position);
           if (contextEnd !== -1)
             position = contextEnd - 1;
@@ -493,18 +517,85 @@ var require_lib = __commonJS({
       }
       return -1;
     };
+    var isInSetAssignmentList = (sql2, setEnd, placeholderPosition) => {
+      const length = sql2.length;
+      let depth = 0;
+      let sawContent = false;
+      let lastWasComma = false;
+      for (let i = setEnd; i < placeholderPosition; ) {
+        const code = sql2.charCodeAt(i);
+        if (code < 128 && CONTEXT_TRIGGER[code]) {
+          const contextEnd = skipSqlContext(sql2, i);
+          if (contextEnd !== -1) {
+            i = contextEnd;
+            sawContent = true;
+            lastWasComma = false;
+            continue;
+          }
+        }
+        if (isWhitespace(code)) {
+          i++;
+          continue;
+        }
+        if (code === charCode.openParen) {
+          depth++;
+          sawContent = true;
+          lastWasComma = false;
+          i++;
+          continue;
+        }
+        if (code === charCode.closeParen) {
+          if (--depth < 0)
+            return false;
+          sawContent = true;
+          lastWasComma = false;
+          i++;
+          continue;
+        }
+        if (isWordChar(code)) {
+          if (depth === 0 && !(code >= 48 && code <= 57)) {
+            const bucket = SET_CLAUSE_TERMINATORS_BY_FIRST[code | 32];
+            if (bucket) {
+              for (let t = 0; t < bucket.length; t++)
+                if (matchesWord(sql2, i, bucket[t], length))
+                  return false;
+            }
+          }
+          do {
+            i++;
+          } while (i < placeholderPosition && isWordChar(sql2.charCodeAt(i)));
+          sawContent = true;
+          lastWasComma = false;
+          continue;
+        }
+        if (depth === 0) {
+          if (code === charCode.semicolon)
+            return false;
+          if (code === charCode.comma) {
+            lastWasComma = true;
+            sawContent = true;
+            i++;
+            continue;
+          }
+        }
+        sawContent = true;
+        lastWasComma = false;
+        i++;
+      }
+      return depth === 0 && (!sawContent || lastWasComma);
+    };
     var findSetKeyword = (sql2, startFrom = 0) => {
       const length = sql2.length;
       for (let position = startFrom; position < length; position++) {
         const code = sql2.charCodeAt(position);
-        const lower = code | 32;
-        if (code === charCode.singleQuote || code === charCode.backtick || code === charCode.dash || code === charCode.slash) {
+        if (code < 128 && CONTEXT_TRIGGER[code]) {
           const contextEnd = skipSqlContext(sql2, position);
           if (contextEnd !== -1) {
             position = contextEnd - 1;
             continue;
           }
         }
+        const lower = code | 32;
         if (lower === 115 && matchesWord(sql2, position, "set", length))
           return position + 3;
         if (lower === 107 && matchesWord(sql2, position, "key", length)) {
@@ -518,22 +609,54 @@ var require_lib = __commonJS({
       return -1;
     };
     var isDate = (value) => Object.prototype.toString.call(value) === "[object Date]";
+    var isTemporal = (value) => Object.prototype.toString.call(value).startsWith("[object Temporal.");
     var hasSqlString = (value) => typeof value === "object" && value !== null && "toSqlString" in value && typeof value.toSqlString === "function";
     var escapeString = (value) => {
-      regex.escapeChars.lastIndex = 0;
-      let chunkIndex = 0;
-      let escapedValue = "";
-      let match;
-      for (match = regex.escapeChars.exec(value); match !== null; match = regex.escapeChars.exec(value)) {
-        escapedValue += value.slice(chunkIndex, match.index);
-        escapedValue += CHARS_ESCAPE_MAP[match[0]];
-        chunkIndex = regex.escapeChars.lastIndex;
-      }
-      if (chunkIndex === 0)
+      const escapeChars = regex.escapeChars;
+      escapeChars.lastIndex = 0;
+      const first = escapeChars.exec(value);
+      if (first === null)
         return `'${value}'`;
-      if (chunkIndex < value.length)
-        return `'${escapedValue}${value.slice(chunkIndex)}'`;
-      return `'${escapedValue}'`;
+      const length = value.length;
+      let result = "'" + value.slice(0, first.index);
+      let chunkStart = first.index;
+      for (let i = first.index; i < length; i++) {
+        let escaped;
+        switch (value.charCodeAt(i)) {
+          case 0:
+            escaped = "\\0";
+            break;
+          case 8:
+            escaped = "\\b";
+            break;
+          case 9:
+            escaped = "\\t";
+            break;
+          case 10:
+            escaped = "\\n";
+            break;
+          case 13:
+            escaped = "\\r";
+            break;
+          case 26:
+            escaped = "\\Z";
+            break;
+          case 34:
+            escaped = '\\"';
+            break;
+          case 39:
+            escaped = "\\'";
+            break;
+          case 92:
+            escaped = "\\\\";
+            break;
+          default:
+            continue;
+        }
+        result += value.slice(chunkStart, i) + escaped;
+        chunkStart = i + 1;
+      }
+      return result + value.slice(chunkStart) + "'";
     };
     var pad2 = (value) => value < 10 ? "0" + value : "" + value;
     var pad3 = (value) => value < 10 ? "00" + value : value < 100 ? "0" + value : "" + value;
@@ -581,16 +704,27 @@ var require_lib = __commonJS({
       return escapeString(pad4(year2) + "-" + pad2(month) + "-" + pad2(day) + " " + pad2(hour) + ":" + pad2(minute) + ":" + pad2(second) + "." + pad3(millisecond));
     };
     exports2.dateToString = dateToString;
+    var temporalToString = (value, timezone) => {
+      if (typeof value.epochMilliseconds === "number")
+        return (0, exports2.dateToString)(new Date(value.epochMilliseconds), timezone || "local");
+      if (value[Symbol.toStringTag] === "Temporal.PlainDateTime")
+        return escapeString(value.toString().replace("T", " "));
+      return escapeString(value.toString());
+    };
+    exports2.temporalToString = temporalToString;
     var escapeId = (value, forbidQualified) => {
       if (Array.isArray(value)) {
         const length = value.length;
-        const parts = new Array(length);
-        for (let i = 0; i < length; i++)
-          parts[i] = (0, exports2.escapeId)(value[i], forbidQualified);
-        return parts.join(", ");
+        let sql2 = "";
+        for (let i = 0; i < length; i++) {
+          if (i > 0)
+            sql2 += ", ";
+          sql2 += (0, exports2.escapeId)(value[i], forbidQualified);
+        }
+        return sql2;
       }
       const identifier = String(value);
-      const hasJsonOperator = identifier.indexOf("->") !== -1;
+      const hasJsonOperator = !forbidQualified && identifier.indexOf("->") !== -1;
       if (forbidQualified || hasJsonOperator) {
         if (identifier.indexOf("`") === -1)
           return `\`${identifier}\``;
@@ -602,13 +736,22 @@ var require_lib = __commonJS({
     };
     exports2.escapeId = escapeId;
     var objectToValues = (object, timezone) => {
-      const keys = Object.keys(object);
-      const keysLength = keys.length;
-      if (keysLength === 0)
-        return "";
       let sql2 = "";
-      for (let i = 0; i < keysLength; i++) {
-        const key = keys[i];
+      if (object instanceof Map) {
+        for (const [key, value] of object) {
+          if (typeof value === "function")
+            continue;
+          if (sql2.length > 0)
+            sql2 += ", ";
+          sql2 += (0, exports2.escapeId)(String(key));
+          sql2 += " = ";
+          sql2 += (0, exports2.escape)(value, true, timezone);
+        }
+        return sql2;
+      }
+      for (const key in object) {
+        if (!hasOwnProperty.call(object, key))
+          continue;
         const value = object[key];
         if (typeof value === "function")
           continue;
@@ -625,15 +768,19 @@ var require_lib = __commonJS({
     exports2.bufferToString = bufferToString;
     var arrayToList = (array, timezone) => {
       const length = array.length;
-      const parts = new Array(length);
+      let sql2 = "";
       for (let i = 0; i < length; i++) {
+        if (i > 0)
+          sql2 += ", ";
         const value = array[i];
         if (Array.isArray(value))
-          parts[i] = `(${(0, exports2.arrayToList)(value, timezone)})`;
+          sql2 += `(${(0, exports2.arrayToList)(value, timezone)})`;
+        else if (value instanceof Set)
+          sql2 += `(${(0, exports2.arrayToList)(Array.from(value), timezone)})`;
         else
-          parts[i] = (0, exports2.escape)(value, true, timezone);
+          sql2 += (0, exports2.escape)(value, true, timezone);
       }
-      return parts.join(", ");
+      return sql2;
     };
     exports2.arrayToList = arrayToList;
     var escape = (value, stringifyObjects, timezone) => {
@@ -648,17 +795,21 @@ var require_lib = __commonJS({
         case "object": {
           if (isDate(value))
             return (0, exports2.dateToString)(value, timezone || "local");
+          if (isTemporal(value))
+            return (0, exports2.temporalToString)(value, timezone);
           if (Array.isArray(value))
             return (0, exports2.arrayToList)(value, timezone);
-          if (node_buffer_1.Buffer.isBuffer(value))
+          if (value instanceof Set)
+            return (0, exports2.arrayToList)(Array.from(value), timezone);
+          if (buffer_1.Buffer.isBuffer(value))
             return (0, exports2.bufferToString)(value);
           if (value instanceof Uint8Array)
-            return (0, exports2.bufferToString)(node_buffer_1.Buffer.from(value));
+            return (0, exports2.bufferToString)(buffer_1.Buffer.from(value));
           if (hasSqlString(value))
             return String(value.toSqlString());
           if (!(stringifyObjects === void 0 || stringifyObjects === null))
             return escapeString(String(value));
-          if (isRecord(value))
+          if (isRecord(value) || value instanceof Map)
             return (0, exports2.objectToValues)(value, timezone);
           return escapeString(String(value));
         }
@@ -675,6 +826,7 @@ var require_lib = __commonJS({
       const valuesArray = Array.isArray(values) ? values : [values];
       const length = valuesArray.length;
       let setIndex = -2;
+      let nextSetIndex = -1;
       let result = "";
       let chunkIndex = 0;
       let valuesIndex = 0;
@@ -692,14 +844,31 @@ var require_lib = __commonJS({
         }
         if (placeholderLength === 2)
           escapedValue = (0, exports2.escapeId)(currentValue);
-        else if (typeof currentValue === "number")
+        else if (typeof currentValue === "number" || typeof currentValue === "bigint")
           escapedValue = `${currentValue}`;
         else if (typeof currentValue === "object" && currentValue !== null && !stringifyObjects) {
-          if (setIndex === -2)
-            setIndex = findSetKeyword(sql2);
-          if (setIndex !== -1 && setIndex <= placeholderPosition && hasOnlyWhitespaceBetween(sql2, setIndex, placeholderPosition) && !hasSqlString(currentValue) && !Array.isArray(currentValue) && !node_buffer_1.Buffer.isBuffer(currentValue) && !(currentValue instanceof Uint8Array) && !isDate(currentValue) && isRecord(currentValue)) {
-            escapedValue = (0, exports2.objectToValues)(currentValue, timezone);
-            setIndex = findSetKeyword(sql2, placeholderEnd);
+          const expandable = !(Array.isArray(currentValue) || currentValue instanceof Uint8Array || currentValue instanceof Date || hasSqlString(currentValue) || isDate(currentValue)) && (isRecord(currentValue) || currentValue instanceof Map);
+          if (expandable) {
+            let previous = placeholderPosition - 1;
+            while (previous >= chunkIndex && isWhitespace(sql2.charCodeAt(previous)))
+              previous--;
+            const previousChar = previous >= chunkIndex ? toLower(sql2.charCodeAt(previous)) : 0;
+            if ((previousChar < 97 || previousChar > 122) && previousChar !== charCode.comma)
+              escapedValue = (0, exports2.escape)(currentValue, true, timezone);
+            else {
+              if (setIndex === -2) {
+                setIndex = findSetKeyword(sql2);
+                nextSetIndex = setIndex === -1 ? -1 : findSetKeyword(sql2, setIndex);
+              }
+              while (nextSetIndex !== -1 && nextSetIndex <= placeholderPosition) {
+                setIndex = nextSetIndex;
+                nextSetIndex = findSetKeyword(sql2, nextSetIndex);
+              }
+              if (setIndex !== -1 && setIndex <= placeholderPosition && isInSetAssignmentList(sql2, setIndex, placeholderPosition))
+                escapedValue = (0, exports2.objectToValues)(currentValue, timezone);
+              else
+                escapedValue = (0, exports2.escape)(currentValue, true, timezone);
+            }
           } else
             escapedValue = (0, exports2.escape)(currentValue, true, timezone);
         } else
@@ -728,9 +897,9 @@ var require_lib = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/client.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/client.js
 var require_client = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/client.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/client.js"(exports2) {
     "use strict";
     exports2.LONG_PASSWORD = 1;
     exports2.FOUND_ROWS = 2;
@@ -763,9 +932,9 @@ var require_client = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/charsets.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/charsets.js
 var require_charsets = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/charsets.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/charsets.js"(exports2) {
     "use strict";
     exports2.BIG5_CHINESE_CI = 1;
     exports2.LATIN2_CZECH_CS = 2;
@@ -1083,19 +1252,19 @@ var require_charsets = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/package.json
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/package.json
 var require_package2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/package.json"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/package.json"(exports2, module2) {
     module2.exports = {
       name: "mysql2",
-      version: "3.22.2",
+      version: "3.24.5",
       description: "fast mysql driver. Implements core protocol, prepared statements, ssl and compression in native JS",
       main: "index.js",
       typings: "typings/mysql/index",
       type: "commonjs",
       scripts: {
-        lint: "eslint . && prettier --check .",
-        "lint:fix": "eslint . --fix && prettier --write .",
+        lint: "biome lint --error-on-warnings && prettier --check .",
+        "lint:fix": "biome lint --write . && prettier --write .",
         test: "poku",
         "test:bun": "bun poku",
         "test:deno": "deno run -A npm:poku",
@@ -1108,6 +1277,11 @@ var require_package2 = __commonJS({
         "test:coverage": "c8 npm test",
         "test:build": "rollup -c",
         typecheck: 'cd "test/tsc-build" && tsc -p "tsconfig.json" && cd .. && tsc -p "tsconfig.json" --noEmit',
+        "src:typecheck": "tsc -p src/tsconfig.json --noEmit && tsc -p tools/src/tsconfig.json",
+        "src:build": "tsx tools/src/clean.mts && tsc -p src/tsconfig.json",
+        "src:test": "npm run src:build && tsx tools/src/prepare-tests.mts && poku --config=tools/src/poku.config.mts",
+        "src:test:bun": "npm run src:build && tsx tools/src/prepare-tests.mts && bun poku --config=tools/src/poku.config.mts",
+        "src:test:deno": "npm run src:build && tsx tools/src/prepare-tests.mts && deno run -A npm:poku --config=tools/src/poku.config.mts",
         benchmark: "node ./benchmarks/benchmark.js",
         "wait-port": "wait-on"
       },
@@ -1142,43 +1316,34 @@ var require_package2 = __commonJS({
       license: "MIT",
       dependencies: {
         "aws-ssl-profiles": "^1.1.2",
-        denque: "^2.1.0",
         "generate-function": "^2.3.1",
-        "iconv-lite": "^0.7.2",
+        "iconv-lite": "^0.7.3",
         long: "^5.3.2",
         "lru.min": "^1.1.4",
         "named-placeholders": "^1.1.6",
-        "sql-escaper": "^1.3.3"
+        "sql-escaper": "^1.5.1"
       },
       peerDependencies: {
         "@types/node": ">= 8"
       },
       devDependencies: {
-        "@eslint/eslintrc": "^3.3.3",
-        "@eslint/js": "^9.39.2",
-        "@eslint/markdown": "^8.0.1",
+        "@biomejs/biome": "^2.5.7",
         "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-        "@pokujs/multi-suite": "^1.0.0",
-        "@rollup/plugin-commonjs": "^29.0.2",
+        "@pokujs/multi-suite": "^1.0.2",
+        "@rollup/plugin-commonjs": "^29.0.3",
         "@rollup/plugin-json": "^6.1.0",
         "@rollup/plugin-node-resolve": "^16.0.3",
-        "@types/node": "^25.3.0",
-        "@typescript-eslint/eslint-plugin": "^8.56.0",
-        "@typescript-eslint/parser": "^8.56.0",
+        "@types/node": "^26.2.0",
         "assert-diff": "^3.0.4",
         benchmark: "^2.1.4",
-        c8: "^11.0.0",
+        c8: "^12.0.0",
         "error-stack-parser": "^2.1.4",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-async-await": "^0.0.0",
-        "eslint-plugin-prettier": "^5.5.5",
-        globals: "^17.3.0",
-        poku: "^4.1.0",
+        poku: "^4.5.0",
         portfinder: "^1.0.38",
-        prettier: "^3.8.1",
-        rollup: "^4.59.0",
-        tsx: "^4.21.0",
-        typescript: "^5.9.3"
+        prettier: "^3.9.6",
+        rollup: "^4.62.4",
+        tsx: "^4.23.11",
+        typescript: "^7.0.2"
       }
     };
   }
@@ -1345,9 +1510,9 @@ var require_lib2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/ssl_profiles.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/ssl_profiles.js
 var require_ssl_profiles = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/ssl_profiles.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/ssl_profiles.js"(exports2) {
     "use strict";
     var awsCaBundle = require_lib2();
     exports2["Amazon RDS"] = {
@@ -1356,9 +1521,9 @@ var require_ssl_profiles = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/connection_config.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/connection_config.js
 var require_connection_config = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/connection_config.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/connection_config.js"(exports2, module2) {
     "use strict";
     var { URL: URL2 } = require("url");
     var ClientConstants = require_client();
@@ -1419,6 +1584,7 @@ var require_connection_config = __commonJS({
       idleTimeout: 1,
       Promise: 1,
       queueLimit: 1,
+      resetOnRelease: 1,
       waitForConnections: 1,
       jsonStrings: 1,
       gracefulEnd: 1
@@ -1517,6 +1683,64 @@ var require_connection_config = __commonJS({
         this.jsonStrings = options.jsonStrings || false;
         this.gracefulEnd = options.gracefulEnd || false;
       }
+      // Same result as Object.assign({}, config, overrides), built from a
+      // fixed-shape literal: one allocation instead of a transition per option,
+      // and every later options read stays a monomorphic in-object load. The
+      // key list mirrors the constructor above; test/unit/connection/
+      // test-query-options.test.mts fails when the two drift apart.
+      static queryOptions(config2, overrides) {
+        if (!(config2 instanceof _ConnectionConfig)) {
+          return Object.assign({}, config2, overrides);
+        }
+        const options = {
+          isServer: config2.isServer,
+          stream: config2.stream,
+          host: config2.host,
+          port: config2.port,
+          localAddress: config2.localAddress,
+          socketPath: config2.socketPath,
+          user: config2.user,
+          password: config2.password,
+          password2: config2.password2,
+          password3: config2.password3,
+          passwordSha1: config2.passwordSha1,
+          database: config2.database,
+          connectTimeout: config2.connectTimeout,
+          insecureAuth: config2.insecureAuth,
+          infileStreamFactory: config2.infileStreamFactory,
+          supportBigNumbers: config2.supportBigNumbers,
+          bigNumberStrings: config2.bigNumberStrings,
+          decimalNumbers: config2.decimalNumbers,
+          dateStrings: config2.dateStrings,
+          debug: config2.debug,
+          trace: config2.trace,
+          stringifyObjects: config2.stringifyObjects,
+          enableKeepAlive: config2.enableKeepAlive,
+          keepAliveInitialDelay: config2.keepAliveInitialDelay,
+          timezone: config2.timezone,
+          queryFormat: config2.queryFormat,
+          pool: config2.pool,
+          ssl: config2.ssl,
+          multipleStatements: config2.multipleStatements,
+          rowsAsArray: config2.rowsAsArray,
+          namedPlaceholders: config2.namedPlaceholders,
+          nestTables: config2.nestTables,
+          typeCast: config2.typeCast,
+          disableEval: config2.disableEval,
+          enableCleartextPlugin: config2.enableCleartextPlugin,
+          maxPacketSize: config2.maxPacketSize,
+          charsetNumber: config2.charsetNumber,
+          compress: config2.compress,
+          authPlugins: config2.authPlugins,
+          authSwitchHandler: config2.authSwitchHandler,
+          clientFlags: config2.clientFlags,
+          connectAttributes: config2.connectAttributes,
+          maxPreparedStatements: config2.maxPreparedStatements,
+          jsonStrings: config2.jsonStrings,
+          gracefulEnd: config2.gracefulEnd
+        };
+        return Object.assign(options, overrides);
+      }
       static mergeFlags(default_flags, user_flags) {
         let flags = 0, i;
         if (!Array.isArray(user_flags)) {
@@ -1585,8 +1809,11 @@ var require_connection_config = __commonJS({
       }
       static parseUrl(url) {
         const parsedUrl = new URL2(url);
+        const { hostname } = parsedUrl;
         const options = {
-          host: decodeURIComponent(parsedUrl.hostname),
+          host: decodeURIComponent(
+            hostname.startsWith("[") ? hostname.slice(1, -1) : hostname
+          ),
           port: parseInt(parsedUrl.port, 10),
           database: decodeURIComponent(parsedUrl.pathname.slice(1)),
           user: decodeURIComponent(parsedUrl.username),
@@ -1861,49 +2088,177 @@ var require_lib3 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/parser_cache.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/parser_cache.js
 var require_parser_cache = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/parser_cache.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/parser_cache.js"(exports2, module2) {
     "use strict";
     var { createLRU } = require_lib3();
     var parserCache = createLRU({
       max: 15e3
     });
-    function keyFromFields(type, fields, options, config2) {
-      const res = [
-        type,
-        typeof options.nestTables,
-        options.nestTables,
-        Boolean(options.rowsAsArray),
-        Boolean(options.supportBigNumbers || config2.supportBigNumbers),
-        Boolean(options.bigNumberStrings || config2.bigNumberStrings),
-        typeof options.typeCast === "boolean" ? options.typeCast : typeof options.typeCast,
-        options.timezone || config2.timezone,
-        Boolean(options.decimalNumbers),
-        options.dateStrings
-      ];
+    var TYPE_CAST_FALSE = 1;
+    var TYPE_CAST_FUNCTION = 2;
+    var TYPE_CAST_DEFAULT = 3;
+    function typeCastKind(typeCast) {
+      if (typeCast === false) {
+        return TYPE_CAST_FALSE;
+      }
+      if (typeof typeCast === "function") {
+        return TYPE_CAST_FUNCTION;
+      }
+      return TYPE_CAST_DEFAULT;
+    }
+    function dateStringsKey(dateStrings) {
+      if (Array.isArray(dateStrings)) {
+        return dateStrings.map(String);
+      }
+      return Boolean(dateStrings);
+    }
+    function nestTablesKey(nestTables) {
+      if (typeof nestTables === "string") {
+        return nestTables;
+      }
+      return Boolean(nestTables);
+    }
+    function optionBits(type, options, config2, nestTables, dateStrings) {
+      return (type === "binary" ? 1 : 0) | (options.rowsAsArray ? 2 : 0) | (options.supportBigNumbers || config2.supportBigNumbers ? 4 : 0) | (options.bigNumberStrings || config2.bigNumberStrings ? 8 : 0) | typeCastKind(options.typeCast) << 4 | (options.decimalNumbers ? 64 : 0) | (config2.jsonStrings ? 128 : 0) | (nestTables === true ? 256 : 0) | (typeof nestTables === "string" ? 512 : 0) | (dateStrings === true ? 1024 : 0) | (Array.isArray(dateStrings) ? 2048 : 0);
+    }
+    function mixNumber(hash, value) {
+      return Math.imul(hash ^ (value | 0), 2654435761) | 0;
+    }
+    function mixString(hash, string) {
+      if (typeof string !== "string") {
+        return mixNumber(hash, string === void 0 ? -1 : -2);
+      }
+      hash = mixNumber(hash, string.length);
+      for (let i = 0; i < string.length; ++i) {
+        hash = Math.imul(hash, 31) + string.charCodeAt(i) | 0;
+      }
+      return hash;
+    }
+    function hashKey(type, fields, options, config2) {
+      const nestTables = nestTablesKey(options.nestTables);
+      const dateStrings = dateStringsKey(options.dateStrings || config2.dateStrings);
+      const includeTable = nestTables !== false;
+      let hash = mixNumber(
+        2166136261,
+        optionBits(type, options, config2, nestTables, dateStrings)
+      );
+      hash = mixString(hash, String(options.timezone || config2.timezone));
+      if (typeof nestTables === "string") {
+        hash = mixString(hash, nestTables);
+      }
+      if (Array.isArray(dateStrings)) {
+        for (let i = 0; i < dateStrings.length; ++i) {
+          hash = mixString(hash, dateStrings[i]);
+        }
+      }
+      hash = mixNumber(hash, fields.length);
       for (let i = 0; i < fields.length; ++i) {
         const field = fields[i];
-        res.push([
-          field.name,
-          field.columnType,
-          field.length,
-          field.schema,
-          field.table,
-          field.flags,
-          field.characterSet
-        ]);
+        hash = mixNumber(
+          hash,
+          field.columnType | field.characterSet << 8 | field.decimals << 24
+        );
+        hash = mixNumber(hash, field.flags);
+        hash = mixString(hash, field.name);
+        if (field.extendedTypeName !== void 0) {
+          hash = mixString(hash, field.extendedTypeName);
+        }
+        if (field.extendedFormat !== void 0) {
+          hash = mixString(hash, field.extendedFormat);
+        }
+        if (includeTable) {
+          hash = mixString(hash, field.table);
+        }
       }
-      return JSON.stringify(res, null, 0);
+      return hash & 1073741823;
     }
-    function getParser(type, fields, options, config2, compiler) {
-      const key = keyFromFields(type, fields, options, config2);
-      let parser = parserCache.get(key);
-      if (parser) {
-        return parser;
+    function sameList(a, b) {
+      if (a.length !== b.length) {
+        return false;
       }
-      parser = compiler(fields, options, config2);
-      parserCache.set(key, parser);
+      for (let i = 0; i < a.length; ++i) {
+        if (a[i] !== b[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    var Entry = class {
+      constructor(parser, type, fields, options, config2) {
+        this.parser = parser;
+        this.nestTables = nestTablesKey(options.nestTables);
+        this.dateStrings = dateStringsKey(
+          options.dateStrings || config2.dateStrings
+        );
+        this.optionBits = optionBits(
+          type,
+          options,
+          config2,
+          this.nestTables,
+          this.dateStrings
+        );
+        this.timezone = String(options.timezone || config2.timezone);
+        const count = fields.length;
+        this.columnTypes = new Array(count);
+        this.characterSets = new Array(count);
+        this.flags = new Array(count);
+        this.decimals = new Array(count);
+        this.names = new Array(count);
+        this.extendedTypeNames = new Array(count);
+        this.extendedFormats = new Array(count);
+        this.tables = this.nestTables === false ? null : new Array(count);
+        for (let i = 0; i < count; ++i) {
+          const field = fields[i];
+          this.columnTypes[i] = field.columnType;
+          this.characterSets[i] = field.characterSet;
+          this.flags[i] = field.flags;
+          this.decimals[i] = field.decimals;
+          this.names[i] = field.name;
+          this.extendedTypeNames[i] = field.extendedTypeName;
+          this.extendedFormats[i] = field.extendedFormat;
+          if (this.tables !== null) {
+            this.tables[i] = field.table;
+          }
+        }
+      }
+      matches(type, fields, options, config2) {
+        const nestTables = nestTablesKey(options.nestTables);
+        const dateStrings = dateStringsKey(
+          options.dateStrings || config2.dateStrings
+        );
+        if (this.optionBits !== optionBits(type, options, config2, nestTables, dateStrings) || this.nestTables !== nestTables || this.timezone !== String(options.timezone || config2.timezone) || this.names.length !== fields.length) {
+          return false;
+        }
+        if (Array.isArray(dateStrings) && !sameList(this.dateStrings, dateStrings)) {
+          return false;
+        }
+        for (let i = 0; i < fields.length; ++i) {
+          const field = fields[i];
+          if (this.columnTypes[i] !== field.columnType || this.characterSets[i] !== field.characterSet || this.flags[i] !== field.flags || this.decimals[i] !== field.decimals || this.names[i] !== field.name || this.extendedTypeNames[i] !== field.extendedTypeName || this.extendedFormats[i] !== field.extendedFormat || this.tables !== null && this.tables[i] !== field.table) {
+            return false;
+          }
+        }
+        return true;
+      }
+    };
+    function getParser(type, fields, options, config2, compiler) {
+      const hash = hashKey(type, fields, options, config2);
+      let entries = parserCache.get(hash);
+      if (entries !== void 0) {
+        for (let i = 0; i < entries.length; ++i) {
+          if (entries[i].matches(type, fields, options, config2)) {
+            return entries[i].parser;
+          }
+        }
+      }
+      const parser = compiler(fields, options, config2);
+      if (entries === void 0) {
+        entries = [];
+        parserCache.set(hash, entries);
+      }
+      entries.push(new Entry(parser, type, fields, options, config2));
       return parser;
     }
     function setMaxCache(max) {
@@ -1916,329 +2271,278 @@ var require_parser_cache = __commonJS({
       getParser,
       setMaxCache,
       clearCache,
-      _keyFromFields: keyFromFields
+      _hashKey: hashKey,
+      _Entry: Entry
     };
   }
 });
 
-// node_modules/.pnpm/denque@2.1.0/node_modules/denque/index.js
-var require_denque = __commonJS({
-  "node_modules/.pnpm/denque@2.1.0/node_modules/denque/index.js"(exports2, module2) {
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/ring_queue.js
+var require_ring_queue = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/ring_queue.js"(exports2, module2) {
     "use strict";
-    function Denque(array, options) {
-      var options = options || {};
-      this._capacity = options.capacity;
-      this._head = 0;
-      this._tail = 0;
-      if (Array.isArray(array)) {
-        this._fromArray(array);
-      } else {
-        this._capacityMask = 3;
+    var MIN_SHRINK_TAIL = 1e4;
+    var RingQueue = class {
+      constructor() {
         this._list = new Array(4);
-      }
-    }
-    Denque.prototype.peekAt = function peekAt(index2) {
-      var i = index2;
-      if (i !== (i | 0)) {
-        return void 0;
-      }
-      var len = this.size();
-      if (i >= len || i < -len) return void 0;
-      if (i < 0) i += len;
-      i = this._head + i & this._capacityMask;
-      return this._list[i];
-    };
-    Denque.prototype.get = function get(i) {
-      return this.peekAt(i);
-    };
-    Denque.prototype.peek = function peek() {
-      if (this._head === this._tail) return void 0;
-      return this._list[this._head];
-    };
-    Denque.prototype.peekFront = function peekFront() {
-      return this.peek();
-    };
-    Denque.prototype.peekBack = function peekBack() {
-      return this.peekAt(-1);
-    };
-    Object.defineProperty(Denque.prototype, "length", {
-      get: function length() {
-        return this.size();
-      }
-    });
-    Denque.prototype.size = function size() {
-      if (this._head === this._tail) return 0;
-      if (this._head < this._tail) return this._tail - this._head;
-      else return this._capacityMask + 1 - (this._head - this._tail);
-    };
-    Denque.prototype.unshift = function unshift(item) {
-      if (arguments.length === 0) return this.size();
-      var len = this._list.length;
-      this._head = this._head - 1 + len & this._capacityMask;
-      this._list[this._head] = item;
-      if (this._tail === this._head) this._growArray();
-      if (this._capacity && this.size() > this._capacity) this.pop();
-      if (this._head < this._tail) return this._tail - this._head;
-      else return this._capacityMask + 1 - (this._head - this._tail);
-    };
-    Denque.prototype.shift = function shift() {
-      var head = this._head;
-      if (head === this._tail) return void 0;
-      var item = this._list[head];
-      this._list[head] = void 0;
-      this._head = head + 1 & this._capacityMask;
-      if (head < 2 && this._tail > 1e4 && this._tail <= this._list.length >>> 2) this._shrinkArray();
-      return item;
-    };
-    Denque.prototype.push = function push(item) {
-      if (arguments.length === 0) return this.size();
-      var tail = this._tail;
-      this._list[tail] = item;
-      this._tail = tail + 1 & this._capacityMask;
-      if (this._tail === this._head) {
-        this._growArray();
-      }
-      if (this._capacity && this.size() > this._capacity) {
-        this.shift();
-      }
-      if (this._head < this._tail) return this._tail - this._head;
-      else return this._capacityMask + 1 - (this._head - this._tail);
-    };
-    Denque.prototype.pop = function pop() {
-      var tail = this._tail;
-      if (tail === this._head) return void 0;
-      var len = this._list.length;
-      this._tail = tail - 1 + len & this._capacityMask;
-      var item = this._list[this._tail];
-      this._list[this._tail] = void 0;
-      if (this._head < 2 && tail > 1e4 && tail <= len >>> 2) this._shrinkArray();
-      return item;
-    };
-    Denque.prototype.removeOne = function removeOne(index2) {
-      var i = index2;
-      if (i !== (i | 0)) {
-        return void 0;
-      }
-      if (this._head === this._tail) return void 0;
-      var size = this.size();
-      var len = this._list.length;
-      if (i >= size || i < -size) return void 0;
-      if (i < 0) i += size;
-      i = this._head + i & this._capacityMask;
-      var item = this._list[i];
-      var k;
-      if (index2 < size / 2) {
-        for (k = index2; k > 0; k--) {
-          this._list[i] = this._list[i = i - 1 + len & this._capacityMask];
-        }
-        this._list[i] = void 0;
-        this._head = this._head + 1 + len & this._capacityMask;
-      } else {
-        for (k = size - 1 - index2; k > 0; k--) {
-          this._list[i] = this._list[i = i + 1 + len & this._capacityMask];
-        }
-        this._list[i] = void 0;
-        this._tail = this._tail - 1 + len & this._capacityMask;
-      }
-      return item;
-    };
-    Denque.prototype.remove = function remove(index2, count) {
-      var i = index2;
-      var removed;
-      var del_count = count;
-      if (i !== (i | 0)) {
-        return void 0;
-      }
-      if (this._head === this._tail) return void 0;
-      var size = this.size();
-      var len = this._list.length;
-      if (i >= size || i < -size || count < 1) return void 0;
-      if (i < 0) i += size;
-      if (count === 1 || !count) {
-        removed = new Array(1);
-        removed[0] = this.removeOne(i);
-        return removed;
-      }
-      if (i === 0 && i + count >= size) {
-        removed = this.toArray();
-        this.clear();
-        return removed;
-      }
-      if (i + count > size) count = size - i;
-      var k;
-      removed = new Array(count);
-      for (k = 0; k < count; k++) {
-        removed[k] = this._list[this._head + i + k & this._capacityMask];
-      }
-      i = this._head + i & this._capacityMask;
-      if (index2 + count === size) {
-        this._tail = this._tail - count + len & this._capacityMask;
-        for (k = count; k > 0; k--) {
-          this._list[i = i + 1 + len & this._capacityMask] = void 0;
-        }
-        return removed;
-      }
-      if (index2 === 0) {
-        this._head = this._head + count + len & this._capacityMask;
-        for (k = count - 1; k > 0; k--) {
-          this._list[i = i + 1 + len & this._capacityMask] = void 0;
-        }
-        return removed;
-      }
-      if (i < size / 2) {
-        this._head = this._head + index2 + count + len & this._capacityMask;
-        for (k = index2; k > 0; k--) {
-          this.unshift(this._list[i = i - 1 + len & this._capacityMask]);
-        }
-        i = this._head - 1 + len & this._capacityMask;
-        while (del_count > 0) {
-          this._list[i = i - 1 + len & this._capacityMask] = void 0;
-          del_count--;
-        }
-        if (index2 < 0) this._tail = i;
-      } else {
-        this._tail = i;
-        i = i + count + len & this._capacityMask;
-        for (k = size - (count + index2); k > 0; k--) {
-          this.push(this._list[i++]);
-        }
-        i = this._tail;
-        while (del_count > 0) {
-          this._list[i = i + 1 + len & this._capacityMask] = void 0;
-          del_count--;
-        }
-      }
-      if (this._head < 2 && this._tail > 1e4 && this._tail <= len >>> 2) this._shrinkArray();
-      return removed;
-    };
-    Denque.prototype.splice = function splice(index2, count) {
-      var i = index2;
-      if (i !== (i | 0)) {
-        return void 0;
-      }
-      var size = this.size();
-      if (i < 0) i += size;
-      if (i > size) return void 0;
-      if (arguments.length > 2) {
-        var k;
-        var temp;
-        var removed;
-        var arg_len = arguments.length;
-        var len = this._list.length;
-        var arguments_index = 2;
-        if (!size || i < size / 2) {
-          temp = new Array(i);
-          for (k = 0; k < i; k++) {
-            temp[k] = this._list[this._head + k & this._capacityMask];
-          }
-          if (count === 0) {
-            removed = [];
-            if (i > 0) {
-              this._head = this._head + i + len & this._capacityMask;
-            }
-          } else {
-            removed = this.remove(i, count);
-            this._head = this._head + i + len & this._capacityMask;
-          }
-          while (arg_len > arguments_index) {
-            this.unshift(arguments[--arg_len]);
-          }
-          for (k = i; k > 0; k--) {
-            this.unshift(temp[k - 1]);
-          }
-        } else {
-          temp = new Array(size - (i + count));
-          var leng = temp.length;
-          for (k = 0; k < leng; k++) {
-            temp[k] = this._list[this._head + i + count + k & this._capacityMask];
-          }
-          if (count === 0) {
-            removed = [];
-            if (i != size) {
-              this._tail = this._head + i + len & this._capacityMask;
-            }
-          } else {
-            removed = this.remove(i, count);
-            this._tail = this._tail - leng + len & this._capacityMask;
-          }
-          while (arguments_index < arg_len) {
-            this.push(arguments[arguments_index++]);
-          }
-          for (k = 0; k < leng; k++) {
-            this.push(temp[k]);
-          }
-        }
-        return removed;
-      } else {
-        return this.remove(i, count);
-      }
-    };
-    Denque.prototype.clear = function clear() {
-      this._list = new Array(this._list.length);
-      this._head = 0;
-      this._tail = 0;
-    };
-    Denque.prototype.isEmpty = function isEmpty() {
-      return this._head === this._tail;
-    };
-    Denque.prototype.toArray = function toArray2() {
-      return this._copyArray(false);
-    };
-    Denque.prototype._fromArray = function _fromArray(array) {
-      var length = array.length;
-      var capacity = this._nextPowerOf2(length);
-      this._list = new Array(capacity);
-      this._capacityMask = capacity - 1;
-      this._tail = length;
-      for (var i = 0; i < length; i++) this._list[i] = array[i];
-    };
-    Denque.prototype._copyArray = function _copyArray(fullCopy, size) {
-      var src = this._list;
-      var capacity = src.length;
-      var length = this.length;
-      size = size | length;
-      if (size == length && this._head < this._tail) {
-        return this._list.slice(this._head, this._tail);
-      }
-      var dest = new Array(size);
-      var k = 0;
-      var i;
-      if (fullCopy || this._head > this._tail) {
-        for (i = this._head; i < capacity; i++) dest[k++] = src[i];
-        for (i = 0; i < this._tail; i++) dest[k++] = src[i];
-      } else {
-        for (i = this._head; i < this._tail; i++) dest[k++] = src[i];
-      }
-      return dest;
-    };
-    Denque.prototype._growArray = function _growArray() {
-      if (this._head != 0) {
-        var newList = this._copyArray(true, this._list.length << 1);
-        this._tail = this._list.length;
+        this._mask = 3;
         this._head = 0;
-        this._list = newList;
-      } else {
-        this._tail = this._list.length;
-        this._list.length <<= 1;
+        this._tail = 0;
       }
-      this._capacityMask = this._capacityMask << 1 | 1;
+      get length() {
+        return this._tail - this._head & this._mask;
+      }
+      size() {
+        return this.length;
+      }
+      isEmpty() {
+        return this._head === this._tail;
+      }
+      push(item) {
+        if (arguments.length === 0) {
+          return this.length;
+        }
+        this._list[this._tail] = item;
+        this._tail = this._tail + 1 & this._mask;
+        if (this._tail === this._head) {
+          this._grow();
+        }
+        return this.length;
+      }
+      unshift(item) {
+        if (arguments.length === 0) {
+          return this.length;
+        }
+        this._head = this._head - 1 & this._mask;
+        this._list[this._head] = item;
+        if (this._tail === this._head) {
+          this._grow();
+        }
+        return this.length;
+      }
+      shift() {
+        const head = this._head;
+        if (head === this._tail) {
+          return void 0;
+        }
+        const item = this._list[head];
+        this._list[head] = void 0;
+        this._head = head + 1 & this._mask;
+        if (head < 2 && this._tail > MIN_SHRINK_TAIL && this._tail <= this._list.length >>> 2) {
+          this._shrink();
+        }
+        return item;
+      }
+      pop() {
+        const tail = this._tail;
+        if (tail === this._head) {
+          return void 0;
+        }
+        const capacity = this._list.length;
+        this._tail = tail - 1 & this._mask;
+        const item = this._list[this._tail];
+        this._list[this._tail] = void 0;
+        if (this._head < 2 && tail > MIN_SHRINK_TAIL && tail <= capacity >>> 2) {
+          this._shrink();
+        }
+        return item;
+      }
+      peekAt(index2) {
+        if (index2 !== (index2 | 0)) {
+          return void 0;
+        }
+        if (index2 >= 0) {
+          if (index2 >= this.length) {
+            return void 0;
+          }
+          return this._list[this._head + index2 & this._mask];
+        }
+        const size = this.length;
+        if (index2 < -size) {
+          return void 0;
+        }
+        return this._list[this._head + index2 + size & this._mask];
+      }
+      get(index2) {
+        return this.peekAt(index2);
+      }
+      peek() {
+        if (this._head === this._tail) {
+          return void 0;
+        }
+        return this._list[this._head];
+      }
+      peekFront() {
+        return this.peek();
+      }
+      peekBack() {
+        return this.peekAt(-1);
+      }
+      removeOne(index2) {
+        if (index2 !== (index2 | 0)) {
+          return void 0;
+        }
+        const size = this.length;
+        if (index2 >= size || index2 < -size) {
+          return void 0;
+        }
+        if (index2 < 0) {
+          index2 += size;
+        }
+        const mask = this._mask;
+        let slot = this._head + index2 & mask;
+        const item = this._list[slot];
+        const isCloserToHead = index2 < size / 2;
+        if (isCloserToHead) {
+          for (let moves = index2; moves > 0; moves--) {
+            const previous = slot - 1 & mask;
+            this._list[slot] = this._list[previous];
+            slot = previous;
+          }
+          this._list[slot] = void 0;
+          this._head = this._head + 1 & mask;
+        } else {
+          for (let moves = size - 1 - index2; moves > 0; moves--) {
+            const next = slot + 1 & mask;
+            this._list[slot] = this._list[next];
+            slot = next;
+          }
+          this._list[slot] = void 0;
+          this._tail = this._tail - 1 & mask;
+        }
+        return item;
+      }
+      remove(index2, count) {
+        if (index2 !== (index2 | 0)) {
+          return void 0;
+        }
+        if (this._head === this._tail) {
+          return void 0;
+        }
+        const size = this.length;
+        if (index2 >= size || index2 < -size || count < 1) {
+          return void 0;
+        }
+        if (index2 < 0) {
+          index2 += size;
+        }
+        if (count === 1 || !count) {
+          return [this.removeOne(index2)];
+        }
+        if (count !== (count | 0)) {
+          return void 0;
+        }
+        if (index2 + count > size) {
+          count = size - index2;
+        }
+        const items = this.toArray();
+        const removed = items.splice(index2, count);
+        this._rebuild(items);
+        return removed;
+      }
+      splice(index2, count, ...newItems) {
+        if (index2 !== (index2 | 0)) {
+          return void 0;
+        }
+        const size = this.length;
+        if (index2 < 0) {
+          index2 += size;
+        }
+        if (index2 > size) {
+          return void 0;
+        }
+        if (newItems.length === 0) {
+          return this.remove(index2, count);
+        }
+        if (index2 < 0) {
+          return void 0;
+        }
+        const removalCount = count === void 0 ? 1 : count;
+        if (removalCount !== (removalCount | 0) || removalCount < 0) {
+          return void 0;
+        }
+        const items = this.toArray();
+        let removed;
+        if (removalCount === 0) {
+          removed = [];
+          items.splice(index2, 0, ...newItems);
+        } else if (index2 >= size) {
+          removed = void 0;
+          items.splice(index2, 0, ...newItems);
+        } else {
+          removed = items.splice(index2, removalCount, ...newItems);
+        }
+        this._rebuild(items);
+        return removed;
+      }
+      clear() {
+        this._list = new Array(this._list.length);
+        this._head = 0;
+        this._tail = 0;
+      }
+      toArray() {
+        const head = this._head;
+        const tail = this._tail;
+        if (head <= tail) {
+          return this._list.slice(head, tail);
+        }
+        const capacity = this._list.length;
+        const items = new Array(this.length);
+        let count = 0;
+        for (let slot = head; slot < capacity; slot++) {
+          items[count++] = this._list[slot];
+        }
+        for (let slot = 0; slot < tail; slot++) {
+          items[count++] = this._list[slot];
+        }
+        return items;
+      }
+      _grow() {
+        const list = this._list;
+        const capacity = list.length;
+        if (this._head === 0) {
+          this._tail = capacity;
+          list.length = capacity << 1;
+        } else {
+          const grown = new Array(capacity << 1);
+          let count = 0;
+          for (let slot = this._head; slot < capacity; slot++) {
+            grown[count++] = list[slot];
+          }
+          for (let slot = 0; slot < this._tail; slot++) {
+            grown[count++] = list[slot];
+          }
+          this._list = grown;
+          this._head = 0;
+          this._tail = capacity;
+        }
+        this._mask = this._mask << 1 | 1;
+      }
+      _shrink() {
+        this._list.length >>>= 1;
+        this._mask >>>= 1;
+      }
+      _rebuild(items) {
+        let capacity = this._list.length;
+        while (items.length >= capacity) {
+          capacity <<= 1;
+        }
+        this._list = new Array(capacity);
+        this._mask = capacity - 1;
+        this._head = 0;
+        this._tail = items.length;
+        for (let i = 0; i < items.length; i++) {
+          this._list[i] = items[i];
+        }
+      }
     };
-    Denque.prototype._shrinkArray = function _shrinkArray() {
-      this._list.length >>>= 1;
-      this._capacityMask >>>= 1;
-    };
-    Denque.prototype._nextPowerOf2 = function _nextPowerOf2(num) {
-      var log2 = Math.log(num) / Math.log(2);
-      var nextPow2 = 1 << log2 + 1;
-      return Math.max(nextPow2, 4);
-    };
-    module2.exports = Denque;
+    module2.exports = RingQueue;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/errors.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/errors.js
 var require_errors = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/errors.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/errors.js"(exports2) {
     "use strict";
     exports2.EE_CANTCREATEFILE = 1;
     exports2.EE_READ = 2;
@@ -7231,9 +7535,9 @@ var require_safer = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/bom-handling.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/bom-handling.js
 var require_bom_handling = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/bom-handling.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/bom-handling.js"(exports2) {
     "use strict";
     var BOMChar = "\uFEFF";
     exports2.PrependBOM = PrependBOMWrapper;
@@ -7277,9 +7581,9 @@ var require_bom_handling = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/helpers/merge-exports.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/helpers/merge-exports.js
 var require_merge_exports = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/helpers/merge-exports.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/helpers/merge-exports.js"(exports2, module2) {
     "use strict";
     var hasOwn = typeof Object.hasOwn === "undefined" ? Function.call.bind(Object.prototype.hasOwnProperty) : Object.hasOwn;
     function mergeModules(target, module3) {
@@ -7293,9 +7597,9 @@ var require_merge_exports = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/internal.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/internal.js
 var require_internal = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/internal.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/internal.js"(exports2, module2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     module2.exports = {
@@ -7474,9 +7778,9 @@ var require_internal = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf32.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf32.js
 var require_utf32 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf32.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf32.js"(exports2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     exports2._utf32 = Utf32Codec;
@@ -7497,7 +7801,7 @@ var require_utf32 = __commonJS({
     }
     Utf32Encoder.prototype.write = function(str) {
       var src = Buffer2.from(str, "ucs2");
-      var dst = Buffer2.alloc(src.length * 2);
+      var dst = Buffer2.alloc(src.length * 2 + 4);
       var write32 = this.isLE ? dst.writeUInt32LE : dst.writeUInt32BE;
       var offset = 0;
       for (var i = 0; i < src.length; i += 2) {
@@ -7564,9 +7868,9 @@ var require_utf32 = __commonJS({
         }
         if (overflow.length === 4) {
           if (isLE) {
-            codepoint = overflow[i] | overflow[i + 1] << 8 | overflow[i + 2] << 16 | overflow[i + 3] << 24;
+            codepoint = overflow[0] | overflow[1] << 8 | overflow[2] << 16 | overflow[3] << 24;
           } else {
-            codepoint = overflow[i + 3] | overflow[i + 2] << 8 | overflow[i + 1] << 16 | overflow[i] << 24;
+            codepoint = overflow[3] | overflow[2] << 8 | overflow[1] << 16 | overflow[0] << 24;
           }
           overflow.length = 0;
           offset = _writeCodepoint(dst, offset, codepoint, badChar);
@@ -7601,7 +7905,11 @@ var require_utf32 = __commonJS({
       return offset;
     }
     Utf32Decoder.prototype.end = function() {
+      if (this.overflow.length === 0) {
+        return;
+      }
       this.overflow.length = 0;
+      return String.fromCharCode(this.badChar);
     };
     exports2.utf32 = Utf32AutoCodec;
     exports2.ucs4 = "utf32";
@@ -7705,9 +8013,9 @@ var require_utf32 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf16.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf16.js
 var require_utf16 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf16.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf16.js"(exports2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     exports2.utf16be = Utf16BECodec;
@@ -7848,9 +8156,9 @@ var require_utf16 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf7.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf7.js
 var require_utf7 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/utf7.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/utf7.js"(exports2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     exports2.utf7 = Utf7Codec;
@@ -8066,9 +8374,9 @@ var require_utf7 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-codec.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-codec.js
 var require_sbcs_codec = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-codec.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-codec.js"(exports2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     exports2._sbcs = SBCSCodec;
@@ -8128,9 +8436,9 @@ var require_sbcs_codec = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-data.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-data.js
 var require_sbcs_data = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-data.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-data.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       // Not supported by iconv, not sure why.
@@ -8226,6 +8534,8 @@ var require_sbcs_data = __commonJS({
       elot928: "iso88597",
       hebrew: "iso88598",
       hebrew8: "iso88598",
+      iso88598i: "iso88598",
+      iso88598e: "iso88598",
       turkish: "iso88599",
       turkish8: "iso88599",
       thai: "iso885911",
@@ -8281,9 +8591,9 @@ var require_sbcs_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-data-generated.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-data-generated.js
 var require_sbcs_data_generated = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/sbcs-data-generated.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/sbcs-data-generated.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       "437": "cp437",
@@ -8736,9 +9046,9 @@ var require_sbcs_data_generated = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/dbcs-codec.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/dbcs-codec.js
 var require_dbcs_codec = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/dbcs-codec.js"(exports2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/dbcs-codec.js"(exports2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     exports2._dbcs = DBCSCodec;
@@ -9196,9 +9506,9 @@ var require_dbcs_codec = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/shiftjis.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/shiftjis.json
 var require_shiftjis = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/shiftjis.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/shiftjis.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 128],
       ["a1", "\uFF61", 62],
@@ -9327,9 +9637,9 @@ var require_shiftjis = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/eucjp.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/eucjp.json
 var require_eucjp = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/eucjp.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/eucjp.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["8ea1", "\uFF61", 62],
@@ -9515,9 +9825,9 @@ var require_eucjp = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp936.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp936.json
 var require_cp936 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp936.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp936.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127, "\u20AC"],
       ["8140", "\u4E02\u4E04\u4E05\u4E06\u4E0F\u4E12\u4E17\u4E1F\u4E20\u4E21\u4E23\u4E26\u4E29\u4E2E\u4E2F\u4E31\u4E33\u4E35\u4E37\u4E3C\u4E40\u4E41\u4E42\u4E44\u4E46\u4E4A\u4E51\u4E55\u4E57\u4E5A\u4E5B\u4E62\u4E63\u4E64\u4E65\u4E67\u4E68\u4E6A", 5, "\u4E72\u4E74", 9, "\u4E7F", 6, "\u4E87\u4E8A"],
@@ -9785,9 +10095,9 @@ var require_cp936 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/gbk-added.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/gbk-added.json
 var require_gbk_added = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/gbk-added.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/gbk-added.json"(exports2, module2) {
     module2.exports = [
       ["a140", "\uE4C6", 62],
       ["a180", "\uE505", 32],
@@ -9847,16 +10157,16 @@ var require_gbk_added = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json
 var require_gb18030_ranges = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/gb18030-ranges.json"(exports2, module2) {
     module2.exports = { uChars: [128, 165, 169, 178, 184, 216, 226, 235, 238, 244, 248, 251, 253, 258, 276, 284, 300, 325, 329, 334, 364, 463, 465, 467, 469, 471, 473, 475, 477, 506, 594, 610, 712, 716, 730, 930, 938, 962, 970, 1026, 1104, 1106, 8209, 8215, 8218, 8222, 8231, 8241, 8244, 8246, 8252, 8365, 8452, 8454, 8458, 8471, 8482, 8556, 8570, 8596, 8602, 8713, 8720, 8722, 8726, 8731, 8737, 8740, 8742, 8748, 8751, 8760, 8766, 8777, 8781, 8787, 8802, 8808, 8816, 8854, 8858, 8870, 8896, 8979, 9322, 9372, 9548, 9588, 9616, 9622, 9634, 9652, 9662, 9672, 9676, 9680, 9702, 9735, 9738, 9793, 9795, 11906, 11909, 11913, 11917, 11928, 11944, 11947, 11951, 11956, 11960, 11964, 11979, 12284, 12292, 12312, 12319, 12330, 12351, 12436, 12447, 12535, 12543, 12586, 12842, 12850, 12964, 13200, 13215, 13218, 13253, 13263, 13267, 13270, 13384, 13428, 13727, 13839, 13851, 14617, 14703, 14801, 14816, 14964, 15183, 15471, 15585, 16471, 16736, 17208, 17325, 17330, 17374, 17623, 17997, 18018, 18212, 18218, 18301, 18318, 18760, 18811, 18814, 18820, 18823, 18844, 18848, 18872, 19576, 19620, 19738, 19887, 40870, 59244, 59336, 59367, 59413, 59417, 59423, 59431, 59437, 59443, 59452, 59460, 59478, 59493, 63789, 63866, 63894, 63976, 63986, 64016, 64018, 64021, 64025, 64034, 64037, 64042, 65074, 65093, 65107, 65112, 65127, 65132, 65375, 65510, 65536], gbChars: [0, 36, 38, 45, 50, 81, 89, 95, 96, 100, 103, 104, 105, 109, 126, 133, 148, 172, 175, 179, 208, 306, 307, 308, 309, 310, 311, 312, 313, 341, 428, 443, 544, 545, 558, 741, 742, 749, 750, 805, 819, 820, 7922, 7924, 7925, 7927, 7934, 7943, 7944, 7945, 7950, 8062, 8148, 8149, 8152, 8164, 8174, 8236, 8240, 8262, 8264, 8374, 8380, 8381, 8384, 8388, 8390, 8392, 8393, 8394, 8396, 8401, 8406, 8416, 8419, 8424, 8437, 8439, 8445, 8482, 8485, 8496, 8521, 8603, 8936, 8946, 9046, 9050, 9063, 9066, 9076, 9092, 9100, 9108, 9111, 9113, 9131, 9162, 9164, 9218, 9219, 11329, 11331, 11334, 11336, 11346, 11361, 11363, 11366, 11370, 11372, 11375, 11389, 11682, 11686, 11687, 11692, 11694, 11714, 11716, 11723, 11725, 11730, 11736, 11982, 11989, 12102, 12336, 12348, 12350, 12384, 12393, 12395, 12397, 12510, 12553, 12851, 12962, 12973, 13738, 13823, 13919, 13933, 14080, 14298, 14585, 14698, 15583, 15847, 16318, 16434, 16438, 16481, 16729, 17102, 17122, 17315, 17320, 17402, 17418, 17859, 17909, 17911, 17915, 17916, 17936, 17939, 17961, 18664, 18703, 18814, 18962, 19043, 33469, 33470, 33471, 33484, 33485, 33490, 33497, 33501, 33505, 33513, 33520, 33536, 33550, 37845, 37921, 37948, 38029, 38038, 38064, 38065, 38066, 38069, 38075, 38076, 38078, 39108, 39109, 39113, 39114, 39115, 39116, 39265, 39394, 189e3] };
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp949.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp949.json
 var require_cp949 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp949.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp949.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["8141", "\uAC02\uAC03\uAC05\uAC06\uAC0B", 4, "\uAC18\uAC1E\uAC1F\uAC21\uAC22\uAC23\uAC25", 6, "\uAC2E\uAC32\uAC33\uAC34"],
@@ -10133,9 +10443,9 @@ var require_cp949 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp950.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp950.json
 var require_cp950 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/cp950.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/cp950.json"(exports2, module2) {
     module2.exports = [
       ["0", "\0", 127],
       ["a140", "\u3000\uFF0C\u3001\u3002\uFF0E\u2027\uFF1B\uFF1A\uFF1F\uFF01\uFE30\u2026\u2025\uFE50\uFE51\uFE52\xB7\uFE54\uFE55\uFE56\uFE57\uFF5C\u2013\uFE31\u2014\uFE33\u2574\uFE34\uFE4F\uFF08\uFF09\uFE35\uFE36\uFF5B\uFF5D\uFE37\uFE38\u3014\u3015\uFE39\uFE3A\u3010\u3011\uFE3B\uFE3C\u300A\u300B\uFE3D\uFE3E\u3008\u3009\uFE3F\uFE40\u300C\u300D\uFE41\uFE42\u300E\u300F\uFE43\uFE44\uFE59\uFE5A"],
@@ -10316,9 +10626,9 @@ var require_cp950 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/big5-added.json
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/big5-added.json
 var require_big5_added = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/tables/big5-added.json"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/tables/big5-added.json"(exports2, module2) {
     module2.exports = [
       ["8740", "\u43F0\u4C32\u4603\u45A6\u4578\u{27267}\u4D77\u45B3\u{27CB1}\u4CE2\u{27CC5}\u3B95\u4736\u4744\u4C47\u4C40\u{242BF}\u{23617}\u{27352}\u{26E8B}\u{270D2}\u4C57\u{2A351}\u474F\u45DA\u4C85\u{27C6C}\u4D07\u4AA4\u46A1\u{26B23}\u7225\u{25A54}\u{21A63}\u{23E06}\u{23F61}\u664D\u56FB"],
       ["8767", "\u7D95\u591D\u{28BB9}\u3DF4\u9734\u{27BEF}\u5BDB\u{21D5E}\u5AA4\u3625\u{29EB0}\u5AD1\u5BB7\u5CFC\u676E\u8593\u{29945}\u7461\u749D\u3875\u{21D53}\u{2369E}\u{26021}\u3EEC"],
@@ -10444,9 +10754,9 @@ var require_big5_added = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/dbcs-data.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/dbcs-data.js
 var require_dbcs_data = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/dbcs-data.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/dbcs-data.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       // == Japanese/ShiftJIS ====================================================
@@ -10691,9 +11001,9 @@ var require_dbcs_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/index.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/index.js
 var require_encodings = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/encodings/index.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/encodings/index.js"(exports2, module2) {
     "use strict";
     var mergeModules = require_merge_exports();
     var modules = [
@@ -10716,9 +11026,9 @@ var require_encodings = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/streams.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/streams.js
 var require_streams = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/streams.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/streams.js"(exports2, module2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     module2.exports = function(streamModule) {
@@ -10813,9 +11123,9 @@ var require_streams = __commonJS({
   }
 });
 
-// node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/index.js
+// node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/index.js
 var require_lib4 = __commonJS({
-  "node_modules/.pnpm/iconv-lite@0.7.2/node_modules/iconv-lite/lib/index.js"(exports2, module2) {
+  "node_modules/.pnpm/iconv-lite@0.7.3/node_modules/iconv-lite/lib/index.js"(exports2, module2) {
     "use strict";
     var Buffer2 = require_safer().Buffer;
     var bomHandling = require_bom_handling();
@@ -10945,16 +11255,141 @@ var require_lib4 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/string.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/string.js
 var require_string = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/string.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/string.js"(exports2) {
     "use strict";
     var Iconv = require_lib4();
     var { createLRU } = require_lib3();
     var decoderCache = createLRU({
       max: 500
     });
+    var hasFastSlices = typeof Buffer.prototype.utf8Slice === "function" && typeof Buffer.prototype.latin1Slice === "function" && typeof Buffer.prototype.asciiSlice === "function";
+    exports2.hasFastUtf8Write = typeof Buffer.prototype.utf8Write === "function";
+    function shortAscii(b, s, length) {
+      if (b[s] >= 128) {
+        return null;
+      }
+      switch (length) {
+        case 1: {
+          const c0 = b[s];
+          return c0 < 128 ? String.fromCharCode(c0) : null;
+        }
+        case 2: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          return (c0 | c1) < 128 ? String.fromCharCode(c0, c1) : null;
+        }
+        case 3: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          return (c0 | c1 | c2) < 128 ? String.fromCharCode(c0, c1, c2) : null;
+        }
+        case 4: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          const c3 = b[s + 3];
+          return (c0 | c1 | c2 | c3) < 128 ? String.fromCharCode(c0, c1, c2, c3) : null;
+        }
+        case 5: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          const c3 = b[s + 3];
+          const c4 = b[s + 4];
+          return (c0 | c1 | c2 | c3 | c4) < 128 ? String.fromCharCode(c0, c1, c2, c3, c4) : null;
+        }
+        case 6: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          const c3 = b[s + 3];
+          const c4 = b[s + 4];
+          const c5 = b[s + 5];
+          return (c0 | c1 | c2 | c3 | c4 | c5) < 128 ? String.fromCharCode(c0, c1, c2, c3, c4, c5) : null;
+        }
+        case 7: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          const c3 = b[s + 3];
+          const c4 = b[s + 4];
+          const c5 = b[s + 5];
+          const c6 = b[s + 6];
+          return (c0 | c1 | c2 | c3 | c4 | c5 | c6) < 128 ? String.fromCharCode(c0, c1, c2, c3, c4, c5, c6) : null;
+        }
+        case 8: {
+          const c0 = b[s];
+          const c1 = b[s + 1];
+          const c2 = b[s + 2];
+          const c3 = b[s + 3];
+          const c4 = b[s + 4];
+          const c5 = b[s + 5];
+          const c6 = b[s + 6];
+          const c7 = b[s + 7];
+          return (c0 | c1 | c2 | c3 | c4 | c5 | c6 | c7) < 128 ? String.fromCharCode(c0, c1, c2, c3, c4, c5, c6, c7) : null;
+        }
+        default:
+          return null;
+      }
+    }
+    exports2.SHORT_STRING_MAX_LENGTH = 8;
+    exports2.decodeShort = function(buffer, encoding, start, end) {
+      if (hasFastSlices && start >= 0 && start <= end && end <= buffer.length) {
+        switch (encoding) {
+          case "utf8":
+          case "utf-8": {
+            const short = shortAscii(buffer, start, end - start);
+            return short !== null ? short : buffer.utf8Slice(start, end);
+          }
+          case "latin1":
+          case "binary": {
+            const short = shortAscii(buffer, start, end - start);
+            return short !== null ? short : buffer.latin1Slice(start, end);
+          }
+          case "ascii": {
+            const short = shortAscii(buffer, start, end - start);
+            return short !== null ? short : buffer.asciiSlice(start, end);
+          }
+          default:
+            break;
+        }
+      }
+      return exports2.decode(buffer, encoding, start, end);
+    };
     exports2.decode = function(buffer, encoding, start, end, options) {
+      if (hasFastSlices) {
+        const len = buffer.length;
+        if (start <= 0) {
+          start = 0;
+        } else if (start >= len) {
+          return "";
+        } else {
+          start |= 0;
+        }
+        if (end === void 0 || end > len) {
+          end = len;
+        } else {
+          end |= 0;
+        }
+        if (end <= start) {
+          return "";
+        }
+        switch (encoding) {
+          case "utf8":
+          case "utf-8":
+            return buffer.utf8Slice(start, end);
+          case "latin1":
+          case "binary":
+            return buffer.latin1Slice(start, end);
+          case "ascii":
+            return buffer.asciiSlice(start, end);
+          default:
+            break;
+        }
+      }
       if (Buffer.isEncoding(encoding)) {
         return buffer.toString(encoding, start, end);
       }
@@ -10990,9 +11425,9 @@ var require_string = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/types.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/types.js
 var require_types = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/types.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/types.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       0: "DECIMAL",
@@ -11029,6 +11464,7 @@ var require_types = __commonJS({
       // aka VARCHAR (?)
       16: "BIT",
       // aka BIT, 1-8 byte
+      242: "VECTOR",
       245: "JSON",
       246: "NEWDECIMAL",
       // aka DECIMAL
@@ -11083,16 +11519,192 @@ var require_types = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/packet.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/helpers.js
+var require_helpers = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/helpers.js"(exports2) {
+    "use strict";
+    function srcEscape(str) {
+      return JSON.stringify({
+        [str]: 1
+      }).slice(1, -3);
+    }
+    exports2.srcEscape = srcEscape;
+    var highlightFn;
+    var cardinalRecommended = false;
+    try {
+      const REQUIRE_TERMINATOR = "";
+      highlightFn = require(`cardinal${REQUIRE_TERMINATOR}`).highlight;
+    } catch {
+      highlightFn = (text2) => {
+        if (!cardinalRecommended) {
+          console.log("For nicer debug output consider install cardinal@^2.0.0");
+          cardinalRecommended = true;
+        }
+        return text2;
+      };
+    }
+    function printDebugWithCode(msg, code) {
+      console.log(`
+
+${msg}:
+`);
+      console.log(`${highlightFn(code)}
+`);
+    }
+    exports2.printDebugWithCode = printDebugWithCode;
+    function typeMatch(type, list, Types) {
+      if (Array.isArray(list)) {
+        return list.some((t) => type === Types[t]);
+      }
+      return !!list;
+    }
+    exports2.typeMatch = typeMatch;
+    var privateObjectProps = /* @__PURE__ */ new Set([
+      "__defineGetter__",
+      "__defineSetter__",
+      "__lookupGetter__",
+      "__lookupSetter__",
+      "__proto__"
+    ]);
+    exports2.privateObjectProps = privateObjectProps;
+    var fieldEscape = (field, isEval = true) => {
+      if (privateObjectProps.has(field)) {
+        throw new Error(
+          `The field name (${field}) can't be the same as an object's private property.`
+        );
+      }
+      return isEval ? srcEscape(field) : field;
+    };
+    exports2.fieldEscape = fieldEscape;
+  }
+});
+
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/local_date.js
+var require_local_date = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/local_date.js"(exports2, module2) {
+    "use strict";
+    var Types = require_types();
+    var helpers = require_helpers();
+    var MS_PER_HOUR = 36e5;
+    var MS_PER_DAY = 864e5;
+    var MAX_CACHED_HOURS = 4096;
+    var hourOffsets = /* @__PURE__ */ new Map();
+    var lastTimezone = readTimezone();
+    function readTimezone() {
+      try {
+        return process.env.TZ;
+      } catch {
+        return void 0;
+      }
+    }
+    function checkTimezone() {
+      const timezone = readTimezone();
+      if (timezone !== lastTimezone) {
+        lastTimezone = timezone;
+        hourOffsets.clear();
+      }
+    }
+    function daysFromCivil(year2, month, day) {
+      const y = month <= 2 ? year2 - 1 : year2;
+      const era = Math.floor(y / 400);
+      const yearOfEra = y - era * 400;
+      const dayOfYear = ((153 * ((month + 9) % 12) + 2) / 5 | 0) + day - 1;
+      const dayOfEra = yearOfEra * 365 + (yearOfEra / 4 | 0) - (yearOfEra / 100 | 0) + dayOfYear;
+      return era * 146097 + dayOfEra - 719468;
+    }
+    function localTime(wallTime) {
+      const wall = new Date(wallTime);
+      return new Date(
+        wall.getUTCFullYear(),
+        wall.getUTCMonth(),
+        wall.getUTCDate(),
+        wall.getUTCHours(),
+        wall.getUTCMinutes(),
+        wall.getUTCSeconds(),
+        wall.getUTCMilliseconds()
+      ).getTime();
+    }
+    function proveHourOffset(hour) {
+      const start = hour * MS_PER_HOUR;
+      const offset = start - localTime(start);
+      if (offset !== start + MS_PER_HOUR / 2 - localTime(start + MS_PER_HOUR / 2) || offset !== start + MS_PER_HOUR - 1 - localTime(start + MS_PER_HOUR - 1) || Number.isNaN(offset)) {
+        return null;
+      }
+      return offset;
+    }
+    function localDate(year2, month, day, hours, minutes, seconds, milliseconds) {
+      if (year2 < 100 || month < 1 || month > 12) {
+        return new Date(
+          year2,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds,
+          milliseconds
+        );
+      }
+      const wallTime = daysFromCivil(year2, month, day) * MS_PER_DAY + hours * MS_PER_HOUR + minutes * 6e4 + seconds * 1e3 + Math.trunc(milliseconds);
+      const hour = Math.floor(wallTime / MS_PER_HOUR);
+      let offset = hourOffsets.get(hour);
+      if (offset === void 0) {
+        if (hourOffsets.size >= MAX_CACHED_HOURS) {
+          hourOffsets.clear();
+        }
+        offset = proveHourOffset(hour);
+        hourOffsets.set(hour, offset);
+      }
+      if (offset === null) {
+        return new Date(
+          year2,
+          month - 1,
+          day,
+          hours,
+          minutes,
+          seconds,
+          milliseconds
+        );
+      }
+      return new Date(wallTime - offset);
+    }
+    function usesLocalDate(field, options, config2) {
+      const timezone = options.timezone || config2.timezone;
+      if (timezone && timezone !== "local") {
+        return false;
+      }
+      const type = field.columnType;
+      if (type !== Types.DATE && type !== Types.DATETIME && type !== Types.TIMESTAMP && type !== Types.NEWDATE) {
+        return false;
+      }
+      return !helpers.typeMatch(
+        type,
+        options.dateStrings || config2.dateStrings,
+        Types
+      );
+    }
+    module2.exports = {
+      localDate,
+      checkTimezone,
+      usesLocalDate,
+      _daysFromCivil: daysFromCivil,
+      _clear() {
+        hourOffsets.clear();
+      }
+    };
+  }
+});
+
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/packet.js
 var require_packet = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/packet.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/packet.js"(exports2, module2) {
     "use strict";
     var ErrorCodeToName = require_errors();
     var NativeBuffer = require("buffer").Buffer;
     var Long = require_umd();
     var StringParser = require_string();
+    var { localDate } = require_local_date();
     var Types = require_types();
-    var INVALID_DATE = /* @__PURE__ */ new Date(NaN);
+    var ZERO_DATE = "0000-00-00";
     var pad = "000000000000";
     function leftPad(num, value) {
       const s = value.toString();
@@ -11103,9 +11715,40 @@ var require_packet = __commonJS({
     }
     var minus = "-".charCodeAt(0);
     var plus = "+".charCodeAt(0);
+    var jsonSourceAccessSupported = (() => {
+      let supported = false;
+      JSON.parse("0", (key, value, context) => {
+        supported = context !== void 0 && typeof context.source === "string";
+        return value;
+      });
+      return supported;
+    })();
+    var jsonBigNumeral = /\d{16}/;
+    var jsonIntegerSource = /^-?\d+$/;
+    function jsonBigNumberReviver(key, value, context) {
+      if (typeof value === "number" && !Number.isSafeInteger(value) && context !== void 0 && jsonIntegerSource.test(context.source)) {
+        return context.source;
+      }
+      return value;
+    }
     var dot = ".".charCodeAt(0);
     var exponent = "e".charCodeAt(0);
     var exponentCapital = "E".charCodeAt(0);
+    var colon = ":".charCodeAt(0);
+    var lastTimezone;
+    var lastTimezoneOffset = null;
+    function timezoneOffsetMinutes(timezone) {
+      if (timezone === lastTimezone) {
+        return lastTimezoneOffset;
+      }
+      let offset = null;
+      if (/^[+-]\d{2}:\d{2}$/.test(timezone)) {
+        offset = (timezone[0] === "-" ? -1 : 1) * (parseInt(timezone.substring(1, 3), 10) * 60 + parseInt(timezone.substring(4), 10));
+      }
+      lastTimezone = timezone;
+      lastTimezoneOffset = offset;
+      return offset;
+    }
     var Packet = class _Packet {
       constructor(id, buffer, start, end) {
         this.sequenceId = id;
@@ -11169,17 +11812,12 @@ var require_packet = __commonJS({
       readInt64JSNumber() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        const l = new Long(word0, word1, true);
-        return l.toNumber();
+        return word0 + 4294967296 * word1;
       }
       readSInt64JSNumber() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        if (!(word1 & 2147483648)) {
-          return word0 + 4294967296 * word1;
-        }
-        const l = new Long(word0, word1, false);
-        return l.toNumber();
+        return word0 + 4294967296 * (word1 | 0);
       }
       readInt64String() {
         const word0 = this.readInt32();
@@ -11196,16 +11834,20 @@ var require_packet = __commonJS({
       readInt64() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        const res = new Long(word0, word1, true);
-        const resNumber = res.toNumber();
-        return Number.isSafeInteger(resNumber) ? resNumber : res.toString();
+        const resNumber = word0 + 4294967296 * word1;
+        if (Number.isSafeInteger(resNumber)) {
+          return resNumber;
+        }
+        return new Long(word0, word1, true).toString();
       }
       readSInt64() {
         const word0 = this.readInt32();
         const word1 = this.readInt32();
-        const res = new Long(word0, word1, false);
-        const resNumber = res.toNumber();
-        return Number.isSafeInteger(resNumber) ? resNumber : res.toString();
+        const resNumber = word0 + 4294967296 * (word1 | 0);
+        if (Number.isSafeInteger(resNumber)) {
+          return resNumber;
+        }
+        return new Long(word0, word1, false).toString();
       }
       isEOF() {
         return this.buffer[this.offset] === 254 && this.length() < 13;
@@ -11303,16 +11945,16 @@ var require_packet = __commonJS({
             ms = this.readInt32() / 1e3;
           }
           if (y + m + d + H + M + S + ms === 0) {
-            return INVALID_DATE;
+            return /* @__PURE__ */ new Date(NaN);
           }
           if (timezone === "Z") {
             return new Date(Date.UTC(y, m - 1, d, H, M, S, ms));
           }
-          return new Date(y, m - 1, d, H, M, S, ms);
+          return localDate(y, m, d, H, M, S, ms);
         }
         let str = this.readDateTimeString(6, "T", null);
-        if (!str) {
-          return INVALID_DATE;
+        if (str.startsWith(ZERO_DATE)) {
+          return /* @__PURE__ */ new Date(NaN);
         }
         if (str.length === 10) {
           str += "T00:00:00";
@@ -11328,7 +11970,7 @@ var require_packet = __commonJS({
         let M = 0;
         let S = 0;
         let ms = 0;
-        let str;
+        let str = ZERO_DATE;
         if (length > 3) {
           y = this.readInt16();
           m = this.readInt8();
@@ -11344,7 +11986,7 @@ var require_packet = __commonJS({
             leftPad(2, M),
             leftPad(2, S)
           ].join(":")}`;
-        } else if (columnType === Types.DATETIME) {
+        } else if (columnType === Types.DATETIME || columnType === Types.TIMESTAMP) {
           str += " 00:00:00";
         }
         if (length > 10) {
@@ -11389,7 +12031,7 @@ var require_packet = __commonJS({
           ms *= sign;
           return ms;
         }
-        return (sign === -1 ? "-" : "") + [leftPad(2, d * 24 + H), leftPad(2, M), leftPad(2, S)].join(":") + (ms ? `.${ms}`.replace(/0+$/, "") : "");
+        return (sign === -1 ? "-" : "") + [leftPad(2, d * 24 + H), leftPad(2, M), leftPad(2, S)].join(":") + (ms ? `.${leftPad(6, ms)}`.replace(/0+$/, "") : "");
       }
       readLengthCodedString(encoding) {
         const len = this.readLengthCodedNumber();
@@ -11397,6 +12039,14 @@ var require_packet = __commonJS({
           return null;
         }
         this.offset += len;
+        if (len <= StringParser.SHORT_STRING_MAX_LENGTH) {
+          return StringParser.decodeShort(
+            this.buffer,
+            encoding,
+            this.offset - len,
+            this.offset
+          );
+        }
         return StringParser.decode(
           this.buffer,
           encoding,
@@ -11632,6 +12282,15 @@ var require_packet = __commonJS({
         }
         return result;
       }
+      // With supportBigNumbers, unsafe integers become exact strings,
+      // mirroring the option's behaviour for BIGINT columns
+      parseJson(encoding, supportBigNumbers) {
+        const str = this.readLengthCodedString(encoding);
+        if (supportBigNumbers && jsonSourceAccessSupported && str !== null && jsonBigNumeral.test(str)) {
+          return JSON.parse(str, jsonBigNumberReviver);
+        }
+        return JSON.parse(str);
+      }
       parseDate(timezone) {
         const strLen = this.readLengthCodedNumber();
         if (strLen === null) {
@@ -11646,7 +12305,7 @@ var require_packet = __commonJS({
         this.offset++;
         const d = this.parseInt(2);
         if (!timezone || timezone === "local") {
-          return new Date(y, m - 1, d);
+          return localDate(y, m, d, 0, 0, 0, 0);
         }
         if (timezone === "Z") {
           return new Date(Date.UTC(y, m - 1, d));
@@ -11656,10 +12315,54 @@ var require_packet = __commonJS({
         );
       }
       parseDateTime(timezone) {
-        const str = this.readLengthCodedString("binary");
-        if (str === null) {
+        const len = this.readLengthCodedNumber();
+        if (len === null) {
           return null;
         }
+        const b = this.buffer;
+        const s = this.offset;
+        if (len >= 19 && b[s + 4] === minus && b[s + 7] === minus && b[s + 13] === colon && b[s + 16] === colon) {
+          const y = (b[s] - 48) * 1e3 + (b[s + 1] - 48) * 100 + (b[s + 2] - 48) * 10 + (b[s + 3] - 48);
+          const mo = (b[s + 5] - 48) * 10 + (b[s + 6] - 48);
+          const d = (b[s + 8] - 48) * 10 + (b[s + 9] - 48);
+          if (mo === 0 || d === 0 || mo > 12 || d > 31) {
+            this.offset += len;
+            return /* @__PURE__ */ new Date(NaN);
+          }
+          if (y < 100) {
+            const str2 = StringParser.decode(b, "binary", s, s + len);
+            this.offset += len;
+            return !timezone || timezone === "local" ? new Date(str2) : /* @__PURE__ */ new Date(`${str2}${timezone}`);
+          }
+          const h = (b[s + 11] - 48) * 10 + (b[s + 12] - 48);
+          const mi = (b[s + 14] - 48) * 10 + (b[s + 15] - 48);
+          const se = (b[s + 17] - 48) * 10 + (b[s + 18] - 48);
+          let ms = 0;
+          if (len > 20) {
+            let scale = 100;
+            for (let i = s + 20; i < s + len && scale >= 1; i++) {
+              ms += (b[i] - 48) * scale;
+              scale /= 10;
+            }
+          }
+          this.offset += len;
+          if (!timezone || timezone === "local") {
+            return localDate(y, mo, d, h, mi, se, ms);
+          }
+          const utc = Date.UTC(y, mo - 1, d, h, mi, se, ms);
+          if (timezone === "Z") {
+            return new Date(utc);
+          }
+          const offsetMinutes = timezoneOffsetMinutes(timezone);
+          if (offsetMinutes !== null) {
+            return new Date(utc - offsetMinutes * 6e4);
+          }
+          return /* @__PURE__ */ new Date(
+            `${StringParser.decode(b, "binary", s, s + len)}${timezone}`
+          );
+        }
+        const str = StringParser.decode(b, "binary", s, s + len);
+        this.offset += len;
         if (!timezone || timezone === "local") {
           return new Date(str);
         }
@@ -11770,6 +12473,40 @@ var require_packet = __commonJS({
         this.buffer.writeDoubleLE(n, this.offset);
         this.offset += 8;
       }
+      writeFloat(n) {
+        this.buffer.writeFloatLE(n, this.offset);
+        this.offset += 4;
+      }
+      writeUIntLE(n, bytes) {
+        if (bytes === 8) {
+          this.buffer.writeBigUInt64LE(n, this.offset);
+        } else {
+          this.buffer.writeUIntLE(Number(n), this.offset, bytes);
+        }
+        this.offset += bytes;
+      }
+      // must match writeTime's choice of encoding byte for byte
+      static timeLength({ days, hours, minutes, seconds, microseconds }) {
+        if (!days && !hours && !minutes && !seconds && !microseconds) {
+          return 1;
+        }
+        return microseconds ? 13 : 9;
+      }
+      writeTime({ negative, days, hours, minutes, seconds, microseconds }) {
+        if (!days && !hours && !minutes && !seconds && !microseconds) {
+          this.writeInt8(0);
+          return;
+        }
+        this.writeInt8(microseconds ? 12 : 8);
+        this.writeInt8(negative ? 1 : 0);
+        this.writeInt32(days);
+        this.writeInt8(hours);
+        this.writeInt8(minutes);
+        this.writeInt8(seconds);
+        if (microseconds) {
+          this.writeInt32(microseconds);
+        }
+      }
       writeBuffer(b) {
         b.copy(this.buffer, this.offset);
         this.offset += b.length;
@@ -11802,6 +12539,17 @@ var require_packet = __commonJS({
         this.writeLengthCodedNumber(buf.length);
         this.buffer.length && buf.copy(this.buffer, this.offset);
         this.offset += buf.length;
+      }
+      // byteLength, when the caller sized the packet, must be
+      // Buffer.byteLength(string, 'utf8'); only used where
+      // Buffer.prototype.utf8Write exists
+      writeLengthCodedUtf8String(string, byteLength) {
+        if (byteLength === void 0) {
+          byteLength = Buffer.byteLength(string, "utf8");
+        }
+        this.writeLengthCodedNumber(byteLength);
+        this.buffer.utf8Write(string, this.offset, byteLength);
+        this.offset += byteLength;
       }
       writeLengthCodedBuffer(b) {
         this.writeLengthCodedNumber(b.length);
@@ -11887,7 +12635,7 @@ var require_packet = __commonJS({
           return 3;
         }
         if (n < 16777215) {
-          return 5;
+          return 4;
         }
         return 9;
       }
@@ -11897,6 +12645,9 @@ var require_packet = __commonJS({
         return _Packet.lengthCodedNumberLength(slen) + slen;
       }
       static MockBuffer() {
+        if (_Packet._mockBuffer) {
+          return _Packet._mockBuffer;
+        }
         const noop = function() {
         };
         const res = Buffer.alloc(0);
@@ -11905,6 +12656,7 @@ var require_packet = __commonJS({
             res[op] = noop;
           }
         }
+        _Packet._mockBuffer = res;
         return res;
       }
     };
@@ -11912,9 +12664,9 @@ var require_packet = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packet_parser.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packet_parser.js
 var require_packet_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packet_parser.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packet_parser.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var MAX_PACKET_LENGTH = 16777215;
@@ -11940,6 +12692,7 @@ var require_packet_parser = __commonJS({
         this.largePacketParts = [];
         this.firstPacketSequenceId = 0;
         this.onPacket = onPacket;
+        this._reusablePacket = new Packet(0, Buffer.allocUnsafe(4), 0, 4);
         this.execute = _PacketParser.prototype.executeStart;
         this._flushLargePacket = packetHeaderLength === 7 ? this._flushLargePacket7 : this._flushLargePacket4;
       }
@@ -11969,14 +12722,14 @@ var require_packet_parser = __commonJS({
           if (end - start >= this.length + this.packetHeaderLength) {
             const sequenceId = chunk[start + 3];
             if (this.length < MAX_PACKET_LENGTH && this.largePacketParts.length === 0) {
-              this.onPacket(
-                new Packet(
-                  sequenceId,
-                  chunk,
-                  start,
-                  start + this.packetHeaderLength + this.length
-                )
-              );
+              const packet = this._reusablePacket;
+              packet.sequenceId = sequenceId;
+              packet.numPackets = 1;
+              packet.buffer = chunk;
+              packet.start = start;
+              packet.offset = start + 4;
+              packet.end = start + this.packetHeaderLength + this.length;
+              this.onPacket(packet);
             } else {
               if (this.largePacketParts.length === 0) {
                 this.firstPacketSequenceId = sequenceId;
@@ -12024,14 +12777,14 @@ var require_packet_parser = __commonJS({
           chunk.copy(payload, offset, start, start + remainingPayload);
           const sequenceId = payload[3];
           if (this.length < MAX_PACKET_LENGTH && this.largePacketParts.length === 0) {
-            this.onPacket(
-              new Packet(
-                sequenceId,
-                payload,
-                0,
-                this.length + this.packetHeaderLength
-              )
-            );
+            const packet = this._reusablePacket;
+            packet.sequenceId = sequenceId;
+            packet.numPackets = 1;
+            packet.buffer = payload;
+            packet.start = 0;
+            packet.offset = 4;
+            packet.end = this.length + this.packetHeaderLength;
+            this.onPacket(packet);
           } else {
             if (this.largePacketParts.length === 0) {
               this.firstPacketSequenceId = sequenceId;
@@ -12079,9 +12832,9 @@ var require_packet_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_next_factor.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_next_factor.js
 var require_auth_next_factor = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_next_factor.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_next_factor.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var AuthNextFactor = class _AuthNextFactor {
@@ -12113,9 +12866,9 @@ var require_auth_next_factor = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request.js
 var require_auth_switch_request = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var AuthSwitchRequest = class _AuthSwitchRequest {
@@ -12147,9 +12900,9 @@ var require_auth_switch_request = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js
 var require_auth_switch_request_more_data = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_request_more_data.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var AuthSwitchRequestMoreData = class _AuthSwitchRequestMoreData {
@@ -12178,9 +12931,9 @@ var require_auth_switch_request_more_data = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_response.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_response.js
 var require_auth_switch_response = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_response.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/auth_switch_response.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var AuthSwitchResponse = class _AuthSwitchResponse {
@@ -12207,9 +12960,9 @@ var require_auth_switch_response = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binary_row.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binary_row.js
 var require_binary_row = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binary_row.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binary_row.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Packet = require_packet();
@@ -12293,9 +13046,9 @@ var require_binary_row = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/commands.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/commands.js
 var require_commands = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/commands.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/commands.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       SLEEP: 0,
@@ -12343,9 +13096,9 @@ var require_commands = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_dump.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_dump.js
 var require_binlog_dump = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_dump.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_dump.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
@@ -12373,9 +13126,9 @@ var require_binlog_dump = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_41.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_41.js
 var require_auth_41 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_41.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_41.js"(exports2) {
     "use strict";
     var crypto = require("crypto");
     function sha1(msg, msg1, msg2) {
@@ -12432,11 +13185,11 @@ var require_auth_41 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/charset_encodings.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/charset_encodings.js
 var require_charset_encodings = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/charset_encodings.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/charset_encodings.js"(exports2, module2) {
     "use strict";
-    module2.exports = [
+    var encodings = [
       "utf8",
       "big5",
       "latin2",
@@ -12748,12 +13501,34 @@ var require_charset_encodings = __commonJS({
       "utf8",
       "utf8"
     ];
+    var padSpaceLength = encodings.length;
+    for (let id = 1025; id < 1024 + padSpaceLength; id++) {
+      encodings[id] = encodings[id - 1024];
+    }
+    var uca1400Blocks = [
+      [2048, "cesu8"],
+      // utf8mb3
+      [2304, "utf8"],
+      // utf8mb4
+      [2560, "ucs2"],
+      // ucs2
+      [2816, "utf16"],
+      // utf16
+      [3072, "utf32"]
+      // utf32
+    ];
+    for (const [start, encoding] of uca1400Blocks) {
+      for (let id = start; id < start + 256; id++) {
+        encodings[id] = encoding;
+      }
+    }
+    module2.exports = encodings;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/change_user.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/change_user.js
 var require_change_user = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/change_user.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/change_user.js"(exports2, module2) {
     "use strict";
     var CommandCode = require_commands();
     var ClientConstants = require_client();
@@ -12769,7 +13544,7 @@ var require_change_user = __commonJS({
         this.passwordSha1 = opts.passwordSha1;
         this.authPluginData1 = opts.authPluginData1;
         this.authPluginData2 = opts.authPluginData2;
-        this.connectAttributes = opts.connectAttrinutes || {};
+        this.connectAttributes = opts.connectAttributes || {};
         let authToken;
         if (this.passwordSha1) {
           authToken = auth41.calculateTokenFromPasswordSha(
@@ -12846,9 +13621,9 @@ var require_change_user = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/close_statement.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/close_statement.js
 var require_close_statement = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/close_statement.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/close_statement.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
@@ -12869,9 +13644,9 @@ var require_close_statement = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/field_flags.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/field_flags.js
 var require_field_flags = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/field_flags.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/field_flags.js"(exports2) {
     "use strict";
     exports2.NOT_NULL = 1;
     exports2.PRI_KEY = 2;
@@ -12891,16 +13666,16 @@ var require_field_flags = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/column_definition.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/column_definition.js
 var require_column_definition = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/column_definition.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/column_definition.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
     var fields = ["catalog", "schema", "table", "orgTable", "name", "orgName"];
     var ColumnDefinition = class {
-      constructor(packet, clientEncoding) {
+      constructor(packet, clientEncoding, mariadbExtendedMetadata) {
         this._buf = packet.buffer;
         this._clientEncoding = clientEncoding;
         this._catalogLength = packet.readLengthCodedNumber();
@@ -12921,10 +13696,13 @@ var require_column_definition = __commonJS({
         this._orgNameLength = packet.readLengthCodedNumber();
         this._orgNameStart = packet.offset;
         packet.offset += this._orgNameLength;
+        if (mariadbExtendedMetadata) {
+          this._parseMariadbExtendedMetadata(packet);
+        }
         packet.skip(1);
         this.characterSet = packet.readInt16();
         this.encoding = CharsetToEncoding[this.characterSet];
-        this.name = StringParser.decode(
+        this.name = StringParser.decodeShort(
           this._buf,
           this.encoding === "binary" ? this._clientEncoding : this.encoding,
           _nameStart,
@@ -12935,6 +13713,23 @@ var require_column_definition = __commonJS({
         this.type = this.columnType;
         this.flags = packet.readInt16();
         this.decimals = packet.readInt8();
+      }
+      _parseMariadbExtendedMetadata(packet) {
+        const extendedMetadataLength = packet.readLengthCodedNumber() || 0;
+        const extendedMetadataEnd = Math.min(
+          packet.offset + extendedMetadataLength,
+          packet.end
+        );
+        while (packet.offset < extendedMetadataEnd) {
+          const id = packet.readInt8();
+          const value = packet.readLengthCodedString("ascii");
+          if (id === 0) {
+            this.extendedTypeName = value;
+          } else if (id === 1) {
+            this.extendedFormat = value;
+          }
+        }
+        packet.offset = extendedMetadataEnd;
       }
       inspect() {
         return {
@@ -13104,22 +13899,25 @@ var require_column_definition = __commonJS({
       }
     };
     var addString = function(name) {
+      const cacheKey = `_${name}Value`;
+      const startKey = `_${name}Start`;
+      const lengthKey = `_${name}Length`;
+      ColumnDefinition.prototype[cacheKey] = void 0;
       Object.defineProperty(ColumnDefinition.prototype, name, {
         get: function() {
-          const start = this[`_${name}Start`];
-          const end = start + this[`_${name}Length`];
+          const cached = this[cacheKey];
+          if (cached !== void 0) {
+            return cached;
+          }
+          const start = this[startKey];
+          const end = start + this[lengthKey];
           const val = StringParser.decode(
             this._buf,
             this.encoding === "binary" ? this._clientEncoding : this.encoding,
             start,
             end
           );
-          Object.defineProperty(this, name, {
-            value: val,
-            writable: false,
-            configurable: false,
-            enumerable: false
-          });
+          this[cacheKey] = val;
           return val;
         }
       });
@@ -13129,13 +13927,15 @@ var require_column_definition = __commonJS({
     addString("table");
     addString("orgTable");
     addString("orgName");
+    ColumnDefinition.prototype.extendedTypeName = void 0;
+    ColumnDefinition.prototype.extendedFormat = void 0;
     module2.exports = ColumnDefinition;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/cursor.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/cursor.js
 var require_cursor = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/cursor.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/cursor.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       NO_CURSOR: 0,
@@ -13147,21 +13947,389 @@ var require_cursor = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/encode_parameter.js
-var require_encode_parameter = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/encode_parameter.js"(exports2, module2) {
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/typed_parameter.js
+var require_typed_parameter = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/typed_parameter.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Packet = require_packet();
+    var StringParser = require_string();
+    var INTEGER_BYTES = {
+      [Types.TINY]: 1,
+      [Types.SHORT]: 2,
+      [Types.YEAR]: 2,
+      [Types.INT24]: 4,
+      [Types.LONG]: 4,
+      [Types.LONGLONG]: 8
+    };
+    var TEMPORAL = [Types.DATE, Types.DATETIME, Types.TIMESTAMP];
+    var WIRE_TYPE = {
+      [Types.INT24]: Types.LONG,
+      [Types.YEAR]: Types.SHORT,
+      [Types.ENUM]: Types.STRING,
+      [Types.SET]: Types.STRING,
+      [Types.VECTOR]: Types.BLOB
+    };
+    var HINT_UPGRADABLE = /* @__PURE__ */ new Set([
+      Types.TINY,
+      Types.SHORT,
+      Types.LONG,
+      Types.LONGLONG
+    ]);
+    var LENGTH_CODED = [
+      Types.DECIMAL,
+      Types.NEWDECIMAL,
+      Types.VARCHAR,
+      Types.VAR_STRING,
+      Types.STRING,
+      Types.ENUM,
+      Types.SET,
+      Types.JSON,
+      Types.VECTOR,
+      Types.TINY_BLOB,
+      Types.MEDIUM_BLOB,
+      Types.LONG_BLOB,
+      Types.BLOB
+    ];
+    function writeNothing() {
+    }
+    var TIME_PATTERN = /^(-)?(\d+):([0-5]?\d):([0-5]?\d)(?:\.(\d{1,6}))?$/;
+    var TypedParameter = class {
+      constructor(type, value, unsigned) {
+        this.type = type;
+        this.value = value;
+        this.unsigned = unsigned;
+      }
+      [/* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom")]() {
+        const name = Types[this.type] || `0x${this.type.toString(16)}`;
+        return `${name}${this.unsigned ? " UNSIGNED" : ""}(${String(this.value)})`;
+      }
+    };
+    function toInteger(value, name) {
+      switch (typeof value) {
+        case "bigint":
+          return value;
+        case "boolean":
+          return value ? 1n : 0n;
+        case "number":
+          if (!Number.isInteger(value)) {
+            throw new TypeError(
+              `${name} parameter must be an integer, got ${value}`
+            );
+          }
+          if (!Number.isSafeInteger(value)) {
+            throw new RangeError(
+              `${name} parameter ${value} exceeds Number.MAX_SAFE_INTEGER and has already lost precision; pass a string or BigInt instead`
+            );
+          }
+          return BigInt(value);
+        case "string":
+          try {
+            return BigInt(value.trim());
+          } catch (cause) {
+            throw new TypeError(
+              `${name} parameter must be an integer, got ${JSON.stringify(value)}`,
+              { cause }
+            );
+          }
+        default:
+          throw new TypeError(
+            `${name} parameter must be an integer, got ${typeof value}`
+          );
+      }
+    }
+    function checkedInteger(value, type, bytes, unsigned) {
+      const name = Types[type];
+      const bits = BigInt(bytes * 8);
+      const n = toInteger(value, name);
+      const min = unsigned ? 0n : -(1n << bits - 1n);
+      const max = unsigned ? (1n << bits) - 1n : (1n << bits - 1n) - 1n;
+      if (n < min || n > max) {
+        throw new RangeError(
+          `${name}${unsigned ? " UNSIGNED" : ""} parameter out of range: ${n} is not within ${min}..${max}`
+        );
+      }
+      return n;
+    }
+    function integerHint(value, type, unsigned) {
+      const bytes = INTEGER_BYTES[type];
+      if (!bytes || !HINT_UPGRADABLE.has(type)) {
+        return null;
+      }
+      let n;
+      if (typeof value === "bigint") {
+        n = value;
+      } else if (typeof value === "boolean") {
+        n = value ? 1n : 0n;
+      } else if (typeof value === "number" && Number.isSafeInteger(value)) {
+        n = BigInt(value);
+      } else {
+        return null;
+      }
+      const bits = BigInt(bytes * 8);
+      const min = unsigned ? 0n : -(1n << bits - 1n);
+      const max = unsigned ? (1n << bits) - 1n : (1n << bits - 1n) - 1n;
+      if (n < min || n > max) {
+        return null;
+      }
+      return new TypedParameter(type, n, unsigned);
+    }
+    function wireType(type, jsonAsString) {
+      if (type === Types.JSON && jsonAsString) {
+        return Types.VAR_STRING;
+      }
+      return WIRE_TYPE[type] || type;
+    }
+    function integerEncoder(type, bytes) {
+      return (value, unsigned) => {
+        const wire = BigInt.asUintN(
+          bytes * 8,
+          checkedInteger(value, type, bytes, unsigned)
+        );
+        return {
+          value: bytes === 8 ? wire : Number(wire),
+          length: bytes,
+          writer(v) {
+            this.writeUIntLE(v, bytes);
+          }
+        };
+      };
+    }
+    function toDate(value, name) {
+      const date2 = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date2.getTime())) {
+        throw new TypeError(
+          `${name} parameter must be a valid Date, got ${String(value)}`
+        );
+      }
+      return date2;
+    }
+    function temporalEncoder(type, timezone) {
+      const name = Types[type];
+      return (value) => ({
+        value: toDate(value, name),
+        length: 12,
+        writer(v) {
+          this.writeDate(v, timezone);
+        }
+      });
+    }
+    function toTimeParts(value) {
+      if (typeof value === "number") {
+        const negative = value < 0;
+        let rest = Math.abs(value);
+        const microseconds = Math.round(rest % 1e3 * 1e3);
+        rest = Math.floor(rest / 1e3);
+        const seconds = rest % 60;
+        const minutes = Math.floor(rest / 60) % 60;
+        const totalHours = Math.floor(rest / 3600);
+        return {
+          negative,
+          days: Math.floor(totalHours / 24),
+          hours: totalHours % 24,
+          minutes,
+          seconds,
+          microseconds
+        };
+      }
+      const match = TIME_PATTERN.exec(String(value));
+      if (!match) {
+        throw new TypeError(
+          `TIME parameter must be 'HH:MM:SS[.ffffff]' or milliseconds, got ${JSON.stringify(String(value))}`
+        );
+      }
+      const hours = Number(match[2]);
+      return {
+        negative: Boolean(match[1]),
+        days: Math.floor(hours / 24),
+        hours: hours % 24,
+        minutes: Number(match[3]),
+        seconds: Number(match[4]),
+        microseconds: match[5] ? Number(match[5].padEnd(6, "0")) : 0
+      };
+    }
+    function timeEncoder() {
+      return (value) => {
+        const parts = toTimeParts(value);
+        return {
+          value: parts,
+          length: Packet.timeLength(parts),
+          writer(v) {
+            this.writeTime(v);
+          }
+        };
+      };
+    }
+    function lengthCodedEncoder(encoding) {
+      return (value) => {
+        if (!Buffer.isBuffer(value)) {
+          const string = typeof value === "string" ? value : String(value);
+          if (StringParser.hasFastUtf8Write && (encoding === "utf8" || encoding === "utf-8")) {
+            const byteLength = Buffer.byteLength(string, "utf8");
+            return {
+              value: string,
+              length: Packet.lengthCodedNumberLength(byteLength) + byteLength,
+              byteLength,
+              writer: Packet.prototype.writeLengthCodedUtf8String
+            };
+          }
+          value = StringParser.encode(string, encoding);
+        }
+        return {
+          value,
+          length: Packet.lengthCodedNumberLength(value.length) + value.length,
+          writer: Packet.prototype.writeLengthCodedBuffer
+        };
+      };
+    }
+    function jsonEncoder(encoding) {
+      const encodeText = lengthCodedEncoder(encoding);
+      return (value) => encodeText(
+        typeof value === "string" || Buffer.isBuffer(value) ? value : JSON.stringify(value)
+      );
+    }
+    function encoderFor(type, encoding, timezone) {
+      if (INTEGER_BYTES[type]) {
+        return integerEncoder(type, INTEGER_BYTES[type]);
+      }
+      if (type === Types.DOUBLE) {
+        return (value) => ({
+          value: Number(value),
+          length: 8,
+          writer: Packet.prototype.writeDouble
+        });
+      }
+      if (type === Types.FLOAT) {
+        return (value) => ({
+          value: Number(value),
+          length: 4,
+          writer: Packet.prototype.writeFloat
+        });
+      }
+      if (TEMPORAL.includes(type)) {
+        return temporalEncoder(type, timezone);
+      }
+      if (type === Types.TIME) {
+        return timeEncoder();
+      }
+      if (type === Types.JSON) {
+        return jsonEncoder(encoding);
+      }
+      if (LENGTH_CODED.includes(type)) {
+        return lengthCodedEncoder(encoding);
+      }
+      throw new TypeError(
+        `No parameter encoder for MySQL type 0x${type.toString(16)}`
+      );
+    }
+    function encodeTypedParameter(parameter, encoding, timezone, jsonAsString) {
+      if (parameter.value === null || parameter.type === Types.NULL) {
+        return {
+          value: "",
+          type: wireType(parameter.type, jsonAsString),
+          length: 0,
+          writer: writeNothing,
+          unsigned: parameter.unsigned,
+          isNull: true
+        };
+      }
+      const encoded = encoderFor(
+        parameter.type,
+        encoding,
+        timezone
+      )(parameter.value, parameter.unsigned);
+      return {
+        ...encoded,
+        type: wireType(parameter.type, jsonAsString),
+        unsigned: parameter.unsigned
+      };
+    }
+    var ALIASES = {
+      MEDIUMTEXT: "MEDIUM_BLOB",
+      LONGTEXT: "LONG_BLOB",
+      TINYINT: "TINY",
+      SMALLINT: "SHORT",
+      MEDIUMINT: "INT24",
+      INT: "LONG",
+      INTEGER: "LONG",
+      BIGINT: "LONGLONG",
+      REAL: "DOUBLE",
+      CHAR: "STRING",
+      VARBINARY: "VAR_STRING",
+      BINARY: "STRING",
+      TEXT: "BLOB"
+    };
+    var SUPPORTED = [
+      ...Object.keys(INTEGER_BYTES),
+      Types.FLOAT,
+      Types.DOUBLE,
+      Types.TIME,
+      ...TEMPORAL,
+      ...LENGTH_CODED
+    ].map(Number);
+    var types = /* @__PURE__ */ Object.create(null);
+    for (const type of SUPPORTED) {
+      const name = Types[type];
+      const bytes = INTEGER_BYTES[type];
+      const build = bytes ? (value, unsigned) => new TypedParameter(
+        type,
+        value === null ? null : checkedInteger(value, type, bytes, unsigned),
+        unsigned
+      ) : (value, unsigned) => new TypedParameter(type, value, unsigned);
+      const factory = (value) => build(value, false);
+      if (bytes) {
+        factory.unsigned = (value) => build(value, true);
+      }
+      types[name] = factory;
+    }
+    types.NULL = () => new TypedParameter(Types.NULL, null, false);
+    for (const [alias, target] of Object.entries(ALIASES)) {
+      if (types[target] && !types[alias]) {
+        types[alias] = types[target];
+      }
+    }
+    module2.exports = {
+      TypedParameter,
+      encodeTypedParameter,
+      integerHint,
+      types
+    };
+  }
+});
+
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/encode_parameter.js
+var require_encode_parameter = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/encode_parameter.js"(exports2, module2) {
+    "use strict";
+    var Types = require_types();
+    var Packet = require_packet();
+    var StringParser = require_string();
+    var {
+      TypedParameter,
+      encodeTypedParameter,
+      integerHint
+    } = require_typed_parameter();
+    var FieldFlags = require_field_flags();
     function isJSON(value) {
       return Array.isArray(value) || value.constructor === Object || typeof value.toJSON === "function" && !Buffer.isBuffer(value);
     }
-    function toParameter(value, encoding, timezone) {
+    function toParameter(value, encoding, timezone, jsonAsString, hint) {
+      if (value instanceof TypedParameter) {
+        return encodeTypedParameter(value, encoding, timezone, jsonAsString);
+      }
+      if (hint) {
+        const hinted = integerHint(
+          value,
+          hint.columnType,
+          Boolean(hint.flags & FieldFlags.UNSIGNED)
+        );
+        if (hinted) {
+          return encodeTypedParameter(hinted, encoding, timezone, jsonAsString);
+        }
+      }
       let type = Types.VAR_STRING;
       let length;
-      let writer = function(value2) {
-        return Packet.prototype.writeLengthCodedString.call(this, value2, encoding);
-      };
+      let writer = Packet.prototype.writeLengthCodedBuffer;
       if (value !== null) {
         switch (typeof value) {
           case "undefined":
@@ -13186,8 +14354,11 @@ var require_encode_parameter = __commonJS({
               };
             } else if (isJSON(value)) {
               value = JSON.stringify(value);
-              type = Types.JSON;
+              if (!jsonAsString) {
+                type = Types.JSON;
+              }
             } else if (Buffer.isBuffer(value)) {
+              type = Types.BLOB;
               length = Packet.lengthCodedNumberLength(value.length) + value.length;
               writer = Packet.prototype.writeLengthCodedBuffer;
             }
@@ -13198,35 +14369,58 @@ var require_encode_parameter = __commonJS({
       } else {
         value = "";
         type = Types.NULL;
+        length = 0;
+        writer = writeNothing;
       }
-      if (!length) {
-        length = Packet.lengthCodedStringLength(value, encoding);
+      let byteLength;
+      if (length === void 0) {
+        if (typeof value === "string" && StringParser.hasFastUtf8Write && (encoding === "utf8" || encoding === "utf-8")) {
+          byteLength = Buffer.byteLength(value, "utf8");
+          length = Packet.lengthCodedNumberLength(byteLength) + byteLength;
+          writer = Packet.prototype.writeLengthCodedUtf8String;
+        } else {
+          value = StringParser.encode(value, encoding);
+          length = Packet.lengthCodedNumberLength(value.length) + value.length;
+        }
       }
-      return { value, type, length, writer };
+      return {
+        value,
+        type,
+        length,
+        byteLength,
+        writer,
+        unsigned: false,
+        isNull: type === Types.NULL
+      };
+    }
+    function writeNothing() {
     }
     module2.exports = { toParameter, isJSON };
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/execute.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/execute.js
 var require_execute = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/execute.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/execute.js"(exports2, module2) {
     "use strict";
     var CursorType = require_cursor();
     var CommandCodes = require_commands();
     var ClientConstants = require_client();
     var Types = require_types();
     var Packet = require_packet();
+    var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
     var { toParameter } = require_encode_parameter();
     var Execute = class {
-      constructor(id, parameters, charsetNumber, timezone, attributes, clientFlags) {
+      constructor(id, parameters, charsetNumber, timezone, attributes, clientFlags, jsonAsString, parameterDefinitions) {
         this.id = id;
         this.parameters = parameters;
         this.encoding = CharsetToEncoding[charsetNumber];
         this.timezone = timezone;
         this.attributes = attributes;
         this.clientFlags = clientFlags || 0;
+        this.jsonAsString = jsonAsString || false;
+        this.parameterDefinitions = parameterDefinitions || [];
       }
       static fromPacket(packet, encoding) {
         const stmtId = packet.readInt32();
@@ -13234,7 +14428,7 @@ var require_execute = __commonJS({
         const iterationCount = packet.readInt32();
         let i = packet.offset;
         while (i < packet.end - 1) {
-          if ((packet.buffer[i + 1] === Types.VAR_STRING || packet.buffer[i + 1] === Types.NULL || packet.buffer[i + 1] === Types.DOUBLE || packet.buffer[i + 1] === Types.TINY || packet.buffer[i + 1] === Types.DATETIME || packet.buffer[i + 1] === Types.JSON) && packet.buffer[i] === 1 && packet.buffer[i + 2] === 0) {
+          if ((packet.buffer[i + 1] === Types.VAR_STRING || packet.buffer[i + 1] === Types.BLOB || packet.buffer[i + 1] === Types.NULL || packet.buffer[i + 1] === Types.DOUBLE || packet.buffer[i + 1] === Types.TINY || packet.buffer[i + 1] === Types.DATETIME || packet.buffer[i + 1] === Types.JSON) && packet.buffer[i] === 1 && packet.buffer[i + 2] === 0) {
             break;
           } else {
             packet.readInt8();
@@ -13243,7 +14437,7 @@ var require_execute = __commonJS({
         }
         const types = [];
         for (let i2 = packet.offset + 1; i2 < packet.end - 1; i2++) {
-          if ((packet.buffer[i2] === Types.VAR_STRING || packet.buffer[i2] === Types.NULL || packet.buffer[i2] === Types.DOUBLE || packet.buffer[i2] === Types.TINY || packet.buffer[i2] === Types.DATETIME || packet.buffer[i2] === Types.JSON) && packet.buffer[i2 + 1] === 0) {
+          if ((packet.buffer[i2] === Types.VAR_STRING || packet.buffer[i2] === Types.BLOB || packet.buffer[i2] === Types.NULL || packet.buffer[i2] === Types.DOUBLE || packet.buffer[i2] === Types.TINY || packet.buffer[i2] === Types.DATETIME || packet.buffer[i2] === Types.JSON) && packet.buffer[i2 + 1] === 0) {
             types.push(packet.buffer[i2]);
             packet.skip(2);
           }
@@ -13253,6 +14447,8 @@ var require_execute = __commonJS({
         for (let i2 = 0; i2 < types.length; i2++) {
           if (types[i2] === Types.VAR_STRING) {
             values.push(packet.readLengthCodedString(encoding));
+          } else if (types[i2] === Types.BLOB) {
+            values.push(packet.readLengthCodedBuffer());
           } else if (types[i2] === Types.DOUBLE) {
             values.push(packet.readDouble());
           } else if (types[i2] === Types.TINY) {
@@ -13268,13 +14464,53 @@ var require_execute = __commonJS({
         }
         return { stmtId, flags, iterationCount, values };
       }
-      _serializeToBuffer(buffer) {
+      toPacket() {
         const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
         const attrNames = useQueryAttributes && this.attributes ? Object.keys(this.attributes) : [];
         const numParams = this.parameters ? this.parameters.length : 0;
         const numAttrs = attrNames.length;
         const totalParams = numParams + numAttrs;
-        const packet = new Packet(0, buffer, 0, buffer.length);
+        let length = 14;
+        if (useQueryAttributes) {
+          length += Packet.lengthCodedNumberLength(totalParams);
+        }
+        let allParams = null;
+        let attrNameBuffers = null;
+        if (totalParams > 0) {
+          allParams = new Array(totalParams);
+          for (let i = 0; i < numParams; i++) {
+            allParams[i] = toParameter(
+              this.parameters[i],
+              this.encoding,
+              this.timezone,
+              this.jsonAsString,
+              this.parameterDefinitions[i]
+            );
+          }
+          for (let i = 0; i < numAttrs; i++) {
+            allParams[numParams + i] = toParameter(
+              this.attributes[attrNames[i]],
+              this.encoding,
+              this.timezone
+            );
+          }
+          length += (totalParams + 7 >> 3) + 1 + totalParams * 2;
+          if (useQueryAttributes) {
+            length += numParams;
+            attrNameBuffers = new Array(numAttrs);
+            for (let i = 0; i < numAttrs; i++) {
+              const name = StringParser.encode(attrNames[i], this.encoding);
+              attrNameBuffers[i] = name;
+              length += Packet.lengthCodedNumberLength(name.length) + name.length;
+            }
+          }
+          for (let i = 0; i < totalParams; i++) {
+            if (!allParams[i].isNull) {
+              length += allParams[i].length;
+            }
+          }
+        }
+        const packet = new Packet(0, Buffer.allocUnsafe(length), 0, length);
         packet.offset = 4;
         packet.writeInt8(CommandCodes.STMT_EXECUTE);
         packet.writeInt32(this.id);
@@ -13288,18 +14524,11 @@ var require_execute = __commonJS({
           packet.writeLengthCodedNumber(totalParams);
         }
         if (totalParams > 0) {
-          const bindParams = numParams > 0 ? this.parameters.map(
-            (v) => toParameter(v, this.encoding, this.timezone)
-          ) : [];
-          const attrParams = attrNames.map(
-            (name) => toParameter(this.attributes[name], this.encoding, this.timezone)
-          );
-          const allParams = bindParams.concat(attrParams);
           let bitmap = 0;
           let bitValue = 1;
-          allParams.forEach((parameter) => {
-            if (parameter.type === Types.NULL) {
-              bitmap += bitValue;
+          for (let i = 0; i < totalParams; i++) {
+            if (allParams[i].isNull) {
+              bitmap |= bitValue;
             }
             bitValue *= 2;
             if (bitValue === 256) {
@@ -13307,39 +14536,45 @@ var require_execute = __commonJS({
               bitmap = 0;
               bitValue = 1;
             }
-          });
+          }
           if (bitValue !== 1) {
             packet.writeInt8(bitmap);
           }
           packet.writeInt8(1);
-          for (let i = 0; i < allParams.length; i++) {
-            packet.writeInt8(allParams[i].type);
-            packet.writeInt8(0);
+          for (let i = 0; i < totalParams; i++) {
+            const parameter = allParams[i];
+            packet.writeInt8(parameter.type);
+            packet.writeInt8(parameter.unsigned ? 128 : 0);
             if (useQueryAttributes) {
-              const name = i < numParams ? "" : attrNames[i - numParams];
-              packet.writeLengthCodedString(name, this.encoding);
+              if (i < numParams) {
+                packet.writeInt8(0);
+              } else {
+                packet.writeLengthCodedBuffer(attrNameBuffers[i - numParams]);
+              }
             }
           }
-          allParams.forEach((parameter) => {
-            if (parameter.type !== Types.NULL) {
-              parameter.writer.call(packet, parameter.value);
+          for (let i = 0; i < totalParams; i++) {
+            const parameter = allParams[i];
+            if (!parameter.isNull) {
+              parameter.writer.call(packet, parameter.value, parameter.byteLength);
             }
-          });
+          }
+        }
+        if (packet.offset !== length) {
+          throw new Error(
+            `Internal error: COM_STMT_EXECUTE serialized ${packet.offset - 4} bytes, expected ${length - 4}`
+          );
         }
         return packet;
-      }
-      toPacket() {
-        const p = this._serializeToBuffer(Packet.MockBuffer());
-        return this._serializeToBuffer(Buffer.allocUnsafe(p.offset));
       }
     };
     module2.exports = Execute;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake.js
 var require_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var ClientConstants = require_client();
@@ -13354,6 +14589,7 @@ var require_handshake = __commonJS({
         this.characterSet = args.characterSet;
         this.statusFlags = args.statusFlags;
         this.authPluginName = args.authPluginName;
+        this.mariadbExtendedCapabilityFlags = args.mariadbExtendedCapabilityFlags;
       }
       setScrambleData(cb) {
         require("crypto").randomBytes(20, (err, data) => {
@@ -13413,9 +14649,16 @@ var require_handshake = __commonJS({
             args.authPluginDataLength = 0;
             packet.skip(1);
           }
-          packet.skip(10);
+          packet.skip(6);
+          if (args.capabilityFlags & ClientConstants.LONG_PASSWORD) {
+            packet.skip(4);
+            args.mariadbExtendedCapabilityFlags = 0;
+          } else {
+            args.mariadbExtendedCapabilityFlags = packet.readInt32();
+          }
         } else {
           args.capabilityFlags = capabilityFlagsBuffer.readUInt16LE(0);
+          args.mariadbExtendedCapabilityFlags = 0;
         }
         const isSecureConnection = args.capabilityFlags & ClientConstants.SECURE_CONNECTION;
         if (isSecureConnection) {
@@ -13439,9 +14682,9 @@ var require_handshake = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake_response.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake_response.js
 var require_handshake_response = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake_response.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/handshake_response.js"(exports2, module2) {
     "use strict";
     var ClientConstants = require_client();
     var CharsetToEncoding = require_charset_encodings();
@@ -13457,6 +14700,7 @@ var require_handshake_response = __commonJS({
         this.authPluginData2 = handshake.authPluginData2;
         this.compress = handshake.compress;
         this.clientFlags = handshake.flags;
+        this.mariadbExtendedClientFlags = handshake.mariadbExtendedClientFlags || 0;
         if (handshake.authToken !== void 0 && handshake.authPluginName !== void 0) {
           if (!Buffer.isBuffer(handshake.authToken)) {
             throw new TypeError(
@@ -13499,7 +14743,8 @@ var require_handshake_response = __commonJS({
         packet.writeInt32(this.clientFlags);
         packet.writeInt32(0);
         packet.writeInt8(this.charsetNumber);
-        packet.skip(23);
+        packet.skip(19);
+        packet.writeInt32(this.mariadbExtendedClientFlags);
         const encoding = this.encoding;
         packet.writeNullTerminatedString(this.user, encoding);
         let k;
@@ -13598,9 +14843,9 @@ var require_handshake_response = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepare_statement.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepare_statement.js
 var require_prepare_statement = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepare_statement.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepare_statement.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
@@ -13613,6 +14858,15 @@ var require_prepare_statement = __commonJS({
         this.encoding = CharsetToEncoding[charsetNumber];
       }
       toPacket() {
+        if (StringParser.hasFastUtf8Write && (this.encoding === "utf8" || this.encoding === "utf-8")) {
+          const length2 = 5 + Buffer.byteLength(this.query, "utf8");
+          const buffer2 = Buffer.allocUnsafe(length2);
+          buffer2[4] = CommandCodes.STMT_PREPARE;
+          buffer2.utf8Write(this.query, 5, length2 - 5);
+          const packet2 = new Packet(0, buffer2, 0, length2);
+          packet2.offset = length2;
+          return packet2;
+        }
         const buf = StringParser.encode(this.query, this.encoding);
         const length = 5 + buf.length;
         const buffer = Buffer.allocUnsafe(length);
@@ -13627,9 +14881,9 @@ var require_prepare_statement = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepared_statement_header.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepared_statement_header.js
 var require_prepared_statement_header = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepared_statement_header.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/prepared_statement_header.js"(exports2, module2) {
     "use strict";
     var PreparedStatementHeader = class {
       constructor(packet) {
@@ -13645,17 +14899,27 @@ var require_prepared_statement_header = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/query.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/query.js
 var require_query = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/query.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/query.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCode = require_commands();
     var StringParser = require_string();
     var CharsetToEncoding = require_charset_encodings();
     var ClientConstants = require_client();
-    var Types = require_types();
     var { toParameter } = require_encode_parameter();
+    var { hasFastUtf8Write } = StringParser;
+    function toQueryPacket(buffer, headerLength, length) {
+      buffer[4] = CommandCode.QUERY;
+      if (headerLength === 7) {
+        buffer[5] = 0;
+        buffer[6] = 1;
+      }
+      const packet = new Packet(0, buffer, 0, length);
+      packet.offset = length;
+      return packet;
+    }
     var Query = class {
       constructor(sql2, charsetNumber, attributes, clientFlags) {
         this.query = sql2;
@@ -13664,77 +14928,100 @@ var require_query = __commonJS({
         this.attributes = attributes;
         this.clientFlags = clientFlags || 0;
       }
-      serializeToBuffer(buffer) {
-        const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
-        const sqlBuf = StringParser.encode(this.query, this.encoding);
-        const packet = new Packet(0, buffer, 0, buffer.length);
-        packet.offset = 4;
-        packet.writeInt8(CommandCode.QUERY);
-        if (useQueryAttributes) {
-          const attrs = this.attributes;
-          const names = attrs ? Object.keys(attrs) : [];
-          const paramCount = names.length;
-          packet.writeLengthCodedNumber(paramCount);
-          packet.writeLengthCodedNumber(1);
-          if (paramCount > 0) {
-            const parameters = names.map(
-              (name) => toParameter(attrs[name], this.encoding, "local")
-            );
-            let bitmap = 0;
-            let bitValue = 1;
-            parameters.forEach((parameter) => {
-              if (parameter.type === Types.NULL) {
-                bitmap += bitValue;
-              }
-              bitValue *= 2;
-              if (bitValue === 256) {
-                packet.writeInt8(bitmap);
-                bitmap = 0;
-                bitValue = 1;
-              }
-            });
-            if (bitValue !== 1) {
-              packet.writeInt8(bitmap);
-            }
-            packet.writeInt8(1);
-            for (let i = 0; i < paramCount; i++) {
-              packet.writeInt8(parameters[i].type);
-              packet.writeInt8(0);
-              packet.writeLengthCodedString(names[i], this.encoding);
-            }
-            parameters.forEach((parameter) => {
-              if (parameter.type !== Types.NULL) {
-                parameter.writer.call(packet, parameter.value);
-              }
-            });
-          }
-        }
-        packet.writeBuffer(sqlBuf);
-        return packet;
-      }
       toPacket() {
         const useQueryAttributes = this.clientFlags & ClientConstants.CLIENT_QUERY_ATTRIBUTES;
-        if (!useQueryAttributes) {
-          const buf = StringParser.encode(this.query, this.encoding);
-          const length = 5 + buf.length;
-          const buffer = Buffer.allocUnsafe(length);
-          const packet = new Packet(0, buffer, 0, length);
-          packet.offset = 4;
-          packet.writeInt8(CommandCode.QUERY);
-          packet.writeBuffer(buf);
-          return packet;
+        const attributeCount = useQueryAttributes && this.attributes ? Object.keys(this.attributes).length : 0;
+        if (attributeCount === 0) {
+          const headerLength = useQueryAttributes ? 7 : 5;
+          if (hasFastUtf8Write && (this.encoding === "utf8" || this.encoding === "utf-8")) {
+            const length3 = headerLength + Buffer.byteLength(this.query, "utf8");
+            const buffer2 = Buffer.allocUnsafe(length3);
+            buffer2.utf8Write(this.query, headerLength, length3 - headerLength);
+            return toQueryPacket(buffer2, headerLength, length3);
+          }
+          if (Buffer.isEncoding(this.encoding)) {
+            const length3 = headerLength + Buffer.byteLength(this.query, this.encoding);
+            const buffer2 = Buffer.allocUnsafe(length3);
+            buffer2.write(this.query, headerLength, this.encoding);
+            return toQueryPacket(buffer2, headerLength, length3);
+          }
+          const sqlBuffer2 = StringParser.encode(this.query, this.encoding);
+          const length2 = headerLength + sqlBuffer2.length;
+          const buffer = Buffer.allocUnsafe(length2);
+          sqlBuffer2.copy(buffer, headerLength);
+          return toQueryPacket(buffer, headerLength, length2);
         }
-        const p = this.serializeToBuffer(Packet.MockBuffer());
-        return this.serializeToBuffer(Buffer.allocUnsafe(p.offset));
+        const names = Object.keys(this.attributes);
+        const parameters = new Array(attributeCount);
+        const nameBuffers = new Array(attributeCount);
+        let length = 5 + Packet.lengthCodedNumberLength(attributeCount) + 1 + (attributeCount + 7 >> 3) + 1 + attributeCount * 2;
+        for (let i = 0; i < attributeCount; i++) {
+          parameters[i] = toParameter(
+            this.attributes[names[i]],
+            this.encoding,
+            "local"
+          );
+          const name = StringParser.encode(names[i], this.encoding);
+          nameBuffers[i] = name;
+          length += Packet.lengthCodedNumberLength(name.length) + name.length;
+          if (!parameters[i].isNull) {
+            length += parameters[i].length;
+          }
+        }
+        const sqlBuffer = StringParser.encode(this.query, this.encoding);
+        length += sqlBuffer.length;
+        const packet = new Packet(0, Buffer.allocUnsafe(length), 0, length);
+        packet.offset = 4;
+        packet.writeInt8(CommandCode.QUERY);
+        packet.writeLengthCodedNumber(attributeCount);
+        packet.writeLengthCodedNumber(1);
+        let bitmap = 0;
+        let bitValue = 1;
+        for (let i = 0; i < attributeCount; i++) {
+          if (parameters[i].isNull) {
+            bitmap |= bitValue;
+          }
+          bitValue *= 2;
+          if (bitValue === 256) {
+            packet.writeInt8(bitmap);
+            bitmap = 0;
+            bitValue = 1;
+          }
+        }
+        if (bitValue !== 1) {
+          packet.writeInt8(bitmap);
+        }
+        packet.writeInt8(1);
+        for (let i = 0; i < attributeCount; i++) {
+          packet.writeInt8(parameters[i].type);
+          packet.writeInt8(parameters[i].unsigned ? 128 : 0);
+          packet.writeLengthCodedBuffer(nameBuffers[i]);
+        }
+        for (let i = 0; i < attributeCount; i++) {
+          if (!parameters[i].isNull) {
+            parameters[i].writer.call(
+              packet,
+              parameters[i].value,
+              parameters[i].byteLength
+            );
+          }
+        }
+        packet.writeBuffer(sqlBuffer);
+        if (packet.offset !== length) {
+          throw new Error(
+            `Internal error: COM_QUERY serialized ${packet.offset - 4} bytes, expected ${length - 4}`
+          );
+        }
+        return packet;
       }
     };
     module2.exports = Query;
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/register_slave.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/register_slave.js
 var require_register_slave = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/register_slave.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/register_slave.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
@@ -13772,9 +15059,9 @@ var require_register_slave = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/reset_connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/reset_connection.js
 var require_reset_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/reset_connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/reset_connection.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var CommandCodes = require_commands();
@@ -13792,9 +15079,9 @@ var require_reset_connection = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/server_status.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/server_status.js
 var require_server_status = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/server_status.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/server_status.js"(exports2) {
     "use strict";
     exports2.SERVER_STATUS_IN_TRANS = 1;
     exports2.SERVER_STATUS_AUTOCOMMIT = 2;
@@ -13813,9 +15100,9 @@ var require_server_status = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/encoding_charset.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/encoding_charset.js
 var require_encoding_charset = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/encoding_charset.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/encoding_charset.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       big5: 1,
@@ -13865,9 +15152,9 @@ var require_encoding_charset = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/session_track.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/session_track.js
 var require_session_track = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/constants/session_track.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/session_track.js"(exports2) {
     "use strict";
     exports2.SYSTEM_VARIABLES = 0;
     exports2.SCHEMA = 1;
@@ -13880,9 +15167,9 @@ var require_session_track = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/resultset_header.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/resultset_header.js
 var require_resultset_header = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/resultset_header.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/resultset_header.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var ClientConstants = require_client();
@@ -13990,16 +15277,17 @@ var require_resultset_header = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/ssl_request.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/ssl_request.js
 var require_ssl_request = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/ssl_request.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/ssl_request.js"(exports2, module2) {
     "use strict";
     var ClientConstants = require_client();
     var Packet = require_packet();
     var SSLRequest = class {
-      constructor(flags, charset) {
+      constructor(flags, charset, mariadbExtendedClientFlags) {
         this.clientFlags = flags | ClientConstants.SSL;
         this.charset = charset;
+        this.mariadbExtendedClientFlags = mariadbExtendedClientFlags || 0;
       }
       toPacket() {
         const length = 36;
@@ -14010,6 +15298,8 @@ var require_ssl_request = __commonJS({
         packet.writeInt32(this.clientFlags);
         packet.writeInt32(0);
         packet.writeInt8(this.charset);
+        packet.skip(19);
+        packet.writeInt32(this.mariadbExtendedClientFlags);
         return packet;
       }
     };
@@ -14017,9 +15307,9 @@ var require_ssl_request = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/text_row.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/text_row.js
 var require_text_row = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/text_row.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/text_row.js"(exports2, module2) {
     "use strict";
     var Packet = require_packet();
     var TextRow = class _TextRow {
@@ -14064,9 +15354,9 @@ var require_text_row = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/index.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/index.js
 var require_packets = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/index.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/index.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var AuthNextFactor = require_auth_next_factor();
@@ -14196,9 +15486,9 @@ var require_packets = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/command.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/command.js
 var require_command = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/command.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/command.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events").EventEmitter;
     var Timers = require("timers");
@@ -14250,9 +15540,22 @@ var require_command = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/sha256_password.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/mariadb_client.js
+var require_mariadb_client = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/constants/mariadb_client.js"(exports2) {
+    "use strict";
+    exports2.MARIADB_CLIENT_PROGRESS = 1;
+    exports2.MARIADB_CLIENT_COM_MULTI = 2;
+    exports2.MARIADB_CLIENT_STMT_BULK_OPERATIONS = 4;
+    exports2.MARIADB_CLIENT_EXTENDED_METADATA = 8;
+    exports2.MARIADB_CLIENT_CACHE_METADATA = 16;
+    exports2.MARIADB_CLIENT_BULK_UNIT_RESULTS = 32;
+  }
+});
+
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/sha256_password.js
 var require_sha256_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/sha256_password.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/sha256_password.js"(exports2, module2) {
     "use strict";
     var PLUGIN_NAME = "sha256_password";
     var crypto = require("crypto");
@@ -14311,9 +15614,9 @@ var require_sha256_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js
 var require_caching_sha2_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/caching_sha2_password.js"(exports2, module2) {
     "use strict";
     var PLUGIN_NAME = "caching_sha2_password";
     var crypto = require("crypto");
@@ -14405,9 +15708,9 @@ var require_caching_sha2_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js
 var require_mysql_native_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_native_password.js"(exports2, module2) {
     "use strict";
     var auth41 = require_auth_41();
     module2.exports = (pluginOptions) => ({ connection, command }) => {
@@ -14436,9 +15739,9 @@ var require_mysql_native_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js
 var require_mysql_clear_password = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/mysql_clear_password.js"(exports2, module2) {
     "use strict";
     function bufferFromStr(str) {
       return Buffer.from(`${str}\0`);
@@ -14453,9 +15756,9 @@ var require_mysql_clear_password = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/auth_switch.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/auth_switch.js
 var require_auth_switch = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/auth_switch.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/auth_switch.js"(exports2, module2) {
     "use strict";
     var Packets = require_packets();
     var sha256_password = require_sha256_password();
@@ -14562,12 +15865,15 @@ var require_auth_switch = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/compressed_protocol.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/compressed_protocol.js
 var require_compressed_protocol = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/compressed_protocol.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/compressed_protocol.js"(exports2, module2) {
     "use strict";
     var zlib = require("zlib");
     var PacketParser = require_packet_parser();
+    var MIN_COMPRESS_LENGTH = 50;
+    var MAX_SYNC_INFLATE_LENGTH = 16384;
+    var MAX_SYNC_DEFLATE_LENGTH = 4096;
     var Queue = class {
       constructor() {
         this._queue = [];
@@ -14595,25 +15901,59 @@ var require_compressed_protocol = __commonJS({
       const connection = this;
       const deflatedLength = packet.readInt24();
       const body = packet.readBuffer();
+      const numPackets = packet.numPackets;
+      if (!connection.inflateQueue._running) {
+        if (deflatedLength === 0) {
+          connection._bumpCompressedSequenceId(numPackets);
+          connection._inflatedPacketsParser.execute(body);
+          return;
+        }
+        if (deflatedLength <= MAX_SYNC_INFLATE_LENGTH) {
+          let data;
+          try {
+            data = zlib.inflateSync(body, { maxOutputLength: deflatedLength });
+          } catch (err) {
+            connection._handleNetworkError(err);
+            return;
+          }
+          connection._bumpCompressedSequenceId(numPackets);
+          connection._inflatedPacketsParser.execute(data);
+          return;
+        }
+      }
       if (deflatedLength !== 0) {
         connection.inflateQueue.push((task) => {
-          zlib.inflate(body, (err, data) => {
+          zlib.inflate(body, { maxOutputLength: deflatedLength }, (err, data) => {
             if (err) {
               connection._handleNetworkError(err);
               return;
             }
-            connection._bumpCompressedSequenceId(packet.numPackets);
+            connection._bumpCompressedSequenceId(numPackets);
             connection._inflatedPacketsParser.execute(data);
             task.done();
           });
         });
       } else {
         connection.inflateQueue.push((task) => {
-          connection._bumpCompressedSequenceId(packet.numPackets);
+          connection._bumpCompressedSequenceId(numPackets);
           connection._inflatedPacketsParser.execute(body);
           task.done();
         });
       }
+    }
+    function writeCompressedFrame(connection, seqId, packetLen, buffer, compressed) {
+      const compressHeader = Buffer.allocUnsafe(7);
+      const compressedLength = compressed === null ? packetLen : compressed.length;
+      if (compressed === null) {
+        packetLen = 0;
+      }
+      compressHeader.writeUInt8(compressedLength & 255, 0);
+      compressHeader.writeUInt16LE(compressedLength >> 8, 1);
+      compressHeader.writeUInt8(seqId, 3);
+      compressHeader.writeUInt8(packetLen & 255, 4);
+      compressHeader.writeUInt16LE(packetLen >> 8, 5);
+      connection.writeUncompressed(compressHeader);
+      connection.writeUncompressed(compressed === null ? buffer : compressed);
     }
     function writeCompressed(buffer) {
       const MAX_COMPRESSED_LENGTH = 16777210;
@@ -14621,7 +15961,6 @@ var require_compressed_protocol = __commonJS({
       if (buffer.length > MAX_COMPRESSED_LENGTH) {
         for (start = 0; start < buffer.length; start += MAX_COMPRESSED_LENGTH) {
           writeCompressed.call(
-            // eslint-disable-next-line no-invalid-this
             this,
             buffer.slice(start, start + MAX_COMPRESSED_LENGTH)
           );
@@ -14629,40 +15968,48 @@ var require_compressed_protocol = __commonJS({
         return;
       }
       const connection = this;
-      let packetLen = buffer.length;
-      const compressHeader = Buffer.allocUnsafe(7);
-      (function(seqId) {
-        connection.deflateQueue.push((task) => {
-          zlib.deflate(buffer, (err, compressed) => {
-            if (err) {
-              connection._handleFatalError(err);
-              return;
-            }
-            let compressedLength = compressed.length;
-            if (compressedLength < packetLen) {
-              compressHeader.writeUInt8(compressedLength & 255, 0);
-              compressHeader.writeUInt16LE(compressedLength >> 8, 1);
-              compressHeader.writeUInt8(seqId, 3);
-              compressHeader.writeUInt8(packetLen & 255, 4);
-              compressHeader.writeUInt16LE(packetLen >> 8, 5);
-              connection.writeUncompressed(compressHeader);
-              connection.writeUncompressed(compressed);
-            } else {
-              compressedLength = packetLen;
-              packetLen = 0;
-              compressHeader.writeUInt8(compressedLength & 255, 0);
-              compressHeader.writeUInt16LE(compressedLength >> 8, 1);
-              compressHeader.writeUInt8(seqId, 3);
-              compressHeader.writeUInt8(packetLen & 255, 4);
-              compressHeader.writeUInt16LE(packetLen >> 8, 5);
-              connection.writeUncompressed(compressHeader);
-              connection.writeUncompressed(buffer);
-            }
-            task.done();
-          });
-        });
-      })(connection.compressedSequenceId);
+      const packetLen = buffer.length;
+      const seqId = connection.compressedSequenceId;
       connection._bumpCompressedSequenceId(1);
+      if (!connection.deflateQueue._running) {
+        if (packetLen < MIN_COMPRESS_LENGTH) {
+          writeCompressedFrame(connection, seqId, packetLen, buffer, null);
+          return;
+        }
+        if (packetLen <= MAX_SYNC_DEFLATE_LENGTH) {
+          let compressed;
+          try {
+            compressed = zlib.deflateSync(buffer);
+          } catch (err) {
+            connection._handleFatalError(err);
+            return;
+          }
+          writeCompressedFrame(
+            connection,
+            seqId,
+            packetLen,
+            buffer,
+            compressed.length < packetLen ? compressed : null
+          );
+          return;
+        }
+      }
+      connection.deflateQueue.push((task) => {
+        zlib.deflate(buffer, (err, compressed) => {
+          if (err) {
+            connection._handleFatalError(err);
+            return;
+          }
+          writeCompressedFrame(
+            connection,
+            seqId,
+            packetLen,
+            buffer,
+            compressed.length < packetLen ? compressed : null
+          );
+          task.done();
+        });
+      });
     }
     function enableCompression(connection) {
       connection._lastWrittenPacketId = 0;
@@ -14687,13 +16034,14 @@ var require_compressed_protocol = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/client_handshake.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/client_handshake.js
 var require_client_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/client_handshake.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/client_handshake.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
     var ClientConstants = require_client();
+    var MariaDBClientConstants = require_mariadb_client();
     var CharsetToEncoding = require_charset_encodings();
     var auth41 = require_auth_41();
     var { getAuthPlugin } = require_auth_switch();
@@ -14714,6 +16062,7 @@ var require_client_handshake = __commonJS({
         super();
         this.handshake = null;
         this.clientFlags = clientFlags;
+        this.mariadbExtendedClientFlags = 0;
         this.authenticationFactor = 0;
       }
       start() {
@@ -14722,7 +16071,8 @@ var require_client_handshake = __commonJS({
       sendSSLRequest(connection) {
         const sslRequest = new Packets.SSLRequest(
           this.clientFlags,
-          connection.config.charsetNumber
+          connection.config.charsetNumber,
+          this.mariadbExtendedClientFlags
         );
         connection.writePacket(sslRequest.toPacket());
       }
@@ -14769,6 +16119,7 @@ var require_client_handshake = __commonJS({
         }
         const handshakeResponse = new Packets.HandshakeResponse({
           flags: this.clientFlags,
+          mariadbExtendedClientFlags: this.mariadbExtendedClientFlags,
           user: this.user,
           database: this.database,
           password: this.password,
@@ -14871,6 +16222,14 @@ var require_client_handshake = __commonJS({
         connection.serverCapabilityFlags = this.handshake.capabilityFlags;
         connection.serverEncoding = CharsetToEncoding[this.handshake.characterSet];
         connection.connectionId = this.handshake.connectionId;
+        connection._isMariaDB = /mariadb/i.test(this.handshake.serverVersion);
+        if (this.handshake.mariadbExtendedCapabilityFlags & MariaDBClientConstants.MARIADB_CLIENT_EXTENDED_METADATA) {
+          this.clientFlags &= ~ClientConstants.LONG_PASSWORD;
+          this.mariadbExtendedClientFlags |= MariaDBClientConstants.MARIADB_CLIENT_EXTENDED_METADATA;
+        }
+        connection._mariadbExtendedMetadata = Boolean(
+          this.mariadbExtendedClientFlags & MariaDBClientConstants.MARIADB_CLIENT_EXTENDED_METADATA
+        );
         const serverSSLSupport = this.handshake.capabilityFlags & ClientConstants.SSL;
         const multiFactorAuthentication = this.handshake.capabilityFlags & ClientConstants.MULTI_FACTOR_AUTHENTICATION;
         this.clientFlags = this.clientFlags | multiFactorAuthentication;
@@ -14959,9 +16318,9 @@ var require_client_handshake = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/server_handshake.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/server_handshake.js
 var require_server_handshake = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/server_handshake.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/server_handshake.js"(exports2, module2) {
     "use strict";
     var CommandCode = require_commands();
     var Errors = require_errors();
@@ -15115,66 +16474,6 @@ var require_server_handshake = __commonJS({
       }
     };
     module2.exports = ServerHandshake;
-  }
-});
-
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/helpers.js
-var require_helpers = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/helpers.js"(exports2) {
-    "use strict";
-    function srcEscape(str) {
-      return JSON.stringify({
-        [str]: 1
-      }).slice(1, -3);
-    }
-    exports2.srcEscape = srcEscape;
-    var highlightFn;
-    var cardinalRecommended = false;
-    try {
-      const REQUIRE_TERMINATOR = "";
-      highlightFn = require(`cardinal${REQUIRE_TERMINATOR}`).highlight;
-    } catch {
-      highlightFn = (text2) => {
-        if (!cardinalRecommended) {
-          console.log("For nicer debug output consider install cardinal@^2.0.0");
-          cardinalRecommended = true;
-        }
-        return text2;
-      };
-    }
-    function printDebugWithCode(msg, code) {
-      console.log(`
-
-${msg}:
-`);
-      console.log(`${highlightFn(code)}
-`);
-    }
-    exports2.printDebugWithCode = printDebugWithCode;
-    function typeMatch(type, list, Types) {
-      if (Array.isArray(list)) {
-        return list.some((t) => type === Types[t]);
-      }
-      return !!list;
-    }
-    exports2.typeMatch = typeMatch;
-    var privateObjectProps = /* @__PURE__ */ new Set([
-      "__defineGetter__",
-      "__defineSetter__",
-      "__lookupGetter__",
-      "__lookupSetter__",
-      "__proto__"
-    ]);
-    exports2.privateObjectProps = privateObjectProps;
-    var fieldEscape = (field, isEval = true) => {
-      if (privateObjectProps.has(field)) {
-        throw new Error(
-          `The field name (${field}) can't be the same as an object's private property.`
-        );
-      }
-      return isEval ? srcEscape(field) : field;
-    };
-    exports2.fieldEscape = fieldEscape;
   }
 });
 
@@ -15348,20 +16647,23 @@ var require_generate_function = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/text_parser.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/text_parser.js
 var require_text_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/text_parser.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/text_parser.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Charsets = require_charsets();
     var helpers = require_helpers();
     var genFunc = require_generate_function();
     var parserCache = require_parser_cache();
+    var LocalDate = require_local_date();
     var typeNames = [];
     for (const t in Types) {
       typeNames[Types[t]] = t;
     }
-    function readCodeFor(type, charset, encodingExpr, config2, options) {
+    function readCodeFor(field, encodingExpr, config2, options) {
+      const type = field.columnType;
+      const charset = field.characterSet;
       const supportBigNumbers = Boolean(
         options.supportBigNumbers || config2.supportBigNumbers
       );
@@ -15370,6 +16672,9 @@ var require_text_parser = __commonJS({
       );
       const timezone = options.timezone || config2.timezone;
       const dateStrings = options.dateStrings || config2.dateStrings;
+      if (field.extendedFormat === "json") {
+        return config2.jsonStrings ? `packet.readLengthCodedString(${encodingExpr})` : `packet.parseJson(${encodingExpr}, ${supportBigNumbers})`;
+      }
       switch (type) {
         case Types.TINY:
         case Types.SHORT:
@@ -15411,7 +16716,7 @@ var require_text_parser = __commonJS({
         case Types.VECTOR:
           return "packet.parseVector()";
         case Types.JSON:
-          return config2.jsonStrings ? 'packet.readLengthCodedString("utf8")' : 'JSON.parse(packet.readLengthCodedString("utf8"))';
+          return config2.jsonStrings ? 'packet.readLengthCodedString("utf8")' : `packet.parseJson("utf8", ${supportBigNumbers})`;
         default:
           if (charset === Charsets.BINARY) {
             return "packet.readLengthCodedBuffer()";
@@ -15426,6 +16731,8 @@ var require_text_parser = __commonJS({
       function wrap(field, _this) {
         return {
           type: typeNames[field.columnType],
+          extendedTypeName: field.extendedTypeName,
+          extendedFormat: field.extendedFormat,
           length: field.columnLength,
           db: field.schema,
           table: field.table,
@@ -15454,6 +16761,9 @@ var require_text_parser = __commonJS({
         parserFn("for(let i=0; i<fields.length; ++i) {");
         parserFn("this[`wrap${i}`] = wrap(fields[i], _this);");
         parserFn("}");
+      }
+      if (fields.some((field) => LocalDate.usesLocalDate(field, options, config2))) {
+        parserFn("LocalDate.checkTimezone();");
       }
       parserFn("}");
       parserFn("next(packet, fields, options) {");
@@ -15494,13 +16804,7 @@ var require_text_parser = __commonJS({
           parserFn(`${lvalue} = packet.readLengthCodedBuffer();`);
         } else {
           const encodingExpr = `fields[${i}].encoding`;
-          const readCode = readCodeFor(
-            fields[i].columnType,
-            fields[i].characterSet,
-            encodingExpr,
-            config2,
-            options
-          );
+          const readCode = readCodeFor(fields[i], encodingExpr, config2, options);
           if (typeof options.typeCast === "function") {
             parserFn(
               `${lvalue} = options.typeCast(this.wrap${i}, function() { return ${readCode} });`
@@ -15519,10 +16823,7 @@ var require_text_parser = __commonJS({
           parserFn.toString()
         );
       }
-      if (typeof options.typeCast === "function") {
-        return parserFn.toFunction({ wrap });
-      }
-      return parserFn.toFunction();
+      return parserFn.toFunction({ wrap, LocalDate });
     }
     function getTextParser(fields, options, config2) {
       return parserCache.getParser("text", fields, options, config2, compile);
@@ -15531,18 +16832,27 @@ var require_text_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_text_parser.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_text_parser.js
 var require_static_text_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_text_parser.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_text_parser.js"(exports2, module2) {
     "use strict";
     var Types = require_types();
     var Charsets = require_charsets();
     var helpers = require_helpers();
+    var LocalDate = require_local_date();
     var typeNames = [];
     for (const t in Types) {
       typeNames[Types[t]] = t;
     }
-    function readField({ packet, type, charset, encoding, config: config2, options }) {
+    function readField({
+      packet,
+      field,
+      type,
+      charset,
+      encoding,
+      config: config2,
+      options
+    }) {
       const supportBigNumbers = Boolean(
         options.supportBigNumbers || config2.supportBigNumbers
       );
@@ -15551,6 +16861,9 @@ var require_static_text_parser = __commonJS({
       );
       const timezone = options.timezone || config2.timezone;
       const dateStrings = options.dateStrings || config2.dateStrings;
+      if (field.extendedFormat === "json") {
+        return config2.jsonStrings ? packet.readLengthCodedString(encoding) : packet.parseJson(encoding, supportBigNumbers);
+      }
       switch (type) {
         case Types.TINY:
         case Types.SHORT:
@@ -15591,7 +16904,7 @@ var require_static_text_parser = __commonJS({
         case Types.VECTOR:
           return packet.parseVector();
         case Types.JSON:
-          return config2.jsonStrings ? packet.readLengthCodedString("utf8") : JSON.parse(packet.readLengthCodedString("utf8"));
+          return config2.jsonStrings ? packet.readLengthCodedString("utf8") : packet.parseJson("utf8", supportBigNumbers);
         default:
           if (charset === Charsets.BINARY) {
             return packet.readLengthCodedBuffer();
@@ -15602,6 +16915,8 @@ var require_static_text_parser = __commonJS({
     function createTypecastField(field, packet) {
       return {
         type: typeNames[field.columnType],
+        extendedTypeName: field.extendedTypeName,
+        extendedFormat: field.extendedFormat,
         length: field.columnLength,
         db: field.schema,
         table: field.table,
@@ -15622,34 +16937,38 @@ var require_static_text_parser = __commonJS({
         }
       };
     }
-    function getTextParser(_fields, _options, config2) {
+    function getTextParser(fields, options, config2) {
+      if (fields.some((field) => LocalDate.usesLocalDate(field, options, config2))) {
+        LocalDate.checkTimezone();
+      }
       return {
-        next(packet, fields, options) {
-          const result = options.rowsAsArray ? [] : {};
-          for (let i = 0; i < fields.length; i++) {
-            const field = fields[i];
-            const typeCast = options.typeCast ? options.typeCast : config2.typeCast;
+        next(packet, fields2, options2) {
+          const result = options2.rowsAsArray ? [] : {};
+          for (let i = 0; i < fields2.length; i++) {
+            const field = fields2[i];
+            const typeCast = options2.typeCast ? options2.typeCast : config2.typeCast;
             const next = () => readField({
               packet,
+              field,
               type: field.columnType,
               encoding: field.encoding,
               charset: field.characterSet,
               config: config2,
-              options
+              options: options2
             });
             let value;
-            if (options.typeCast === false) {
+            if (options2.typeCast === false) {
               value = packet.readLengthCodedBuffer();
             } else if (typeof typeCast === "function") {
               value = typeCast(createTypecastField(field, packet), next);
             } else {
               value = next();
             }
-            if (options.rowsAsArray) {
+            if (options2.rowsAsArray) {
               result.push(value);
-            } else if (typeof options.nestTables === "string") {
-              result[`${helpers.fieldEscape(field.table, false)}${options.nestTables}${helpers.fieldEscape(field.name, false)}`] = value;
-            } else if (options.nestTables) {
+            } else if (typeof options2.nestTables === "string") {
+              result[`${helpers.fieldEscape(field.table, false)}${options2.nestTables}${helpers.fieldEscape(field.name, false)}`] = value;
+            } else if (options2.nestTables) {
               const tableName = helpers.fieldEscape(field.table, false);
               if (!result[tableName]) {
                 result[tableName] = {};
@@ -15667,9 +16986,9 @@ var require_static_text_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/query.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/query.js
 var require_query2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/query.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/query.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var Timers = require("timers");
@@ -15679,6 +16998,7 @@ var require_query2 = __commonJS({
     var getTextParser = require_text_parser();
     var staticParser = require_static_text_parser();
     var ServerStatus = require_server_status();
+    var ConnectionConfig = require_connection_config();
     var EmptyPacket = new Packets.Packet(0, Buffer.allocUnsafe(4), 0, 4);
     var Query = class _Query extends Command {
       constructor(options, callback) {
@@ -15686,7 +17006,10 @@ var require_query2 = __commonJS({
         this.sql = options.sql;
         this.values = options.values;
         this._queryOptions = options;
-        this.namedPlaceholders = options.namedPlaceholders || false;
+        this.namedPlaceholders = Object.prototype.hasOwnProperty.call(
+          options,
+          "namedPlaceholders"
+        ) ? options.namedPlaceholders : void 0;
         this.onResult = callback;
         this.timeout = options.timeout;
         this.queryTimeout = null;
@@ -15694,6 +17017,8 @@ var require_query2 = __commonJS({
         this._rowParser = null;
         this._fields = [];
         this._rows = [];
+        this._currentRows = null;
+        this._currentFields = null;
         this._receivedFieldsCount = 0;
         this._resultIndex = 0;
         this._localStream = null;
@@ -15707,13 +17032,15 @@ var require_query2 = __commonJS({
         console.log(err);
         throw new Error(err);
       }
-      /* eslint no-unused-vars: ["error", { "argsIgnorePattern": "^_" }] */
       start(_packet, connection) {
         if (connection.config.debug) {
           console.log("        Sending query command: %s", this.sql);
         }
         this._connection = connection;
-        this.options = Object.assign({}, connection.config, this._queryOptions);
+        this.options = ConnectionConfig.queryOptions(
+          connection.config,
+          this._queryOptions
+        );
         this._setTimeout();
         const clientFlags = connection.config.clientFlags & (connection.serverCapabilityFlags || 0);
         const cmdPacket = new Packets.Query(
@@ -15789,8 +17116,10 @@ var require_query2 = __commonJS({
           return this._streamLocalInfile(connection, rs.infileName);
         }
         this._receivedFieldsCount = 0;
-        this._rows.push([]);
-        this._fields.push([]);
+        this._currentRows = [];
+        this._currentFields = [];
+        this._rows.push(this._currentRows);
+        this._fields.push(this._currentFields);
         return this.readField;
       }
       _streamLocalInfile(connection, path2) {
@@ -15848,7 +17177,8 @@ var require_query2 = __commonJS({
         if (this._fields[this._resultIndex].length !== this._fieldCount) {
           const field = new Packets.ColumnDefinition(
             packet,
-            connection.clientEncoding
+            connection.clientEncoding,
+            connection._mariadbExtendedMetadata
           );
           this._fields[this._resultIndex].push(field);
           if (connection.config.debug) {
@@ -15892,17 +17222,13 @@ var require_query2 = __commonJS({
         }
         let row;
         try {
-          row = this._rowParser.next(
-            packet,
-            this._fields[this._resultIndex],
-            this.options
-          );
+          row = this._rowParser.next(packet, this._currentFields, this.options);
         } catch (err) {
           this._localStreamError = err;
           return this.doneInsert(null);
         }
         if (this.onResult) {
-          this._rows[this._resultIndex].push(row);
+          this._currentRows.push(row);
         } else {
           this.emit("result", row, this._resultIndex);
         }
@@ -15987,9 +17313,9 @@ var require_query2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/close_statement.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/close_statement.js
 var require_close_statement2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/close_statement.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/close_statement.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
@@ -16007,9 +17333,9 @@ var require_close_statement2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/binary_parser.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/binary_parser.js
 var require_binary_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/binary_parser.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/binary_parser.js"(exports2, module2) {
     "use strict";
     var FieldFlags = require_field_flags();
     var Charsets = require_charsets();
@@ -16017,6 +17343,7 @@ var require_binary_parser = __commonJS({
     var helpers = require_helpers();
     var genFunc = require_generate_function();
     var parserCache = require_parser_cache();
+    var LocalDate = require_local_date();
     var typeNames = [];
     for (const t in Types) {
       typeNames[Types[t]] = t;
@@ -16031,6 +17358,9 @@ var require_binary_parser = __commonJS({
       const timezone = options.timezone || config2.timezone;
       const dateStrings = options.dateStrings || config2.dateStrings;
       const unsigned = field.flags & FieldFlags.UNSIGNED;
+      if (field.extendedFormat === "json") {
+        return config2.jsonStrings ? `packet.readLengthCodedString(fields[${fieldNum}].encoding)` : `packet.parseJson(fields[${fieldNum}].encoding, ${supportBigNumbers});`;
+      }
       switch (field.columnType) {
         case Types.TINY:
           return unsigned ? "packet.readInt8();" : "packet.readSInt8();";
@@ -16068,7 +17398,7 @@ var require_binary_parser = __commonJS({
         case Types.VECTOR:
           return "packet.parseVector()";
         case Types.JSON:
-          return config2.jsonStrings ? 'packet.readLengthCodedString("utf8")' : 'JSON.parse(packet.readLengthCodedString("utf8"));';
+          return config2.jsonStrings ? 'packet.readLengthCodedString("utf8")' : `packet.parseJson("utf8", ${supportBigNumbers});`;
         case Types.LONGLONG:
           if (!supportBigNumbers) {
             return unsigned ? "packet.readInt64JSNumber();" : "packet.readSInt64JSNumber();";
@@ -16087,13 +17417,20 @@ var require_binary_parser = __commonJS({
     function compile(fields, options, config2) {
       const parserFn = genFunc();
       const nullBitmapLength = Math.floor((fields.length + 7 + 2) / 8);
-      function wrap(field, packet) {
+      function fieldMetadata(field) {
         return {
           type: typeNames[field.columnType],
+          extendedTypeName: field.extendedTypeName,
+          extendedFormat: field.extendedFormat,
           length: field.columnLength,
           db: field.schema,
           table: field.table,
-          name: field.name,
+          name: field.name
+        };
+      }
+      function wrap(field, packet) {
+        return {
+          ...fieldMetadata(field),
           string: function(encoding = field.encoding) {
             if (field.columnType === Types.JSON && encoding === field.encoding) {
               console.warn(
@@ -16126,9 +17463,26 @@ var require_binary_parser = __commonJS({
           }
         };
       }
+      function wrapNull(field) {
+        return {
+          ...fieldMetadata(field),
+          string: function() {
+            return null;
+          },
+          buffer: function() {
+            return null;
+          },
+          geometry: function() {
+            return null;
+          }
+        };
+      }
       parserFn("(function(){");
       parserFn("return class BinaryRow {");
       parserFn("constructor() {");
+      if (fields.some((field) => LocalDate.usesLocalDate(field, options, config2))) {
+        parserFn("LocalDate.checkTimezone();");
+      }
       parserFn("}");
       parserFn("next(packet, fields, options) {");
       if (options.rowsAsArray) {
@@ -16161,16 +17515,24 @@ var require_binary_parser = __commonJS({
         } else {
           lvalue = `result[${fieldName}]`;
         }
-        parserFn(`if (nullBitmaskByte${nullByteIndex} & ${currentFieldNullBit}) `);
-        parserFn(`${lvalue} = null;`);
-        parserFn("else {");
+        parserFn(`if (nullBitmaskByte${nullByteIndex} & ${currentFieldNullBit}) {`);
+        if (typeof options.typeCast === "function") {
+          const nullWrapperVar = `nullWrapper${i}`;
+          parserFn(`const ${nullWrapperVar} = wrapNull(fields[${i}]);`);
+          parserFn(
+            `${lvalue} = options.typeCast(${nullWrapperVar}, function() { return null; });`
+          );
+        } else {
+          parserFn(`${lvalue} = null;`);
+        }
+        parserFn("} else {");
         if (options.typeCast === false) {
           parserFn(`${lvalue} = packet.readLengthCodedBuffer();`);
         } else {
-          const fieldWrapperVar = `fieldWrapper${i}`;
-          parserFn(`const ${fieldWrapperVar} = wrap(fields[${i}], packet);`);
           const readCode = readCodeFor(fields[i], config2, options, i);
           if (typeof options.typeCast === "function") {
+            const fieldWrapperVar = `fieldWrapper${i}`;
+            parserFn(`const ${fieldWrapperVar} = wrap(fields[${i}], packet);`);
             parserFn(
               `${lvalue} = options.typeCast(${fieldWrapperVar}, function() { return ${readCode} });`
             );
@@ -16194,7 +17556,7 @@ var require_binary_parser = __commonJS({
           parserFn.toString()
         );
       }
-      return parserFn.toFunction({ wrap });
+      return parserFn.toFunction({ wrap, wrapNull, LocalDate });
     }
     function getBinaryParser(fields, options, config2) {
       return parserCache.getParser("binary", fields, options, config2, compile);
@@ -16203,19 +17565,23 @@ var require_binary_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_binary_parser.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_binary_parser.js
 var require_static_binary_parser = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_binary_parser.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/parsers/static_binary_parser.js"(exports2, module2) {
     "use strict";
     var FieldFlags = require_field_flags();
     var Charsets = require_charsets();
     var Types = require_types();
     var helpers = require_helpers();
+    var LocalDate = require_local_date();
     var typeNames = [];
     for (const t in Types) {
       typeNames[Types[t]] = t;
     }
-    function getBinaryParser(fields, _options, config2) {
+    function getBinaryParser(fields, queryOptions, config2) {
+      if (fields.some((field) => LocalDate.usesLocalDate(field, queryOptions, config2))) {
+        LocalDate.checkTimezone();
+      }
       function readCode(field, config3, options, fieldNum, packet) {
         const supportBigNumbers = Boolean(
           options.supportBigNumbers || config3.supportBigNumbers
@@ -16226,6 +17592,9 @@ var require_static_binary_parser = __commonJS({
         const timezone = options.timezone || config3.timezone;
         const dateStrings = options.dateStrings || config3.dateStrings;
         const unsigned = field.flags & FieldFlags.UNSIGNED;
+        if (field.extendedFormat === "json") {
+          return config3.jsonStrings ? packet.readLengthCodedString(field.encoding) : packet.parseJson(field.encoding, supportBigNumbers);
+        }
         switch (field.columnType) {
           case Types.TINY:
             return unsigned ? packet.readInt8() : packet.readSInt8();
@@ -16261,7 +17630,7 @@ var require_static_binary_parser = __commonJS({
           case Types.VECTOR:
             return packet.parseVector();
           case Types.JSON:
-            return config3.jsonStrings ? packet.readLengthCodedString("utf8") : JSON.parse(packet.readLengthCodedString("utf8"));
+            return config3.jsonStrings ? packet.readLengthCodedString("utf8") : packet.parseJson("utf8", supportBigNumbers);
           case Types.LONGLONG:
             if (!supportBigNumbers)
               return unsigned ? packet.readInt64JSNumber() : packet.readSInt64JSNumber();
@@ -16269,6 +17638,26 @@ var require_static_binary_parser = __commonJS({
           default:
             return field.characterSet === Charsets.BINARY ? packet.readLengthCodedBuffer() : packet.readLengthCodedString(fields[fieldNum].encoding);
         }
+      }
+      function wrapNull(field) {
+        return {
+          type: typeNames[field.columnType],
+          extendedTypeName: field.extendedTypeName,
+          extendedFormat: field.extendedFormat,
+          length: field.columnLength,
+          db: field.schema,
+          table: field.table,
+          name: field.name,
+          string: function() {
+            return null;
+          },
+          buffer: function() {
+            return null;
+          },
+          geometry: function() {
+            return null;
+          }
+        };
       }
       return class BinaryRow {
         constructor() {
@@ -16288,7 +17677,7 @@ var require_static_binary_parser = __commonJS({
             const typeCast = options.typeCast !== void 0 ? options.typeCast : config2.typeCast;
             let value;
             if (nullBitmaskBytes[nullByteIndex] & currentFieldNullBit) {
-              value = null;
+              value = typeof typeCast === "function" ? typeCast(wrapNull(field), () => null) : null;
             } else if (options.typeCast === false) {
               value = packet.readLengthCodedBuffer();
             } else {
@@ -16296,6 +17685,8 @@ var require_static_binary_parser = __commonJS({
               value = typeof typeCast === "function" ? typeCast(
                 {
                   type: typeNames[field.columnType],
+                  extendedTypeName: field.extendedTypeName,
+                  extendedFormat: field.extendedFormat,
                   length: field.columnLength,
                   db: field.schema,
                   table: field.table,
@@ -16372,13 +17763,15 @@ var require_static_binary_parser = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/execute.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/execute.js
 var require_execute2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/execute.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/execute.js"(exports2, module2) {
     "use strict";
+    var Timers = require("timers");
     var Command = require_command();
     var Query = require_query2();
     var Packets = require_packets();
+    var ConnectionConfig = require_connection_config();
     var getBinaryParser = require_binary_parser();
     var getStaticBinaryParser = require_static_binary_parser();
     var Execute = class _Execute extends Command {
@@ -16394,6 +17787,8 @@ var require_execute2 = __commonJS({
         this.queryTimeout = null;
         this._rows = [];
         this._fields = [];
+        this._currentRows = null;
+        this._currentFields = null;
         this._result = [];
         this._fieldCount = 0;
         this._rowParser = null;
@@ -16413,7 +17808,10 @@ var require_execute2 = __commonJS({
       }
       start(packet, connection) {
         this._connection = connection;
-        this.options = Object.assign({}, connection.config, this._executeOptions);
+        this.options = ConnectionConfig.queryOptions(
+          connection.config,
+          this._executeOptions
+        );
         this._setTimeout();
         const clientFlags = connection.config.clientFlags & (connection.serverCapabilityFlags || 0);
         const executePacket = new Packets.Execute(
@@ -16422,12 +17820,23 @@ var require_execute2 = __commonJS({
           connection.config.charsetNumber,
           connection.config.timezone,
           this._executeOptions.attributes,
-          clientFlags
+          clientFlags,
+          connection._isMariaDB,
+          this.statement.parameters
         );
         try {
           connection.writePacket(executePacket.toPacket(1));
         } catch (error) {
-          this.onResult(error);
+          if (this.queryTimeout) {
+            Timers.clearTimeout(this.queryTimeout);
+            this.queryTimeout = null;
+          }
+          if (this.onResult) {
+            this.onResult(error);
+          } else {
+            this.emit("error", error);
+          }
+          return null;
         }
         return _Execute.prototype.resultsetHeader;
       }
@@ -16435,7 +17844,8 @@ var require_execute2 = __commonJS({
         let fields;
         const field = new Packets.ColumnDefinition(
           packet,
-          connection.clientEncoding
+          connection.clientEncoding,
+          connection._mariadbExtendedMetadata
         );
         this._receivedFieldsCount++;
         this._fields[this._resultIndex].push(field);
@@ -16470,9 +17880,9 @@ var require_execute2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/prepare.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/prepare.js
 var require_prepare = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/prepare.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/prepare.js"(exports2, module2) {
     "use strict";
     var Packets = require_packets();
     var Command = require_command();
@@ -16550,7 +17960,11 @@ var require_prepare = __commonJS({
           }
           return this.prepareDone(connection);
         }
-        const def = new Packets.ColumnDefinition(packet, connection.clientEncoding);
+        const def = new Packets.ColumnDefinition(
+          packet,
+          connection.clientEncoding,
+          connection._mariadbExtendedMetadata
+        );
         this.parameterDefinitions.push(def);
         if (this.parameterDefinitions.length === this.parameterCount) {
           return _Prepare.prototype.parametersEOF;
@@ -16561,7 +17975,11 @@ var require_prepare = __commonJS({
         if (packet.isEOF()) {
           return this.prepareDone(connection);
         }
-        const def = new Packets.ColumnDefinition(packet, connection.clientEncoding);
+        const def = new Packets.ColumnDefinition(
+          packet,
+          connection.clientEncoding,
+          connection._mariadbExtendedMetadata
+        );
         this.fields.push(def);
         if (this.fields.length === this.fieldCount) {
           return _Prepare.prototype.fieldsEOF;
@@ -16602,9 +18020,9 @@ var require_prepare = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/ping.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/ping.js
 var require_ping = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/ping.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/ping.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var CommandCode = require_commands();
@@ -16635,9 +18053,9 @@ var require_ping = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/register_slave.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/register_slave.js
 var require_register_slave2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/register_slave.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/register_slave.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
@@ -16663,9 +18081,9 @@ var require_register_slave2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_query_statusvars.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_query_statusvars.js
 var require_binlog_query_statusvars = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_query_statusvars.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/packets/binlog_query_statusvars.js"(exports2, module2) {
     "use strict";
     var keys = {
       FLAGS2: 0,
@@ -16775,9 +18193,9 @@ var require_binlog_query_statusvars = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/binlog_dump.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/binlog_dump.js
 var require_binlog_dump2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/binlog_dump.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/binlog_dump.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
@@ -16872,9 +18290,9 @@ var require_binlog_dump2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/change_user.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/change_user.js
 var require_change_user2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/change_user.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/change_user.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
@@ -16927,9 +18345,9 @@ var require_change_user2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/reset_connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/reset_connection.js
 var require_reset_connection2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/reset_connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/reset_connection.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var Packets = require_packets();
@@ -16957,9 +18375,9 @@ var require_reset_connection2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/quit.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/quit.js
 var require_quit = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/quit.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/quit.js"(exports2, module2) {
     "use strict";
     var Command = require_command();
     var CommandCode = require_commands();
@@ -16988,9 +18406,9 @@ var require_quit = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/index.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/index.js
 var require_commands2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/commands/index.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/commands/index.js"(exports2, module2) {
     "use strict";
     var ClientHandshake = require_client_handshake();
     var ServerHandshake = require_server_handshake();
@@ -17021,9 +18439,69 @@ var require_commands2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/tracing.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/tls_session_cache.js
+var require_tls_session_cache = __commonJS({
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/tls_session_cache.js"(exports2, module2) {
+    "use strict";
+    var { createLRU } = require_lib3();
+    var MAX_PEERS_PER_SSL_CONFIG = 100;
+    var caches = /* @__PURE__ */ new WeakMap();
+    function snapshotMaterial(ssl2) {
+      return {
+        ca: ssl2.ca,
+        cert: ssl2.cert,
+        ciphers: ssl2.ciphers,
+        key: ssl2.key,
+        passphrase: ssl2.passphrase,
+        minVersion: ssl2.minVersion,
+        maxVersion: ssl2.maxVersion
+      };
+    }
+    function sameMaterial(a, b) {
+      return a.ca === b.ca && a.cert === b.cert && a.ciphers === b.ciphers && a.key === b.key && a.passphrase === b.passphrase && a.minVersion === b.minVersion && a.maxVersion === b.maxVersion;
+    }
+    var TlsSessionSlot = class {
+      constructor(ssl2, host, port, rejectUnauthorized, verifyIdentity) {
+        this.ssl = ssl2;
+        this.material = snapshotMaterial(ssl2);
+        this.key = `${host}:${port}:${Boolean(rejectUnauthorized)}:${Boolean(verifyIdentity)}`;
+      }
+      _sessions() {
+        const cache = caches.get(this.ssl);
+        if (cache !== void 0 && sameMaterial(cache.material, this.material)) {
+          return cache.sessions;
+        }
+        return void 0;
+      }
+      get() {
+        const sessions = this._sessions();
+        return sessions === void 0 ? void 0 : sessions.get(this.key);
+      }
+      set(session) {
+        let sessions = this._sessions();
+        if (sessions === void 0) {
+          if (!sameMaterial(this.material, snapshotMaterial(this.ssl))) {
+            return;
+          }
+          sessions = createLRU({ max: MAX_PEERS_PER_SSL_CONFIG });
+          caches.set(this.ssl, { material: this.material, sessions });
+        }
+        sessions.set(this.key, session);
+      }
+      delete() {
+        const sessions = this._sessions();
+        if (sessions !== void 0) {
+          sessions.delete(this.key);
+        }
+      }
+    };
+    module2.exports = TlsSessionSlot;
+  }
+});
+
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/tracing.js
 var require_tracing = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/tracing.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/tracing.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var dc = (() => {
@@ -17243,22 +18721,23 @@ var require_named_placeholders = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/base/connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/base/connection.js
 var require_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/base/connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/base/connection.js"(exports2, module2) {
     "use strict";
     var Net = require("net");
     var Tls = require("tls");
     var Timers = require("timers");
     var EventEmitter = require("events").EventEmitter;
     var Readable = require("stream").Readable;
-    var Queue = require_denque();
+    var Queue = require_ring_queue();
     var SqlString = require_lib();
     var { createLRU } = require_lib3();
     var PacketParser = require_packet_parser();
     var Packets = require_packets();
     var Commands = require_commands2();
     var ConnectionConfig = require_connection_config();
+    var TlsSessionSlot = require_tls_session_cache();
     var CharsetToEncoding = require_charset_encodings();
     var {
       traceCallback,
@@ -17271,6 +18750,33 @@ var require_connection = __commonJS({
     } = require_tracing();
     var _connectionId = 0;
     var convertNamedPlaceholders = null;
+    var secureContexts = /* @__PURE__ */ new WeakMap();
+    function getSecureContext(ssl2) {
+      const cached = secureContexts.get(ssl2);
+      if (cached !== void 0 && cached.ca === ssl2.ca && cached.cert === ssl2.cert && cached.ciphers === ssl2.ciphers && cached.key === ssl2.key && cached.passphrase === ssl2.passphrase && cached.minVersion === ssl2.minVersion && cached.maxVersion === ssl2.maxVersion) {
+        return cached.secureContext;
+      }
+      const secureContext = Tls.createSecureContext({
+        ca: ssl2.ca,
+        cert: ssl2.cert,
+        ciphers: ssl2.ciphers,
+        key: ssl2.key,
+        passphrase: ssl2.passphrase,
+        minVersion: ssl2.minVersion,
+        maxVersion: ssl2.maxVersion
+      });
+      secureContexts.set(ssl2, {
+        secureContext,
+        ca: ssl2.ca,
+        cert: ssl2.cert,
+        ciphers: ssl2.ciphers,
+        key: ssl2.key,
+        passphrase: ssl2.passphrase,
+        minVersion: ssl2.minVersion,
+        maxVersion: ssl2.maxVersion
+      });
+      return secureContext;
+    }
     var BaseConnection = class _BaseConnection extends EventEmitter {
       constructor(opts) {
         super();
@@ -17304,6 +18810,8 @@ var require_connection = __commonJS({
           }
         });
         this.serverCapabilityFlags = 0;
+        this._isMariaDB = false;
+        this._mariadbExtendedMetadata = false;
         this.authorized = false;
         this.sequenceId = 0;
         this.compressedSequenceId = 0;
@@ -17318,7 +18826,7 @@ var require_connection = __commonJS({
           this.handlePacket(p);
         });
         this.stream.on("data", (data) => {
-          if (this.connectTimeout) {
+          if (this.connectTimeout && this.config.isServer) {
             Timers.clearTimeout(this.connectTimeout);
             this.connectTimeout = null;
           }
@@ -17344,6 +18852,10 @@ var require_connection = __commonJS({
         if (!this.config.isServer) {
           handshakeCommand = new Commands.ClientHandshake(this.config.clientFlags);
           handshakeCommand.on("end", () => {
+            if (this.connectTimeout) {
+              Timers.clearTimeout(this.connectTimeout);
+              this.connectTimeout = null;
+            }
             if (!handshakeCommand.handshake || this._fatalError || this._protocolError) {
               return;
             }
@@ -17546,19 +19058,20 @@ var require_connection = __commonJS({
         if (this.config.debug) {
           console.log("Upgrading connection to TLS");
         }
-        const secureContext = Tls.createSecureContext({
-          ca: this.config.ssl.ca,
-          cert: this.config.ssl.cert,
-          ciphers: this.config.ssl.ciphers,
-          key: this.config.ssl.key,
-          passphrase: this.config.ssl.passphrase,
-          minVersion: this.config.ssl.minVersion,
-          maxVersion: this.config.ssl.maxVersion
-        });
+        const secureContext = getSecureContext(this.config.ssl);
         const rejectUnauthorized = this.config.ssl.rejectUnauthorized;
         const verifyIdentity = this.config.ssl.verifyIdentity;
         const servername = Net.isIP(this.config.host) ? void 0 : this.config.host;
+        const sessionSlot = new TlsSessionSlot(
+          this.config.ssl,
+          this.config.host,
+          this.config.port,
+          rejectUnauthorized,
+          verifyIdentity
+        );
         let secureEstablished = false;
+        let peerAccepted = false;
+        let issuedSession = null;
         this.stream.removeAllListeners("data");
         const secureSocket = Tls.connect(
           {
@@ -17568,13 +19081,14 @@ var require_connection = __commonJS({
               return void 0;
             },
             secureContext,
+            session: sessionSlot.get(),
             isServer: false,
             socket: this.stream,
             servername
           },
           () => {
             secureEstablished = true;
-            if (rejectUnauthorized) {
+            if (rejectUnauthorized && !secureSocket.isSessionReused()) {
               if (typeof servername === "string" && verifyIdentity) {
                 const cert = secureSocket.getPeerCertificate(true);
                 const serverIdentityCheckError = Tls.checkServerIdentity(
@@ -17582,18 +19096,31 @@ var require_connection = __commonJS({
                   cert
                 );
                 if (serverIdentityCheckError) {
+                  sessionSlot.delete();
                   onSecure(serverIdentityCheckError);
                   return;
                 }
               }
             }
+            peerAccepted = true;
+            if (issuedSession !== null) {
+              sessionSlot.set(issuedSession);
+            }
             onSecure();
           }
         );
+        secureSocket.on("session", (session) => {
+          if (peerAccepted) {
+            sessionSlot.set(session);
+          } else {
+            issuedSession = session;
+          }
+        });
         secureSocket.on("error", (err) => {
           if (secureEstablished) {
             this._handleNetworkError(err);
           } else {
+            sessionSlot.delete();
             onSecure(err);
           }
         });
@@ -17634,7 +19161,7 @@ var require_connection = __commonJS({
       }
       handlePacket(packet) {
         if (this._paused) {
-          this._paused_packets.push(packet);
+          this._paused_packets.push(packet ? packet.clone() : packet);
           return;
         }
         if (this.config.debug) {
@@ -17708,7 +19235,7 @@ var require_connection = __commonJS({
         }
         return cmd;
       }
-      format(sql2, values) {
+      format(sql2, values, namedPlaceholders) {
         if (typeof this.config.queryFormat === "function") {
           return this.config.queryFormat.call(
             this,
@@ -17721,6 +19248,9 @@ var require_connection = __commonJS({
           sql: sql2,
           values
         };
+        if (typeof namedPlaceholders !== "undefined") {
+          opts.namedPlaceholders = namedPlaceholders;
+        }
         this._resolveNamedPlaceholders(opts);
         return SqlString.format(
           opts.sql,
@@ -17740,7 +19270,10 @@ var require_connection = __commonJS({
       }
       _resolveNamedPlaceholders(options) {
         let unnamed;
-        if (this.config.namedPlaceholders || options.namedPlaceholders) {
+        if (typeof options.namedPlaceholders === "undefined") {
+          options.namedPlaceholders = this.config.namedPlaceholders;
+        }
+        if (options.namedPlaceholders) {
           if (Array.isArray(options.values)) {
             return;
           }
@@ -17762,7 +19295,8 @@ var require_connection = __commonJS({
         this._resolveNamedPlaceholders(cmdQuery);
         const rawSql = this.format(
           cmdQuery.sql,
-          cmdQuery.values !== void 0 ? cmdQuery.values : []
+          cmdQuery.values !== void 0 ? cmdQuery.values : [],
+          cmdQuery.namedPlaceholders
         );
         cmdQuery.sql = rawSql;
         if (cmdQuery.onResult) {
@@ -18185,9 +19719,9 @@ var require_connection = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/capture_local_err.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/capture_local_err.js
 var require_capture_local_err = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/capture_local_err.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/capture_local_err.js"(exports2, module2) {
     "use strict";
     function captureStackHolder(constructorOpt) {
       const holder = {};
@@ -18205,9 +19739,9 @@ var require_capture_local_err = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/make_done_cb.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/make_done_cb.js
 var require_make_done_cb = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/make_done_cb.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/make_done_cb.js"(exports2, module2) {
     "use strict";
     var { applyCapturedStack } = require_capture_local_err();
     function makeDoneCb(resolve, reject, stackHolder) {
@@ -18224,9 +19758,9 @@ var require_make_done_cb = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/prepared_statement_info.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/prepared_statement_info.js
 var require_prepared_statement_info = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/prepared_statement_info.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/prepared_statement_info.js"(exports2, module2) {
     "use strict";
     var { captureStackHolder } = require_capture_local_err();
     var makeDoneCb = require_make_done_cb();
@@ -18237,9 +19771,7 @@ var require_prepared_statement_info = __commonJS({
       }
       execute(parameters) {
         const s = this.statement;
-        const stackHolder = captureStackHolder(
-          _PromisePreparedStatementInfo.prototype.execute
-        );
+        const stackHolder = s._connection.config.trace ? captureStackHolder(_PromisePreparedStatementInfo.prototype.execute) : void 0;
         return new this.Promise((resolve, reject) => {
           const done = makeDoneCb(resolve, reject, stackHolder);
           if (parameters) {
@@ -18260,9 +19792,9 @@ var require_prepared_statement_info = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/inherit_events.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/inherit_events.js
 var require_inherit_events = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/inherit_events.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/inherit_events.js"(exports2, module2) {
     "use strict";
     function inheritEvents(source, target, events) {
       const listeners = {};
@@ -18288,9 +19820,9 @@ var require_inherit_events = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/connection.js
 var require_connection2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/connection.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events").EventEmitter;
     var PromisePreparedStatementInfo = require_prepared_statement_info();
@@ -18319,7 +19851,7 @@ var require_connection2 = __commonJS({
       }
       query(query, params) {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.query);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.query) : void 0;
         if (typeof params === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -18336,7 +19868,7 @@ var require_connection2 = __commonJS({
       }
       execute(query, params) {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.execute);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.execute) : void 0;
         if (typeof params === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -18363,9 +19895,7 @@ var require_connection2 = __commonJS({
       }
       beginTransaction() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(
-          _PromiseConnection.prototype.beginTransaction
-        );
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.beginTransaction) : void 0;
         return new this.Promise((resolve, reject) => {
           const done = makeDoneCb(resolve, reject, stackHolder);
           c.beginTransaction(done);
@@ -18373,7 +19903,7 @@ var require_connection2 = __commonJS({
       }
       commit() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.commit);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.commit) : void 0;
         return new this.Promise((resolve, reject) => {
           const done = makeDoneCb(resolve, reject, stackHolder);
           c.commit(done);
@@ -18381,9 +19911,7 @@ var require_connection2 = __commonJS({
       }
       rollback() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(
-          _PromiseConnection.prototype.rollback
-        );
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.rollback) : void 0;
         return new this.Promise((resolve, reject) => {
           const done = makeDoneCb(resolve, reject, stackHolder);
           c.rollback(done);
@@ -18391,7 +19919,7 @@ var require_connection2 = __commonJS({
       }
       ping() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.ping);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.ping) : void 0;
         return new this.Promise((resolve, reject) => {
           c.ping((err) => {
             if (err) {
@@ -18405,7 +19933,7 @@ var require_connection2 = __commonJS({
       }
       reset() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.reset);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.reset) : void 0;
         return new this.Promise((resolve, reject) => {
           c.reset((err) => {
             if (err) {
@@ -18419,7 +19947,7 @@ var require_connection2 = __commonJS({
       }
       connect() {
         const c = this.connection;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.connect);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.connect) : void 0;
         return new this.Promise((resolve, reject) => {
           c.connect((err, param) => {
             if (err) {
@@ -18434,7 +19962,7 @@ var require_connection2 = __commonJS({
       prepare(options) {
         const c = this.connection;
         const promiseImpl = this.Promise;
-        const stackHolder = captureStackHolder(_PromiseConnection.prototype.prepare);
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.prepare) : void 0;
         return new this.Promise((resolve, reject) => {
           c.prepare(options, (err, statement) => {
             if (err) {
@@ -18452,9 +19980,7 @@ var require_connection2 = __commonJS({
       }
       changeUser(options) {
         const c = this.connection;
-        const stackHolder = captureStackHolder(
-          _PromiseConnection.prototype.changeUser
-        );
+        const stackHolder = c.config.trace ? captureStackHolder(_PromiseConnection.prototype.changeUser) : void 0;
         return new this.Promise((resolve, reject) => {
           c.changeUser(options, (err) => {
             if (err) {
@@ -18504,9 +20030,9 @@ var require_connection2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/connection.js
 var require_connection3 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/connection.js"(exports2, module2) {
     "use strict";
     var BaseConnection = require_connection();
     var Connection = class extends BaseConnection {
@@ -18519,9 +20045,9 @@ var require_connection3 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_connection.js
 var require_create_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_connection.js"(exports2, module2) {
     "use strict";
     var Connection = require_connection3();
     var ConnectionConfig = require_connection_config();
@@ -18532,9 +20058,9 @@ var require_create_connection = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_connection.js
 var require_pool_connection = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_connection.js"(exports2, module2) {
     "use strict";
     var PromiseConnection = require_connection2();
     var PromisePoolConnection = class extends PromiseConnection {
@@ -18552,9 +20078,9 @@ var require_pool_connection = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_connection.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_connection.js
 var require_pool_connection2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_connection.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_connection.js"(exports2, module2) {
     "use strict";
     var Connection = require_connection3();
     var PoolConnection = class extends Connection {
@@ -18623,15 +20149,15 @@ var require_pool_connection2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/base/pool.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/base/pool.js
 var require_pool = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/base/pool.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/base/pool.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var SqlString = require_lib();
     var EventEmitter = require("events").EventEmitter;
     var PoolConnection = require_pool_connection2();
-    var Queue = require_denque();
+    var Queue = require_ring_queue();
     var BaseConnection = require_connection();
     var Errors = require_errors();
     var {
@@ -18667,6 +20193,21 @@ var require_pool = __commonJS({
           this._removeIdleTimeoutConnections();
         }
       }
+      /**
+       * Creates a per-connection copy of the pool connection config.
+       *
+       * Commands like `changeUser` mutate `connection.config` in place. Sharing a
+       * single config object between every pooled connection made those mutations
+       * leak into connections created later. The prototype is preserved so the
+       * copy is still a `ConnectionConfig`.
+       */
+      _createConnectionConfig() {
+        const { connectionConfig } = this.config;
+        return Object.create(
+          Object.getPrototypeOf(connectionConfig),
+          Object.getOwnPropertyDescriptors(connectionConfig)
+        );
+      }
       getConnection(cb) {
         const _getConnection = (cb2) => {
           if (this._closed) {
@@ -18683,7 +20224,7 @@ var require_pool = __commonJS({
           }
           if (this.config.connectionLimit === 0 || this._allConnections.length < this.config.connectionLimit) {
             connection = new PoolConnection(this, {
-              config: this.config.connectionConfig
+              config: this._createConnectionConfig()
             });
             this._allConnections.push(connection);
             return connection.connect((err) => {
@@ -18781,6 +20322,10 @@ var require_pool = __commonJS({
             }
           };
         }
+        while (this._connectionQueue.length > 0) {
+          const queuedCallback = this._connectionQueue.shift();
+          process2.nextTick(() => queuedCallback(new Error("Pool is closed.")));
+        }
         let calledBack = false;
         let closedConnections = 0;
         let connection;
@@ -18844,7 +20389,11 @@ var require_pool = __commonJS({
             });
           } catch (e) {
             conn.release();
-            throw e;
+            if (typeof cmdQuery.onResult === "function") {
+              cmdQuery.onResult(e);
+            } else {
+              cmdQuery.emit("error", e);
+            }
           }
         });
         return cmdQuery;
@@ -18919,9 +20468,9 @@ var require_pool = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool.js
 var require_pool2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool.js"(exports2, module2) {
     "use strict";
     var EventEmitter = require("events").EventEmitter;
     var {
@@ -18956,7 +20505,7 @@ var require_pool2 = __commonJS({
       }
       query(sql2, args) {
         const corePool = this.pool;
-        const stackHolder = captureStackHolder(_PromisePool.prototype.query);
+        const stackHolder = corePool.config.connectionConfig.trace ? captureStackHolder(_PromisePool.prototype.query) : void 0;
         if (typeof args === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -18973,7 +20522,7 @@ var require_pool2 = __commonJS({
       }
       execute(sql2, args) {
         const corePool = this.pool;
-        const stackHolder = captureStackHolder(_PromisePool.prototype.execute);
+        const stackHolder = corePool.config.connectionConfig.trace ? captureStackHolder(_PromisePool.prototype.execute) : void 0;
         if (typeof args === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -18990,7 +20539,7 @@ var require_pool2 = __commonJS({
       }
       end() {
         const corePool = this.pool;
-        const stackHolder = captureStackHolder(_PromisePool.prototype.end);
+        const stackHolder = corePool.config.connectionConfig.trace ? captureStackHolder(_PromisePool.prototype.end) : void 0;
         return new this.Promise((resolve, reject) => {
           corePool.end((err) => {
             if (err) {
@@ -19029,9 +20578,9 @@ var require_pool2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool.js
 var require_pool3 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool.js"(exports2, module2) {
     "use strict";
     var BasePool = require_pool();
     var Pool = class extends BasePool {
@@ -19044,9 +20593,9 @@ var require_pool3 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_config.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_config.js
 var require_pool_config = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_config.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_config.js"(exports2, module2) {
     "use strict";
     var ConnectionConfig = require_connection_config();
     var PoolConfig = class {
@@ -19067,9 +20616,9 @@ var require_pool_config = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_cluster.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_cluster.js
 var require_pool_cluster = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/pool_cluster.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/pool_cluster.js"(exports2, module2) {
     "use strict";
     var process2 = require("process");
     var Pool = require_pool3();
@@ -19186,6 +20735,16 @@ var require_pool_cluster = __commonJS({
             throw e;
           }
         });
+      }
+      get trace() {
+        const nodeIds = this._cluster._findNodeIds(this._pattern, true);
+        for (let i = 0; i < nodeIds.length; i++) {
+          const node = this._cluster._getNode(nodeIds[i]);
+          if (node?.pool.config.connectionConfig.trace) {
+            return true;
+          }
+        }
+        return nodeIds.length === 0;
       }
       _getClusterNode() {
         const foundNodeIds = this._cluster._findNodeIds(this._pattern);
@@ -19377,9 +20936,9 @@ var require_pool_cluster = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_pool.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_pool.js
 var require_create_pool = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_pool.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_pool.js"(exports2, module2) {
     "use strict";
     var Pool = require_pool3();
     var PoolConfig = require_pool_config();
@@ -19390,9 +20949,9 @@ var require_create_pool = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_pool_cluster.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_pool_cluster.js
 var require_create_pool_cluster = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/create_pool_cluster.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/create_pool_cluster.js"(exports2, module2) {
     "use strict";
     var PoolCluster = require_pool_cluster();
     function createPoolCluster(config2) {
@@ -19402,9 +20961,9 @@ var require_create_pool_cluster = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/server.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/server.js
 var require_server = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/server.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/server.js"(exports2, module2) {
     "use strict";
     var net = require("net");
     var EventEmitter = require("events").EventEmitter;
@@ -19437,9 +20996,9 @@ var require_server = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/index.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/index.js
 var require_auth_plugins = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/index.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/auth_plugins/index.js"(exports2, module2) {
     "use strict";
     module2.exports = {
       caching_sha2_password: require_caching_sha2_password(),
@@ -19450,9 +21009,9 @@ var require_auth_plugins = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_cluster.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_cluster.js
 var require_pool_cluster2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_cluster.js"(exports2, module2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/lib/promise/pool_cluster.js"(exports2, module2) {
     "use strict";
     var { captureStackHolder } = require_capture_local_err();
     var PromisePoolConnection = require_pool_connection();
@@ -19476,9 +21035,7 @@ var require_pool_cluster2 = __commonJS({
       }
       query(sql2, values) {
         const corePoolNamespace = this.poolNamespace;
-        const stackHolder = captureStackHolder(
-          _PromisePoolNamespace.prototype.query
-        );
+        const stackHolder = corePoolNamespace.trace ? captureStackHolder(_PromisePoolNamespace.prototype.query) : void 0;
         if (typeof values === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -19491,9 +21048,7 @@ var require_pool_cluster2 = __commonJS({
       }
       execute(sql2, values) {
         const corePoolNamespace = this.poolNamespace;
-        const stackHolder = captureStackHolder(
-          _PromisePoolNamespace.prototype.execute
-        );
+        const stackHolder = corePoolNamespace.trace ? captureStackHolder(_PromisePoolNamespace.prototype.execute) : void 0;
         if (typeof values === "function") {
           throw new Error(
             "Callback function is not available with promise clients."
@@ -19509,9 +21064,9 @@ var require_pool_cluster2 = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/promise.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/promise.js
 var require_promise = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/promise.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/promise.js"(exports2) {
     "use strict";
     var SqlString = require_lib();
     var EventEmitter = require("events").EventEmitter;
@@ -19675,6 +21230,10 @@ var require_promise = __commonJS({
     exports2.PromisePoolConnection = PromisePoolConnection;
     exports2.__defineGetter__("Types", () => require_types());
     exports2.__defineGetter__(
+      "TypedParameter",
+      () => require_typed_parameter().types
+    );
+    exports2.__defineGetter__(
       "Charsets",
       () => require_charsets()
     );
@@ -19691,9 +21250,9 @@ var require_promise = __commonJS({
   }
 });
 
-// node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/index.js
+// node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/index.js
 var require_mysql2 = __commonJS({
-  "node_modules/.pnpm/mysql2@3.22.2_@types+node@22.19.17/node_modules/mysql2/index.js"(exports2) {
+  "node_modules/.pnpm/mysql2@3.24.5_@types+node@22.19.17/node_modules/mysql2/index.js"(exports2) {
     "use strict";
     var SqlString = require_lib();
     var ConnectionConfig = require_connection_config();
@@ -19740,6 +21299,10 @@ var require_mysql2 = __commonJS({
     );
     exports2.__defineGetter__("Types", () => require_types());
     exports2.__defineGetter__(
+      "TypedParameter",
+      () => require_typed_parameter().types
+    );
+    exports2.__defineGetter__(
       "Charsets",
       () => require_charsets()
     );
@@ -19765,7 +21328,7 @@ var import_dotenv = __toESM(require_main());
 var import_promises = require("node:fs/promises");
 var import_node_path = __toESM(require("node:path"));
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/entity.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
 function is(value, type) {
   if (!value || typeof value !== "object") {
@@ -19791,7 +21354,7 @@ function is(value, type) {
   return false;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column.js
 var Column = class {
   constructor(table, config2) {
     this.table = table;
@@ -19842,7 +21405,7 @@ var Column = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/column-builder.js
 var ColumnBuilder = class {
   static [entityKind] = "ColumnBuilder";
   config;
@@ -19946,10 +21509,10 @@ var ColumnBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.utils.js
 var TableName = /* @__PURE__ */ Symbol.for("drizzle:Name");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/foreign-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/foreign-keys.js
 var ForeignKeyBuilder = class {
   static [entityKind] = "PgForeignKeyBuilder";
   /** @internal */
@@ -20006,12 +21569,12 @@ var ForeignKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing-utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing-utils.js
 function iife(fn, ...args) {
   return fn(...args);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/unique-constraint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/unique-constraint.js
 function uniqueKeyName(table, columns) {
   return `${table[TableName]}_${columns.join("_")}_unique`;
 }
@@ -20061,7 +21624,7 @@ var UniqueConstraint = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/utils/array.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/utils/array.js
 function parsePgArrayValue(arrayString, startFrom, inQuotes) {
   for (let i = startFrom; i < arrayString.length; i++) {
     const char2 = arrayString[i];
@@ -20137,7 +21700,7 @@ function makePgArray(array) {
   }).join(",")}}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/common.js
 var PgColumnBuilder = class extends ColumnBuilder {
   foreignKeyConfigs = [];
   static [entityKind] = "PgColumnBuilder";
@@ -20322,7 +21885,7 @@ var PgArray = class _PgArray extends PgColumn {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/enum.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/columns/enum.js
 var isPgEnumSym = /* @__PURE__ */ Symbol.for("drizzle:isPgEnum");
 function isPgEnum(obj) {
   return !!obj && typeof obj === "function" && isPgEnumSym in obj && obj[isPgEnumSym] === true;
@@ -20354,7 +21917,7 @@ var PgEnumColumn = class extends PgColumn {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/subquery.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
   constructor(sql2, selection, alias, isWith = false) {
@@ -20374,10 +21937,10 @@ var WithSubquery = class extends Subquery {
   static [entityKind] = "WithSubquery";
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/version.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/version.js
 var version = "0.38.4";
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/tracing.js
 var otel;
 var rawTracer;
 var tracer = {
@@ -20412,10 +21975,10 @@ var tracer = {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/view-common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/view-common.js
 var ViewBaseConfig = /* @__PURE__ */ Symbol.for("drizzle:ViewBaseConfig");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/table.js
 var Schema = /* @__PURE__ */ Symbol.for("drizzle:Schema");
 var Columns = /* @__PURE__ */ Symbol.for("drizzle:Columns");
 var ExtraConfigColumns = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigColumns");
@@ -20477,7 +22040,7 @@ function getTableUniqueName(table) {
   return `${table[Schema] ?? "public"}.${table[TableName]}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/sql.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/sql.js
 var FakePrimitiveParam = class {
   static [entityKind] = "FakePrimitiveParam";
 };
@@ -20861,7 +22424,7 @@ Subquery.prototype.getSQL = function() {
   return new SQL([this]);
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/alias.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/alias.js
 var ColumnAliasProxyHandler = class {
   constructor(table) {
     this.table = table;
@@ -20957,7 +22520,7 @@ function mapColumnsInSQLToAlias(query, alias) {
   }));
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/errors.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/errors.js
 var DrizzleError = class extends Error {
   static [entityKind] = "DrizzleError";
   constructor({ message, cause }) {
@@ -20973,7 +22536,7 @@ var TransactionRollbackError = class extends DrizzleError {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/conditions.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/conditions.js
 function bindIfParam(value, column) {
   if (isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder) && !is(value, Column) && !is(value, Table) && !is(value, View)) {
     return new Param(value, column);
@@ -21088,7 +22651,7 @@ function notIlike(column, value) {
   return sql`${column} not ilike ${value}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/select.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/sql/expressions/select.js
 function asc(column) {
   return sql`${column} asc`;
 }
@@ -21096,7 +22659,7 @@ function desc(column) {
   return sql`${column} desc`;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/logger.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/logger.js
 var ConsoleLogWriter = class {
   static [entityKind] = "ConsoleLogWriter";
   write(message) {
@@ -21127,7 +22690,7 @@ var NoopLogger = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-promise.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-promise.js
 var QueryPromise = class {
   static [entityKind] = "QueryPromise";
   [Symbol.toStringTag] = "QueryPromise";
@@ -21151,7 +22714,7 @@ var QueryPromise = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/utils.js
 function mapResultRow(columns, row, joinsNotNullableMap) {
   const nullifyMap = {};
   const result = columns.reduce(
@@ -21309,7 +22872,7 @@ function isConfig(data) {
   return false;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/table.js
 var InlineForeignKeys = /* @__PURE__ */ Symbol.for("drizzle:PgInlineForeignKeys");
 var EnableRLS = /* @__PURE__ */ Symbol.for("drizzle:EnableRLS");
 var PgTable = class extends Table {
@@ -21327,7 +22890,7 @@ var PgTable = class extends Table {
   [Table.Symbol.ExtraConfigBuilder] = void 0;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/primary-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/pg-core/primary-keys.js
 var PrimaryKeyBuilder = class {
   static [entityKind] = "PgPrimaryKeyBuilder";
   /** @internal */
@@ -21357,7 +22920,7 @@ var PrimaryKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/relations.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/relations.js
 var Relation = class {
   constructor(sourceTable, referencedTable, relationName) {
     this.sourceTable = sourceTable;
@@ -21618,10 +23181,10 @@ function mapRelationalRow(tablesConfig, tableConfig, row, buildQueryResultSelect
   return result;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
 var import_mysql2 = __toESM(require_mysql2(), 1);
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/selection-proxy.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/selection-proxy.js
 var SelectionProxyHandler = class _SelectionProxyHandler {
   static [entityKind] = "SelectionProxyHandler";
   config;
@@ -21689,7 +23252,7 @@ var SelectionProxyHandler = class _SelectionProxyHandler {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/count.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/count.js
 var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
   constructor(params) {
     super(_MySqlCountBuilder.buildEmbeddedCount(params.source, params.filters).queryChunks);
@@ -21734,7 +23297,7 @@ var MySqlCountBuilder = class _MySqlCountBuilder extends SQL {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/delete.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/delete.js
 var MySqlDeleteBase = class extends QueryPromise {
   constructor(table, session, dialect, withList) {
     super();
@@ -21827,7 +23390,7 @@ var MySqlDeleteBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/casing.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/casing.js
 function toSnakeCase(input) {
   const words = input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? [];
   return words.map((word) => word.toLowerCase()).join("_");
@@ -21880,7 +23443,7 @@ var CasingCache = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/foreign-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/foreign-keys.js
 var ForeignKeyBuilder2 = class {
   static [entityKind] = "MySqlForeignKeyBuilder";
   /** @internal */
@@ -21937,7 +23500,7 @@ var ForeignKey2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/unique-constraint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/unique-constraint.js
 function uniqueKeyName2(table, columns) {
   return `${table[TableName]}_${columns.join("_")}_unique`;
 }
@@ -21980,7 +23543,7 @@ var UniqueConstraint2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/common.js
 var MySqlColumnBuilder = class extends ColumnBuilder {
   static [entityKind] = "MySqlColumnBuilder";
   foreignKeyConfigs = [];
@@ -22047,7 +23610,7 @@ var MySqlColumnWithAutoIncrement = class extends MySqlColumn {
   autoIncrement = this.config.autoIncrement;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/bigint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/bigint.js
 var MySqlBigInt53Builder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlBigInt53Builder";
   constructor(name, unsigned = false) {
@@ -22106,7 +23669,7 @@ function bigint(a, b) {
   return new MySqlBigInt64Builder(name, config2.unsigned);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/binary.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/binary.js
 var MySqlBinaryBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlBinaryBuilder";
   constructor(name, length) {
@@ -22130,7 +23693,7 @@ function binary(a, b = {}) {
   return new MySqlBinaryBuilder(name, config2.length);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/boolean.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/boolean.js
 var MySqlBooleanBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlBooleanBuilder";
   constructor(name) {
@@ -22160,7 +23723,7 @@ function boolean(name) {
   return new MySqlBooleanBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/char.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/char.js
 var MySqlCharBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlCharBuilder";
   constructor(name, config2) {
@@ -22189,7 +23752,7 @@ function char(a, b = {}) {
   return new MySqlCharBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/custom.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/custom.js
 var MySqlCustomColumnBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlCustomColumnBuilder";
   constructor(name, fieldConfig, customTypeParams) {
@@ -22233,7 +23796,7 @@ function customType(customTypeParams) {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.js
 var MySqlDateBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateBuilder";
   constructor(name) {
@@ -22286,7 +23849,7 @@ function date(a, b) {
   return new MySqlDateBuilder(name);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/datetime.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/datetime.js
 var MySqlDateTimeBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateTimeBuilder";
   constructor(name, config2) {
@@ -22353,7 +23916,7 @@ function datetime(a, b) {
   return new MySqlDateTimeBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/decimal.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/decimal.js
 var MySqlDecimalBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlDecimalBuilder";
   constructor(name, config2) {
@@ -22393,7 +23956,7 @@ function decimal(a, b = {}) {
   return new MySqlDecimalBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/double.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/double.js
 var MySqlDoubleBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlDoubleBuilder";
   constructor(name, config2) {
@@ -22429,7 +23992,7 @@ function double(a, b) {
   return new MySqlDoubleBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/enum.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/enum.js
 var MySqlEnumColumnBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlEnumColumnBuilder";
   constructor(name, values) {
@@ -22459,7 +24022,7 @@ function mysqlEnum(a, b) {
   return new MySqlEnumColumnBuilder(name, values);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/float.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/float.js
 var MySqlFloatBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlFloatBuilder";
   constructor(name, config2) {
@@ -22495,7 +24058,7 @@ function float(a, b) {
   return new MySqlFloatBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/int.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/int.js
 var MySqlIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlIntBuilder";
   constructor(name, config2) {
@@ -22524,7 +24087,7 @@ function int(a, b) {
   return new MySqlIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/json.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/json.js
 var MySqlJsonBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlJsonBuilder";
   constructor(name) {
@@ -22548,7 +24111,7 @@ function json(name) {
   return new MySqlJsonBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/mediumint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/mediumint.js
 var MySqlMediumIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlMediumIntBuilder";
   constructor(name, config2) {
@@ -22580,7 +24143,7 @@ function mediumint(a, b) {
   return new MySqlMediumIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/real.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/real.js
 var MySqlRealBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlRealBuilder";
   constructor(name, config2) {
@@ -22612,7 +24175,7 @@ function real(a, b = {}) {
   return new MySqlRealBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/serial.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/serial.js
 var MySqlSerialBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlSerialBuilder";
   constructor(name) {
@@ -22641,7 +24204,7 @@ function serial(name) {
   return new MySqlSerialBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/smallint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/smallint.js
 var MySqlSmallIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlSmallIntBuilder";
   constructor(name, config2) {
@@ -22673,7 +24236,7 @@ function smallint(a, b) {
   return new MySqlSmallIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/text.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/text.js
 var MySqlTextBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlTextBuilder";
   constructor(name, textType, config2) {
@@ -22711,7 +24274,7 @@ function longtext(a, b = {}) {
   return new MySqlTextBuilder(name, "longtext", config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/time.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/time.js
 var MySqlTimeBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlTimeBuilder";
   constructor(name, config2) {
@@ -22736,7 +24299,7 @@ function time(a, b) {
   return new MySqlTimeBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.common.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/date.common.js
 var MySqlDateColumnBaseBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlDateColumnBuilder";
   defaultNow() {
@@ -22754,7 +24317,7 @@ var MySqlDateBaseColumn = class extends MySqlColumn {
   hasOnUpdateNow = this.config.hasOnUpdateNow;
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/timestamp.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/timestamp.js
 var MySqlTimestampBuilder = class extends MySqlDateColumnBaseBuilder {
   static [entityKind] = "MySqlTimestampBuilder";
   constructor(name, config2) {
@@ -22813,7 +24376,7 @@ function timestamp(a, b = {}) {
   return new MySqlTimestampBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/tinyint.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/tinyint.js
 var MySqlTinyIntBuilder = class extends MySqlColumnBuilderWithAutoIncrement {
   static [entityKind] = "MySqlTinyIntBuilder";
   constructor(name, config2) {
@@ -22845,7 +24408,7 @@ function tinyint(a, b) {
   return new MySqlTinyIntBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varbinary.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varbinary.js
 var MySqlVarBinaryBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlVarBinaryBuilder";
   /** @internal */
@@ -22873,7 +24436,7 @@ function varbinary(a, b) {
   return new MySqlVarBinaryBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varchar.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/varchar.js
 var MySqlVarCharBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlVarCharBuilder";
   /** @internal */
@@ -22903,7 +24466,7 @@ function varchar(a, b) {
   return new MySqlVarCharBuilder(name, config2);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/year.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/year.js
 var MySqlYearBuilder = class extends MySqlColumnBuilder {
   static [entityKind] = "MySqlYearBuilder";
   constructor(name) {
@@ -22924,7 +24487,7 @@ function year(name) {
   return new MySqlYearBuilder(name ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/all.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/columns/all.js
 function getMySqlColumnBuilders() {
   return {
     bigint,
@@ -22957,7 +24520,7 @@ function getMySqlColumnBuilders() {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/table.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/table.js
 var InlineForeignKeys2 = /* @__PURE__ */ Symbol.for("drizzle:MySqlInlineForeignKeys");
 var MySqlTable = class extends Table {
   static [entityKind] = "MySqlTable";
@@ -22996,12 +24559,12 @@ var mysqlTable = (name, columns, extraConfig) => {
   return mysqlTableWithSchema(name, columns, extraConfig, void 0, name);
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/view-base.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/view-base.js
 var MySqlViewBase = class extends View {
   static [entityKind] = "MySqlViewBase";
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/dialect.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/dialect.js
 var MySqlDialect = class {
   static [entityKind] = "MySqlDialect";
   /** @internal */
@@ -23815,7 +25378,7 @@ var MySqlDialect = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/query-builders/query-builder.js
 var TypedQueryBuilder = class {
   static [entityKind] = "TypedQueryBuilder";
   /** @internal */
@@ -23824,7 +25387,7 @@ var TypedQueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/indexes.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/indexes.js
 var IndexBuilderOn = class {
   constructor(name, unique) {
     this.name = name;
@@ -23877,7 +25440,7 @@ function uniqueIndex(name) {
   return new IndexBuilderOn(name, true);
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/primary-keys.js
 function primaryKey(...config2) {
   if (config2[0].columns) {
     return new PrimaryKeyBuilder2(config2[0].columns, config2[0].name);
@@ -23913,7 +25476,7 @@ var PrimaryKey2 = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/utils.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/utils.js
 function convertIndexToString(indexes) {
   return indexes.map((idx) => {
     return typeof idx === "object" ? idx.config.name : idx;
@@ -23923,7 +25486,7 @@ function toArray(value) {
   return Array.isArray(value) ? value : [value];
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/select.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/select.js
 var MySqlSelectBuilder = class {
   static [entityKind] = "MySqlSelectBuilder";
   fields;
@@ -24700,7 +26263,7 @@ var intersectAll = createSetOperator("intersect", true);
 var except = createSetOperator("except", false);
 var exceptAll = createSetOperator("except", true);
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query-builder.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query-builder.js
 var QueryBuilder = class {
   static [entityKind] = "MySqlQueryBuilder";
   dialect;
@@ -24764,7 +26327,7 @@ var QueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/insert.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/insert.js
 var MySqlInsertBuilder = class {
   constructor(table, session, dialect) {
     this.table = table;
@@ -24886,7 +26449,7 @@ var MySqlInsertBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/update.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/update.js
 var MySqlUpdateBuilder = class {
   constructor(table, session, dialect, withList) {
     this.table = table;
@@ -24994,7 +26557,7 @@ var MySqlUpdateBase = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/query-builders/query.js
 var RelationalQueryBuilder = class {
   constructor(fullSchema, schema2, tableNamesMap, table, tableConfig, dialect, session, mode) {
     this.fullSchema = fullSchema;
@@ -25102,7 +26665,7 @@ var MySqlRelationalQuery = class extends QueryPromise {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/db.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/db.js
 var MySqlDatabase = class {
   constructor(dialect, session, schema2, mode) {
     this.dialect = dialect;
@@ -25317,10 +26880,10 @@ var MySqlDatabase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
 var import_node_events = require("node:events");
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql-core/session.js
 var MySqlPreparedQuery = class {
   static [entityKind] = "MySqlPreparedQuery";
   /** @internal */
@@ -25373,7 +26936,7 @@ var MySqlTransaction = class extends MySqlDatabase {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/session.js
 var MySql2PreparedQuery = class extends MySqlPreparedQuery {
   constructor(client, queryString, params, logger, fields, customResultMapper, generatedIds, returningIds) {
     super();
@@ -25598,7 +27161,7 @@ function isPool(client) {
   return "getConnection" in client;
 }
 
-// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.22.2_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
+// node_modules/.pnpm/drizzle-orm@0.38.4_@opentelemetry+api@1.9.1_@types+react@19.2.18_mysql2@3.24.5_@types+node@22.19.17__react@19.2.8/node_modules/drizzle-orm/mysql2/driver.js
 var MySql2Driver = class {
   constructor(client, dialect, options = {}) {
     this.client = client;
@@ -25755,6 +27318,12 @@ var users = mysqlTable("users", {
   isActive: boolean("is_active").default(true).notNull(),
   /** The last successful sign-in, password or social. */
   lastLoginAt: timestamp("last_login_at"),
+  /**
+   * Raised whenever the password is set anew (a reset, admin's new password): a session signed
+   * in under an older value ends at its next request (`refreshSessionToken`), so a reset locks
+   * out whoever had the old password and a session made with it.
+   */
+  sessionVersion: int("session_version").default(0).notNull(),
   /**
    * The person's own contact, from their profile (`/profile?view=account`) or kept from a
    * checkout ("make it my default address"): a checkout or a booking asks only for what is

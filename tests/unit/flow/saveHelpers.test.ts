@@ -114,3 +114,34 @@ describe('the design’s save', () => {
     expect(designStores.useDesignStore.for(id).getState().baseRev).toBe(8);
   });
 });
+
+describe('the design’s kept versions', () => {
+  it('are never sent before they arrived, not sent back as they arrived, and sent when a person changed them', async () => {
+    const id = nextId;
+    const store = designStores.useDesignStore.for(id);
+    const plan = { rooms: [], walls: [], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12, wallHeightM: 2.8 } as unknown as FloorPlan;
+    store.setState({ projectId: id, baseRev: 0, plan, versions: [], versionsLoaded: false });
+    const kept = { id: 'v1', name: '01', kind: 'existing', createdAt: '2026-10-06T00:00:00Z', plan, scene: { styleId: 'modern', mode: 'full', budgetGel: null, items: [], finishes: [] } };
+    const ok = (rev: number) => ({ status: 200, body: { data: { id, rev }, error: null } });
+    const sent: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: { body: string }) => {
+        if (String(url).endsWith('/versions')) return new Response(JSON.stringify({ data: { versions: [kept] }, error: null }), { status: 200 });
+        sent.push(JSON.parse(init!.body));
+        return new Response(JSON.stringify(ok(sent.length).body), { status: 200 });
+      })
+    );
+    // Not here yet: the placeholder is not written over the saved versions, and nothing can be kept.
+    await saveDesign({ draft: true, projectId: id });
+    expect(store.getState().saveVersion('too early')).toBe('');
+    const { loadDesignVersions } = await import('@/lib/design/saveDesign');
+    await loadDesignVersions(id);
+    expect(store.getState().versions.map((v) => v.id)).toEqual(['v1']);
+    await saveDesign({ draft: true, projectId: id });
+    store.getState().saveVersion('kept');
+    await saveDesign({ draft: true, projectId: id });
+    expect(sent.map((b) => 'versions' in b)).toEqual([false, false, true]);
+    expect((sent[2].versions as unknown[]).length).toBe(2);
+  });
+});

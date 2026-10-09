@@ -23,6 +23,10 @@ import { DESIGN_HUB_HREF } from '@/lib/design/steps';
  *    save goes through once it is swapped for another.
  *  - **Deleted** — in another tab or on another computer: there is nothing to save into any
  *    more, and the way on is the hub.
+ *  - **Signed out** — the session ran out: sign in in a new tab (this one holds the work), then
+ *    try again.
+ *  - **No local copy** — this browser's storage is full, so the work is only in this tab until a
+ *    save goes through: keep it open (it clears itself once a copy fits again).
  *  - **Anything else** — offline, the server down: try again (the next change tries anyway).
  *
  * A save that goes through clears the banner and — when nothing changed while it was on its way
@@ -51,7 +55,19 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
     window.location.reload();
   };
 
-  const text = problem === 'conflict' ? t.hub.conflictText : problem === 'unknown-product' ? t.hub.unknownProductText : problem === 'gone' ? t.hub.goneText : t.hub.saveErrorText;
+  const text =
+    problem === 'conflict'
+      ? t.hub.conflictText
+      : problem === 'unknown-product'
+        ? t.hub.unknownProductText
+        : problem === 'gone'
+          ? t.hub.goneText
+          : problem === 'signed-out'
+            ? t.hub.signedOutText
+            : problem === 'no-local-copy'
+              ? t.hub.noLocalCopyText
+              : t.hub.saveErrorText;
+  const signInHref = `/login?callbackUrl=${encodeURIComponent(typeof window === 'undefined' ? '/' : window.location.pathname)}`;
   return (
     <div role="alert" className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-xl border border-warning/60 bg-white p-4 shadow-cardHover">
       <div className="flex items-start gap-3">
@@ -73,9 +89,18 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
             </Button>
           </>
         ) : (
-          <Button size="sm" variant="ink" disabled={busy} onClick={() => save(false)}>
-            {t.hub.retry}
-          </Button>
+          <>
+            {problem === 'signed-out' && (
+              <Button size="sm" variant="outline" asChild>
+                <a href={signInHref} target="_blank" rel="noopener">
+                  {t.hub.signInNewTab}
+                </a>
+              </Button>
+            )}
+            <Button size="sm" variant="ink" disabled={busy} onClick={() => save(false)}>
+              {t.hub.retry}
+            </Button>
+          </>
         )}
       </div>
     </div>

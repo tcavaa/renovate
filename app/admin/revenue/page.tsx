@@ -10,7 +10,7 @@ import { revenueReport } from '@/lib/finance/report';
 import { ORDER_STATUSES, REPORT_PERIODS, periodRange, type ReportPeriod } from '@/lib/finance/money';
 import { localizedName, orderStatusLabel } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { formatGEL, formatNumber, cn } from '@/lib/utils';
+import { formatGEL, formatNumber, cn, TIME_ZONE } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { sectionCrumb } from '@/lib/admin/crumbs';
 
@@ -33,7 +33,7 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
   const range = periodRange(period, { from: search.from, to: search.to });
   const report = await revenueReport(range);
   const dateLocale = locale === 'ka' ? 'ka-GE' : locale === 'ru' ? 'ru-RU' : 'en-GB';
-  const fmtDay = (d: Date) => d.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' });
+  const fmtDay = (d: Date) => d.toLocaleDateString(dateLocale, { timeZone: TIME_ZONE, day: 'numeric', month: 'short', year: 'numeric' });
   const rangeLabel = `${fmtDay(range.from)} — ${fmtDay(new Date(range.to.getTime() - 1))}`;
   const exportHref = `/api/admin/revenue/export?period=${period}${search.from ? `&from=${search.from}` : ''}${search.to ? `&to=${search.to}` : ''}`;
   const share = (part: number, whole: number) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : '—');

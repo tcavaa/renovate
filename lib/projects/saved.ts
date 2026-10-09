@@ -1,5 +1,4 @@
 import type { Project } from '@/lib/db/schema';
-import { CALCULATOR_STEPS, fromSevenSteps } from '@/lib/calculator/steps';
 import { selectionKey } from '@/lib/calculator/quantities';
 import { isBaseFinish } from '@/lib/design/zones';
 import type { HomeState, Room, SelectedProduct } from '@/lib/calculator/types';
@@ -56,8 +55,6 @@ export interface CalculatorProgress {
   step: number;
   calculated: boolean;
   at?: number | null;
-  /** Recorded in the six-step numbering (since 26 September 2026); without it the steps are the old seven (`fromSevenSteps`). */
-  steps?: number;
 }
 
 /**
@@ -137,7 +134,7 @@ export function savedProjectInput(p: Project): SavedProjectInput {
  * was pressed, a design autosaved before it was generated. Its figures are not an estimate
  * anybody asked for, so a pending half is shown without them, is not stored as the project's
  * totals, and is not ordered (`calculatorPending` / `designPending`). Read from the progress
- * saved with each half; a project saved before that was recorded is done.
+ * saved with each half.
  */
 export interface ProjectKind {
   hasCalculator: boolean;
@@ -162,31 +159,17 @@ export function projectKind(p: KindInput): ProjectKind {
 }
 
 /**
- * How far the calculator got. Recorded with every save since September 2026; before that it
- * was not, and a saved or ordered project was finished — but a *draft* could have been left
- * anywhere, so it counts as calculated only when products were already picked for it (they
- * are picked after the calculation), and otherwise goes back to the plan step: pressing
- * "start the calculation" again costs nothing, showing an estimate nobody asked for does.
+ * How far the calculator got: recorded with every save (and on the row from its creation). A
+ * row without it has not been worked out. (Rows from before progress was recorded were read by
+ * their status and picks; no such row is kept.)
  */
-export function calculatorProgress(p: Pick<KindInput, 'calculatorEdits' | 'status' | 'selectedProducts' | 'selectedFurniture'>): CalculatorProgress {
-  const recorded = (p.calculatorEdits as CalculatorEdits | null | undefined)?.progress;
-  // Recorded before the placement step went (seven steps, no `steps: 6`): read in today's six.
-  if (recorded) return recorded.steps === CALCULATOR_STEPS ? recorded : { ...recorded, step: fromSevenSteps(recorded.step), at: recorded.at != null ? fromSevenSteps(recorded.at) : recorded.at, steps: CALCULATOR_STEPS };
-  if (p.status !== 'draft') return { step: CALCULATOR_STEPS, calculated: true };
-  const picked = Object.keys((p.selectedProducts as object | null) ?? {}).length > 0 || Object.values((p.selectedFurniture as Record<string, unknown[]> | null) ?? {}).some((list) => list.length > 0);
-  return picked ? { step: CALCULATOR_STEPS, calculated: true } : { step: 2, calculated: false };
+export function calculatorProgress(p: Pick<KindInput, 'calculatorEdits'>): CalculatorProgress {
+  return (p.calculatorEdits as CalculatorEdits | null | undefined)?.progress ?? { step: 1, calculated: false };
 }
 
-/**
- * How far the design got, the same way: recorded with the scene, else a saved or ordered
- * project was generated, and a draft was when it has furniture in it (the generation is what
- * furnishes it) — otherwise it goes back to the step before the studio.
- */
-export function designProgress(p: Pick<KindInput, 'scene' | 'status'>): DesignProgress {
-  const scene = p.scene as DesignScene | null | undefined;
-  if (scene?.progress) return scene.progress;
-  if (p.status !== 'draft') return { step: 5, generated: true };
-  return (scene?.items?.length ?? 0) > 0 ? { step: 5, generated: true } : { step: 4, generated: false };
+/** How far the design got: recorded with the scene by every save; a scene without it has not been generated. */
+export function designProgress(p: Pick<KindInput, 'scene'>): DesignProgress {
+  return (p.scene as DesignScene | null | undefined)?.progress ?? { step: 1, generated: false };
 }
 
 /** A calculation saved before "start the calculation" was pressed, as the save routes see it: by what was sent. */

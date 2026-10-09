@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { Loader2, Trash2 } from 'lucide-react';
 import { CALCULATOR_STEPS, StepIndicator } from '@/components/calculator/StepIndicator';
 import { AskFurnitureDialog } from '@/components/calculator/AskFurnitureDialog';

@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { CopyPlus, Plus, X } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, roomTypeLabel, unitLabel } from '@/lib/i18n/labels';

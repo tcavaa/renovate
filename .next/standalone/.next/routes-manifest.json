@@ -105,47 +105,7 @@
   "onMatchHeaders": [],
   "rewrites": {
     "beforeFiles": [],
-    "afterFiles": [
-      {
-        "source": "/monitoring(/?)",
-        "has": [
-          {
-            "type": "query",
-            "key": "o",
-            "value": "(?<orgid>\\d*)"
-          },
-          {
-            "type": "query",
-            "key": "p",
-            "value": "(?<projectid>\\d*)"
-          },
-          {
-            "type": "query",
-            "key": "r",
-            "value": "(?<region>[a-z]{2})"
-          }
-        ],
-        "destination": "https://o:orgid.ingest.:region.sentry.io/api/:projectid/envelope/?hsts=0",
-        "regex": "^/monitoring(/?)(?:/)?$"
-      },
-      {
-        "source": "/monitoring(/?)",
-        "has": [
-          {
-            "type": "query",
-            "key": "o",
-            "value": "(?<orgid>\\d*)"
-          },
-          {
-            "type": "query",
-            "key": "p",
-            "value": "(?<projectid>\\d*)"
-          }
-        ],
-        "destination": "https://o:orgid.ingest.sentry.io/api/:projectid/envelope/?hsts=0",
-        "regex": "^/monitoring(/?)(?:/)?$"
-      }
-    ],
+    "afterFiles": [],
     "fallback": []
   },
   "dynamicRoutes": [
@@ -316,6 +276,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/projects/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/projects/[id]/versions",
+      "regex": "^/api/projects/([^/]+?)/versions(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/projects/(?<nxtPid>[^/]+?)/versions(?:/)?$"
     },
     {
       "page": "/api/shelf-rooms/[id]",
@@ -750,12 +718,6 @@
       "namedRegex": "^/api/bookings(?:/)?$"
     },
     {
-      "page": "/api/calculator/materials",
-      "regex": "^/api/calculator/materials(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/api/calculator/materials(?:/)?$"
-    },
-    {
       "page": "/api/calculator/rates",
       "regex": "^/api/calculator/rates(?:/)?$",
       "routeKeys": {},
@@ -876,12 +838,6 @@
       "namedRegex": "^/api/projects/create(?:/)?$"
     },
     {
-      "page": "/api/settings",
-      "regex": "^/api/settings(?:/)?$",
-      "routeKeys": {},
-      "namedRegex": "^/api/settings(?:/)?$"
-    },
-    {
       "page": "/api/shelf-rooms",
       "regex": "^/api/shelf\\-rooms(?:/)?$",
       "routeKeys": {},
@@ -964,6 +920,12 @@
       "regex": "^/login(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/monitoring",
+      "regex": "^/monitoring(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/monitoring(?:/)?$"
     },
     {
       "page": "/partner",

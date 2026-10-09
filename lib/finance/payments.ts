@@ -98,14 +98,15 @@ export async function paymentQuote(project: Pick<Project, 'rooms' | 'plan'>, kin
 
 /**
  * Records a half as paid, from its approved Flitt payment (`lib/payments/service.ts` calls it
- * once per approval): the quote the payment was made for, the platform's fee alone — the bank's
- * commission stays on the payment. A half already paid by another payment keeps the first
- * (the unique key refuses the second, which the caller logs for a refund).
+ * once per approval, in the approval's transaction `tx`): the quote the payment was made for,
+ * the platform's fee alone — the bank's commission stays on the payment. A half already paid by
+ * another payment keeps the first (the caller looks first and logs the second for a refund; the
+ * unique key refuses one that slips past, which rolls that approval back to be settled again).
  */
-export async function recordHalfPayment(payment: Payment): Promise<void> {
+export async function recordHalfPayment(payment: Payment, tx: Pick<typeof db, 'insert'> = db): Promise<void> {
   if (payment.purpose !== 'calculator' && payment.purpose !== 'design') return;
   if (!payment.projectId) return;
-  await db.insert(projectPayments).values({
+  await tx.insert(projectPayments).values({
     projectId: payment.projectId,
     userId: payment.userId,
     kind: payment.purpose,

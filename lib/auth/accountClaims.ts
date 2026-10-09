@@ -41,6 +41,14 @@ export interface AccountClaims {
 export interface CurrentAccount extends AccountClaims {
   name: string;
   email: string;
+  /** `users.sessionVersion`; absent counts as 0. */
+  sessionVersion?: number;
+}
+
+/** The session version a token was signed in under (`sv`); a token from before there was one is 0. */
+export function tokenSessionVersion(token: Record<string, unknown>): number {
+  const sv = Number(token.sv ?? 0);
+  return Number.isFinite(sv) ? sv : 0;
 }
 
 interface AccountRow {
@@ -65,15 +73,15 @@ export function isSocialSignIn(account: { provider: string } | null | undefined)
  * The claims of the account with this e-mail (compared lower-cased, as it is stored), or null —
  * also for a deactivated account, which has no session to be given.
  */
-export async function accountClaimsByEmail(email: string | null | undefined): Promise<AccountClaims | null> {
+export async function accountClaimsByEmail(email: string | null | undefined): Promise<(AccountClaims & { sessionVersion?: number }) | null> {
   if (!email) return null;
   const rows = await db
-    .select({ id: users.id, role: users.role, storeId: users.storeId, workerId: users.workerId, teamId: users.teamId, isActive: users.isActive })
+    .select({ id: users.id, role: users.role, storeId: users.storeId, workerId: users.workerId, teamId: users.teamId, isActive: users.isActive, sessionVersion: users.sessionVersion })
     .from(users)
     .where(eq(users.email, email.toLowerCase()))
     .limit(1);
   const row = rows[0];
-  return row && row.isActive !== false ? claimsOf(row) : null;
+  return row && row.isActive !== false ? { ...claimsOf(row), sessionVersion: row.sessionVersion ?? 0 } : null;
 }
 
 /**
@@ -85,12 +93,13 @@ export async function accountClaimsByEmail(email: string | null | undefined): Pr
 export async function sessionTokenAfterSignIn<T extends Record<string, unknown>>(
   token: T,
   signIn: { account?: { provider: string } | null; user?: { email?: string | null } | null },
-  lookup: (email: string | null | undefined) => Promise<AccountClaims | null> = accountClaimsByEmail
-): Promise<(T & AccountClaims & { sub: string }) | T | null> {
+  lookup: (email: string | null | undefined) => Promise<(AccountClaims & { sessionVersion?: number }) | null> = accountClaimsByEmail
+): Promise<(T & AccountClaims & { sub: string; sv: number }) | T | null> {
   if (!isSocialSignIn(signIn.account)) return token;
-  const claims = await lookup(signIn.user?.email);
-  if (!claims) return null;
-  return { ...token, ...claims, sub: claims.id };
+  const found = await lookup(signIn.user?.email);
+  if (!found) return null;
+  const { sessionVersion, ...claims } = found;
+  return { ...token, ...claims, sub: claims.id, sv: sessionVersion ?? 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -112,13 +121,13 @@ globalForClaims.__accountClaims = cache;
 /** The account with this id if it may be signed in: null when it is gone or deactivated. */
 export async function accountById(id: number): Promise<CurrentAccount | null> {
   const rows = await db
-    .select({ id: users.id, role: users.role, storeId: users.storeId, workerId: users.workerId, teamId: users.teamId, isActive: users.isActive, name: users.name, email: users.email })
+    .select({ id: users.id, role: users.role, storeId: users.storeId, workerId: users.workerId, teamId: users.teamId, isActive: users.isActive, name: users.name, email: users.email, sessionVersion: users.sessionVersion })
     .from(users)
     .where(eq(users.id, id))
     .limit(1);
   const row = rows[0];
   if (!row || row.isActive === false) return null;
-  return { ...claimsOf(row), name: row.name, email: row.email };
+  return { ...claimsOf(row), name: row.name, email: row.email, sessionVersion: row.sessionVersion ?? 0 };
 }
 
 /** `accountById` behind the per-process cache. */
@@ -138,7 +147,9 @@ export function forgetAccount(id: number): void {
 /**
  * A signed-in token brought up to date with its account: the role, the partner link, the name
  * and the e-mail as they are now. Null — no session — when the token names no account, or one
- * that was deleted or deactivated since.
+ * that was deleted or deactivated since, or whose password was set anew after this token was
+ * signed in (`sessionVersion`: a reset once left every older session — the attacker's with the
+ * old password too — signed in for its thirty days).
  */
 export async function refreshSessionToken<T extends Record<string, unknown>>(
   token: T,
@@ -148,5 +159,6 @@ export async function refreshSessionToken<T extends Record<string, unknown>>(
   if (!Number.isInteger(id) || id <= 0) return null;
   const account = await lookup(id);
   if (!account) return null;
+  if ((account.sessionVersion ?? 0) !== tokenSessionVersion(token)) return null;
   return { ...token, id: account.id, sub: account.id, role: account.role, storeId: account.storeId, workerId: account.workerId, teamId: account.teamId, name: account.name, email: account.email };
 }

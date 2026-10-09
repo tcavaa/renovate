@@ -27,7 +27,7 @@ import { AC_CEILING_GAP_M, TECHNICAL_KIND_LIST, technicalElevation } from '@/lib
 import { ELECTRICAL_KINDS, ELECTRICAL_KIND_LIST, LIGHT_CATEGORIES, isLight } from '@/lib/design/electrical';
 import { zoneAreaM2 } from '@/lib/design/zones';
 import { isAutoRoomName, nextRoomName } from '@/lib/design/roomNames';
-import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, Opening, OpeningKind, PlanRoom, SurfaceFinish, TechnicalKind, TechnicalPoint, Wall } from '@/lib/design/types';
+import type { Beam, BuildMaterial, Column, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, Opening, OpeningKind, PlanRoom, SurfaceFinish, TechnicalPoint, Wall } from '@/lib/design/types';
 import type { Dictionary } from '@/lib/i18n';
 import type { ElementSelection } from '@/store/designStore';
 import { MAX_SECTIONS, radiatorCandidates, radiatorRoom, radiatorSections, roomHeatDemandW, sectionsForRoom } from '@/lib/design/radiators';

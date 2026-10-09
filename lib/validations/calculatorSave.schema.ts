@@ -33,16 +33,23 @@ export const saveCalculatorSchema = z
     saveId: z.string().min(1).max(64).optional(),
     prevSaveId: z.string().min(1).max(64).nullable().optional(),
     homeState: homeStateEnum.nullable(),
-    rooms: z.array(calculatorRequestSchema.shape.rooms.element),
-    selectedProducts: z.record(selectedProductSchema).default({}),
-    selectedFurniture: z.record(z.array(selectedProductSchema)).default({}),
+    rooms: z.array(calculatorRequestSchema.shape.rooms.element).max(80),
+    selectedProducts: z
+      .record(z.string().max(160), selectedProductSchema)
+      .default({})
+      .refine((r) => Object.keys(r).length <= 600, 'too many picks'),
+    selectedFurniture: z
+      .record(z.string().max(160), z.array(selectedProductSchema).max(200))
+      .default({})
+      .refine((r) => Object.keys(r).length <= 100, 'too many rooms of furniture'),
     edits: calculatorEditsSchema.optional(),
     board: calculatorBoardSchema.nullable().optional(),
     /** An autosave: keeps the row a draft (or whatever it already is) instead of marking it saved. */
     draft: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
-    const calculated = data.edits?.progress?.calculated !== false;
+    // Worked out only when the save says so: a save without its progress is not "calculated".
+    const calculated = data.edits?.progress?.calculated === true;
     if (calculated && (!data.homeState || data.rooms.length === 0)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A worked-out calculation needs a home state and at least one room' });
   });
 

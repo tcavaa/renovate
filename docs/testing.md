@@ -27,6 +27,7 @@ and `pnpm test:solver` after touching `lib/design/planSolver.ts`, `measure.ts` o
 
 On every push to `main` and every pull request — and, through `on: workflow_call`, as the
 `verify` job of the tag deploy (`deploy.yml`) — one job: install (`--frozen-lockfile`) →
+`pnpm audit --prod --audit-level critical` (a critical advisory in a production dependency fails it) →
 `pnpm type-check` → `pnpm lint` → `pnpm test -- --coverage` (coverage gate) → `pnpm test:parser`
 → `pnpm test:solver` → `pnpm build`. pnpm 9 drops the `--` and runs `vitest run --coverage`, so
 the gate is enforced there exactly as by `pnpm test:coverage` (a threshold forced above the
@@ -41,7 +42,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 - Test env: `NODE_ENV=test`, `LOG_FILE=false`, `LOG_STDOUT=false`, a test `AUTH_SECRET`.
 - **Coverage gate** (v8; lines/functions/statements 80 %, branches 65 %) over the modules that
   produce money figures or guard the API: `lib/calculator/**`, `lib/design/pricing.ts`,
-  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`, `lib/payments/flitt.ts`,
+  `lib/design/matcher.ts`, `lib/finance/money.ts`, `lib/finance/orderFlow.ts`, `lib/payments/flitt.ts`, `lib/payments/service.ts`,
   `lib/account/contact.ts`,
   `lib/storage/uploadKeys.ts`, `lib/api/**`, `lib/auth/**`,
   `app/api/projects/route.ts`, `app/api/design/projects/route.ts` (excluding

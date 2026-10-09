@@ -13,7 +13,7 @@ import { AdminPageHeader, AdminTable, EmptyRow, Pager, THead, Th, Tr } from '@/c
 import { getT, getLocale } from '@/lib/i18n/server';
 import { parseListParams, type SearchParams } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { sectionCrumb } from '@/lib/admin/crumbs';
 
@@ -188,9 +188,9 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
                 </Link>
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">{Number(u.totalCost) > 0 ? formatGEL(Number(u.totalCost)) : '—'}</td>
-              <td className="px-4 py-2.5 text-ink-muted">{u.lastProjectAt ? new Date(u.lastProjectAt).toLocaleDateString(dateLocale) : '—'}</td>
-              <td className="px-4 py-2.5 text-ink-muted">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString(dateLocale) : ka.accounts.never}</td>
-              <td className="px-4 py-2.5 text-ink-muted">{new Date(u.createdAt).toLocaleDateString(dateLocale)}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{u.lastProjectAt ? new Date(u.lastProjectAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE }) : '—'}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE }) : ka.accounts.never}</td>
+              <td className="px-4 py-2.5 text-ink-muted">{new Date(u.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</td>
             </Tr>
           ))}
           {rows.length === 0 && <EmptyRow colSpan={9} text={ka.admin.usersEmpty} />}

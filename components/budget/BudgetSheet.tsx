@@ -15,7 +15,7 @@
  * that was worked out beside it.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { useState } from 'react';
 import { MapPin, Pencil, Phone, Truck } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';

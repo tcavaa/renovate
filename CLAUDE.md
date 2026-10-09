@@ -27,7 +27,7 @@ with English and Russian. Tagline: გეგმე. გამოთვალე.
 
 Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · MySQL 8 + Drizzle ORM ·
 pnpm 9 · Tailwind 3 + Radix-based components, lucide-react · Zustand + `persist` (three stores
-per project) · React Hook Form + Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
+per project) · Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
 JWT; seven roles) · three / @react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru`
 · Vitest + Playwright · Sentry (`@sentry/nextjs`, off without a DSN) · deploy targets: cPanel
 (production) and a VPS (PM2 + Nginx). Details: [docs/architecture.md](docs/architecture.md).
@@ -62,7 +62,7 @@ pnpm db:studio
 pnpm db:indexes         # idempotent secondary indexes
 pnpm db:seed            # categories, stores, products, workers, admin
 pnpm db:seed:design     # partner stores + design categories (no furniture — see models:seed)
-pnpm db:seed:rates      # local tidy-up: writes the default rate book in, deletes retired rows (never needed in production)
+pnpm db:seed:rates      # local tidy-up: writes the default rate book in (never needed in production)
 pnpm db:seed:workers    # worker profiles, portfolios, reviews; recomputes their ratings
 pnpm db:seed:partners   # portal logins per active store/worker (PARTNER_PASSWORD or printed once);
                         # also creates the platform_settings row
@@ -121,8 +121,9 @@ be absent in a fresh cloud checkout — `pnpm install` before running anything.
    from the plan. Keyboard shortcuts match `event.code`, never `event.key`.
 8. **The app must work without any API key**: Claude is optional and only reads plans; card
    payments fall back to Flitt's public sandbox merchant ([docs/payments.md](docs/payments.md)).
-9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates in
-   client components through `formatDateTime()`.
+9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates
+   through `formatDateTime()` or a `toLocale…` call with `{ timeZone: TIME_ZONE }` (Tbilisi, on
+   both sides — `lib/utils.ts`); pictures through `@/components/ui/image`, not `next/image`.
 10. **Before calling a change done**: `pnpm type-check`, `pnpm lint`, `pnpm test` (plus
     `test:parser` / `test:solver` when the plan pipeline changed), and update the docs (below).
 
@@ -157,6 +158,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
 | [docs/operations.md](docs/operations.md) | environment, logs, Sentry, health, deploys (cPanel, VPS), storage, mail | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/storage/`, `deploy/`, workflows, `next.config.mjs` |
 | [docs/testing.md](docs/testing.md) | test commands, what CI runs, the coverage gate, where each area's tests are | before declaring work done; adding tests |
+| [docs/audit-checklist.md](docs/audit-checklist.md) | the codebase audit's open items, top 10 by urgency, and a done log with commits | picking the next audit fix; tick the item and move it to the done log in the fixing commit |
 | [docs/roadmap.md](docs/roadmap.md) | **next tasks**: bugs found and not fixed, planned features, links to every area's known gaps | planning work, "what's next", before starting a feature |
 
 Other files: `README.md` (user-facing setup, partly out of date), `AI_FEATURE_PLAN.md` (the

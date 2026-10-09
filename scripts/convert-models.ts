@@ -29,7 +29,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { copyFile, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -533,7 +533,6 @@ async function convertOne(sourceRoot: string, entry: ModelSource): Promise<Manif
       .registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
     const doc = await io.readBinary(new Uint8Array(glb));
 
-    const sourceTriangles = countTriangles(doc);
     dropUnusedAttributes(doc); // keeps TEXCOORD_0 — the maps need it
     stripMaterials(doc);
 

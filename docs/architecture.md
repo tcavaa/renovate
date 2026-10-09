@@ -18,7 +18,7 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
 | Domain logic | `lib/<area>/` | Pure, isomorphic TypeScript: no React, no `window` (the few browser-only files say so, e.g. `lib/design/planImage.ts`, `lib/design/planPdf.ts`). This is what the unit tests cover. |
 | 3D | `lib/design3d/` + `components/design/Viewer3D.tsx` | Three.js scene building is plain three.js in `lib/design3d/`; the React/R3F viewer is client-only and dynamically imported with `ssr: false`. |
 | Client state | `store/` (zustand + `persist`) | One set of stores per project — see [project-flow.md §8](project-flow.md#8-one-set-of-stores-per-project-storeprojectscopets). |
-| Data hooks | `hooks/` | Fetch-once hooks (`useDesignCatalog`, `useRateBook`, `usePlatformFees`, `usePickStores`, `useProducts`/`useCategories`, `useWorkers`) plus `useAutosave` and `useCalculatorPlan`. |
+| Data hooks | `hooks/` | Fetch-once hooks (`useDesignCatalog`, `useRateBook`, `usePickStores`, `useProducts`/`useCategories`) plus `useAutosave` and `useCalculatorPlan`. |
 | Database | `lib/db/` (Drizzle, MySQL 8) | Schema in `lib/db/schema.ts`, migrations in `lib/db/migrations/` — see [data-model.md](data-model.md). |
 | Scripts | `scripts/` (run with `tsx`) | Seeds, migrations, the 3D asset pipelines, plan-reader test harnesses. |
 | Tests | `tests/unit`, `tests/integration` (Vitest), `e2e/` (Playwright) | See [testing.md](testing.md). |
@@ -86,14 +86,14 @@ app/
                                     brigades), projects (a brigade's booked projects, read-only)
   api/                              route handlers (list below)
 components/
-  ui/          button button-3d card dialog input label select textarea accordion badge skeleton
+  ui/          button button-3d card dialog input label select textarea badge image (next/image, see below)
                money-row stat-card scroll-row node-icon
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu NotFoundContent
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
   motion/      CountUp Marquee RotatingBadge
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief FlowGuard FlowWorkspace
                HingeDialog (the warning and the fee before a half's hinge)
-  calculator/  StepIndicator HomeStateSelector RoomForm RoomList MaterialsTable SummaryCard
+  calculator/  StepIndicator HomeStateSelector MaterialsTable SummaryCard
                WorkChoicesPicker AskFurnitureDialog CalculatorAutosave RoomFinishCards PlanGlyphs
                RoomRow
   plan/        PlanEditor (the 2D board) PlanWorkspace PlanToolbar ElementInspector RoomsPanel
@@ -110,7 +110,7 @@ components/
                ProjectViewer (read-only 2D / 3D / walk-through)
                ProjectKindTags OpenIn3dButton CalculateCostsButton OrderProjectButton
                DeleteProjectButton · hub/ (ProjectHub HubShell HubTiles HubRenders HubOrders
-               HubModels HubDate ProjectCardMenu LegacyWorkNotice HubCachePrune)
+               HubModels HubDate ProjectCardMenu HubCachePrune)
   checkout/    CheckoutDialog BookingDialog ContactFields FeePaidNote
   orders/      OrderEditor PartnerOrderView OrderTimeline OrderReviewCard ProjectOrdersReview
                ProjectOrders OrderStatusBadge (OrderStageBadge) useOrderActions.ts
@@ -149,11 +149,10 @@ lib/
   validations/ zod schemas per payload
   env.ts log.ts email.ts features.ts utils.ts
 store/         calculatorStore.ts designStore.ts projectScope.ts
-hooks/         useAutosave useCalculatorPlan useDesignCatalog usePickStores usePlatformFees
+hooks/         useAutosave useCalculatorPlan useDesignCatalog usePickStores
                useProjectPayments useAccountContact useProducts (+ useCategories) useRateBook
-               useWorkers
 scripts/       seeds, migrate, 3D/texture pipelines, plan tools (see docs/operations.md, docs/3d-assets.md)
-types/         shared API types (ApiResponse, Paginated), calculator/product re-exports
+types/         obj2gltf.d.ts (the script's typings); the API envelope is `ApiBody` in lib/api/route.ts
 tests/         unit/<area>/*.test.ts, integration/save-routes.test.ts
 e2e/           public.spec.ts, design-studio.spec.ts
 deploy/        VPS and cPanel deploy scripts, nginx.conf, migrate.cjs
@@ -169,11 +168,11 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
 
 | Area | Routes |
 |---|---|
-| Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) |
+| Projects | `projects` (GET list, POST the calculation's save) · `projects/create` · `projects/[id]` (GET, PATCH rename, DELETE) · `projects/[id]/versions` (the design's kept versions, fetched by the studio) |
 | Design | `design/projects` (the design's save) · `design/catalog` · `design/upload-plan` · `design/parse-plan` · `design/renders`, `design/renders/[id]` · `design/models`, `design/models/[id]` (a person's own furniture) |
-| Calculator | `calculator/materials` · `calculator/rates`, `calculator/rates/[id]` |
+| Calculator | `calculator/rates`, `calculator/rates/[id]` |
 | Catalogue | `products`, `products/[id]`, `products/bulk` · `categories`, `categories/[id]`, `categories/reorder` · `shelf-rooms`, `shelf-rooms/[id]`, `shelf-rooms/reorder` · `stores`, `stores/[id]`, `stores/[id]/approval` |
-| People | `workers`, `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
+| People | `workers` (POST, admin), `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
 | Marketplace | `payments` (the fee at the hinge) · `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
 | Auth | `auth/[...nextauth]` · `auth/register` · `auth/register-partner` · `auth/forgot` · `auth/reset` · `auth/verify` |
 | Uploads | `upload` (images) · `upload/model` (GLB) |
@@ -191,7 +190,7 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
   and versions, and the carry state. `store/calculatorStore.ts` owns rooms, home state, picks,
   edits and progress.
 - Catalogue-wide data is fetched once per page load and cached at module scope
-  (`hooks/useDesignCatalog.ts`, `hooks/useRateBook.ts`, `hooks/usePlatformFees.ts`).
+  (`hooks/useDesignCatalog.ts`, `hooks/useRateBook.ts`).
 
 ## i18n
 
@@ -228,17 +227,41 @@ have a "Translations" section; `scripts/lib/translations.ts` holds the seed tran
 "archetype + model name", textures a humanised slug). The i18n rule applies to data as well
 as UI copy: nothing user-facing is Georgian-only by construction.
 
+## Dates and pictures
+
+- **Every date is shown in Tbilisi time** (`TIME_ZONE` in `lib/utils.ts`): `formatDateTime()`
+  (`08.09.2026, 06:45`, assembled from `Intl` parts so both sides write the same string), or a
+  `toLocaleDateString` / `toLocaleString` with `{ timeZone: TIME_ZONE }`. The servers run in UTC:
+  dates were four hours off on the server's pages and hydration failed on every date in a client
+  component. A day label built from a local `new Date(y, m, d)` (a chart's axis) keeps no zone.
+- **Pictures go through `@/components/ui/image`**, which is `next/image` except for a host the
+  optimiser does not fetch from (`images.remotePatterns`): those are shown as they are. A
+  partner's picture URL is any URL, and `/_next/image` answered it with a 400.
+- **Admin lists' date filters** go through `dateRange()` (`lib/admin/list.ts`): `YYYY-MM-DD` as
+  the whole day in Tbilisi, anything else no bound (an invalid one crashed the payments page).
+
 ## API conventions
 
 All shared route vocabulary is in `lib/api/route.ts`:
 
 - Routes export `runtime = 'nodejs'` and `dynamic = 'force-dynamic'`, wrap the handler in
   `handle(label, message, fn)` and answer with `ok(data)` / `fail(error, status)` — always the
-  `{ data, error }` envelope (`types/index.ts` → `ApiResponse`). Errors the UI translates are
+  `{ data, error }` envelope (`ApiBody` in `lib/api/route.ts`). Errors the UI translates are
   codes in `API_ERRORS` (`apiErrorMessage` in `lib/i18n/labels.ts` turns them into words).
 - `handle` logs every request (route, status, duration) and any exception through `lib/log`
   and answers a generic 500 — never leak internals. It also awaits `ctx.params`, so handlers
   keep the plain `{ params }` shape; `parseId` validates a numeric id.
+- `handle` refuses a browser's write from another site first (`crossSiteWrite`, 403): a
+  `POST`/`PUT`/`PATCH`/`DELETE` whose `Origin` is not one of the app's hosts (the request's
+  `Host`, `X-Forwarded-Host`, `NEXT_PUBLIC_APP_URL`, `AUTH_URL`). No `Origin` — a server, such
+  as Flitt's callback — goes through. The session cookie is `SameSite=Lax` and `req.json()`
+  reads a `text/plain` body a cross-site form can send; this closes that.
+- Repricing (`lib/api/productPrices.ts`) also replaces a snapshot's `imageUrl`, `textureUrl` and
+  `model3dUrl` with the catalogue's, so a saved scene opened by staff or a brigade loads only
+  our files; and the save schemas bound what a save may carry (room measurements ≥ 0 and
+  capped, at most 80 rooms and 600 picks, a product's `specs` ≤ 8 KB, a render's camera two
+  points). The revenue CSV's cells go through `csvCell` (a text a spreadsheet would read as a
+  formula is shown as text).
 - JSON bodies are `safeParse`d with the Zod schema from `lib/validations/` →
   `fail(parsed.error.message, 400)`. Multipart uploads are validated by their bytes
   (`lib/uploads/sniff.ts`, `glb.ts`) instead.
@@ -270,7 +293,8 @@ All shared route vocabulary is in `lib/api/route.ts`:
 
 ## Dates in client components
 
-**Date formatting in client components** goes through `formatDateTime` (`lib/utils.ts`):
+**Date formatting** goes through `formatDateTime` or a `toLocale…` call with
+`{ timeZone: TIME_ZONE }` (`lib/utils.ts`; see [Dates and pictures](#dates-and-pictures)):
 `toLocaleString` hydrated differently on the server and in the browser and the order editor
 was the first to break.
 

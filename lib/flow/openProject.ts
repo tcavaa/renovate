@@ -17,8 +17,7 @@ import { boardWithPicks } from '@/lib/summary/calculatorSheet';
 import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore, useDesignStore } from '@/store/designStore';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
-import { migrateFinishPicks, withRoomFinishQuantities } from '@/lib/calculator/roomFinishes';
-import { withBoardWalls } from '@/lib/calculator/planSync';
+import { withRoomFinishQuantities } from '@/lib/calculator/roomFinishes';
 import { cacheIsCurrent, isDirty, markClean, markDirty, touch, type ProjectHalf } from '@/lib/flow/projectSync';
 import { picksFromScene, type SavedProjectInput } from '@/lib/projects/saved';
 import type { FloorPlan } from '@/lib/design/types';
@@ -29,28 +28,6 @@ const hasRooms = (plan: FloorPlan | null | undefined): plan is FloorPlan => !!pl
 
 /** Where a half came from on this opening. */
 export type LoadedFrom = 'cache' | 'server';
-
-/**
- * The calculation's floor and wall picks in the catalogue step's shape — one per room and
- * surface, counted from the room (`lib/calculator/roomFinishes`). Picks from before every room
- * took its own (the cart laid on the board by hand; a finish for the whole flat) are moved
- * onto the rooms here, once. True when anything changed.
- *
- * Rooms from before they carried their walls read them off the board first (`withBoardWalls`),
- * so a wall can be chosen on its own. That is worked out, not work: it is not a change to write
- * back, and the next save carries it.
- */
-function normalizeFinishPicks(id: number): boolean {
-  const calc = useCalculatorStore.for(id);
-  const board = useCalculatorPlanStore.for(id).getState();
-  const { selectedProducts, rooms: stored } = calc.getState();
-  const rooms = withBoardWalls(stored, board.plan);
-  if (rooms !== stored) calc.setState({ rooms });
-  const next = withRoomFinishQuantities(migrateFinishPicks(selectedProducts, rooms, board.finishes), rooms);
-  if (next === selectedProducts) return false;
-  calc.setState({ selectedProducts: next });
-  return true;
-}
 
 /**
  * The calculation. A row the calculator has written opens as it was saved, drawing board
@@ -67,22 +44,8 @@ export function loadCalculatorHalf(project: SavedProjectInput): LoadedFrom {
   const own = project.calculatorStarted || isDirty('calculator', id);
   if (own && cacheIsCurrent('calculator', id, calc.getState().baseRev, project.calculatorRev) && calc.getState().projectId === id && board.getState().projectId === id) {
     touch('calculator', id);
-    // A copy from before every room took its own floor and walls: moved, and written.
-    if (normalizeFinishPicks(id)) markDirty('calculator', id);
     return 'cache';
   }
-  // A drawing this browser has of the same flat, when the row has none — a calculation from
-  // before the board was saved: it is kept, and written, rather than rebuilt as rectangles.
-  const cachedBoard = board.getState().plan;
-  const rowRoomIds = new Set(project.rooms.map((r) => r.id));
-  const rescue =
-    !project.calculatorBoard?.plan &&
-    !!cachedBoard &&
-    cachedBoard.source !== 'calculator' &&
-    cachedBoard.rooms.length > 0 &&
-    cachedBoard.rooms.length === project.rooms.length &&
-    cachedBoard.rooms.every((r) => rowRoomIds.has(r.id));
-  let rescued = false;
   calc.getState().reset();
   if (project.calculatorStarted) {
     calc.getState().openSavedProject({
@@ -95,20 +58,18 @@ export function loadCalculatorHalf(project: SavedProjectInput): LoadedFrom {
       progress: project.calculatorProgress,
     });
     const saved = project.calculatorBoard;
-    // The board as the calculator saved it; a calculation from before the board was saved
-    // draws the design's plan when there is one (the same flat), and otherwise is rebuilt
-    // from its rooms on the plan step (`useCalculatorPlan`).
+    // The board as the calculator saved it; none yet draws the design's plan when there is one
+    // (the same flat), and otherwise is drawn from the rooms on the plan step (`useCalculatorPlan`).
     if (saved?.plan) board.getState().openBoard({ projectId: id, plan: saved.plan, floorPlanUrl: saved.floorPlanUrl, finishes: saved.finishes, electrical: saved.electrical ?? [] });
-    else if (rescue) {
-      board.getState().setProjectId(id);
-      rescued = true;
-    } else board.getState().openBoard({ projectId: id, plan: hasRooms(project.plan) ? project.plan : null, floorPlanUrl: saved?.floorPlanUrl ?? project.floorPlanUrl, finishes: [] });
+    else board.getState().openBoard({ projectId: id, plan: hasRooms(project.plan) ? project.plan : null, floorPlanUrl: saved?.floorPlanUrl ?? project.floorPlanUrl, finishes: [] });
   } else {
     // Designed first: the studio's products stand in for picks, so the calculator's steps show
     // what was chosen rather than nothing. A renovation + design chose its home state in the
     // studio, and the flat is the design's: the estimate is there to be read, from the
     // materials on. A design-only project never chose one, and starts on the first step.
-    const picks = project.scene ? picksFromScene(project.scene) : { selectedProducts: {}, selectedFurniture: {} };
+    const scenePicks = project.scene ? picksFromScene(project.scene) : { selectedProducts: {}, selectedFurniture: {} };
+    // Each room's floor and walls counted from the room, as the calculator counts its own picks.
+    const picks = { ...scenePicks, selectedProducts: withRoomFinishQuantities(scenePicks.selectedProducts, project.rooms) };
     // (A renovation not drawn yet has nothing to read: it starts on the first step too.)
     const renovation = project.hasCalculator && project.homeState != null && project.rooms.length > 0;
     calc.getState().openSavedProject({
@@ -125,11 +86,6 @@ export function loadCalculatorHalf(project: SavedProjectInput): LoadedFrom {
   // The copy is the row's, at the row's revision.
   calc.setState({ baseRev: project.calculatorRev });
   markClean('calculator', id);
-  // Picks saved before every room took its own floor and walls are moved onto the rooms and
-  // written back — the calculation's own; a project designed first only shows the studio's
-  // products as picks, and opening it writes nothing.
-  const moved = normalizeFinishPicks(id);
-  if (rescued || (moved && project.calculatorStarted)) markDirty('calculator', id);
   return 'server';
 }
 
@@ -156,7 +112,6 @@ export function loadDesignHalf(project: SavedProjectInput): LoadedFrom {
       scene: { ...project.scene, progress: project.designProgress },
       floorPlanUrl: project.floorPlanUrl,
       homeState: project.homeState,
-      versions: project.versions,
     });
     // A design carried in from the calculation applies the calculation's picks (to a layout
     // still to be generated, or when "see it in 3D" brings new ones). They are the calculator's

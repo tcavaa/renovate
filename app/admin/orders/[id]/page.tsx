@@ -9,7 +9,7 @@ import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { fill } from '@/lib/admin/list';
 import { canAdmin } from '@/lib/auth/roles';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { sectionCrumb } from '@/lib/admin/crumbs';
 import { AdminCrumbs } from '@/components/admin/AdminCrumbs';
@@ -61,7 +61,7 @@ export default async function AdminOrderPage(props: { params: Promise<{ id: stri
             {data.sentAt && (
               <span className="inline-flex items-center gap-1">
                 {data.viewedAt ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                {data.viewedAt ? `${o.viewedAt} ${new Date(data.viewedAt).toLocaleString(dateLocaleFor(locale))}` : o.notViewed}
+                {data.viewedAt ? `${o.viewedAt} ${new Date(data.viewedAt).toLocaleString(dateLocaleFor(locale), { timeZone: TIME_ZONE })}` : o.notViewed}
               </span>
             )}
           </div>

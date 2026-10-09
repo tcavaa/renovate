@@ -133,11 +133,66 @@ describe('a full localStorage', () => {
     expect(memory.has('renovate-design:2')).toBe(true);
   });
 
+  it('says so on the project when its copy finds no room, and takes it back when one fits', async () => {
+    const { useSaveProblems } = await import('@/lib/flow/saveQueue');
+    memory.set('renovate-design:2', 'y'.repeat(400));
+    memory.set('renovate-sync:design:2', JSON.stringify({ dirty: true, usedAt: 0 }));
+    quota = used();
+    storage.safeLocalStorage.setItem('renovate-design:9', 'v'.repeat(50));
+    expect(useSaveProblems.getState().problems['design:9']).toBe('no-local-copy');
+    // The calculator's board is the calculation's half.
+    storage.safeLocalStorage.setItem('renovate-calculator-plan:9', 'v'.repeat(50));
+    expect(useSaveProblems.getState().problems['calculator:9']).toBe('no-local-copy');
+    quota = Infinity;
+    storage.safeLocalStorage.setItem('renovate-design:9', 'v'.repeat(50));
+    expect(useSaveProblems.getState().problems['design:9']).toBeUndefined();
+    // A save's own problem is not overwritten by the storage's.
+    useSaveProblems.getState().report('design', 10, 'conflict');
+    quota = used();
+    storage.safeLocalStorage.setItem('renovate-design:10', 'v'.repeat(50));
+    expect(useSaveProblems.getState().problems['design:10']).toBe('conflict');
+  });
+
   it('never forgets the project it is writing to make room for it', () => {
     memory.set('renovate-design:7', 'a'.repeat(400));
     memory.set('renovate-sync:design:7', JSON.stringify({ dirty: false, usedAt: 0 }));
     quota = used();
     storage.safeLocalStorage.setItem('renovate-calculator:7', 'b'.repeat(50));
     expect(memory.has('renovate-design:7')).toBe(true);
+  });
+});
+
+describe('what a failed save says', () => {
+  it('tells a session that ran out from any other failure', async () => {
+    const { problemOf, ProjectChangedError } = await import('@/lib/flow/saveQueue');
+    expect(problemOf(new Error('UNAUTHORIZED'))).toBe('signed-out');
+    expect(problemOf(new ProjectChangedError())).toBe('conflict');
+    expect(problemOf(new Error('PROJECT_NOT_FOUND'))).toBe('gone');
+    expect(problemOf(new TypeError('network'))).toBe('error');
+  });
+});
+
+describe('the stores’ writes', () => {
+  it('gather into one write, serialised once, that a read sees before it lands', () => {
+    vi.useFakeTimers();
+    try {
+      const store = storage.debouncedStorage<{ n: number }>();
+      store.setItem('renovate-design:30', { state: { n: 1 }, version: 1 });
+      store.setItem('renovate-design:30', { state: { n: 2 }, version: 1 });
+      expect(memory.has('renovate-design:30')).toBe(false);
+      expect(store.getItem('renovate-design:30')).toEqual({ state: { n: 2 }, version: 1 });
+      vi.advanceTimersByTime(storage.PERSIST_DELAY_MS);
+      expect(JSON.parse(memory.get('renovate-design:30')!)).toEqual({ state: { n: 2 }, version: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never brings back a cache removed while its write was waiting', () => {
+    const store = storage.debouncedStorage<{ n: number }>();
+    store.setItem('renovate-design:31', { state: { n: 1 }, version: 1 });
+    storage.safeLocalStorage.removeItem('renovate-design:31');
+    storage.flushPendingWrites();
+    expect(memory.has('renovate-design:31')).toBe(false);
   });
 });

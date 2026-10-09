@@ -163,5 +163,7 @@ export function FlittCheckout({
     };
   }, [token]);
 
-  return <div ref={hostRef} className="flitt-checkout min-h-[18rem]" />;
+  // `data-sentry-block`: Flitt's form is a script in this page, not another origin's iframe, so
+  // Sentry's Replay would see its card fields. Blocked, the element is recorded as an empty box.
+  return <div ref={hostRef} data-sentry-block className="flitt-checkout min-h-[18rem]" />;
 }

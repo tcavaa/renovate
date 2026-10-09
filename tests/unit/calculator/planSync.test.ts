@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planFollowsRooms, reconcileCalculatorPlan, sameCalculatorRooms, withBoardWalls } from '@/lib/calculator/planSync';
+import { planFollowsRooms, reconcileCalculatorPlan, sameCalculatorRooms } from '@/lib/calculator/planSync';
 import { computeRoomAreas } from '@/lib/calculator/materials';
 import { roomWallAreasM2 } from '@/lib/calculator/quantities';
 import { ensureWalls } from '@/lib/design/walls';
@@ -69,18 +69,6 @@ describe('a room’s walls one by one', () => {
     // Round the room, the walls come to its perimeter.
     expect(first.walls!.reduce((sum, l) => sum + l, 0)).toBeCloseTo(first.perimeterM, 1);
     expect(sameCalculatorRooms([first], [{ ...first, walls: undefined }])).toBe(false);
-  });
-
-  it('are filled in from the board for rooms saved without them, and nothing else changes', () => {
-    const planA = ensureWalls(planFromCalculatorRooms(flatA));
-    const filled = withBoardWalls(flatA, planA);
-    expect(filled).not.toBe(flatA);
-    for (const room of filled) expect(room.walls).toEqual(edgeLengthsM(planA.rooms.find((r) => r.id === room.id)!.polygon));
-    expect(filled.map(({ walls: _walls, ...room }) => room)).toEqual(flatA);
-    // Rooms that have them, a room the board does not have, and no board at all: the same array.
-    expect(withBoardWalls(filled, planA)).toBe(filled);
-    expect(withBoardWalls(flatB, planA)).toBe(flatB);
-    expect(withBoardWalls(flatA, null)).toBe(flatA);
   });
 });
 

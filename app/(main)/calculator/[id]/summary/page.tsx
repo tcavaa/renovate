@@ -39,7 +39,7 @@ import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { basketLabels, homeStateLabel } from '@/lib/i18n/labels';
-import { formatGEL, formatM2 } from '@/lib/utils';
+import { formatGEL, formatM2, TIME_ZONE } from '@/lib/utils';
 import type { DesignScene } from '@/lib/design/types';
 
 export default function SummaryPage() {
@@ -172,7 +172,7 @@ export default function SummaryPage() {
       const title = projectName || ka.calculator.projectName;
       await downloadPlanPdf(boardPlan, `${title}-${new Date().toISOString().slice(0, 10)}`, {
         title,
-        subtitle: `${homeStateLabel(ka, homeState)} · ${new Date().toLocaleDateString('ka-GE')}`,
+        subtitle: `${homeStateLabel(ka, homeState)} · ${new Date().toLocaleDateString('ka-GE', { timeZone: TIME_ZONE })}`,
         areaLabel: formatM2(totalFloorAreaM2(boardPlan)),
         roomsLabel: fill(ka.build.roomCount, { n: boardPlan.rooms.length }),
         unitM2: ka.units.m2,

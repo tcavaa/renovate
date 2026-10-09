@@ -20,21 +20,6 @@ export const CALCULATOR_STEP_PATHS: Record<CalculatorStepNumber, string> = {
   6: 'summary',
 };
 
-/**
- * A step of the seven-step numbering the calculator had until 26 September 2026 — its fifth
- * step laid the catalogue's floors and walls on the rooms by hand — in today's six: the
- * placement is part of the catalogue now, and the furniture and the summary are one step
- * earlier. For journeys recorded before (`migratePersisted` in the store, and a row's progress
- * without `steps: 6` in `calculatorProgress`).
- */
-export function fromSevenSteps(step: number): CalculatorStepNumber {
-  const n = Math.round(step);
-  if (n <= 1) return 1;
-  if (n <= 4) return n as CalculatorStepNumber;
-  if (n === 5) return 4;
-  return n === 6 ? 5 : 6;
-}
-
 export function calculatorStepHref(projectId: number, step: CalculatorStepNumber): string {
   return `/calculator/${projectId}/${CALCULATOR_STEP_PATHS[step]}`;
 }

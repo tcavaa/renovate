@@ -34,7 +34,6 @@ import { buildMouldingGeometry, buildWallGeometry, WALL_SLOT_BASE, WALL_SLOT_CAP
 import { RAILING_MODEL } from './railingManifest';
 import { alongX, instanced } from './instancing';
 import type {
-  DesignScene,
   FloorPlan,
   Opening,
   PlacedItem,
@@ -142,29 +141,6 @@ export function buildRoomShells(
 export { buildElectrical };
 /** The radiators; rebuilt when the plan's technical points change. */
 export { buildEquipment, buildRadiators };
-
-/**
- * Whole scene in one group — shells plus furniture. The viewer keeps the two halves apart
- * so it can rebuild them independently; this is the convenience for anything that wants the
- * lot at once.
- */
-export function buildScene(
-  plan: FloorPlan,
-  scene: DesignScene,
-  style: StyleDefinition,
-  materials: StyleMaterials,
-  options: BuildSceneOptions = {}
-): THREE.Group {
-  const root = new THREE.Group();
-  root.name = 'flat';
-  root.add(buildRoomShells(plan, scene.finishes, style, materials, options));
-
-  const items = new THREE.Group();
-  items.name = 'items';
-  syncPlacedItems(items, scene.items, visibleRoomIds(plan, options));
-  root.add(items);
-  return root;
-}
 
 function visibleRooms(plan: FloorPlan, options: BuildSceneOptions): PlanRoom[] {
   return options.onlyRoomId ? plan.rooms.filter((r) => r.id === options.onlyRoomId) : plan.rooms;

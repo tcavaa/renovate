@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
 import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, FolderTree, Hammer, Package, Plus, Receipt, Send, Settings, Store, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, orders, products, projects, stores, users, workers } from '@/lib/db/schema';
@@ -15,7 +15,7 @@ import { formatM2L, homeStateShortLabel, statusLabel } from '@/lib/i18n/labels';
 import { fill, inIdOrder } from '@/lib/admin/list';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { DESIGN_CATEGORY_SLUGS } from '@/lib/design/catalog';
-import { formatGEL } from '@/lib/utils';
+import { formatGEL, TIME_ZONE } from '@/lib/utils';
 import { canAdmin, type AdminSection } from '@/lib/auth/roles';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { AdminCrumbs } from '@/components/admin/AdminCrumbs';
@@ -276,7 +276,7 @@ export default async function AdminDashboardPage() {
                             #{o.id} · {o.storeName ?? '—'}
                           </Link>
                           <span className="block text-xs text-ink-muted">
-                            {o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString(dateLocale)}
+                            {o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}
                           </span>
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
@@ -319,7 +319,7 @@ export default async function AdminDashboardPage() {
                             {p.nameKa ?? `#${p.id}`}
                           </Link>
                           <span className="block text-xs text-ink-muted">
-                            {p.userName ?? ka.admin.guestUser} · {new Date(p.createdAt).toLocaleDateString(dateLocale)}
+                            {p.userName ?? ka.admin.guestUser} · {new Date(p.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}
                           </span>
                         </td>
                         <td className="px-4 py-2.5">

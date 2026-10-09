@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { ItemCard } from '@/components/design/ItemCard';
 import { ProductPageLink } from '@/components/design/ProductPageLink';

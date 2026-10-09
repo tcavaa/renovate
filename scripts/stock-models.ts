@@ -29,7 +29,7 @@
 import './lib/loadEnv';
 
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { Document, NodeIO, type Primitive } from '@gltf-transform/core';

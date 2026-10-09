@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
@@ -84,6 +84,8 @@ export const PUT = handle('PUT /api/users/[id]', 'Failed to update user', async 
       ...links.links,
       isActive: input.isActive,
       passwordHash: input.password ? await bcrypt.hash(input.password, 10) : undefined,
+      // A new password ends the account's sessions, as a reset does (refreshSessionToken).
+      sessionVersion: input.password ? sql`${users.sessionVersion} + 1` : undefined,
     })
     .where(eq(users.id, id));
   forgetAccount(id);

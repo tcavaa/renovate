@@ -7,7 +7,7 @@ import type { Project } from '@/lib/db/schema';
 import type { Dictionary } from '@/lib/i18n/ka';
 import type { Locale } from '@/lib/i18n';
 import { formatM2L, homeStateLabel, roomTypeLabel, statusLabel } from '@/lib/i18n/labels';
-import { formatGEL, cn } from '@/lib/utils';
+import { formatGEL, cn, TIME_ZONE } from '@/lib/utils';
 import type { Room } from '@/lib/calculator/types';
 import type { FloorPlan } from '@/lib/design/types';
 import { projectKind } from '@/lib/projects/saved';
@@ -75,12 +75,11 @@ export function ProjectDetail({
   const plan = (project.plan as FloorPlan | null) ?? null;
   const { calculator, design } = sheets;
   const kind = projectKind(project);
-  const isDesign = kind.hasDesign;
   const kindLabel = [kind.hasCalculator ? t.profile.typeCalculator : null, kind.hasDesign ? t.profile.typeDesign : null].filter(Boolean).join(' + ') || t.profile.typeCalculator;
   const facts: Array<{ label: string; value: string }> = [
     { label: 'ID', value: `#${project.id}` },
     { label: t.profile.colType, value: kindLabel },
-    { label: t.profile.metaCreated, value: new Date(project.createdAt).toLocaleString(dateLocaleFor(locale)) },
+    { label: t.profile.metaCreated, value: new Date(project.createdAt).toLocaleString(dateLocaleFor(locale), { timeZone: TIME_ZONE }) },
     { label: t.summary.homeState, value: homeStateLabel(t, project.homeState) },
     ...extraMeta.map((m) => ({ label: m.label, value: m.value })),
   ];

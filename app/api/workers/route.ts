@@ -1,36 +1,12 @@
-import { and, eq, desc } from 'drizzle-orm';
-import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { workers } from '@/lib/db/schema';
 import { workerSchema } from '@/lib/validations/worker.schema';
 import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
-import { publicWorker } from '@/lib/api/publicPartners';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/**
- * The active workers. Admin gets the whole rows; everybody else the approved ones, with the
- * fields a customer needs (`lib/api/publicPartners`) — never the commission or the e-mail.
- */
-export const GET = handle('GET /api/workers', 'Failed to load workers', async (req) => {
-  const { searchParams } = new URL(req.url);
-  const specialty = searchParams.get('specialty');
-  const session = await auth();
-  const isAdmin = session?.user?.role === 'admin';
-
-  const conditions = [eq(workers.isActive, true)];
-  if (!isAdmin) conditions.push(eq(workers.approvalStatus, 'approved'));
-  if (specialty) conditions.push(eq(workers.specialtySlug, specialty));
-
-  const data = await db
-    .select()
-    .from(workers)
-    .where(and(...conditions))
-    .orderBy(desc(workers.isVerified), desc(workers.rating));
-  return ok(isAdmin ? data : data.map(publicWorker));
-});
-
+/** A new worker profile (admin); the public directory reads the database itself (`/workers`, behind `WORKERS_DIRECTORY`). */
 export const POST = handle('POST /api/workers', 'Failed to create worker', async (req) => {
   const admin = await requireAdmin();
   if (admin.response) return admin.response;

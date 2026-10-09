@@ -23,23 +23,17 @@ describe('projectKind', () => {
   it('counts a renovation + design project as a calculation even without calculator picks', () => {
     expect(projectKind({ plan: {}, selectedProducts: null, mode: 'full' })).toMatchObject({ hasCalculator: true, hasDesign: true });
     expect(projectKind({ plan: {}, selectedProducts: null, mode: 'design_only' })).toMatchObject({ hasCalculator: false, hasDesign: true });
-    // Nothing recorded about their progress: both done.
-    expect(projectKind({ plan: {}, selectedProducts: {}, mode: 'full' })).toMatchObject({ calculatorPending: false, designPending: false });
+    // Each half is done when its saved progress says so, and not before.
+    expect(projectKind({ plan: {}, selectedProducts: {}, mode: 'full', calculatorEdits: { progress: { step: 6, calculated: true } }, scene: { progress: { step: 5, generated: true } } })).toMatchObject({ calculatorPending: false, designPending: false });
+    expect(projectKind({ plan: {}, selectedProducts: {}, mode: 'full' })).toMatchObject({ calculatorPending: true, designPending: true });
     expect(projectKind({ plan: null, selectedProducts: {}, mode: 'full' })).toMatchObject({ hasCalculator: true, hasDesign: false });
   });
 });
 
 describe('calculatorProgress', () => {
-  it('reads progress recorded in the seven steps the calculator had before the placement went into the catalogue', () => {
-    const edits = (progress: object) => ({ calculatorEdits: { progress }, status: 'draft' as const, selectedProducts: {}, selectedFurniture: {} });
-    // The old summary (7), left on the placement (5): the summary is 6 now, the placement the catalogue.
-    expect(calculatorProgress(edits({ step: 7, calculated: true, at: 5 }))).toMatchObject({ step: 6, at: 4, steps: 6 });
-    expect(calculatorProgress(edits({ step: 6, calculated: true, at: 6 }))).toMatchObject({ step: 5, at: 5 });
-    expect(calculatorProgress(edits({ step: 2, calculated: false, at: 1 }))).toMatchObject({ step: 2, at: 1 });
-    // Recorded in the six steps: read as it is.
-    expect(calculatorProgress(edits({ step: 6, calculated: true, at: 5, steps: 6 }))).toEqual({ step: 6, calculated: true, at: 5, steps: 6 });
-    // Nothing recorded, and saved: finished, on the summary.
-    expect(calculatorProgress({ calculatorEdits: null, status: 'saved', selectedProducts: {}, selectedFurniture: {} })).toEqual({ step: 6, calculated: true });
+  it('is what the save recorded, and not worked out when nothing was', () => {
+    expect(calculatorProgress({ calculatorEdits: { progress: { step: 4, calculated: true, at: 3 } } })).toEqual({ step: 4, calculated: true, at: 3 });
+    expect(calculatorProgress({ calculatorEdits: null })).toEqual({ step: 1, calculated: false });
   });
 });
 

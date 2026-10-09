@@ -341,6 +341,18 @@ the diagonal stood solid in the door. `withOpeningTwins` also puts each pair bac
 that wall's other face, opposite it (`tests/unit/design/openings.test.ts`, "a door in a slanted
 wall").
 
+**How a half finds its twin** (`twinOf`): first by the ids the pair was cut with
+(`namedPair`: `deriveOpenings`'s `${a}-${b}-d` ↔ `${b}-${a}-d`, `addOpening`'s
+`${a}-${kind}-${stamp}` ↔ `${b}-${a}-d-${stamp}`, `withOpeningTwins`'s `${b}-${a}-d-${id}`);
+otherwise — the plan reader's halves, two lone halves `withOpeningTwins` joined — as the nearest
+half of the same kind in the other room, and only when this half is the nearest back to it.
+It used to take the derived id or *the first opening of the same kind and width* there, so two
+0.9 m doors from a living room into an L-shaped hall both took the same half, and
+`onOneWall`, on every load, moved that half onto the other door's wall (autosave then kept it);
+a slide, resize or removal acted on the wrong door. With the pair known by its ids, a plan
+saved in that state is repaired on load: `onOneWall` moves the displaced half back
+(`tests/unit/design/openings.test.ts`, "two doors between the same two rooms").
+
 **The two halves of an interior door describe one leaf.** Each room's edge runs the other
 way along the shared wall, so the jamb that is `hinge: 'left'` from one room is `'right'`
 from the other, and a leaf that swings `'in'` to one room swings `'out'` of the other.
@@ -389,8 +401,8 @@ else — the product's, or the manifest's default for its kind (`FixtureModel.ro
 white flush door, the two-leaf window, and Kenney's open doorway as the casing of an
 archway and of a bare leaf) — stretched to the opening's width and height (its depth in
 proportion, never much more than the wall); the hole is bare for the beat the file takes
-to arrive. The only thing drawn by hand is the translucent slab the openings mode uses as
-a handle. `pnpm models:fixtures` frames a door or window centred on the opening, standing
+to arrive. The only thing drawn by hand is the translucent slab the build mode (structure unlocked)
+uses as a handle. `pnpm models:fixtures` frames a door or window centred on the opening, standing
 on y = 0, centred in the wall with the room side along +z, and sorts a door into the nodes
 `leaf` (hung from x min — `hinge: 'left'`) and `frame`, or `body` for a window or a door
 kept as one piece: a source that keeps its parts apart is split by node name, a welded one

@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { ArrowUpRight, Camera, Download, Loader2, Sparkles } from 'lucide-react';
 import { loadHubRenders, type HubRender } from '@/lib/projects/hub';

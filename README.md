@@ -18,7 +18,7 @@ Georgian-language home renovation planner & cost estimator. Plan your renovation
 | UI           | shadcn/ui style components, Radix primitives    |
 | Icons        | lucide-react                                    |
 | State        | Zustand (with `persist` middleware)             |
-| Forms        | React Hook Form + Zod                           |
+| Validation   | Zod                                             |
 | Auth         | NextAuth.js v5 (Credentials + optional Google)  |
 | Fonts        | Noto Sans / Noto Serif Georgian                 |
 | Package mgr  | pnpm                                            |
@@ -177,13 +177,13 @@ renovate-ge/
 ├── components/
 │   ├── ui/             Button, Card, Input, Select, ...
 │   ├── layout/         Header, Footer, AdminSidebar
-│   ├── calculator/     StepIndicator, HomeStateSelector, RoomForm, RoomList, MaterialsTable, SummaryCard
+│   ├── calculator/     StepIndicator, HomeStateSelector, MaterialsTable, SummaryCard
 │   ├── catalog/        ProductCard, ProductGrid
 │   ├── workers/        WorkerCard, WorkerList
 │   ├── design/         DesignSteps, PlanCanvas, StylePicker, Viewer3D, ItemCard, SwapPanel
 │   ├── admin/          ProductForm, StoreForm, CategoryForm, WorkerForm
 │   └── providers/      SessionProvider
-├── hooks/              useCalculator, useProducts, useCategories, useWorkers
+├── hooks/              useAutosave, useProducts, useCategories, useRateBook, …
 ├── lib/
 │   ├── calculator/     constants.ts, materials.ts (engine), types.ts
 │   ├── design/         planParser, planGeometry, autoLayout, matcher, manipulate, pricing, styles

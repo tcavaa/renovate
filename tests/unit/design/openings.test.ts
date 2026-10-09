@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts } from '@/lib/design/openings';
+import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { ensureWalls, planWallThickness, rebuildRooms } from '@/lib/design/walls';
@@ -312,5 +312,90 @@ describe('a door in a slanted wall', () => {
     const [a, b] = door.map(at);
     expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeLessThan(0.2);
     expect(ensureWalls(repaired)).toBe(repaired);
+  });
+});
+
+describe('two doors between the same two rooms', () => {
+  /** A living room 4 × 4 m with an L-shaped hall round its right and bottom sides. */
+  function lFlat(): PlanRoom[] {
+    const hall = refreshRoom({
+      id: 'hall',
+      type: 'hallway',
+      name: 'hall',
+      polygon: [
+        { x: 4, z: 0 },
+        { x: 6, z: 0 },
+        { x: 6, z: 6 },
+        { x: 0, z: 6 },
+        { x: 0, z: 4 },
+        { x: 4, z: 4 },
+      ],
+      heightM: 2.8,
+      areaM2: 0,
+      perimeterM: 0,
+      openings: [],
+    });
+    return [rect('liv', 0, 0, 4, 4, 'living_room'), hall];
+  }
+  const edgeAt = (room: PlanRoom, test: (e: ReturnType<typeof roomEdges>[number]) => boolean) => roomEdges(room.polygon).find(test)!.index;
+  /** Both doors, 0.9 m each, one in the living room's right wall and one in its bottom wall. */
+  function twoDoors(): PlanRoom[] {
+    let rooms = lFlat();
+    const right = edgeAt(rooms[0], (e) => Math.abs(e.a.x - 4) < 1e-6 && Math.abs(e.b.x - 4) < 1e-6);
+    const bottom = edgeAt(rooms[0], (e) => Math.abs(e.a.z - 4) < 1e-6 && Math.abs(e.b.z - 4) < 1e-6);
+    const first = addOpening(rooms, 'liv', 'door', right, 0.12, { t: 0.5, widthM: 0.9 });
+    rooms = first.rooms;
+    // A different stamp: addOpening names a pair after the time it was cut.
+    const later = Date.now;
+    Date.now = () => later() + 1000;
+    try {
+      rooms = addOpening(rooms, 'liv', 'door', bottom, 0.12, { t: 0.5, widthM: 0.9 }).rooms;
+    } finally {
+      Date.now = later;
+    }
+    return rooms;
+  }
+  const near = (a: Vec2, b: Vec2) => Math.hypot(a.x - b.x, a.z - b.z);
+
+  it('pairs each half with the one opposite it, never one half with both', () => {
+    const rooms = twoDoors();
+    const doors = rooms[0].openings;
+    expect(doors).toHaveLength(2);
+    const twins = doors.map((d) => twinOf(rooms, d)!);
+    expect(twins[0].opening.id).not.toBe(twins[1].opening.id);
+    for (const [i, d] of doors.entries()) {
+      expect(near(openingWorldPoint(rooms[0], d)!, openingWorldPoint(twins[i].room, twins[i].opening)!)).toBeLessThan(0.2);
+      expect(twinOf(rooms, twins[i].opening)!.opening.id).toBe(d.id);
+    }
+  });
+
+  it('pairs halves that carry no common name by where they are', () => {
+    // As the plan reader writes them: each half named on its own, the link only `connectsToRoomId`.
+    const rooms = twoDoors().map((r) => ({ ...r, openings: r.openings.map((o, i) => ({ ...o, id: `${r.id}-door-${i}` })) }));
+    const twins = rooms[0].openings.map((d) => twinOf(rooms, d)!);
+    expect(twins[0].opening.id).not.toBe(twins[1].opening.id);
+    for (const [i, d] of rooms[0].openings.entries()) expect(near(openingWorldPoint(rooms[0], d)!, openingWorldPoint(twins[i].room, twins[i].opening)!)).toBeLessThan(0.2);
+  });
+
+  it('leaves both doors where they are on load, and moves a half the old pairing displaced back', () => {
+    const rooms = twoDoors();
+    expect(withOpeningTwins(rooms, 0.12)).toBe(rooms);
+    // What the old "first of the same width" pairing saved: both hall halves on one wall.
+    const [first, second] = rooms[1].openings;
+    const broken = rooms.map((r) => (r.id === 'hall' ? { ...r, openings: [{ ...first, wallIndex: second.wallIndex, t: second.t }, second] } : r));
+    const repaired = withOpeningTwins(broken, 0.12);
+    const fixed = repaired[1].openings.find((o) => o.id === first.id)!;
+    expect(fixed.wallIndex).toBe(first.wallIndex);
+    expect(fixed.t).toBeCloseTo(first.t, 5);
+  });
+
+  it('moves and removes only the door it is asked to', () => {
+    const rooms = twoDoors();
+    const [a, b] = rooms[0].openings;
+    const bTwin = twinOf(rooms, b)!.opening;
+    const moved = moveOpening(rooms, 'liv', a.id, 0.3);
+    expect(moved[1].openings.find((o) => o.id === bTwin.id)).toEqual(bTwin);
+    const removed = removeOpening(rooms, 'liv', a.id);
+    expect(removed[1].openings.map((o) => o.id)).toEqual([bTwin.id]);
   });
 });

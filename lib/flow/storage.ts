@@ -12,7 +12,8 @@
  * the server copy, written by the autosave, stands.
  */
 
-import type { StateStorage } from 'zustand/middleware';
+import type { PersistStorage, StateStorage, StorageValue } from 'zustand/middleware';
+import { useSaveProblems } from '@/lib/flow/saveQueue';
 
 export const CACHE_PREFIXES = ['renovate-calculator', 'renovate-calculator-plan', 'renovate-design'] as const;
 export const SYNC_PREFIX = 'renovate-sync';
@@ -79,6 +80,28 @@ export function cleanProjectsOldestFirst(except: number | null): number[] {
     .map(({ id }) => id);
 }
 
+/** The half a cache key holds (the calculator's board belongs to the calculation). */
+function halfOfKey(key: string): 'calculator' | 'design' | null {
+  const match = CACHE_KEY.exec(key);
+  if (!match) return null;
+  return match[1] === 'renovate-design' ? 'design' : 'calculator';
+}
+
+/**
+ * Says whether a project's copy is kept in this browser: a cache write that found no room at all
+ * puts `no-local-copy` on the project's banner — the work is then only in this tab until a save
+ * goes through (it used to go without a word) — and one that fits takes it off again.
+ */
+function reportLocalCopy(key: string, kept: boolean): void {
+  const half = halfOfKey(key);
+  const id = projectOfKey(key);
+  if (!half || id == null) return;
+  const problems = useSaveProblems.getState();
+  const current = problems.problems[`${half}:${id}`];
+  if (!kept && !current) problems.report(half, id, 'no-local-copy');
+  else if (kept && current === 'no-local-copy') problems.report(half, id, null);
+}
+
 /** localStorage that never throws: a write that does not fit makes room first, and otherwise is skipped. */
 export const safeLocalStorage: StateStorage = {
   getItem: (name) => {
@@ -91,6 +114,7 @@ export const safeLocalStorage: StateStorage = {
   setItem: (name, value) => {
     try {
       localStorage.setItem(name, value);
+      reportLocalCopy(name, true);
       return;
     } catch {
       // Full, most likely: make room below.
@@ -99,11 +123,13 @@ export const safeLocalStorage: StateStorage = {
       removeStoredProject(id);
       try {
         localStorage.setItem(name, value);
+        reportLocalCopy(name, true);
         return;
       } catch {
         // Still no room: the next one.
       }
     }
+    reportLocalCopy(name, false);
     // Nothing left to forget. The store lives in memory; the server's copy stands — and the
     // older copy this write was replacing goes, so the next opening is not taken in by it.
     try {
@@ -113,6 +139,8 @@ export const safeLocalStorage: StateStorage = {
     }
   },
   removeItem: (name) => {
+    // A write still waiting (`debouncedStorage`) would bring back what is being removed.
+    pending.delete(name);
     try {
       localStorage.removeItem(name);
     } catch {
@@ -120,3 +148,59 @@ export const safeLocalStorage: StateStorage = {
     }
   },
 };
+
+/**
+ * The stores' writes that have not reached localStorage yet, by key: the latest state of each,
+ * as an object — serialised only when it is written.
+ */
+const pending = new Map<string, StorageValue<unknown>>();
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** How long a store's writes gather before one goes out. */
+export const PERSIST_DELAY_MS = 400;
+
+/** Writes every waiting store state now. */
+export function flushPendingWrites(): void {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
+  const writes = [...pending];
+  pending.clear();
+  for (const [name, value] of writes) safeLocalStorage.setItem(name, JSON.stringify(value));
+}
+
+if (typeof window !== 'undefined') {
+  // Leaving, reloading or hiding the page writes what is waiting: nothing is lost to the delay.
+  window.addEventListener('pagehide', flushPendingWrites);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingWrites();
+  });
+}
+
+/**
+ * The stores' persistence (`persist`'s `storage`): writes gather for `PERSIST_DELAY_MS` and go
+ * out as one, serialised then. `createJSONStorage` serialised the whole persisted state — the
+ * plan, the furniture, the kept versions — on every `set`, selection and save status included:
+ * about 8 ms at 50 items with twelve versions, 45 ms at 600, on the main thread, per click. A
+ * read sees a write still waiting. The page hiding or unloading flushes (above).
+ */
+export function debouncedStorage<S>(): PersistStorage<S> {
+  return {
+    getItem: (name) => {
+      if (pending.has(name)) return pending.get(name) as StorageValue<S>;
+      const raw = safeLocalStorage.getItem(name) as string | null;
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as StorageValue<S>;
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      pending.set(name, value as StorageValue<unknown>);
+      if (!flushTimer) flushTimer = setTimeout(flushPendingWrites, PERSIST_DELAY_MS);
+    },
+    removeItem: (name) => {
+      safeLocalStorage.removeItem(name);
+    },
+  };
+}

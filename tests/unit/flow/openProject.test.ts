@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { edgeLengthsM, refreshRoom } from '@/lib/design/planGeometry';
+import { refreshRoom } from '@/lib/design/planGeometry';
 import type { FloorPlan, DesignScene, PlacedItem } from '@/lib/design/types';
 import type { Room } from '@/lib/calculator/types';
 import type { SavedProjectInput } from '@/lib/projects/saved';
@@ -118,7 +118,7 @@ const calculation = (id: number, patch: Partial<SavedProjectInput> = {}) =>
     calculatorStarted: true,
     hasCalculator: true,
     calculatorBoard: { plan: planOf(['a', 'b']), floorPlanUrl: '/uploads/plans/x.png', finishes: [] },
-    calculatorProgress: { step: 6, calculated: true, at: 5, steps: 6 },
+    calculatorProgress: { step: 6, calculated: true, at: 5 },
     calculatorRev: 3,
     ...patch,
   });
@@ -137,9 +137,7 @@ describe('opening the calculation', () => {
     expect(board(id).floorPlanUrl).toBe('/uploads/plans/x.png');
     // The copy names the revision it was made from, beside its content.
     expect(calc(id).baseRev).toBe(3);
-    // Rooms saved before they carried their walls read them off the board — worked out, so
-    // nothing is waiting to be written.
-    for (const room of calc(id).rooms) expect(room.walls).toEqual(edgeLengthsM(board(id).plan!.rooms.find((r) => r.id === room.id)!.polygon));
+    // Opening is not editing: nothing is waiting to be written.
     expect(sync.isDirty('calculator', id)).toBe(false);
   });
 
@@ -161,14 +159,6 @@ describe('opening the calculation', () => {
     sync.markDirty('calculator', id);
     expect(flow.loadCalculatorHalf(calculation(id, { calculatorRev: 9 }))).toBe('cache');
     expect(calc(id).choices.ceiling).toBe('barisol');
-  });
-
-  it('keeps a drawing this browser has when the row has none, and marks it to be written', () => {
-    const id = nextId;
-    board(id).openBoard({ projectId: id, plan: planOf(['a', 'b']), floorPlanUrl: null, finishes: [] });
-    flow.loadCalculatorHalf(calculation(id, { calculatorBoard: null }));
-    expect(board(id).plan?.source).toBe('manual');
-    expect(sync.isDirty('calculator', id)).toBe(true);
   });
 
   it('opens a renovation designed first on the materials, with the design’s rooms and products', () => {
@@ -203,18 +193,6 @@ describe('opening the calculation', () => {
     expect(calc(id).rooms).toHaveLength(3);
   });
 
-  it('moves floors and walls from before every room took its own onto the rooms, and writes them once', () => {
-    const id = nextId;
-    const laminate = { productId: 7, nameKa: 'ლამინატი', pricePerUnit: 40, unit: 'm2' as const, qty: 30, totalPrice: 1200, imageUrl: null, categorySlug: 'laminate', surface: 'floor' as const };
-    const finish = (roomId: string) => ({ roomId, surface: 'floor' as const, colorHex: '#fff', textureUrl: null, textureScaleM: 1, product: { productId: 7, nameKa: 'x', slug: 'x', brand: null, pricePerUnit: 40, unit: 'm2', qty: 12, totalPrice: 480, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: 'laminate', store: null } });
-    // Laid by hand on room a's floor only, on the placement step that is gone.
-    const old = calculation(id, { selectedProducts: { 'laminate_item:7': laminate }, calculatorBoard: { plan: planOf(['a', 'b']), floorPlanUrl: null, finishes: [finish('a')] } });
-    expect(flow.loadCalculatorHalf(old)).toBe('server');
-    expect(Object.keys(calc(id).selectedProducts)).toEqual(['laminate_room:a']);
-    expect(calc(id).selectedProducts['laminate_room:a']).toMatchObject({ roomId: 'a', surface: 'floor', qty: 13.2, totalPrice: 528 });
-    expect(sync.isDirty('calculator', id)).toBe(true);
-  });
-
   it('opens a project designed first with the studio’s floors as its rooms’ picks, and writes nothing', () => {
     const id = nextId;
     const floor = { roomId: 'a', surface: 'floor' as const, colorHex: '#fff', textureUrl: '/oak.jpg', textureScaleM: 1, product: { productId: 7, nameKa: 'x', slug: 'oak', brand: null, pricePerUnit: 40, unit: 'm2', qty: 12, totalPrice: 480, imageUrl: null, colorHex: null, textureUrl: '/oak.jpg', model3dUrl: null, categorySlug: 'laminate', store: null } };
@@ -238,12 +216,6 @@ describe('opening the design', () => {
     flow.loadDesignHalf(row(id, { hasDesign: true, plan: planOf([]), scene: scene([], { step: 1, generated: false, modeChosen: false, emptyStart: false, at: 1 }), designRev: 2 }));
     expect(design(id)).toMatchObject({ projectId: id, modeChosen: false, emptyStart: false, generated: false, at: 1 });
     expect(design(id).baseRev).toBe(2);
-  });
-
-  it('reads a scene saved before step 1’s answers were saved as answered', () => {
-    const id = nextId;
-    flow.loadDesignHalf(row(id, { hasDesign: true, plan: planOf(['a']), scene: scene([], { step: 5, generated: true }), designProgress: { step: 5, generated: true } }));
-    expect(design(id)).toMatchObject({ modeChosen: true, emptyStart: false, generated: true, at: null });
   });
 
   it('the studio opens the calculation beside it; the calculator does not open the design', () => {

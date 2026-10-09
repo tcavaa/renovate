@@ -1,19 +1,20 @@
-;!function(){try{var e="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&(e._sentryDebugIds=e._sentryDebugIds||{},e._sentryDebugIds[n]="8374c4c9-4125-4ead-8150-ec01ac2dcd21",e._sentryDebugIdIdentifier="sentry-dbid-8374c4c9-4125-4ead-8150-ec01ac2dcd21")}catch(e){}}();
+;!function(){try{var e="undefined"!=typeof window?window:"undefined"!=typeof global?global:"undefined"!=typeof globalThis?globalThis:"undefined"!=typeof self?self:{},n=(new e.Error).stack;n&&(e._sentryDebugIds=e._sentryDebugIds||{},e._sentryDebugIds[n]="f0513ff3-66e2-4dc4-9ae7-f120c2f92ffd",e._sentryDebugIdIdentifier="sentry-dbid-f0513ff3-66e2-4dc4-9ae7-f120c2f92ffd")}catch(e){}}();
 var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/categories/[id]/route.js")
-R.c("server/chunks/lib_1gko_0-._.js")
-R.c("server/chunks/_0au5mqn._.js")
-R.c("server/chunks/[root-of-the-server]__1htkb3l._.js")
-R.c("server/chunks/lib_design_0zga4nk._.js")
+R.c("server/chunks/lib_1eo8hw7._.js")
 R.c("server/chunks/0sj1_@opentelemetry_api_build_esm_index_0xy-j06.js")
-R.c("server/chunks/lib_design_1a2x8zz._.js")
-R.c("server/chunks/_11a9mmt._.js")
-R.c("server/chunks/[root-of-the-server]__1ypyl3n._.js")
-R.c("server/chunks/_01g2sj3._.js")
-R.c("server/chunks/lib_design_00soyct._.js")
+R.c("server/chunks/_0i9jrb0._.js")
 R.c("server/chunks/lib_design_1sgdm5y._.js")
-R.c("server/chunks/_1kbqq-c._.js")
+R.c("server/chunks/lib_design_00soyct._.js")
+R.c("server/chunks/[root-of-the-server]__1sbcnuv._.js")
+R.c("server/chunks/_0wzzxml._.js")
+R.c("server/chunks/lib_design_1a2x8zz._.js")
+R.c("server/chunks/lib_design_0zga4nk._.js")
+R.c("server/chunks/[root-of-the-server]__0k3384h._.js")
+R.c("server/chunks/_1_u94kg._.js")
+R.c("server/chunks/_0gxgdiz._.js")
+R.c("server/chunks/_1946qdd._.js")
 R.c("server/chunks/_next-internal_server_app_api_categories_[id]_route_actions_0oufb4h.js")
-R.m(973500)
-module.exports=R.m(973500).exports
+R.m(372982)
+module.exports=R.m(372982).exports
 
-//# debugId=8374c4c9-4125-4ead-8150-ec01ac2dcd21
+//# debugId=f0513ff3-66e2-4dc4-9ae7-f120c2f92ffd

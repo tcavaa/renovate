@@ -110,8 +110,6 @@ export const HEATING_PIPE_M_PER_RADIATOR = 25;
  */
 export type { WorkChoices };
 
-export const DEFAULT_WORK_CHOICES: WorkChoices = { floor: 'laminate', ceiling: 'gypsum' };
-
 /** A stored choice, read defensively: anything unknown is the default. */
 export function workChoices(input?: Partial<WorkChoices> | null): WorkChoices {
   return {
@@ -295,27 +293,6 @@ export const MATERIAL_RATES_PER_M2: Record<string, MaterialRate> = {
 export const MATERIAL_CHOICE: Record<string, Partial<WorkChoices>> = {
   ceiling_board: { ceiling: 'gypsum' },
 };
-
-/**
- * Every rate key the calculator shipped with before the team's book replaced it. A row of the
- * `rates` table under one of these is never read (`rateBookFromRows`), and
- * `pnpm db:seed:rates` deletes them — so a database seeded with the old book cannot bring its
- * prices or its units back.
- */
-export const RETIRED_RATE_KEYS: readonly string[] = [
-  // labour
-  'strip_floor', 'strip_walls', 'strip_ceiling', 'strip_tiles', 'remove_doors_windows', 'remove_sanitary',
-  'debris_removal', 'demolition', 'plumbing_rough', 'electrical_rough', 'insulation', 'screed', 'plastering',
-  'waterproofing', 'tiling', 'windows', 'doors', 'flooring', 'ceiling', 'painting', 'electrical_finish',
-  'plumbing_finish', 'electrical_point', 'lighting_point', 'plumbing_point', 'radiator_install',
-  // materials
-  'debris_bags', 'waste_container', 'gas_block', 'construction_mesh', 'construction_foam', 'ppr_pipe_20mm',
-  'ppr_pipe_25mm', 'sewage_pipe_50mm', 'sewage_pipe_110mm', 'pipe_fittings', 'cable_1_5mm', 'cable_2_5mm',
-  'cable_4mm', 'corrugated_tube', 'junction_boxes', 'circuit_breakers', 'eps_insulation', 'vapor_barrier',
-  'cement', 'sand', 'self_leveling', 'floor_primer', 'gypsum_plaster', 'plaster_primer', 'corner_beads',
-  'joint_compound', 'waterproof_membrane', 'waterproof_tape', 'silicone', 'tile_adhesive', 'tile_grout',
-  'tile_spacers', 'tile_leveling_svp', 'wall_primer_paint', 'interior_paint', 'ceiling_paint',
-];
 
 /** The phases whose work comes in two kinds (`WorkChoices`). */
 export const FLOOR_PHASE = 11;

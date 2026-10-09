@@ -28,11 +28,45 @@ interface CachedModel {
 // pieces, uploads since the recipe writes it) and meshopt everywhere else.
 const gltfLoader = new GLTFLoader();
 gltfLoader.setMeshoptDecoder(MeshoptDecoder);
-const dracoLoader = new DRACOLoader().setDecoderPath(DRACO_DECODER_PATH).setDecoderConfig({ type: 'wasm' });
-// Only the 3D viewer loads this module: fetch the decoder beside the models, not after the
-// first Draco one has arrived and waits for it.
-if (typeof window !== 'undefined') dracoLoader.preload();
+let dracoLoader = dracoDecoder(true);
 gltfLoader.setDRACOLoader(dracoLoader);
+
+/**
+ * A Draco loader. Only the 3D viewer loads this module, so the first fetches the decoder beside
+ * the models, not after the first Draco one has arrived. DRACOLoader keeps its decoder promise
+ * for good, a rejected one too: a decoder that failed to arrive once (a dropped request) left
+ * every Draco model a ghost box until the page was reloaded. A failed one is let go and
+ * replaced; the replacement fetches the decoder again when the next Draco model asks.
+ */
+function dracoDecoder(preload: boolean): DRACOLoader {
+  const loader = new DRACOLoader().setDecoderPath(DRACO_DECODER_PATH).setDecoderConfig({ type: 'wasm' });
+  if (typeof window === 'undefined') return loader;
+  if (preload) loader.preload();
+  watchDecoder(loader);
+  return loader;
+}
+
+function watchDecoder(loader: DRACOLoader): void {
+  const pending = (loader as unknown as { decoderPending: Promise<unknown> | null }).decoderPending;
+  if (!pending) {
+    // Not asked yet (no preload): watch it once a model asks.
+    const init = (loader as unknown as { _initDecoder: () => Promise<unknown> })._initDecoder.bind(loader);
+    (loader as unknown as { _initDecoder: () => Promise<unknown> })._initDecoder = () => {
+      const started = init();
+      started.catch(() => replaceDecoder(loader));
+      return started;
+    };
+    return;
+  }
+  pending.catch(() => replaceDecoder(loader));
+}
+
+function replaceDecoder(failed: DRACOLoader): void {
+  if (dracoLoader !== failed) return;
+  failed.dispose();
+  dracoLoader = dracoDecoder(false);
+  gltfLoader.setDRACOLoader(dracoLoader);
+}
 const modelCache = new Map<string, Promise<CachedModel>>();
 
 /**

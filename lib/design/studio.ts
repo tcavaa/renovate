@@ -11,7 +11,7 @@
  */
 
 import type { RoomPart, RoomSplit, RoomType } from '@/lib/calculator/types';
-import { polygonAreaM2, polygonBounds, polygonCentroid } from './planGeometry';
+import { polygonAreaM2, polygonBounds } from './planGeometry';
 import { clipPolygon } from './zones';
 import type { PlanRoom, Vec2 } from './types';
 
@@ -226,11 +226,6 @@ export function partAt(room: Outline, point: Vec2): 0 | 1 {
   const split = effectiveSplit(room);
   const at = lineCoordinate(room, split);
   return (split.axis === 'x' ? point.x : point.z) < at ? 0 : 1;
-}
-
-/** Where a part's label goes: the middle of its own floor. */
-export function partLabelPoint(part: StudioPart): Vec2 {
-  return polygonCentroid(part.polygon);
 }
 
 /** A split with the first part at this many square metres. */

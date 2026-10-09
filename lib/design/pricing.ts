@@ -32,7 +32,7 @@ import { countDoors } from './openings';
 import { partitionArea } from './partitions';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
-import { alreadyHave, defaultExistingForHomeState, EXISTING_KEYS, HAVE_NOTHING, type AlreadyHave, type ExistingKey } from './existing';
+import { alreadyHave, defaultExistingForHomeState, EXISTING_KEYS, type AlreadyHave, type ExistingKey } from './existing';
 import { ELECTRICAL_LABOUR, ELECTRICAL_MATERIAL_GEL, ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR, TECHNICAL_LABOUR_DEFAULT_GEL, TECHNICAL_RATES, TRIM_INSTALL_DEFAULT_GEL, type TechnicalLabourKey } from './technicalRates';
 import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
@@ -606,16 +606,6 @@ const PHASES_ALREADY_DONE: Partial<Record<ExistingKey, number[]>> = {
 function withoutExisting(phases: number[], have: AlreadyHave): number[] {
   const done = new Set(EXISTING_KEYS.flatMap((key) => (have.has(key) ? PHASES_ALREADY_DONE[key] ?? [] : [])));
   return phases.filter((phase) => !done.has(phase));
-}
-
-/**
- * Every socket, switch, light, pipe, radiator and air conditioner: an estimated material
- * price plus the rate book's labour per point. In a renovation the relevant phases decide
- * (electrical points need the electrical phase, pipes the plumbing one, radiators the
- * heating one); in a finished home only what the person added themselves is new work.
- */
-export function priceTechnical(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru' = 'ka', have: AlreadyHave = HAVE_NOTHING, labels: ProductLabels = DEFAULT_PRODUCT_LABELS): BudgetLine[] {
-  return technicalWork(plan, electrical, full, phases, book, roomName, locale, have, labels).lines;
 }
 
 /**

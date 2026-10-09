@@ -25,7 +25,7 @@
  * Pure geometry: no React, no THREE, no `window`. Tested in `tests/unit/design/walls.test.ts`.
  */
 
-import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
 import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge, withOpeningTwins, type WallThickness } from './openings';

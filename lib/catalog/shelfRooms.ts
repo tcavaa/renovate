@@ -34,9 +34,3 @@ export async function setCategoryRooms(categoryId: number, roomIds: readonly num
     await db.insert(shelfRoomCategories).values({ shelfRoomId: room.id, categoryId, sortOrder: (last ?? 0) + 10 });
   }
 }
-
-/** The ids of the rooms that list a category. */
-export async function roomsOfCategory(categoryId: number): Promise<number[]> {
-  const rows = await db.select({ roomId: shelfRoomCategories.shelfRoomId }).from(shelfRoomCategories).where(eq(shelfRoomCategories.categoryId, categoryId));
-  return rows.map((r) => r.roomId);
-}

@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { Check, Upload } from 'lucide-react';
 import { STYLE_IDS, STYLES } from '@/lib/design/styles';
 import { styleLabel } from '@/lib/i18n/labels';

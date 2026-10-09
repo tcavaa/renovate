@@ -141,12 +141,6 @@ export interface SelectedProduct {
    */
   model3dKind?: string | null;
   model3dUrl?: string | null;
-  /**
-   * Ticked off the order on the summary: still part of the estimate — it is what the work
-   * costs — but not something the person is buying through the platform. The budget, the
-   * baskets and the checkout all leave it out.
-   */
-  excluded?: boolean;
 }
 
 /** The calculator's steps: the way in, the plan, the materials, the catalogue (each room's floor and walls, and the rest), the furniture, the summary. */

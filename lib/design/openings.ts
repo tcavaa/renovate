@@ -4,9 +4,9 @@
  * Openings live on a room's polygon edge as (wallIndex, t). A wall between two rooms exists
  * twice — each room extrudes its own — so an interior door is *two* openings, one per room,
  * that must stay on the same spot in the world. Every move here keeps the pair together:
- * the twin is found by the plan's naming convention (`${roomA}-${roomB}-d` ↔
- * `${roomB}-${roomA}-d`) or, for doors added later, by projecting the door's world point
- * onto the neighbour's edge.
+ * the twin is found by the ids the two halves were cut with (`namedPair`) or, failing that,
+ * as the nearest half of the same kind in the other room that has this one as its nearest
+ * (`twinOf`).
  *
  * A railing (მოაჯირი) is an opening too: a balcony's open side, drawn along one of its outer
  * walls from where it starts to where it ends, running into the corners if it likes. The wall
@@ -138,13 +138,58 @@ function twinEdge(room: PlanRoom, edge: PlanEdge, point: Vec2, tolerance: number
   return null;
 }
 
+/**
+ * Whether two halves were cut as one pair, by their ids: `deriveOpenings`'s `${a}-${b}-d` ↔
+ * `${b}-${a}-d`; `addOpening`'s `${a}-${kind}-${stamp}` ↔ `${b}-${a}-d-${stamp}`; and
+ * `withOpeningTwins`'s `${b}-${a}-d-${a's own id}`. A half's kind may have changed since
+ * (`updateOpening`), so the stamp is matched as the id's tail, not with the kind in it.
+ */
+function namedPair(a: Opening, b: Opening): boolean {
+  if (a.id === `${a.roomId}-${b.roomId}-d` && b.id === `${b.roomId}-${a.roomId}-d`) return true;
+  const cutFor = (half: Opening, other: Opening) => {
+    const prefix = `${half.roomId}-${other.roomId}-d-`;
+    if (!half.id.startsWith(prefix)) return false;
+    const tail = half.id.slice(prefix.length);
+    return !!tail && (other.id === tail || (other.id.startsWith(`${other.roomId}-`) && other.id.endsWith(`-${tail}`)));
+  };
+  return cutFor(a, b) || cutFor(b, a);
+}
+
+/**
+ * The other half of an opening between two rooms. A pair cut together is known by its ids
+ * (`namedPair`); any other (the plan reader's, two halves cut from each side and joined by
+ * `withOpeningTwins`) is the nearest half of the same kind in the other room — and only when
+ * this one is the nearest back, so two doors between the same rooms never share one half. Kind
+ * and width alone never decide it: two 0.9 m doors from a living room into an L-shaped hall
+ * once both took the first one, and the load-time repair (`onOneWall`) then moved that half
+ * onto the other door's wall.
+ */
 export function twinOf(rooms: PlanRoom[], opening: Opening): { room: PlanRoom; opening: Opening } | null {
   if (!opening.connectsToRoomId) return null;
   const room = rooms.find((r) => r.id === opening.connectsToRoomId);
   if (!room) return null;
-  const twinId = `${room.id}-${opening.roomId}-d`;
-  const twin = room.openings.find((o) => o.id === twinId || (o.connectsToRoomId === opening.roomId && o.kind === opening.kind && Math.abs(o.widthM - opening.widthM) < 0.01));
-  return twin ? { room, opening: twin } : null;
+  const halves = room.openings.filter((o) => o.connectsToRoomId === opening.roomId);
+  const named = halves.find((o) => namedPair(opening, o));
+  if (named) return { room, opening: named };
+
+  const home = rooms.find((r) => r.openings.some((o) => o.id === opening.id)) ?? rooms.find((r) => r.id === opening.roomId);
+  if (!home) return null;
+  const ours = home.openings.filter((o) => o.connectsToRoomId === room.id && o.kind === opening.kind && !halves.some((h) => namedPair(o, h)));
+  const theirs = halves.filter((o) => o.kind === opening.kind && !home.openings.some((h) => namedPair(h, o)));
+  const where = (r: PlanRoom, o: Opening) => openingWorldPoint(r, o);
+  const nearest = (from: Vec2 | null, pool: Opening[], r: PlanRoom): Opening | null => {
+    if (!from) return null;
+    let best: { o: Opening; d: number } | null = null;
+    for (const o of pool) {
+      const p = where(r, o);
+      const d = p ? Math.hypot(p.x - from.x, p.z - from.z) : Infinity;
+      if (d < Infinity && (!best || d < best.d)) best = { o, d };
+    }
+    return best?.o ?? null;
+  };
+  const candidate = nearest(where(home, opening), theirs, room);
+  if (!candidate) return null;
+  return nearest(where(room, candidate), ours, home)?.id === opening.id ? { room, opening: candidate } : null;
 }
 
 /** The flat's openings of one kind, an interior one's two halves once. */

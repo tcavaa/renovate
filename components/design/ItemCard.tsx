@@ -7,7 +7,7 @@
  * partner that stocks it, where their shop is, and how long delivery takes.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { MapPin, Phone, Sparkles, Star, Truck, UserCheck } from 'lucide-react';
 import { formatGEL } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';

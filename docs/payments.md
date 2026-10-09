@@ -68,16 +68,39 @@ Flitt → POST /api/payments/flitt/callback (signed) → settleCardPayment — w
 server; the server asks Flitt (`/api/status/order_id`, signature verified) or has had the
 signed callback; `flittOutcome` then requires the same order id, our merchant, and — for an
 approval — the exact amount in tetri and the currency, or nothing is unlocked (logged as an
-error). The approval is an `UPDATE … WHERE status <> 'approved'`, so a callback and a status
-check racing each other approve and fulfil once; later answers about an approved payment
-still update its facts (a partial refund's `reversal_amount`), and a `reversed` is recorded.
+error). Signatures are compared in constant time.
+
+### Settling
+
+`settlementFor(current, next)` (`lib/payments/flitt.ts`, pure) says what a matching answer does:
+
+| From → to | What happens |
+|---|---|
+| created / processing / declined / expired → **approved** | `approve`: the payment approved **and** what it paid for unlocked (the half's `project_payments` row) in one transaction. If the record fails, nothing is approved: the callback is answered 500 and Flitt calls again, and the dialogue's status check settles it too. A half another payment already paid keeps the first, and this one is logged for a refund — the approval stands, the money was taken. |
+| approved → **reversed** | `reverse`: the money went back, so what it unlocked is taken back in the same transaction — the half's `project_payments` row is deleted (it is no longer paid, nor revenue), an own item's credit not yet spent is marked spent. A model already made from a credit stays. |
+| created / processing → created, processing, declined, expired | `status`: written. |
+| approved or reversed → anything else | `facts`: only the card's and the money's facts (a partial refund's `reversal_amount` keeps the payment approved). **A reversed payment never comes back**: a replayed or late "approved" once re-approved it and unlocked the half again. |
+
+Every write is conditional on the status it was decided from (`status NOT IN ('approved',
+'reversed')`), so a callback and a status check racing each other approve and fulfil once, and a
+late "processing" never overwrites an approval. `tests/unit/payments/service.test.ts` drives
+`settleCardPayment` through an in-memory database: approve once, wrong amount, late processing,
+reversal and a replayed approval, a half paid twice, a failed record rolled back and settled
+by the next answer, the own item's credit (claim, release, revoked by a reversal), a start's
+figures in tetri, a refused start, the status check, and the unsettled payments of days before.
 
 **Nothing is charged twice by a lost confirmation.** Every start first asks Flitt about the
-person's unsettled payments of the same purpose (and project) from the last two hours
-(`settleRecentPayments`): one paid in a tab closed before the form answered — with no
-callback to tell us, as on a developer's machine — is found approved and the dialogue says
-"already paid" instead of opening a new form. A half paid twice anyway (two tabs, two cards)
-keeps the first `project_payments` row; the second payment is logged for a refund.
+person's unsettled payments of the same purpose (and project) from the last **30 days**
+(`settleRecentPayments`): one paid in a tab closed before the form answered — with no callback
+to tell us, as on a developer's machine — is found approved and the dialogue says "already
+paid" instead of opening a new form. (The window was two hours: a person who came back the next
+day was charged again.) Flitt answers "expired" for the rest, which settles them. A half paid
+twice anyway (two tabs, two cards) keeps the first `project_payments` row; the second payment
+is logged for a refund.
+
+**A fee of 0** (admin set the half's rate to 0): the start answers `{ free: true }` with no order
+at Flitt, and `HingeDialog` goes straight on through the hinge. A half with no floor area is
+still `400 NOTHING_TO_PAY`.
 
 **The callback** (`server_callback_url`, `NEXT_PUBLIC_APP_URL/api/payments/flitt/callback`)
 is sent only when the app's URL is reachable — never for localhost, `*.localhost`, `*.test`.
@@ -86,7 +109,12 @@ Flitt posts JSON (or a form, if the merchant's portal says so), expects a 200, r
 54.154.216.60 and 3.75.125.89. A verified callback is answered 200 even when it does not
 match its payment (asking again would not change it — it is logged); a bad signature is 400
 and changes nothing (kept in `payment_events` with `signatureValid` false when it names one of
-our orders).
+our orders, by our order-id format). A body over 32 KB is not read (Flitt's are a few hundred
+bytes), and the callback is rate-limited per address (`RATE_RULES.paymentCallback`, 600 per
+10 minutes — a 429 is retried by Flitt); the dialogue's status checks are too
+(`RATE_RULES.paymentStatus`, 120 per 10 minutes), since each may ask Flitt. A production server
+whose `NEXT_PUBLIC_APP_URL` is not a public URL gets no callbacks and says so in its log at
+start.
 
 ## The protocol (what is signed)
 
@@ -228,15 +256,16 @@ fills them into the pages); the phone and e-mail in `footer` too.
   verification (tampered, other key, none), reading answers, the facts in GEL, the outcome
   against its payment (order, merchant, amount, currency, unknown status, a decline). In the
   coverage gate.
+- `tests/unit/payments/service.test.ts` — settling (above), in the coverage gate with `flitt.ts`.
 - `tests/unit/finance/money.test.ts` — `withBankFee`, `toTetri`.
 - `tests/integration/payment-routes.test.ts` — the callback (signed / forged / form / wrapped /
   garbage), the start (401, 400, owner, quote, paid, nothing to pay, own item price / credit /
-  free, Flitt down → 502), the status (payer, others, bad ids).
+  free, a half at a rate of 0, Flitt down → 502), an oversized callback, the status (payer,
+  others, bad ids).
 - `tests/unit/legal/legalSections.test.ts` — every section in three languages, the company filled in.
 - Walked through on the sandbox (headless Chrome at `renovate.localhost`): a design fee and two own
   items paid through 3-D Secure, the half recorded, the design generated, the item uploaded on its
-  credit, the admin pages. `settleCardPayment`'s database glue and the upload's credit are
-  exercised that way, not by unit tests.
+  credit, the admin pages.
 
 ## Known gaps
 
@@ -246,7 +275,16 @@ fills them into the pages); the phone and e-mail in `footer` too.
   word) — the hinge's payment is enforced by the dialogue only ([marketplace.md](marketplace.md)).
 - Own-item payments are not in the **revenue report** (only the halves' fees are); the
   transactions page has them.
-- **Payments that never finish** stay `created` (no expiry sweep); they are harmless and filterable.
+- **Payments that never finish** stay `created` until their payer starts the same payment again
+  (then Flitt is asked, within 30 days); there is no scheduled sweep. Harmless and filterable,
+  except one approved at Flitt whose callback failed and whose payer never comes back: the
+  admin's transaction page shows it `created` until someone asks Flitt.
+- **Sandbox rows look like real ones** in `project_payments` and the revenue report (the
+  `payments` row says `testMode`). At go-live, delete the test payments' `project_payments`
+  rows (`reference` = a `payments.order_id` with `test_mode` = 1) — those projects' halves then
+  ask to be paid like any other.
+- **A partial refund** stays `approved` with its `reversal_amount`; the revenue report still
+  counts the half's whole fee.
 - The **company details are placeholders** until the business fills them in.
 - A photo own item is free; when photos turn into models, decide its price.
 - Apple Pay's domain association file is not served yet (Going live, step 5).

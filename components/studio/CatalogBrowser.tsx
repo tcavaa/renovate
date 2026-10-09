@@ -14,7 +14,7 @@
  * open product where they were left.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink, LayoutGrid, MousePointerClick, Package, Plus, Search, UserRound, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';

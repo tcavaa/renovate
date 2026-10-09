@@ -9,7 +9,7 @@ import { FeeSummary } from '@/components/orders/FeeSummary';
 import { lineDiff, orderStage } from '@/lib/finance/orderFlow';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { FoldSection } from '@/components/projects/FoldSection';
-import { cn, formatGEL, formatNumber } from '@/lib/utils';
+import { cn, formatGEL, formatNumber, TIME_ZONE } from '@/lib/utils';
 
 /**
  * The orders a project turned into, for its owner: one card per partner with where the order
@@ -65,7 +65,7 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
                   <span>{fill(t.market.orderNo, { id: o.id })}</span>
                   <span>
-                    {t.market.orderedOn} {new Date(o.createdAt).toLocaleDateString(dateLocale)}
+                    {t.market.orderedOn} {new Date(o.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}
                   </span>
                   <span>{fill(t.market.itemsCount, { n: o.itemCount })}</span>
                   {partner.phone && o.sentAt && (

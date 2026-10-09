@@ -68,6 +68,9 @@ export const GET = handle('GET /api/checkout', 'Failed to load order state', asy
   if (!Number.isInteger(projectId) || projectId <= 0) return fail(API_ERRORS.INVALID_ID, 400);
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
+  // Signed in first: without it `project.userId !== userId` was `null !== null` for a project
+  // with no owner, and anyone read its order state.
+  if (!userId) return fail(API_ERRORS.UNAUTHORIZED, 401);
   const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   const project = rows[0];
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);

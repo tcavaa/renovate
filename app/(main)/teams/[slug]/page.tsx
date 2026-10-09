@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, Briefcase, MapPin, Phone, Star, UsersRound } from 'lucide-react';

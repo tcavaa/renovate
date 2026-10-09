@@ -4,12 +4,10 @@
  * Whose work the browser holds. The projects' caches (`store/projectScope`) outlive a
  * sign-out, so the browser remembers the account they belong to (`renovate-owner`) and
  * forgets all of them when another account — or nobody — takes the computer over; then the
- * next person never finds the previous one's plans. Work from before projects existed is
- * moved into its project's keys on the way (`lib/flow/legacy`).
+ * next person never finds the previous one's plans.
  */
 
 import { forgetAllProjects } from '@/lib/flow/projectSync';
-import { forgetLegacyCaches, migrateLegacyCaches } from '@/lib/flow/legacy';
 
 const OWNER_KEY = 'renovate-owner';
 
@@ -30,19 +28,14 @@ function setOwner(owner: string): void {
 }
 
 /**
- * The signed-in account takes the browser: another account's work is forgotten, a guest's is
- * kept (it is offered on the hub as a project), and old work is moved into its projects. Run
- * before a project is opened (`ProjectGate`) and whenever the session changes (`StoreOwnerGuard`).
+ * The signed-in account takes the browser: another account's work is forgotten. Run before a
+ * project is opened (`ProjectGate`) and whenever the session changes (`StoreOwnerGuard`).
  */
 export function claimBrowser(userId: number | string): void {
   const owner = `user:${userId}`;
   const previous = previousOwner();
-  if (previous && previous !== owner && previous !== 'guest') {
-    forgetAllProjects();
-    forgetLegacyCaches();
-  }
+  if (previous && previous !== owner) forgetAllProjects();
   setOwner(owner);
-  migrateLegacyCaches();
 }
 
 /**

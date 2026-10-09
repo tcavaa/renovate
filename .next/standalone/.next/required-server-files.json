@@ -4,8 +4,7 @@
     "env": {
       "_sentryRewriteFramesDistDir": ".next",
       "_sentryRewriteFramesAssetPrefixPath": "",
-      "_sentryRewritesTunnelPath": "/monitoring",
-      "_sentryRelease": "5efc0b020d29657a83b1479817b3f1c01c8b338f",
+      "_sentryRelease": "48e1d33f4483f285c2708ce801cc1b48ffe271df",
       "_sentryHasPagesRouter": "false"
     },
     "webpack": null,
@@ -256,9 +255,6 @@
       "turbopackFileSystemCacheForBuild": true,
       "turbopackInferModuleSideEffects": true,
       "turbopackPluginRuntimeStrategy": "childProcesses",
-      "serverActions": {
-        "bodySizeLimit": "10mb"
-      },
       "turbopackMemoryEvictionMode": "auto",
       "optimizePackageImports": [
         "lucide-react",
@@ -382,12 +378,11 @@
           },
           "loaders": [
             {
-              "loader": "/home/runner/work/renovate/renovate/node_modules/.pnpm/@sentry+nextjs@11.2.0_@babel+core@7.29.7_next@16.3.4_@babel+core@7.29.7_@opentelemetry+api@1._2u7fcdebauvnvp4igfrtf7ez44/node_modules/@sentry/nextjs/build/cjs/config/loaders/valueInjectionLoader.js",
+              "loader": "/home/runner/work/renovate/renovate/node_modules/.pnpm/@sentry+nextjs@11.2.0_@babel+core@7.29.7_next@16.3.8_@babel+core@7.29.7_@opentelemetry+api@1._zsz4663ysirdeiubusamomiupi/node_modules/@sentry/nextjs/build/cjs/config/loaders/valueInjectionLoader.js",
               "options": {
                 "values": {
                   "_sentryRouteManifest": "{\"dynamicRoutes\":[{\"path\":\"/calculator/:id\",\"regex\":\"^/calculator/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/catalog\",\"regex\":\"^/calculator/([^/]+)/catalog$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/furniture\",\"regex\":\"^/calculator/([^/]+)/furniture$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/materials\",\"regex\":\"^/calculator/([^/]+)/materials$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/plan\",\"regex\":\"^/calculator/([^/]+)/plan$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/start\",\"regex\":\"^/calculator/([^/]+)/start$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/calculator/:id/summary\",\"regex\":\"^/calculator/([^/]+)/summary$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/catalog/:slug\",\"regex\":\"^/catalog/([^/]+)$\",\"paramNames\":[\"slug\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id\",\"regex\":\"^/design/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/plan\",\"regex\":\"^/design/([^/]+)/plan$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/start\",\"regex\":\"^/design/([^/]+)/start$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/studio\",\"regex\":\"^/design/([^/]+)/studio$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/style\",\"regex\":\"^/design/([^/]+)/style$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/summary\",\"regex\":\"^/design/([^/]+)/summary$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/technical\",\"regex\":\"^/design/([^/]+)/technical$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/design/:id/workers\",\"regex\":\"^/design/([^/]+)/workers$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/profile/projects/:id\",\"regex\":\"^/profile/projects/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/teams/:slug\",\"regex\":\"^/teams/([^/]+)$\",\"paramNames\":[\"slug\"],\"hasOptionalPrefix\":false},{\"path\":\"/workers/:id\",\"regex\":\"^/workers/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/categories/:id\",\"regex\":\"^/admin/categories/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/categories/rooms/:id\",\"regex\":\"^/admin/categories/rooms/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/orders/:id\",\"regex\":\"^/admin/orders/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/payments/:id\",\"regex\":\"^/admin/payments/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/products/:id\",\"regex\":\"^/admin/products/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/projects/:id\",\"regex\":\"^/admin/projects/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/stores/:id\",\"regex\":\"^/admin/stores/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/teams/:id\",\"regex\":\"^/admin/teams/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/users/:id\",\"regex\":\"^/admin/users/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/admin/workers/:id\",\"regex\":\"^/admin/workers/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/partner/orders/:id\",\"regex\":\"^/partner/orders/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/partner/products/:id\",\"regex\":\"^/partner/products/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false},{\"path\":\"/partner/projects/:id\",\"regex\":\"^/partner/projects/([^/]+)$\",\"paramNames\":[\"id\"],\"hasOptionalPrefix\":false}],\"staticRoutes\":[{\"path\":\"/forgot-password\"},{\"path\":\"/login\"},{\"path\":\"/register\"},{\"path\":\"/register/store\"},{\"path\":\"/register/worker\"},{\"path\":\"/reset-password\"},{\"path\":\"/\"},{\"path\":\"/about\"},{\"path\":\"/calculator\"},{\"path\":\"/catalog\"},{\"path\":\"/contact\"},{\"path\":\"/design\"},{\"path\":\"/privacy\"},{\"path\":\"/profile\"},{\"path\":\"/refund\"},{\"path\":\"/teams\"},{\"path\":\"/terms\"},{\"path\":\"/workers\"},{\"path\":\"/admin\"},{\"path\":\"/admin/categories\"},{\"path\":\"/admin/categories/new\"},{\"path\":\"/admin/categories/rooms\"},{\"path\":\"/admin/categories/rooms/new\"},{\"path\":\"/admin/orders\"},{\"path\":\"/admin/payments\"},{\"path\":\"/admin/products\"},{\"path\":\"/admin/products/new\"},{\"path\":\"/admin/projects\"},{\"path\":\"/admin/rates\"},{\"path\":\"/admin/revenue\"},{\"path\":\"/admin/settings\"},{\"path\":\"/admin/stores\"},{\"path\":\"/admin/stores/new\"},{\"path\":\"/admin/teams\"},{\"path\":\"/admin/teams/new\"},{\"path\":\"/admin/users\"},{\"path\":\"/admin/users/new\"},{\"path\":\"/admin/workers\"},{\"path\":\"/admin/workers/new\"},{\"path\":\"/partner\"},{\"path\":\"/partner/orders\"},{\"path\":\"/partner/products\"},{\"path\":\"/partner/products/new\"},{\"path\":\"/partner/profile\"},{\"path\":\"/partner/projects\"}],\"isrRoutes\":[]}",
-                  "_sentryNextJsVersion": "16.3.4",
-                  "_sentryRewritesTunnelPath": "/monitoring"
+                  "_sentryNextJsVersion": "16.3.8"
                 }
               }
             }
@@ -399,7 +394,7 @@
           },
           "loaders": [
             {
-              "loader": "/home/runner/work/renovate/renovate/node_modules/.pnpm/@sentry+nextjs@11.2.0_@babel+core@7.29.7_next@16.3.4_@babel+core@7.29.7_@opentelemetry+api@1._2u7fcdebauvnvp4igfrtf7ez44/node_modules/@sentry/nextjs/build/cjs/config/loaders/valueInjectionLoader.js",
+              "loader": "/home/runner/work/renovate/renovate/node_modules/.pnpm/@sentry+nextjs@11.2.0_@babel+core@7.29.7_next@16.3.8_@babel+core@7.29.7_@opentelemetry+api@1._zsz4663ysirdeiubusamomiupi/node_modules/@sentry/nextjs/build/cjs/config/loaders/valueInjectionLoader.js",
               "options": {
                 "values": {
                   "__SENTRY_SERVER_MODULES__": {
@@ -408,13 +403,11 @@
                     "@gltf-transform/core": "^4.1.0",
                     "@gltf-transform/extensions": "^4.1.0",
                     "@gltf-transform/functions": "^4.1.0",
-                    "@hookform/resolvers": "^3.9.1",
                     "@radix-ui/react-accordion": "^1.2.2",
                     "@radix-ui/react-dialog": "^1.1.4",
                     "@radix-ui/react-label": "^2.1.1",
                     "@radix-ui/react-select": "^2.1.4",
                     "@radix-ui/react-slot": "^1.1.1",
-                    "@radix-ui/react-tabs": "^1.1.2",
                     "@react-three/drei": "^10.7.8",
                     "@react-three/fiber": "^9.7.0",
                     "@sentry/nextjs": "11.2.0",
@@ -426,15 +419,13 @@
                     "drizzle-orm": "^0.38.3",
                     "lucide-react": "^0.469.0",
                     "meshoptimizer": "^0.22.0",
-                    "mysql2": "^3.11.5",
-                    "nanoid": "^5.0.9",
-                    "next": "16.3.4",
+                    "mysql2": "^3.24.5",
+                    "next": "16.3.8",
                     "next-auth": "5.0.0-beta.32",
-                    "nodemailer": "^10.0.0",
+                    "nodemailer": "^10.0.15",
                     "pdfjs-dist": "4.10.38",
                     "react": "^19.2.8",
                     "react-dom": "^19.2.8",
-                    "react-hook-form": "^7.54.2",
                     "sharp": "^0.35.4",
                     "tailwind-merge": "^2.5.5",
                     "tailwindcss-animate": "^1.0.7",
@@ -455,7 +446,7 @@
                     "drizzle-kit": "^0.30.1",
                     "esbuild": "0.27.7",
                     "eslint": "^9.39.5",
-                    "eslint-config-next": "16.3.4",
+                    "eslint-config-next": "16.3.8",
                     "eslint-plugin-react-hooks": "^7.1.1",
                     "jpeg-js": "^0.4.4",
                     "obj2gltf": "^3.1.6",
@@ -466,8 +457,7 @@
                     "typescript": "^5.7.2",
                     "vitest": "5"
                   },
-                  "_sentryNextJsVersion": "16.3.4",
-                  "_sentryRewritesTunnelPath": "/monitoring"
+                  "_sentryNextJsVersion": "16.3.8"
                 }
               }
             }
@@ -3949,49 +3939,6 @@
     },
     "repoRoot": "/home/runner/work/renovate/renovate",
     "distDirRoot": ".next",
-    "_originalRewrites": {
-      "beforeFiles": [],
-      "afterFiles": [
-        {
-          "source": "/monitoring(/?)",
-          "has": [
-            {
-              "type": "query",
-              "key": "o",
-              "value": "(?<orgid>\\d*)"
-            },
-            {
-              "type": "query",
-              "key": "p",
-              "value": "(?<projectid>\\d*)"
-            },
-            {
-              "type": "query",
-              "key": "r",
-              "value": "(?<region>[a-z]{2})"
-            }
-          ],
-          "destination": "https://o:orgid.ingest.:region.sentry.io/api/:projectid/envelope/?hsts=0"
-        },
-        {
-          "source": "/monitoring(/?)",
-          "has": [
-            {
-              "type": "query",
-              "key": "o",
-              "value": "(?<orgid>\\d*)"
-            },
-            {
-              "type": "query",
-              "key": "p",
-              "value": "(?<projectid>\\d*)"
-            }
-          ],
-          "destination": "https://o:orgid.ingest.sentry.io/api/:projectid/envelope/?hsts=0"
-        }
-      ],
-      "fallback": []
-    },
     "_originalRedirects": [
       {
         "source": "/textures/:name([^/]+)\\.jpg",

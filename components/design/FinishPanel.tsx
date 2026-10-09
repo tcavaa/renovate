@@ -8,7 +8,7 @@
  * room's own area does the arithmetic.
  */
 
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { Check, ChevronRight } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';

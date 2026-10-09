@@ -21,7 +21,8 @@ export const dynamic = 'force-dynamic';
  * form opens with (docs/payments.md). What is charged is the server's: a half's fee off the
  * saved row (the dialogue saved it first) at today's rate, or the own item's price — and the
  * bank's commission on top. Nothing to pay answers so instead of a token: a half already paid
- * (`paid`), an own item that is free or already paid for (`free`, `credit`).
+ * (`paid`), a half or an own item that is free (`free` — admin's rate or price is 0), an own
+ * item already paid for (`credit`).
  */
 export const POST = handle('POST /api/payments/flitt', 'Failed to start the payment', async (req) => {
   const limited = rateLimited(req, RATE_RULES.payment);
@@ -58,7 +59,10 @@ export const POST = handle('POST /api/payments/flitt', 'Failed to start the paym
     const paid = await halfPayment(project.id, body.purpose);
     if (paid) return ok({ paid });
     const quote = await paymentQuote(project, body.purpose);
-    if (quote.totalM2 <= 0 || quote.amount <= 0) return fail(API_ERRORS.NOTHING_TO_PAY, 400);
+    // No rooms yet: nothing to charge for, and the half has nothing to start on.
+    if (quote.totalM2 <= 0) return fail(API_ERRORS.NOTHING_TO_PAY, 400);
+    // Admin set the half's rate to 0: it is free, and the dialogue goes on without a form.
+    if (quote.amount <= 0) return ok({ free: true });
     const started = await startCardPayment({
       userId,
       email: session.user.email,

@@ -60,7 +60,8 @@ action anywhere can write one project's work over another's.**
 - **The server layout checks the owner** (`app/(main)/<journey>/[id]/layout.tsx` →
   `loadProjectForSteps` in `lib/projects/loadForSteps.ts`): a non-numeric id goes to the hub,
   nobody signed in goes to `/login?callbackUrl=…`, somebody else's project or one that is gone is
-  a 404. The calculator journey never receives the design's versions (they can be megabytes).
+  a 404. Neither journey receives the design's kept versions (megabytes at scale): the studio
+  fetches them on its own ([§10, the kept versions](#the-kept-versions)).
 - **Old URLs.** A step URL from before projects (`/calculator/plan`, `/design/studio`) is sent to
   the hub by the proxy with a real 307. `/calculator/<id>/placement` (the step that went into the
   catalogue — [calculator.md](calculator.md#the-six-steps)) is sent to `/calculator/<id>/catalog`.
@@ -81,8 +82,7 @@ furniture they uploaded, as on the profile; `hubView` reads the parameter) — a
 product and
 the list as a breadcrumb title ("გამომთვლელი › ჩემი პროექტები"). The projects view, from the top:
 
-1. `LegacyWorkNotice` — old work from before projects, offered to be kept (§16).
-2. **The ways to start**, a row of round buttons (`HubTiles`, client): **"ახალი პროექტის
+1. **The ways to start**, a row of round buttons (`HubTiles`, client): **"ახალი პროექტის
    შექმნა"** asks for a name, creates the row and opens step 1, which offers the upload and the
    blank sheet itself (no `?way=`; step 1 still honours one, and only on a project with no
    drawing yet); **"from a 3D design" / "from a calculation"** lists the person's projects that
@@ -157,11 +157,10 @@ none for it, the project page shows a note instead of its sheet, the hubs and th
 "not calculated / generated yet", and the checkout, the order button and a brigade booking
 leave it out.
 
-**Progress from before this was recorded** is read by `calculatorProgress` / `designProgress`: a
-saved or ordered project was finished; a draft counts as calculated only when products were
-picked, and as generated only when furnished. **Calculator progress recorded before 26
-September 2026 is in seven steps** (it had a placement step): it has no `steps: 6`, and
-`calculatorProgress` maps it with `fromSevenSteps` ([calculator.md](calculator.md#the-six-steps)).
+**A half without recorded progress has not been worked out** (`calculatorProgress` /
+`designProgress`: step 1, not calculated / generated). Every save records it and a new row starts
+with it. Rows from before progress was recorded, and the seven-step numbering, are no longer
+read — the app keeps no compatibility with older versions while it holds no real data.
 
 ## 7. Opening a project (`ProjectGate`)
 
@@ -169,8 +168,7 @@ The server layout hands the owner's row (`savedProjectInput`, `lib/projects/save
 `ProjectGate` (client; nothing under it renders until it is done):
 
 1. **`claimBrowser(userId)`** (`lib/flow/owner.ts`): another account's caches are wiped
-   (`forgetAllProjects`, the legacy keys too — a previous owner of `'guest'` keeps them); then
-   the old keys are migrated (§16; it runs on every claim and is idempotent).
+   (`forgetAllProjects`).
    `releaseBrowser()` — signing out — forgets nothing. `components/providers/StoreOwnerGuard.tsx`
    (mounted in the root layout) claims or releases the browser on every session change.
 2. **`openProjectStores(journey, project)`** (`lib/flow/openProject.ts`):
@@ -196,28 +194,20 @@ every page — the calculator's step, the design's step with `?tool=finishes` as
 
 - **From the cache** when the calculation is this project's own (`calculatorStarted`, or this
   browser has unsaved changes to it), the cache is current (`cacheIsCurrent`, §9) and both the
-  calculator store and the board store carry this project's id. The picks are normalised
-  (below) and, if that changed anything, the half is marked dirty.
+  calculator store and the board store carry this project's id.
 - **Otherwise from the row**:
   - `openSavedProject` with the rooms, home state, picks, edits and progress;
-  - the board from `calculatorBoard`. If the row has no board but this browser has a drawing
-    of the same rooms (a calculation from before the board was saved), that drawing is kept
-    and marked to be written (the *rescue*). Otherwise the design's plan is used if it has
-    rooms, or the plan step rebuilds rectangles from the rooms;
+  - the board from `calculatorBoard`; with none, the design's plan if it has rooms, or the
+    plan step draws the rooms;
   - a project designed first: the plan's rooms, the studio's products as picks
-    (`picksFromScene`, per room), the home state only for a renovation with rooms (it then
+    (`picksFromScene`, per room, each room's floor and walls counted from the room —
+    `withRoomFinishQuantities`), the home state only for a renovation with rooms (it then
     opens calculated, on step 3), otherwise step 1. Opening it writes nothing;
-  - `baseRev` = the row's revision, the sync line clean. The picks are then normalised and
-    written back once when they came from before (the calculation's own only).
-- **Normalising the picks** (`normalizeFinishPicks`): rooms saved before they carried their
-  walls read them off the board (`withBoardWalls` — worked out, so not marked unsaved), then
-  `migrateFinishPicks` (old cart and whole-flat finishes onto the rooms, §13), then
-  `withRoomFinishQuantities` (every room's floor and walls put in shape and counted from the
-  room — see [calculator.md](calculator.md#step-4-every-rooms-floor-and-walls-libcalculatorroomfinishests)).
+  - `baseRev` = the row's revision, the sync line clean.
 
 **`loadDesignHalf(project)`** — from the cache under the same rule (dirty, or `baseRev` at
 `designRev`, and the store's `projectId` is this one), else `openSaved(row)` (plan, scene,
-versions, progress: `at`, `modeChosen ?? true`, `emptyStart ?? false`) and `baseRev` =
+progress: `at`, `modeChosen ?? true`, `emptyStart ?? false`; the versions come later) and `baseRev` =
 `designRev`. A design carried in from the calculation gets its `calculatorPicks` read off the
 calculation again on either path — they are cached in the browser's design store but never
 saved to the row, and the calculation may have changed since the copy was made.
@@ -230,16 +220,20 @@ project id**, persisted to its own localStorage key — `renovate-calculator:<id
 `renovate-calculator-plan:<id>`, `renovate-design:<id>`.
 
 - The hooks and `getState()` reach the **open** project's (`useActiveProject`, set by the
-  gate). `.for(id)` addresses one by id; `peek`, `drop`, `storageKey(id)`, `cachedIds()`.
+  gate). `.for(id)` addresses one by id; `drop`, `storageKey(id)`.
 - **Anything that can run late addresses by id**: the save helpers capture the store instances
   before they queue, the loaders and the autosave use `.for(id)`. So a save finishing after the
   person moved to another project writes into the right one.
 - Outside a project (the hubs, the profile, tests) the hooks reach an in-memory store that
   nothing persists.
 - Persisted with each store's content: `projectId`, `baseRev`, `pendingSaveId`, `at`; the
-  calculator's `step` (the calculator store is at persist version 4 — the seven-to-six migration,
-  [calculator.md](calculator.md)); the design and board stores (version 2) also keep `step`,
-  `generated`, `planFromCalculator`, `calculatorPicks` and `pendingPicks`.
+  calculator's `step` (persist version 4); the design and board stores (version 3) also keep
+  `step`, `generated`, `planFromCalculator`, `calculatorPicks` and `pendingPicks` — not the kept
+  versions.
+- **A copy of another version, or one that does not read as one, is discarded** (`migrate`
+  returns the initial state; `merge` checks the copy against the store's schema) and the project
+  opens from its row. No older app version's copy is translated — the app holds no real data yet;
+  the step-map migrations (the calculator's seven-to-six, the studio's version 1) are gone.
 
 **Two boards.** The design store is a factory over its storage key, so every project has two
 instances of it: `useDesignStore` (the studio) and `useCalculatorPlanStore` (the calculator's
@@ -266,11 +260,21 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
   version kept it in the line, which every tab shares: one tab's save lent its revision to
   another tab's older copy, which then passed the server's check and wrote over newer work.
 
+**Written once per burst.** The stores persist through `debouncedStorage()`
+(`lib/flow/storage.ts`): writes gather for `PERSIST_DELAY_MS` (400 ms) and go out as one,
+serialised then; a read sees a write still waiting; `pagehide` and a hidden tab flush them, and
+removing a cache (`safeLocalStorage.removeItem`, a store's `drop`) cancels its waiting write.
+`createJSONStorage` serialised the whole persisted document — kept versions included — on every
+`set`, a selection or a save status too: about 8 ms at 50 items with twelve versions, 45 ms at
+600, on the main thread, per click. The unsaved mark (`markDirty`) is still written at once.
+
 **Keeping the cache small.**
 
 - `safeLocalStorage` evicts the clean caches used longest ago when a write hits the quota. It
   never evicts a dirty one, nor the project being written. If the write still does not fit,
-  it drops the stale key rather than leave an older copy under a key that claims to be current.
+  it drops the stale key rather than leave an older copy under a key that claims to be current,
+  and puts `no-local-copy` on the project's banner ("no copy is kept in this browser — keep the
+  tab open until it says saved"; a write that fits again takes it off). It used to go silently.
 - `pruneCaches(openId, knownIds?)`: the gate calls it with the open project only, which trims
   the clean caches beyond the four used last (never the open one or a dirty one);
   `HubCachePrune` passes the hub's full list, which also drops the caches of projects that are
@@ -285,8 +289,13 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 
 `CalculatorAutosave` and `DesignAutosave` are mounted inside the gate with the project id.
 
-- **What it watches.** The signature is the whole payload: the calculator's board and picks,
-  ticks, quantities, the design's version names, step 1's answers, `at`.
+- **What it watches.** The signature is the whole payload: the store fields each save sends,
+  named once in `lib/flow/autosaveSignature.ts` (`CALCULATOR_SAVED` + `BOARD_SAVED`,
+  `DESIGN_SAVED`) and picked with `useShallow` — the calculator's board (its fittings too) and
+  picks, ticks, quantities, the design's scene and versions (by id and name), step 1's answers,
+  `at`. `tests/unit/flow/autosaveSignature.test.ts` runs both saves and fails on a field sent
+  but not watched: the board's sockets (`board.electrical`) were sent and not watched, so a
+  socket placed on the calculator's board was saved only if something else changed after it.
 - **When it writes.** 2.5 s after the last change, one write at a time, never the same
   signature twice. A signature that returns to the last saved one marks the half clean.
 - **Dirty first.** The half is marked dirty as soon as the signature changes, before the
@@ -298,6 +307,12 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
   `drop` listener) and the half is not dirty. Re-derivation on the way in is therefore not
   written back. An edit in the first seconds is, and so is a calculation carried into 3D (it
   marks itself dirty).
+- **Signed out.** A session that ran out while there is work to write puts `signed-out` on the
+  banner (it used to wait in silence), and so does a save answered 401; the banner opens the
+  sign-in in a new tab — this tab holds the work — and retries.
+- **Another tab.** Two tabs on one project share the half's line. A save in the other tab marking
+  it clean is put back to dirty by this tab's `storage` listener while this tab still has work
+  waiting or on its way — otherwise a reload here took the server's copy over it.
 - **Stops.** Nothing is saved for a project that is gone. Autosaves have their own rate bucket
   (`RATE_RULES.autosave`, 400 an hour).
 
@@ -305,6 +320,23 @@ design's plan — the plan alone, none of its furniture or finishes — on the b
 
 **Sending.**
 - `enqueueSave` sends one save at a time per half.
+- **The design's kept versions go only when they changed** since the last save the server
+  confirmed (`saveDesign`, a `WeakMap` per store), and never before they arrived — the route
+  keeps the row's when a save names none. They are megabytes at scale (0.7 MB with ten items and
+  twelve versions, 6.4 MB at 600 items) and went with every autosave.
+
+### The kept versions
+
+The design's versions travel on their own: not in the step page's payload (`loadProjectForSteps`
+leaves them out), not in the browser's copy (`partialize` leaves them out), and the studio fetches
+them when it opens (`loadDesignVersions` → `GET /api/projects/[id]/versions`, one request at a
+time per project). Until they arrive the store says so (`versionsLoaded` false): the version
+actions do nothing (`saveVersion` returns `''`), `ensureExistingVersion` waits for them (it would
+otherwise take a second baseline), and a save never sends the empty placeholder over the saved
+ones. Generation, a new plan and the empty start make the list new (`versionsLoaded` true, none
+to wait for). The autosave watches `versionsSerial`, which only a person's change bumps, so the
+versions arriving is not an edit to write back. A version kept and not yet saved when the page is
+reloaded offline is lost (the browser keeps no copy of them).
 - Each save carries `baseRev` (the store's), a fresh `saveId` (`newSaveId`), and `prevSaveId`
   (the store's `pendingSaveId`: a save sent whose answer has not arrived) and `force`.
 - The calculator sends its board: the plan (its doors, windows and technical points, each a
@@ -376,8 +408,8 @@ first too.
   [auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)). The
   profile's layout sets no width: the profile is full width, a project's page
   (`/profile/projects/[id]`) its own column.
-- `GET /api/projects`, `GET /api/projects/[id]` and `GET /api/design/projects` read projects
-  back (the caller's own).
+- `GET /api/projects` (the five fields the booking dialogue lists) and `GET /api/projects/[id]`
+  read projects back (the caller's own).
 
 ### The project page (`components/projects/ProjectDetail.tsx`, `FoldSection.tsx`)
 
@@ -469,8 +501,7 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 
 Moved to [calculator.md](calculator.md#the-six-steps): the steps and their paths, steps 1–2,
 step 4's floor and wall for every room (`lib/calculator/roomFinishes.ts`), per-room quantities
-on both sides, where the finishes go, old picks moved onto the rooms, and the seven steps
-before the six (`fromSevenSteps`).
+on both sides, and where the finishes go.
 
 ## 14. The design's ways in (step 1)
 
@@ -553,33 +584,15 @@ A project with both halves: the calculator's summary reads the design as it was 
 calculator was opened (the row's snapshot); two tabs do not update each other live — the second
 to save gets the conflict banner.
 
-## 16. Old work from before projects (`lib/flow/legacy.ts`)
-
-Until September 2026 the calculator and the studio kept one journey each in fixed keys — the
-person's own (`renovate-calculator`, `renovate-calculator-plan`, `renovate-design`) and a project
-opened from the profile (`renovate-project-…`) — and a journey could exist without a row.
-`migrateLegacyCaches` (run by `claimBrowser`) deals with them once:
-
-- **A journey that belonged to a project** was autosaved into its row, so the row is the copy
-  that opens and the old one is let go — an old copy cannot be ordered against the row (every row
-  started at revision 0), and taking one as current could write it over newer work. The one thing
-  the row never had is the calculator's **drawing board**: that alone moves into
-  `renovate-calculator-plan:<id>`, where the loader keeps it (and writes it) when the row has no
-  board and it is a drawing of the same rooms.
-- **A journey with no project** is offered on its hub (`LegacyWorkNotice`): *keep it* makes the
-  row first (`adoptLegacyWork`), moves the work in at revision 0 marked dirty, and removes the old
-  keys only once the copy is written (`keep-failed` otherwise, the old work untouched); *let it
-  go* (`discardLegacyWork`).
-- The old per-tab workspace switch (`sessionStorage 'renovate-workspace'`) is removed.
-
-## 17. Tests, and checking by hand
+## 16. Tests, and checking by hand
 
 - **Unit** (`tests/unit/flow/`): `resume`, `projectSync` (lines, pruning, quota),
-  `openProject` (cache vs row, rescue, design-first, handoff, old picks moved), `legacy`,
-  `saveHelpers` (base revision, save ids, clean-after-save).
+  `openProject` (cache vs row, design-first, handoff), `owner`,
+  `saveHelpers` (base revision, save ids, clean-after-save, the kept versions),
+  `autosaveSignature`.
 - **Calculator** (`tests/unit/calculator/roomFinishes.test.ts`, `tests/unit/store/calculatorStore.test.ts`):
-  per-room picks, quantities, groups, the migration of old picks, the board's finishes, the
-  seven-to-six step migration, re-counting on room changes.
+  per-room picks, quantities, groups, the migration of old picks, the board's finishes, a copy
+  of another version discarded, re-counting on room changes.
 - **Handoff** (`tests/unit/design/fromCalculator.test.ts`): a room's finish lands on its surface
   only.
 - **Rows** (`tests/unit/projects/saved.test.ts`): `projectKind`, `calculatorProgress` (seven-step
@@ -606,7 +619,7 @@ the repository), and remove `.next-build` afterwards; never build over :3000):
 - *The handoff*: calculate, "see it in 3D" (style step, `planFromCalculator`), generate, then
   "see it in 3D" again from the summary — the studio, with the same furniture and versions.
 
-## 18. Pitfalls already paid for
+## 17. Pitfalls already paid for
 
 Each of these was a real bug found in review or by hand; don't undo the fix.
 
@@ -616,8 +629,7 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
    retry was a "conflict" with the person's own work.
 3. **Forced saves still need `WHERE rev =`**, and the answer's revision is `read + 1`, not a
    re-read — two racing saves otherwise interleave, or report somebody else's revision.
-4. **Old browser copies are not current**, even when they look it: every row started at
-   revision 0. Only the calculator's drawing, which the row never had, is carried over.
+4. **A browser copy that names no revision is not current**, even when it looks it.
 5. **A hub restored by Back has an old list**: pruning must never drop an id newer than the
    newest listed, or a project just made loses its unsaved work.
 6. **Mark dirty before checking the session**, or an edit made while the session reads as
@@ -633,16 +645,15 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
 11. **A project designed first, opened in the calculator, writes nothing** — and counts as a
     renovation only when it has rooms.
 12. **A project that is gone stops saving** (`gone`), rather than retrying for ever.
-13. **Adoption keeps the old work until the new copy is written.**
-14. **The design's `?way=` applies only to a project with no drawing** — or a link carrying one
+13. **The design's `?way=` applies only to a project with no drawing** — or a link carrying one
     could wipe a drawing (the hub sends none now; step 1 still reads it).
-15. **Start over was removed** (§12) — it emptied worked-out halves; don't bring it back without
+14. **Start over was removed** (§12) — it emptied worked-out halves; don't bring it back without
     the user asking.
-16. **Quantities are computed by one function on both sides** (`roomFinishQuantity`) — the
+15. **Quantities are computed by one function on both sides** (`roomFinishQuantity`) — the
     server's old per-room rule (integer m², no waste on wall tiles, 0.16 L/m² of paint) disagreed
     with what the page showed.
 
-## 19. Known gaps
+## 18. Known gaps
 
 - Two tabs on one project do not update each other live; the second to save gets the conflict
   banner. The calculator's summary reads the design as it was when the calculator was opened.

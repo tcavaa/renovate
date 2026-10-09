@@ -10,7 +10,7 @@
  */
 
 import { useState } from 'react';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { AppWindow, Check, ChevronUp, DoorOpen, Fence, Lock, LockOpen, Sparkles, Trash2 } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';

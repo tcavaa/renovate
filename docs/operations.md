@@ -83,7 +83,14 @@ Everything the app needs to run unattended, and where each piece lives.
   memory cap kills `pnpm install` (a worker pool of V8 instances) and `next build`, so the
   `cPanel build` GitHub Actions workflow builds on Linux after CI passes on `main` and
   publishes `main`'s tree plus `.next/standalone` (marker `.next/standalone/.prebuilt`) as
-  one new commit on `cpanel`, every time — pulls always fast-forward. The script sees the
+  one new commit on `cpanel`, every time — pulls always fast-forward. **The repository is
+  public**, so the workflow builds only CI runs started by a *push* to this repository's
+  `main` (a fork's pull request also completes CI, and `branches: [main]` alone matches a
+  fork's branch named main), keeps the token out of `.git/config` until the publish step,
+  and pins every action (here, in `ci.yml` and `deploy.yml`) to a commit SHA; `ci.yml` runs
+  with a read-only token. A manual run (`workflow_dispatch`) runs CI's checks first (`checks`,
+  `uses: ./.github/workflows/ci.yml`) — it publishes `main` as it is now, which no CI run may
+  have checked. The script sees the
   marker and runs in **release mode**: copy `public/`, link uploads (the repo's seed images
   copied over the shared folder, so a re-rendered product photo replaces the old one; uploads
   made through the app carry a timestamp prefix and are never touched), `node
@@ -154,7 +161,7 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
   error from the browser's handler, so it sends it itself — and `app/global-error.tsx`, an
   error in the root layout, rendered as Next's own error page because no dictionary is left),
   navigation traces, and a Replay of the minute before an error (everything masked; the 3D
-  canvas and Flitt's iframe are never recorded). On the server: `onRequestError` in
+  canvas and Flitt's card form are never recorded). On the server: `onRequestError` in
   `instrumentation.ts` sends what a page, layout, server action or the proxy did not catch. API
   routes catch their own exceptions in `handle()` and only log them, so **the server's log is
   forwarded whole**: `sentry.server.config.ts` sets `lib/log.ts`'s sink, every line goes to
@@ -169,12 +176,28 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
 - **Environment and sampling.** `environment` is `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, else
   `NODE_ENV` (`development` locally, `production` on cPanel and the VPS). Errors are never sampled; traces are, at 1 in 5 in production (a studio visit is
   about a hundred spans, one per model and texture) and all of them elsewhere. Unit tests
-  (`NODE_ENV=test`) never send. `sendDefaultPii` is off: no IPs, cookies or bodies.
+  (`NODE_ENV=test`) never send.
+- **No personal data leaves for Sentry.** SDK 11 dropped `sendDefaultPii` (setting it did
+  nothing) and collects by default IPs, cookies, every header, request and response bodies,
+  query strings, bound SQL parameters and stack locals. `lib/sentry.ts` therefore sets an
+  explicit `dataCollection` with all of those off (only `user-agent`, `content-type` and
+  `accept-language` request headers kept), typed with `satisfies` so a key the SDK no longer
+  knows fails type-check. The server's log sink passes the context through `scrubContext`
+  first: a personal or secret key's value (`to`, `text`, `email`, `phone`, `address`, `ip`,
+  `password`, `token`, …) is replaced, and e-mail addresses and link tokens (`?token=…`) are
+  taken out of every other string; `beforeSend` / `beforeSendLog` do the same to messages,
+  exceptions and URLs. The local log file keeps the line whole — with `MAIL_DRIVER=log` it is
+  where a reset link is read from, and a production server with that driver warns at start.
+  Replay records Flitt's card form (a script in our page, not an iframe) as an empty box:
+  its element carries `data-sentry-block`.
 - **The CSP needs nothing.** The browser sends to `/monitoring` on the app's own origin
-  (`tunnelRoute`), which Next rewrites to Sentry's ingest host — ad blockers let it through too.
-  The path is fixed, not random per build, so `proxy.ts`'s matcher keeps missing it. A DSN that
-  is not a `*.ingest.sentry.io` one (a self-hosted Sentry, a local fake) skips the tunnel, and
-  the CSP then blocks the browser's events.
+  (`tunnel` in `instrumentation-client.ts`) — ad blockers let it through too.
+  `app/monitoring/route.ts` forwards an envelope only when its header names our own DSN, to our
+  project's ingest URL, as the body alone (no cookies, no headers), capped at 2 MB and rate
+  limited per address (300 per 10 minutes — a replay goes on sending segments after an error).
+  It replaced `withSentryConfig`'s `tunnelRoute`, a rewrite that relayed to any Sentry project
+  named in its query and passed the session cookie on. `proxy.ts`'s matcher does not cover the
+  path.
 - **The DSN is baked in at build time** (`NEXT_PUBLIC_`), so it is set where `pnpm build` runs:
   the repository variable `NEXT_PUBLIC_SENTRY_DSN` for the cPanel build
   (`.github/workflows/cpanel.yml`) and the VPS's `.env.local` (the build there reads it). On
@@ -188,10 +211,10 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
   (`SENTRY_RELEASE`); elsewhere the SDK finds the commit itself.
 - **Server request sessions are off** (`httpIntegration({ sessions: false })` in
   `sentry.server.config.ts`, beside the `disableIncomingRequestSpans` the Next SDK sets
-  itself). Each `/monitoring` call is a response Next's proxy pipes the ingest's answer into,
-  and with the session's `close` listener it carried eleven: Node printed a
-  `MaxListenersExceededWarning` (a false "possible leak" — the listeners die with the response)
-  for every event the browser sent. The tunnel's calls were also counted as sessions.
+  itself). When the tunnel was a rewrite, each `/monitoring` call was a response Next's proxy
+  piped the ingest's answer into, and with the session's `close` listener it carried eleven:
+  Node printed a `MaxListenersExceededWarning` for every event the browser sent; the tunnel's
+  calls were also counted as sessions. Sessions stay off.
 - **`Experiments: clientTraceMetadata`** in `pnpm dev`'s banner is Sentry's: it puts the trace
   ids in the page's `<meta>` tags so the browser's trace continues the server's.
 - **`withSentryConfig` comes from `@sentry/nextjs/config`** since SDK v11 — the package root
@@ -238,3 +261,28 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
   (not through `env`), and a few other places do too (`lib/design/aiPlan.ts` for
   `ANTHROPIC_API_KEY`, the health route for `APP_VERSION`, `lib/auth/social.ts`,
   `app/layout.tsx`, and `lib/sentry.ts`, which the browser runs too).
+
+## Rate limits and the client address
+
+`lib/api/rateLimit.ts` keys every limit on `clientIp(req)`: the **last** `X-Forwarded-For`
+entry, else `X-Real-IP`. A proxy appends the address it saw to that header, so only the last
+entry comes from a proxy we run; the ones before it are whatever the client sent. (The first
+entry was read once, and a script sending a new invented address each time was never limited.)
+
+- **VPS:** nginx appends (`$proxy_add_x_forwarded_for`, `deploy/nginx.conf`), so the last entry
+  is the real client.
+- **cPanel (production): not yet confirmed.** If Apache/Passenger appends the client's address,
+  the limits work; if it passes the client's own header through untouched, the last entry is
+  still the client's to choose; if it sends none, Next fills in the socket's address and every
+  visitor shares one bucket. To check, from any machine (it spends one login bucket for 15
+  minutes and fails eleven sign-ins for an address that has no account):
+
+  ```bash
+  for i in $(seq 1 11); do curl -s -o /dev/null -w "%{http_code} " -H "X-Forwarded-For: 10.9.8.$i" -X POST https://renovate.rretrocar.ge/api/auth/callback/credentials -d "email=nobody-$i@example.invalid&password=x"; done
+  ```
+
+  Then sign in normally from another network. If the eleventh request was refused, Passenger
+  appends and the limit holds. If none was refused, the forged header wins: ask the host what
+  Passenger forwards (or put the site behind a proxy that sets `X-Real-IP`). If an ordinary
+  sign-in from another network is refused too, everyone shares one bucket.
+

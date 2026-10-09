@@ -25,8 +25,6 @@ import type { PlanRoom, SceneProduct, SurfaceFinish, Vec2 } from './types';
 /** The side of a painted floor tile and the width of a painted wall strip, metres. */
 export const PAINT_CELL_M = 1;
 export const PAINT_STRIP_M = 1;
-/** The side of a painted wall patch — a square metre of wall rather than a whole strip. */
-export const PAINT_PATCH_M = 1;
 /** A sliver narrower than this at the end of a wall joins the strip before it. */
 const MIN_STRIP_M = 0.25;
 

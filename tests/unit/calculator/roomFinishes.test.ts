@@ -1,28 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { cartKey, categorySlugFromKey, finishPickQuantity, isCartKey, partFromKey, roomFinishQuantity, roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, surfaceOfPick } from '@/lib/calculator/quantities';
-import {
-  boardFinishesFromPicks,
-  catalogProductFromPick,
-  finishGroup,
-  migrateFinishPicks,
-  normalizeRoomFinishes,
-  roomFinishEntry,
-  roomFinishesOf,
-  roomsLike,
-  surfaceOfCategory,
-  usualFinishCategory,
-  withFloorProduct,
-  withFloorShare,
-  withRoomFinish,
-  withRoomFinishQuantities,
-  withSameFinish,
-  withWallProduct,
-  withWallsOneByOne,
-} from '@/lib/calculator/roomFinishes';
+import { categorySlugFromKey, finishPickQuantity, partFromKey, roomFinishQuantity, roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, surfaceOfPick } from '@/lib/calculator/quantities';
+import { boardFinishesFromPicks, catalogProductFromPick, finishGroup, normalizeRoomFinishes, roomFinishEntry, roomFinishesOf, roomsLike, surfaceOfCategory, usualFinishCategory, withFloorProduct, withFloorShare, withRoomFinish, withRoomFinishQuantities, withSameFinish, withWallProduct, withWallsOneByOne } from '@/lib/calculator/roomFinishes';
 import { computeRoomAreas } from '@/lib/calculator/materials';
 import { rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
 import type { Room, RoomType, SelectedProduct } from '@/lib/calculator/types';
-import type { FloorPlan, SurfaceFinish } from '@/lib/design/types';
+import type { FloorPlan } from '@/lib/design/types';
 
 /**
  * A floor and a wall for every room (`lib/calculator/roomFinishes`): the calculator's catalogue
@@ -53,14 +35,6 @@ const wallTile = product({ productId: 11, nameKa: 'კედლის ფილ�
 const paint = product({ productId: 12, nameKa: 'საღებავი', categorySlug: 'paint', unit: 'liter', pricePerUnit: 30, coveragePerUnit: 10 });
 
 describe('keys and quantities', () => {
-  it('still reads a key from the cart, which is how a project from before is recognised', () => {
-    expect(cartKey('laminate', 7)).toBe('laminate_item:7');
-    expect(isCartKey('laminate_item:7')).toBe(true);
-    expect(isCartKey('laminate_room:r1')).toBe(false);
-    expect(categorySlugFromKey('laminate_item:7')).toBe('laminate');
-    expect(roomIdFromKey('laminate_room:r1')).toBe('r1');
-    expect(roomIdFromKey('laminate_item:7')).toBeNull();
-  });
 
   it('keys a second floor product and a product chosen wall by wall apart from the room’s own, and reads them back', () => {
     expect(selectionKey('paint', 'r1', 'walls12')).toBe('paint_room:r1/walls12');
@@ -305,44 +279,6 @@ describe('a room’s finishes put back in shape — by the store after an edit a
     const picks = withWallProduct(withFloorProduct(withFloorProduct({}, rooms, 'bed', 0, product()), rooms, 'bed', 1, tile), rooms, 'bed', 2, wallTile);
     expect(normalizeRoomFinishes(picks, rooms)).toBe(picks);
     expect(withRoomFinishQuantities(picks, rooms)).toBe(picks);
-  });
-});
-
-describe('picks from before every room took its own', () => {
-  const laidOn = (roomId: string, surface: 'floor' | 'wall', productId: number, extra: Partial<SurfaceFinish> = {}): SurfaceFinish => ({
-    roomId,
-    surface,
-    colorHex: '#fff',
-    textureUrl: null,
-    textureScaleM: 1,
-    product: { productId, nameKa: 'x', slug: 'x', brand: null, pricePerUnit: 40, unit: 'm2', qty: 1, totalPrice: 40, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: 'laminate', store: null },
-    ...extra,
-  });
-
-  it('moves a material laid by hand onto the rooms whose floor it covered, and lets one laid nowhere go', () => {
-    const picks = { 'laminate_item:7': { ...product(), surface: 'floor' as const, qty: 30 }, 'paint_item:12': { ...paint, surface: 'wall' as const } };
-    const board = [laidOn('bed', 'floor', 7), laidOn('liv', 'floor', 7), laidOn('kit', 'floor', 7, { cells: [[0, 0]] })];
-    const moved = withRoomFinishQuantities(migrateFinishPicks(picks, rooms, board), rooms);
-    // The kitchen had a tile of it, not its floor: that says nothing about the room.
-    expect(Object.keys(moved).sort()).toEqual(['laminate_room:bed', 'laminate_room:liv']);
-    expect(moved['laminate_room:liv']).toMatchObject({ surface: 'floor', qty: 22 });
-  });
-
-  it('spreads a finish chosen for the whole flat over the rooms its kind of work suits, never over a room’s own', () => {
-    const picks = {
-      laminate_global: product(),
-      'floor-tiles_global': tile,
-      'wall-tiles_global': wallTile,
-      'paint_room:liv': { ...paint, roomId: 'liv', surface: 'wall' as const },
-      doors_global: product({ productId: 3, categorySlug: 'doors' }),
-    };
-    const moved = migrateFinishPicks(picks, rooms, []);
-    expect(Object.keys(moved).sort()).toEqual(['doors_global', 'floor-tiles_room:bath', 'floor-tiles_room:kit', 'laminate_room:bed', 'laminate_room:liv', 'paint_room:liv', 'wall-tiles_room:bath']);
-  });
-
-  it('is the same object when there is nothing from before', () => {
-    const picks = withRoomFinish({}, rooms, ['bed'], 'floor', product());
-    expect(migrateFinishPicks(picks, rooms, [])).toBe(picks);
   });
 });
 

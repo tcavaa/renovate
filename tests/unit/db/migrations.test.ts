@@ -80,3 +80,27 @@ describe('migrations run on MySQL and MariaDB alike', () => {
     expect(mysqlOnly(readFileSync(path.join(DIR, file), 'utf8'))).toEqual([]);
   });
 });
+
+/**
+ * A nullable `timestamp` written bare (drizzle-kit's `timestamp,`) is NOT NULL DEFAULT
+ * '0000-00-00 00:00:00' on a MariaDB before 10.10 (explicit_defaults_for_timestamp off) — the
+ * table's first one auto-updating as well — so "not yet" is never NULL there. Checked on
+ * MariaDB 10.6: a fresh reset token counted as used and a paid credit as spent until 0026
+ * repaired the columns. From 0026 on, every timestamp column says NULL or NOT NULL itself.
+ */
+const BARE_TIMESTAMP = /`\w+`\s+timestamp(?!\s*(?:\(\d\))?\s*(?:NULL|NOT\s+NULL))\s*(?:,|;|\)|$)/im;
+const REPAIRED_UP_TO = 26;
+
+describe('timestamps say whether they may be NULL', () => {
+  it('finds a bare one', () => {
+    expect(BARE_TIMESTAMP.test('ALTER TABLE `users` ADD `seen_at` timestamp;')).toBe(true);
+    expect(BARE_TIMESTAMP.test('\t`paid_at` timestamp,\n')).toBe(true);
+    expect(BARE_TIMESTAMP.test('ALTER TABLE `users` ADD `seen_at` timestamp NULL DEFAULT NULL;')).toBe(false);
+    expect(BARE_TIMESTAMP.test('\t`created_at` timestamp NOT NULL DEFAULT (now()),')).toBe(false);
+  });
+
+  it.each(FILES.filter((file) => Number(file.slice(0, 4)) > REPAIRED_UP_TO))('%s', (file) => {
+    // drizzle-kit writes `timestamp` for a nullable column: make it `timestamp NULL DEFAULT NULL` by hand.
+    expect(BARE_TIMESTAMP.test(code(readFileSync(path.join(DIR, file), 'utf8')))).toBe(false);
+  });
+});

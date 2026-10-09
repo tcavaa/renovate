@@ -19,7 +19,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `components/design/Viewer3D.tsx` | the R3F canvas (client-only, `dynamic(…, { ssr: false })`): camera and orbit, the doll's-house cutaway, picking and dragging, carry, hover, the `ViewerApi` handed to the page (`floorPointAt`, `dropCarriedAt`, `moveCarriedTo`, `carryPose`, `electricalAt`, `previewElectricalAt`, `fixtureSpotAt`, `screenshot`, zoom, reset, `cameraPose`), keyboard panning, day/night, the sky |
 | `components/design/WalkControls.tsx` | the walk-through (no collision; `findStandingSpot` picks the start) |
 | `components/projects/ProjectViewer.tsx` | the same `Viewer3D` with `readOnly` — hover, picking and dragging off, the camera and the walk-through kept — for a brigade looking at the flat it is hired for ([../partners-and-admin.md](../partners-and-admin.md)) |
-| `lib/design3d/buildScene.ts` | `buildRoomShells` (floors, walls, ceilings, trims, openings), `syncPlacedItems` / `buildPlacedItem` (furniture wrappers reconciled by product and size; `fitToItem`, ghost box on a failed load), `attachOpeningModel`, `wallMaterialFor`, `HIDDEN_LAYER`, `disposeOwnedGeometry`. The viewer composes these itself (`buildScene()` has no callers) |
+| `lib/design3d/buildScene.ts` | `buildRoomShells` (floors, walls, ceilings, trims, openings), `syncPlacedItems` / `buildPlacedItem` (furniture wrappers reconciled by product and size; `fitToItem`, ghost box on a failed load), `attachOpeningModel`, `wallMaterialFor`, `HIDDEN_LAYER`, `disposeOwnedGeometry`. The viewer composes these itself |
 | `lib/design3d/buildStructure.ts` | free walls, columns, beams (`buildStructure`), fittings (`buildElectrical` / `buildFitting`), radiators (`buildRadiators`), the technical points' equipment (`buildEquipment`: a panel, boiler, air conditioner, hood or fan on its wall at the product's size, a drain set into the floor), the lights after dusk — one per room (`nightLights`, from the fittings' `lightsFrom`; gotcha 25) — the hanging lamps the fittings read (`hangingLampsKey`), floor zones and painted cells |
 | `lib/design/wallPieces.ts` + `lib/design3d/wallGeometry.ts` | each room edge cut into pieces by what stands behind it; each piece's mesh face by face (mitres, spans, far-face material slots); `buildMouldingGeometry` |
 | `lib/design3d/wallSide.ts` | `wallSideAt` — whose wall a hit on a wall face is (the outside of the flat is nobody's) |
@@ -144,9 +144,11 @@ Each of these cost real debugging time. Don't undo them.
     (`img-src` allows them); nothing may fetch them.
 17. **The shared glass material was the night-time windows.** Every window pane used one
     cached `glass` material, so setting its `emissive` at night lit every window at once — the
-    one place tinting a shared material is the point, not the bug of gotcha 7. The viewer still
-    does this, but windows are now GLB models with their own materials, so nothing uses the
-    cached `glass` any more and no window glows at night (Known gaps).
+    one place tinting a shared material is the point, not the bug of gotcha 7. Windows are GLB
+    models with their own materials now, so nothing wore it, and the tint and the role were
+    removed (`MaterialRole` is `frame`, `wood`, `metal`, `stone` — the procedural frames and
+    the columns and beams). No window glows at night (Known gaps); a glow would go on the
+    window models' own glass.
 18. **Screenshots must render first.** Without `preserveDrawingBuffer` the canvas is blank
     between frames, so `ViewerApi.screenshot` calls `gl.render(scene, camera)` and reads the
     canvas in the same tick.
@@ -211,6 +213,19 @@ Each of these cost real debugging time. Don't undo them.
     hang (`litModel`). On the sample flat (12 lights on in 7 rooms) the night's lighting went from
     ≈ 2.4 to ≈ 1.0 ms of a 2520 × 1361 render on an M4; the first switch compiles only that lamp's
     own unlit materials (3 programs), later ones nothing.
+26. **The shadow map is drawn when the scene changes, not when the camera moves.**
+    `gl.shadowMap.autoUpdate` is off. `SceneContent`'s own `invalidate` (every frame asked for
+    from the scene: a file landing, a drag, a light, the cutaway) flags `needsUpdate`, and so does
+    every render of it; the frames drei's orbit asks for, and the walk-through's, draw the picture
+    with the shadows as they were — the 2048² shadow pass (207 of the sample flat's 545 draw
+    calls) was redrawn on every one of them. A change made outside those paths that moves a
+    caster must call that `invalidate`, not R3F's (checked in the Browser pane by counting the
+    2048² viewport switches: placing a piece draws the map, orbiting draws none).
+27. **`Viewer3D` is memoised, and the pages hand it stable props.** The pages read the store
+    through `useDesignActions()` (the actions, one object that keeps its identity) and a
+    `useShallow` pick of the fields they show; `useDesignStore()` with no selector gave them the
+    whole state, so every `[store]` dependency — every callback handed to the view — changed with
+    each set (a hover, a save status) and each re-render of the canvas's children drew a frame.
 
 ## A gap to the top of the wall: a balcony's railing
 
@@ -275,15 +290,39 @@ there:
   bare door leaf asks for its casing only once it is in, a finish product may arrive with the
   catalogue), and fades out. The bar counts the files asked for since the viewer mounted.
 - It never holds the studio longer than 45 s, however slow the connection.
-- Once a flat has been shown whole on the page, a viewer mounted again (from the 2D board, or
-  the walk-through) skips the screen: the models are cached, and only textures — per viewer —
-  come again. Later loads (a piece added, a style changed) show as before, as each arrives.
+- Once a flat has been shown whole on the page, a viewer of *that flat* mounted again (from the
+  2D board, or the walk-through) skips the screen (`sceneShownWhole`, by the viewer's `sceneKey`
+  — the project id in the studio): the models are cached, and only textures — per viewer — come
+  again. It was one flag for the page, so the next project opened in the tab skipped its screen. Later loads (a piece added, a style changed) show as before, as each arrives.
 - The studio's `ViewerFallback` (while three.js and the viewer's chunk arrive) is the same
   screen without a count, so the two follow on without a jump. The project page's viewer gets
   the screen too.
 
 Measured on the sample flat over a throttled 1.5 MB/s link, cache off: the screen is up from
 1.8 s, counts 50 files (36 GLBs, the rest textures) from 5 s and is gone at 9 s.
+
+## When the 3D view fails (`components/design/ViewerGuard.tsx`)
+
+The viewer's `<Canvas>` and its loading screen sit inside `ViewerGuard`:
+
+- **No WebGL** (`webglAvailable()`, asked once with a throwaway canvas): a notice in the person's
+  language says so, and the rest of the page — trays, the 2D board, the budget — works. R3F's
+  renderer used to reject unhandled, and the loading screen spun for its 45 s cap over a blank
+  canvas.
+- **A builder that throws** while the scene is built (R3F re-throws its errors into the page's
+  tree): an error boundary shows "the 3D view could not be built" with *try again* (a fresh
+  canvas and build), and the error goes to Sentry (`area: viewer3d`). It used to take the whole
+  studio down to the page's error screen.
+- **A lost GPU context** (a driver reset, a tab long in the background): three takes the context
+  back by itself, and `webglcontextrestored` asks for a frame — under demand rendering nothing
+  else would, and the view stayed black until the next touch.
+- **A texture that failed** is forgotten (`whenLoaded`), so the next surface that wears it asks
+  again; kept, the image-less texture sampled black on every later use. Tested in
+  `tests/unit/design3d/materials.test.ts`.
+- **A Draco decoder that failed to arrive** is replaced (`modelLoader`'s `dracoDecoder` /
+  `replaceDecoder`): DRACOLoader keeps its decoder promise for good, a rejected one too, so every
+  Draco model was a ghost box until a reload. The replacement fetches the decoder again when the
+  next Draco model asks (`tests/unit/design3d/dracoRecovery.test.ts`).
 
 ## Time of day and the world around the flat
 
@@ -328,8 +367,8 @@ asynchronously, so anything waiting for the first model (e2e, screenshots) has t
 
 ## Known gaps
 
-- At night the viewer still tints the cached `glass` material, but windows are GLB models with
-  their own materials now, so no window glows (gotcha 17 describes the intent).
+- No window glows at night: windows are GLB models with their own glass (gotcha 17); a glow
+  would have to go on those models' glass material.
 - The first-visit tour (`TutorialOverlay`) opens at once, over the loading screen, rather than
   after it.
 ### Performance

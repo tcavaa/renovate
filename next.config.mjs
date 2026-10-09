@@ -46,7 +46,7 @@ const s3ImagePattern = s3Url
  * `frame-src` and `form-action` take any https origin.
  *
  * Sentry needs nothing here: the browser sends its events to `/monitoring` on this origin
- * (`tunnelRoute` below), which Next rewrites to Sentry's ingest host.
+ * (app/monitoring/route.ts), which forwards them to our own Sentry project.
  */
 const flitt = 'https://pay.flitt.com';
 const wallets = 'https://pay.google.com https://google.com https://www.google.com https://applepay.cdn-apple.com';
@@ -131,10 +131,8 @@ const nextConfig = {
       ...(s3ImagePattern ? [s3ImagePattern] : []),
     ],
   },
+  // No server actions anywhere (no 'use server'): uploads are route handlers with their own limits.
   experimental: {
-    serverActions: {
-      bodySizeLimit: '10mb',
-    },
     ...(lowMemory ? { cpus: 1 } : {}),
   },
   async headers() {
@@ -152,7 +150,7 @@ const nextConfig = {
 
 /**
  * Sentry (docs/operations.md#errors-go-to-sentry). The runtime side is `lib/sentry.ts` and the
- * instrumentation files; this is the build: the `/monitoring` tunnel, and the browser source
+ * instrumentation files; this is the build: the browser source
  * maps uploaded to Sentry and then deleted from the build, so stack traces read as source while
  * no `.map` is served. Without `SENTRY_AUTH_TOKEN` (a local build, CI) no source maps are made
  * at all — with nowhere to upload them they would only be published.
@@ -166,8 +164,8 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: { disable: !sentryAuthToken },
   // Next's own chunks too, so a stack through the router or React reads as source.
   widenClientFileUpload: true,
-  // A fixed path, not `true` (a random one per build): proxy.ts's matcher must keep missing it.
-  tunnelRoute: '/monitoring',
+  // No `tunnelRoute`: it relays to any Sentry project named in the query and passes the
+  // cookies on. The tunnel is app/monitoring/route.ts.
   silent: !process.env.CI,
   telemetry: false,
 });

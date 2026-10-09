@@ -16,7 +16,7 @@
  *   - `walk`  — standing inside at eye height, walls and ceilings intact
  */
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
@@ -53,6 +53,7 @@ import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } fr
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
+import { ViewerGuard } from './ViewerGuard';
 import { cn } from '@/lib/utils';
 import { Headlamp, WalkControls } from './WalkControls';
 import { SceneLoading } from './SceneLoading';
@@ -63,7 +64,7 @@ export type ViewMode = 'orbit' | 'walk';
  * (walls, columns, beams — moved only when unlocked), the sockets and lights, or the
  * finishes (a click on a floor or a wall opens its picker).
  */
-export type EditMode = 'furniture' | 'openings' | 'build' | 'electrical' | 'finishes';
+export type EditMode = 'furniture' | 'build' | 'electrical' | 'finishes';
 
 /** Camera actions the studio's overlay buttons call. */
 export interface ViewerApi {
@@ -122,7 +123,6 @@ export interface Viewer3DProps {
   selectedOpeningId?: string | null;
   /** An opening was dragged along its wall to a new `t`. */
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
-  onSelectOpening?: (openingId: string | null) => void;
   /** Sockets, switches and lights; drawn as fittings, and the lights that are on light the rooms. */
   electrical?: ElectricalPoint[];
   /** Walls, doors, windows, columns and beams stay where they are until unlocked. */
@@ -162,20 +162,33 @@ export interface Viewer3DProps {
    * picked, hovered or dragged — a brigade looking at the flat it is hired for.
    */
   readOnly?: boolean;
+  /** Which flat this is (the project id): the loading screen is skipped only for one shown whole before. */
+  sceneKey?: string | number;
   className?: string;
 }
 
-export function Viewer3D(props: Viewer3DProps) {
+/** The next frame draws the shadow map again (it is not redrawn by itself: `autoUpdate` is off). */
+function redrawShadows(renderer: THREE.WebGLRenderer): void {
+  renderer.shadowMap.needsUpdate = true;
+}
+
+/**
+ * Memoised: the studio re-renders for many things the view does not show (a tray, a dialogue,
+ * the save status), and under demand rendering every re-render of the canvas's children drew a
+ * frame. Its props are stable (the page's callbacks are `useCallback`s over stable actions).
+ */
+export const Viewer3D = memo(function Viewer3D(props: Viewer3DProps) {
   const style = getStyle(props.scene.styleId);
   const daylight = useMemo(() => lightingForHour(props.daylightHour ?? 13, style), [props.daylightHour, style]);
   // The camera is born where the framing will put it — the whole flat, or the room in focus —
   // so the view never opens for a beat at three.js's default spot, at floor level beside the
   // flat, before the framing catches up.
   const [initial] = useState(() => frameFor(props.plan, props.focusRoomId ?? null));
-  const loading = useSceneLoading();
+  const loading = useSceneLoading(props.sceneKey ?? 'flat');
 
   return (
     <div className={cn('relative', props.className)}>
+      <ViewerGuard>
       <Canvas
         shadows
         // A frame is drawn when something changes, not sixty times a second while nothing does
@@ -186,10 +199,19 @@ export function Viewer3D(props: Viewer3DProps) {
         dpr={[1, 1.75]}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
         camera={{ fov: 48, near: 0.05, far: 200, position: initial.position }}
-        onCreated={({ gl, camera }) => {
+        onCreated={({ gl, camera, invalidate }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = daylight.exposure;
+          gl.shadowMap.autoUpdate = false;
+          gl.shadowMap.needsUpdate = true;
           camera.lookAt(...initial.target);
+          // three takes the context back after the GPU dropped it (a driver reset, a tab long in
+          // the background), but frames are drawn on demand: nothing asked for one, and the view
+          // stayed black until the next touch.
+          gl.domElement.addEventListener('webglcontextrestored', () => {
+            gl.shadowMap.needsUpdate = true;
+            invalidate();
+          });
         }}
         onPointerMissed={() => {
           props.onSelectItem?.(null);
@@ -204,12 +226,17 @@ export function Viewer3D(props: Viewer3DProps) {
         </Suspense>
       </Canvas>
       {loading.phase !== 'ready' && <SceneLoading done={loading.done} total={loading.total} leaving={loading.phase === 'leaving'} />}
+      </ViewerGuard>
     </div>
   );
-}
+});
 
-/** Once the flat has been shown whole on this page, a view opened again (from 2D, say) finds its models cached and skips the screen. */
-let sceneShownWhole = false;
+/**
+ * The flats shown whole on this page (by `sceneKey`): a view of one opened again (from 2D, say)
+ * finds its models cached and skips the screen. It was one flag for the page, so a second
+ * project opened in the same tab skipped its loading screen and showed its flat half-built.
+ */
+const sceneShownWhole = new Set<unknown>();
 /** Nothing more asked for in this long after the last file came in: the flat is all there. */
 const SETTLE_MS = 300;
 /** However slow the connection, the studio is not held behind the screen longer than this. */
@@ -222,8 +249,8 @@ const FADE_MS = 300;
  * and until every file asked for since has come in (or failed) and nothing new has been asked
  * for in `SETTLE_MS` — a bare door leaf asks for its casing only once it is in. Then it fades.
  */
-function useSceneLoading(): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
-  const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole ? 'ready' : 'loading'));
+function useSceneLoading(sceneKey: string | number): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
+  const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole.has(sceneKey) ? 'ready' : 'loading'));
   const [isBuilt, setBuilt] = useState(false);
   const progress = useSyncExternalStore(subscribeLoadProgress, loadProgress, loadProgress);
   const [baseline] = useState(() => loadProgress().started);
@@ -232,11 +259,11 @@ function useSceneLoading(): { phase: 'loading' | 'leaving' | 'ready'; done: numb
   useEffect(() => {
     if (phase !== 'loading' || !isBuilt || progress.pending > 0) return;
     const settle = window.setTimeout(() => {
-      sceneShownWhole = true;
+      sceneShownWhole.add(sceneKey);
       setPhase('leaving');
     }, SETTLE_MS);
     return () => window.clearTimeout(settle);
-  }, [phase, isBuilt, progress.pending, progress.started]);
+  }, [phase, isBuilt, progress.pending, progress.started, sceneKey]);
 
   useEffect(() => {
     if (phase === 'leaving') {
@@ -324,7 +351,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onSelectOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
 
 function SceneContent({
   plan,
@@ -339,7 +366,6 @@ function SceneContent({
   selectedOpeningId = null,
   electrical = [],
   structureLocked = true,
-  selectedElement = null,
   onSelectElement,
   onOffsetWall,
   onMoveColumn,
@@ -351,7 +377,6 @@ function SceneContent({
   onPaint,
   onPlaceItem,
   onMoveOpening,
-  onSelectOpening,
   frameKey,
   onApi,
   readOnly = false,
@@ -359,7 +384,16 @@ function SceneContent({
   onBuilt,
 }: Viewer3DProps & { daylight: Daylight; /** Called once, after the first build has asked for every file it needs. */ onBuilt?: () => void }) {
   const style = getStyle(scene.styleId);
-  const { camera, gl, scene: threeScene, invalidate } = useThree();
+  const { camera, gl, scene: threeScene, invalidate: requestFrame } = useThree();
+  // The shadow map is drawn only when the scene changed (gotcha 26): every frame asked for from
+  // here — a file landing, a drag, a light — flags it, and so does every render of this
+  // component (below). The frames drei's orbit asks for, and the walk-through's, only move the
+  // camera: they draw the picture with the shadows as they were, not the 2048² map again.
+  const invalidate = useCallback(() => {
+    redrawShadows(gl);
+    requestFrame();
+  }, [gl, requestFrame]);
+  useEffect(() => redrawShadows(gl));
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -491,9 +525,10 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
-  const editingOpenings = editMode === 'openings' || (editMode === 'build' && !structureLocked);
+  // Doors and windows are grabbed in build mode once the structure is unlocked.
+  const editingOpenings = editMode === 'build' && !structureLocked;
   const building = editMode === 'build';
   const wiring = editMode === 'electrical';
   const finishing = editMode === 'finishes';
@@ -501,23 +536,6 @@ function SceneContent({
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
   useEffect(() => () => materials.dispose(), [materials]);
-
-  // At night the windows glow: every pane shares one glass material, so lighting it up
-  // lights every window in the flat at once — which, seen from outside, is the point.
-  useEffect(() => {
-    const glass = materials.get('glass');
-    if (daylight.interiorLightsOn) {
-      glass.emissive = new THREE.Color(style.lighting.lamp);
-      glass.emissiveIntensity = 0.55 * daylight.interiorIntensity;
-      glass.opacity = 0.5;
-    } else {
-      glass.emissive = new THREE.Color('#000000');
-      glass.emissiveIntensity = 0;
-      glass.opacity = 0.28;
-    }
-    glass.needsUpdate = true;
-    invalidate();
-  }, [materials, daylight.interiorLightsOn, daylight.interiorIntensity, style.lighting.lamp, invalidate]);
 
   // The electrical layer's fittings, rebuilt when the layer or the plan changes; the lights
   // that are switched on become point lights below.
@@ -1473,6 +1491,8 @@ function SceneContent({
       if (!drag) return;
       // Inside the flat, dragging the view takes priority over dragging furniture.
       if (walking) return;
+      // A locked piece is selected by a click and never lifted: the drag orbits the view.
+      if (drag.item.locked) return;
 
       const travel = Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY);
       if (!drag.moved) {
@@ -1522,7 +1542,7 @@ function SceneContent({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onSelectOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
+      const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
 
       const wd = wallDragRef.current;
       if (wd) {
@@ -1574,7 +1594,6 @@ function SceneContent({
         const orbit = orbitRef.current;
         if (orbit) orbit.enabled = true;
         canvas.style.cursor = 'default';
-        onSelectOpening?.(od.opening.id);
         // Onto a railing's stretch (or a railing onto a door's) it does not go: back to its place.
         if (od.moved && Math.abs(od.t - od.opening.t) > 1e-4 && !railingClash(od.room, od.opening, od.t, od.edge.length)) onMoveOpening?.(od.room.id, od.opening.id, od.t);
         else {

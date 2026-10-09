@@ -23,3 +23,20 @@ export const SOCIAL_NO_EMAIL = 'SocialNoEmail';
  * "wrong e-mail or password".
  */
 export const ACCOUNT_DISABLED = 'account_disabled';
+
+/** `?error=` when a social sign-in names the e-mail of a password account it may not join. */
+export const SOCIAL_LINK_REFUSED = 'social_link_refused';
+
+/**
+ * Whether a social sign-in may become the existing account that has its e-mail address. Being
+ * that account is being whoever owns the address, so the provider has to vouch for it:
+ * Google says so (`email_verified`), and is believed. Facebook does not say, so it joins only an
+ * account with no password — one a social sign-in made — and never a password account, an
+ * admin's included: anyone able to put that address on a Facebook profile would otherwise be
+ * signed in as its owner.
+ */
+export function maySocialJoin(provider: string, profile: { email_verified?: unknown } | null | undefined, existing: { passwordHash: string | null }): boolean {
+  if (provider === 'google') return profile?.email_verified === true;
+  return !existing.passwordHash;
+}
+

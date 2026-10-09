@@ -48,11 +48,11 @@ profile's phone and address) · [data-model.md](data-model.md) (`checkouts`, `or
 | `app/api/profile/route.ts` | GET / PATCH the person's own contact ([auth-and-roles.md](auth-and-roles.md#a-persons-own-details-profileviewaccount)) |
 | `app/api/bookings/route.ts` | GET bookings of a project; POST a brigade booking |
 | `app/api/orders/[id]/`, `…/confirm/`, `…/comments/` | read and change an order (staff and its partner, by the rules above), confirm a store's order (staff with `orders`), comment on it |
-| `app/api/settings/route.ts`, `app/api/admin/settings/route.ts` | public fees; admin GET/PUT of the settings |
+| `app/api/admin/settings/route.ts` | admin GET/PUT of the settings (the fees reach the dialogues through the payment routes' quotes) |
 | `app/api/admin/revenue/export/route.ts` | revenue CSV |
 | `app/(main)/design/[id]/workers/page.tsx` | step 8: trades and brigades |
 | `app/partner/orders/`, `app/admin/orders/`, `app/admin/revenue/`, `app/admin/settings/` | the portal's and admin's order, revenue and settings pages |
-| `hooks/usePlatformFees.ts`, `useProjectPayments.ts`, `useAccountContact.ts` | the fees the payment dialogue previews; what a project has paid (the summaries' fee line); the person's contact for the dialogues |
+| `hooks/useProjectPayments.ts`, `useAccountContact.ts` | what a project has paid (the summaries' fee line); the person's contact for the dialogues |
 
 ## Checkout flow
 

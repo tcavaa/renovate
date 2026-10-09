@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 
 /**
  * The ways a card payment can be made, as the card schemes and the payment provider expect

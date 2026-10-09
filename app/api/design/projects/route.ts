@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { isDesignPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
@@ -19,19 +19,6 @@ import { fail, handle, ok } from '@/lib/api/route';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-export const GET = handle('GET /api/design/projects', 'Failed to load designs', async () => {
-  const session = await auth();
-  if (!session?.user?.id) return ok([]);
-
-  const rows = await db
-    .select()
-    .from(projects)
-    // Only design-studio projects — the calculator has its own list.
-    .where(and(eq(projects.userId, Number(session.user.id)), isNotNull(projects.plan)))
-    .orderBy(desc(projects.createdAt));
-  return ok(rows);
-});
 
 export const POST = handle('POST /api/design/projects', 'Failed to save design', async (req) => {
   const parsed = saveDesignSchema.safeParse(await req.json());

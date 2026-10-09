@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
+import Image from '@/components/ui/image';
 import { ArrowUpRight, BadgeCheck, MapPin, Star } from 'lucide-react';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName, localizedText, workerSpecialtyLabel } from '@/lib/i18n/labels';

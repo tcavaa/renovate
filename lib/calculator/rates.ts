@@ -7,9 +7,8 @@
  * table means the defaults, and a row overrides its key. Isomorphic: no database access here.
  */
 
-import { MATERIAL_RATES_PER_M2, RETIRED_RATE_KEYS, WORKER_RATES, type MaterialRate } from './constants';
+import { MATERIAL_RATES_PER_M2, WORKER_RATES, type MaterialRate } from './constants';
 
-const RETIRED = new Set(RETIRED_RATE_KEYS);
 
 export interface LabourRate {
   labelKa: string;
@@ -125,12 +124,9 @@ export const LABOUR_PHASE: Record<string, number> = {
  * a row that is switched off stays off — but a default the table has never heard of still
  * counts, at the rate it shipped with. Such a key is a line the app gained after this
  * database was seeded (the whole of the renovation team's book, September 2026); without the
- * fallback it would silently price at nothing until someone ran `pnpm db:seed:rates`. Rows
- * under a retired key (`RETIRED_RATE_KEYS`, the book before it) are ignored outright.
+ * fallback it would silently price at nothing until someone ran `pnpm db:seed:rates`.
  */
 export function rateBookFromRows(rows: RateRow[]): RateBook {
-  // A row under a key of the book the team's rates replaced is dead: never read, whatever it says.
-  rows = rows.filter((r) => !RETIRED.has(r.key));
   if (rows.length === 0) return DEFAULT_RATE_BOOK;
   const materials: Record<string, MaterialRate> = {};
   const labour: Record<string, LabourRate> = {};
@@ -169,13 +165,11 @@ export function rateBookFromRows(rows: RateRow[]): RateBook {
  * page knows that saving it creates the row rather than updating one. So a book shipped after
  * the database was seeded (the renovation team's, September 2026) can be read and repriced on
  * any host without running anything there: `pnpm db:seed:rates` is only a local tidy-up.
- * Rows under a retired key are left out, as the engine leaves them out.
  */
 export function ratesForAdmin(rows: RateRow[]): RateRow[] {
-  const live = rows.filter((r) => !RETIRED.has(r.key));
-  const known = new Set(live.map((r) => `${r.kind}:${r.key}`));
+  const known = new Set(rows.map((r) => `${r.kind}:${r.key}`));
   const defaults = defaultRateRows()
     .filter((r) => !known.has(`${r.kind}:${r.key}`))
     .map((r, i) => ({ ...r, id: -(i + 1) }));
-  return [...live, ...defaults].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder || a.id - b.id);
+  return [...rows, ...defaults].sort((a, b) => a.phase - b.phase || a.sortOrder - b.sortOrder || a.id - b.id);
 }

@@ -26,10 +26,10 @@
 import type { Category } from '@/lib/db/schema';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { finishFromProduct } from '@/lib/design/surfaces';
-import { isBaseFinish, wallEdgeAreaM2 } from '@/lib/design/zones';
+import { wallEdgeAreaM2 } from '@/lib/design/zones';
 import type { FloorPlan, ItemOrigin, PlanRoom, SurfaceFinish } from '@/lib/design/types';
 import { BATH_ROOM_TYPES, TILED_FLOOR_ROOM_TYPES } from './constants';
-import { categorySlugFromKey, isCartKey, partFromKey, roomFinishQuantity, roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, surfaceOfPick, type FinishSurface } from './quantities';
+import { categorySlugFromKey, partFromKey, roomFinishQuantity, roomIdFromKey, roomWallAreasM2, roomWalls, selectionKey, surfaceOfPick, type FinishSurface } from './quantities';
 import type { Room, RoomType, SelectedProduct } from './types';
 
 export type { FinishSurface } from './quantities';
@@ -424,42 +424,6 @@ export function withSameFinish(picks: Picks, rooms: Room[], fromRoomId: string, 
     );
   }
   return byRoom.size === 0 ? picks : withRoomFinishQuantities(replaceSurface(picks, surface, byRoom), rooms);
-}
-
-// ---------------------------------------------------------------------------
-// Picks from before
-// ---------------------------------------------------------------------------
-
-/**
- * Picks from before every room took its own floor and walls, moved onto the rooms once:
- *
- *  - a material from the cart that was laid on the board by hand (`<slug>_item:<productId>`)
- *    goes to the rooms whose floor or walls the board had in it (a whole-room finish; a tile
- *    or a strip of it says nothing about the room), and is dropped if it was laid nowhere;
- *  - a finish chosen for the whole flat (`<slug>_global` of a finish category — the first
- *    catalogue, and projects designed first) goes to every room its kind of work suits
- *    (`finishGroup`: floor tiles on the bathroom, toilet, kitchen and balcony floors, laminate
- *    on the rest, wall tiles on the bathroom and toilet walls, paint on the rest).
- *
- * Never over a room that has a pick of its own for that surface. Counted by
- * `withRoomFinishQuantities` afterwards. The same object when there is nothing to move.
- */
-export function migrateFinishPicks(picks: Picks, rooms: Room[], boardFinishes: SurfaceFinish[]): Picks {
-  const old = Object.entries(picks).filter(([key, pick]) => isCartKey(key) || (roomIdFromKey(key) == null && surfaceOfPick(withSlug(key, pick)) != null));
-  if (old.length === 0 || rooms.length === 0) return picks;
-  const oldKeys = new Set(old.map(([key]) => key));
-  let next: Picks = Object.fromEntries(Object.entries(picks).filter(([key]) => !oldKeys.has(key)));
-  for (const [key, raw] of old) {
-    const pick = withSlug(key, raw);
-    const surface = surfaceOfPick(pick);
-    if (!surface) continue;
-    const suited = isCartKey(key)
-      ? rooms.filter((room) => boardFinishes.some((f) => f.roomId === room.id && f.surface === surface && isBaseFinish(f) && f.product?.productId === pick.productId))
-      : rooms.filter((room) => usualFinishCategory(room.type, surface) === pick.categorySlug);
-    const free = suited.filter((room) => !roomFinishEntry(next, room.id, surface)).map((room) => room.id);
-    if (free.length > 0) next = withRoomFinish(next, rooms, free, surface, pick);
-  }
-  return next;
 }
 
 // ---------------------------------------------------------------------------
