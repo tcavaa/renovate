@@ -26,15 +26,18 @@ and `pnpm test:solver` after touching `lib/design/planSolver.ts`, `planGrid.ts`,
 
 ## What CI runs (`.github/workflows/ci.yml`)
 
-On every push to `main` and every pull request — and, through `on: workflow_call`, as the
-`verify` job of the tag deploy (`deploy.yml`) — one job: install (`--frozen-lockfile`) →
+On every push to `main` and every pull request — and, through `on: workflow_call`, from the
+legacy manual VPS deploy (`deploy.yml`) — one job: install (`--frozen-lockfile`) →
 `pnpm audit --prod --audit-level critical` (a critical advisory in a production dependency fails it) →
 `pnpm type-check` → `pnpm lint` → `pnpm test -- --coverage` (coverage gate) → `pnpm test:parser`
 → `pnpm test:solver` → `pnpm build`. pnpm 9 drops the `--` and runs `vitest run --coverage`, so
 the gate is enforced there exactly as by `pnpm test:coverage` (a threshold forced above the
-current figure fails the run). The job sets placeholder environment variables so `lib/env.ts`
-validates without a database. **e2e is not run in CI** (it needs the database): run it before a
-release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow change with
+current figure fails the run). The job sets placeholder environment variables (a `DATABASE_URL`
+nothing connects to) so `lib/env.ts` validates without a database. Vercel builds the deployment
+itself ([operations.md](operations.md#deploying)); CI does not deploy. **e2e is not run in CI**
+(it needs the database): run it locally against a local Postgres, or against the Vercel
+deployment with `PLAYWRIGHT_BASE_URL=https://renovatege.vercel.app` (it makes an account and a
+project there). Check a workflow change with
 `actionlint` before pushing it — it catches what GitHub would only report when the event fires.
 
 ## Vitest (`vitest.config.mts`)
@@ -64,14 +67,16 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 | `tests/unit/finance/money.test.ts` | fees (and the area a half's fee is charged on), commissions, grouping by store, delivery, order lines from the budget; the bank's commission on a card payment (`withBankFee`) and tetri | [marketplace.md](marketplace.md), [payments.md](payments.md) |
 | `tests/unit/account/contact.test.ts` | an order's contact: the account's name and e-mail win, a phone or address typed for the order over the profile's, what is missing is asked, what is kept; addresses | [marketplace.md](marketplace.md), [auth-and-roles.md](auth-and-roles.md) |
 | `tests/unit/finance/orderFlow.test.ts`, `materials.test.ts` | order stages, what a partner may do with its order, an edit's facts, what the customer sees changed; the construction materials to their supplier | [marketplace.md](marketplace.md) |
-| `tests/unit/api/` | route helpers (envelope, `parseId`, `requireAdmin`, `handle`, rate limiting, `safeCallbackUrl`, repricing), who sees, changes and deletes a product (`productAccess`), the session's claims at sign-in and on every later read — role changes, deactivation, the cache, the password form (`accountClaims`, through the callbacks `auth.ts` registers), account rules, role landing and who may delete (`accounts`), a partner's public face (`publicPartners`), which stored files may be deleted (`uploadKeys`), login lockout, upload byte sniffing, a texture's colours read with sharp (`textureColors`), an uploaded GLB optimized — Draco on the server and meshopt in the browser, a browser-optimized file given Draco and its WebP kept, texture coordinates far outside 0–1 kept within a texel (Draco's bits follow their range), WebP at each map's size, the triangle cap, what is kept as it came (`glbOptimize`), stored models re-optimized in place (`optimizeStored`), finish textures as WebP — a normal map told by its name and kept at a higher quality, the 2048 px cap, what an upload keeps (`textureOptimize`), photos as WebP with their transparency within 1600 px (`imageOptimize`), glass stored plain by the upload recipe (`glbOptimize`) | [auth-and-roles.md](auth-and-roles.md), [operations.md](operations.md), [3d-assets.md](3d-assets.md#uploads-are-optimized) |
+| `tests/unit/api/` | route helpers (envelope, `parseId`, `requireAdmin`, `handle`, rate limiting — the shared sliding window and its fail-open, over an in-memory counter store (`tests/helpers/counterStore.ts`) — `safeCallbackUrl`, repricing), who sees, changes and deletes a product (`productAccess`), the session's claims at sign-in and on every later read — role changes, deactivation, the cache, the password form (`accountClaims`, through the callbacks `auth.ts` registers), account rules, role landing and who may delete (`accounts`), a partner's public face (`publicPartners`), which stored files may be deleted (`uploadKeys`), login lockout (the same counter store), upload byte sniffing, a texture's colours read with sharp (`textureColors`), an uploaded GLB optimized — Draco on the server and meshopt in the browser, a browser-optimized file given Draco and its WebP kept, texture coordinates far outside 0–1 kept within a texel (Draco's bits follow their range), WebP at each map's size, the triangle cap, what is kept as it came (`glbOptimize`), stored models re-optimized in place (`optimizeStored`), finish textures as WebP — a normal map told by its name and kept at a higher quality, the 2048 px cap, what an upload keeps (`textureOptimize`), photos as WebP with their transparency within 1600 px (`imageOptimize`), glass stored plain by the upload recipe (`glbOptimize`) | [auth-and-roles.md](auth-and-roles.md), [operations.md](operations.md), [3d-assets.md](3d-assets.md#uploads-are-optimized) |
 | `tests/unit/i18n-scripts.test.ts` | no Cyrillic inside Georgian words in `ka.ts` | [architecture.md](architecture.md#i18n) |
 | `tests/integration/save-routes.test.ts` | both save routes and project create/rename, with the DB and session mocked: ownership, forged prices, unknown products, revision conflicts, own unconfirmed saves, racing writes, column ownership, per-room quantities, the calculation's sheet in the answer, finishes bought in whole litres, rate limiting | [project-flow.md](project-flow.md) |
 | `tests/integration/product-routes.test.ts` | `/api/products/[id]` with the DB and session mocked: who may read a hidden product, who may change and who may delete one, a finish's and a moulding's `specs` saved and a bad one refused | [catalog.md](catalog.md) |
 | `tests/integration/catalog-delete-routes.test.ts` | `DELETE /api/categories/[id]`, `DELETE /api/stores/[id]` and `POST /api/products/bulk` with the DB and session mocked: deleting is admin's (a store's own products in bulk), the catalogue agent is refused before anything is read, a category with products is kept | [catalog.md](catalog.md) |
 | `tests/unit/admin/` | icons: lucide names (every icon found again from its stored name), the studio's own furniture icons, the suggested icons and their three-language search, the drawings sent to the studio; the lists remembered where they were left (session storage, a refusing storage, links that carry their own query), the section crumbs; what a filter button says (tree option names, ranges, periods); a page read by id back in its sorted order (`inIdOrder`) | [categories.md](categories.md), [partners-and-admin.md](partners-and-admin.md) |
-| `tests/unit/catalog/` | the category tree (order, paths, subtrees, counts, where a category may go, the code's slugs up the chain, filing by kind) and the starting tree with its migration 0018 kept in step | [categories.md](categories.md) |
-| `tests/unit/db/` | every migration free of the MySQL-only forms MariaDB refuses or reads differently — `CAST(… AS JSON)`, `->`, `REGEXP_LIKE`, a back-reference in REGEXP_REPLACE's replacement (the checker shown catching the first 0021) | [data-model.md](data-model.md#migrations-run-on-mysql-and-mariadb) |
+| `tests/unit/catalog/` | the category tree (order, paths, subtrees, counts, where a category may go, the code's slugs up the chain, filing by kind) and the starting tree with its migration (`0001_starting_catalogue.sql`) kept in step | [categories.md](categories.md) |
+| `tests/unit/db/` | every migration Postgres — no backticks, `FROM DUAL`, `INSERT IGNORE`, `ON DUPLICATE KEY`, `@variables`, `AS CHAR` (the checker shown catching each) — and every file in the journal, in order | [data-model.md](data-model.md#migrations-on-postgres) |
+| `tests/unit/uploads/` | direct uploads: a grant's key and limits; a claim once, by its maker, for its route, in time, at the size that arrived, nothing left staged | [uploads.md](uploads.md) |
+| `tests/integration/upload-routes.test.ts` | `POST /api/uploads` per kind (who may ask, the plan's rate limit, bad requests), a finishing route's answers (expired claim, a script called a PNG, a URL instead of an id), gzipped bodies and answers | [uploads.md](uploads.md), [operations.md](operations.md#request-and-response-size) |
 | `tests/integration/category-tree-routes.test.ts` | the tree's and the studio rooms' routes with the DB and session mocked: last among siblings, three levels, no loops, unique slugs, children kept, exact reorders, the calculator's tabs, rooms' guards | [categories.md](categories.md) |
 | `tests/integration/order-routes.test.ts` | `/api/orders/[id]`, `…/confirm`, `…/comments` with the session and the order mocked: the store sees its order only once confirmed, partners never touch lines or delivery and move only along their steps, confirm is staff-only and once, the staff note stays with the platform | [marketplace.md](marketplace.md) |
 | `tests/unit/payments/flitt.test.ts` | Flitt's protocol: the documented signing strings, verification (tampered, other key, none), reading an answer, the facts in GEL, the outcome against its payment (order, merchant, amount, currency) | [payments.md](payments.md) |
@@ -92,7 +97,7 @@ release tag, or against staging with `PLAYWRIGHT_BASE_URL`. Check a workflow cha
 
 ## Known gaps
 
-- e2e is not run in CI (it needs the database), and the studio spec stops at the summary: the
+- e2e is not run in CI (it needs a database and a running app), and the studio spec stops at the summary: the
   brigade step (8) has no browser test. The studio spec pays the design's fee on its way to the
   studio (the warning, then Flitt's sandbox form and the bank emulator's 3-D Secure — the reason
   `baseURL` is `renovate.localhost`, [payments.md](payments.md#local-development-and-testing));

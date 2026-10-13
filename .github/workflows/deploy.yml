@@ -1,6 +1,10 @@
-name: Deploy
+name: Deploy (legacy VPS)
 
-# A pushed tag `v*` deploys that tag to the VPS through `deploy/deploy.sh`, which builds a
+# LEGACY — the VPS path (PM2 + Nginx, MySQL). Production moves to Vercel; this runs only by hand
+# now (a tag push no longer deploys), against a MySQL-era tag, until its removal is approved
+# (docs/operations.md#legacy-cpanel-and-the-vps-rollback-only).
+#
+# A pushed tag `v*` deployed that tag to the VPS through `deploy/deploy.sh`, which builds a
 # fresh release, migrates, switches PM2 over, and rolls back on a failed health check.
 #
 # Repository secrets required:
@@ -10,8 +14,7 @@ name: Deploy
 #   DEPLOY_PATH      APP_DIR on the server, e.g. /var/www/renovate
 
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
 
 concurrency:
   group: deploy

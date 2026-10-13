@@ -1,4 +1,8 @@
 /**
+ * LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+ * Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+ * run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+ *
  * PM2 process definition.
  *
  * Runs the standalone server that `next build` emits (see `output: 'standalone'` in

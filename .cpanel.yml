@@ -1,4 +1,8 @@
 ---
+# LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+# Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+# run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+#
 # cPanel Git Version Control runs these on "Deploy HEAD Commit" (Manage → Pull or Deploy).
 # No login shell is needed: cPanel runs the tasks as the account user, from the repository
 # directory. On the `cpanel` branch (built by the "cPanel build" workflow) deploy/cpanel.sh

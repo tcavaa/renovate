@@ -1,4 +1,8 @@
 /**
+ * LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+ * Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+ * run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+ *
  * Passenger entry point for cPanel ("Setup Node.js App").
  *
  * cPanel runs Node apps through Phusion Passenger, which starts one startup file in the

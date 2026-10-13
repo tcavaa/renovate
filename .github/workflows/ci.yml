@@ -24,10 +24,7 @@ env:
   # Placeholder configuration so `lib/env.ts` validates and `next build` can run without a
   # database. Nothing here is a real secret.
   NODE_ENV: test
-  DATABASE_HOST: 127.0.0.1
-  DATABASE_USER: ci
-  DATABASE_PASSWORD: ci
-  DATABASE_NAME: renovate_ci
+  DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/renovate_ci
   AUTH_SECRET: ci-only-secret-that-is-at-least-32-characters-long
   NEXT_PUBLIC_APP_URL: http://localhost:3000
   LOG_FILE: 'false'

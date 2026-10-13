@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+ * Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+ * run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+ *
  * Applies pending migrations from lib/db/migrations with plain node — no tsx, no dev
  * dependencies. This is what deploy/cpanel.sh runs in release mode, where the checkout holds
  * only the standalone server CI built; `mysql2` is loaded from that server's node_modules

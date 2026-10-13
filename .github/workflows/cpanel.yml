@@ -1,5 +1,10 @@
-name: cPanel build
+name: cPanel build (legacy)
 
+# LEGACY — kept only to roll production back to the cPanel host until the move to Vercel and
+# Supabase is approved (docs/operations.md#legacy-cpanel-and-the-vps-rollback-only). It no longer
+# runs by itself: the code on main is PostgreSQL now, which the cPanel host (MariaDB) cannot run.
+# A rollback runs it by hand with `ref` = the last MySQL commit (tag `legacy-mysql-cpanel`).
+#
 # Builds the standalone server on GitHub's runners and publishes it to the `cpanel` branch,
 # which the cPanel Git Version Control repository checks out. The shared host cannot build the
 # app itself — its per-account memory cap kills `pnpm install` and `next build` — so the branch
@@ -19,11 +24,12 @@ name: cPanel build
 # or the build runs can read it; only the publish step gets it. Actions are pinned to commits.
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The MySQL-era commit or tag to build for cPanel (rollback)'
+        required: true
+        default: legacy-mysql-cpanel
 
 concurrency:
   group: cpanel-build
@@ -47,31 +53,26 @@ env:
 jobs:
   # A manual run publishes whatever main is now, which no CI run may have checked yet: it runs
   # the checks itself first. A run after CI needs none — CI has just passed on that commit.
+  # The legacy ref's own checks ran when it was main; a rollback build does not repeat them
+  # (this branch's CI is Postgres and would check the wrong code).
   checks:
     name: Checks before a manual publish
-    if: github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/ci.yml
-    permissions:
-      contents: read
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
 
   publish:
     name: Build and publish the cpanel branch
     needs: checks
     # `always()`: the checks job is skipped on a run after CI, and a skipped need would skip this.
-    if: >-
-      always() &&
-      ((github.event_name == 'workflow_dispatch' && needs.checks.result == 'success') ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main' &&
-        github.event.workflow_run.head_repository.full_name == github.repository))
+    if: always() && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
@@ -98,7 +99,7 @@ jobs:
         env:
           DSN_VARIABLE: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SENTRY_RELEASE: ${{ inputs.ref }}
 
       - name: Assemble the standalone server
         run: |
@@ -117,12 +118,12 @@ jobs:
           printf '%s\n%s\n' "${BUILT_SHA}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .next/standalone/.prebuilt
           du -sh .next/standalone
         env:
-          BUILT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          BUILT_SHA: ${{ inputs.ref }}
 
       - name: Publish to the cpanel branch
         # The checkout kept no credentials; the token is handed to git for this step only.
         env:
-          BUILT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          BUILT_SHA: ${{ inputs.ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail

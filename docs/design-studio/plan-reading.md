@@ -15,9 +15,11 @@ same upload card).
 |---|---|
 | `components/design/PlanUploadCard.tsx` | the upload card used by both products' step 1: file → upload → read (Claude, else CV) → confirm scale/area; the game while it reads |
 | `components/design/PlacementGame.tsx`, `lib/design/placementGame.ts` | "Where does it go?" — real catalogue pieces on a 3D turntable to put in the rooms of a little flat while the plan is read (below) |
-| `app/api/design/upload-plan/route.ts` | stores the uploaded image (open to signed-in and guest callers; 12 MB, bytes sniffed, never the declared type, GIF refused; `RATE_RULES.uploadPlan`) |
-| `app/api/design/parse-plan/route.ts` | the Claude reader (`readPlanWithClaudeDetailed`, model `PLAN_MODEL`): reads only stored plan keys or the bundled sample, prepares them with `planVision`, builds the plan with the ink; answers 503 with `fallback: 'cv'` when no `ANTHROPIC_API_KEY` is configured; `RATE_RULES.parsePlan` |
+| `app/api/design/upload-plan/route.ts` | claims a plan the browser sent straight to storage and publishes it under `plans/` (open to signed-in and guest callers; 20 MB, bytes sniffed, never the declared type, GIF refused; `RATE_RULES.uploadPlan` when the place is asked for — [uploads.md](../uploads.md)) |
+| `lib/uploads/browserImage.ts` (`optimizePlanForUpload`) | browser: a plan goes as it came unless its longest side is over 4096 px or it is over 20 MB — then scaled down, aspect kept, a PNG staying PNG |
+| `app/api/design/parse-plan/route.ts` | the Claude reader (`readPlanWithClaudeDetailed`, model `PLAN_MODEL`): reads only stored plan keys (from storage) or the bundled sample (`public/samples`, traced into the function by `outputFileTracingIncludes`), prepares them with `planVision`, builds the plan with the ink; answers 503 with `fallback: 'cv'` when no `ANTHROPIC_API_KEY` is configured; `RATE_RULES.parsePlan`; may run 300 s (`maxDuration`) |
 | `lib/design/planVision.ts` | Node only (sharp): `prepareForVision` — the image within the API's limits (`fitForVision`) with a coordinate ruler drawn on for the model, and the same image without it as ink for the geometry |
+| `lib/design/rulerDigits.ts` | the ruler's numbers as stroked SVG paths (`rulerLabel`) — a Vercel function has no fonts, so `<text>` drew nothing there |
 | `lib/design/planPdf.ts` | browser: page 1 of a PDF rasterised through pdf.js to a PNG `File` |
 | `lib/design/planImage.ts` | browser: `File` → RGBA at ≤ 1100 px — the only part of the CV path that touches the DOM |
 | `lib/design/planParser.ts` | the deterministic CV parser: raster in, room polygons out |
@@ -33,7 +35,8 @@ same upload card).
 ## Flow
 
 ```
-file (image or PDF) ─ planPdf (PDF → PNG, page 1) ─▶ POST /api/design/upload-plan → stored URL
+file (image or PDF) ─ planPdf (PDF → PNG, page 1) ─ optimizePlanForUpload (only when huge)
+   ─▶ POST /api/uploads (a place) → PUT to storage → POST /api/design/upload-plan → stored URL
    ├─ POST /api/design/parse-plan  planVision: image + ruler for Claude, the same image as ink
    │     Claude: rooms as boxes, printed dimensions, doors/windows/open sides/railings
    │     → planInk (box sides onto wall bands) → planSolver (centrelines, thicknesses)
@@ -45,7 +48,9 @@ FloorPlan → ensureWalls (plan-board.md: wallsFromRooms for the CV path's polyg
 ```
 
 A PDF is rasterised first, so the upload route, the Claude reader and the CV parser only ever
-see images. pdf.js's worker is served from `public/vendor/pdf.worker.min.mjs` because the CSP
+see images. The bytes never pass through a function: the browser sends them to storage and the
+route claims them ([uploads.md](../uploads.md)), so a 15 MB scan is fine although a Vercel
+function takes at most 4.5 MB of request body. pdf.js's worker is served from `public/vendor/pdf.worker.min.mjs` because the CSP
 allows workers from this origin only (`pnpm pdf:worker` re-copies it after upgrading
 `pdfjs-dist`).
 
@@ -81,7 +86,7 @@ touching anything in `planParser.ts`.
 
 The CV parser reads *ink*, and a real estate agent's plan is mostly ink that is not a wall:
 sofas, beds, kitchen counters, dimension arrows, room labels. On a sample 1-bedroom estate
-agent's plan (not in the repo — `public/uploads/plans` is git-ignored; its room boxes are
+agent's plan (not in the repo — uploads are not kept in git; its room boxes are
 encoded in `scripts/test-plan-solver.ts`) it returned two regions — a 364×312 blob and a sliver — losing the
 bedroom, bathroom and balcony entirely. Annotation lines that run to the image edge also let
 interior space leak into the exterior region, which is then discarded as "outside". No
@@ -108,7 +113,9 @@ dimensions, and one grid the walls are built from.
   model sees — dashed lines at every tenth of the drawing, numbered along the top and left, in a
   white margin — and the prompt asks for every coordinate on it. A model asked for "a fraction
   of the image" estimates; one given a ruler reads, and its doors land on the right stretch of
-  wall. The ruler spans the drawing, not the margin, so its coordinates are the ink's.
+  wall. The ruler spans the drawing, not the margin, so its coordinates are the ink's. Its
+  numbers are drawn as strokes (`rulerDigits.ts`), not `<text>`: sharp renders SVG text through
+  the system's fonts, and a Vercel function has none — the ruler came out unnumbered there.
 
 **Which model** (`plan:ai --model`, 9 October 2026, four plans: the estate-agent plan above, the
 bundled sample with no labels, a hand-drawn watercolour flat, a CAD ground floor with sizes in

@@ -38,7 +38,7 @@ const schema = z
     /** The provider's CA certificate (PEM), or `supabase` for Supabase's own root; empty for a public CA. */
     DATABASE_SSL_CA: optionalString,
     /** Connections per server instance; empty: 5 on Vercel, 10 elsewhere. */
-    DATABASE_POOL_MAX: z.coerce.number().int().positive().max(50).optional(),
+    DATABASE_POOL_MAX: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.number().int().positive().max(50).optional()),
 
     AUTH_SECRET: isProduction
       ? z.string().min(32, 'AUTH_SECRET must be at least 32 characters in production')

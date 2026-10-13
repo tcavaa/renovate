@@ -453,9 +453,12 @@ and owned by the viewer (walk mode has its own controls) — the studio page han
 **Photos.** The camera button (`ViewerApi.screenshot`: render, then `toDataURL` — the
 canvas does not keep its buffer between frames) opens `PhotoDialog` with the shot and asks
 whether to make a realistic photo of it. Yes saves the design first (a draft is enough —
-`ensureSaved` → `saveDesign({ draft: true })`), posts the PNG with the room name and the
-camera pose to `POST /api/design/renders`, which stores it under `renders/` and queues a
-`project_renders` row, and then tells the person the render is being made, that they can
+`ensureSaved` → `saveDesign({ draft: true })`), turns the PNG into WebP (or JPEG where the
+browser writes no WebP) at 0.9 (`compressScreenshot`), sends it straight to storage
+(`sendToStorage('render', …)`, [uploads.md](../uploads.md)) and hands its upload id with the
+room name and the camera pose to `POST /api/design/renders`, which claims it (the person's own
+project, 8 MB, the bytes sniffed — never the declared type), stores it under `renders/` and
+queues a `project_renders` row, and then tells the person the render is being made, that they can
 keep taking photos or moving furniture, and that it will be in their profile's renders under
 the project: "გაგრძელება" closes the dialog and "რენდერის ნახვა" opens `/profile?view=renders`
 scrolled to the project's group (`profileRendersHref`, `lib/projects/links.ts`). The project's

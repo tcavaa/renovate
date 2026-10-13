@@ -126,7 +126,9 @@ sent, not-cancelled booking for it (`teamMaySeeProject`; a turned-down booking c
 the booking's page, the order list and the dashboard link to it. **No partner changes an
 order's lines, prices or delivery** — they move the order along and comment ([marketplace.md](marketplace.md#order-review-the-platform-confirms-every-store-order)). `requireUploader()` opens
 `/api/upload` (images) to every linked partner; `/api/upload/model` (GLB) takes
-`requireCatalogEditor()`, so of the partners only stores. A worker edits their own card at
+`requireCatalogEditor()`, so of the partners only stores — and `POST /api/uploads`, where the
+browser first asks for a place in storage, applies the same guard per kind
+([uploads.md](uploads.md#kinds-and-limits)). A worker edits their own card at
 `/partner/profile` with `WorkerSelfForm` — the same service and price fields as registration
 (`WorkerServiceFields`), sent to `PUT /api/workers/[id]` which accepts `workerSelfSchema`
 from the worker themself and the full admin schema from admin; rating, verification,
@@ -142,8 +144,8 @@ reads its state from the query string through `parseListParams` in `lib/admin/li
 renders `FilterBar` (client, writes the URL) plus `Pager` (`components/admin/AdminList.tsx`,
 server, links). The projects list, and the dashboard's newest projects, sort and cut the page on
 the ids alone and then read those rows by id, put back in order by `inIdOrder`: their rows read
-a project's plan and picks, which MySQL would otherwise carry through its sort buffer
-([data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json)).
+a project's plan and picks, which the database would otherwise carry through its sort
+([data-model.md](data-model.md#dont-sort-rows-that-carry-big-json)).
 
 **The filter bar** (`FilterBar`, declarative: the page lists its fields) is two rows in one
 frame: the search box (a pause after typing, or Enter; its own ×) and the sort menu on top; under

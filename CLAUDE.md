@@ -25,12 +25,14 @@ with English and Russian. Tagline: გეგმე. გამოთვალე.
 
 ## Stack
 
-Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · MySQL 8 + Drizzle ORM ·
-pnpm 9 · Tailwind 3 + Radix-based components, lucide-react · Zustand + `persist` (three stores
-per project) · Zod · NextAuth v5 beta (Credentials, optional Google/Facebook;
-JWT; seven roles) · three / @react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru`
-· Vitest + Playwright · Sentry (`@sentry/nextjs`, off without a DSN) · deploy targets: cPanel
-(production) and a VPS (PM2 + Nginx). Details: [docs/architecture.md](docs/architecture.md).
+Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · PostgreSQL (Supabase) +
+Drizzle ORM (node-postgres) · Supabase Storage (direct uploads) · pnpm 9 · Tailwind 3 +
+Radix-based components, lucide-react · Zustand + `persist` (three stores per project) · Zod ·
+NextAuth v5 beta (Credentials, optional Google/Facebook; JWT; seven roles) · three /
+@react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru` · Vitest + Playwright ·
+Sentry (`@sentry/nextjs`, off without a DSN) · hosting: Vercel (functions in `fra1`) — the cPanel
+host (MySQL/MariaDB) is legacy, kept for a rollback until the move is approved
+([docs/operations.md](docs/operations.md)). Details: [docs/architecture.md](docs/architecture.md).
 
 ## Commands
 
@@ -50,16 +52,15 @@ pnpm test:coverage      # the same with the coverage gate (vitest.config.mts)
 pnpm test:watch
 pnpm test:parser        # CV floor-plan parser on synthetic plans — after touching planParser
 pnpm test:solver        # dimension labels + plan solver, no API key — after touching the Claude reader
-pnpm test:e2e           # Playwright against :3000 (needs the DB; not in CI)
+pnpm test:e2e           # Playwright against :3000 (needs a database; not in CI)
 pnpm plan:diagnose <plan.png>             # stage-by-stage report of the CV path on one plan
 pnpm plan:ai <plan.png> [--save r.json] [--overlay o.png]   # the Claude path on one plan; --replay r.json needs no key
 
 pnpm db:generate        # drizzle-kit generate after a schema change → commit the migration
-pnpm db:migrate         # apply pending migrations (what deploys run)
-pnpm db:migrate:baseline  # once, on a DB created with db:push before migrations existed
+pnpm db:migrate         # apply pending migrations (production deployments run it themselves)
 pnpm db:push            # local experiments only (interactive; hangs in a non-interactive shell)
 pnpm db:studio
-pnpm db:indexes         # idempotent secondary indexes
+pnpm db:copy-from-mysql --yes [--exclude-library]   # SOURCE_MYSQL_URL's rows into this Postgres (empties it first)
 pnpm db:seed            # categories, stores, products, workers, admin
 pnpm db:seed:design     # partner stores + design categories (no furniture — see models:seed)
 pnpm db:seed:rates      # local tidy-up: writes the default rate book in (never needed in production)
@@ -85,16 +86,19 @@ pnpm textures:stock     # floor/wall finish textures → surface products
 pnpm textures:colors [--force]   # each finish's colours read off its texture (the colour filter)
 pnpm textures:webp [--dry-run]   # every JPEG/PNG finish texture in public/textures as WebP (normal maps at 90)
 pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products and /furniture as WebP (uploads convert on arrival)
-pnpm deploy:bundle-seed # models:seed as one plain-node file (the cPanel workflow runs it)
-pnpm uploads:cleanup [--dry-run]   # plan uploads no project references
-pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it (the cPanel deploy runs it too)
+pnpm uploads:cleanup [--dry-run]   # plan uploads no project references (the daily cron does it in production)
+pnpm uploads:copy-to-storage --from <dir> [--dry-run]   # an old uploads folder into Supabase Storage, rows repointed
+pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it
+pnpm deploy:bundle-seed # legacy: models:seed as one plain-node file for the cPanel workflow
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three
 ```
 
 Admin login after seeding: `ADMIN_EMAIL` (default `admin@remonti.ge`) / `ADMIN_PASSWORD` from
-`.env.local`; with no password set the seed generates one and prints it once. `node_modules` may
-be absent in a fresh cloud checkout — `pnpm install` before running anything.
+`.env.local`; with no password set the seed generates one and prints it once. Local development
+needs a Postgres (`DATABASE_URL`, default `postgresql://localhost:5432/renovate_ge`; `pnpm
+db:migrate` then the seeds). `node_modules` may be absent in a fresh cloud checkout — `pnpm
+install` before running anything.
 
 ## Rules that apply everywhere
 
@@ -112,9 +116,10 @@ be absent in a fresh cloud checkout — `pnpm install` before running anything.
    through `lib/calculator/steps.ts` / `lib/design/steps.ts`.
 5. **Schema changes** go `lib/db/schema.ts` → `pnpm db:generate` → a committed migration;
    payloads get a Zod schema in `lib/validations/`. Decimals are strings: `Number()` before
-   arithmetic, `String()` before insert. **A migration runs on MySQL 8 and on MariaDB** (the
-   cPanel host): no `CAST(… AS JSON)`, no back-references in `REGEXP_REPLACE` —
-   [docs/data-model.md](docs/data-model.md#migrations-run-on-mysql-and-mariadb).
+   arithmetic, `String()` before insert. **A migration is Postgres and runs while the previous
+   deployment still serves** (production deployments migrate before they build): add first, drop
+   later. Queries take `asc`/`desc` from `lib/db/order.ts`, `.returning()` for ids, `ilike` for
+   searches — [docs/data-model.md](docs/data-model.md#migrations-on-postgres).
 6. **API routes** use `handle()` / `ok()` / `fail()` and the guards in `lib/api/route.ts`,
    answer `{ data, error }`, and `safeParse` every JSON body.
 7. **Every object in the studio is a GLB** with a manifest entry; only the architecture is built
@@ -123,7 +128,9 @@ be absent in a fresh cloud checkout — `pnpm install` before running anything.
    payments fall back to Flitt's public sandbox merchant ([docs/payments.md](docs/payments.md)).
 9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates
    through `formatDateTime()` or a `toLocale…` call with `{ timeZone: TIME_ZONE }` (Tbilisi, on
-   both sides — `lib/utils.ts`); pictures through `@/components/ui/image`, not `next/image`.
+   both sides — `lib/utils.ts`); pictures through `@/components/ui/image`, never optimized
+   (`/_next/image` is billed on Vercel). **Files never go through a function**: the browser sends
+   them to storage and the route claims the upload ([docs/uploads.md](docs/uploads.md)).
 10. **Before calling a change done**: `pnpm type-check`, `pnpm lint`, `pnpm test` (plus
     `test:parser` / `test:solver` when the plan pipeline changed), and update the docs (below).
 
@@ -136,7 +143,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | Document | What it covers | Read it when |
 |---|---|---|
 | [docs/architecture.md](docs/architecture.md) | layers, directory map, routes, state, i18n, API and coding conventions, Next 16 notes | finding where something lives; any cross-cutting change; adding a route, store or string |
-| [docs/data-model.md](docs/data-model.md) | every table and column, JSON and decimal rules, migrations, Drizzle pitfalls | touching `lib/db/`, a query, a column or a payload |
+| [docs/data-model.md](docs/data-model.md) | every table and column, Postgres rules (jsonb, decimals, time zones, case, NULL order), migrations on Postgres, Drizzle pitfalls | touching `lib/db/`, a query, a column or a payload |
 | [docs/auth-and-roles.md](docs/auth-and-roles.md) | sign-in, the seven roles and what each may do, account management (create, role and link, deactivate, password), a person's own details (name, phone, default address), the per-request account re-check, proxy / page / API guards, lockout, tokens | adding a route or admin page; anything checking `session.user`; `/admin/users`; `/profile?view=account` |
 | [docs/project-flow.md](docs/project-flow.md) | projects: hubs, creation, the gate, per-project stores, caches, revisions and conflicts, autosave, resume, locks, the calculator ↔ 3D handoff, the project page | `lib/flow/`, `store/projectScope.ts`, the hubs, save routes, step URLs, `ProjectGate` |
 | [docs/calculator.md](docs/calculator.md) | the calculator's six steps, the estimate engine, the rate book, phases and home states, per-room finishes, selection keys | `lib/calculator/`, `lib/summary/`, `store/calculatorStore.ts`, `app/(main)/calculator/`, `/admin/rates` |
@@ -156,7 +163,8 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |
 | [docs/design-studio/technical-and-fittings.md](docs/design-studio/technical-and-fittings.md) | technical points and works, sockets/switches/lights, radiators, doors and windows | `technical.ts`, `electrical.ts`, `radiators.ts`, `openings.ts`, the technical step |
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
-| [docs/operations.md](docs/operations.md) | environment, logs, Sentry, health, deploys (cPanel, VPS), storage, mail | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/storage/`, `deploy/`, workflows, `next.config.mjs` |
+| [docs/operations.md](docs/operations.md) | where it runs (Vercel + Supabase), environment, logs, Sentry, health, deploying and migrations, the 4.5 MB limits, the daily cron, mail, moving the data, the cutover checklist, the legacy cPanel/VPS rollback | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/db/index.ts`, `vercel.json`, `scripts/vercel-build.mjs`, `deploy/`, workflows, `next.config.mjs` |
+| [docs/uploads.md](docs/uploads.md) | direct uploads: the browser to storage, the sign and claim routes, kinds and limits, the browser's own pass, the storage drivers (Supabase, local), cleaning up | `lib/uploads/`, `lib/storage/`, `app/api/uploads/**`, any route or component that takes a file |
 | [docs/testing.md](docs/testing.md) | test commands, what CI runs, the coverage gate, where each area's tests are | before declaring work done; adding tests |
 | [docs/audit-checklist.md](docs/audit-checklist.md) | the codebase audit's open items, top 10 by urgency, and a done log with commits | picking the next audit fix; tick the item and move it to the done log in the fixing commit |
 | [docs/roadmap.md](docs/roadmap.md) | **next tasks**: bugs found and not fixed, planned features, links to every area's known gaps | planning work, "what's next", before starting a feature |

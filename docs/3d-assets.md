@@ -11,7 +11,8 @@ Related: [catalog.md](catalog.md) (products and the admin form) ·
 [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md) (fittings,
 doors, windows and radiators — their models' framing rules) ·
 [design-studio/finishes.md](design-studio/finishes.md) (finish products and trims) ·
-[operations.md](operations.md) (the deploy runs `models:seed`).
+[operations.md](operations.md) (every production deployment runs `models:seed`) ·
+[uploads.md](uploads.md) (how an uploaded file reaches the routes below).
 
 ## The pipelines
 
@@ -32,10 +33,10 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm textures:webp [--dry-run]` | `scripts/webp-textures.ts` (+ `lib/uploads/textureOptimize.ts`) | every JPEG or PNG in `public/textures` replaced by `<name>.webp` ([below](#finish-textures-are-webp)) |
 | `pnpm textures:colors [--force]` | `scripts/texture-colors.ts` (+ `lib/uploads/textureColors.ts`) | every textured product's colours read off its texture into `specs.colors`, for the finishes' colour filter — only what is missing unless `--force`; the textures the product form uploads get theirs as they arrive |
 | `pnpm models:seed` | `scripts/seed-models.ts` | the catalogue made to match the manifests (below) |
-| `pnpm deploy:bundle-seed` | esbuild | `models:seed` as one plain-node file beside the standalone server (the cPanel deploy runs it) |
+| `pnpm deploy:bundle-seed` | esbuild | legacy: `models:seed` as one plain-node file beside the standalone server, for the cPanel rollback |
 | `pnpm models:compress [--only=a,b] [--dry-run]` | `scripts/compress-models.ts` (+ `scripts/lib/compressModels.ts`) | every model as the studio downloads it: WebP textures, Draco geometry where that pays ([below](#compression-webp-and-draco)). The last step of every model pipeline above; on its own for the files already there |
 | `pnpm uploads:optimize-models [--dry-run]` | `scripts/optimize-stored-models.ts` (+ `lib/uploads/optimizeStored.ts`) | the upload recipe run again over the models already stored (admin products, own furniture), in place ([below](#uploads-are-optimized)) |
-| `pnpm deploy:bundle-optimize` | esbuild | that script as `optimize-models.cjs` beside the standalone server (the cPanel deploy runs it with `--dir` on the shared uploads) |
+| `pnpm deploy:bundle-optimize` | esbuild | legacy: that script as `optimize-models.cjs` beside the standalone server, for the cPanel rollback |
 | `pnpm draco:decoder` | `scripts/copy-draco-decoder.mjs` | three's Draco decoder (glTF build) copied into `public/vendor/draco` for the browser's loaders; the copy is committed |
 
 Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts`,
@@ -56,7 +57,7 @@ run as the last step of each pipeline and as `pnpm models:compress`):
   coordinates as many bits as their range needs — `dracoOptions` in `lib/uploads/glbOptimize.ts`,
   below) where that pays: at least 24 KB of geometry (`DRACO_MIN_GEOMETRY_BYTES`) and at least
   16 KB saved against meshopt. Measured on the partner and stock models, Draco geometry is about
-  40 % of meshopt's as the studio serves it (the production host does not gzip GLBs; meshopt with
+  40 % of meshopt's as the studio serves it (the old production host did not gzip GLBs; meshopt with
   brotli was still about 1.6 times Draco). Everything else — sockets, switches, Kenney's pieces —
   stays meshopt, which the browser decodes without a worker round trip.
 
@@ -91,12 +92,13 @@ normals moved 2° and tile grout came out visibly harder under raking light, at 
 1.4° (`lib/uploads/textureOptimize.ts`, which tells a normal map by its name). The JPEGs were saved
 near quality 100: 93 maps went from 47 MB to 9.2 MB. `pnpm textures:webp` converts whatever is not
 WebP yet (and `pnpm assets:extract` runs it); `pnpm textures:stock` converts what it downloads;
-a texture uploaded in the product form (`/api/upload`, folder `textures`) is stored as WebP within
-2048 px. The names stayed, so only the extension changed: **migration 0021** rewrote the stored
+a texture uploaded in the product form (sent to storage, then `/api/upload` with folder `textures`
+— [uploads.md](uploads.md)) is stored as WebP within 2048 px. The names stayed, so only the extension changed: **migration 0021** rewrote the stored
 URLs — products' `texture_url` and `specs`, saved designs (scene, plan, calculator board, versions;
 their revisions moved on so a cached copy does not write the JPEGs back) and the brigade portfolio
 photos — matching only a path that starts at `/textures/` (an uploaded `/uploads/textures/…` keeps
-its name). `next.config.mjs` redirects any `/textures/….jpg` still asked for to its `.webp`, for a
+its name). (0021 and 0022 are MySQL migrations, now in `lib/db/migrations-mysql/`; their result came
+over with the data.) `next.config.mjs` redirects any `/textures/….jpg` still asked for to its `.webp`, for a
 page, a browser's cached design or an order made before.
 
 ## Photos are WebP
@@ -107,11 +109,14 @@ Every picture is WebP, at quality 85 within 1600 px with a render's transparency
 - **Uploads** — `/api/upload` (a product's, a brigade's, a store's, a category's photo; a texture
   goes through the texture encoder above) and a person's own furniture (`/api/design/models`, its
   turntable photo or a photo on its own). A GIF, a WebP within size or a file WebP would not make
-  smaller is kept as it came.
+  smaller is kept as it came. The browser usually sends a WebP within 1600 px already
+  (`optimizePhotoForUpload` — [uploads.md](uploads.md#what-the-browser-does-first)), which the
+  server keeps as it is: one lossy encode, not two.
 - **The seed pictures** in `public/uploads/products` and `/furniture` — 327 of them, 89.7 MB of PNG
   and JPEG, now 7.4 MB — by `pnpm photos:webp`, which leaves runtime uploads alone
   (`isRuntimeUploadKey`: a `<timestamp>-<hex>` or `own-<user>-…` name) and points the model
-  manifests' `imageUrl` at the `.webp`, so `models:seed` and the deploy's catalogue sync name them.
+  manifests' `imageUrl` at the `.webp`, so `models:seed` and the deployment's catalogue sync name them.
+  Vercel serves them from `public/uploads`; run-time uploads live in Supabase Storage.
   The pipelines that render, fetch or copy a photo write WebP themselves (`scripts/lib/photos.ts`:
   `models:photos`, the fixtures', stock and partner photos, `textures:stock`'s thumbnails), and
   the seed catalogue's default photo is `/uploads/products/<slug>.webp`.
@@ -119,9 +124,9 @@ Every picture is WebP, at quality 85 within 1600 px with a render's transparency
   snapshots in saved designs and the calculator's picks (their revisions moved on) — for seed names
   only: a runtime upload's name starts with a digit or `own-<digit>` and keeps its format.
 
-The site shows photos through Next's image optimizer, which serves browsers a resized WebP or AVIF
-anyway; what this saves is the uploads' and the repo's weight, the optimizer's first read of a
-large PNG on a slow host, and a raw `<img>` (the plan board's inspector) downloading the original.
+The site shows every photo as it is stored — no image optimizer (`/_next/image` is billed on
+Vercel; `images.unoptimized`) — so this is what keeps pictures light: the uploads' and the repo's
+weight, and what every browser downloads.
 
 ## What `pnpm models:seed` does
 
@@ -213,12 +218,15 @@ recipe (`glbOptimize.ts`, isomorphic):
 imports `glbOptimizeBrowser.ts` on demand (one lazy chunk, ~300 kB, 83 kB gzipped, never in
 the pages' initial JavaScript) and re-encodes textures through a canvas; the uploader shows
 "optimizing…" and then the size it went from and to: a quicker upload, and less for the
-server's pass to do on a memory-capped host. A browser that cannot write WebP (Safari: `convertToBlob`
+server's pass to do. The file then goes **straight to storage** (40 MB at most) and the route
+claims it by its upload id ([uploads.md](uploads.md)) — it never passes through a function, whose
+request bodies Vercel caps at 4.5 MB. A browser that cannot write WebP (Safari: `convertToBlob`
 quietly answers with a PNG) shrinks an oversized JPEG as a JPEG and leaves the rest — the
 geometry is still compressed, and the three uploads below came to 1.8–3.6 MB that way. Then in
 the route — `optimizeUploadedModel` (`glbOptimizeServer.ts`, sharp, Lanczos, and `draco3d`,
 kept outside the server bundle by `serverExternalPackages` because it reads its `.wasm` beside
-itself) in `/api/upload/model` and `/api/design/models` — which rewrites a browser-optimized
+itself) in `/api/upload/model` and `/api/design/models` (both `maxDuration = 300`: on Vercel a
+function has one vCPU and 2 GB) — which rewrites a browser-optimized
 file's geometry as Draco, keeping its WebP textures, and finishes any other: a Safari upload, a
 failed browser pass, a script posting straight to the route. A file already Draco and WebP
 within its caps is kept byte for byte. The log says which: `model uploaded` (and `own model added`) carries
@@ -237,11 +245,9 @@ laptop or a phone to take several times that. In the dev server the route's pass
 too (about 1.5 s for the figure). With Draco on the server the same three came to 0.32, 0.73 and 0.75 MB.
 
 **Models stored before the recipe existed** — or before it wrote Draco — are optimized in place
-by `pnpm uploads:optimize-models` (`lib/uploads/optimizeStored.ts` over the storage's
-`models/`, local or S3) and, on the cPanel host, by the deploy itself: the `cPanel build`
-workflow bundles the script as `.next/standalone/optimize-models.cjs` (`deploy:bundle-optimize`,
-`sharp` and `draco3d` left to the standalone's `node_modules`) and `deploy/cpanel.sh` runs it with
-`--dir` on the shared uploads' `models/` after the catalogue sync. Each file keeps its name, so
+by `pnpm uploads:optimize-models` (`lib/uploads/optimizeStored.ts` over the storage's `models/`,
+Supabase or local; on the legacy cPanel host the deploy ran it as `optimize-models.cjs`). Every
+model copied into Supabase came from a store this had already been run over. Each file keeps its name, so
 the product rows and saved designs that point at it keep working; a browser's cached old copy is
 still a valid model. Idempotent: an optimized file is left alone. Locally it took the three old
 uploads from 35.4 MB to 1.7 MB (originals kept in `~/Desktop/Projects/RenovationRoom-backups`).

@@ -26,10 +26,10 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: size, category, placement rule, labels), `ROOM_PROGRAMS`, the category slug sets the code knows (`FIXTURE_…`, `OPENING_…`, `RADIATOR_…`, `TRIM_…`, `DESIGN_CATEGORY_SLUGS`), `SHELF_ROOMS` (the studio rooms' starting point), `archetypeLabel` |
 | `lib/design/styles.ts` | the four style ids ([design-studio/overview.md](design-studio/overview.md#the-four-styles)) |
 | `lib/design/colors.ts` | colour families for the shelves' filters (`productColors`, `productColorFamilies`, `colorTally`, `colorsOfPixels`) |
-| `lib/uploads/textureColors.ts`, `lib/uploads/textureOptimize.ts`, `lib/uploads/imageOptimize.ts`, `app/api/upload/route.ts` | an image upload, stored as WebP — a photo within 1600 px at quality 85, a texture (`folder: textures`) within 2048 px, which comes back with the colours read off it (`colorsOfImage`) ([3d-assets.md](3d-assets.md#photos-are-webp)) |
+| `lib/uploads/textureColors.ts`, `lib/uploads/textureOptimize.ts`, `lib/uploads/imageOptimize.ts`, `app/api/upload/route.ts` | an image upload (sent to storage by the browser, claimed by the route — [uploads.md](uploads.md)), stored as WebP — a photo within 1600 px at quality 85, a texture (`folder: textures`) within 2048 px, which comes back with the colours read off it (`colorsOfImage`) ([3d-assets.md](3d-assets.md#photos-are-webp)) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
 | `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
-| `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload, inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |
+| `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload (straight to storage, then claimed — [uploads.md](uploads.md)), inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `app/api/design/models/**`, `components/studio/OwnModelDialog.tsx`, `components/profile/MyModels.tsx` | a person's own furniture |
 | `app/(main)/catalog/page.tsx`, `[slug]/page.tsx`, `components/catalog/*` | the public catalogue (sidebar, filters, grid) and the product page (`ProductModelDrawer`) |
 | `lib/validations/product.schema.ts`, `store.schema.ts`, `category.schema.ts` | payloads |
@@ -57,8 +57,9 @@ replaced or cleared in the form is removed too; so is a store's, a brigade's or 
 logo or avatar (`removeUnusedUploads`, after the write). Only files storage made at runtime are
 ever deleted (`<ms>-<hex>.<ext>` from the upload routes, `own-…` for own furniture — the seed
 pictures under `public/uploads` are tracked in git and never match), and only when no product,
-logo, avatar or portfolio photo still uses the URL. Static assets (`/models/…`, `/textures/…`)
-are not storage's to delete.
+logo, avatar or portfolio photo still uses the URL. Static assets (`/models/…`, `/textures/…`,
+the seed `/uploads/…` Vercel serves) are not storage's to delete: `storage.keyFor` knows only
+the URLs the configured driver made (Supabase's public bucket in production).
 
 **Bulk and quick actions.** The admin's product list and a store's own list tick rows and show,
 hide or delete them together (`POST /api/products/bulk`: showing and hiding follow
@@ -97,13 +98,14 @@ without one before it looks at archetype or style. There are two ways a product 
 
 - **Upload a GLB in the product form** (`components/admin/ModelUploader.tsx`). The file is
   optimized in the browser first (`optimizeModelForUpload`: WebP textures, meshopt geometry —
-  a 5–10 MB export comes out under 1 MB; the button says so while it works), goes
-  to `POST /api/upload/model` (admin, catalogue agents and linked stores —
-  `requireCatalogEditor`; bytes checked by `sniffModel`: `glTF` magic, container version 2,
-  JSON first chunk; 40 MB cap; a file that requires Draco or Basis, or has no mesh, is refused;
-  optimized again if the browser could not — [3d-assets.md](3d-assets.md#uploads-are-optimized))
-  and lands under `models/` in storage (`/uploads/models/…` locally); the form shows the size
-  it went from and to. The form then loads that
+  a 5–10 MB export comes out under 1 MB; the button says so while it works), goes straight to
+  storage with a progress bar (40 MB cap — [uploads.md](uploads.md)) and is claimed by
+  `POST /api/upload/model` (admin, catalogue agents and linked stores — `requireCatalogEditor`;
+  bytes checked by `sniffModel`: `glTF` magic, container version 2, JSON first chunk; a file that
+  requires Basis (KTX2), or has no mesh, is refused; optimized again if the browser could not —
+  [3d-assets.md](3d-assets.md#uploads-are-optimized)), and lands under `models/` in storage
+  (Supabase's public bucket; `/uploads/models/…` locally); the form shows the size it went from
+  and to. The form then loads that
   URL with a GLTFLoader and meshopt decoder like the studio's (`mountPreview`) and shows it on a turntable with a grid and an arrow for the front (+Z), reads the real
   size from the geometry to prefill width/depth/height (a file in cm or mm is recognised by
   its size and converted), counts triangles and textures, and can render a PNG of the model
@@ -134,8 +136,8 @@ stays listed (marked `?`) rather than silently blanking the select and being los
 - **`products.model3dKind`** — the archetype the layout engine places the product as
   (`'sofa_3seat'`, `'bed_double'`, `'dining_table'`, …): which slot in which room program.
   See `ARCHETYPES` in `lib/design/catalog.ts`.
-- **`products.model3dUrl`** — the GLB (under `public/models/` for seeded models, under
-  `/uploads/models/` or the bucket for uploads), and the thing that makes a product placeable at
+- **`products.model3dUrl`** — the GLB (under `public/models/` for seeded models, in Supabase's
+  `uploads` bucket for uploads — `/uploads/models/` locally), and the thing that makes a product placeable at
   all; the design catalogue exposes it only when `model3dStatus` is `ready`. The viewer creates
   the item's wrapper immediately (selection, dragging and the cost bar work from the first
   frame) and drops the mesh in when the GLB arrives. There is no procedural stand-in: a slot
@@ -166,8 +168,10 @@ commission): the dialogue shows the price and pays by card through Flitt first, 
 a credit, and the route spends one (claimed before anything is stored, given back if the upload
 fails; none → 402 `PAYMENT_REQUIRED`) — [payments.md](payments.md#own-items). A photo is free. A GLB is
 optimized in the browser as it is picked (the admin uploader's `optimizeModelForUpload`; the
-dialog shows the size it went from and to), inspected and optimized by the route like a
-partner's (`sniffModel`, `inspectGlb`, no Draco/Basis, `optimizeUploadedModel`), shown on the
+dialog shows the size it went from and to), sent straight to storage with the photo rendered of
+it (kinds `own_model` and `own_photo` — [uploads.md](uploads.md)), claimed, inspected and
+optimized by the route like a partner's (`sniffModel`, `inspectGlb`, no Basis,
+`optimizeUploadedModel`), shown on the
 admin uploader's turntable (`mountPreview`, exported from `ModelUploader`) — the optimized
 file, so what the person sees is what the studio will place — so its size is
 read off it and a photo rendered for the tile, and is placeable at once — the studio puts
@@ -249,7 +253,7 @@ texture's colours, with sharp),
 bulk: admin's, a store's own products, never the catalogue agent's),
 `tests/unit/admin/categoryIcons.test.ts` (icon names, search, drawings), the category tree's
 tests ([categories.md](categories.md#tests)),
-`tests/unit/api/sniff.test.ts` (image and GLB sniffing, Draco/Basis refusal),
+`tests/unit/api/sniff.test.ts` (image and GLB sniffing, Basis refusal),
 `tests/unit/api/glbOptimize.test.ts` (an uploaded GLB optimized: meshopt, WebP at each map's
 size, the triangle cap, a file already optimized or unreadable kept as it came),
 `tests/unit/api/uploadKeys.test.ts` (which stored files may be deleted, what an edit let go
@@ -263,8 +267,8 @@ routes (`/api/design/models`), and the product page itself is covered only throu
 ## Known gaps
 
 - Admin has no bulk import: one GLB per product through the form. Files uploaded in a form that
-  is then abandoned (never saved) stay in storage — only plans have a sweeper
-  (`pnpm uploads:cleanup`). Converting a partner's
+  is then abandoned (never saved) stay in storage — only plans are swept by reference (the daily
+  `/api/cron/cleanup`, `pnpm uploads:cleanup` by hand). Converting a partner's
   archive drop is still an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.

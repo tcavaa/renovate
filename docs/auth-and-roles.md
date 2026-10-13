@@ -26,11 +26,11 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
 | `lib/api/route.ts` | API guards: `requireSession`, `requireAdmin`, `requireStaff(section)`, `requirePartner`, `requireCatalogEditor`, `requireUploader` (plus `handle`, `ok`, `fail`, `parseId`, `API_ERRORS`) |
 | `lib/api/publicPartners.ts` | what the public may know about a store or a worker (`publicStore`, `publicWorker`, `isListedPartner`) |
 | `lib/partner/context.ts` | `loadPartnerContext`: which store / worker / team the portal is showing (admin may pass `?store=` / `?worker=` / `?team=`) |
-| `lib/auth/lockout.ts` | per-account login lockout (in memory) |
+| `lib/auth/lockout.ts` | per-account login lockout, counted in the shared `rate_limits` table (`lib/api/counterStore.ts`) |
 | `lib/auth/tokens.ts` | single-use hashed tokens for e-mail verification and password reset (`auth_tokens`) |
 | `lib/auth/safeCallbackUrl.ts` | keeps `callbackUrl` on this site |
 | `lib/auth/social.ts` | which social providers exist, for both server and client; the error codes the login page reads (`SOCIAL_NO_EMAIL`, `ACCOUNT_DISABLED`) |
-| `lib/api/rateLimit.ts` | per-IP sliding-window limits (`RATE_RULES`) for public writes and saves |
+| `lib/api/rateLimit.ts` | per-IP sliding-window limits (`RATE_RULES`) for public writes, saves and uploads, counted in `rate_limits` |
 | `app/api/auth/*` | `register`, `register-partner`, `forgot`, `reset`, `verify`, `[...nextauth]` |
 | `app/api/users/route.ts`, `app/api/users/[id]/route.ts` | admin: create an account; read, change (role and link, active, name, e-mail, password) and delete one |
 | `app/api/profile/route.ts`, `lib/account/`, `components/profile/ProfileForm.tsx` | a person's own details: their name, phone and default delivery address (`/profile?view=account`) |
@@ -91,7 +91,10 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   `/admin` lands in its portal, an orders agent who types `/partner` in the admin. The user menu
   links staff to the admin and every partner (a brigade too) to the portal, first.
 - **Lockout**: five wrong passwords within fifteen minutes lock the account for fifteen minutes
-  (`lib/auth/lockout.ts`, in memory like the rate limiter — per process).
+  (`lib/auth/lockout.ts`). The failures are counted in the `rate_limits` table like the rate
+  limiter's ([operations.md](operations.md#rate-limits-and-the-client-address)), so every server
+  instance sees the same count and a restart forgets nothing; if that table cannot be reached the
+  attempt goes on to the password check (and a warning is logged).
 - **Verification and reset** use single-use, SHA-256-hashed tokens in `auth_tokens`
   (`lib/auth/tokens.ts`); issuing a new one retires the older unused ones. Verification is
   encouraged, not required: an unverified account still works. Google and Facebook accounts
@@ -185,6 +188,11 @@ the phone and the address.
      store only its own, and `canDeleteProduct` lets admin delete any and a store its own —
      never the catalogue agent (a bulk delete from one is refused before anything is read);
    - `requireUploader` — admin, `agent_catalog` or any linked partner: `POST /api/upload`.
+   - `POST /api/uploads`, which hands out a place in storage for a file before it is sent,
+     applies the guard of the route that will claim it: `requireUploader` for a picture,
+     `requireCatalogEditor` for a model, a session for a studio photo or one's own piece, and
+     none for a plan (the plan step is open to visitors; rate-limited) —
+     [uploads.md](uploads.md#kinds-and-limits).
 4. **The pages follow the routes.** A delete button is rendered only for whoever may delete:
    the admin's product list, product form, category form and store form read `canDeleteIn`
    for the signed-in role (the bulk bar offers show and hide only to the catalogue agent); a
@@ -234,5 +242,5 @@ order), `e2e/public.spec.ts` (auth pages, callback URL safety). `lib/auth/**` an
 - Admin can set a new password but cannot send a password-reset link from the account page
   (the person can use "forgot password"); account changes are logged to the app log, not kept
   as an audit trail in the database.
-- Lockout and rate limits are in memory, per process: a restart forgets them, and two
-  processes behind one domain would each keep their own.
+- Lockout and rate limits fail open: when the `rate_limits` table cannot be reached they let
+  the request through (the password is still checked) rather than lock everyone out.

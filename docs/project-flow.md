@@ -90,8 +90,8 @@ the list as a breadcrumb title ("გამომთვლელი › ჩემ
    calculation; design hub: a calculation that is started and ready, with no design) and opens
    this product's half of one.
 3. **The person's projects** as a grid of cards, most recently changed first
-   (`lib/projects/hub.ts`: `updatedAt desc, id desc`, sorted in code, not by MySQL —
-   [data-model.md](data-model.md#mysql-out-of-sort-memory-dont-sort-rows-that-carry-big-json);
+   (`lib/projects/hub.ts`: `updatedAt desc, id desc`, sorted in code, not by the database —
+   [data-model.md](data-model.md#dont-sort-rows-that-carry-big-json);
    a small serialisable `HubProject`, the scene read for its progress only, versions never). A
    card: a picture of the plan (`ProjectThumbnail` → `PlanDrawing`, drawn as the PDF sheet is: walls,
    doors, windows, each room's area, the sizes outside) in a rounded frame, then under it the name,
@@ -383,16 +383,18 @@ first too.
 - **Column ownership** (§15).
 
 **The write itself.**
-- One `UPDATE … SET rev = rev + 1, save_id = saveId WHERE id AND rev = <the revision read>`.
-  Forced saves use the same condition, so two saves racing each other cannot interleave; zero
-  affected rows is a 409.
+- One `UPDATE … SET rev = rev + 1, save_id = saveId WHERE id AND rev = <the revision read>
+  RETURNING id`. Forced saves use the same condition, so two saves racing each other cannot
+  interleave; no row returned is a 409 (`PROJECT_CHANGED`). (Postgres reports the rows a
+  statement matched, so an identical write still counts as written.)
 - The answer carries `rev: <read> + 1`, never a re-read that could pick up somebody else's
   later write.
 
 ### Renaming, deleting, the profile
 
 - `PATCH /api/projects/[id]` renames (`renameProjectSchema`).
-- `DELETE /api/projects/[id]` (the owner, or admin) removes the row and its renders' files. An
+- `DELETE /api/projects/[id]` (the owner, or admin) removes the row and its renders' files (from
+  storage — [uploads.md](uploads.md)). An
   ordered project is refused (`PROJECT_HAS_ORDERS`) unless admin deletes it.
   `DeleteProjectButton` also forgets the browser's caches of it.
 - The profile, the project page (`ProjectDetail`) and the hubs open a project with plain links
@@ -520,7 +522,7 @@ and `totalM2`; the design writes them only in a project designed first, and writ
 the calculation is worked out (so also when there is none) — when it is, the design's save
 forces `scene.mode` to `full`. Every non-pending calculator save writes `mode: 'full'`, and when
 the row has a design it turns that design into a renovation in place (`scene.mode` → `full`,
-with `JSON_SET`), counted as a write to the design (`designRev + 1`). A calculation still on its first step (no home state, no rooms) never blanks
+with `jsonb_set`), counted as a write to the design (`designRev + 1`). A calculation still on its first step (no home state, no rooms) never blanks
 a design's home state or rooms. The studio prices against the calculation's home state
 (synced whenever it opens).
 
@@ -611,7 +613,8 @@ verify on a second server, `NEXT_DIST_DIR=.next-build pnpm exec next dev -p 3100
 keeps this as a launch configuration in `.claude/launch.json`, which is git-ignored and not in
 the repository), and remove `.next-build` afterwards; never build over :3000):
 
-- *A conflict*: `UPDATE projects SET calculator_rev = calculator_rev + 1 WHERE id = …` in MySQL,
+- *A conflict*: `UPDATE projects SET calculator_rev = calculator_rev + 1 WHERE id = …` in the
+  local database (`psql renovate_ge`),
   then edit in the browser — the banner appears; "keep mine" writes at the next revision, "load
   the latest" writes nothing.
 - *Reopening from the server*: remove the project's keys (`localStorage` keys ending `:<id>`)

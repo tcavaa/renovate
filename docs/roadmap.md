@@ -26,6 +26,18 @@ at runtime yet; the last one was seen on the sample plan.
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample
   plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
 
+## The move to Vercel and Supabase (waiting for approval)
+
+- **Test, then cut over**: the branch `vercel-supabase` runs on renovatege.vercel.app against
+  Supabase while `renovate.rretrocar.ge` (cPanel, MariaDB) stays production. After the owner
+  approves: the [cutover checklist](operations.md#cutover-checklist-after-approval) — the data,
+  the legacy tag, the merge, the domain, the plans — and later the legacy path's removal.
+- **Before real customers**: Vercel Hobby is for non-commercial use and Supabase's free plan
+  pauses after a week idle and keeps no backups — Pro on both
+  ([operations.md](operations.md#where-it-runs)).
+- **Not measured yet**: delivery from Tbilisi off Vercel's and Supabase's CDNs (cPanel served
+  0.6–1.7 MB/s) — [operations.md](operations.md#known-gaps).
+
 ## Next features
 
 - **3D performance, what is left**: every paint click rebuilds every room's shell; switching
@@ -36,12 +48,9 @@ at runtime yet; the last one was seen on the sample plan.
   ([design-studio/3d-engine.md](design-studio/3d-engine.md#performance)).
 - **Sentry, what is left**: name it in the privacy policy as a processor; set the signed-in
   user on server events ([operations.md](operations.md#known-gaps)).
-- **Rate limits on cPanel**: confirm what Passenger puts in `X-Forwarded-For` — the limiter
-  trusts its last hop ([operations.md](operations.md#rate-limits-and-the-client-address)).
-- **Production delivery**: the cPanel host serves files at 0.6–1.7 MB/s. Since the WebP and
-  Draco deploy a first visit's 3D files are 6.35 MB (about 24 MB with the old files) and arrive
-  in 4–10 s, where they took 13–16 s before. What is left is a CDN in front of the domain or a
-  faster host ([operations.md](operations.md#known-gaps)).
+- **Uploads, what is left**: no resumable uploads (a large model restarts after a dropped
+  connection); a picture uploaded in a form that is then abandoned stays in the bucket
+  ([uploads.md](uploads.md#known-gaps)).
 
 - **Payments (Flitt, sandbox)**: going live — a merchant of our own, the company's name, code
   and address on the site (placeholders now), Flitt's review, `FLITT_TEST_MODE=false`, Apple

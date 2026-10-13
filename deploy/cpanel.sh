@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 #
+# LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+# Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+# run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+#
 # Build and (re)start the app on cPanel shared hosting with "Setup Node.js App" (Passenger).
 #
 # Run by cPanel itself: Git Version Control → Manage → Pull or Deploy → "Deploy HEAD Commit"

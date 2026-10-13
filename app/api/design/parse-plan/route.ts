@@ -12,6 +12,8 @@ import { sniffImage } from '@/lib/uploads/sniff';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// A Claude read of a large plan takes minutes; the most a Vercel Hobby function may run.
+export const maxDuration = 300;
 
 /**
  * Reads an uploaded floor plan with Claude.

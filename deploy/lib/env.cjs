@@ -1,4 +1,8 @@
 /**
+ * LEGACY — the self-hosted path (MySQL/MariaDB), kept only to roll back to until the move to
+ * Vercel + Supabase is approved: docs/operations.md#legacy-cpanel-and-the-vps-rollback-only. It is
+ * run from the last MySQL-era commit (tag `legacy-mysql-cpanel`), never from this branch's code.
+ *
  * Loads .env files into process.env for the two plain-node entry points on cPanel
  * (server.cjs and deploy/migrate.cjs), where neither dotenv nor @next/env can be relied on:
  * in release mode the checkout has no node_modules of its own, only the standalone server's.

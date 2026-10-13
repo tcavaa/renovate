@@ -19,7 +19,7 @@ Related: [data-model.md](data-model.md) (tables) · [auth-and-roles.md](auth-and
 | 3D | `lib/design3d/` + `components/design/Viewer3D.tsx` | Three.js scene building is plain three.js in `lib/design3d/`; the React/R3F viewer is client-only and dynamically imported with `ssr: false`. |
 | Client state | `store/` (zustand + `persist`) | One set of stores per project — see [project-flow.md §8](project-flow.md#8-one-set-of-stores-per-project-storeprojectscopets). |
 | Data hooks | `hooks/` | Fetch-once hooks (`useDesignCatalog`, `useRateBook`, `usePickStores`, `useProducts`/`useCategories`) plus `useAutosave` and `useCalculatorPlan`. |
-| Database | `lib/db/` (Drizzle, MySQL 8) | Schema in `lib/db/schema.ts`, migrations in `lib/db/migrations/` — see [data-model.md](data-model.md). |
+| Database | `lib/db/` (Drizzle, PostgreSQL on Supabase) | Schema in `lib/db/schema.ts`, migrations in `lib/db/migrations/` — see [data-model.md](data-model.md). |
 | Scripts | `scripts/` (run with `tsx`) | Seeds, migrations, the 3D asset pipelines, plan-reader test harnesses. |
 | Tests | `tests/unit`, `tests/integration` (Vitest), `e2e/` (Playwright) | See [testing.md](testing.md). |
 
@@ -86,7 +86,7 @@ app/
                                     brigades), projects (a brigade's booked projects, read-only)
   api/                              route handlers (list below)
 components/
-  ui/          button button-3d card dialog input label select textarea badge image (next/image, see below)
+  ui/          button button-3d card dialog input label select textarea badge image (next/image, never optimized — see below)
                money-row stat-card scroll-row node-icon
   layout/      Header Footer AdminSidebar LanguageSwitcher UserMenu NotFoundContent
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
@@ -142,10 +142,13 @@ lib/
   catalog/     the category tree (tree.ts, pure), its reads, the studio rooms' links, icon
                drawings for payloads, the starting tree — see docs/categories.md
   partner/     partner portal context, partner analytics, a brigade's booked projects
-  db/          schema.ts, index.ts (pool + drizzle), json.ts, migrations/
+  db/          schema.ts, index.ts (pool + drizzle), ssl.ts + supabaseCa.ts, order.ts (asc/desc, MySQL's NULL
+               order), migrations/ (Postgres), migrations-mysql/ (legacy)
   i18n/        ka.ts (source of the Dictionary type) en.ts ru.ts, client.tsx, server.ts, labels.ts
-  storage/     local | s3 upload drivers; removing files nothing uses (cleanup, uploadKeys)
-  uploads/     byte sniffing (images, GLB), a texture's colours, GLB optimization (browser + server)
+  storage/     supabase | local drivers (a public area and a private staging one); removing files
+               nothing uses (cleanup, uploadKeys); orphan plans (plans.ts)
+  uploads/     direct uploads (kinds, claim, direct, browserImage — docs/uploads.md), byte sniffing
+               (images, GLB), a texture's colours, GLB optimization (browser + server)
   validations/ zod schemas per payload
   env.ts log.ts email.ts features.ts utils.ts
 store/         calculatorStore.ts designStore.ts projectScope.ts
@@ -155,12 +158,12 @@ scripts/       seeds, migrate, 3D/texture pipelines, plan tools (see docs/operat
 types/         obj2gltf.d.ts (the script's typings); the API envelope is `ApiBody` in lib/api/route.ts
 tests/         unit/<area>/*.test.ts, integration/save-routes.test.ts
 e2e/           public.spec.ts, design-studio.spec.ts
-deploy/        VPS and cPanel deploy scripts, nginx.conf, migrate.cjs
+deploy/        legacy: the cPanel and VPS deploy scripts, nginx.conf, migrate.cjs (rollback only)
 public/        models/ (partner GLBs + manifest.json, stock/, fixtures/, radiators/), textures/,
                uploads/, samples/plan-2br.png, vendor/pdf.worker.min.mjs
 docs/          these documents
 proxy.ts auth.ts auth.config.ts next.config.mjs tailwind.config.ts vitest.config.mts
-playwright.config.ts drizzle.config.ts ecosystem.config.cjs server.cjs .cpanel.yml
+playwright.config.ts drizzle.config.ts vercel.json   (legacy: ecosystem.config.cjs server.cjs .cpanel.yml)
 instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry — operations.md)
 ```
 
@@ -175,8 +178,8 @@ instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry �
 | People | `workers` (POST, admin), `workers/[id]`, `workers/[id]/approval` · `teams`, `teams/[id]` · `users`, `users/[id]` · `profile` (the person's own details) |
 | Marketplace | `payments` (the fee at the hinge) · `checkout` · `bookings` · `orders/[id]`, `orders/[id]/confirm`, `orders/[id]/comments` · `settings` · `admin/settings` · `admin/revenue/export` |
 | Auth | `auth/[...nextauth]` · `auth/register` · `auth/register-partner` · `auth/forgot` · `auth/reset` · `auth/verify` |
-| Uploads | `upload` (images) · `upload/model` (GLB) |
-| Ops | `health` |
+| Uploads | `uploads` (a place to send a file — [uploads.md](uploads.md)) · `uploads/staging` (the local driver's stand-in for a signed URL) · `upload` (publishes an image) · `upload/model` (publishes a GLB) |
+| Ops | `health` · `cron/cleanup` (Vercel Cron, daily — [operations.md](operations.md#the-pieces)) |
 
 ## State management
 
@@ -234,9 +237,11 @@ as UI copy: nothing user-facing is Georgian-only by construction.
   `toLocaleDateString` / `toLocaleString` with `{ timeZone: TIME_ZONE }`. The servers run in UTC:
   dates were four hours off on the server's pages and hydration failed on every date in a client
   component. A day label built from a local `new Date(y, m, d)` (a chart's axis) keeps no zone.
-- **Pictures go through `@/components/ui/image`**, which is `next/image` except for a host the
-  optimiser does not fetch from (`images.remotePatterns`): those are shown as they are. A
-  partner's picture URL is any URL, and `/_next/image` answered it with a 400.
+- **Pictures go through `@/components/ui/image`**: `next/image` for its layout (`fill`, `sizes`,
+  lazy loading), always `unoptimized` — and `next.config.mjs` sets `images.unoptimized` — so the
+  picture is served as stored, never through `/_next/image`, which Vercel bills per image. Every
+  picture is already a WebP within 1600 px (uploads on arrival, seed pictures by
+  `pnpm photos:webp`). A partner's picture URL may be any URL.
 - **Admin lists' date filters** go through `dateRange()` (`lib/admin/list.ts`): `YYYY-MM-DD` as
   the whole day in Tbilisi, anything else no bound (an invalid one crashed the payments page).
 
@@ -263,13 +268,18 @@ All shared route vocabulary is in `lib/api/route.ts`:
   points). The revenue CSV's cells go through `csvCell` (a text a spreadsheet would read as a
   formula is shown as text).
 - JSON bodies are `safeParse`d with the Zod schema from `lib/validations/` →
-  `fail(parsed.error.message, 400)`. Multipart uploads are validated by their bytes
-  (`lib/uploads/sniff.ts`, `glb.ts`) instead.
+  `fail(parsed.error.message, 400)`. A body that can be large (the two saves) is read with
+  `readJson` (`lib/api/body.ts`), which inflates a gzipped one ([operations.md](operations.md#request-and-response-size)).
+  **No route takes a file**: the browser sends it to storage and the route claims the upload by
+  its id (`claimUpload`), then validates the bytes (`lib/uploads/sniff.ts`, `glb.ts`) —
+  [uploads.md](uploads.md).
 - Access: `requireSession`, `requireAdmin`, `requireStaff(section)`, `requirePartner`,
   `requireCatalogEditor`, `requireUploader` — which one a route uses is in
   [auth-and-roles.md](auth-and-roles.md#where-access-is-enforced). A project route also checks
   the project is the caller's own.
-- Public writes are throttled per IP (`rateLimited(req, RATE_RULES.…)`, `lib/api/rateLimit.ts`).
+- Public writes are throttled per IP (`await rateLimited(req, RATE_RULES.…)`, `lib/api/rateLimit.ts`; the counts are in Postgres, shared by every instance).
+- Work after the answer (a verification mail, Sentry's flush) goes through `afterResponse` (`lib/api/after.ts`, Next's `after`), never a promise left running — Vercel may freeze the instance the moment it has answered.
+- A route that can run long says so: `export const maxDuration = 300` (the plan reader, the model uploads; Vercel's default and Hobby maximum is 300 s).
 - Exceptions: `/api/health` answers its own shape; `/api/admin/revenue/export` returns CSV;
   `/api/design/parse-plan` adds `fallback: 'cv'` to its 503; `auth/[...nextauth]` is NextAuth's;
   `/api/payments/flitt/callback` has no session — Flitt's signature is its guard
