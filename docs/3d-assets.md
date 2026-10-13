@@ -33,10 +33,8 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm textures:webp [--dry-run]` | `scripts/webp-textures.ts` (+ `lib/uploads/textureOptimize.ts`) | every JPEG or PNG in `public/textures` replaced by `<name>.webp` ([below](#finish-textures-are-webp)) |
 | `pnpm textures:colors [--force]` | `scripts/texture-colors.ts` (+ `lib/uploads/textureColors.ts`) | every textured product's colours read off its texture into `specs.colors`, for the finishes' colour filter — only what is missing unless `--force`; the textures the product form uploads get theirs as they arrive |
 | `pnpm models:seed` | `scripts/seed-models.ts` | the catalogue made to match the manifests (below) |
-| `pnpm deploy:bundle-seed` | esbuild | legacy: `models:seed` as one plain-node file beside the standalone server, for the cPanel rollback |
 | `pnpm models:compress [--only=a,b] [--dry-run]` | `scripts/compress-models.ts` (+ `scripts/lib/compressModels.ts`) | every model as the studio downloads it: WebP textures, Draco geometry where that pays ([below](#compression-webp-and-draco)). The last step of every model pipeline above; on its own for the files already there |
 | `pnpm uploads:optimize-models [--dry-run]` | `scripts/optimize-stored-models.ts` (+ `lib/uploads/optimizeStored.ts`) | the upload recipe run again over the models already stored (admin products, own furniture), in place ([below](#uploads-are-optimized)) |
-| `pnpm deploy:bundle-optimize` | esbuild | legacy: that script as `optimize-models.cjs` beside the standalone server, for the cPanel rollback |
 | `pnpm draco:decoder` | `scripts/copy-draco-decoder.mjs` | three's Draco decoder (glTF build) copied into `public/vendor/draco` for the browser's loaders; the copy is committed |
 
 Generated files (`lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts`,
@@ -97,8 +95,7 @@ a texture uploaded in the product form (sent to storage, then `/api/upload` with
 URLs — products' `texture_url` and `specs`, saved designs (scene, plan, calculator board, versions;
 their revisions moved on so a cached copy does not write the JPEGs back) and the brigade portfolio
 photos — matching only a path that starts at `/textures/` (an uploaded `/uploads/textures/…` keeps
-its name). (0021 and 0022 are MySQL migrations, now in `lib/db/migrations-mysql/`; their result came
-over with the data.) `next.config.mjs` redirects any `/textures/….jpg` still asked for to its `.webp`, for a
+its name). `next.config.mjs` redirects any `/textures/….jpg` still asked for to its `.webp`, for a
 page, a browser's cached design or an order made before.
 
 ## Photos are WebP
@@ -246,7 +243,7 @@ too (about 1.5 s for the figure). With Draco on the server the same three came t
 
 **Models stored before the recipe existed** — or before it wrote Draco — are optimized in place
 by `pnpm uploads:optimize-models` (`lib/uploads/optimizeStored.ts` over the storage's `models/`,
-Supabase or local; on the legacy cPanel host the deploy ran it as `optimize-models.cjs`). Every
+Supabase or local). Every
 model copied into Supabase came from a store this had already been run over. Each file keeps its name, so
 the product rows and saved designs that point at it keep working; a browser's cached old copy is
 still a valid model. Idempotent: an optimized file is left alone. Locally it took the three old

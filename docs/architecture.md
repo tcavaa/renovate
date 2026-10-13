@@ -142,8 +142,7 @@ lib/
   catalog/     the category tree (tree.ts, pure), its reads, the studio rooms' links, icon
                drawings for payloads, the starting tree — see docs/categories.md
   partner/     partner portal context, partner analytics, a brigade's booked projects
-  db/          schema.ts, index.ts (pool + drizzle), ssl.ts + supabaseCa.ts, order.ts (asc/desc, MySQL's NULL
-               order), migrations/ (Postgres), migrations-mysql/ (legacy)
+  db/          schema.ts, index.ts (pool + drizzle), ssl.ts + supabaseCa.ts, order.ts (asc/desc, NULL first), migrations/ (Postgres)
   i18n/        ka.ts (source of the Dictionary type) en.ts ru.ts, client.tsx, server.ts, labels.ts
   storage/     supabase | local drivers (a public area and a private staging one); removing files
                nothing uses (cleanup, uploadKeys); orphan plans (plans.ts)
@@ -158,12 +157,11 @@ scripts/       seeds, migrate, 3D/texture pipelines, plan tools (see docs/operat
 types/         obj2gltf.d.ts (the script's typings); the API envelope is `ApiBody` in lib/api/route.ts
 tests/         unit/<area>/*.test.ts, integration/save-routes.test.ts
 e2e/           public.spec.ts, design-studio.spec.ts
-deploy/        legacy: the cPanel and VPS deploy scripts, nginx.conf, migrate.cjs (rollback only)
 public/        models/ (partner GLBs + manifest.json, stock/, fixtures/, radiators/), textures/,
                uploads/, samples/plan-2br.png, vendor/pdf.worker.min.mjs
 docs/          these documents
 proxy.ts auth.ts auth.config.ts next.config.mjs tailwind.config.ts vitest.config.mts
-playwright.config.ts drizzle.config.ts vercel.json   (legacy: ecosystem.config.cjs server.cjs .cpanel.yml)
+playwright.config.ts drizzle.config.ts vercel.json
 instrumentation.ts instrumentation-client.ts sentry.server.config.ts   (Sentry — operations.md)
 ```
 

@@ -150,9 +150,6 @@ Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@re
 | `pnpm models:convert` | Convert partner OBJ exports into textured, compressed, validated GLBs (`--only=a,b` to redo some) |
 | `pnpm models:fixtures` | The fittings (sockets, switches, lamps) and the doors and windows from Poly Haven and poly.pizza → `public/models/fixtures` |
 | `pnpm models:photos` | Render a product photo of each of those from its model (Playwright's Chromium) |
-| `pnpm db:copy-from-mysql` | Copy the old MySQL/MariaDB database into PostgreSQL (`SOURCE_MYSQL_URL`; [docs/operations.md](docs/operations.md#moving-the-data)) |
-| `pnpm uploads:copy-to-storage` | Copy uploaded files from a `public/uploads` folder into Supabase Storage and point the rows at them |
-| `pnpm deploy:bundle-seed` | Legacy (cPanel rollback): bundle `models:seed` into one plain-node file beside the standalone server |
 | `pnpm models:stock`   | Fetch and convert CC0 stock furniture (Poly Haven + Kenney) into `public/models/stock` |
 | `pnpm models:seed`    | One product per model in both manifests; deletes every other placeable product |
 | `pnpm textures:stock` | Download floor/wall textures and create or update the surface products |
@@ -263,12 +260,8 @@ pending migrations and syncs the catalogue with the model manifests (`pnpm model
 Supabase's Postgres, then runs `next build`. The environment lives in the Vercel project
 (`.env.example` lists every variable); uploaded files live in Supabase Storage, and a daily
 Vercel Cron (`/api/cron/cleanup`) sweeps stale uploads, counters and unreferenced plans.
-Everything — the pieces, the limits, moving the data, the cutover checklist — is in
+Everything — the pieces, the limits, what is left before real customers — is in
 [docs/operations.md](docs/operations.md).
-
-**Legacy (rollback only, until the move is approved):** the cPanel host and the self-hosted VPS
-path (PM2 + Nginx, `deploy/`, `server.cjs`, `ecosystem.config.cjs`) run the last MySQL commit
-only — [docs/operations.md](docs/operations.md#legacy-cpanel-and-the-vps-rollback-only).
 
 ---
 

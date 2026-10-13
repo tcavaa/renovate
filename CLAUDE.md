@@ -30,8 +30,7 @@ Drizzle ORM (node-postgres) · Supabase Storage (direct uploads) · pnpm 9 · Ta
 Radix-based components, lucide-react · Zustand + `persist` (three stores per project) · Zod ·
 NextAuth v5 beta (Credentials, optional Google/Facebook; JWT; seven roles) · three /
 @react-three/fiber 9 / @react-three/drei 10 · i18n `ka` / `en` / `ru` · Vitest + Playwright ·
-Sentry (`@sentry/nextjs`, off without a DSN) · hosting: Vercel (functions in `fra1`) — the cPanel
-host (MySQL/MariaDB) is legacy, kept for a rollback until the move is approved
+Sentry (`@sentry/nextjs`, off without a DSN) · hosting: Vercel (functions in `fra1`) + Supabase
 ([docs/operations.md](docs/operations.md)). Details: [docs/architecture.md](docs/architecture.md).
 
 ## Commands
@@ -60,7 +59,6 @@ pnpm db:generate        # drizzle-kit generate after a schema change → commit 
 pnpm db:migrate         # apply pending migrations (production deployments run it themselves)
 pnpm db:push            # local experiments only (interactive; hangs in a non-interactive shell)
 pnpm db:studio
-pnpm db:copy-from-mysql --yes [--exclude-library]   # SOURCE_MYSQL_URL's rows into this Postgres (empties it first)
 pnpm db:seed            # categories, stores, products, workers, admin
 pnpm db:seed:design     # partner stores + design categories (no furniture — see models:seed)
 pnpm db:seed:rates      # local tidy-up: writes the default rate book in (never needed in production)
@@ -87,9 +85,7 @@ pnpm textures:colors [--force]   # each finish's colours read off its texture (t
 pnpm textures:webp [--dry-run]   # every JPEG/PNG finish texture in public/textures as WebP (normal maps at 90)
 pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products and /furniture as WebP (uploads convert on arrival)
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references (the daily cron does it in production)
-pnpm uploads:copy-to-storage --from <dir> [--dry-run]   # an old uploads folder into Supabase Storage, rows repointed
 pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it
-pnpm deploy:bundle-seed # legacy: models:seed as one plain-node file for the cPanel workflow
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three
 ```
@@ -163,7 +159,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |
 | [docs/design-studio/technical-and-fittings.md](docs/design-studio/technical-and-fittings.md) | technical points and works, sockets/switches/lights, radiators, doors and windows | `technical.ts`, `electrical.ts`, `radiators.ts`, `openings.ts`, the technical step |
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
-| [docs/operations.md](docs/operations.md) | where it runs (Vercel + Supabase), environment, logs, Sentry, health, deploying and migrations, the 4.5 MB limits, the daily cron, mail, moving the data, the cutover checklist, the legacy cPanel/VPS rollback | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/db/index.ts`, `vercel.json`, `scripts/vercel-build.mjs`, `deploy/`, workflows, `next.config.mjs` |
+| [docs/operations.md](docs/operations.md) | where it runs (Vercel + Supabase), environment, logs, Sentry, health, deploying | `lib/env.ts`, `lib/log.ts`, `lib/sentry.ts`, the instrumentation files, `lib/db/index.ts`, `vercel.json`, `scripts/vercel-build.mjs`, `deploy/`, workflows, `next.config.mjs` |
 | [docs/uploads.md](docs/uploads.md) | direct uploads: the browser to storage, the sign and claim routes, kinds and limits, the browser's own pass, the storage drivers (Supabase, local), cleaning up | `lib/uploads/`, `lib/storage/`, `app/api/uploads/**`, any route or component that takes a file |
 | [docs/testing.md](docs/testing.md) | test commands, what CI runs, the coverage gate, where each area's tests are | before declaring work done; adding tests |
 | [docs/audit-checklist.md](docs/audit-checklist.md) | the codebase audit's open items, top 10 by urgency, and a done log with commits | picking the next audit fix; tick the item and move it to the done log in the fixing commit |

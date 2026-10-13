@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `calculator_edits` json;

@@ -35,7 +35,7 @@ export interface HubProject extends ProjectKind {
   thumbnail: { plan: FloorPlan | null; boardPlan: FloorPlan | null; rooms: Room[] };
 }
 
-/** mysql2 hands a JSON expression back parsed; a string is read in case a driver does not. */
+/** pg hands a jsonb expression back parsed; a string is read in case a driver does not. */
 function json<T>(value: unknown): T | null {
   if (value == null) return null;
   if (typeof value !== 'string') return value as T;

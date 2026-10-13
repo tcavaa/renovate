@@ -114,10 +114,9 @@ that is sold by the m² is a kitchen material, from whichever store; anything so
 there is an ordinary product. None of them is a calculator tab.
 
 Migration 0001 is idempotent SQL generated once from the definition when the app moved to
-PostgreSQL (what MySQL's 0015, 0018, 0020 and 0023 had made — `lib/db/migrations-mysql/`): a
+PostgreSQL: a
 category, studio room, store or paint that exists is left as it is, one that does not is made —
-so a new database has the whole tree before any seed runs. A database copied from MySQL
-(`pnpm db:copy-from-mysql`) has the old one's rows instead. `pnpm db:seed` / `db:seed:design`
+so a new database has the whole tree before any seed runs. `pnpm db:seed` / `db:seed:design`
 make a missing category where the tree puts it (`defaultPlacement`) and leave an existing one
 where admin put it. Nothing reads the definition at run time; a change to the starting tree
 takes a new migration (and the test reading it beside 0001).

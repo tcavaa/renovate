@@ -53,7 +53,7 @@ export const sentryOptions = {
   dsn,
   // Vitest runs with NODE_ENV=test; a DSN in .env.local must not turn the unit tests into events.
   enabled: !!dsn && process.env.NODE_ENV !== 'test',
-  // `production` on cPanel and the VPS, `development` locally. NEXT_PUBLIC_SENTRY_ENVIRONMENT
+  // `production` in production, `development` locally. NEXT_PUBLIC_SENTRY_ENVIRONMENT
   // names a host when two share a label (a staging box built in production mode).
   environment: process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT || process.env.NODE_ENV,
   // Every error is sent; traces are sampled. A studio visit alone is about a hundred spans (one

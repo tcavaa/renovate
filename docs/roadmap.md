@@ -26,17 +26,12 @@ at runtime yet; the last one was seen on the sample plan.
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample
   plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
 
-## The move to Vercel and Supabase (waiting for approval)
+## Before real customers
 
-- **Test, then cut over**: the branch `vercel-supabase` runs on renovatege.vercel.app against
-  Supabase while `renovate.rretrocar.ge` (cPanel, MariaDB) stays production. After the owner
-  approves: the [cutover checklist](operations.md#cutover-checklist-after-approval) — the data,
-  the legacy tag, the merge, the domain, the plans — and later the legacy path's removal.
-- **Before real customers**: Vercel Hobby is for non-commercial use and Supabase's free plan
-  pauses after a week idle and keeps no backups — Pro on both
-  ([operations.md](operations.md#where-it-runs)).
-- **Not measured yet**: delivery from Tbilisi off Vercel's and Supabase's CDNs (cPanel served
-  0.6–1.7 MB/s) — [operations.md](operations.md#known-gaps).
+- **Plans and the 3D library**: Pro on Vercel and Supabase; the local library (1.5 GB) needs more
+  storage than Supabase's free 1 GB — [operations.md](operations.md#before-real-customers).
+- **Not measured yet**: delivery from Tbilisi off Vercel's and Supabase's CDNs —
+  [operations.md](operations.md#known-gaps).
 
 ## Next features
 

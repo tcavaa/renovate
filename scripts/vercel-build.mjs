@@ -4,7 +4,7 @@
  *
  * A production deployment first brings the database up to date — the pending migrations
  * (`pnpm db:migrate`, through `DATABASE_MIGRATION_URL`) and the catalogue made to match the model
- * manifests (`pnpm models:seed`, as every cPanel deploy did) — and only then builds. Either failing
+ * manifests (`pnpm models:seed`) — and only then builds. Either failing
  * fails the deployment, and the one before it keeps serving; so a migration must be safe while the
  * previous version still runs (docs/data-model.md#migrations-on-postgres). A preview deployment
  * touches no database: it only builds.

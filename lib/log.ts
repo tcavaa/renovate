@@ -5,7 +5,7 @@ import path from 'node:path';
  * Structured logging for the server.
  *
  * One JSON object per line, written to stdout — which Vercel keeps as the function's runtime
- * logs (PM2 and Passenger captured it on the old hosts) — and, off Vercel, appended to a daily
+ * logs — and, off Vercel, appended to a daily
  * file under `LOG_DIR` (default `logs/`, git-ignored). With Sentry on, every line is handed to it too
  * (`setLogSink`, set by `sentry.server.config.ts`): each one goes to its Logs, and an `error`
  * line becomes an issue.
@@ -57,8 +57,7 @@ export type LogSink = (level: LogLevel, msg: string, context?: Record<string, un
 
 // On `globalThis`, not in a module variable: `instrumentation.ts`, which sets the sink, and the
 // routes, which log, are separate server bundles, each of which may carry its own copy of this
-// module. Not imported from Sentry here either — esbuild bundles this file into the cPanel
-// deploy's plain-node scripts (`deploy:bundle-optimize`).
+// module. Not imported from Sentry here either.
 const SINK = Symbol.for('renovate.logSink');
 type SinkHolder = { [SINK]?: LogSink };
 

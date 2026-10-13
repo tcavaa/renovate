@@ -25,8 +25,6 @@
     "plan:ai": "tsx scripts/read-plan-ai.ts",
     "test:solver": "tsx scripts/test-plan-solver.ts",
     "models:seed": "tsx scripts/seed-models.ts",
-    "deploy:bundle-seed": "esbuild scripts/seed-models.ts --bundle --platform=node --target=node22 --format=cjs --log-level=warning --outfile=${NEXT_DIST_DIR:-.next}/standalone/seed-models.cjs",
-    "deploy:bundle-optimize": "esbuild scripts/optimize-stored-models.ts --bundle --platform=node --target=node22 --format=cjs --log-level=warning --external:sharp --external:draco3d --outfile=${NEXT_DIST_DIR:-.next}/standalone/optimize-models.cjs",
     "models:stock": "tsx scripts/stock-models.ts",
     "models:fixtures": "tsx scripts/fixture-models.ts",
     "models:radiators": "tsx scripts/radiator-models.ts",
@@ -49,9 +47,7 @@
     "db:backfill-translations": "tsx scripts/backfill-translations.ts",
     "pdf:worker": "node scripts/copy-pdf-worker.mjs",
     "draco:decoder": "node scripts/copy-draco-decoder.mjs",
-    "db:copy-from-mysql": "tsx scripts/copy-mysql-to-postgres.ts",
-    "vercel-build": "node scripts/vercel-build.mjs",
-    "uploads:copy-to-storage": "tsx scripts/copy-uploads-to-storage.ts"
+    "vercel-build": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
@@ -104,12 +100,10 @@
     "@vitest/coverage-v8": "5",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.1",
-    "esbuild": "0.27.7",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jpeg-js": "^0.4.4",
-    "mysql2": "^3.24.5",
     "obj2gltf": "^3.1.6",
     "pngjs": "^7.0.0",
     "postcss": "^8.4.49",

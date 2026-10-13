@@ -8,7 +8,7 @@
  *   pnpm uploads:optimize-models              every model under the storage's `models/` (local or S3, from the env)
  *   pnpm uploads:optimize-models --dry-run    report what would change, write nothing
  *   node optimize-models.cjs --dir <folder>   a plain folder of .glb files, no env needed —
- *                                             what the cPanel deploy runs on its shared uploads
+ *                                             run over the stored uploads
  */
 import './lib/loadEnv';
 import { readdir, readFile, writeFile } from 'node:fs/promises';

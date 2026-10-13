@@ -400,8 +400,7 @@ come to the same sheet, line for line, the design's placed furniture aside**
 (`tests/unit/summary/calculatorSheet.test.ts`). **A point's
 labour belongs to exactly one place** (`technicalWork` in `pricing.ts`): to the phase when that
 phase runs (it counts every point the plan holds), to the point's own line when it does not —
-never both. The rate rows of the book before the team's are gone (MySQL's migration 0027
-deleted them; a PostgreSQL database never had them), so nothing filters them any more.
+never both. The rate rows of the book before the team's are gone, so nothing filters them any more.
 The studio's works checklist (`WORK_ITEMS`, one per phase) reads a stored list in its own order,
 unknown keys dropped (`normalizeWorks`); the old work keys are no longer translated. A green frame's default "already
 has" is openings, electrical, plumbing and heating (not the finishes), and every "already has"

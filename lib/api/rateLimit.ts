@@ -6,7 +6,7 @@ import { bumpWindow } from './counterStore';
  * Per-IP rate limits for the public write endpoints, shared by every server instance.
  *
  * On Vercel a request lands on whichever function instance is free, and an instance lives
- * minutes, so a count kept in memory (as it was on the single cPanel process) counted almost
+ * minutes, so a count kept in memory (one per instance) counted almost
  * nothing. The counts live in Postgres instead (`rate_limits`, `counterStore.ts`): one upsert per
  * limited request. Each key keeps its fixed window's count and the previous window's, and the
  * limit is held against the sliding estimate `previous × (time left in the window) + current` —
@@ -36,7 +36,7 @@ export interface RateLimitResult {
  * The caller's IP as the reverse proxy reports it.
  *
  * `X-Forwarded-For` is a list each proxy *appends* to, so only its last entry was written by a
- * proxy we run (nginx's `$proxy_add_x_forwarded_for` on the VPS); everything before it is
+ * proxy we run (Vercel's edge); everything before it is
  * whatever the client sent. The first entry was read once, and a script sending a new made-up
  * address with each request was never limited. Next itself fills the header with the socket's
  * address when no proxy did. Without a proxy (local development) every caller shares the

@@ -6,7 +6,7 @@
  * followed by `import { db } from '../lib/db'` — does not work: imports are hoisted and
  * evaluated in order before the module body runs, so `lib/env.ts` validated an empty
  * environment and the dotenv call came too late. Development never noticed because every
- * variable has a development default; with NODE_ENV=production (the cPanel deploy running
+ * variable has a development default; with NODE_ENV=production (a production deploy running
  * `pnpm db:migrate` from a .env file) it failed on the first required variable.
  *
  * Variables already in the environment win: dotenv never overwrites an existing value.

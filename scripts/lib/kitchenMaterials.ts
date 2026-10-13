@@ -12,7 +12,7 @@
  * public/textures (a flat colour for the painted MDF), with the fronts' gaps and handles drawn over.
  *
  * `seed-design.ts` writes the store with the rest; `models:seed` makes it when it is missing —
- * the cPanel deploy runs that script alone — and writes the materials.
+ * a deploy runs that script alone — and writes the materials.
  */
 
 import type { StyleId } from '../../lib/design/types';

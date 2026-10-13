@@ -3,9 +3,6 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
-/** Vercel's build (and its functions) set `VERCEL=1`; the self-hosted builds do not. */
-const onVercel = process.env.VERCEL === '1';
-
 /**
  * Supabase Storage (`STORAGE_DRIVER=supabase`, docs/uploads.md): the uploaded GLBs are fetched
  * from it and the browser sends uploads straight to it, so its origin has to be a `connect-src`
@@ -93,25 +90,15 @@ const assetHeaders = [
   { source: '/samples/:path*', headers: [{ key: 'Cache-Control', value: ONE_WEEK }] },
 ];
 
-// Shared hosting (cPanel) builds under a per-account memory cap, and the build's worker pool
-// is sized from the machine's CPU count — dozens of processes on a big shared box. With
-// RENOVATE_LOW_MEMORY=1 (set by deploy/cpanel.sh) the build runs on one worker and skips
-// the in-build type check; `pnpm type-check` runs before every push and in CI.
-const lowMemory = process.env.RENOVATE_LOW_MEMORY === '1';
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  typescript: { ignoreBuildErrors: lowMemory },
   // Kept out of the server chunks and loaded from node_modules: draco3d because its encoder reads
   // the .wasm beside its own file (the upload recipe's Draco, lib/uploads/glbOptimizeServer.ts).
   // The tracer copies the whole package, .wasm included — an `outputFileTracingIncludes` for the
   // .wasm made a second node_modules/draco3d of the two files alone and broke the require.
   serverExternalPackages: ['draco3d'],
-  // A self-contained server only where the app runs as one (the legacy cPanel / VPS deploys copy
-  // public/ and .next/static beside it); Vercel builds its own functions.
-  ...(onVercel ? {} : { output: 'standalone' }),
   // What the functions' file tracing must and must not carry. `public/` is served by the CDN,
   // and `lib/storage/local.ts` naming `public/uploads` once pulled every seed picture (and any
   // local library import) into every function that touches storage — the 250 MB function limit.
@@ -141,10 +128,6 @@ const nextConfig = {
   // arrival, the seed pictures by `pnpm photos:webp`). `components/ui/image.tsx` passes
   // `unoptimized` too.
   images: { unoptimized: true },
-  // No server actions anywhere (no 'use server'): uploads are route handlers with their own limits.
-  experimental: {
-    ...(lowMemory ? { cpus: 1 } : {}),
-  },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }, ...assetHeaders];
   },

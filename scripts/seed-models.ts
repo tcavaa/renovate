@@ -90,7 +90,7 @@ async function main() {
   };
 
   /**
-   * The category, made when it is missing. The cPanel deploy runs this script alone
+   * The category, made when it is missing. A deploy (vercel-build) runs this script alone
    * (bundled), so it cannot count on `db:seed:design` having been run for the categories the
    * newer products live in.
    */

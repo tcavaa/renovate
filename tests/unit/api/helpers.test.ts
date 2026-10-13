@@ -183,7 +183,7 @@ describe('API_ERRORS', () => {
 });
 
 describe('a write from another site', () => {
-  const write = (origin: string | null, host = 'renovate.rretrocar.ge', method = 'POST') =>
+  const write = (origin: string | null, host = 'renovatege.vercel.app', method = 'POST') =>
     new Request(`http://localhost:3000/api/x`, { method, headers: { host, ...(origin ? { origin } : {}) } });
 
   it('is refused when a browser sends it from a page that is not ours', async () => {
@@ -194,12 +194,12 @@ describe('a write from another site', () => {
   });
 
   it('goes through from our own pages, from servers, and for reads', async () => {
-    expect(crossSiteWrite(write('https://renovate.rretrocar.ge'))).toBe(false);
+    expect(crossSiteWrite(write('https://renovatege.vercel.app'))).toBe(false);
     expect(crossSiteWrite(write('http://localhost:3000', 'localhost:3000'))).toBe(false);
     // Behind a proxy that names the public host.
-    expect(crossSiteWrite(new Request('http://127.0.0.1:3000/api/x', { method: 'POST', headers: { host: '127.0.0.1:3000', 'x-forwarded-host': 'renovate.rretrocar.ge', origin: 'https://renovate.rretrocar.ge' } }))).toBe(false);
+    expect(crossSiteWrite(new Request('http://127.0.0.1:3000/api/x', { method: 'POST', headers: { host: '127.0.0.1:3000', 'x-forwarded-host': 'renovatege.vercel.app', origin: 'https://renovatege.vercel.app' } }))).toBe(false);
     // Flitt's callback and other servers send no Origin.
     expect(crossSiteWrite(write(null))).toBe(false);
-    expect(crossSiteWrite(write('https://evil.example', 'renovate.rretrocar.ge', 'GET'))).toBe(false);
+    expect(crossSiteWrite(write('https://evil.example', 'renovatege.vercel.app', 'GET'))).toBe(false);
   });
 });
