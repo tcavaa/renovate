@@ -185,6 +185,14 @@ repo: 'renovate', ref: 'vercel-supabase' }`, `target: 'production'`). It is alia
 but not for the production domain — keep it that way, or Flitt's callbacks and every visitor
 get a Vercel login page.
 
+**File tracing** (`next.config.mjs`): a function carries only the files Next's tracer finds, so
+`outputFileTracingExcludes` keeps `public/` (served by the CDN) out of them and
+`outputFileTracingIncludes` adds the sample plan the plan reader reads from disk. Next matches
+these globs *anywhere* in a path, `node_modules` and its own server included: `./logs/**` once
+also dropped Next's `dev/browser-logs/` — the build passed and every function died at start
+with `Cannot find module '../dev/browser-logs/file-logger'`. An exclude must name a folder no
+package has; after changing one, load a page of the new deployment before calling it done.
+
 ## Request and response size
 
 A Vercel function takes a request body of at most **4.5 MB** and answers at most 4.5 MB
