@@ -88,6 +88,8 @@ const config: Config = {
         spin: { to: { transform: 'rotate(360deg)' } },
         float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
         countdown: { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
+        shake: { '0%, 100%': { transform: 'translateX(0)' }, '20%, 60%': { transform: 'translateX(-6px)' }, '40%, 80%': { transform: 'translateX(6px)' } },
+        pop: { '0%': { transform: 'scale(0.6)', opacity: '0' }, '60%': { transform: 'scale(1.12)', opacity: '1' }, '100%': { transform: 'scale(1)' } },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -100,6 +102,10 @@ const config: Config = {
         float: 'float 7s ease-in-out infinite',
         /** A bar filling while a page waits to move on (the checkout's thank-you); set its length with `animation-duration`. */
         countdown: 'countdown 4s linear forwards',
+        /** A wrong answer, once (the plan-reading game's room). */
+        shake: 'shake 0.4s ease-in-out',
+        /** Something just landed, once (a piece placed in the game's room, the points it won). */
+        pop: 'pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
     },
   },

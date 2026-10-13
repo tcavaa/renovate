@@ -121,15 +121,14 @@ for (const room of result.rooms) {
   );
 }
 
-// Tolerance is 8 cm, not 1 cm, and that is a property of the drawing rather than the solver.
-// This plan's own labels are mutually inconsistent: the bathroom (1.88 m) and hallway (1.73 m)
-// sit side by side above a bedroom labelled 3.73 m, but 1.88 + 1.73 = 3.61 — a 13 cm gap,
-// because the labels are measured to different wall faces. Least squares spreads that
-// disagreement across the three constraints instead of letting the last one win, so each ends
-// up a few centimetres out. No arrangement of walls satisfies all three at once.
+// A printed dimension runs from wall face to wall face, and the solver's lines are wall
+// centrelines, so each label is honoured as the face-to-face distance. That is what makes this
+// plan's labels agree with each other: the bathroom (1.88 m) and hallway (1.73 m) side by side
+// over a bedroom labelled 3.73 m look 13 cm short — until the 12 cm wall between the bathroom
+// and the hallway is counted. Every label is met to within a couple of centimetres.
 console.log('\n  printed dimensions honoured:');
 for (const r of result.residuals) {
-  check(`${r.roomId} ${r.axis}`, r.solved, r.target, 0.08);
+  check(`${r.roomId} ${r.axis}`, r.solved, r.target, 0.03);
 }
 
 const worst = result.residuals.reduce(
@@ -168,8 +167,9 @@ const ok5 = seam < 0.05;
 if (!ok5) failures++;
 console.log(`  ${ok5 ? '✓' : '✗'} bathroom and hallway share a wall         offset ${seam.toFixed(3)} m`);
 
+// Boxes run between wall centrelines; this is the flat's footprint, walls inside it included.
 const totalM2 = result.rooms.reduce((sum, r) => sum + (r.box.x1 - r.box.x0) * (r.box.y1 - r.box.y0), 0);
-console.log(`\n  total floor area ${totalM2.toFixed(1)} m² (plan is a ~90 m² one-bedroom incl. balcony)`);
+console.log(`\n  total footprint ${totalM2.toFixed(1)} m² (plan is a ~70 m² one-bedroom incl. balcony)`);
 const ok3 = totalM2 > 60 && totalM2 < 130;
 if (!ok3) failures++;
 console.log(`  ${ok3 ? '✓' : '✗'} total area is plausible`);

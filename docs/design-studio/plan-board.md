@@ -47,7 +47,7 @@ every downstream module already understands, and `room.wallIds` says which wall 
 lies on. Rooms keep their identity across edits: a re-derived face takes over the previous
 room whose centroid it contains (ids, names, types, heights, doors re-projected by world
 position). `wallsFromRooms` goes the other way for plans that arrive as polygons (the
-parser, Claude, the calculator, old saves): facing edges of neighbours merge into one wall
+CV parser, the calculator, old saves; the Claude reader builds its walls itself — `planGrid`): facing edges of neighbours merge into one wall
 as thick as the gap between them, exterior edges get the default thickness outside, and
 vertices are moved onto the crossings of the centrelines so the graph is watertight.
 **A wall runs from junction to junction and no further** (`splitAtJunctions`). A plan built

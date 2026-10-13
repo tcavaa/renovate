@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import sharp from 'sharp';
-import { MAX_IMAGE_BYTES, MAX_IMAGE_EDGE_PX, MissingApiKeyError, buildPlanFromReading, readPlanWithClaudeDetailed } from '@/lib/design/aiPlan';
+import { MissingApiKeyError, buildPlanFromReading, readPlanWithClaudeDetailed } from '@/lib/design/aiPlan';
+import { prepareForVision, type VisionInput } from '@/lib/design/planVision';
 import { parsePlanRequestSchema } from '@/lib/validations/plan.schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { env } from '@/lib/env';
 import { log } from '@/lib/log';
 import { storage } from '@/lib/storage';
-import { sniffImage, type ImageMime } from '@/lib/uploads/sniff';
+import { sniffImage } from '@/lib/uploads/sniff';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,12 +42,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const file = await readPlanImage(parsed.data.imageUrl);
-    if (!file) {
+    const vision = await readPlanImage(parsed.data.imageUrl);
+    if (!vision) {
       return NextResponse.json({ data: null, error: 'Plan image not found' }, { status: 404 });
     }
 
-    const { reading, usage } = await readPlanWithClaudeDetailed({ imageBase64: file.base64, mediaType: file.mediaType });
+    const { reading, usage } = await readPlanWithClaudeDetailed({
+      imageBase64: vision.image.base64,
+      mediaType: vision.image.mediaType,
+      ruler: vision.ruler,
+    });
 
     if (!Array.isArray(reading.rooms) || reading.rooms.length === 0) {
       return NextResponse.json(
@@ -57,12 +61,17 @@ export async function POST(req: Request) {
     }
 
     const result = buildPlanFromReading(reading, {
+      ink: vision.ink,
       imageUrl: parsed.data.imageUrl,
       ceilingHeightM: parsed.data.ceilingHeightM,
     });
     log.info('plan read with Claude', {
       image: parsed.data.imageUrl,
       rooms: result.plan.rooms.length,
+      walls: result.plan.walls?.length ?? 0,
+      separators: result.plan.walls?.filter((w) => w.separator).length ?? 0,
+      ink: !!vision.ink,
+      ruler: vision.ruler,
       openings: result.plan.rooms.reduce((n, r) => n + r.openings.length, 0),
       worstResidualM: Number(result.worstResidualM.toFixed(3)),
       lowConfidence: result.lowConfidence,
@@ -95,13 +104,14 @@ export async function POST(req: Request) {
 }
 
 /**
- * Loads a plan this app stored, or the bundled sample.
+ * Loads a plan this app stored, or the bundled sample, prepared for the reader: the image the
+ * model sees (with its coordinate ruler) and the ink the geometry is measured on.
  *
  * The sample is read from `public/samples` by basename; everything else goes through the
  * storage driver, which only knows keys it produced itself — so `../` or a foreign URL in the
  * request cannot reach anything.
  */
-async function readPlanImage(imageUrl: string): Promise<{ base64: string; mediaType: ImageMime } | null> {
+async function readPlanImage(imageUrl: string): Promise<VisionInput | null> {
   let bytes: Buffer | null = null;
   if (imageUrl.startsWith('/samples/')) {
     try {
@@ -117,34 +127,5 @@ async function readPlanImage(imageUrl: string): Promise<{ base64: string; mediaT
   if (!bytes) return null;
   const mediaType = sniffImage(bytes);
   if (!mediaType) return null;
-  const sized = await fitForVision(bytes, mediaType);
-  return { base64: sized.bytes.toString('base64'), mediaType: sized.mediaType };
-}
-
-/**
- * Brings a plan image within what the vision API accepts and what it can use.
- *
- * The API refuses images over 5 MB and downsamples anything past ~1568 px on its longest
- * edge anyway, so a 12 MB scan straight off a phone is both a hard error and a waste of
- * upload time. Line drawings survive a resize well; a plan is re-encoded as PNG so the walls
- * stay crisp, a photo as JPEG. Anything sharp cannot decode is sent as it came.
- */
-async function fitForVision(bytes: Buffer, mediaType: ImageMime): Promise<{ bytes: Buffer; mediaType: ImageMime }> {
-  try {
-    const meta = await sharp(bytes).metadata();
-    const edge = Math.max(meta.width ?? 0, meta.height ?? 0);
-    if (bytes.byteLength <= MAX_IMAGE_BYTES && edge <= MAX_IMAGE_EDGE_PX * 1.5) return { bytes, mediaType };
-    const pipeline = sharp(bytes).rotate().resize({ width: MAX_IMAGE_EDGE_PX, height: MAX_IMAGE_EDGE_PX, fit: 'inside', withoutEnlargement: true });
-    const photo = mediaType === 'image/jpeg';
-    const out = photo ? await pipeline.jpeg({ quality: 88 }).toBuffer() : await pipeline.png({ compressionLevel: 9 }).toBuffer();
-    if (out.byteLength > MAX_IMAGE_BYTES) {
-      // Still too big as PNG (a scanned page, say): JPEG it.
-      const jpeg = await sharp(bytes).rotate().resize({ width: MAX_IMAGE_EDGE_PX, height: MAX_IMAGE_EDGE_PX, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
-      return { bytes: jpeg, mediaType: 'image/jpeg' };
-    }
-    return { bytes: out, mediaType: photo ? 'image/jpeg' : 'image/png' };
-  } catch (e) {
-    log.warn('plan image could not be resized; sending as-is', { err: e });
-    return { bytes, mediaType };
-  }
+  return prepareForVision(bytes, mediaType);
 }

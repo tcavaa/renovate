@@ -52,7 +52,7 @@ pnpm test:parser        # CV floor-plan parser on synthetic plans — after touc
 pnpm test:solver        # dimension labels + plan solver, no API key — after touching the Claude reader
 pnpm test:e2e           # Playwright against :3000 (needs the DB; not in CI)
 pnpm plan:diagnose <plan.png>             # stage-by-stage report of the CV path on one plan
-pnpm plan:ai <plan.png> [--save r.json]   # the Claude path on one plan; --replay r.json needs no key
+pnpm plan:ai <plan.png> [--save r.json] [--overlay o.png]   # the Claude path on one plan; --replay r.json needs no key
 
 pnpm db:generate        # drizzle-kit generate after a schema change → commit the migration
 pnpm db:migrate         # apply pending migrations (what deploys run)
@@ -201,3 +201,10 @@ These rules are part of every task, not a separate chore.
    stale statement while working, correct it. Mark anything you could not verify as such.
 8. **Keep this file short.** Detail belongs in the topic documents; this file holds the overview,
    the commands, the global rules and the index.
+
+# Important Notes for AI Assistants
+
+### Commit & PR Rules
+- Do NOT include "Co-Authored-By" lines in commit messages
+- Do NOT include "Generated with Claude Code" in PR descriptions
+

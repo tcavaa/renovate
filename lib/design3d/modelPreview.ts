@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * A product's GLB on a turntable, for the catalogue's "see in 3D" drawer.
+ * A product's GLB on a turntable, for the catalogue's "see in 3D" drawer and the game played
+ * while a plan is read (`PlacementGame`).
  *
  * Plain three.js mounted into a host element and loaded on demand, so the catalogue page
  * carries none of the studio's bundle until someone asks for the model. The model is shown
@@ -16,7 +17,12 @@ export interface ModelPreviewHandle {
   dispose: () => void;
 }
 
-export async function mountModelPreview(host: HTMLElement, url: string): Promise<ModelPreviewHandle> {
+export interface ModelPreviewOptions {
+  /** Turn on its own until dragged (the default); off for someone who asked for less motion. */
+  autoRotate?: boolean;
+}
+
+export async function mountModelPreview(host: HTMLElement, url: string, options: ModelPreviewOptions = {}): Promise<ModelPreviewHandle> {
   const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }, { DRACOLoader }] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
@@ -68,7 +74,7 @@ export async function mountModelPreview(host: HTMLElement, url: string): Promise
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.target.set(0, height / 2, 0);
   controls.enableDamping = true;
-  controls.autoRotate = true;
+  controls.autoRotate = options.autoRotate ?? true;
   controls.autoRotateSpeed = 1.1;
   controls.minDistance = 0.6;
   controls.maxDistance = 6;

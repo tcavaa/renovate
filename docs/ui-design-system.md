@@ -48,7 +48,8 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   `animate-spin-slow`, `animate-float` are the only decorative loops (loaders still use
   `animate-spin` / `animate-pulse`, and the hero has one `animate-bounce`). `animate-countdown`
   fills a bar once while a page waits to move on (its length set with `animation-duration` —
-  the checkout's thank-you before the orders open).
+  the checkout's thank-you before the orders open). `animate-shake` (a wrong answer) and
+  `animate-pop` (something just landed) play once, for the plan-reading game.
 - **Scroll sequences** (`.seq` + `.seq-fill/-wipe-up/-wipe-right/-pop/-fade/-fade-out/-rise`,
   and `.drop-in`): an element plays between `--from` and `--to` percent of its `cover` range
   (0 = top edge enters at the bottom of the viewport, 100 = bottom edge leaves at the top; a

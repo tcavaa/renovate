@@ -13,6 +13,11 @@
  * A PDF is rasterised in the browser first (`lib/design/planPdf.ts`) and then treated like
  * any other image, so the rest of the pipeline never sees one.
  *
+ * Reading takes from twenty seconds to two minutes, so meanwhile the card offers a game
+ * (`PlacementGame`): real catalogue pieces to put in their rooms. The plan is handed over the
+ * moment it is read either way; the game goes with the spinner unless the person has started
+ * playing, in which case it stays, says the plan is ready, and closes when they say so.
+ *
  * Shared by the Design Studio's first step and the calculator's first step: one upload, one
  * parser, one plan — whichever door the user came in through. The calculator keeps the
  * card's own "continue" button; the studio hides it (`showContinue={false}`) and receives
@@ -33,6 +38,7 @@ import { loadPlanImage, uploadPlanImage } from '@/lib/design/planImage';
 import { isPdfFile, rasterizePdfPlan } from '@/lib/design/planPdf';
 import { parseFloorPlan } from '@/lib/design/planParser';
 import { buildPlanFromRegions, metresPerPixelFromArea } from '@/lib/design/planGeometry';
+import { PlacementGame } from '@/components/design/PlacementGame';
 import type { FloorPlan, ParseResult } from '@/lib/design/types';
 
 type Phase = 'idle' | 'pdf' | 'reading' | 'parsing' | 'scale' | 'failed';
@@ -79,7 +85,12 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [readNotice, setReadNotice] = useState<'fallback' | null>(null);
+  // The game while the plan is read: `ready` once it is (rooms found, or null for the CV path).
+  const [game, setGame] = useState<{ ready: { rooms: number | null } | null } | null>(null);
+  const played = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Read done: the game stays for someone playing it, and goes for anyone else.
+  const settleGame = (ready: { rooms: number | null } | null) => setGame(ready && played.current ? { ready } : null);
 
   // The parent's callbacks are read through refs so the live-area effect below does not
   // re-run — and hand the plan over again — every time the parent re-renders.
@@ -113,6 +124,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
     }
 
     setPhase('reading');
+    played.current = false;
+    setGame({ ready: null });
     // A plain timeout, not requestAnimationFrame: rAF never fires in a background tab.
     await new Promise((resolve) => setTimeout(resolve, 16));
 
@@ -125,6 +138,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       });
     } catch {
       setPhase('failed');
+      setGame(null);
       return;
     }
 
@@ -135,6 +149,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       const plan = await readPlanFromDrawing(url);
       if (plan) {
         setPhase('idle');
+        settleGame({ rooms: plan.rooms.length });
         onPlanRef.current(plan, url);
         return;
       }
@@ -146,13 +161,18 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       setParse(result);
       if (result.regions.length === 0) {
         setPhase('failed');
+        setGame(null);
         return;
       }
       setReadNotice('fallback');
       setPhase('scale');
+      settleGame({ rooms: null });
     } catch {
       setPhase('failed');
+      setGame(null);
     }
+    // `settleGame` reads only a ref and a state setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t.design.pdfFailed]);
 
   const areaValue = Number(totalArea);
@@ -264,6 +284,16 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
           </>
         )}
       </div>
+
+      {game && (
+        <PlacementGame
+          ready={game.ready}
+          onClose={() => setGame(null)}
+          onPlayed={() => {
+            played.current = true;
+          }}
+        />
+      )}
 
       {phase === 'scale' && readNotice === 'fallback' && (
         <p className="mt-4 rounded-lg border border-line bg-bg-base px-4 py-3 text-sm text-ink-muted">

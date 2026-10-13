@@ -59,8 +59,9 @@ at runtime yet; the last one was seen on the sample plan.
 - **Models uploaded before optimization** stay as they came (locally #500 and #503); nothing
   re-optimizes stored files in bulk — re-upload them in the product form
   ([3d-assets.md](3d-assets.md#known-gaps)).
-- **The Claude plan reader has not met a real plan with a real key**; expect prompt and
-  label-parsing tuning at first contact ([design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps)).
+- **The Claude plan reader**: one wall thickness per grid line, outlined (not solid) walls get
+  no gap snapping, the upload card does not show the reader's doubts or notes yet
+  ([design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps)).
 - **Partners manage more themselves**: reviews and portfolios are seeded, not partner-managed; a
   brigade's rating and completed jobs are not computed from orders; new products of an approved
   store go live with no moderation step ([partners-and-admin.md](partners-and-admin.md)).
@@ -80,7 +81,7 @@ at runtime yet; the last one was seen on the sample plan.
   edge, the app's separator only from partial walls square to the plan; a studio (one room in
   two parts) still takes one floor and one set of walls in the calculator's catalogue
   ([design-studio/plan-board.md](design-studio/plan-board.md#known-gaps)).
-- **Balcony railings**: plans read from an upload never have railings; one railing design
+- **Balcony railings**: only the Claude reader finds them on an upload (the CV path never does); one railing design
   ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)).
 - **Pricing accuracy**: wall heights of their own, a heat-loss calculation for radiators
   ([budget.md](budget.md#known-gaps)); the style's skirting boards and cornices as products like

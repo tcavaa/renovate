@@ -521,7 +521,8 @@ have no tests of their own.
   were hung over the run stays where it was (slid off a window in 3D); moving the point on the
   board puts it over the hob.
 - A window with no product falls back to nothing — see [../3d-assets.md](../3d-assets.md#known-gaps).
-- Railings: the plan readers (the CV parser, Claude) never produce a
-  railing, so a balcony read from an upload is drawn open by hand; a room retyped from a balcony
+- Railings: the Claude reader puts a railing on a balcony's open sides when the drawing shows
+  them ([plan-reading.md](plan-reading.md)); the CV parser never does, so a balcony read that
+  way is drawn open by hand; a room retyped from a balcony
   keeps its railings (the wall stays open); the railing model is one design, ours, in painted
   steel.

@@ -54,10 +54,11 @@ calculation in). The strip is `components/design/DesignSteps.tsx`; step URLs com
 
 ```
 upload image or PDF (step 1) ─ plan-reading.md
-  → parse-plan (Claude: aiPlan → planSolver)   or, without a key,
+  → parse-plan (Claude + the drawing's ink: aiPlan → planInk → planSolver → planGrid,
+    a FloorPlan with its walls, separators and the drawn doors)   or, without a key,
     planImage (File → RGBA ≤1100 px) → planParser (deskew, threshold, watershed, outlines)
-  → planGeometry           polygons → metric FloorPlan; doors inferred (deriveOpenings)
-  → walls.ts               wallsFromRooms / roomsFromWalls: walls are lines, rooms their faces
+    → planGeometry         polygons → metric FloorPlan; doors inferred (deriveOpenings)
+  → walls.ts               ensureWalls (wallsFromRooms for polygons) / roomsFromWalls: walls are lines, rooms their faces
   → /design/<id>/plan      the board: confirm and edit walls, rooms, openings ─ plan-board.md
   → technical step         points, works, what the flat already has ─ technical-and-fittings.md
   → style step → generate  autoLayout (slots) → matcher (real products) ─ layout-and-matching.md
