@@ -20,11 +20,10 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
    version evicts it and `ensureExistingVersion` wipes history); `restoreVersion` snapshots
    `styleId`; `locked` enforced in store actions (drag, mirror, delete ignore it today);
    `resizeRoom`'s polygon-only path mutating shared rooms.
-3. [ ] **Abuse and cost limits** (P2 rest, S7, 1.1): run the cPanel client-address check
-   ([operations.md](operations.md#rate-limits-and-the-client-address)); require a session (or a
-   daily global cap) for `parse-plan` (Claude spend) and `upload-plan`; per-user limits and a
-   concurrency cap (semaphore/worker) on GLB uploads (`app/api/design/models`, `upload/model`);
-   reject oversized bodies before `formData()`; IPv6 bucketed by /64.
+3. [ ] **Abuse and cost limits** (P2 rest, S7, 1.1): require a session (or a daily global cap)
+   for `parse-plan` (Claude spend) and the plan upload; per-user limits and a concurrency cap
+   (semaphore/worker) on GLB uploads (`app/api/design/models`, `upload/model`); IPv6 bucketed
+   by /64. (The client address and the file bodies were settled by the move — Done log.)
 4. [ ] **Go-live paperwork and a real bug** (2.8): privacy policy names Sentry and Anthropic and
    says who sees projects (brigades, staff); **account deletion fails (500) when the user has a
    project** — fix it or stop promising it; real company name/code/address
@@ -123,13 +122,11 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
   bundle leaks via `ProjectCardMenu` and `lineName → PlanToolbar` (N7); `cache()` `auth()` and
   seed `SessionProvider` (N9) (2.12)
 - [ ] Error boundaries for admin / partner / (auth) (N8)
-- [ ] Nonce CSP; Flitt's CSP widening only on payment pages (N10, NX-5, S10); static `/uploads`
-  headers and the cPanel uploads `RemoveHandler`
+- [ ] Nonce CSP; Flitt's CSP widening only on payment pages (N10, NX-5, S10)
 - [ ] Lazy-load Sentry Replay, trim tracing on public routes (perf #15, NX-3, 4.6)
-- [ ] nginx `client_max_body_size 16m` vs the 40 MB model limit (N12); rate-book defaults stick
-  after a failed fetch (N11); English-only titles on terms/privacy/refund (NX-8); small items
+- [ ] Rate-book defaults stick after a failed fetch (N11); English-only titles on terms/privacy/refund (NX-8); small items
   (favicon, robots/sitemap, `server-only` guards — also on `lib/payments/service.ts`) (N13)
-- [ ] GLB processing in a worker/queue; a CDN for `/models` and `/textures` (perf #13/#14, 4.7)
+- [ ] GLB processing in a worker/queue (perf #13, 4.7)
 
 ### Security and accounts
 - [ ] `MAIL_DRIVER=smtp` required in production (now only a startup warning) (S11)
@@ -137,16 +134,15 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
   lockout by e-mail + IP (S13, 5.4); anonymous bookings mail partners (S17)
 - [ ] Commission fields reach customers (S15)
 - [ ] Seeded `@remonti.ge` accounts — confirm the domain is ours (S8)
-- [ ] `drizzle-orm` < 0.45.2 (identifier SQLi advisory, not reachable); deploy hygiene: tag
-  validation in `deploy.yml`, one shared brigade password (S19)
+- [ ] `drizzle-orm` < 0.45.2 (identifier SQLi advisory, not reachable); one shared brigade
+  password (S19)
 - [ ] Storage quotas per user; EXIF stripping; CC BY credits (5.5)
 
 ### Tests and operations
 - [ ] `lib/finance/orders.ts` (4%), `report.ts`, `notify.ts`, `settings.ts` tested and in the gate (P11)
-- [ ] e2e in CI with MySQL and a stubbed Flitt; specs for the calculator payment, checkout, profile (5.1)
+- [ ] e2e in CI with PostgreSQL and a stubbed Flitt; specs for the calculator payment, checkout, profile (5.1)
 - [ ] Scene-building invariants and the demand-render contract tested (`buildScene` 35%,
   `buildStructure` 28%, `modelLoader` 16%)
-- [ ] cPanel deploy health check and rollback; log rotation; the migrator honours `DATABASE_SSL` (5.3)
 
 ### Duplicates and types (do when touching the area)
 - [x] Admin `dateRange()` helper (was 3 copies) — done with top 10 #9
@@ -177,3 +173,7 @@ Related: [roadmap.md](roadmap.md) (product work and known gaps) · [testing.md](
 | Dead code, second round: the viewer's openings mode, night glass tint and 9 material roles, `onSelectOpening`, `POST /api/calculator/materials`, `GET /api/workers`, `peek`/`cachedIds`, `serverActions` | top 10 #10 rest | `7a49cd93` |
 | Versions out of the step payload and the browser copy (`GET /api/projects/[id]/versions`, `versionsLoaded`, `versionsSerial`); old-version compatibility dropped: `legacy.ts`, the `'guest'` owner, both stores' migrations; the cached copy validated on load | #5 rest, R7 in part, legacy removal | `c251ba0f` |
 | Payments: approval + half in one transaction, reversal revokes and is never re-approved, conditional writes, 30-day unsettled check, zero fee passes, callback size cap + rate limits, constant-time signatures, `service.ts` tested (89%) and gated | C7, C8, PAY-9/10/11, R10 (part), 1.6, 2.2/2.3 (payments part), test #1 | `ffc60f92` |
+| The move to Vercel and Supabase (code on `vercel-supabase`, waiting for approval): rate limits and the login lockout in Postgres (`rate_limits`), shared by every instance, the client address from Vercel's edge | top 10 #3 (S2 client-address check) | `3e59d74b` |
+| Files go straight to storage — no route takes a file body; an upload is claimed once, by its maker, within 30 minutes, its real size and bytes checked, the staged copy deleted | top 10 #3 (bodies before `formData()`), N12 | `3e59d74b` |
+| `/models` and `/textures` from Vercel's CDN, uploads from Supabase's (a year's `Cache-Control`) | perf #14; the static `/uploads` headers and the cPanel `RemoveHandler` (from the N10 line — the nonce CSP stays open) | `3e59d74b` |
+| Deploys on Vercel: immutable deployments with instant rollback, logs in Vercel's runtime logs (no files to rotate), the migrator and drizzle-kit on `DATABASE_SSL` / `DATABASE_SSL_CA` (`lib/db/ssl.ts`) | 5.3 | `3e59d74b` |

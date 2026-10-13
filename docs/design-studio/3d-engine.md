@@ -78,8 +78,9 @@ Each of these cost real debugging time. Don't undo them.
     as black, which is what left a freshly painted strip pitch black for a beat.
 12. **The CSP needs `connect-src blob:`.** GLTFLoader hands the textures packed inside a GLB to
     the browser as blob URLs and fetches them back. Without it every model loads untextured and
-    the only symptom is a console warning. (`connect-src` in `next.config.mjs` is `'self' blob:`
-    plus the `S3_PUBLIC_URL` origin when set, and `ws: wss:` in development.)
+    the only symptom is a console warning. (`connect-src` in `next.config.mjs` is `'self' blob:`,
+    Flitt's and the wallets' origins, Supabase's when `SUPABASE_URL` is set at build time — the
+    uploaded models and textures come from its public bucket — and `ws: wss:` in development.)
 13. **Furniture is reconciled, not rebuilt.** `syncPlacedItems` moves wrappers whose product and
     size are unchanged and replaces the rest; the room shells are a separate group memoised on
     the plan, finishes, style, materials and the shell options (walls, ceiling, focused room),

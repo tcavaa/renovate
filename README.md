@@ -12,17 +12,18 @@ Georgian-language home renovation planner & cost estimator. Plan your renovation
 | ------------ | ----------------------------------------------- |
 | Framework    | Next.js 16 (App Router)                         |
 | Language     | TypeScript (strict)                             |
-| DB           | MySQL 8 via `mysql2`                            |
+| DB           | PostgreSQL via `pg` (Supabase in production)    |
 | ORM          | Drizzle ORM (`drizzle-kit` for migrations)      |
+| Files        | Supabase Storage — browsers upload straight to it ([docs/uploads.md](docs/uploads.md)) |
 | Styling      | Tailwind CSS 3                                  |
 | UI           | shadcn/ui style components, Radix primitives    |
 | Icons        | lucide-react                                    |
 | State        | Zustand (with `persist` middleware)             |
 | Validation   | Zod                                             |
-| Auth         | NextAuth.js v5 (Credentials + optional Google)  |
+| Auth         | NextAuth.js v5 (Credentials + optional Google/Facebook) |
 | Fonts        | Noto Sans / Noto Serif Georgian                 |
 | Package mgr  | pnpm                                            |
-| Deployment   | Self-hosted (PM2 + Nginx reverse proxy)         |
+| Deployment   | Vercel (functions in Frankfurt) + Supabase ([docs/operations.md](docs/operations.md)) |
 
 ---
 
@@ -96,13 +97,14 @@ pnpm install
 
 # 2. Configure environment
 cp .env.example .env.local
-# Edit DB credentials and AUTH_SECRET
+# Set AUTH_SECRET; DATABASE_URL defaults to postgresql://localhost:5432/renovate_ge,
+# STORAGE_DRIVER to local (uploads in public/uploads)
 
-# 3. Create the database
-mysql -u root -p -e "CREATE DATABASE renovate_ge CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# 3. Create the database (a local PostgreSQL server)
+createdb renovate_ge
 
-# 4. Push schema and seed
-pnpm db:push
+# 4. Migrate and seed
+pnpm db:migrate       # the schema and the starting catalogue (category tree, studio rooms, paints)
 pnpm db:seed          # categories, products, workers, admin user
 pnpm db:seed:design   # partner stores + the design categories (no furniture yet)
 
@@ -115,7 +117,7 @@ pnpm models:convert     # needs the partner asset drop
 pnpm models:stock       # downloads from polyhaven.com and kenney.nl (cached beside the drop)
 pnpm models:seed
 pnpm textures:stock     # floor and wall textures → surface products (Poly Haven, ambientCG, the drop)
-pnpm db:seed:rates      # the calculator's rate book (editable at /admin/rates)
+pnpm db:seed:rates      # writes the default rate book in (editable at /admin/rates)
 
 # 7. Run
 pnpm dev
@@ -123,7 +125,7 @@ pnpm dev
 
 Without `db:seed:design` the Design Studio loads but has nothing to furnish rooms with.
 
-`drizzle-kit push` is interactive; in a script, apply the DDL with `mysql` directly instead.
+A schema change goes `lib/db/schema.ts` → `pnpm db:generate` → a committed migration → `pnpm db:migrate`; `pnpm db:push` is for local experiments only (it is interactive).
 
 App will be available at <http://localhost:3000>.
 
@@ -139,7 +141,7 @@ Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@re
 | `pnpm build`      | Production build                            |
 | `pnpm start`      | Run production server (port 3000)           |
 | `pnpm db:generate`| Generate Drizzle migrations                 |
-| `pnpm db:push`    | Push schema directly to DB (dev)            |
+| `pnpm db:push`    | Push schema directly to DB (local experiments only) |
 | `pnpm db:migrate` | Apply migrations                            |
 | `pnpm db:studio`  | Open Drizzle Studio                         |
 | `pnpm db:seed`    | Seed categories, products, workers, admin   |
@@ -148,11 +150,13 @@ Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@re
 | `pnpm models:convert` | Convert partner OBJ exports into textured, compressed, validated GLBs (`--only=a,b` to redo some) |
 | `pnpm models:fixtures` | The fittings (sockets, switches, lamps) and the doors and windows from Poly Haven and poly.pizza → `public/models/fixtures` |
 | `pnpm models:photos` | Render a product photo of each of those from its model (Playwright's Chromium) |
-| `pnpm deploy:bundle-seed` | Bundle `models:seed` into one plain-node file beside the standalone server (the cPanel workflow runs it) |
+| `pnpm db:copy-from-mysql` | Copy the old MySQL/MariaDB database into PostgreSQL (`SOURCE_MYSQL_URL`; [docs/operations.md](docs/operations.md#moving-the-data)) |
+| `pnpm uploads:copy-to-storage` | Copy uploaded files from a `public/uploads` folder into Supabase Storage and point the rows at them |
+| `pnpm deploy:bundle-seed` | Legacy (cPanel rollback): bundle `models:seed` into one plain-node file beside the standalone server |
 | `pnpm models:stock`   | Fetch and convert CC0 stock furniture (Poly Haven + Kenney) into `public/models/stock` |
 | `pnpm models:seed`    | One product per model in both manifests; deletes every other placeable product |
 | `pnpm textures:stock` | Download floor/wall textures and create or update the surface products |
-| `pnpm db:seed:rates`  | Create the `rates` table and seed the calculator's default rate book |
+| `pnpm db:seed:rates`  | Write the calculator's default rate book into `rates` (a local tidy-up) |
 | `pnpm test:parser`| Run synthetic floor plans through the parser |
 | `pnpm type-check` | TypeScript strict check                     |
 | `pnpm lint`       | ESLint                                      |
@@ -188,7 +192,9 @@ renovate-ge/
 │   ├── calculator/     constants.ts, materials.ts (engine), types.ts
 │   ├── design/         planParser, planGeometry, autoLayout, matcher, manipulate, pricing, styles
 │   ├── design3d/       materials, primitives, buildScene, outline
-│   ├── db/             schema.ts, index.ts (mysql pool + drizzle)
+│   ├── db/             schema.ts, index.ts (pg pool + drizzle), migrations/
+│   ├── storage/        local disk or Supabase Storage
+│   ├── uploads/        direct uploads: kinds, grant and claim, browser-side optimisation
 │   ├── i18n/ka.ts      ALL Georgian strings
 │   ├── validations/    Zod schemas
 │   └── utils.ts        cn(), formatGEL(), formatM2()
@@ -197,7 +203,8 @@ renovate-ge/
 ├── scripts/            seed.ts, seed-design.ts, convert-models.ts, stock-models.ts, seed-models.ts, tests
 ├── drizzle.config.ts
 ├── tailwind.config.ts
-├── next.config.ts
+├── next.config.mjs
+├── vercel.json         region, the daily cleanup cron
 └── tsconfig.json
 ```
 
@@ -237,84 +244,40 @@ NextAuth v5 with JWT sessions:
 
 - **Credentials provider** — bcrypt password hash, email lookup
 - **Google provider** — auto-enabled when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set
-- Sessions include `user.role` (`'user' | 'admin'`) — used to gate `/admin`
+- Sessions include `user.role` (seven roles, re-read on every request — [docs/auth-and-roles.md](docs/auth-and-roles.md))
 
 To create more admins:
 
 ```sql
-UPDATE users SET role='admin' WHERE email='you@example.com';
+UPDATE users SET role = 'admin' WHERE email = 'you@example.com';
 ```
+
+(or the admin's accounts page, `/admin/users`).
 
 ---
 
-## Deployment (VPS / self-hosted)
+## Deployment (Vercel + Supabase)
 
-```bash
-# On the server
-git clone <repo> && cd renovate-ge
-pnpm install --prod=false
-pnpm db:push
-pnpm db:seed
-pnpm build
+Production builds on Vercel from Git: `vercel-build` (`scripts/vercel-build.mjs`) applies the
+pending migrations and syncs the catalogue with the model manifests (`pnpm models:seed`) against
+Supabase's Postgres, then runs `next build`. The environment lives in the Vercel project
+(`.env.example` lists every variable); uploaded files live in Supabase Storage, and a daily
+Vercel Cron (`/api/cron/cleanup`) sweeps stale uploads, counters and unreferenced plans.
+Everything — the pieces, the limits, moving the data, the cutover checklist — is in
+[docs/operations.md](docs/operations.md).
 
-# Run with PM2
-pm2 start "pnpm start" --name renovate-ge --time
-pm2 save
-pm2 startup
-```
-
-### Nginx reverse proxy snippet
-
-```nginx
-server {
-  listen 80;
-  server_name remonti.ge www.remonti.ge;
-
-  client_max_body_size 20M;
-
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-```
+**Legacy (rollback only, until the move is approved):** the cPanel host and the self-hosted VPS
+path (PM2 + Nginx, `deploy/`, `server.cjs`, `ecosystem.config.cjs`) run the last MySQL commit
+only — [docs/operations.md](docs/operations.md#legacy-cpanel-and-the-vps-rollback-only).
 
 ---
 
 ## Roadmap
 
-- [ ] Image uploads to S3 (currently `/public/uploads`)
-- [ ] PDF export for the summary page (server-side `puppeteer` job)
-- [ ] Worker booking flow + commission tracking
-- [ ] Saved-projects page for logged-in users
-- [ ] Multi-store comparison view per category
-- [ ] SMS notifications via Bog/TBC SMS gateway
+[docs/roadmap.md](docs/roadmap.md) — the one list of work that is known and not done.
 
 ---
 
 ## License
 
 Private / proprietary. © RenovateGE.
-
-## Running in production
-
-```bash
-cp .env.example /var/www/renovate/shared/.env.local   # fill in real values
-deploy/deploy.sh v1.0.0                                # clone, migrate, build, switch, health-check
-```
-
-- `ecosystem.config.cjs` — PM2 definition (standalone Next server on :3000)
-- `deploy/nginx.conf` — TLS, gzip, static files, proxy; the app sets its own security headers
-- `deploy/deploy.sh` / `deploy/rollback.sh` — release-based deploy with automatic rollback
-- `GET /api/health` — 200 when the database answers, 503 otherwise
-- Logs: `logs/app-YYYY-MM-DD.log` (JSON lines) and `logs/pm2-*.log`
-- Nightly: `pnpm uploads:cleanup` removes floor plans no project references
-
-Pushing a `v*` tag runs CI and then the deploy over SSH (see `.github/workflows/deploy.yml`
-for the four secrets it needs).

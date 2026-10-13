@@ -164,7 +164,7 @@ summary → "შეკვეთის გაფორმება" → CheckoutD
                                + the construction materials to their supplier (projectMaterials)
       lib/finance/orders.ts    one transaction: checkout + orders (unsent, with the address) + items;
                                project → 'submitted'; the contact kept on the account if asked
-      lib/finance/notify.ts    mail to the customer (MAIL_DRIVER=log in dev → logs/app-*.log);
+      lib/finance/notify.ts    mail to the customer (MAIL_DRIVER=log → the app log, not sent);
                                never fatal
   → thank-you → /profile?view=orders
   → orders agent: /admin/orders?review=pending or the project page → keep/strike lines,

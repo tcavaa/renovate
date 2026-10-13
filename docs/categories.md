@@ -22,7 +22,7 @@ the modal) · [calculator.md](calculator.md) (its catalogue and furniture steps)
 | `lib/catalog/queries.ts` | server: `loadCategoryTree`, `subtreeOfSlug`, `loadShelf` (the studio's rooms and the tree, icons drawn), `roomTypesOf` |
 | `lib/catalog/shelfRooms.ts` | server: `setRoomCategories`, `setCategoryRooms`, `roomsOfCategory` — the room ↔ category links |
 | `lib/catalog/iconNodes.ts` | server: `iconNodeFor(name)` — an icon's drawing (the studio's own first, then lucide's) for payloads that must not ship an icon set |
-| `lib/catalog/defaultTree.ts`, `lib/db/migrations/0018_category_tree_defaults.sql`, `0020_equipment_kitchen_categories.sql` | the tree and the studio rooms the platform starts with, and the migrations that wrote them in (kept in step by `tests/unit/catalog/defaultTree.test.ts`) |
+| `lib/catalog/defaultTree.ts`, `lib/db/migrations/0001_starting_catalogue.sql` | the tree and the studio rooms the platform starts with, and the migration that writes them into a new database (kept in step by `tests/unit/catalog/defaultTree.test.ts`) |
 | `lib/catalog/kinds.ts` | `PRODUCT_KINDS` — every 3D kind a category may take |
 | `lib/design/shelf.ts` | pure: the studio shelf — `shelfIndex`, `shelfRoomCounts`, `inShelfRoom`, `roomCategories`, `subcategoryCounts`, `shelfTrail`, `shelfRoomForType`, `shelfName` |
 | `lib/admin/icons.ts`, `components/admin/IconPicker.tsx`, `CategoryIcon.tsx`, `components/ui/node-icon.tsx` | icon names (`iconLookupKey`), the studio's own furniture icons (`STUDIO_ICONS`), the suggested icons with Georgian/Russian/English search words; the picker; drawing an icon by name (server/admin) or from its drawing (`NodeIcon`) |
@@ -84,7 +84,7 @@ siblings (`POST /api/categories/reorder` takes exactly the parent's children, or
 catalogue agent makes, edits, moves, orders and hides. A slug another category has is
 refused (`SLUG_EXISTS`).
 
-## The starting tree (`lib/catalog/defaultTree.ts`, migrations 0018 and 0020)
+## The starting tree (`lib/catalog/defaultTree.ts`, migration 0001)
 
 The flat catalogue became five groups — **Materials** (tiles, flooring, walls and ceilings,
 doors, windows, sockets and switches, radiators, building services), **Lighting**, **Sanitary**,
@@ -97,10 +97,9 @@ cabinets…), each with an icon. Every product with a kind moved to its kind's s
 (`DEFAULT_KIND_CATEGORY` — floor lamps from "Decor" and shoe cabinets from "Tables" landed
 where they belong); products without a kind stayed where they were. A category that takes one
 kind only keeps it on itself (windows, wardrobes, radiators). The old categories kept their
-names and slugs, took `inCalculator`, and lost `phase` (0017 dropped the column: the tree's
-order is the order).
+names and slugs, took `inCalculator`, and lost `phase` (the tree's order is the order).
 
-Added since, by migration 0020 in the same form: **TV sockets** (`socket_tv`) and **data
+Added since, in the same form: **TV sockets** (`socket_tv`) and **data
 sockets** (`socket_data`) under sockets and switches; **Building services**
 ("საინჟინრო სისტემები", `engineering`) under Materials, with a subcategory per piece of
 equipment the technical points are bought as — electrical panels, boilers and water heaters,
@@ -114,11 +113,14 @@ off model-less products in furniture categories. What it (or a subcategory under
 that is sold by the m² is a kitchen material, from whichever store; anything sold by the piece
 there is an ordinary product. None of them is a calculator tab.
 
-Migrations 0018 and 0020 are idempotent SQL generated from the definition: a category that
-exists is placed under its parent only while it has none; one that does not is made — so a
-database migrated before its seeds gets the whole tree too. `pnpm db:seed` / `db:seed:design` make a
-missing category where the tree puts it (`defaultPlacement`) and leave an existing one where
-admin put it. Nothing reads the definition at run time.
+Migration 0001 is idempotent SQL generated once from the definition when the app moved to
+PostgreSQL (what MySQL's 0015, 0018, 0020 and 0023 had made — `lib/db/migrations-mysql/`): a
+category, studio room, store or paint that exists is left as it is, one that does not is made —
+so a new database has the whole tree before any seed runs. A database copied from MySQL
+(`pnpm db:copy-from-mysql`) has the old one's rows instead. `pnpm db:seed` / `db:seed:design`
+make a missing category where the tree puts it (`defaultPlacement`) and leave an existing one
+where admin put it. Nothing reads the definition at run time; a change to the starting tree
+takes a new migration (and the test reading it beside 0001).
 
 ## The studio's rooms (`shelf_rooms`, `shelf_room_categories`)
 
