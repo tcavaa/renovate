@@ -190,7 +190,8 @@ get a Vercel login page.
 `outputFileTracingIncludes` adds what the tracer cannot see: the sample plan the plan reader
 reads from disk, and Sentry's ESM diagnostics-channel hook with the modules it imports (loaded
 through `module.register`; without them every cold start logged "Failed to register
-diagnostics-channel injection hooks" and some spans were lost). Next matches
+diagnostics-channel injection hooks" and some spans were lost). The proxy's function is traced
+by Vercel on its own and still logs that once per cold start — harmless: it only redirects. Next matches
 these globs *anywhere* in a path, `node_modules` and its own server included: `./logs/**` once
 also dropped Next's `dev/browser-logs/` — the build passed and every function died at start
 with `Cannot find module '../dev/browser-logs/file-logger'`. An exclude must name a folder no
