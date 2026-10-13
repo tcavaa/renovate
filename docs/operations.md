@@ -187,7 +187,10 @@ get a Vercel login page.
 
 **File tracing** (`next.config.mjs`): a function carries only the files Next's tracer finds, so
 `outputFileTracingExcludes` keeps `public/` (served by the CDN) out of them and
-`outputFileTracingIncludes` adds the sample plan the plan reader reads from disk. Next matches
+`outputFileTracingIncludes` adds what the tracer cannot see: the sample plan the plan reader
+reads from disk, and Sentry's ESM diagnostics-channel hook with the modules it imports (loaded
+through `module.register`; without them every cold start logged "Failed to register
+diagnostics-channel injection hooks" and some spans were lost). Next matches
 these globs *anywhere* in a path, `node_modules` and its own server included: `./logs/**` once
 also dropped Next's `dev/browser-logs/` — the build passed and every function died at start
 with `Cannot find module '../dev/browser-logs/file-logger'`. An exclude must name a folder no
