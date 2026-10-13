@@ -115,10 +115,13 @@ const nextConfig = {
   // What the functions' file tracing must and must not carry. `public/` is served by the CDN,
   // and `lib/storage/local.ts` naming `public/uploads` once pulled every seed picture (and any
   // local library import) into every function that touches storage — the 250 MB function limit.
-  // The plan reader still reads the bundled sample plan from disk.
+  // The plan reader still reads the bundled sample plan from disk. Next matches these globs
+  // anywhere in a path (picomatch `contains`), node_modules and Next's own server included: an
+  // exclude must name something no package has — `./logs/**` once dropped Next's
+  // `dev/browser-logs/` and Sentry's `logs/`, and every function died at start.
   outputFileTracingIncludes: { '/api/design/parse-plan': ['./public/samples/**'] },
   outputFileTracingExcludes: {
-    '*': ['./public/uploads/**', './public/library/**', './public/models/**', './public/textures/**', './.uploads-staging/**', './logs/**', './coverage/**', './test-results/**'],
+    '*': ['./public/uploads/**', './public/library/**', './public/models/**', './public/textures/**', './.uploads-staging/**'],
   },
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
   // over it — the two sharing `.next` is what 404s every page (see CLAUDE.md).
