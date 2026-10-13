@@ -122,9 +122,13 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/api/design/parse-plan': ['./public/samples/**'],
     // Sentry's diagnostics-channel hook is ESM loaded through `module.register`, which the tracer
-    // cannot follow: without the package.json beside it ("type": "module") every cold start
-    // warned and the channel-based integrations recorded no spans.
-    '*': ['./node_modules/.pnpm/@sentry+server-runtime-injection@*/node_modules/@sentry/server-runtime-injection/build/esm/package.json'],
+    // cannot follow: without its folder (the package.json that says "type": "module", the hook
+    // and the vendored modules it imports — 680 KB) every cold start warned and the
+    // channel-based integrations recorded no spans.
+    '*': [
+      './node_modules/.pnpm/@sentry+server-runtime-injection@*/node_modules/@sentry/server-runtime-injection/build/esm/package.json',
+      './node_modules/.pnpm/@sentry+server-runtime-injection@*/node_modules/@sentry/server-runtime-injection/build/esm/**/*.js',
+    ],
   },
   outputFileTracingExcludes: {
     '*': ['./public/uploads/**', './public/library/**', './public/models/**', './public/textures/**', './.uploads-staging/**'],
