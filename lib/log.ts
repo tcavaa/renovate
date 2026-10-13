@@ -4,9 +4,9 @@ import path from 'node:path';
 /**
  * Structured logging for the server.
  *
- * One JSON object per line, written to stdout (which PM2 and Passenger capture)
- * and appended to a daily file under `LOG_DIR` (default `logs/`, git-ignored) — what to `tail`
- * when something goes wrong on the VPS. With Sentry on, every line is handed to it too
+ * One JSON object per line, written to stdout — which Vercel keeps as the function's runtime
+ * logs (PM2 and Passenger captured it on the old hosts) — and, off Vercel, appended to a daily
+ * file under `LOG_DIR` (default `logs/`, git-ignored). With Sentry on, every line is handed to it too
  * (`setLogSink`, set by `sentry.server.config.ts`): each one goes to its Logs, and an `error`
  * line becomes an issue.
  *
@@ -21,7 +21,8 @@ const LEVEL_RANK: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, er
 const minLevel: LogLevel = (process.env.LOG_LEVEL as LogLevel | undefined) ?? 'info';
 const logDir = process.env.LOG_DIR ?? path.join(process.cwd(), 'logs');
 const toStdout = process.env.LOG_STDOUT !== 'false';
-const toFile = process.env.LOG_FILE !== 'false';
+// Off on Vercel, whose functions have a read-only disk: its runtime logs keep stdout.
+const toFile = process.env.LOG_FILE ? process.env.LOG_FILE !== 'false' : !process.env.VERCEL;
 
 let stream: WriteStream | null = null;
 let streamDay = '';
@@ -37,7 +38,9 @@ function fileFor(now: Date): WriteStream | null {
     stream?.end();
     stream = createWriteStream(path.join(logDir, `app-${day}.log`), { flags: 'a' });
     stream.on('error', () => {
+      // The open failed after all (a read-only disk whose folder existed): stdout only from here.
       stream = null;
+      fileGivenUp = true;
     });
     streamDay = day;
     return stream;

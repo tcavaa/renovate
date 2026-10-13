@@ -6,6 +6,9 @@ import { Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/lib/i18n/client';
+import { apiErrorMessage } from '@/lib/i18n/labels';
+import { optimizePhotoForUpload } from '@/lib/uploads/browserImage';
+import { DirectUploadError, claimWith, sendToStorage } from '@/lib/uploads/direct';
 
 interface Props {
   value: string;
@@ -34,20 +37,16 @@ export function ImageUploader({
     setError(null);
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', folder);
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        setError(json.error ?? ka.imageUploader.uploadError);
-        return;
-      }
-      onChange(json.data.url);
-      onUploaded?.({ url: json.data.url, colors: Array.isArray(json.data.colors) ? json.data.colors : undefined });
+      // Straight to storage, then published by the route (docs/uploads.md). A finish's texture
+      // goes as it is: the server's texture pass decides its size and quality, once.
+      const ready = folder === 'textures' ? file : await optimizePhotoForUpload(file);
+      const upload = await sendToStorage('image', ready);
+      const data = await claimWith<{ url: string; colors?: string[] }>('/api/upload', { upload, folder });
+      onChange(data.url);
+      onUploaded?.({ url: data.url, colors: Array.isArray(data.colors) ? data.colors : undefined });
     } catch (e) {
       console.error(e);
-      setError(ka.imageUploader.uploadError);
+      setError(e instanceof DirectUploadError && e.code !== 'UNKNOWN' ? apiErrorMessage(ka, e.code) : ka.imageUploader.uploadError);
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = '';

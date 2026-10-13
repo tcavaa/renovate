@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  * was paid before its hinge (`/api/payments`).
  */
 export const POST = handle('POST /api/checkout', 'Failed to place order', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.checkout);
+  const limited = await rateLimited(req, RATE_RULES.checkout);
   if (limited) return limited;
 
   const parsed = checkoutSchema.safeParse(await req.json());

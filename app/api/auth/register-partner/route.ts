@@ -8,6 +8,7 @@ import { registerPartnerSchema } from '@/lib/validations/partner.schema';
 import { sendVerificationMail } from '@/lib/auth/tokens';
 import { getT } from '@/lib/i18n/server';
 import { log } from '@/lib/log';
+import { afterResponse } from '@/lib/api/after';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * they wait; approval flips the row live.
  */
 export const POST = handle('POST /api/auth/register-partner', 'Registration failed', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.register);
+  const limited = await rateLimited(req, RATE_RULES.register);
   if (limited) return limited;
 
   const parsed = registerPartnerSchema.safeParse(await req.json());
@@ -53,8 +54,8 @@ export const POST = handle('POST /api/auth/register-partner', 'Registration fail
       reviewCount: 0,
       approvalStatus: 'pending',
       isActive: false,
-    });
-    storeId = Number(inserted[0].insertId);
+    }).returning({ id: stores.id });
+    storeId = inserted[0].id;
   } else {
     const inserted = await db.insert(workers).values({
       nameKa: input.name.trim(),
@@ -74,14 +75,16 @@ export const POST = handle('POST /api/auth/register-partner', 'Registration fail
       isVerified: false,
       approvalStatus: 'pending',
       isActive: false,
-    });
-    workerId = Number(inserted[0].insertId);
+    }).returning({ id: workers.id });
+    workerId = inserted[0].id;
   }
 
-  const inserted = await db.insert(users).values({ name: input.name.trim(), email, passwordHash, role: input.kind, storeId, workerId });
-  const id = Number(inserted[0].insertId);
+  const [{ id }] = await db.insert(users).values({ name: input.name.trim(), email, passwordHash, role: input.kind, storeId, workerId }).returning({ id: users.id });
   log.info('partner registered', { userId: id, kind: input.kind, storeId, workerId });
 
-  sendVerificationMail({ id, email }, await getT()).catch((e) => log.warn('verification mail failed', { userId: id, err: e }));
+  // After the answer, not in its way — and not fire-and-forget: a function may be frozen the
+  // moment it has answered, and `after` is what it is kept alive for.
+  const t = await getT();
+  afterResponse(() => sendVerificationMail({ id, email }, t).catch((e) => log.warn('verification mail failed', { userId: id, err: e })));
   return ok({ id, email, kind: input.kind });
 });

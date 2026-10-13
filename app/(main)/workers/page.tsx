@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { WORKERS_DIRECTORY } from '@/lib/features';
 import { BadgeCheck, ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
-import { and, asc, count, desc, eq, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { workers } from '@/lib/db/schema';
 import { WorkerList } from '@/components/workers/WorkerList';
@@ -54,7 +55,7 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
   if (verified) where.push(eq(workers.isVerified, true));
   if (params.q) {
     const needle = `%${params.q}%`;
-    where.push(or(like(workers.nameKa, needle), like(workers.nameEn, needle), like(workers.nameRu, needle), like(workers.specialty, needle), like(workers.bio, needle))!);
+    where.push(or(ilike(workers.nameKa, needle), ilike(workers.nameEn, needle), ilike(workers.nameRu, needle), ilike(workers.specialty, needle), ilike(workers.bio, needle))!);
   }
 
   // Price is stored in two columns depending on the unit; sort by whichever is set.

@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useT } from '@/lib/i18n/client';
 import { profileRendersHref } from '@/lib/projects/links';
+import { compressScreenshot } from '@/lib/uploads/browserImage';
+import { claimWith, sendToStorage } from '@/lib/uploads/direct';
 
 export interface StudioShot {
   /** PNG data URL straight off the canvas. */
@@ -70,14 +72,10 @@ export function PhotoDialog({
     setPhase('saving');
     try {
       const id = await ensureSaved();
-      const blob = dataUrlToBlob(shot.dataUrl);
-      const form = new FormData();
-      form.append('file', new File([blob], 'studio-view.png', { type: 'image/png' }));
-      form.append('projectId', String(id));
-      if (shot.roomName) form.append('roomName', shot.roomName);
-      form.append('camera', JSON.stringify(shot.camera));
-      const res = await fetch('/api/design/renders', { method: 'POST', body: form });
-      if (!res.ok) throw new Error('render-failed');
+      // The screenshot as WebP (or JPEG), straight to storage, then filed by the route (docs/uploads.md).
+      const photo = await compressScreenshot(dataUrlToBlob(shot.dataUrl));
+      const upload = await sendToStorage('render', photo);
+      await claimWith('/api/design/renders', { upload, projectId: id, roomName: shot.roomName ?? null, camera: shot.camera });
       setProjectId(id);
       setPhase('queued');
     } catch {

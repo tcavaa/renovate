@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
-import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNull, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { ProductGrid } from '@/components/catalog/ProductGrid';
@@ -80,14 +81,14 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
     where.push(ids.length ? inArray(products.categoryId, ids) : sql`FALSE`);
   }
   if (state.store) where.push(eq(products.storeId, activeStore?.id ?? -1));
-  if (styles.length) where.push(or(...styles.map((s) => sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(s)})`))!);
+  if (styles.length) where.push(or(...styles.map((s) => sql`${products.styleTags} @> ${JSON.stringify([s])}::jsonb`))!);
   const min = params.num('min');
   const max = params.num('max');
   if (min != null) where.push(gte(products.pricePerUnit, String(min)));
   if (max != null) where.push(lte(products.pricePerUnit, String(max)));
   if (params.q) {
     const needle = `%${params.q}%`;
-    where.push(or(like(products.nameKa, needle), like(products.nameEn, needle), like(products.nameRu, needle), like(products.brand, needle), like(products.sku, needle))!);
+    where.push(or(ilike(products.nameKa, needle), ilike(products.nameEn, needle), ilike(products.nameRu, needle), ilike(products.brand, needle), ilike(products.sku, needle))!);
   }
 
   const orderBy = {

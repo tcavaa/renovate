@@ -1,4 +1,5 @@
-import { desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products } from '@/lib/db/schema';
 import { MyModels } from '@/components/profile/MyModels';

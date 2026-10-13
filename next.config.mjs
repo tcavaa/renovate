@@ -3,28 +3,22 @@ import { withSentryConfig } from '@sentry/nextjs/config';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+/** Vercel's build (and its functions) set `VERCEL=1`; the self-hosted builds do not. */
+const onVercel = process.env.VERCEL === '1';
+
 /**
- * With `STORAGE_DRIVER=s3` the uploaded GLBs are fetched from the bucket's public origin, so
- * it has to be a `connect-src` (images are already covered by `img-src https:`), and the
- * product, store and furniture photos there have to be allowed for `next/image`, which
- * refuses any remote host it was not told about.
+ * Supabase Storage (`STORAGE_DRIVER=supabase`, docs/uploads.md): the uploaded GLBs are fetched
+ * from it and the browser sends uploads straight to it, so its origin has to be a `connect-src`
+ * (its pictures are already covered by `img-src https:`). Read at build time — set
+ * `SUPABASE_URL` where the build runs.
  */
-const s3Url = (() => {
+const supabaseOrigin = (() => {
   try {
-    return process.env.S3_PUBLIC_URL ? new URL(process.env.S3_PUBLIC_URL) : null;
+    return process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).origin : null;
   } catch {
     return null;
   }
 })();
-const s3Origin = s3Url?.origin ?? null;
-const s3ImagePattern = s3Url
-  ? {
-      protocol: s3Url.protocol.replace(':', ''),
-      hostname: s3Url.hostname,
-      ...(s3Url.port ? { port: s3Url.port } : {}),
-      pathname: `${s3Url.pathname.replace(/\/$/, '')}/**`,
-    }
-  : null;
 
 /**
  * Content Security Policy.
@@ -58,7 +52,7 @@ const contentSecurityPolicy = [
   "img-src 'self' data: blob: https:",
   // `blob:` because GLTFLoader hands the textures packed inside each GLB to the browser as
   // blob URLs and fetches them back — without it every partner model loads untextured.
-  `connect-src 'self' blob: ${flitt} ${wallets}${s3Origin ? ` ${s3Origin}` : ''}${isDev ? ' ws: wss:' : ''}`,
+  `connect-src 'self' blob: ${flitt} ${wallets}${supabaseOrigin ? ` ${supabaseOrigin}` : ''}${isDev ? ' ws: wss:' : ''}`,
   "frame-src 'self' https:",
   "worker-src 'self' blob:",
   "media-src 'self' blob:",
@@ -76,18 +70,18 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   // `payment` for Google Pay and Apple Pay inside Flitt's form.
   { key: 'Permissions-Policy', value: `camera=(), microphone=(), geolocation=(), payment=(self "${flitt}" "https://pay.google.com")` },
-  // Two years, subdomains included. Browsers ignore this over plain HTTP, so it is harmless
-  // in development and only takes effect once Nginx terminates TLS.
+  // Two years, subdomains included. Browsers ignore this over plain HTTP, so it is harmless in
+  // development; Vercel serves only HTTPS.
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
 ];
 
 /**
  * Next serves `/public` with `max-age=0`, which means every studio visit re-validates 23 MB
- * of models and 45 MB of textures. Uploads have random names and do not change — an old model
- * optimized in place (`pnpm uploads:optimize-models`) is the one exception, and a browser's
- * cached copy of it stays a valid model — so they are immutable; models, textures and the
- * vendored decoders keep their names across re-conversion and upgrades, so they get a week and
- * revalidate in the background.
+ * of models and 45 MB of textures. The seed pictures under `/uploads` keep their names for good,
+ * so they are immutable (uploads made at run time live in Supabase Storage, with a year's cache
+ * of their own); models, textures and the vendored decoders keep their names across
+ * re-conversion and upgrades, so they get a week and revalidate in the background. Vercel's CDN
+ * honours these headers for the files it serves from `public/`.
  */
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const ONE_WEEK = 'public, max-age=604800, stale-while-revalidate=86400';
@@ -110,27 +104,30 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   typescript: { ignoreBuildErrors: lowMemory },
-  // Shipped in the standalone server's node_modules instead of being bundled into the server
-  // chunks: mysql2 so deploy/migrate.cjs can load it on a host that has no other node_modules,
-  // draco3d because its encoder reads the .wasm beside its own file (the upload recipe's Draco,
-  // lib/uploads/glbOptimizeServer.ts; also what the deploy's optimize-models.cjs loads). The
-  // tracer copies the whole package, .wasm included — an `outputFileTracingIncludes` for the
+  // Kept out of the server chunks and loaded from node_modules: draco3d because its encoder reads
+  // the .wasm beside its own file (the upload recipe's Draco, lib/uploads/glbOptimizeServer.ts).
+  // The tracer copies the whole package, .wasm included — an `outputFileTracingIncludes` for the
   // .wasm made a second node_modules/draco3d of the two files alone and broke the require.
-  serverExternalPackages: ['mysql2', 'draco3d'],
-  // Self-contained server for PM2 / Passenger: deploy/deploy.sh and deploy/cpanel.sh copy
-  // public/ and .next/static beside it.
-  output: 'standalone',
+  serverExternalPackages: ['draco3d'],
+  // A self-contained server only where the app runs as one (the legacy cPanel / VPS deploys copy
+  // public/ and .next/static beside it); Vercel builds its own functions.
+  ...(onVercel ? {} : { output: 'standalone' }),
+  // What the functions' file tracing must and must not carry. `public/` is served by the CDN,
+  // and `lib/storage/local.ts` naming `public/uploads` once pulled every seed picture (and any
+  // local library import) into every function that touches storage — the 250 MB function limit.
+  // The plan reader still reads the bundled sample plan from disk.
+  outputFileTracingIncludes: { '/api/design/parse-plan': ['./public/samples/**'] },
+  outputFileTracingExcludes: {
+    '*': ['./public/uploads/**', './public/library/**', './public/models/**', './public/textures/**', './.uploads-staging/**', './logs/**', './coverage/**', './test-results/**'],
+  },
   // `NEXT_DIST_DIR=.next-build pnpm build` builds beside a running dev server instead of
   // over it — the two sharing `.next` is what 404s every page (see CLAUDE.md).
   distDir: process.env.NEXT_DIST_DIR || '.next',
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-      { protocol: 'https', hostname: 'cdn.jsdelivr.net' },
-      { protocol: 'https', hostname: 'placehold.co' },
-      ...(s3ImagePattern ? [s3ImagePattern] : []),
-    ],
-  },
+  // Pictures are served as they are stored — no `/_next/image`: Vercel bills every image it
+  // optimizes, and every picture here is already a WebP within 1600 px (uploads are converted on
+  // arrival, the seed pictures by `pnpm photos:webp`). `components/ui/image.tsx` passes
+  // `unoptimized` too.
+  images: { unoptimized: true },
   // No server actions anywhere (no 'use server'): uploads are route handlers with their own limits.
   experimental: {
     ...(lowMemory ? { cpus: 1 } : {}),

@@ -1,4 +1,5 @@
-import { and, desc, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, gte, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { orderItems, orders, products } from '@/lib/db/schema';
 import { partnerCondition, type PartnerRef } from '@/lib/finance/orders';
@@ -33,13 +34,13 @@ export async function partnerMonthlySales(ref: PartnerRef, months = 6, now = new
   const from = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
   const rows = await db
     .select({
-      month: sql<string>`DATE_FORMAT(${orders.sentAt}, '%Y-%m')`,
+      month: sql<string>`to_char(${orders.sentAt} AT TIME ZONE 'UTC', 'YYYY-MM')`,
       goods: sql<number>`COALESCE(SUM(${orders.subtotal}), 0)`,
       orders: sql<number>`COUNT(*)`,
     })
     .from(orders)
     .where(and(partnerCondition(ref), ne(orders.status, 'cancelled'), gte(orders.sentAt, from)))
-    .groupBy(sql`DATE_FORMAT(${orders.sentAt}, '%Y-%m')`);
+    .groupBy(sql`to_char(${orders.sentAt} AT TIME ZONE 'UTC', 'YYYY-MM')`);
   const byMonth = new Map(rows.map((r) => [r.month, r]));
   return keys.map((month) => ({ month, goods: Number(byMonth.get(month)?.goods ?? 0), orders: Number(byMonth.get(month)?.orders ?? 0) }));
 }
@@ -91,10 +92,10 @@ export async function storeCatalogueHealth(storeId: number): Promise<CatalogueHe
   const [row] = await db
     .select({
       total: sql<number>`COUNT(*)`,
-      shown: sql<number>`SUM(${products.isActive} = 1)`,
-      hidden: sql<number>`SUM(${products.isActive} = 0)`,
-      noPhoto: sql<number>`SUM(${products.imageUrl} IS NULL OR ${products.imageUrl} = '')`,
-      no3d: sql<number>`SUM(${products.model3dUrl} IS NULL)`,
+      shown: sql<number>`count(*) FILTER (WHERE ${products.isActive})`,
+      hidden: sql<number>`count(*) FILTER (WHERE NOT ${products.isActive})`,
+      noPhoto: sql<number>`count(*) FILTER (WHERE ${products.imageUrl} IS NULL OR ${products.imageUrl} = '')`,
+      no3d: sql<number>`count(*) FILTER (WHERE ${products.model3dUrl} IS NULL)`,
     })
     .from(products)
     .where(and(eq(products.storeId, storeId), isNull(products.ownerUserId)));

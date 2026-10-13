@@ -1,4 +1,5 @@
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { platformSettings, type PlatformSettingsRow } from '@/lib/db/schema';
 import { log } from '@/lib/log';

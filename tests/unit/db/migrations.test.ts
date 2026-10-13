@@ -3,104 +3,57 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 /**
- * Every migration runs on MySQL 8 (local, and a hosted database later) and on MariaDB (the cPanel
- * host) — docs/data-model.md, "Migrations run on MySQL and MariaDB". These are the MySQL-only
- * forms MariaDB 10.6 and 11.4 refuse or read differently, checked on both: `CAST(… AS JSON)` and
- * `->` / `->>` do not parse, `REGEXP_LIKE` does not exist, and a back-reference in
- * REGEXP_REPLACE's replacement is text to the other engine (MySQL `$1`, MariaDB `\1`). The first
- * 0021 had two of them: it failed on the host's third statement, after its first had written
- * `$1$2.webp` into 35 finish products.
+ * The migrations are Postgres (Supabase) — docs/data-model.md#migrations-on-postgres. These are
+ * the slips a migration written from MySQL habit makes, each of which fails only when the
+ * production build runs it (`scripts/vercel-build.mjs`): backticks, `FROM DUAL`, `INSERT IGNORE`,
+ * `ON DUPLICATE KEY UPDATE`, session `@variables`, MySQL's `ENGINE=` / `AUTO_INCREMENT` and its
+ * `CAST(… AS CHAR)` (one character in Postgres). And every file is in the journal the migrator
+ * reads, in order — a file the journal does not name is never run.
  */
 
 const DIR = path.join(process.cwd(), 'lib', 'db', 'migrations');
 const FILES = readdirSync(DIR).filter((file) => file.endsWith('.sql')).sort();
+const JOURNAL = JSON.parse(readFileSync(path.join(DIR, 'meta', '_journal.json'), 'utf8')) as { dialect: string; entries: Array<{ idx: number; tag: string }> };
 
-/** The SQL without its `--` comment lines (the breakpoint markers among them). */
+/** The SQL without its `--` comment lines (the breakpoint markers among them) and its quoted strings. */
 function code(sql: string): string {
   return sql
     .split('\n')
     .filter((line) => !line.trimStart().startsWith('--'))
-    .join('\n');
+    .join('\n')
+    .replace(/'(?:[^']|'')*'/g, "''");
 }
 
-/** Each REGEXP_REPLACE call's arguments, split at the commas between them (quotes and parentheses respected). */
-function regexpReplaceArgs(sql: string): string[][] {
-  const calls: string[][] = [];
-  const opening = /REGEXP_REPLACE\s*\(/gi;
-  for (let m = opening.exec(sql); m; m = opening.exec(sql)) {
-    const args: string[] = [];
-    let start = m.index + m[0].length;
-    let depth = 0;
-    let quote: string | null = null;
-    for (let i = start; i < sql.length; i++) {
-      const c = sql[i];
-      if (quote) {
-        if (c === '\\') i++;
-        else if (c === quote) quote = null;
-        continue;
-      }
-      if (c === "'" || c === '"' || c === '`') quote = c;
-      else if (c === '(') depth++;
-      else if (c === ')' && depth > 0) depth--;
-      else if ((c === ',' && depth === 0) || c === ')') {
-        args.push(sql.slice(start, i).trim());
-        start = i + 1;
-        if (c === ')') break;
-      }
-    }
-    calls.push(args);
-  }
-  return calls;
-}
-
-/** What in this SQL would not run, or would run differently, on MariaDB. */
+/** What in this SQL is MySQL rather than Postgres. */
 function mysqlOnly(sql: string): string[] {
   const body = code(sql);
   const problems: string[] = [];
-  if (/\bAS\s+JSON\s*\)/i.test(body)) problems.push('CAST(… AS JSON)');
-  if (/->>?\s*'\$/.test(body)) problems.push('-> / ->>');
-  if (/\bREGEXP_LIKE\s*\(/i.test(body)) problems.push('REGEXP_LIKE');
-  for (const args of regexpReplaceArgs(body)) {
-    if (args.length >= 3 && /\$\d|\\\d/.test(args[2])) problems.push(`back-reference in REGEXP_REPLACE: ${args[2]}`);
-  }
+  if (body.includes('`')) problems.push('backticks');
+  if (/\bFROM\s+DUAL\b/i.test(body)) problems.push('FROM DUAL');
+  if (/\bINSERT\s+IGNORE\b/i.test(body)) problems.push('INSERT IGNORE');
+  if (/\bON\s+DUPLICATE\s+KEY\b/i.test(body)) problems.push('ON DUPLICATE KEY');
+  if (/(^|[\s(,=])@[a-z_]+/i.test(body)) problems.push('@variables');
+  if (/\bENGINE\s*=|\bAUTO_INCREMENT\b/i.test(body)) problems.push('ENGINE / AUTO_INCREMENT');
+  if (/\bAS\s+CHAR\b/i.test(body)) problems.push('CAST(… AS CHAR)');
   return problems;
 }
 
-describe('migrations run on MySQL and MariaDB alike', () => {
-  it('finds the MySQL-only forms', () => {
-    const firstVersionOf0021 =
-      "UPDATE `products` SET `specs` = CAST(REGEXP_REPLACE(CAST(`specs` AS CHAR), '(^|[^A-Za-z0-9_./-])(/textures/[A-Za-z0-9_.-]+)\\\\.jpg', '$1$2.webp') AS JSON) WHERE `specs` -> '$.normalUrl' IS NOT NULL AND REGEXP_LIKE(`slug`, 'tile')";
-    expect(mysqlOnly(firstVersionOf0021)).toEqual(['CAST(… AS JSON)', '-> / ->>', 'REGEXP_LIKE', "back-reference in REGEXP_REPLACE: '$1$2.webp'"]);
-    expect(mysqlOnly("SELECT REGEXP_REPLACE(REVERSE(`a`), 'b(?=c)', '\\\\1')")).toEqual(["back-reference in REGEXP_REPLACE: '\\\\1'"]);
-    // A comment may name them, and a constant replacement is fine.
-    expect(mysqlOnly("-- no CAST(… AS JSON), no $1\nSELECT REGEXP_REPLACE(REVERSE(CAST(`a` AS CHAR CHARACTER SET utf8mb4)), '\"gpj[.](?=x)', '\"pbew.') WHERE `t` = '$1$2.webp'")).toEqual([]);
+describe('migrations are Postgres', () => {
+  it('finds the MySQL forms', () => {
+    expect(mysqlOnly("SET @parent := (SELECT `id` FROM `categories` WHERE `slug` = 'x');")).toEqual(['backticks', '@variables']);
+    expect(mysqlOnly('INSERT IGNORE INTO t (a) SELECT 1 FROM DUAL ON DUPLICATE KEY UPDATE a = 1')).toEqual(['FROM DUAL', 'INSERT IGNORE', 'ON DUPLICATE KEY']);
+    expect(mysqlOnly('SELECT CAST(id AS CHAR) FROM t')).toEqual(['CAST(… AS CHAR)']);
+    // A comment or a string may say anything.
+    expect(mysqlOnly("-- no `backticks`, no @vars\nINSERT INTO \"t\" (\"a\") VALUES ('a@b.ge `x`') ON CONFLICT DO NOTHING;")).toEqual([]);
   });
 
   it.each(FILES)('%s', (file) => {
     expect(mysqlOnly(readFileSync(path.join(DIR, file), 'utf8'))).toEqual([]);
   });
-});
 
-/**
- * A nullable `timestamp` written bare (drizzle-kit's `timestamp,`) is NOT NULL DEFAULT
- * '0000-00-00 00:00:00' on a MariaDB before 10.10 (explicit_defaults_for_timestamp off) — the
- * table's first one auto-updating as well — so "not yet" is never NULL there. Checked on
- * MariaDB 10.6: a fresh reset token counted as used and a paid credit as spent until 0026
- * repaired the columns. From 0026 on, every timestamp column says NULL or NOT NULL itself.
- */
-const BARE_TIMESTAMP = /`\w+`\s+timestamp(?!\s*(?:\(\d\))?\s*(?:NULL|NOT\s+NULL))\s*(?:,|;|\)|$)/im;
-const REPAIRED_UP_TO = 26;
-
-describe('timestamps say whether they may be NULL', () => {
-  it('finds a bare one', () => {
-    expect(BARE_TIMESTAMP.test('ALTER TABLE `users` ADD `seen_at` timestamp;')).toBe(true);
-    expect(BARE_TIMESTAMP.test('\t`paid_at` timestamp,\n')).toBe(true);
-    expect(BARE_TIMESTAMP.test('ALTER TABLE `users` ADD `seen_at` timestamp NULL DEFAULT NULL;')).toBe(false);
-    expect(BARE_TIMESTAMP.test('\t`created_at` timestamp NOT NULL DEFAULT (now()),')).toBe(false);
-  });
-
-  it.each(FILES.filter((file) => Number(file.slice(0, 4)) > REPAIRED_UP_TO))('%s', (file) => {
-    // drizzle-kit writes `timestamp` for a nullable column: make it `timestamp NULL DEFAULT NULL` by hand.
-    expect(BARE_TIMESTAMP.test(code(readFileSync(path.join(DIR, file), 'utf8')))).toBe(false);
+  it('are all in the journal, in order, for the postgresql dialect', () => {
+    expect(JOURNAL.dialect).toBe('postgresql');
+    expect(JOURNAL.entries.map((e) => `${e.tag}.sql`)).toEqual(FILES);
+    expect(JOURNAL.entries.map((e) => e.idx)).toEqual(FILES.map((_, i) => i));
   });
 });

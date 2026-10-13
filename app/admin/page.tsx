@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { AlertTriangle, ArrowRight, Calculator, CheckCircle2, ClipboardList, FolderTree, Hammer, Package, Plus, Receipt, Send, Settings, Store, TrendingUp, UserPlus, Users } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, orders, products, projects, stores, users, workers } from '@/lib/db/schema';
@@ -95,24 +96,24 @@ export default async function AdminDashboardPage() {
     db
       .select({
         total: count(),
-        active: sql<number>`SUM(${products.isActive} = 1)`,
-        noPhoto: sql<number>`SUM(${products.isActive} = 1 AND (${products.imageUrl} IS NULL OR ${products.imageUrl} = ''))`,
+        active: sql<number>`count(*) FILTER (WHERE ${products.isActive})`,
+        noPhoto: sql<number>`count(*) FILTER (WHERE ${products.isActive} AND (${products.imageUrl} IS NULL OR ${products.imageUrl} = ''))`,
       })
       .from(products)
       .where(isNull(products.ownerUserId)),
     db.select({ c: count() }).from(categories),
-    db.select({ total: count(), active: sql<number>`SUM(${stores.isActive} = 1)`, pending: sql<number>`SUM(${stores.approvalStatus} = 'pending')` }).from(stores),
-    db.select({ total: count(), verified: sql<number>`SUM(${workers.isVerified} = 1)`, pending: sql<number>`SUM(${workers.approvalStatus} = 'pending')` }).from(workers),
+    db.select({ total: count(), active: sql<number>`count(*) FILTER (WHERE ${stores.isActive})`, pending: sql<number>`count(*) FILTER (WHERE ${stores.approvalStatus} = 'pending')` }).from(stores),
+    db.select({ total: count(), verified: sql<number>`count(*) FILTER (WHERE ${workers.isVerified})`, pending: sql<number>`count(*) FILTER (WHERE ${workers.approvalStatus} = 'pending')` }).from(workers),
     db.select({ c: count() }).from(users),
     db
       .select({
         total: count(),
-        saved: sql<number>`SUM(${projects.status} = 'saved')`,
-        draft: sql<number>`SUM(${projects.status} = 'draft')`,
-        design: sql<number>`SUM(${projects.plan} IS NOT NULL)`,
+        saved: sql<number>`count(*) FILTER (WHERE ${projects.status} = 'saved')`,
+        draft: sql<number>`count(*) FILTER (WHERE ${projects.status} = 'draft')`,
+        design: sql<number>`count(*) FILTER (WHERE ${projects.plan} IS NOT NULL)`,
         totalCost: sql<number>`COALESCE(SUM(${projects.totalCost}), 0)`,
         totalM2: sql<number>`COALESCE(SUM(${projects.totalM2}), 0)`,
-        guestsWeek: sql<number>`SUM(${projects.userId} IS NULL AND ${projects.createdAt} >= ${weekAgo})`,
+        guestsWeek: sql<number>`count(*) FILTER (WHERE ${projects.userId} IS NULL AND ${projects.createdAt} >= ${weekAgo})`,
       })
       .from(projects),
     recentProjects(8),
@@ -126,10 +127,10 @@ export default async function AdminDashboardPage() {
       .where(and(eq(categories.isVisible, true), isNull(products.id), sql`NOT EXISTS (SELECT 1 FROM ${categories} AS child WHERE child.parent_id = ${categories.id})`)),
     db
       .select({
-        toConfirm: sql<number>`SUM(${orders.partnerType} = 'store' AND ${orders.sentAt} IS NULL AND ${orders.status} NOT IN ('cancelled','done'))`,
-        waitingPartner: sql<number>`SUM(${orders.sentAt} IS NOT NULL AND ${orders.status} = 'new')`,
-        inWork: sql<number>`SUM(${orders.sentAt} IS NOT NULL AND ${orders.status} IN ('confirmed','in_progress'))`,
-        doneMonth: sql<number>`SUM(${orders.status} = 'done' AND ${orders.updatedAt} >= ${monthStart})`,
+        toConfirm: sql<number>`count(*) FILTER (WHERE ${orders.partnerType} = 'store' AND ${orders.sentAt} IS NULL AND ${orders.status} NOT IN ('cancelled','done'))`,
+        waitingPartner: sql<number>`count(*) FILTER (WHERE ${orders.sentAt} IS NOT NULL AND ${orders.status} = 'new')`,
+        inWork: sql<number>`count(*) FILTER (WHERE ${orders.sentAt} IS NOT NULL AND ${orders.status} IN ('confirmed','in_progress'))`,
+        doneMonth: sql<number>`count(*) FILTER (WHERE ${orders.status} = 'done' AND ${orders.updatedAt} >= ${monthStart})`,
       })
       .from(orders),
     may('orders')
@@ -141,7 +142,7 @@ export default async function AdminDashboardPage() {
           .orderBy(asc(orders.createdAt))
           .limit(8)
       : Promise.resolve([]),
-    db.select({ c: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.isActive} = 1 AND (${stores.email} IS NULL OR ${stores.email} = '')) + (SELECT COUNT(*) FROM ${workers} WHERE ${workers.isActive} = 1 AND (${workers.email} IS NULL OR ${workers.email} = ''))` }).from(sql`(SELECT 1) AS one`),
+    db.select({ c: sql<number>`(SELECT COUNT(*) FROM ${stores} WHERE ${stores.isActive} AND (${stores.email} IS NULL OR ${stores.email} = '')) + (SELECT COUNT(*) FROM ${workers} WHERE ${workers.isActive} AND (${workers.email} IS NULL OR ${workers.email} = ''))` }).from(sql`(SELECT 1) AS one`),
     db.select({ c: sql<number>`COUNT(*)` }).from(stores).where(and(eq(stores.isActive, true), sql`NOT EXISTS (SELECT 1 FROM ${users} WHERE ${users.storeId} = ${stores.id})`)),
   ]);
 

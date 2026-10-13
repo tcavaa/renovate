@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
 export const POST = handle('POST /api/projects/create', 'Failed to create project', async (req) => {
   const { session, response } = await requireSession();
   if (response) return response;
-  const limited = rateLimited(req, RATE_RULES.createProject);
+  const limited = await rateLimited(req, RATE_RULES.createProject);
   if (limited) return limited;
   const parsed = createProjectSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail(parsed.error.message, 400);
@@ -36,12 +36,12 @@ export const POST = handle('POST /api/projects/create', 'Failed to create projec
           selectedProducts: {},
           selectedFurniture: {},
           calculatorEdits: { progress: { step: 1, calculated: false, at: 1 } },
-        })
+        }).returning({ id: projects.id })
       : await db.insert(projects).values({
           ...common,
           mode: 'design_only',
           plan: emptyPlan(),
           scene: emptyScene(),
-        });
-  return ok({ id: inserted[0].insertId }, { status: 201 });
+        }).returning({ id: projects.id });
+  return ok({ id: inserted[0].id }, { status: 201 });
 });

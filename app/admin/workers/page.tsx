@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, like, or, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, ilike, or, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { BadgeCheck, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { workers } from '@/lib/db/schema';
@@ -29,7 +30,7 @@ export default async function AdminWorkersPage(props: { searchParams: Promise<Se
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(workers.nameKa, needle), like(workers.specialty, needle), like(workers.phone, needle))!);
+    where.push(or(ilike(workers.nameKa, needle), ilike(workers.specialty, needle), ilike(workers.phone, needle))!);
   }
   if (p.get('specialty')) where.push(eq(workers.specialtySlug, p.get('specialty')));
   if (p.get('verified') === 'yes') where.push(eq(workers.isVerified, true));

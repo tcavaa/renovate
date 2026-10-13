@@ -20,8 +20,7 @@ export const POST = handle('POST /api/teams', 'Failed to create team', async (re
   if (!parsed.success) return fail(parsed.error.message, 400);
   const { memberIds, leadWorkerId, ...fields } = parsed.data;
   const id = await db.transaction(async (tx) => {
-    const [row] = await tx.insert(teams).values(teamRow(fields, fields.slug || slugify(fields.nameKa)));
-    const teamId = Number(row.insertId);
+    const [{ id: teamId }] = await tx.insert(teams).values(teamRow(fields, fields.slug || slugify(fields.nameKa))).returning({ id: teams.id });
     if (memberIds.length > 0) {
       await tx.insert(teamMembers).values(memberIds.map((workerId, i) => ({ teamId, workerId, isLead: workerId === leadWorkerId, sortOrder: i })));
     }

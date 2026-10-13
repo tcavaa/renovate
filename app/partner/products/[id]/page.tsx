@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';

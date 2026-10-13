@@ -1,6 +1,7 @@
 import Image from '@/components/ui/image';
 import Link from 'next/link';
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, like, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, ilike, ne, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { Box, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, orderItems, orders, products } from '@/lib/db/schema';
@@ -60,7 +61,7 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
   const where: SQL[] = [eq(products.storeId, storeId), isNull(products.ownerUserId)];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(products.nameKa, needle), like(products.nameEn, needle), like(products.sku, needle), like(products.brand, needle))!);
+    where.push(or(ilike(products.nameKa, needle), ilike(products.nameEn, needle), ilike(products.sku, needle), ilike(products.brand, needle))!);
   }
   // A category stands for everything under it: "Furniture" lists the store's sofas and beds.
   if (p.num('category')) {

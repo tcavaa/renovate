@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { afterResponse } from './after';
 import { auth } from '@/auth';
 import { log } from '@/lib/log';
 import { canAdmin, isPartnerRole, type AdminSection } from '@/lib/auth/roles';
@@ -83,6 +84,16 @@ export const API_ERRORS = {
   PAYMENT_UNAVAILABLE: 'PAYMENT_UNAVAILABLE',
   /** An own item costs money and this person has no paid credit for one. */
   PAYMENT_REQUIRED: 'PAYMENT_REQUIRED',
+  /** A direct upload that is not this caller's, was already used, or took too long: upload again. */
+  UPLOAD_EXPIRED: 'UPLOAD_EXPIRED',
+  /** The upload was granted but its bytes never reached storage. */
+  UPLOAD_MISSING: 'UPLOAD_MISSING',
+  /** A file over its kind's limit (`lib/uploads/kinds.ts`). */
+  FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  /** A floor plan over its limit. */
+  PLAN_TOO_LARGE: 'PLAN_TOO_LARGE',
+  /** Not an image the app takes (PNG, JPEG, WebP, and GIF where a GIF may be). */
+  IMAGE_INVALID: 'IMAGE_INVALID',
 } as const;
 
 export type ApiErrorCode = (typeof API_ERRORS)[keyof typeof API_ERRORS];
@@ -244,14 +255,35 @@ export function handle<R extends Request = Request>(
       log.warn('cross-site write refused', { route: label, origin: req.headers.get('origin') });
       return fail(API_ERRORS.FORBIDDEN, 403);
     }
+    flushSentryAfterResponse();
     try {
       const ctx: RouteContext = { params: (await incoming.params) ?? {} };
       const response = await fn(req, ctx);
       log.info('request', { route: label, status: response.status, ms: Date.now() - started });
       return response;
     } catch (e) {
+      // A save over the inflated-body cap (`readJson`): refused, not an error of ours.
+      if (e instanceof Error && e.name === 'BodyTooLargeError') return fail(API_ERRORS.FILE_TOO_LARGE, 413);
+      // A direct upload that is not there, not the caller's or too big: the client's to fix.
+      if (e instanceof Error && e.name === 'UploadError' && 'code' in e && 'status' in e) {
+        log.info('request', { route: label, status: e.status, ms: Date.now() - started, upload: e.code });
+        return fail(String(e.code), Number(e.status));
+      }
       log.error(`${label} failed`, { route: label, ms: Date.now() - started, err: e });
       return fail(message, 500);
     }
   };
+}
+
+/**
+ * On Vercel an instance may be frozen the moment its response is sent, and the events and log
+ * lines Sentry has queued (`sentry.server.config.ts`) would wait in it — or be lost with it. So
+ * each request ends with a flush, after the response (`after`), which Vercel waits for.
+ */
+function flushSentryAfterResponse(): void {
+  if (!process.env.VERCEL || !process.env.NEXT_PUBLIC_SENTRY_DSN) return;
+  afterResponse(async () => {
+    const Sentry = await import('@sentry/nextjs');
+    await Sentry.flush(2000);
+  });
 }

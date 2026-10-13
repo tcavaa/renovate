@@ -21,7 +21,7 @@ export const GET = handle('GET /api/profile', 'Failed to load profile', async ()
 
 /** Changes the name, the phone and the default address (`/profile?view=account`). The e-mail stays the sign-in. */
 export const PATCH = handle('PATCH /api/profile', 'Failed to save profile', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.saveProject);
+  const limited = await rateLimited(req, RATE_RULES.saveProject);
   if (limited) return limited;
   const { session, response } = await requireSession();
   if (!session) return response;

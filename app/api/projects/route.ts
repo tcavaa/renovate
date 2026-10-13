@@ -1,4 +1,5 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { calculatorBoardElectrical, calculatorBoardPlan, isCalculatorPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
@@ -13,6 +14,7 @@ import { isUnknownProduct, ownProject, repriceCalculatorPicks } from '@/lib/api/
 import { loadProductPrices, loadProductStores, planProductIds, repricePlan } from '@/lib/api/productPrices';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
+import { readJson } from '@/lib/api/body';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,12 +32,12 @@ export const GET = handle('GET /api/projects', 'Failed to load projects', async 
       nameKa: projects.nameKa,
       totalM2: projects.totalM2,
       totalWorkersCost: projects.totalWorkersCost,
-      hasPlan: sql<number>`(${projects.plan} IS NOT NULL AND CAST(${projects.plan} AS CHAR) <> 'null')`,
+      hasPlan: sql<boolean>`(${projects.plan} IS NOT NULL AND jsonb_typeof(${projects.plan}) <> 'null')`,
     })
     .from(projects)
     .where(eq(projects.userId, Number(session.user.id)))
     .orderBy(desc(projects.createdAt));
-  return ok(data.map((p) => ({ ...p, hasPlan: Boolean(Number(p.hasPlan)) })));
+  return ok(data.map((p) => ({ ...p, hasPlan: Boolean(p.hasPlan) })));
 });
 
 /**
@@ -44,9 +46,9 @@ export const GET = handle('GET /api/projects', 'Failed to load projects', async 
  * project of the caller's.
  */
 export const POST = handle('POST /api/projects', 'Failed to save project', async (req) => {
-  const parsed = saveCalculatorSchema.safeParse(await req.json());
+  const parsed = saveCalculatorSchema.safeParse(await readJson(req));
   // Autosaves come every few seconds while someone works; they get their own, wider bucket.
-  const limited = rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
+  const limited = await rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
   if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
@@ -134,13 +136,13 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
   // A pending calculation leaves a finished design's totals where they are, and empties any it
   // wrote itself before.
   const designDone = hasDesign && existing.scene != null && !projectKind(existing).designPending;
-  const [result] = await db
+  const written = await db
     .update(projects)
     .set({
       ...calculatorColumns,
       ...(pending || !costColumns ? (designDone ? {} : noCosts) : costColumns),
       ...(pending ? {} : { mode: 'full' as const }),
-      ...(flipScene ? { scene: sql`JSON_SET(${projects.scene}, '$.mode', 'full')`, designRev: sql`${projects.designRev} + 1` } : {}),
+      ...(flipScene ? { scene: sql`jsonb_set(${projects.scene}, '{mode}', '"full"')`, designRev: sql`${projects.designRev} + 1` } : {}),
       calculatorRev: sql`${projects.calculatorRev} + 1`,
       calculatorSaveId: saveId ?? null,
       // An explicit save confirms a draft; an autosave leaves the status as it is, and an
@@ -149,7 +151,8 @@ export const POST = handle('POST /api/projects', 'Failed to save project', async
     })
     // The revision is checked again in the write itself, forced or not: two saves racing each
     // other cannot both win, and the revision this one made is the one it names back.
-    .where(and(eq(projects.id, existing.id), eq(projects.calculatorRev, existing.calculatorRev)));
-  if ((result as { affectedRows?: number } | undefined)?.affectedRows === 0) return fail('PROJECT_CHANGED', 409);
+    .where(and(eq(projects.id, existing.id), eq(projects.calculatorRev, existing.calculatorRev)))
+    .returning({ id: projects.id });
+  if (written.length === 0) return fail('PROJECT_CHANGED', 409);
   return ok({ id: existing.id, sheet: sheet ? { lines: sheet.lines, grandTotal: sheet.grandTotal, contingency: sheet.contingency, grandTotalWithMargin: sheet.grandTotalWithMargin } : null, rev: existing.calculatorRev + 1 });
 });

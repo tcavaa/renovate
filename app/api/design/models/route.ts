@@ -11,6 +11,8 @@ import { isFixtureProductKind } from '@/lib/design/electrical';
 import { isOpeningProductKind } from '@/lib/design/openings';
 import { isRadiatorProductKind } from '@/lib/design/radiators';
 import { safeKey, storage } from '@/lib/storage';
+import { claimUpload } from '@/lib/uploads/claim';
+import { OWN_PHOTO_MAX_BYTES } from '@/lib/uploads/kinds';
 import { IMAGE_EXTENSION, MODEL_EXTENSION, sniffImage, sniffModel, type ImageMime } from '@/lib/uploads/sniff';
 import { optimizeUploadedImage } from '@/lib/uploads/imageOptimize';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
@@ -23,11 +25,13 @@ import { claimOwnItemCredit, releaseOwnItemCredit, spendOwnItemCredit } from '@/
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** As for a partner's model: the studio would stall on anything bigger. */
-const MAX_MODEL_BYTES = 40 * 1024 * 1024;
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const maxDuration = 300;
 
 const fieldsSchema = z.object({
+  /** The direct upload (`POST /api/uploads`, kind `own_model`): the piece's GLB, or a photo of it. */
+  upload: z.string().uuid(),
+  /** For a GLB, the picture its dialog rendered of it (kind `own_photo`). */
+  photo: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(120),
   kind: z.string().min(1).max(64),
   widthCm: z.coerce.number().int().min(1).max(2000).optional(),
@@ -73,20 +77,13 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
   if (response) return response;
   const userId = Number(session.user.id);
 
-  const form = await req.formData();
-  const text = (key: string) => {
-    const value = form.get(key);
-    return typeof value === 'string' && value.trim() !== '' ? value : undefined;
-  };
-  const parsed = fieldsSchema.safeParse({ name: text('name'), kind: text('kind'), widthCm: text('widthCm'), depthCm: text('depthCm'), heightCm: text('heightCm') });
+  const parsed = fieldsSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail(parsed.error.message, 400);
   const archetype = furnitureArchetype(parsed.data.kind);
   // An archetype with no category of its own has no shelf to stand on.
   if (!archetype?.categorySlug) return fail(API_ERRORS.OWN_MODEL_KIND, 400);
 
-  const file = form.get('file');
-  if (!(file instanceof File)) return fail(API_ERRORS.MODEL_INVALID, 400);
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const { bytes } = await claimUpload(parsed.data.upload, ['own_model'], userId);
   const modelMime = sniffModel(bytes);
   const imageMime = modelMime ? null : sniffImage(bytes);
   if (!modelMime && !imageMime) return fail(API_ERRORS.MODEL_INVALID, 400);
@@ -95,7 +92,6 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
   let credit: number | null = null;
   let spent = false;
   if (modelMime) {
-    if (bytes.length > MAX_MODEL_BYTES) return fail(API_ERRORS.MODEL_TOO_LARGE, 400);
     const info = inspectGlb(bytes);
     if (!info || info.meshes === 0) return fail(API_ERRORS.MODEL_INVALID, 400);
     const blocked = unsupportedExtension(info);
@@ -104,7 +100,7 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
       credit = await claimOwnItemCredit(userId);
       if (credit === null) return fail(API_ERRORS.PAYMENT_REQUIRED, 402);
     }
-  } else if (bytes.length > MAX_IMAGE_BYTES) {
+  } else if (bytes.length > OWN_PHOTO_MAX_BYTES) {
     return fail(API_ERRORS.IMAGE_TOO_LARGE, 400);
   }
 
@@ -124,11 +120,13 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
       modelUrl = (await storage.put(safeKey('models', `${stamp}.${MODEL_EXTENSION}`), body, modelMime)).url;
       status = 'ready';
       // The dialog renders a photo of the model on its turntable, so the tile has a picture.
-      const photo = form.get('photo');
-      if (photo instanceof File && photo.size > 0 && photo.size <= MAX_IMAGE_BYTES) {
-        const photoBytes = Buffer.from(await photo.arrayBuffer());
-        const photoMime = sniffImage(photoBytes);
-        if (photoMime) imageUrl = await storePhoto(stamp, photoBytes, photoMime);
+      if (parsed.data.photo) {
+        const photo = await claimUpload(parsed.data.photo, ['own_photo'], userId).catch((e: unknown) => {
+          log.warn('own model photo not used', { userId, err: e });
+          return null;
+        });
+        const photoMime = photo ? sniffImage(photo.bytes) : null;
+        if (photo && photoMime) imageUrl = await storePhoto(stamp, photo.bytes, photoMime);
       }
     } else {
       imageUrl = await storePhoto(stamp, bytes, imageMime!);
@@ -161,8 +159,8 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
       heightCm: parsed.data.heightCm ?? Math.round(archetype.size.height * 100),
       isActive: true,
       isFeatured: false,
-    });
-    const id = Number(inserted[0].insertId);
+    }).returning({ id: products.id });
+    const id = inserted[0].id;
     if (credit !== null) {
       await spendOwnItemCredit(credit, id);
       spent = true;

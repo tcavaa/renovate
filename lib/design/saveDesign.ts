@@ -18,6 +18,7 @@ import { markClean } from '@/lib/flow/projectSync';
 import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
 import type { SavedRow } from '@/lib/calculator/saveProject';
 import type { DesignVersion } from '@/lib/design/types';
+import { jsonBody } from '@/lib/flow/jsonBody';
 
 /**
  * The kept versions each store last had confirmed by the server. They run to megabytes (0.7 MB at
@@ -64,10 +65,8 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
     const s = store.getState();
     if (s.projectId !== id) throw new Error('no-project');
     if (!s.plan) throw new Error('no-plan');
-    const res = await fetch('/api/design/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    // Gzipped when it is large (kept versions): Vercel takes no request body over 4.5 MB.
+    const { body, headers } = await jsonBody({
         projectId: id,
         baseRev: s.baseRev ?? 0,
         saveId,
@@ -81,8 +80,8 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
         floorPlanUrl: s.floorPlanUrl,
         draft: options.draft,
         ...(!s.versionsLoaded || versionsConfirmed.get(store) === s.versions ? {} : { versions: s.versions }),
-      }),
     });
+    const res = await fetch('/api/design/projects', { method: 'POST', headers, body });
     const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
     if (res.status === 409 && json?.error === 'PROJECT_CHANGED') throw new ProjectChangedError();
     if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');

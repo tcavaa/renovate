@@ -1,44 +1,22 @@
 /* eslint-disable no-console */
 /**
- * Creates the `rates` table if it is missing and fills in every default the calculator ships
- * with — without touching a row admin has already edited.
+ * Fills in every default rate the calculator ships with — without touching a row admin has
+ * already edited. The table itself comes from the migrations (`pnpm db:migrate`).
  *
  *   pnpm db:seed:rates
  *
  * Optional, and never needed in production: the engine prices a default the table has no row
  * for, and the admin rates page lists those defaults and creates a row when one is saved
  * (`ratesForAdmin`).
- *
- * `drizzle-kit push` is interactive and hangs in scripts, so the DDL is applied directly.
  */
 
 import './lib/loadEnv';
 
-import { sql } from 'drizzle-orm';
 import { db, pool } from '../lib/db';
 import { rates } from '../lib/db/schema';
 import { defaultRateRows } from '../lib/calculator/rates';
 
 async function main() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS rates (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      kind ENUM('material','labour') NOT NULL,
-      \`key\` VARCHAR(100) NOT NULL UNIQUE,
-      label_ka VARCHAR(255) NOT NULL,
-      phase INT NOT NULL,
-      unit VARCHAR(20) NOT NULL,
-      basis VARCHAR(20) NULL,
-      qty_per_m2 DECIMAL(10,4) NULL,
-      waste_factor_pct DECIMAL(6,2) NULL,
-      price_per_unit DECIMAL(12,2) NOT NULL,
-      linked_category_slug VARCHAR(100) NULL,
-      sort_order INT NOT NULL DEFAULT 0,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-  `);
-
   const existing = new Set((await db.select({ key: rates.key }).from(rates)).map((r) => r.key));
   let inserted = 0;
   for (const row of defaultRateRows()) {

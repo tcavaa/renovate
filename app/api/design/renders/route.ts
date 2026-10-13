@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { randomBytes } from 'node:crypto';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { projectRenders, projects } from '@/lib/db/schema';
-import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok, requireSession } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
+import { claimUpload } from '@/lib/uploads/claim';
 import { IMAGE_EXTENSION, sniffImage } from '@/lib/uploads/sniff';
 import { log } from '@/lib/log';
 
@@ -14,56 +15,49 @@ const cameraSchema = z.object({ position: point, target: point });
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-const MAX_BYTES = 8 * 1024 * 1024;
+const postSchema = z.object({
+  /** The direct upload (`POST /api/uploads`, kind `render`) holding the studio's screenshot. */
+  upload: z.string().uuid(),
+  projectId: z.number().int().positive(),
+  roomName: z.string().max(255).nullish(),
+  // Where the photo was taken from — kept to redo the render from the same spot. Only that:
+  // two points of three finite numbers each.
+  camera: cameraSchema.nullish(),
+});
 
 /**
  * A photo taken in the studio, and the realistic render asked for from it.
  *
- * The browser sends the studio's own screenshot; it is stored at once (so the view can be
- * downloaded straight away) and a `project_renders` row is queued. Nothing produces the
- * render yet — an image model will be wired to the queue later — so rows wait in `queued`
- * and the profile says so. Signed-in owners only: renders live with the project.
+ * The browser sends the studio's own screenshot straight to storage (docs/uploads.md — kind
+ * `render`, 8 MB, granted under the photo's rate limit); here it is claimed, identified by its
+ * bytes and published at once (so the view can be downloaded straight away), and a
+ * `project_renders` row is queued. Nothing produces the render yet — an image model will be
+ * wired to the queue later — so rows wait in `queued` and the profile says so. Signed-in owners
+ * only: renders live with the project.
  */
 export const POST = handle('POST /api/design/renders', 'Failed to save the photo', async (req) => {
   const { session, response } = await requireSession();
   if (response) return response;
-  const limited = rateLimited(req, RATE_RULES.render);
-  if (limited) return limited;
 
-  const form = await req.formData();
-  const file = form.get('file');
-  const projectId = Number(form.get('projectId'));
-  if (!(file instanceof File)) return fail('No file provided', 400);
-  if (file.size > MAX_BYTES) return fail('File too large (max 8MB)', 400);
-  if (!Number.isInteger(projectId) || projectId <= 0) return fail(API_ERRORS.INVALID_ID, 400);
+  const parsed = postSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return fail(parsed.error.message, 400);
+  const { projectId } = parsed.data;
 
   const userId = Number(session.user.id);
   const [project] = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.userId, userId))).limit(1);
   if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
 
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const { bytes } = await claimUpload(parsed.data.upload, ['render'], userId);
   const mime = sniffImage(bytes);
-  if (!mime || mime === 'image/gif') return fail('Unsupported file type', 400);
+  if (!mime || mime === 'image/gif') return fail(API_ERRORS.IMAGE_INVALID, 400);
 
-  const roomName = String(form.get('roomName') ?? '').slice(0, 255) || null;
-  // Where the photo was taken from — kept to redo the render from the same spot. Only that:
-  // two points of three finite numbers each (it was any JSON the form carried).
-  let camera: { position: number[]; target: number[] } | null = null;
-  const rawCamera = form.get('camera');
-  if (typeof rawCamera === 'string' && rawCamera.length <= 500) {
-    try {
-      const parsed = cameraSchema.safeParse(JSON.parse(rawCamera));
-      camera = parsed.success ? parsed.data : null;
-    } catch {
-      camera = null;
-    }
-  }
-
+  const roomName = parsed.data.roomName?.slice(0, 255) || null;
+  const camera = parsed.data.camera ?? null;
   const key = safeKey('renders', `u${userId}-p${projectId}-${Date.now()}-${randomBytes(6).toString('hex')}.${IMAGE_EXTENSION[mime]}`);
   const stored = await storage.put(key, bytes, mime);
-  const inserted = await db.insert(projectRenders).values({ projectId, userId, sourceUrl: stored.url, status: 'queued', roomName, camera });
-  const id = Number(inserted[0].insertId);
+  const [{ id }] = await db.insert(projectRenders).values({ projectId, userId, sourceUrl: stored.url, status: 'queued', roomName, camera }).returning({ id: projectRenders.id });
   log.info('render requested', { id, projectId, userId, bytes: stored.size });
   return ok({ id, projectId, sourceUrl: stored.url, status: 'queued' as const });
 });

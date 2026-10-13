@@ -53,7 +53,7 @@ export const authOptions = {
         if (!parsed.success) return null;
         const { email, password } = parsed.data;
         // Five wrong passwords lock the account for fifteen minutes, whatever the IP.
-        if (isLockedOut(email)) {
+        if (await isLockedOut(email)) {
           log.warn('login refused: account locked', { email: email.toLowerCase() });
           return null;
         }
@@ -68,10 +68,10 @@ export const authOptions = {
 
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {
-          if (recordFailure(email)) log.warn('login: account locked after repeated failures', { userId: user.id });
+          if (await recordFailure(email)) log.warn('login: account locked after repeated failures', { userId: user.id });
           return null;
         }
-        clearFailures(email);
+        await clearFailures(email);
         // Only after the password: a stranger guessing addresses learns nothing about which
         // accounts exist and which were switched off.
         if (!user.isActive) {

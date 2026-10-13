@@ -1,4 +1,5 @@
-import { asc, max } from 'drizzle-orm';
+import { max } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { shelfRoomCategories, shelfRooms } from '@/lib/db/schema';
 import { shelfRoomSchema } from '@/lib/validations/category.schema';
@@ -37,8 +38,7 @@ export const POST = handle('POST /api/shelf-rooms', 'Failed to create studio roo
   if (existing.some((r) => r.slug === fields.slug)) return fail(API_ERRORS.SLUG_EXISTS, 409);
   const [{ last }] = await db.select({ last: max(shelfRooms.sortOrder) }).from(shelfRooms);
 
-  const inserted = await db.insert(shelfRooms).values({ ...fields, sortOrder: (last ?? 0) + 10 });
-  const id = Number(inserted[0].insertId);
+  const [{ id }] = await db.insert(shelfRooms).values({ ...fields, sortOrder: (last ?? 0) + 10 }).returning({ id: shelfRooms.id });
   await setRoomCategories(id, categoryIds);
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();

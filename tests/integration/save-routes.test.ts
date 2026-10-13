@@ -19,32 +19,40 @@ const db = vi.hoisted(() => ({
   inserts: [] as Row[],
 }));
 
+/** A drizzle query result that can be awaited as it is or asked for its `.returning()` rows. */
+const result = (rows: Row[]) => Object.assign(Promise.resolve(rows), { returning: async () => rows });
+
 vi.mock('@/lib/db', () => ({
   db: {
     select: () => ({ from: () => ({ where: () => ({ limit: async () => (db.row ? [db.row] : []) }) }) }),
     update: () => ({
       set: (values: Row) => ({
-        where: async () => {
+        where: () => {
           db.updates.push(values);
-          if (db.affected && db.row) {
+          const won = !!(db.affected && db.row);
+          if (won && db.row) {
             db.row = {
               ...db.row,
               ...('calculatorRev' in values ? { calculatorRev: Number(db.row.calculatorRev) + 1 } : {}),
               ...('designRev' in values ? { designRev: Number(db.row.designRev) + 1 } : {}),
             };
           }
-          return [{ affectedRows: db.affected }];
+          // The conditional update's RETURNING: the row when it matched, nothing when another save got there first.
+          return result(won && db.row ? [{ id: db.row.id }] : []);
         },
       }),
     }),
     insert: () => ({
-      values: async (values: Row) => {
+      values: (values: Row) => {
         db.inserts.push(values);
-        return [{ insertId: 42 }];
+        return result([{ id: 42 }]);
       },
     }),
   },
 }));
+
+// The rate limits' shared counters, in memory.
+vi.mock('@/lib/api/counterStore', async () => (await import('../helpers/counterStore')).memoryCounterStore());
 
 const authMock = vi.fn<() => Promise<unknown>>(async () => null);
 vi.mock('@/auth', () => ({ auth: () => authMock() }));

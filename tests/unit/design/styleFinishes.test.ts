@@ -163,7 +163,8 @@ describe('each kind of room in its own look', () => {
   });
 
   it('ships every paint the styles lay in the migration that brings them to a database', () => {
-    const migration = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0023_room_paints.sql'), 'utf8');
+    // The starting catalogue a new database gets (it carried MySQL's 0023 over to Postgres).
+    const migration = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0001_starting_catalogue.sql'), 'utf8');
     const laid = new Set(styleLooks.map((l) => l.textureUrl).filter((u): u is string => !!u && u.includes('/paint-')));
     expect(laid.size).toBeGreaterThan(0);
     for (const name of Object.keys(PAINT_COLORS)) {

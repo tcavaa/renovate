@@ -19,7 +19,7 @@ const schema = z.object({ email: z.string().email() });
  * sign-in) get no mail: there is nothing to reset.
  */
 export const POST = handle('POST /api/auth/forgot', 'Failed to start password reset', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.authMail);
+  const limited = await rateLimited(req, RATE_RULES.authMail);
   if (limited) return limited;
 
   const parsed = schema.safeParse(await req.json());

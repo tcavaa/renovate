@@ -44,6 +44,12 @@ interface Manifest {
 
 const SLUG_PREFIX = 'model-';
 
+/**
+ * The manifests measure in fractions of a centimetre (a socket plate is 1.6 cm deep); the
+ * columns are whole centimetres. MySQL rounded on the way in; Postgres refuses the fraction.
+ */
+const roundCm = <T extends number | null | undefined>(value: T): T => (typeof value === 'number' ? (Math.round(value) as T) : value);
+
 async function main() {
   // Two manifests, one catalogue: the partner drop and the CC0 stock that fills its gaps.
   const manifestPaths = [
@@ -109,10 +115,10 @@ async function main() {
       inCalculator: spec.inCalculator,
       model3dKind: spec.model3dKind,
       sortOrder: spec.sortOrder,
-    });
+    }).returning({ id: categories.id });
     tree = buildCategoryTree(await db.select(categoryColumns).from(categories));
     console.log(`  + category ${slug}`);
-    return Number(inserted[0].insertId);
+    return inserted[0].id;
   };
 
   // Stores are matched by the slug used in seed-design.ts, which is derived from the name.
@@ -139,8 +145,8 @@ async function main() {
       deliveryFeeGel: s.deliveryFeeGel,
       commissionRate: s.commissionRate,
       isActive: true,
-    });
-    storeBySlug.set(s.slug, Number(inserted[0].insertId));
+    }).returning({ id: stores.id });
+    storeBySlug.set(s.slug, inserted[0].id);
     console.log(`  + store ${s.nameKa}`);
   }
 
@@ -183,9 +189,9 @@ async function main() {
       model3dUrl: model.url,
       model3dStatus: 'ready' as const,
       colorHex: model.colorHex,
-      widthCm: model.widthCm,
-      depthCm: model.depthCm,
-      heightCm: model.heightCm,
+      widthCm: roundCm(model.widthCm),
+      depthCm: roundCm(model.depthCm),
+      heightCm: roundCm(model.heightCm),
       isActive: true,
       isFeatured: true,
     };
@@ -239,9 +245,9 @@ async function main() {
         model3dUrl: model.url,
         model3dStatus: 'ready' as const,
         colorHex: null,
-        widthCm: model.widthCm,
-        depthCm: model.depthCm,
-        heightCm: model.heightCm,
+        widthCm: roundCm(model.widthCm),
+        depthCm: roundCm(model.depthCm),
+        heightCm: roundCm(model.heightCm),
         isActive: true,
         isFeatured: false,
       };
@@ -286,9 +292,9 @@ async function main() {
         model3dUrl: model.url,
         model3dStatus: 'ready' as const,
         colorHex: null,
-        widthCm: model.sectionWidthCm,
-        depthCm: model.depthCm,
-        heightCm: model.heightCm,
+        widthCm: roundCm(model.sectionWidthCm),
+        depthCm: roundCm(model.depthCm),
+        heightCm: roundCm(model.heightCm),
         isActive: true,
         isFeatured: false,
       };
@@ -382,8 +388,8 @@ async function main() {
         specs: { profile: trim.profile, heightCm: trim.heightCm, depthCm: trim.depthCm },
         colorHex: trim.colorHex,
         widthCm: null,
-        depthCm: trim.depthCm,
-        heightCm: trim.heightCm,
+        depthCm: roundCm(trim.depthCm),
+        heightCm: roundCm(trim.heightCm),
         isActive: true,
         isFeatured: false,
       };

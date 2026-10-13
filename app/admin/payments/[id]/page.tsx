@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { paymentEvents, payments, projects, users } from '@/lib/db/schema';
 import { AdminPageHeader } from '@/components/admin/AdminList';

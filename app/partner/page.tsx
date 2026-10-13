@@ -1,7 +1,7 @@
 import Image from '@/components/ui/image';
 import Link from 'next/link';
 import { ArrowRight, Box, Phone } from 'lucide-react';
-import { asc } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { stores, teams, workers } from '@/lib/db/schema';
 import { getLocale, getT } from '@/lib/i18n/server';

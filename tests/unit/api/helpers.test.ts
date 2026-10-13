@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/auth', () => ({ auth: vi.fn() }));
+// The rate limits' shared counters, in memory (the SQL is the same logic, one row per key).
+const counters = vi.hoisted(() => ({ fail: false }));
+vi.mock('@/lib/api/counterStore', async () => {
+  const store = (await import('../../helpers/counterStore')).memoryCounterStore();
+  return {
+    ...store,
+    bumpWindow: (...args: Parameters<typeof store.bumpWindow>) => (counters.fail ? Promise.reject(new Error('db down')) : store.bumpWindow(...args)),
+  };
+});
 
 import { auth } from '@/auth';
 import { API_ERRORS, crossSiteWrite, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
@@ -66,18 +75,43 @@ describe('handle', () => {
 });
 
 describe('rateLimit', () => {
-  it('allows `limit` hits per window per IP and then blocks with a retry hint', () => {
+  // Mid-window, so the previous window weighs half.
+  const now = Math.floor(1_700_000_000_000 / 60_000) * 60_000 + 30_000;
+
+  it('allows `limit` hits per window per IP and then blocks with a retry hint', async () => {
     const rule = { key: `t-${Math.random()}`, limit: 3, windowMs: 60_000 };
-    const results = [1, 2, 3, 4].map(() => rateLimit(request('10.0.0.1'), rule));
+    const results = [];
+    for (let i = 0; i < 4; i++) results.push(await rateLimit(request('10.0.0.1'), rule, now));
     expect(results.map((r) => r.ok)).toEqual([true, true, true, false]);
-    expect(results[3].retryAfterSec).toBeGreaterThan(0);
-    expect(rateLimit(request('10.0.0.2'), rule).ok).toBe(true);
+    expect(results[3].retryAfterSec).toBe(30);
+    expect((await rateLimit(request('10.0.0.2'), rule, now)).ok).toBe(true);
+  });
+
+  it('carries the last window over into the next, by how much of it is left', async () => {
+    const rule = { key: `t-${Math.random()}`, limit: 3, windowMs: 60_000 };
+    for (let i = 0; i < 6; i++) await rateLimit(request('10.0.0.4'), rule, now);
+    // Halfway into the next window the last one still counts 4 × ½ (its count stops one over the limit): room for one.
+    expect((await rateLimit(request('10.0.0.4'), rule, now + 60_000)).ok).toBe(true);
+    expect((await rateLimit(request('10.0.0.4'), rule, now + 60_000)).ok).toBe(false);
+    // Two windows on, it is forgotten.
+    expect((await rateLimit(request('10.0.0.4'), rule, now + 120_000)).ok).toBe(true);
+  });
+
+  it('lets the request through when the counters cannot be reached', async () => {
+    counters.fail = true;
+    try {
+      const rule = { key: `t-${Math.random()}`, limit: 1, windowMs: 60_000 };
+      expect((await rateLimit(request('10.0.0.5'), rule, now)).ok).toBe(true);
+      expect((await rateLimit(request('10.0.0.5'), rule, now)).ok).toBe(true);
+    } finally {
+      counters.fail = false;
+    }
   });
 
   it('produces a 429 envelope with Retry-After', async () => {
     const rule = { key: `t-${Math.random()}`, limit: 1, windowMs: 60_000 };
-    expect(rateLimited(request('10.0.0.3'), rule)).toBeNull();
-    const res = rateLimited(request('10.0.0.3'), rule)!;
+    expect(await rateLimited(request('10.0.0.3'), rule)).toBeNull();
+    const res = (await rateLimited(request('10.0.0.3'), rule))!;
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toMatch(/^\d+$/);
   });

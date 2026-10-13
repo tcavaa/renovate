@@ -20,7 +20,7 @@ const schema = z.object({
 
 /** Finishes a password reset: spends the token, stores the new hash, clears any lockout. */
 export const POST = handle('POST /api/auth/reset', 'Failed to reset password', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.login);
+  const limited = await rateLimited(req, RATE_RULES.login);
   if (limited) return limited;
 
   const parsed = schema.safeParse(await req.json());
@@ -37,7 +37,7 @@ export const POST = handle('POST /api/auth/reset', 'Failed to reset password', a
   await markEmailVerified(userId);
 
   const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
-  if (user[0]) clearFailures(user[0].email);
+  if (user[0]) await clearFailures(user[0].email);
 
   log.info('password reset completed', { userId });
   return ok({ reset: true });

@@ -20,15 +20,25 @@ const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
-    DATABASE_HOST: z.string().min(1).default('localhost'),
-    DATABASE_PORT: z.coerce.number().int().positive().default(3306),
-    DATABASE_USER: z.string().min(1).default('root'),
-    DATABASE_PASSWORD: z.string().default(''),
-    DATABASE_NAME: z.string().min(1).default('renovate_ge'),
-    /** TLS to MySQL — hosted databases (PlanetScale, TiDB Cloud, Aiven, DigitalOcean) refuse plain connections. */
+    /**
+     * PostgreSQL. Production: Supabase's transaction pooler,
+     * `postgresql://<role>.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres`.
+     * Development: a local server (`postgresql://localhost:5432/renovate_ge`).
+     */
+    DATABASE_URL: isProduction
+      ? z.string().trim().min(1, 'required in production').url()
+      : z.string().trim().url().default('postgresql://localhost:5432/renovate_ge'),
+    /**
+     * Where migrations and the copy script connect when that should not be the pooler the app
+     * uses (Supabase's session pooler, port 5432). Empty: `DATABASE_URL`.
+     */
+    DATABASE_MIGRATION_URL: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
+    /** TLS to the database — every hosted Postgres, Supabase included, wants it. */
     DATABASE_SSL: z.enum(['true', 'false']).optional(),
-    /** The provider's CA certificate (PEM) when it signs with its own authority; empty for a public CA. */
+    /** The provider's CA certificate (PEM), or `supabase` for Supabase's own root; empty for a public CA. */
     DATABASE_SSL_CA: optionalString,
+    /** Connections per server instance; empty: 5 on Vercel, 10 elsewhere. */
+    DATABASE_POOL_MAX: z.coerce.number().int().positive().max(50).optional(),
 
     AUTH_SECRET: isProduction
       ? z.string().min(32, 'AUTH_SECRET must be at least 32 characters in production')
@@ -45,15 +55,21 @@ const schema = z
     ADMIN_EMAIL: optionalString,
     ADMIN_PASSWORD: optionalString,
 
-    /** Where uploads live. `s3` also covers Cloudflare R2 and any S3-compatible store. */
-    STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
-    S3_BUCKET: optionalString,
-    S3_REGION: optionalString,
-    S3_ENDPOINT: optionalString,
-    S3_ACCESS_KEY_ID: optionalString,
-    S3_SECRET_ACCESS_KEY: optionalString,
-    /** Public base URL for uploaded files when they are served by the bucket or a CDN. */
-    S3_PUBLIC_URL: optionalString,
+    /**
+     * Where uploads live (docs/uploads.md): `supabase` (production — Supabase Storage) or `local`
+     * (development — `public/uploads`, which a serverless host cannot write to).
+     */
+    STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
+    /** The Supabase project's URL, `https://<ref>.supabase.co`. */
+    SUPABASE_URL: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
+    /** A server-only key (`sb_secret_…`, or the legacy `service_role` JWT): storage writes and signed upload URLs. */
+    SUPABASE_SECRET_KEY: optionalString,
+    /** The public bucket files are published to, and the private one they arrive in. */
+    SUPABASE_PUBLIC_BUCKET: z.string().trim().min(1).default('uploads'),
+    SUPABASE_STAGING_BUCKET: z.string().trim().min(1).default('uploads-staging'),
+
+    /** What Vercel Cron sends as `Authorization: Bearer …` to `/api/cron/*`; unset, those routes refuse everyone. */
+    CRON_SECRET: optionalString,
 
     /** `log` writes mail to the log instead of sending it — the development default. */
     MAIL_DRIVER: z.enum(['log', 'smtp']).default('log'),
@@ -80,13 +96,14 @@ const schema = z
     NEXT_PUBLIC_SENTRY_DSN: z.string().trim().url().optional().or(z.literal('').transform(() => undefined)),
   })
   .superRefine((value, ctx) => {
-    if (isProduction && !value.DATABASE_PASSWORD) {
-      ctx.addIssue({ code: 'custom', path: ['DATABASE_PASSWORD'], message: 'required in production' });
-    }
-    if (value.STORAGE_DRIVER === 's3') {
-      for (const key of ['S3_BUCKET', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const) {
-        if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required when STORAGE_DRIVER=s3' });
+    if (value.STORAGE_DRIVER === 'supabase') {
+      for (const key of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY'] as const) {
+        if (!value[key]) ctx.addIssue({ code: 'custom', path: [key], message: 'required when STORAGE_DRIVER=supabase' });
       }
+    }
+    // A read-only disk: the local driver would fail every upload with EROFS.
+    if (value.STORAGE_DRIVER === 'local' && process.env.VERCEL) {
+      ctx.addIssue({ code: 'custom', path: ['STORAGE_DRIVER'], message: 'Vercel cannot write to its disk: set STORAGE_DRIVER=supabase' });
     }
     if (value.MAIL_DRIVER === 'smtp') {
       for (const key of ['SMTP_HOST', 'SMTP_PORT'] as const) {

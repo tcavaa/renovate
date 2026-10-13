@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
+import { z } from 'zod';
 import { API_ERRORS, fail, handle, ok, requireCatalogEditor } from '@/lib/api/route';
 import { safeKey, storage } from '@/lib/storage';
+import { claimUpload } from '@/lib/uploads/claim';
 import { MODEL_EXTENSION, sniffModel } from '@/lib/uploads/sniff';
 import { inspectGlb, unsupportedExtension } from '@/lib/uploads/glb';
 import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
@@ -8,30 +10,30 @@ import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+// A large scan through the recipe takes tens of seconds on one vCPU (docs/3d-assets.md#uploads-are-optimized).
+export const maxDuration = 300;
+
+const bodySchema = z.object({
+  /** The direct upload (`POST /api/uploads`, kind `model`) whose bytes this publishes. */
+  upload: z.string().uuid(),
+});
 
 /**
- * Textures are most of a furniture GLB; the partner drop's largest single model is under
- * 4 MB after compression, an uncompressed export with 2k maps can reach 30. Anything bigger
- * would stall the studio on a phone anyway.
- */
-export const MAX_MODEL_BYTES = 40 * 1024 * 1024;
-
-/**
- * Upload of a furniture model for the studio, by admin or a store for its own products. GLB only, identified by its bytes: the
- * product form stores the returned URL in `products.model3dUrl`, which is what makes a
- * product placeable at all. What is stored is the optimized file (`glbOptimizeServer`) —
- * usually the one the form's browser already optimized, kept as it came.
+ * Publishes a furniture model for the studio, by admin or a store for its own products. The
+ * file came straight to storage (docs/uploads.md, 40 MB at most — `lib/uploads/kinds.ts`); here
+ * it is claimed and identified by its bytes: GLB only, with meshes, without a compression the
+ * studio cannot read. The product form stores the returned URL in `products.model3dUrl`, which
+ * is what makes a product placeable at all. What is stored is the optimized file
+ * (`glbOptimizeServer`) — usually the one the form's browser already optimized, kept as it came.
  */
 export const POST = handle('POST /api/upload/model', 'Upload failed', async (req) => {
-  const admin = await requireCatalogEditor();
-  if (admin.response) return admin.response;
+  const editor = await requireCatalogEditor();
+  if (editor.response) return editor.response;
 
-  const formData = await req.formData();
-  const file = formData.get('file');
-  if (!(file instanceof File)) return fail(API_ERRORS.MODEL_INVALID, 400);
-  if (file.size > MAX_MODEL_BYTES) return fail(API_ERRORS.MODEL_TOO_LARGE, 400);
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) return fail(parsed.error.message, 400);
 
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const { bytes } = await claimUpload(parsed.data.upload, ['model'], Number(editor.session.user.id));
   const mime = sniffModel(bytes);
   if (!mime) return fail(API_ERRORS.MODEL_INVALID, 400);
   const info = inspectGlb(bytes);
@@ -45,6 +47,6 @@ export const POST = handle('POST /api/upload/model', 'Upload failed', async (req
   const { body, result } = await optimizeUploadedModel(bytes);
   const key = safeKey('models', `${Date.now()}-${randomBytes(6).toString('hex')}.${MODEL_EXTENSION}`);
   const stored = await storage.put(key, body, mime);
-  log.info('model uploaded', { key, bytes: stored.size, received: bytes.length, optimized: result.status === 'optimized' ? 'server' : result.reason, by: admin.session.user.id, generator: info.generator, meshes: info.meshes, images: info.images });
+  log.info('model uploaded', { key, bytes: stored.size, received: bytes.length, optimized: result.status === 'optimized' ? 'server' : result.reason, by: editor.session.user.id, generator: info.generator, meshes: info.meshes, images: info.images });
   return ok({ url: stored.url, filename: key.split('/').pop(), size: stored.size });
 });

@@ -11,7 +11,7 @@ export const { GET } = handlers;
  */
 export async function POST(req: NextRequest) {
   if (req.nextUrl.pathname.endsWith('/callback/credentials')) {
-    const limited = rateLimited(req, RATE_RULES.login);
+    const limited = await rateLimited(req, RATE_RULES.login);
     if (limited) return limited;
   }
   return handlers.POST(req);

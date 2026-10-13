@@ -2,6 +2,7 @@
 import './lib/loadEnv';
 
 import bcrypt from 'bcryptjs';
+import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { CATEGORY_RU, PRODUCT_I18N, STORE_I18N, WORKER_I18N } from './lib/translations';
 import { defaultPlacement } from './lib/categoryTree';
@@ -188,7 +189,7 @@ async function seed() {
     await db
       .insert(categories)
       .values({ ...c, ...(await defaultPlacement(c.slug)), nameRu: CATEGORY_RU[c.slug] ?? null, isVisible: true })
-      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameEn: c.nameEn, nameRu: CATEGORY_RU[c.slug] ?? null } });
+      .onConflictDoUpdate({ target: categories.slug, set: { nameKa: c.nameKa, nameEn: c.nameEn, nameRu: CATEGORY_RU[c.slug] ?? null } });
   }
 
   console.log('— inserting partner store');
@@ -204,7 +205,7 @@ async function seed() {
       commissionRate: '5.00',
       isActive: true,
     })
-    .onDuplicateKeyUpdate({ set: { nameKa: 'რემონტი.ge ოფიციალური მაღაზია' } });
+    .onConflictDoNothing({ target: stores.nameKa });
 
   console.log('— inserting products');
   const cats = await db.select().from(categories);
@@ -233,7 +234,8 @@ async function seed() {
           isActive: true,
           isFeatured: !!p.isFeatured,
         })
-        .onDuplicateKeyUpdate({
+        .onConflictDoUpdate({
+          target: products.slug,
           set: {
             pricePerUnit: String(p.pricePerUnit),
             nameKa: p.nameKa,
@@ -248,10 +250,11 @@ async function seed() {
 
   console.log('— inserting workers');
   for (const w of seedWorkers) {
-    await db
-      .insert(workers)
-      .values({ ...w, nameEn: WORKER_I18N[w.nameKa]?.en ?? null, nameRu: WORKER_I18N[w.nameKa]?.ru ?? null, isActive: true })
-      .onDuplicateKeyUpdate({ set: { rating: w.rating, nameEn: WORKER_I18N[w.nameKa]?.en ?? null, nameRu: WORKER_I18N[w.nameKa]?.ru ?? null } });
+    // No unique key but the id: a worker of the same name is the one a run before made.
+    const names = { nameEn: WORKER_I18N[w.nameKa]?.en ?? null, nameRu: WORKER_I18N[w.nameKa]?.ru ?? null };
+    const [existing] = await db.select({ id: workers.id }).from(workers).where(eq(workers.nameKa, w.nameKa)).limit(1);
+    if (existing) await db.update(workers).set({ rating: w.rating, ...names }).where(eq(workers.id, existing.id));
+    else await db.insert(workers).values({ ...w, ...names, isActive: true });
   }
 
   // The admin account comes from the environment, never from a constant in the repo: a
@@ -277,7 +280,7 @@ async function seed() {
       passwordHash,
       role: 'admin',
     })
-    .onDuplicateKeyUpdate({ set: { passwordHash } });
+    .onConflictDoUpdate({ target: users.email, set: { passwordHash } });
 
   console.log('✅ Seed complete.');
   await pool.end();

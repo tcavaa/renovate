@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, like, or, type SQL } from 'drizzle-orm';
+import { and, count, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { BadgeCheck, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { teams } from '@/lib/db/schema';
@@ -29,7 +30,7 @@ export default async function AdminTeamsPage(props: { searchParams: Promise<Sear
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(teams.nameKa, needle), like(teams.leadName, needle), like(teams.city, needle), like(teams.phone, needle))!);
+    where.push(or(ilike(teams.nameKa, needle), ilike(teams.leadName, needle), ilike(teams.city, needle), ilike(teams.phone, needle))!);
   }
   if (p.get('status') === 'active') where.push(eq(teams.isActive, true));
   if (p.get('status') === 'inactive') where.push(eq(teams.isActive, false));

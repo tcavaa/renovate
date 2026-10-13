@@ -49,7 +49,7 @@ export async function POST(req: Request): Promise<Response> {
   const sentry = target();
   if (!sentry) return new Response(null, { status: 404 });
 
-  const limited = rateLimit(req, RULE);
+  const limited = await rateLimit(req, RULE);
   if (!limited.ok) return new Response(null, { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } });
 
   const declared = Number(req.headers.get('content-length') ?? 0);

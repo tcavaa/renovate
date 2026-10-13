@@ -183,7 +183,7 @@ async function seed() {
     await db
       .insert(categories)
       .values({ ...c, ...(await defaultPlacement(c.slug)), isVisible: true })
-      .onDuplicateKeyUpdate({ set: { nameKa: c.nameKa, nameRu: CATEGORY_RU[c.slug] ?? null, isFurniture: c.isFurniture } });
+      .onConflictDoUpdate({ target: categories.slug, set: { nameKa: c.nameKa, nameRu: CATEGORY_RU[c.slug] ?? null, isFurniture: c.isFurniture } });
   }
 
   console.log('— partner stores');

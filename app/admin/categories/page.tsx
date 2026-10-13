@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { asc, count } from 'drizzle-orm';
+import { count } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { Info, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { products, shelfRoomCategories, shelfRooms } from '@/lib/db/schema';

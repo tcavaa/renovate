@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from '@/components/ui/image';
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNotNull, isNull, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { Box, Plus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
@@ -40,7 +41,7 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(products.nameKa, needle), like(products.sku, needle), like(products.brand, needle), like(products.slug, needle))!);
+    where.push(or(ilike(products.nameKa, needle), ilike(products.sku, needle), ilike(products.brand, needle), ilike(products.slug, needle))!);
   }
   // A category stands for its whole subtree: "Furniture" lists every sofa and bed under it.
   if (p.num('category')) {
@@ -58,7 +59,7 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
   if (p.get('photo') === 'none') where.push(sql`(${products.imageUrl} IS NULL OR ${products.imageUrl} = '')`);
   // People's own furniture is theirs, not the catalogue's.
   where.push(isNull(products.ownerUserId));
-  if (p.get('style')) where.push(sql`JSON_CONTAINS(${products.styleTags}, ${JSON.stringify(p.get('style'))})`);
+  if (p.get('style')) where.push(sql`${products.styleTags} @> ${JSON.stringify([p.get('style')])}::jsonb`);
   if (p.num('priceMin') != null) where.push(gte(products.pricePerUnit, String(p.num('priceMin'))));
   if (p.num('priceMax') != null) where.push(lte(products.pricePerUnit, String(p.num('priceMax'))));
   const filter = where.length ? and(...where) : undefined;

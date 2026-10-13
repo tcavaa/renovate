@@ -45,8 +45,7 @@ export const POST = handle('POST /api/categories', 'Failed to create category', 
   const siblings = childrenOf(tree, parentId);
   const sortOrder = siblings.reduce((top, c) => Math.max(top, c.sortOrder ?? 0), 0) + 10;
 
-  const inserted = await db.insert(categories).values({ ...fields, parentId, sortOrder });
-  const id = Number(inserted[0].insertId);
+  const [{ id }] = await db.insert(categories).values({ ...fields, parentId, sortOrder }).returning({ id: categories.id });
   if (shelfRoomIds?.length) await setCategoryRooms(id, shelfRoomIds);
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();

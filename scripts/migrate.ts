@@ -1,65 +1,45 @@
 /* eslint-disable no-console */
 /**
- * Applies pending migrations from lib/db/migrations.
+ * Applies pending migrations from lib/db/migrations (PostgreSQL).
  *
- *   pnpm db:migrate              apply everything not yet applied
- *   pnpm db:migrate --baseline   mark every existing migration as applied without running it
+ *   pnpm db:migrate
  *
- * `--baseline` is for a database that was created with `drizzle-kit push` before migrations
- * existed (every environment before September 2026): the tables are already there, so the
- * initial migration must be recorded, not executed. Run it once per such database; from then
- * on plain `db:migrate` is the only thing deploy/deploy.sh calls.
+ * Connects through `DATABASE_MIGRATION_URL` when it is set — Supabase's session pooler (port
+ * 5432): DDL and the migrator's own bookkeeping want a session of their own, which the
+ * transaction pooler the app uses (port 6543) does not promise — and through `DATABASE_URL`
+ * otherwise. The migrator runs every pending file in one transaction (Postgres DDL is
+ * transactional): a failure leaves the database as it was.
  *
- * `drizzle-kit push` stays available for local schema experiments and nothing else.
+ * The production deployment runs this before it builds (`scripts/vercel-build.mjs`), so a
+ * migration that fails stops the deployment and the previous one keeps serving. Migrations are
+ * therefore written to be safe while the previous version still runs: add, backfill, and drop
+ * only in a later deployment (docs/data-model.md#migrations-on-postgres).
  */
 import './lib/loadEnv';
 
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { migrate } from 'drizzle-orm/mysql2/migrator';
-import { db, pool } from '../lib/db';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { Pool } from 'pg';
+import { databaseSsl, withoutSslParams } from '../lib/db/ssl';
 
 const MIGRATIONS = path.join(process.cwd(), 'lib', 'db', 'migrations');
-const TABLE = '__drizzle_migrations';
-
-interface JournalEntry {
-  idx: number;
-  when: number;
-  tag: string;
-}
-
-async function baseline(): Promise<void> {
-  const journal = JSON.parse(readFileSync(path.join(MIGRATIONS, 'meta', '_journal.json'), 'utf8')) as {
-    entries: JournalEntry[];
-  };
-  await pool.query(
-    `CREATE TABLE IF NOT EXISTS \`${TABLE}\` (id serial PRIMARY KEY, hash text NOT NULL, created_at bigint)`
-  );
-  const [rows] = await pool.query<import('mysql2').RowDataPacket[]>(`SELECT created_at FROM \`${TABLE}\``);
-  const applied = new Set(rows.map((r) => Number(r.created_at)));
-
-  for (const entry of journal.entries) {
-    if (applied.has(entry.when)) {
-      console.log(`= ${entry.tag} already recorded`);
-      continue;
-    }
-    // Same hash drizzle's migrator would compute, so it recognises the row as its own.
-    const sqlText = readFileSync(path.join(MIGRATIONS, `${entry.tag}.sql`), 'utf8');
-    const hash = createHash('sha256').update(sqlText).digest('hex');
-    await pool.query(`INSERT INTO \`${TABLE}\` (hash, created_at) VALUES (?, ?)`, [hash, entry.when]);
-    console.log(`+ ${entry.tag} recorded as applied (baseline)`);
-  }
-}
 
 async function main() {
-  if (process.argv.includes('--baseline')) {
-    await baseline();
-  } else {
-    await migrate(db, { migrationsFolder: MIGRATIONS });
+  const url = process.env.DATABASE_MIGRATION_URL || process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL (or DATABASE_MIGRATION_URL) is not set');
+  const pool = new Pool({
+    connectionString: withoutSslParams(url),
+    ssl: databaseSsl(process.env.DATABASE_SSL, process.env.DATABASE_SSL_CA),
+    max: 1,
+    connectionTimeoutMillis: 15_000,
+  });
+  try {
+    await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS, migrationsSchema: 'drizzle', migrationsTable: '__drizzle_migrations' });
     console.log('✅ migrations up to date');
+  } finally {
+    await pool.end();
   }
-  await pool.end();
 }
 
 main().catch((err) => {

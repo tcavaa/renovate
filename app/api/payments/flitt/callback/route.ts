@@ -38,7 +38,7 @@ async function readBody(req: Request): Promise<unknown> {
  * which is logged for a person to look at, since asking again would not change it.
  */
 export const POST = handle('POST /api/payments/flitt/callback', 'Failed to handle the callback', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.paymentCallback);
+  const limited = await rateLimited(req, RATE_RULES.paymentCallback);
   if (limited) return limited;
   const params = flittResponseOf(await readBody(req));
   if (!params || !verifyFlittSignature(flittConfig().secretKey, params)) {

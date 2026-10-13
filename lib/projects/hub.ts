@@ -1,4 +1,5 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { orders, projectRenders, projects } from '@/lib/db/schema';
 import { calculatorProgress, designProgress, projectKind, type CalculatorProgress, type ProjectKind } from '@/lib/projects/saved';
@@ -68,24 +69,25 @@ export async function loadHubProjects(userId: number): Promise<HubProject[]> {
       plan: projects.plan,
       // Of the calculator's board only its drawing; of the scene only what `designProgress`
       // reads — the scene carries every placed product's snapshot and can be large.
-      boardPlan: sql<unknown>`json_extract(${projects.calculatorBoard}, '$.plan')`,
-      hasScene: sql<number>`(${projects.scene} is not null)`,
-      sceneProgress: sql<unknown>`json_extract(${projects.scene}, '$.progress')`,
-      sceneItems: sql<number | null>`json_length(${projects.scene}, '$.items')`,
+      boardPlan: sql<unknown>`${projects.calculatorBoard} -> 'plan'`,
+      hasScene: sql<boolean>`(${projects.scene} is not null)`,
+      sceneProgress: sql<unknown>`${projects.scene} -> 'progress'`,
+      sceneItems: sql<number | null>`CASE WHEN jsonb_typeof(${projects.scene} -> 'items') = 'array' THEN jsonb_array_length(${projects.scene} -> 'items') END`,
     })
     .from(projects)
     .where(eq(projects.userId, userId));
-  // Most recently changed first — sorted here, not by MySQL. No index gives that order, and a
-  // sort carries every column the select reads through the server's sort buffer: the scene and
-  // the board whole, for the expressions above. A project with a furnished design passed the
-  // 256 KB default and the hubs failed with "Out of sort memory". A person has a few dozen rows.
+  // Most recently changed first — sorted here, not by the database. No index gives that order,
+  // and a sort carries every column the select reads through the server's sort memory: the
+  // scene and the board whole, for the expressions above (MySQL's 256 KB sort buffer once failed
+  // the hubs with "Out of sort memory"; Postgres spills to disk instead, slowly). A person has a
+  // few dozen rows.
   rows.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime() || b.id - a.id);
 
   return rows.map((p) => {
     const progress = json<DesignProgress>(p.sceneProgress);
     // The scene as far as `projectKind` and `designProgress` look at it: its progress, and how
     // many pieces stand in it (a draft saved before progress was recorded is judged by that).
-    const scene = Number(p.hasScene) ? { progress: progress ?? undefined, items: { length: Number(p.sceneItems ?? 0) } } : null;
+    const scene = p.hasScene ? { progress: progress ?? undefined, items: { length: Number(p.sceneItems ?? 0) } } : null;
     const row = { ...p, scene };
     const kind = projectKind(row);
     const rooms = (Array.isArray(p.rooms) ? p.rooms : []) as Room[];

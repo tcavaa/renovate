@@ -34,6 +34,6 @@ export const POST = handle('POST /api/workers', 'Failed to create worker', async
     completedJobs: d.completedJobs ?? 0,
     isVerified: d.isVerified,
     isActive: d.isActive,
-  });
-  return ok({ id: inserted[0].insertId });
+  }).returning({ id: workers.id });
+  return ok({ id: inserted[0].id });
 });

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * status is). An approved half answers with its recorded fee too. The payer (or admin) only.
  */
 export const GET = handle('GET /api/payments/flitt/[orderId]', 'Failed to load the payment', async (req, { params }) => {
-  const limited = rateLimited(req, RATE_RULES.paymentStatus);
+  const limited = await rateLimited(req, RATE_RULES.paymentStatus);
   if (limited) return limited;
   const { session, response } = await requireSession();
   if (response) return response;

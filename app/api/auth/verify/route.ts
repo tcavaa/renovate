@@ -22,7 +22,7 @@ export const GET = handle('GET /api/auth/verify', 'Verification failed', async (
 
 /** Re-sends the verification mail to the signed-in user. */
 export const POST = handle('POST /api/auth/verify', 'Failed to send verification mail', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.authMail);
+  const limited = await rateLimited(req, RATE_RULES.authMail);
   if (limited) return limited;
 
   const session = await auth();

@@ -6,8 +6,9 @@ import { log } from '@/lib/log';
  * Outgoing mail: password resets and e-mail verification.
  *
  * `MAIL_DRIVER=log` (the development default) writes the whole message to the log instead of
- * sending it, so the reset link can be copied from `logs/app-*.log`. `smtp` sends through
- * the configured server. Nothing else in the app knows which is in use.
+ * sending it, so the reset link can be copied from `logs/app-*.log` (on Vercel, from the
+ * function's runtime log). `smtp` sends through the configured server — port 587 or 465: Vercel,
+ * like most clouds, lets nothing out on port 25. Nothing else in the app knows which is in use.
  */
 export interface MailMessage {
   to: string;
@@ -22,6 +23,11 @@ const transport =
         port: env.SMTP_PORT,
         secure: env.SMTP_SECURE === 'true',
         auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD ?? '' } : undefined,
+        // A mail server that hangs must not hold a function for minutes (nodemailer's own
+        // defaults are 2 and 10): the request that sends waits for it.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
       })
     : null;
 

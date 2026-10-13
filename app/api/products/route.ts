@@ -1,4 +1,5 @@
-import { and, eq, desc, asc, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { desc, asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { productSchema } from '@/lib/validations/product.schema';
@@ -72,8 +73,8 @@ export const POST = handle('POST /api/products', 'Failed to create product', asy
     model3dUrl: parsed.data.model3dUrl || null,
     // The studio only places a model whose status is `ready`; a URL saved here is one.
     model3dStatus: parsed.data.model3dUrl ? 'ready' : 'none',
-  });
+  }).returning({ id: products.id });
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();
-  return ok({ id: inserted[0].insertId });
+  return ok({ id: inserted[0].id });
 });

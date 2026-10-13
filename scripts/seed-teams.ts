@@ -125,8 +125,8 @@ async function main() {
       await db.update(teams).set(values).where(eq(teams.id, existing.id));
       teamId = existing.id;
     } else {
-      const [row] = await db.insert(teams).values(values);
-      teamId = Number(row.insertId);
+      const [row] = await db.insert(teams).values(values).returning({ id: teams.id });
+      teamId = row.id;
       created += 1;
     }
 

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from '@/components/ui/image';
-import { and, asc, count, desc, eq, isNotNull, like, or, type SQL } from 'drizzle-orm';
+import { and, count, eq, isNotNull, ilike, or, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { Plus, Star } from 'lucide-react';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
@@ -35,7 +36,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(stores.nameKa, needle), like(stores.city, needle), like(stores.phone, needle))!);
+    where.push(or(ilike(stores.nameKa, needle), ilike(stores.city, needle), ilike(stores.phone, needle))!);
   }
   if (p.get('status') === 'active') where.push(eq(stores.isActive, true));
   if (p.get('status') === 'inactive') where.push(eq(stores.isActive, false));

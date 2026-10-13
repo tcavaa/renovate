@@ -1,4 +1,5 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { stores } from '@/lib/db/schema';
@@ -43,8 +44,7 @@ export const POST = handle('POST /api/stores', 'Failed to create store', async (
   const isAdmin = admin.session.user.role === 'admin';
   const data = isAdmin ? { ...fields, commissionRate } : fields;
 
-  const inserted = await db.insert(stores).values(toStoreRow(data));
-  const id = inserted[0].insertId;
+  const [{ id }] = await db.insert(stores).values(toStoreRow(data)).returning({ id: stores.id });
   // The construction materials' supplier is a platform setting, and settings are admin's.
   if (isAdmin && suppliesMaterials) await setMaterialsSupplier(id, true);
   // The studio's cached catalogue must not outlive this write.

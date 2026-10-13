@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: Request) {
   try {
-    const limited = rateLimited(req, RATE_RULES.parsePlan);
+    const limited = await rateLimited(req, RATE_RULES.parsePlan);
     if (limited) return limited;
 
     const parsed = parsePlanRequestSchema.safeParse(await req.json());

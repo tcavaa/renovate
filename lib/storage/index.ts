@@ -1,14 +1,19 @@
 import { env } from '@/lib/env';
 import { createLocalStorage } from './local';
-import { createS3Storage } from './s3';
+import { createSupabaseStorage } from './supabase';
 
 /**
- * Where uploaded files live.
+ * Where uploaded files live (docs/uploads.md).
  *
- * Keys are relative paths like `plans/guest-…png` or `products/17….jpg`. The `local` driver
- * writes them under `public/uploads` and serves them from `/uploads/<key>`; the `s3` driver
- * puts them in a bucket (AWS S3, Cloudflare R2, MinIO — anything S3-compatible) and serves
- * them from `S3_PUBLIC_URL`. Routes only ever talk to `storage`, so switching is one env var.
+ * Two areas. The **public** one holds what the site shows — keys like `products/17….webp`,
+ * `plans/u3-….png`, served from `urlFor(key)`. The **staging** one is private: the browser sends
+ * a file there directly (`createUploadTarget`, never through a function — Vercel refuses request
+ * bodies over 4.5 MB), and the route the file is for reads it back (`getStaged`), checks it,
+ * optimizes it and publishes the result (`put`). Nothing in staging is ever served.
+ *
+ * Drivers: `supabase` (production — Supabase Storage, a public bucket and a private one) and
+ * `local` (development — `public/uploads` served by Next, staging in `.uploads-staging/`).
+ * Routes only ever talk to `storage`, so switching is one env var.
  */
 export interface StoredFile {
   key: string;
@@ -23,8 +28,17 @@ export interface StoredObject {
   lastModified: Date;
 }
 
+/** Where and how the browser sends a staged file's bytes. */
+export interface UploadTarget {
+  url: string;
+  method: 'PUT';
+  /** Headers the request must carry. */
+  headers: Record<string, string>;
+}
+
 export interface StorageDriver {
-  readonly name: 'local' | 's3';
+  readonly name: 'local' | 'supabase';
+  /** Publishes (or replaces) a file in the public area. */
   put(key: string, body: Buffer, contentType: string): Promise<StoredFile>;
   get(key: string): Promise<Buffer | null>;
   delete(key: string): Promise<void>;
@@ -32,9 +46,18 @@ export interface StorageDriver {
   urlFor(key: string): string;
   /** The key a URL this driver produced refers to, or `null` for a URL it did not produce. */
   keyFor(url: string): string | null;
+
+  /** A one-time place for the browser to send a file to, under a key the server chose. */
+  createUploadTarget(stagingKey: string, contentType: string): Promise<UploadTarget>;
+  /** A staged file's bytes, or null when nothing arrived. */
+  getStaged(stagingKey: string): Promise<Buffer | null>;
+  /** A staged file's size without reading it, or null when nothing arrived. */
+  stagedSize(stagingKey: string): Promise<number | null>;
+  deleteStaged(stagingKey: string): Promise<void>;
+  listStaged(prefix: string): Promise<StoredObject[]>;
 }
 
-export const storage: StorageDriver = env.STORAGE_DRIVER === 's3' ? createS3Storage(env) : createLocalStorage();
+export const storage: StorageDriver = env.STORAGE_DRIVER === 'supabase' ? createSupabaseStorage(env) : createLocalStorage();
 
 /** A key that cannot escape its folder: one path segment, safe characters only. */
 export function safeKey(folder: string, filename: string): string {

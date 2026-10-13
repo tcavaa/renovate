@@ -19,6 +19,7 @@ import { boardFinishesFromPicks } from '@/lib/calculator/roomFinishes';
 import { activeProjectId } from '@/store/projectScope';
 import { markClean } from '@/lib/flow/projectSync';
 import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
+import { jsonBody } from '@/lib/flow/jsonBody';
 
 export interface SavedRow {
   id: number;
@@ -40,10 +41,7 @@ export function saveCalculatorProject(options: { draft: boolean; projectId?: num
     const s = calcStore.getState();
     const board = boardStore.getState();
     if (s.projectId !== id) throw new Error('no-project');
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const { body, headers } = await jsonBody({
         projectId: id,
         baseRev: s.baseRev ?? 0,
         saveId,
@@ -60,8 +58,8 @@ export function saveCalculatorProject(options: { draft: boolean; projectId?: num
         // computer; and each room in the floor and walls chosen for it, as the PDF draws it.
         board: { plan: board.plan, floorPlanUrl: board.floorPlanUrl, finishes: boardFinishesFromPicks(board.plan, s.selectedProducts), electrical: board.electrical },
         draft: options.draft,
-      }),
     });
+    const res = await fetch('/api/projects', { method: 'POST', headers, body });
     const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
     if (res.status === 409 && json?.error === 'PROJECT_CHANGED') throw new ProjectChangedError();
     if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');

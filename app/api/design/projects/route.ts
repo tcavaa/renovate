@@ -16,14 +16,15 @@ import { loadProductPrices, planProductIds, repriceFinishSnapshot, repricePlan, 
 import { ownProject } from '@/lib/api/projectSave';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { fail, handle, ok } from '@/lib/api/route';
+import { readJson } from '@/lib/api/body';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export const POST = handle('POST /api/design/projects', 'Failed to save design', async (req) => {
-  const parsed = saveDesignSchema.safeParse(await req.json());
+  const parsed = saveDesignSchema.safeParse(await readJson(req));
   // Autosaves come every few seconds while someone works; they get their own, wider bucket.
-  const limited = rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
+  const limited = await rateLimited(req, parsed.success && parsed.data.draft ? RATE_RULES.autosave : RATE_RULES.saveProject);
   if (limited) return limited;
   if (!parsed.success) return fail(parsed.error.message, 400);
 
@@ -132,7 +133,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   const noCosts = { totalMaterialsCost: null, totalFurnitureCost: null, totalWorkersCost: null, totalCost: null };
 
   // Writing into the project keeps whatever calculator half it already has.
-  const [result] = await db
+  const written = await db
     .update(projects)
     .set({
       ...designColumns,
@@ -147,7 +148,8 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     })
     // The revision is checked again in the write itself, forced or not: two saves racing each
     // other cannot both win, and the revision this one made is the one it names back.
-    .where(and(eq(projects.id, existing.id), eq(projects.designRev, existing.designRev)));
-  if ((result as { affectedRows?: number } | undefined)?.affectedRows === 0) return fail('PROJECT_CHANGED', 409);
+    .where(and(eq(projects.id, existing.id), eq(projects.designRev, existing.designRev)))
+    .returning({ id: projects.id });
+  if (written.length === 0) return fail('PROJECT_CHANGED', 409);
   return ok({ id: existing.id, cost, rev: existing.designRev + 1 });
 });

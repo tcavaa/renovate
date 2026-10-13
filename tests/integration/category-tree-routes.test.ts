@@ -41,7 +41,13 @@ vi.mock('@/lib/db', async () => {
   return {
     db: {
       select: (fields?: Row) => query(fields),
-      insert: () => ({ values: async (values: Row) => (state.inserted.push(values), [{ insertId: 50 }]) }),
+      insert: () => ({
+        values: (values: Row) => {
+          state.inserted.push(values);
+          const rows = [{ id: 50 }];
+          return Object.assign(Promise.resolve(rows), { returning: async () => rows });
+        },
+      }),
       update: () => ({ set: (values: Row) => ({ where: async () => void state.updates.push(values) }) }),
       delete: () => ({ where: async () => void (state.deletes += 1) }),
     },

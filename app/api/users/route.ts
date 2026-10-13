@@ -34,7 +34,7 @@ export const POST = handle('POST /api/users', 'Failed to create the account', as
   const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
   if (existing.length > 0) return fail(API_ERRORS.EMAIL_EXISTS, 409);
 
-  const [inserted] = await db.insert(users).values({
+  const [{ id }] = await db.insert(users).values({
     name: input.name,
     email,
     passwordHash: await bcrypt.hash(input.password, 10),
@@ -42,8 +42,7 @@ export const POST = handle('POST /api/users', 'Failed to create the account', as
     ...links.links,
     emailVerifiedAt: input.emailVerified ? new Date() : null,
     isActive: true,
-  });
-  const id = Number(inserted.insertId);
+  }).returning({ id: users.id });
   log.info('account created by admin', { by: admin.session.user.id, id, role });
   return ok({ id });
 });

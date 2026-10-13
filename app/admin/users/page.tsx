@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { UserPlus } from 'lucide-react';
-import { and, asc, count, desc, eq, inArray, like, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, inArray, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { PARTNER_ROLES, STAFF_ROLES, USER_ROLES, isUserRole, type UserRole } from '@/lib/auth/roles';
 import { roleLabel } from '@/lib/i18n/labels';
@@ -32,7 +33,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(users.name, needle), like(users.email, needle))!);
+    where.push(or(ilike(users.name, needle), ilike(users.email, needle))!);
   }
   if (isUserRole(p.get('role'))) where.push(eq(users.role, p.get('role') as UserRole));
   if (p.get('verified') === 'yes') where.push(sql`${users.emailVerifiedAt} IS NOT NULL`);
@@ -73,7 +74,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
         createdAt: users.createdAt,
         projectCount,
         totalCost,
-        lastProjectAt: sql<Date | null>`MAX(${projects.createdAt})`,
+        lastProjectAt: sql<Date | null>`MAX(${projects.createdAt})`.mapWith(projects.createdAt),
       })
       .from(users)
       .leftJoin(projects, eq(projects.userId, users.id))
@@ -86,10 +87,10 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
     base(),
     db
       .select({
-        staff: sql<number>`SUM(${users.role} IN ('admin','agent_orders','agent_catalog'))`,
-        partners: sql<number>`SUM(${users.role} IN ('store','worker','team'))`,
-        customers: sql<number>`SUM(${users.role} = 'user')`,
-        deactivated: sql<number>`SUM(${users.isActive} = 0)`,
+        staff: sql<number>`count(*) FILTER (WHERE ${users.role} IN ('admin','agent_orders','agent_catalog'))`,
+        partners: sql<number>`count(*) FILTER (WHERE ${users.role} IN ('store','worker','team'))`,
+        customers: sql<number>`count(*) FILTER (WHERE ${users.role} = 'user')`,
+        deactivated: sql<number>`count(*) FILTER (WHERE NOT ${users.isActive})`,
       })
       .from(users),
   ]);

@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
+import { log } from '@/lib/log';
+import { bumpWindow } from './counterStore';
 
 /**
- * Per-IP sliding-window rate limiter for the public write endpoints.
+ * Per-IP rate limits for the public write endpoints, shared by every server instance.
  *
- * In memory, on purpose: the app runs as a single PM2 process on one VPS, and the routes
- * this guards — registration, login, plan upload, the Claude call, project saves — are
- * low-volume. If the app ever runs as a cluster or on several hosts, swap the `hits` map
- * for Redis behind the same `rateLimit()` signature; nothing else needs to change.
+ * On Vercel a request lands on whichever function instance is free, and an instance lives
+ * minutes, so a count kept in memory (as it was on the single cPanel process) counted almost
+ * nothing. The counts live in Postgres instead (`rate_limits`, `counterStore.ts`): one upsert per
+ * limited request. Each key keeps its fixed window's count and the previous window's, and the
+ * limit is held against the sliding estimate `previous × (time left in the window) + current` —
+ * no burst of twice the limit across a window's edge, without a row per hit.
  *
- * The map lives on `globalThis` so Fast Refresh in development does not reset it.
+ * If the database cannot be asked, the request goes through (and the failure is logged): a
+ * limiter that is down must not take the endpoints it guards down with it.
  */
 
 export interface RateLimitRule {
@@ -23,24 +28,8 @@ export interface RateLimitRule {
 export interface RateLimitResult {
   ok: boolean;
   remaining: number;
-  /** Seconds until the oldest hit falls out of the window. Only meaningful when `ok` is false. */
+  /** Seconds until the current window ends. Only meaningful when `ok` is false. */
   retryAfterSec: number;
-}
-
-type HitStore = Map<string, number[]>;
-
-const globalForRate = globalThis as unknown as { __rateLimitHits?: HitStore; __rateLimitSweep?: number };
-const hits: HitStore = globalForRate.__rateLimitHits ?? new Map();
-globalForRate.__rateLimitHits = hits;
-
-/** Keeps the map from growing without bound: drop every entry whose window has fully expired. */
-function sweep(now: number, maxWindowMs: number): void {
-  const last = globalForRate.__rateLimitSweep ?? 0;
-  if (now - last < 60_000) return;
-  globalForRate.__rateLimitSweep = now;
-  for (const [key, stamps] of hits) {
-    if (stamps.length === 0 || now - stamps[stamps.length - 1] > maxWindowMs) hits.delete(key);
-  }
 }
 
 /**
@@ -53,9 +42,10 @@ function sweep(now: number, maxWindowMs: number): void {
  * address when no proxy did. Without a proxy (local development) every caller shares the
  * socket's bucket — fine for a laptop.
  *
- * On cPanel (Apache → Passenger) what arrives here has not been confirmed: if Passenger passes
- * the client's header through without appending, the last entry is the client's too
- * (docs/operations.md#rate-limits-and-the-client-address says how to check).
+ * On Vercel the edge replaces whatever `X-Forwarded-For` the client sent with the address it
+ * saw, so the one entry there is the client's (docs/operations.md#rate-limits-and-the-client-address).
+ * Behind another proxy in front of Vercel (Cloudflare's orange cloud) every caller would share
+ * that proxy's address: read its own header (`cf-connecting-ip`) here first if one is ever added.
  */
 export function clientIp(req: Request): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -67,31 +57,32 @@ export function clientIp(req: Request): string {
   return req.headers.get('x-real-ip')?.trim() || 'unknown';
 }
 
-export function rateLimit(req: Request, rule: RateLimitRule): RateLimitResult {
-  const now = Date.now();
-  sweep(now, Math.max(rule.windowMs, 60 * 60_000));
+/** Whether a hit counted at `now` on a window holding `count` (this one included) after `prevCount` is within `limit`. */
+export function slidingDecision(count: number, prevCount: number, limit: number, windowMs: number, now: number): RateLimitResult {
+  const windowStart = Math.floor(now / windowMs) * windowMs;
+  const elapsed = (now - windowStart) / windowMs;
+  const estimate = prevCount * (1 - elapsed) + count;
+  if (estimate > limit) return { ok: false, remaining: 0, retryAfterSec: Math.max(1, Math.ceil((windowStart + windowMs - now) / 1000)) };
+  return { ok: true, remaining: Math.max(0, Math.floor(limit - estimate)), retryAfterSec: 0 };
+}
 
-  const bucket = `${rule.key}:${clientIp(req)}`;
-  const since = now - rule.windowMs;
-  const recent = (hits.get(bucket) ?? []).filter((t) => t > since);
-
-  if (recent.length >= rule.limit) {
-    hits.set(bucket, recent);
-    const retryAfterSec = Math.max(1, Math.ceil((recent[0] + rule.windowMs - now) / 1000));
-    return { ok: false, remaining: 0, retryAfterSec };
+export async function rateLimit(req: Request, rule: RateLimitRule, now = Date.now()): Promise<RateLimitResult> {
+  const windowStart = Math.floor(now / rule.windowMs) * rule.windowMs;
+  try {
+    const { count, prevCount } = await bumpWindow(`${rule.key}:${clientIp(req)}`, new Date(windowStart), new Date(windowStart - rule.windowMs), rule.limit + 1);
+    return slidingDecision(count, prevCount, rule.limit, rule.windowMs, now);
+  } catch (e) {
+    log.warn('rate limit not checked: the counter store failed', { rule: rule.key, err: e });
+    return { ok: true, remaining: rule.limit, retryAfterSec: 0 };
   }
-
-  recent.push(now);
-  hits.set(bucket, recent);
-  return { ok: true, remaining: rule.limit - recent.length, retryAfterSec: 0 };
 }
 
 /**
  * Convenience for route handlers: `null` when the request may proceed, otherwise a ready
  * 429 in the app's `{ data, error }` envelope with a `Retry-After` header.
  */
-export function rateLimited(req: Request, rule: RateLimitRule): NextResponse | null {
-  const result = rateLimit(req, rule);
+export async function rateLimited(req: Request, rule: RateLimitRule): Promise<NextResponse | null> {
+  const result = await rateLimit(req, rule);
   if (result.ok) return null;
   return NextResponse.json(
     { data: null, error: 'Too many requests — please try again later' },
@@ -105,8 +96,10 @@ export const RATE_RULES = {
   register: { key: 'register', limit: 5, windowMs: 60 * 60_000 },
   /** Password attempts against the credentials provider. */
   login: { key: 'login', limit: 10, windowMs: 15 * 60_000 },
-  /** Guest floor-plan uploads: 12 MB each, so this also caps disk growth per IP. */
+  /** Floor plans (visitors may send them): 20 MB each, so this also caps storage growth per IP. */
   uploadPlan: { key: 'upload-plan', limit: 10, windowMs: 60 * 60_000 },
+  /** Any direct upload granted (`POST /api/uploads`): each one is a staged file of up to 40 MB. */
+  uploads: { key: 'uploads', limit: 120, windowMs: 60 * 60_000 },
   /** Each call spends Claude tokens. */
   parsePlan: { key: 'parse-plan', limit: 10, windowMs: 60 * 60_000 },
   /** A press of "save" (or an order, which saves first). */

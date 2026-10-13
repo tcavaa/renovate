@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { payments, users } from '@/lib/db/schema';
 import { FilterBar } from '@/components/admin/FilterBar';
@@ -34,7 +35,7 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
 
   const where: SQL[] = [];
   const q = p.get('q');
-  if (q) where.push(or(like(payments.orderId, `%${q}%`), like(users.email, `%${q}%`), like(users.name, `%${q}%`), like(payments.maskedCard, `%${q}%`), like(payments.rrn, `%${q}%`), like(payments.providerPaymentId, `%${q}%`), sql`CAST(${payments.projectId} AS CHAR) = ${q}`)!);
+  if (q) where.push(or(ilike(payments.orderId, `%${q}%`), ilike(users.email, `%${q}%`), ilike(users.name, `%${q}%`), ilike(payments.maskedCard, `%${q}%`), ilike(payments.rrn, `%${q}%`), ilike(payments.providerPaymentId, `%${q}%`), sql`CAST(${payments.projectId} AS TEXT) = ${q}`)!);
   const status = p.get('status');
   if ((STATUSES as readonly string[]).includes(status)) where.push(eq(payments.status, status as PaymentStatus));
   const purpose = p.get('purpose');

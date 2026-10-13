@@ -1,4 +1,5 @@
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { rates } from '@/lib/db/schema';
 import { rateSchema, toRateRow } from '@/lib/validations/rate.schema';
@@ -26,7 +27,6 @@ export const POST = handle('POST /api/calculator/rates', 'Failed to create rate'
   const existing = await db.select({ id: rates.id }).from(rates).where(eq(rates.key, parsed.data.key)).limit(1);
   if (existing.length) return fail(API_ERRORS.RATE_KEY_EXISTS, 409);
 
-  const inserted = await db.insert(rates).values(toRateRow(parsed.data));
-  const row = await db.select().from(rates).where(eq(rates.id, Number(inserted[0].insertId))).limit(1);
-  return ok(row[0], { status: 201 });
+  const [row] = await db.insert(rates).values(toRateRow(parsed.data)).returning();
+  return ok(row, { status: 201 });
 });

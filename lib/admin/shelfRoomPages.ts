@@ -1,4 +1,5 @@
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, shelfRoomCategories, shelfRooms } from '@/lib/db/schema';
 import { ROOM_TYPES } from '@/lib/calculator/constants';

@@ -1,4 +1,5 @@
-import { and, desc, eq, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, isNotNull, ne } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { orders, projects } from '@/lib/db/schema';
 

@@ -1,4 +1,5 @@
-import { and, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
 import { subtreeOfSlugs } from '@/lib/catalog/tree';
@@ -58,7 +59,7 @@ export default async function HomePage() {
               ne(products.brand, 'Kenney')
             )
           )
-          .orderBy(desc(products.isFeatured), sql`RAND()`)
+          .orderBy(desc(products.isFeatured), sql`random()`)
           .limit(8)
       : Promise.resolve([]),
     db.select({ productCount: count() }).from(products).where(eq(products.isActive, true)),

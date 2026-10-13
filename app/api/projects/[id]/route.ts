@@ -2,20 +2,21 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { projectRenders, projects } from '@/lib/db/schema';
 import { API_ERRORS, fail, handle, ok, parseId, requireSession } from '@/lib/api/route';
+import { okLarge } from '@/lib/api/body';
 import { storage } from '@/lib/storage';
 import { renameProjectSchema } from '@/lib/validations/project.schema';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export const GET = handle('GET /api/projects/[id]', 'Failed to load project', async (_req, { params }) => {
+export const GET = handle('GET /api/projects/[id]', 'Failed to load project', async (req, { params }) => {
   const { session, response } = await requireSession();
   if (response) return response;
   const { id, response: bad } = parseId(params.id);
   if (bad) return bad;
   const rows = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.userId, Number(session.user.id)))).limit(1);
   if (rows.length === 0) return fail(API_ERRORS.NOT_FOUND, 404);
-  return ok(rows[0]);
+  return okLarge(req, rows[0]);
 });
 
 /** Renames one of the caller's projects. */

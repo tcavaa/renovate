@@ -1,50 +1,44 @@
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool, types } from 'pg';
+import { attachDatabasePool } from '@vercel/functions';
 import * as schema from './schema';
 import { env } from '@/lib/env';
+import { log } from '@/lib/log';
+import { databaseSsl, withoutSslParams } from './ssl';
+
+/**
+ * `count(*)` and a sum of integers come back as `bigint`, which node-postgres hands over as a
+ * string by default. No column of this schema is a bigint — every one of them is a count — so
+ * they are numbers here, as MySQL's counts were. `numeric` (the money columns and their sums)
+ * stays a string: decimals are strings (docs/data-model.md).
+ */
+types.setTypeParser(types.builtins.INT8, (value: string) => Number(value));
 
 const globalForDb = globalThis as unknown as {
-  pool: mysql.Pool | undefined;
+  pool: Pool | undefined;
 };
 
 /**
- * TLS for a hosted MySQL (`DATABASE_SSL=true`). The certificate is always verified — against
- * Node's bundled authorities, or the provider's own CA from `DATABASE_SSL_CA` — because a
- * connection whose certificate the client will not check is not an encrypted one in any way
- * that matters.
+ * One pool per server instance. On Vercel that is per function instance, which Fluid compute
+ * shares between concurrent requests: a few connections each, through Supabase's transaction
+ * pooler (`DATABASE_URL` on port 6543), which is what many short-lived instances are meant to
+ * use. `attachDatabasePool` lets Vercel close the idle ones before it suspends the instance (it
+ * does nothing anywhere else). No prepared statements are named, so the transaction pooler's
+ * one-statement-at-a-time sessions are no trouble.
  */
-const ssl =
-  env.DATABASE_SSL === 'true'
-    ? { rejectUnauthorized: true, ...(env.DATABASE_SSL_CA ? { ca: env.DATABASE_SSL_CA } : {}) }
-    : undefined;
-
-/**
- * Every connection talks UTC. Drizzle writes and reads `timestamp` columns as UTC strings, but
- * MySQL fills `DEFAULT (now())` and `ON UPDATE` in the session's time zone and converts every
- * TIMESTAMP to it on the way out: on a server that is not on UTC (a laptop in Tbilisi, +04) a
- * row's `createdAt` came back four hours late while every time the app set itself (`viewedAt`,
- * `sentAt`, `lastLoginAt`) was right — an order "placed" after it was "sent". With the session
- * on UTC both are the same clock. (Rows written before this on such a server keep their skew.)
- */
-function createPool(): mysql.Pool {
-  const created = mysql.createPool({
-    host: env.DATABASE_HOST,
-    port: env.DATABASE_PORT,
-    user: env.DATABASE_USER,
-    password: env.DATABASE_PASSWORD,
-    database: env.DATABASE_NAME,
-    ssl,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 0,
+function createPool(): Pool {
+  const created = new Pool({
+    connectionString: withoutSslParams(env.DATABASE_URL),
+    ssl: databaseSsl(env.DATABASE_SSL, env.DATABASE_SSL_CA),
+    max: env.DATABASE_POOL_MAX ?? (process.env.VERCEL ? 5 : 10),
+    // Short on Vercel: the instance is kept until its idle connections are closed.
+    idleTimeoutMillis: process.env.VERCEL ? 5_000 : 30_000,
+    connectionTimeoutMillis: 10_000,
   });
-  created.on('connection', (connection) => {
-    // mysql2 forwards the core pool's event as it is: the connection is the callback-style one,
-    // whatever the typings say. A failed SET leaves the session as it was before this existed.
-    (connection as unknown as { query: (sql: string, done: (err: Error | null) => void) => void }).query("SET time_zone = '+00:00'", () => undefined);
-  });
+  // An idle client whose connection dies (the pooler restarting, a network blip) emits here;
+  // unhandled, it would take the whole process down with it.
+  created.on('error', (err) => log.warn('database: idle connection lost', { err }));
+  attachDatabasePool(created);
   return created;
 }
 
@@ -54,5 +48,8 @@ if (env.NODE_ENV !== 'production') {
   globalForDb.pool = pool;
 }
 
-export const db = drizzle(pool, { schema, mode: 'default' });
+export const db = drizzle(pool, { schema });
 export { schema };
+export type Database = typeof db;
+/** A transaction handed to `db.transaction(async (tx) => …)`. */
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

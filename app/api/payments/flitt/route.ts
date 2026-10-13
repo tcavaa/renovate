@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
  * item already paid for (`credit`).
  */
 export const POST = handle('POST /api/payments/flitt', 'Failed to start the payment', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.payment);
+  const limited = await rateLimited(req, RATE_RULES.payment);
   if (limited) return limited;
   const { session, response } = await requireSession();
   if (response) return response;

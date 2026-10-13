@@ -1,47 +1,49 @@
+import { log } from '@/lib/log';
+import { bumpFailures, clearKey, lockKey, lockedUntil } from '@/lib/api/counterStore';
+
 /**
  * Per-account login lockout.
  *
  * The per-IP limiter in `lib/api/rateLimit.ts` slows one machine down; this slows one
- * *account* down however many machines try it. Five wrong passwords lock the address for
- * fifteen minutes. In memory, like the rate limiter, and for the same reason — one process.
+ * *account* down however many machines try it. Five wrong passwords within fifteen minutes of
+ * the first lock the address for fifteen minutes. Kept in Postgres (`rate_limits`, key
+ * `login-fail:<address>`) like the rate limits, so every server instance sees the same count;
+ * a database that cannot be asked locks nobody out (the sign-in needs it anyway).
  */
 
 const MAX_FAILURES = 5;
 const LOCK_MS = 15 * 60_000;
 const WINDOW_MS = 15 * 60_000;
 
-interface Record_ {
-  failures: number[];
-  lockedUntil: number;
-}
+const keyFor = (email: string) => `login-fail:${email.trim().toLowerCase()}`;
 
-const globalForLockout = globalThis as unknown as { __loginLockout?: Map<string, Record_> };
-const store: Map<string, Record_> = globalForLockout.__loginLockout ?? new Map();
-globalForLockout.__loginLockout = store;
-
-const normalise = (email: string) => email.trim().toLowerCase();
-
-export function isLockedOut(email: string, now = Date.now()): boolean {
-  const record = store.get(normalise(email));
-  return !!record && record.lockedUntil > now;
+export async function isLockedOut(email: string, now = Date.now()): Promise<boolean> {
+  try {
+    const until = await lockedUntil(keyFor(email));
+    return !!until && until.getTime() > now;
+  } catch (e) {
+    log.warn('login lockout not checked', { err: e });
+    return false;
+  }
 }
 
 /** Records a wrong password; returns true when this failure triggered a lock. */
-export function recordFailure(email: string, now = Date.now()): boolean {
-  const key = normalise(email);
-  const record = store.get(key) ?? { failures: [], lockedUntil: 0 };
-  record.failures = record.failures.filter((t) => t > now - WINDOW_MS);
-  record.failures.push(now);
-  if (record.failures.length >= MAX_FAILURES) {
-    record.lockedUntil = now + LOCK_MS;
-    record.failures = [];
-    store.set(key, record);
+export async function recordFailure(email: string, now = Date.now()): Promise<boolean> {
+  try {
+    const failures = await bumpFailures(keyFor(email), new Date(now), WINDOW_MS);
+    if (failures < MAX_FAILURES) return false;
+    await lockKey(keyFor(email), new Date(now), new Date(now + LOCK_MS));
     return true;
+  } catch (e) {
+    log.warn('login failure not recorded', { err: e });
+    return false;
   }
-  store.set(key, record);
-  return false;
 }
 
-export function clearFailures(email: string): void {
-  store.delete(normalise(email));
+export async function clearFailures(email: string): Promise<void> {
+  try {
+    await clearKey(keyFor(email));
+  } catch (e) {
+    log.warn('login failures not cleared', { err: e });
+  }
 }

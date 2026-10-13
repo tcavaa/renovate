@@ -1,4 +1,4 @@
-import { asc } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { rates } from '@/lib/db/schema';
 import { ratesForAdmin } from '@/lib/calculator/rates';

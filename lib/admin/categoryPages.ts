@@ -1,4 +1,5 @@
-import { asc, count, eq } from 'drizzle-orm';
+import { count, eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { categories, products, shelfRoomCategories, shelfRooms } from '@/lib/db/schema';
 import { pickLocalizedName } from '@/lib/i18n/labels';

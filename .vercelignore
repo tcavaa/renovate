@@ -1,0 +1,12 @@
+# What a `vercel` CLI deploy must not upload (a Git deploy only has what is committed anyway).
+public/library/
+public/uploads/plans/*
+public/uploads/models/*
+public/uploads/renders/*
+.uploads-staging/
+logs/
+coverage/
+test-results/
+.next/
+.next-*/
+.claude/

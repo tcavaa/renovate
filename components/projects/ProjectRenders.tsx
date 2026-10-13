@@ -1,5 +1,6 @@
 import Image from '@/components/ui/image';
-import { desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { Camera, Download, Loader2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { projectRenders } from '@/lib/db/schema';

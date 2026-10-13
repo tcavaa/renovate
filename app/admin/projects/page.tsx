@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, inArray, isNotNull, like, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, isNotNull, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { projects, users } from '@/lib/db/schema';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +30,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
   const where: SQL[] = [];
   if (p.q) {
     const needle = `%${p.q}%`;
-    where.push(or(like(projects.nameKa, needle), like(users.name, needle), like(users.email, needle))!);
+    where.push(or(ilike(projects.nameKa, needle), ilike(users.name, needle), ilike(users.email, needle))!);
   }
   if (p.get('status')) where.push(eq(projects.status, p.get('status') as 'draft' | 'saved' | 'submitted'));
   if (p.get('homeState')) where.push(eq(projects.homeState, p.get('homeState') as HomeState));

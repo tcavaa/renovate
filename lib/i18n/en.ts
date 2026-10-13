@@ -1554,6 +1554,11 @@ export const en: Dictionary = {
     NOTHING_TO_PAY: 'Nothing to pay yet — draw the rooms first',
     PAYMENT_UNAVAILABLE: 'The payment system is not answering right now — nothing was charged, try again shortly.',
     PAYMENT_REQUIRED: 'Adding a 3D model has to be paid for first.',
+    UPLOAD_EXPIRED: 'The upload expired or was already used — upload it again',
+    UPLOAD_MISSING: 'The file did not arrive — try again',
+    FILE_TOO_LARGE: 'The file is too large',
+    PLAN_TOO_LARGE: 'The plan is too large — 20 MB at most',
+    IMAGE_INVALID: 'The file is not a PNG, JPEG or WebP image',
   },
   styleNames: {
     modern: 'Modern',

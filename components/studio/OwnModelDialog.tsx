@@ -36,6 +36,8 @@ import { isRadiatorProductKind } from '@/lib/design/radiators';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
+import { optimizePhotoForUpload } from '@/lib/uploads/browserImage';
+import { claimWith, sendToStorage } from '@/lib/uploads/direct';
 import { cn, formatGEL, formatNumber } from '@/lib/utils';
 
 /** The kinds a piece of one's own can be — furniture, not a fitting, a door or a radiator. */
@@ -215,19 +217,16 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
     setSubmitting(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('name', name.trim());
-      body.append('kind', kind);
-      for (const key of ['widthCm', 'depthCm', 'heightCm'] as const) if (dims[key]) body.append(key, dims[key]);
+      // The files straight to storage, then the piece made from them by the route (docs/uploads.md).
+      const upload = await sendToStorage('own_model', mode === 'model' ? new File([file], file.name, { type: 'model/gltf-binary' }) : await optimizePhotoForUpload(file));
+      let photo: string | undefined;
       if (mode === 'model') {
         const shot = shotRef.current ?? (await handleRef.current?.snapshot().catch(() => null)) ?? null;
-        if (shot) body.append('photo', shot, 'photo.png');
+        if (shot) photo = await sendToStorage('own_photo', await optimizePhotoForUpload(new File([shot], 'photo.png', { type: 'image/png' }))).catch(() => undefined);
       }
-      const res = await fetch('/api/design/models', { method: 'POST', body });
-      const json = (await res.json()) as { data: CatalogProduct | null; error: string | null };
-      if (!res.ok || !json.data) throw new Error(json.error ?? 'UNKNOWN');
-      onCreated(json.data);
+      const sizes = Object.fromEntries((['widthCm', 'depthCm', 'heightCm'] as const).filter((key) => dims[key]).map((key) => [key, dims[key]]));
+      const created = await claimWith<CatalogProduct>('/api/design/models', { upload, photo, name: name.trim(), kind, ...sizes });
+      onCreated(created);
       reset();
       shotRef.current = null;
       setPaying(false);

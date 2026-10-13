@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { and, asc, desc, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, notInArray } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { paymentEvents, payments, projectPayments, type Payment } from '@/lib/db/schema';
 import { env } from '@/lib/env';
@@ -218,8 +219,8 @@ export async function settleCardPayment(params: FlittParams, source: 'callback' 
   switch (settlementFor(row.status, outcome.status)) {
     case 'approve': {
       const approved = await db.transaction(async (tx) => {
-        const [result] = await tx.update(payments).set({ ...facts, status: 'approved', paidAt: now }).where(unsettled);
-        if (!result.affectedRows) return false;
+        const won = await tx.update(payments).set({ ...facts, status: 'approved', paidAt: now }).where(unsettled).returning({ id: payments.id });
+        if (won.length === 0) return false;
         await fulfil(tx, { ...row, ...facts, status: 'approved', paidAt: now });
         return true;
       });
@@ -347,11 +348,12 @@ export async function claimOwnItemCredit(userId: number): Promise<number | null>
   for (let attempt = 0; attempt < 3; attempt++) {
     const credit = await ownItemCredit(userId);
     if (!credit) return null;
-    const [result] = await db
+    const claimed = await db
       .update(payments)
       .set({ consumedAt: new Date() })
-      .where(and(eq(payments.id, credit.id), isNull(payments.consumedAt)));
-    if (result.affectedRows) return credit.id;
+      .where(and(eq(payments.id, credit.id), isNull(payments.consumedAt)))
+      .returning({ id: payments.id });
+    if (claimed.length > 0) return credit.id;
   }
   return null;
 }

@@ -8,12 +8,16 @@ import { iconNodeFor } from '@/lib/catalog/iconNodes';
 import { ARCHETYPES, SHELF_ROOMS } from '@/lib/design/catalog';
 
 /**
- * The tree the platform starts with, and migrations 0018 and 0020, which write it into a
- * database that had the flat catalogue (0020 the categories added since) — kept in step: every
- * category, product move and studio room the definition has is in the SQL.
+ * The tree the platform starts with, and the migration that writes it into a new database
+ * (`0001_starting_catalogue.sql`, made from this definition when the app moved to Postgres;
+ * MySQL's 0018 and 0020 did it before) — kept in step: every category, 3D kind and studio room
+ * the definition has is in the SQL.
  */
 
-const MIGRATION = ['0018_category_tree_defaults.sql', '0020_equipment_kitchen_categories.sql'].map((file) => readFileSync(path.join(process.cwd(), 'lib/db/migrations', file), 'utf8')).join('\n');
+const MIGRATION = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0001_starting_catalogue.sql'), 'utf8');
+const STATEMENTS = MIGRATION.split('--> statement-breakpoint');
+/** The statement that makes the category with this slug. */
+const categoryInsert = (slug: string) => STATEMENTS.find((s) => s.includes('INSERT INTO "categories"') && s.includes(`, '${slug}', `));
 const FLAT = ['floor-tiles', 'wall-tiles', 'laminate', 'doors', 'windows', 'paint', 'sanitary', 'lighting', 'sockets-switches', 'beds', 'sofas', 'tables', 'chairs', 'wardrobes', 'kitchen-furniture', 'storage', 'rugs', 'decor', 'radiators', 'skirting', 'cornice'];
 
 describe('the starting tree', () => {
@@ -54,22 +58,28 @@ describe('the starting tree', () => {
   });
 });
 
-describe('migrations 0018 and 0020', () => {
-  it('makes and places every category of the starting tree', () => {
+describe('the starting catalogue migration', () => {
+  it('makes and places every category of the starting tree, parents first', () => {
     for (const c of DEFAULT_CATEGORY_TREE) {
-      expect(MIGRATION, c.slug).toContain(`WHERE \`slug\` = '${c.slug}' AND \`parent_id\` IS NULL;`);
-      if (c.parent) expect(MIGRATION, c.slug).toContain(`-- ${c.slug} under ${c.parent}`);
+      const insert = categoryInsert(c.slug);
+      expect(insert, c.slug).toBeDefined();
+      expect(insert, c.slug).toContain('ON CONFLICT ("slug") DO NOTHING');
+      if (c.parent) {
+        expect(insert, c.slug).toContain(`(SELECT "id" FROM "categories" WHERE "slug" = '${c.parent}')`);
+        expect(MIGRATION.indexOf(`, '${c.parent}', `), c.slug).toBeLessThan(MIGRATION.indexOf(`, '${c.slug}', `));
+        expect(MIGRATION, c.slug).toContain(`-- ${c.slug} under ${c.parent}`);
+      }
     }
   });
 
-  it('moves the products of every kind to the kind\'s category', () => {
-    for (const [kind, slug] of Object.entries(DEFAULT_KIND_CATEGORY)) expect(MIGRATION, kind).toContain(`WHERE \`slug\` = '${slug}') WHERE \`model_3d_kind\` = '${kind}';`);
+  it('gives every kind\'s category its 3D kind', () => {
+    for (const [kind, slug] of Object.entries(DEFAULT_KIND_CATEGORY)) expect(categoryInsert(slug), kind).toContain(`'${kind}'`);
   });
 
   it('makes every studio room with its categories', () => {
     for (const room of DEFAULT_SHELF_ROOMS) {
-      expect(MIGRATION, room.slug).toContain(`WHERE \`slug\` = '${room.slug}');`);
-      for (const slug of room.categories) expect(MIGRATION, `${room.slug} → ${slug}`).toContain(`ON c.\`slug\` = '${slug}' WHERE r.\`slug\` = '${room.slug}';`);
+      expect(MIGRATION, room.slug).toContain(`INSERT INTO "shelf_rooms" ("slug", "name_ka", "name_en", "name_ru", "icon", "room_types", "is_visible", "sort_order") VALUES ('${room.slug}', `);
+      for (const slug of room.categories) expect(MIGRATION, `${room.slug} → ${slug}`).toContain(`ON c."slug" = '${slug}' WHERE r."slug" = '${room.slug}' ON CONFLICT DO NOTHING;`);
     }
   });
 });

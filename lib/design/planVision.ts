@@ -19,6 +19,7 @@
 import sharp from 'sharp';
 import { MAX_IMAGE_BYTES, MAX_IMAGE_EDGE_PX } from './aiPlan';
 import { inkFromGray, type InkImage } from './planInk';
+import { rulerLabel } from './rulerDigits';
 import type { ImageMime } from '@/lib/uploads/sniff';
 
 export interface VisionInput {
@@ -108,8 +109,9 @@ async function withRuler(bytes: Buffer): Promise<Buffer | null> {
       const label = (k / 10).toFixed(1);
       lines.push(`<line x1="${x}" y1="${RULER_MARGIN - 6}" x2="${x}" y2="${RULER_MARGIN + h}" stroke="#1d4ed8" stroke-width="1" ${style}/>`);
       lines.push(`<line x1="${RULER_MARGIN - 6}" y1="${y}" x2="${RULER_MARGIN + w}" y2="${y}" stroke="#1d4ed8" stroke-width="1" ${style}/>`);
-      lines.push(`<text x="${x}" y="${RULER_MARGIN - 10}" font-family="sans-serif" font-size="11" fill="#1d4ed8" text-anchor="middle">${label}</text>`);
-      lines.push(`<text x="${RULER_MARGIN - 8}" y="${y + 4}" font-family="sans-serif" font-size="11" fill="#1d4ed8" text-anchor="end">${label}</text>`);
+      // Drawn as strokes, not <text>: a server without fonts (a Vercel function) drew no numbers (`rulerDigits.ts`).
+      lines.push(rulerLabel(label, x, RULER_MARGIN - 10, 'middle', 11, '#1d4ed8'));
+      lines.push(rulerLabel(label, RULER_MARGIN - 8, y + 5, 'end', 11, '#1d4ed8'));
     }
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">${lines.join('')}</svg>`;
     return await sharp(bytes)

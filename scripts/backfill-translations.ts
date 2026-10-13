@@ -21,18 +21,18 @@ async function main() {
   let changed = 0;
 
   for (const [slug, ru] of Object.entries(CATEGORY_RU)) {
-    const r = await db.update(categories).set({ nameRu: ru }).where(and(eq(categories.slug, slug), isNull(categories.nameRu)));
-    changed += r[0].affectedRows;
+    const r = await db.update(categories).set({ nameRu: ru }).where(and(eq(categories.slug, slug), isNull(categories.nameRu))).returning({ id: categories.id });
+    changed += r.length;
   }
 
   for (const [nameKa, t] of Object.entries(STORE_I18N)) {
-    const r = await db.update(stores).set({ nameEn: t.en, nameRu: t.ru }).where(and(eq(stores.nameKa, nameKa), isNull(stores.nameEn)));
-    changed += r[0].affectedRows;
+    const r = await db.update(stores).set({ nameEn: t.en, nameRu: t.ru }).where(and(eq(stores.nameKa, nameKa), isNull(stores.nameEn))).returning({ id: stores.id });
+    changed += r.length;
   }
 
   for (const [nameKa, t] of Object.entries(WORKER_I18N)) {
-    const r = await db.update(workers).set({ nameEn: t.en, nameRu: t.ru }).where(and(eq(workers.nameKa, nameKa), isNull(workers.nameEn)));
-    changed += r[0].affectedRows;
+    const r = await db.update(workers).set({ nameEn: t.en, nameRu: t.ru }).where(and(eq(workers.nameKa, nameKa), isNull(workers.nameEn))).returning({ id: workers.id });
+    changed += r.length;
   }
 
   const rows = await db

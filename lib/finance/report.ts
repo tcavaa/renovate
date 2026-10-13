@@ -1,4 +1,5 @@
-import { and, desc, eq, gte, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, ne, sql } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { checkouts, orderItems, orders, products, projectPayments, stores, workers } from '@/lib/db/schema';
 import { eachDay, round2, type DateRange, type OrderStatus } from './money';
@@ -43,10 +44,10 @@ export async function revenueReport(range: DateRange): Promise<RevenueReport> {
       .where(inPaymentRange)
       .groupBy(projectPayments.kind),
     db
-      .select({ day: sql<string>`DATE_FORMAT(${projectPayments.createdAt}, '%Y-%m-%d')`, fees: sql<number>`COALESCE(SUM(${projectPayments.amount}), 0)` })
+      .select({ day: sql<string>`to_char(${projectPayments.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`, fees: sql<number>`COALESCE(SUM(${projectPayments.amount}), 0)` })
       .from(projectPayments)
       .where(inPaymentRange)
-      .groupBy(sql`DATE_FORMAT(${projectPayments.createdAt}, '%Y-%m-%d')`),
+      .groupBy(sql`to_char(${projectPayments.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
     db
       .select({
         partnerType: orders.partnerType,
@@ -60,15 +61,15 @@ export async function revenueReport(range: DateRange): Promise<RevenueReport> {
       .groupBy(orders.partnerType),
     db.select({ status: orders.status, count: sql<number>`COUNT(*)` }).from(orders).where(inOrderRange).groupBy(orders.status),
     db
-      .select({ day: sql<string>`DATE_FORMAT(${checkouts.createdAt}, '%Y-%m-%d')`, fees: sql<number>`COALESCE(SUM(${checkouts.platformFee}), 0)`, count: sql<number>`COUNT(*)` })
+      .select({ day: sql<string>`to_char(${checkouts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`, fees: sql<number>`COALESCE(SUM(${checkouts.platformFee}), 0)`, count: sql<number>`COUNT(*)` })
       .from(checkouts)
       .where(inCheckoutRange)
-      .groupBy(sql`DATE_FORMAT(${checkouts.createdAt}, '%Y-%m-%d')`),
+      .groupBy(sql`to_char(${checkouts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
     db
-      .select({ day: sql<string>`DATE_FORMAT(${orders.createdAt}, '%Y-%m-%d')`, commissions: sql<number>`COALESCE(SUM(${orders.commissionAmount}), 0)`, count: sql<number>`COUNT(*)` })
+      .select({ day: sql<string>`to_char(${orders.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`, commissions: sql<number>`COALESCE(SUM(${orders.commissionAmount}), 0)`, count: sql<number>`COUNT(*)` })
       .from(orders)
       .where(liveOrders)
-      .groupBy(sql`DATE_FORMAT(${orders.createdAt}, '%Y-%m-%d')`),
+      .groupBy(sql`to_char(${orders.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`),
     db
       .select({
         storeId: stores.id,

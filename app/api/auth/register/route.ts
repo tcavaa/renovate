@@ -8,6 +8,7 @@ import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
 import { sendVerificationMail } from '@/lib/auth/tokens';
 import { getT } from '@/lib/i18n/server';
 import { log } from '@/lib/log';
+import { afterResponse } from '@/lib/api/after';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ const registerSchema = z.object({
 });
 
 export const POST = handle('POST /api/auth/register', 'Registration failed', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.register);
+  const limited = await rateLimited(req, RATE_RULES.register);
   if (limited) return limited;
 
   const parsed = registerSchema.safeParse(await req.json());
@@ -32,12 +33,14 @@ export const POST = handle('POST /api/auth/register', 'Registration failed', asy
   if (existing.length > 0) return fail(API_ERRORS.EMAIL_EXISTS, 409);
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const inserted = await db.insert(users).values({ name, email, passwordHash, role: 'user' });
-  const id = Number(inserted[0].insertId);
+  const [{ id }] = await db.insert(users).values({ name, email, passwordHash, role: 'user' }).returning({ id: users.id });
 
   // The account works before the address is verified; the mail is a nicety that must not
   // turn a mail-server hiccup into a failed registration.
-  sendVerificationMail({ id, email }, await getT()).catch((e) => log.warn('verification mail failed', { userId: id, err: e }));
+  // After the answer, not in its way — and not fire-and-forget: a function may be frozen the
+  // moment it has answered, and `after` is what it is kept alive for.
+  const t = await getT();
+  afterResponse(() => sendVerificationMail({ id, email }, t).catch((e) => log.warn('verification mail failed', { userId: id, err: e })));
 
   return ok({ id, email });
 });

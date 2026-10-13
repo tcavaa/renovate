@@ -9,13 +9,17 @@ import { fill } from '@/lib/admin/list';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { cn } from '@/lib/utils';
 import { DRACO_DECODER_PATH } from '@/lib/design3d/draco';
+import { optimizePhotoForUpload } from '@/lib/uploads/browserImage';
+import { UPLOAD_KINDS } from '@/lib/uploads/kinds';
+import { DirectUploadError, claimWith, sendToStorage } from '@/lib/uploads/direct';
 
 /**
  * Upload a furniture GLB for the studio and see it before saving.
  *
  * The file is optimized in the browser first (`optimizeModelForUpload`: WebP textures, meshopt
- * geometry — a 5–10 MB export comes out under 1 MB), goes to `/api/upload/model` (bytes checked
- * and optimized again if the browser could not), the returned URL becomes
+ * geometry — a 5–10 MB export comes out under 1 MB), goes straight to storage and is published by
+ * `/api/upload/model` (bytes checked and optimized again if the browser could not — docs/uploads.md),
+ * the returned URL becomes
  * `products.model3dUrl`, and the same URL is then loaded here with the studio's own loader —
  * so what the preview shows is exactly what a room will get. From the geometry the uploader
  * reads the real size (cm) to prefill the product's dimensions, counts triangles and
@@ -51,7 +55,7 @@ interface Props {
   helperText?: string;
 }
 
-const MAX_MB = 40;
+const MAX_MB = UPLOAD_KINDS.model.maxBytes / (1024 * 1024);
 const HEAVY_TRIANGLES = 400_000;
 
 export type PreviewHandle = {
@@ -153,35 +157,20 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
     const file = await optimizeModelForUpload(picked);
     setOptimizing(false);
     setProgress(0);
-    const body = new FormData();
-    body.append('file', file);
-    // XMLHttpRequest for the progress events fetch() does not have — a 30 MB GLB on a slow
-    // line is a long silence otherwise.
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload/model');
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => {
+    try {
+      // Straight to storage, with progress — a 30 MB GLB on a slow line is a long silence
+      // otherwise — then checked, optimized and published by the route (docs/uploads.md).
+      const upload = await sendToStorage('model', new File([file], file.name, { type: 'model/gltf-binary' }), { onProgress: (f) => setProgress(Math.round(f * 100)) });
+      const data = await claimWith<{ url: string; size: number }>('/api/upload/model', { upload });
+      setBytes(data.size);
+      setPickedBytes(picked.size);
+      onChange(data.url);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof DirectUploadError && e.code !== 'UNKNOWN' ? apiErrorMessage(t, e.code) : t.modelUploader.uploadError);
+    } finally {
       setProgress(null);
-      try {
-        const json = JSON.parse(xhr.responseText) as { data: { url: string; size: number } | null; error: string | null };
-        if (xhr.status >= 400 || !json.data) {
-          setError(json.error ? apiErrorMessage(t, json.error) : t.modelUploader.uploadError);
-          return;
-        }
-        setBytes(json.data.size);
-        setPickedBytes(picked.size);
-        onChange(json.data.url);
-      } catch {
-        setError(t.modelUploader.uploadError);
-      }
-    };
-    xhr.onerror = () => {
-      setProgress(null);
-      setError(t.modelUploader.uploadError);
-    };
-    xhr.send(body);
+    }
   };
 
   const snapshot = async () => {
@@ -191,13 +180,10 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
     try {
       const blob = await previewRef.current.snapshot();
       if (!blob) throw new Error('no snapshot');
-      const body = new FormData();
-      body.append('file', new File([blob], 'model.png', { type: 'image/png' }));
-      body.append('folder', 'products');
-      const res = await fetch('/api/upload', { method: 'POST', body });
-      const json = (await res.json()) as { data: { url: string } | null; error: string | null };
-      if (!res.ok || !json.data) throw new Error(json.error ?? 'upload');
-      onSnapshot(json.data.url);
+      const photo = await optimizePhotoForUpload(new File([blob], 'model.png', { type: 'image/png' }));
+      const upload = await sendToStorage('image', photo);
+      const data = await claimWith<{ url: string }>('/api/upload', { upload, folder: 'products' });
+      onSnapshot(data.url);
       setNotice(t.modelUploader.snapshotDone);
     } catch (e) {
       console.error(e);

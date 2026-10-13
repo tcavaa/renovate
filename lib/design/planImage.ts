@@ -9,6 +9,7 @@
  */
 
 import type { RasterImage } from './planParser';
+import { claimWith, sendToStorage } from '@/lib/uploads/direct';
 
 /**
  * Working resolution for parsing.
@@ -86,15 +87,19 @@ async function decode(file: File, url: string): Promise<ImageBitmap | HTMLImageE
   });
 }
 
-/** Uploads the plan so a saved project can display the drawing it came from. */
+/**
+ * Uploads the plan so a saved project can display the drawing it came from (and the Claude
+ * reader can read it): straight to storage, then published by `/api/design/upload-plan`
+ * (docs/uploads.md). Kept as it came unless it is bigger than anything reads
+ * (`optimizePlanForUpload`).
+ */
 export async function uploadPlanImage(file: File): Promise<string | null> {
-  const body = new FormData();
-  body.append('file', file);
-
   try {
-    const res = await fetch('/api/design/upload-plan', { method: 'POST', body });
-    const json = (await res.json()) as { data: { url: string } | null; error: string | null };
-    return json.data?.url ?? null;
+    const { optimizePlanForUpload } = await import('@/lib/uploads/browserImage');
+    const ready = await optimizePlanForUpload(file);
+    const upload = await sendToStorage('plan', ready);
+    const { url } = await claimWith<{ url: string }>('/api/design/upload-plan', { upload });
+    return url;
   } catch {
     // A failed upload should not block the design — the parse already happened locally.
     return null;

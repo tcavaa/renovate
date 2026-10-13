@@ -71,3 +71,10 @@ test-results/
 # --- Passenger restart marker and npm artefacts from cPanel deploys ---
 tmp/
 package-lock.json
+
+# direct uploads staged by the local storage driver (docs/uploads.md)
+.uploads-staging/
+# the local 3D library import: its files stay on this machine, its rows in the local database
+public/library/
+# Vercel CLI link / build output
+.vercel

@@ -27,14 +27,3 @@ describe('an admin list’s date filter', async () => {
     expect(dateRange(params({}))).toEqual({ from: null, to: null });
   });
 });
-
-describe('a picture’s host', async () => {
-  const { optimisable } = await import('@/components/ui/image');
-  it('is optimised for our files and the listed hosts, shown as it is otherwise', () => {
-    expect(optimisable('/uploads/products/x.webp')).toBe(true);
-    expect(optimisable('https://images.unsplash.com/photo-1')).toBe(true);
-    expect(optimisable('https://partner-shop.ge/img/sofa.jpg')).toBe(false);
-    expect(optimisable('//evil.example/x.png')).toBe(false);
-    expect(optimisable('http://images.unsplash.com/photo-1')).toBe(false);
-  });
-});

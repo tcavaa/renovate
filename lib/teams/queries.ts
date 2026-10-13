@@ -7,7 +7,8 @@
  * can put the teams that cover a job in front of the ones that cover half of it.
  */
 
-import { and, asc, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, ilike, or, sql } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { orders, teamMembers, teams, workers, type Team } from '@/lib/db/schema';
 
@@ -127,7 +128,7 @@ export async function listTeams(filters: TeamListFilters = {}): Promise<TeamList
   if (filters.verifiedOnly) where.push(eq(teams.isVerified, true));
   if (filters.search) {
     const q = `%${filters.search}%`;
-    where.push(or(like(teams.nameKa, q), like(teams.nameEn, q), like(teams.leadName, q), like(teams.city, q)));
+    where.push(or(ilike(teams.nameKa, q), ilike(teams.nameEn, q), ilike(teams.leadName, q), ilike(teams.city, q)));
   }
   const rows = await db
     .select()

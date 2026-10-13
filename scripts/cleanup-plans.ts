@@ -1,56 +1,29 @@
 /* eslint-disable no-console */
 /**
- * Deletes floor-plan uploads that no saved project refers to.
+ * Deletes floor-plan uploads that no saved project refers to (`lib/storage/plans.ts`).
  *
  *   pnpm uploads:cleanup            delete orphans older than 24 hours
  *   pnpm uploads:cleanup --dry-run  list what would go
  *   MAX_AGE_HOURS=72 pnpm uploads:cleanup
  *
- * Every visitor who tries the studio uploads a plan, and most never save. The grace period
- * keeps a plan that is still being edited in a browser tab; after that, a plan is kept only
- * if a project's `floorPlanUrl` or `plan.imageUrl` points at it. Works with either storage
- * driver. Run it nightly from cron on the VPS.
+ * Production runs the same sweep every day by itself (`/api/cron/cleanup`, Vercel Cron); this is
+ * for a local disk, or for a different age than the cron's.
  */
 import './lib/loadEnv';
 
 async function main() {
   const { storage } = await import('../lib/storage');
-  const { db, pool } = await import('../lib/db');
-  const { projects } = await import('../lib/db/schema');
+  const { orphanPlans } = await import('../lib/storage/plans');
+  const { pool } = await import('../lib/db');
 
   const dryRun = process.argv.includes('--dry-run');
-  const maxAgeMs = Number(process.env.MAX_AGE_HOURS ?? 24) * 60 * 60_000;
-  const cutoff = Date.now() - maxAgeMs;
-
-  const rows = await db.select({ floorPlanUrl: projects.floorPlanUrl, plan: projects.plan, calculatorBoard: projects.calculatorBoard, versions: projects.versions }).from(projects);
-  const referenced = new Set<string>();
-  for (const row of rows) {
-    // The design's plan, the calculator's own board (its image and its plan's), and every kept version's plan.
-    const board = row.calculatorBoard as { floorPlanUrl?: string | null; plan?: { imageUrl?: string | null } | null } | null;
-    const versions = Array.isArray(row.versions) ? (row.versions as Array<{ plan?: { imageUrl?: string | null } | null }>) : [];
-    const urls = [row.floorPlanUrl, (row.plan as { imageUrl?: string | null } | null)?.imageUrl, board?.floorPlanUrl, board?.plan?.imageUrl, ...versions.map((v) => v.plan?.imageUrl)];
-    for (const url of urls) {
-      if (!url) continue;
-      const key = storage.keyFor(url);
-      if (key) referenced.add(key);
-    }
-  }
-
-  const objects = await storage.list('plans');
-  let removed = 0;
-  let kept = 0;
-  for (const object of objects) {
-    const orphan = !referenced.has(object.key) && object.lastModified.getTime() < cutoff;
-    if (!orphan) {
-      kept++;
-      continue;
-    }
-    removed++;
+  const cutoff = new Date(Date.now() - Number(process.env.MAX_AGE_HOURS ?? 24) * 60 * 60_000);
+  const { orphans, total, referenced } = await orphanPlans(cutoff);
+  for (const object of orphans) {
     console.log(`${dryRun ? 'would delete' : 'deleting'} ${object.key} (${Math.round(object.size / 1024)} KB, ${object.lastModified.toISOString()})`);
     if (!dryRun) await storage.delete(object.key);
   }
-
-  console.log(`\n${objects.length} plan files: ${kept} kept, ${removed} ${dryRun ? 'orphaned' : 'deleted'} (${referenced.size} referenced by projects)`);
+  console.log(`\n${total} plan files: ${total - orphans.length} kept, ${orphans.length} ${dryRun ? 'orphaned' : 'deleted'} (${referenced} referenced by projects)`);
   await pool.end();
 }
 

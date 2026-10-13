@@ -41,6 +41,12 @@ vi.mock('drizzle-orm', async (importActual) => {
 });
 
 vi.mock('@/lib/db', () => {
+  /** A drizzle query: run when it is awaited, or asked for its `.returning()` rows — once either way. */
+  const lazy = (run: () => Promise<Row[]>) => {
+    let started: Promise<Row[]> | null = null;
+    const once = () => (started ??= run());
+    return { then: (done: (v: Row[]) => unknown, fail?: (e: unknown) => unknown) => once().then(done, fail), returning: () => once() };
+  };
   const rows = (t: unknown) => store.tables.get(t)!;
   const query = (t: unknown, pred: Pred) => rows(t).filter(pred);
   const db = {
@@ -55,24 +61,26 @@ vi.mock('@/lib/db', () => {
     }),
     update: (t: unknown) => ({
       set: (values: Row) => ({
-        where: async (pred: Pred) => {
-          const hit = query(t, pred);
-          for (const r of hit) Object.assign(r, Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)));
-          return [{ affectedRows: hit.length }];
-        },
+        where: (pred: Pred) =>
+          lazy(async () => {
+            const hit = query(t, pred);
+            for (const r of hit) Object.assign(r, Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined)));
+            return hit.map((r) => ({ id: r.id }));
+          }),
       }),
     }),
     insert: (t: unknown) => ({
-      values: async (values: Row) => {
-        if (store.failInsert === t) {
-          store.failInsert = null;
-          throw new Error('connection lost');
-        }
-        const id = (store.ids.get(t) ?? 0) + 1;
-        store.ids.set(t, id);
-        rows(t).push({ id, createdAt: new Date(), ...values });
-        return [{ insertId: id }];
-      },
+      values: (values: Row) =>
+        lazy(async () => {
+          if (store.failInsert === t) {
+            store.failInsert = null;
+            throw new Error('connection lost');
+          }
+          const id = (store.ids.get(t) ?? 0) + 1;
+          store.ids.set(t, id);
+          rows(t).push({ id, createdAt: new Date(), ...values });
+          return [{ id }];
+        }),
     }),
     delete: (t: unknown) => ({
       where: async (pred: Pred) => {

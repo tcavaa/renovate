@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import {
   checkouts,
@@ -296,8 +297,8 @@ export async function createCheckoutForProject(project: Project, customer: Custo
       deliveryCity: customer.address?.city ?? null,
       deliveryAddress: customer.address?.line ?? null,
       deliveryPostalCode: customer.address?.postalCode ?? null,
-    });
-    const checkoutId = inserted.insertId;
+    }).returning({ id: checkouts.id });
+    const checkoutId = inserted.id;
     const created: Array<{ id: number; draft: (typeof drafts)[number] }> = [];
     for (const draft of drafts) {
       // No `sentAt`: a store's order waits with the platform until the orders agent has
@@ -316,8 +317,8 @@ export async function createCheckoutForProject(project: Project, customer: Custo
         commissionPct: String(draft.commissionPct),
         commissionAmount: String(draft.commissionAmount),
         ...customerColumns(customer),
-      });
-      const orderId = orderInsert.insertId;
+      }).returning({ id: orders.id });
+      const orderId = orderInsert.id;
       if (draft.lines.length) await tx.insert(orderItems).values(itemRows(orderId, draft.lines));
       await recordOrderEvent(tx, orderId, { userId, role: 'user', name: customer.name }, 'created', null, { lines: draft.lines.length, subtotal: draft.subtotal, deliveryFee: draft.deliveryFee });
       created.push({ id: orderId, draft });
@@ -528,8 +529,8 @@ export async function createWorkerBooking(args: { worker: Worker; project: Proje
       commissionPct: String(commissionPct),
       commissionAmount: String(totals.commissionAmount),
       ...customerColumns(customer),
-    });
-    const id = orderInsert.insertId;
+    }).returning({ id: orders.id });
+    const id = orderInsert.id;
     if (lines.length) await tx.insert(orderItems).values(itemRows(id, lines));
     await recordOrderEvent(tx, id, { userId, role: 'user', name: customer.name }, 'created', null, { lines: lines.length, subtotal: totals.subtotal });
     return id;
@@ -581,8 +582,8 @@ export async function createTeamBooking(args: { team: Team; project: Project | n
       commissionPct: String(commissionPct),
       commissionAmount: String(totals.commissionAmount),
       ...customerColumns(customer),
-    });
-    const id = orderInsert.insertId;
+    }).returning({ id: orders.id });
+    const id = orderInsert.id;
     if (lines.length) await tx.insert(orderItems).values(itemRows(id, lines));
     await recordOrderEvent(tx, id, { userId, role: 'user', name: customer.name }, 'created', null, { lines: lines.length, subtotal: totals.subtotal });
     return id;
@@ -762,11 +763,12 @@ export async function confirmOrder(orderId: number, actor: OrderActor): Promise<
 
   const now = new Date();
   const sent = await db.transaction(async (tx) => {
-    const [result] = await tx
+    const confirmed = await tx
       .update(orders)
       .set({ status: 'confirmed', sentAt: now, confirmedAt: now, confirmedBy: actor.userId, viewedAt: null })
-      .where(and(eq(orders.id, orderId), isNull(orders.sentAt)));
-    if (!result.affectedRows) return false;
+      .where(and(eq(orders.id, orderId), isNull(orders.sentAt)))
+      .returning({ id: orders.id });
+    if (confirmed.length === 0) return false;
     await recordOrderEvent(tx, orderId, actor, 'confirmed', null, { lines: kept.length, subtotal: Number(before.order.subtotal), deliveryFee: Number(before.order.deliveryFee) });
     return true;
   });
@@ -869,7 +871,7 @@ export async function partnerOrders(ref: PartnerRef, opts: { status?: OrderStatu
   if (opts.unread) where.push(isNull(orders.viewedAt));
   if (opts.q) {
     const needle = `%${opts.q}%`;
-    where.push(sql`(${orders.customerName} LIKE ${needle} OR ${orders.customerPhone} LIKE ${needle} OR CAST(${orders.id} AS CHAR) LIKE ${needle})`);
+    where.push(sql`(${orders.customerName} ILIKE ${needle} OR ${orders.customerPhone} ILIKE ${needle} OR CAST(${orders.id} AS TEXT) LIKE ${needle})`);
   }
   const rows = await db
     .select({
@@ -886,7 +888,7 @@ export async function partnerOrders(ref: PartnerRef, opts: { status?: OrderStatu
       updatedAt: orders.updatedAt,
       viewedAt: orders.viewedAt,
       partnerMessage: orders.partnerMessage,
-      itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND ${orderItems.removed} = 0)`,
+      itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND NOT ${orderItems.removed})`,
       projectId: orders.projectId,
       projectName: projects.nameKa,
     })
@@ -916,13 +918,13 @@ export async function partnerStats(ref: PartnerRef, now = new Date()): Promise<P
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const [row] = await db
     .select({
-      unread: sql<number>`SUM(${orders.viewedAt} IS NULL AND ${orders.status} <> 'cancelled')`,
-      open: sql<number>`SUM(${orders.status} IN ('new','confirmed','in_progress'))`,
-      done: sql<number>`SUM(${orders.status} = 'done')`,
-      cancelled: sql<number>`SUM(${orders.status} = 'cancelled')`,
+      unread: sql<number>`count(*) FILTER (WHERE ${orders.viewedAt} IS NULL AND ${orders.status} <> 'cancelled')`,
+      open: sql<number>`count(*) FILTER (WHERE ${orders.status} IN ('new','confirmed','in_progress'))`,
+      done: sql<number>`count(*) FILTER (WHERE ${orders.status} = 'done')`,
+      cancelled: sql<number>`count(*) FILTER (WHERE ${orders.status} = 'cancelled')`,
       monthGoods: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart} THEN ${orders.subtotal} ELSE 0 END), 0)`,
       monthCommission: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart} THEN ${orders.commissionAmount} ELSE 0 END), 0)`,
-      monthOrders: sql<number>`SUM(${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart})`,
+      monthOrders: sql<number>`count(*) FILTER (WHERE ${orders.status} <> 'cancelled' AND ${orders.sentAt} >= ${monthStart})`,
       allTimeGoods: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' THEN ${orders.subtotal} ELSE 0 END), 0)`,
       allTimeCommission: sql<number>`COALESCE(SUM(CASE WHEN ${orders.status} <> 'cancelled' THEN ${orders.commissionAmount} ELSE 0 END), 0)`,
     })
@@ -971,7 +973,7 @@ export async function ordersForProject(projectId: number) {
       teamNameEn: teams.nameEn,
       teamNameRu: teams.nameRu,
       teamPhone: teams.phone,
-      itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND ${orderItems.removed} = 0)`,
+      itemCount: sql<number>`(SELECT COUNT(*) FROM ${orderItems} WHERE ${orderItems.orderId} = ${orders.id} AND NOT ${orderItems.removed})`,
     })
     .from(orders)
     .leftJoin(stores, eq(orders.storeId, stores.id))

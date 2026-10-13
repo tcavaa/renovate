@@ -1,4 +1,5 @@
-import { asc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { categories, shelfRoomCategories, shelfRooms, type Category } from '@/lib/db/schema';
 import { ROOM_TYPES } from '@/lib/calculator/constants';

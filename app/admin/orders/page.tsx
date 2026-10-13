@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { and, asc, count, desc, eq, gte, isNotNull, isNull, like, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, gte, isNotNull, isNull, ilike, lte, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { asc, desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { orders, stores, teams, workers } from '@/lib/db/schema';
 import { FilterBar } from '@/components/admin/FilterBar';
@@ -34,7 +35,7 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
 
   const where: SQL[] = [];
   const q = p.get('q');
-  if (q) where.push(or(like(orders.customerName, `%${q}%`), like(orders.customerPhone, `%${q}%`), like(stores.nameKa, `%${q}%`), like(workers.nameKa, `%${q}%`), like(teams.nameKa, `%${q}%`), sql`CAST(${orders.id} AS CHAR) LIKE ${`%${q}%`}`)!);
+  if (q) where.push(or(ilike(orders.customerName, `%${q}%`), ilike(orders.customerPhone, `%${q}%`), ilike(stores.nameKa, `%${q}%`), ilike(workers.nameKa, `%${q}%`), ilike(teams.nameKa, `%${q}%`), sql`CAST(${orders.id} AS TEXT) LIKE ${`%${q}%`}`)!);
   // The queue: store orders the platform has not confirmed and sent yet.
   const awaiting = and(eq(orders.partnerType, 'store'), isNull(orders.sentAt), notInArray(orders.status, ['cancelled', 'done']))!;
   const review = p.get('review');

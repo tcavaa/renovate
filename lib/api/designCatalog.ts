@@ -1,5 +1,6 @@
 import { revalidateTag, unstable_cache } from 'next/cache';
-import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, stores, type Category } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY } from '@/lib/design/catalog';

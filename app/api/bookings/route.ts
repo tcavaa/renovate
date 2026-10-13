@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { desc } from '@/lib/db/order';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { orders, projects, teams, workers } from '@/lib/db/schema';
@@ -40,7 +41,7 @@ export const GET = handle('GET /api/bookings', 'Failed to load bookings', async 
  * caller's own); without one it is a request the partner prices.
  */
 export const POST = handle('POST /api/bookings', 'Failed to book', async (req) => {
-  const limited = rateLimited(req, RATE_RULES.checkout);
+  const limited = await rateLimited(req, RATE_RULES.checkout);
   if (limited) return limited;
 
   const parsed = bookingSchema.safeParse(await req.json());
