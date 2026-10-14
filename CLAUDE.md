@@ -31,6 +31,12 @@ make test projects, orders and uploads, and change its database (Supabase) when 
 nothing real is affected. The owner signs in there themselves (no passwords typed by an agent
 on a hosted site). Revisit this section before the launch.
 
+**Local development uses the same database and storage.** The owner's `.env.local` points at
+Supabase (`DATABASE_URL` through the pooler, `STORAGE_DRIVER=supabase`) — there is no local
+database. So `pnpm dev` on this machine, every script (`db:migrate`, the seeds, `models:seed`)
+and every test project made locally change what renovatege.vercel.app shows. Never run
+`db:push` or a destructive seed without meaning it for production. Vitest needs no database.
+
 ## Stack
 
 Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · PostgreSQL (Supabase) +
