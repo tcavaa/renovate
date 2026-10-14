@@ -428,6 +428,22 @@ buffers held 3.5) and 17.5 MB of the canvas's own buffers. The Claude app's Brow
 the same scene far slower (≈ 40 ms of JavaScript a frame under its viewport emulation): compare
 pane with pane.
 
+**The 14 Oct 2026 audit** (production, Chrome 155 on the M4, project #311 — the sample flat with 42
+items, a 2646 × 1065 canvas), before → after gotchas 26 (live moves) and 28, the library's joined
+parts ([3d-assets.md](../3d-assets.md#uploads-are-optimized)) and the early reveal:
+
+| | Before | After |
+|---|---|---|
+| The flat's models, first visit | 15.8 MB, the last in at ≈ 28 s | 9.2 MB, all in 4.5 s |
+| Orbiting the whole flat: draw calls a frame (median / peak) | 8 326 / 16 442 | 371 / 650 |
+| Orbiting: frame time (median / p95), frames over 33 ms | 31 / 45 ms, 15 of 35 | 9.8 / 11 ms, none |
+| Dragging a piece: draw calls, median frame | 16 656, 50 ms | 401, 8.2 ms |
+| JS heap after three studio ⇄ budget round trips | 119 → 187 → 210 → 222 MB | 83 → 95 → 90 → 83 MB |
+| Opening the catalogue modal | 424 ms task, 19 500 DOM nodes | 63 ms, 3 300 |
+
+The triangle count did not move (≈ 1.9 million at the peak): draw calls were the cost, not
+triangles.
+
 What is still open, in order of expected payoff:
 
 - **The cost grows with pixels.** The pixel-ratio cap of 1.75 draws three times the pixels of

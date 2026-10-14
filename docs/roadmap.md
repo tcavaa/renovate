@@ -28,10 +28,11 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Before real customers
 
-- **Plans**: Pro on Vercel and Supabase; the 3D library takes about 0.72 GB of Supabase's free
+- **Plans**: Pro on Vercel and Supabase; the 3D library takes about 0.55 GB of Supabase's free
   1 GB of storage — [operations.md](operations.md#before-real-customers).
-- **Not measured yet**: delivery from Tbilisi off Vercel's and Supabase's CDNs —
-  [operations.md](operations.md#known-gaps).
+- **Performance left from the 14 Oct audit**: reading a plan takes ~7 s of four requests in a row;
+  Sentry's server tracing does not load (no server timings anywhere on Hobby); Next prefetches
+  every dynamic page twice per link (route tree, then the page) — [operations.md](operations.md#known-gaps).
 
 ## Next features
 

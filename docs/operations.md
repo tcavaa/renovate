@@ -211,7 +211,7 @@ A Vercel function takes a request body of at most **4.5 MB** and answers at most
    `production`; register the redirect URI with Google/Facebook if social logins are wanted.
 2. `ANTHROPIC_API_KEY` (the Claude plan reader) and SMTP (`MAIL_DRIVER=smtp`) if wanted.
 3. Pro plans on both (Vercel Hobby is non-commercial; Supabase's free plan pauses after a week
-   idle and keeps no backups) — the 3D library alone takes about 0.72 GB of Supabase's free 1 GB of storage.
+   idle and keeps no backups) — the 3D library alone takes about 0.55 GB of Supabase's free 1 GB of storage (553 MB in all, 14 Oct 2026).
 
 ## Errors go to Sentry
 
@@ -270,7 +270,19 @@ SDK disabled and every capture is a no-op. `lib/env.ts` validates the DSN as a U
 - **The account-claims cache is per instance** (`lib/auth/accountClaims.ts`, 30 s): a role change,
   a deactivation or a password reset reaches another warm Vercel instance within that half
   minute, not at once ([auth-and-roles.md](auth-and-roles.md)).
-- **Delivery from Tbilisi** off Vercel's and Supabase's CDNs is not measured yet.
+- **Delivery from Tbilisi** (measured 14 Oct 2026 from the owner's Mac): Supabase's storage
+  answers through Cloudflare's Tbilisi edge (`cf-ray …-TBS`), a hit in ~70 ms, a miss ≈ 540 ms at
+  the origin (p95 ≈ 770 ms), and the line carried ≈ 1.2 MB/s — every megabyte of a model a second
+  on a first visit. Vercel's pages answer from `fra1` in 80–170 ms to first byte.
+- **Server timings are blind**: on Hobby, Vercel's observability (p95, memory, cold starts) is
+  refused and its logs keep an hour; Sentry's server tracing does not start (its ESM hook
+  `@sentry/server-runtime-injection/…/hook.js` fails to load on Vercel), so only `handle()`'s own
+  `ms` in the logs times anything, and page renders are not timed at all.
+- **Reading a plan is ~7 s of four requests in a row** (`/api/uploads` → the storage's signed
+  upload → `upload-plan` 2.8 s → `parse-plan` 3.1 s, the sample plan on production).
+- **Next prefetches each dynamic page twice per link in view** (the route tree, then the page
+  segment), each a function call: about a dozen on a home page visit. Footer links do not
+  prefetch (`prefetch={false}`).
 - **Plans**: Hobby is non-commercial; Supabase free pauses after a week idle and keeps no
   backups ([Where it runs](#where-it-runs)).
 - Only the plan exports as a PDF (`lib/design/planPdfExport.ts`); there is no PDF of the budget

@@ -344,7 +344,8 @@ a whole apartment's worth of **CC0** furniture so every slot has several options
 
 The library imported from the partner drives: 1,195 textured models and 562 wall/floor finishes
 after the October 2026 cleanup (untextured models, the Kenney pieces and the weaker half of each
-finish family removed; every texture capped at 1024 px), about 0.72 GB. Locally its files are
+finish family removed; every texture capped at 1024 px), about 0.55 GB since its parts were joined
+(below). Locally its files are
 in `public/library/` (git-ignored) and its rows point at `/library/…`; in production the files
 are in Supabase Storage under `library/` in the public bucket and the rows point there (copied
 by hand on 14 Oct 2026 — nothing syncs the two). It fills most of Supabase's free 1 GB of

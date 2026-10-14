@@ -88,8 +88,9 @@ export function CatalogBrowser({
   const browse = useMemo(() => browseCatalog(catalog, state, { focusRoom, locale, shelf: index }), [catalog, state, focusRoom, locale, index]);
   // The cards are drawn a page at a time, the next page as the list nears its end: all ~1 200 at
   // once were 19 000 DOM nodes and a 0.4 s freeze each time the modal opened or a filter changed.
-  const listRef = useRef<HTMLElement>(null);
-  const moreRef = useRef<HTMLDivElement>(null);
+  // The end-of-list marker in state, not a ref: Radix mounts the dialog's content a render after
+  // `open`, so an effect keyed on `open` ran before the marker existed and never watched it.
+  const [moreMarker, setMoreMarker] = useState<HTMLDivElement | null>(null);
   // Back to the first page whenever the filters change: the count is kept with the filters it was for.
   const filterKey = JSON.stringify({ ...state, selectedId: null });
   const [paging, setPaging] = useState({ filterKey, pages: 1 });
@@ -99,12 +100,14 @@ export function CatalogBrowser({
   const shown = browse.results.slice(0, shownCount);
   const hasMore = shownCount < browse.results.length;
   useEffect(() => {
-    const sentinel = moreRef.current;
-    if (!open || !hasMore || !sentinel) return;
-    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setPaging({ filterKey, pages: pages + 1 }), { root: listRef.current, rootMargin: '600px' });
-    observer.observe(sentinel);
+    if (!moreMarker) return;
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setPaging({ filterKey, pages: pages + 1 }), {
+      root: moreMarker.closest('section'),
+      rootMargin: '600px',
+    });
+    observer.observe(moreMarker);
     return () => observer.disconnect();
-  }, [open, hasMore, filterKey, pages]);
+  }, [moreMarker, filterKey, pages]);
   const patch = (next: Partial<CatalogBrowserState>) => onState({ ...state, ...next });
   const selected = state.selectedId != null ? (catalog.find((p) => p.id === state.selectedId) ?? null) : null;
   const canPlace = placeMode !== 'walk';
@@ -350,7 +353,7 @@ export function CatalogBrowser({
           </aside>
 
           {/* ---- middle: the products ---- */}
-          <section ref={listRef} className="min-w-0 flex-1 overflow-y-auto p-4" aria-label={t.design.catalogTitle}>
+          <section className="min-w-0 flex-1 overflow-y-auto p-4" aria-label={t.design.catalogTitle}>
             {browse.results.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{t.design.catalogNoResults}</p>
@@ -411,7 +414,7 @@ export function CatalogBrowser({
                   );
                 })}
               </div>
-              {hasMore && <div ref={moreRef} className="h-px" aria-hidden />}
+              {hasMore && <div ref={setMoreMarker} className="h-px" aria-hidden />}
               </>
             )}
           </section>
