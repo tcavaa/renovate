@@ -23,6 +23,14 @@ The differentiator: every object in the 3D scene is a real SKU with a price and 
 platform earns a fee per m² and a commission on every partner order. UI copy is Georgian first,
 with English and Russian. Tagline: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
 
+## Production is not public yet
+
+**https://renovatege.vercel.app/** (Vercel + Supabase, deployed from `main`) is production, but
+it has not been released to users: no real customers, no real data. Testing there is fine —
+make test projects, orders and uploads, and change its database (Supabase) when a task needs it;
+nothing real is affected. The owner signs in there themselves (no passwords typed by an agent
+on a hosted site). Revisit this section before the launch.
+
 ## Stack
 
 Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · PostgreSQL (Supabase) +
