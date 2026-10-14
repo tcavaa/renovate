@@ -20,7 +20,7 @@ doors, windows and radiators — their models' framing rules) ·
 |---|---|---|
 | `pnpm assets:extract` | `scripts/extract-assets.sh` | product renders → `public/uploads/furniture/`, PBR maps → `public/textures/` as WebP (it runs `textures:webp`), from the partner asset drop (outside the repo) |
 | `pnpm models:convert [--only=a,b]` | `scripts/convert-models.ts` (+ `scripts/lib/objGroups.ts`, `textureClassify.ts`) | the partner's OBJ exports → textured, compressed, validated GLBs in `public/models/` + `public/models/manifest.json` (17 entries) |
-| `pnpm models:stock [--inspect] [--only=…]` | `scripts/stock-models.ts` | CC0 stock furniture (Poly Haven + Kenney) → `public/models/stock/` + its `manifest.json` |
+| `pnpm models:stock [--inspect] [--only=…]` | `scripts/stock-models.ts` | CC0 stock furniture (Poly Haven) → `public/models/stock/` + its `manifest.json` |
 | `pnpm models:fixtures` | `scripts/fixture-models.ts` | sockets, switches, lamps, doors and windows (Poly Haven, poly.pizza) → `public/models/fixtures/` + manifest, and the generated `lib/design3d/fixtureManifest.ts` |
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
 | `pnpm models:railings` | `scripts/railing-models.ts` | the balcony railing written in code with the radiators' mesh kit: one metre module (a handrail, a bottom rail, eight balusters, half a post at each end) centred on x with an x-extent of exactly its pitch, standing on y = 0, centred on z → `public/models/railings/railing.glb` + manifest + the generated `lib/design3d/railingManifest.ts`. Not a product — no photo, nothing seeded; the studio repeats the module along a railing's gap ([technical-and-fittings.md](design-studio/technical-and-fittings.md#balcony-railings)) |
@@ -319,11 +319,18 @@ a whole apartment's worth of **CC0** furniture so every slot has several options
 - **Poly Haven** — photoscanned furniture with real PBR maps and a rendered photo per asset.
   Real metres, Y-up, glTF with 1k maps. `api.polyhaven.com` refuses requests without a
   `User-Agent`. Files are cached under `<asset drop>/_STOCK/polyhaven/<id>/`.
-- **Kenney Furniture Kit** — 140 clean low-poly pieces with isometric renders: the kitchen
-  cabinets, fridges, toilets, showers, bathtubs, washers, rugs and floor lamps nobody scans.
-  Built at toy scale, so `fit: 'uniform'` sizes each to its archetype and `fit: 'axis'`
-  stretches counters and rugs. Stylised on purpose; they are placeholders and tagged as such
-  (`brand: Kenney`, `source: kenney` in the manifest).
+- **Kenney Furniture Kit** — no longer in the catalogue: its 68 flat, untextured low-poly
+  pieces were removed in October 2026 (with every untextured model of the local library, see
+  [The local library](#the-local-library-is-not-deployed)). `stock-models.ts` keeps the loader
+  (`source: 'kenney'`) but lists no Kenney piece.
+
+### The local library is not deployed
+
+`public/library/` (git-ignored) holds the 3D library imported from the partner drives: 1,195
+textured models and 562 wall/floor finishes after the October 2026 cleanup (untextured models,
+the Kenney pieces and the weaker half of each finish family removed; every texture capped at
+1024 px), about 0.73 GB. Its products exist only in the local database — Supabase's free 1 GB
+of storage would hold it only just, so it is not uploaded.
 
 Style tags are deliberately loose (a gothic chair is `vintage`, a leather lounge chair is
 `modern`, `scandinavian` *and* `industrial`) so that most styles have more than one option per
@@ -434,7 +441,8 @@ records; the prices, stores and names are ours.
 
 A made-to-measure kitchen is priced by the material the maker builds it in
 (`kitchen-material-ldsp`, `-mdf`, `-veneer`, per m² of façade), and a material with a model is
-drawn in place of the placed kitchen's own (`drawnModelUrl` in `lib/design/kitchen.ts`).
+drawn in place of the placed kitchen's own once the person chooses it (`drawnModelUrl` in
+`lib/design/kitchen.ts`; an assigned material only prices it).
 `pnpm models:kitchens` writes that model for each: a straight run of
 base units with its worktop, standing on y = 0, centred on x and z, the fronts along +z — the
 furniture frame of `public/models/stock` — in `public/models/kitchens/<slug>.glb`.
@@ -494,7 +502,7 @@ before; nobody was going to type in the rest.
 (the upload recipe on generated files: meshopt and WebP, each map at its own size, the outline
 kept, the triangle cap, an optimized file and an unreadable one kept as they came),
 `tests/unit/design/colors.test.ts`
-(colour families), `tests/unit/design3d/footprintFromModel.test.ts` (a real Kenney GLB). The
+(colour families), `tests/unit/design3d/footprintFromModel.test.ts` (two Kenney GLBs kept as fixtures in `tests/fixtures/models/`). The
 browser half (`glbOptimizeBrowser.ts`, the canvas) has no unit test — it was checked by
 uploading through the admin form and the own-furniture dialog. Nothing
 tests the converters, `stock-models`, `equipment-models`, `kitchen-models`, `seed-models`,
@@ -517,8 +525,8 @@ material names themselves, and their photos are worth a look side by side).
 - The partner drop is 17 models in three styles — **MODERN has no partner furniture at all**
   (its folder holds a `.max` kitchen and nothing else) — and no partner sells a wardrobe,
   kitchen, bathroom fixture, rug, lamp, plant, desk or bookshelf. Those slots are filled by
-  CC0 stock (see "Stock models" above), which is placeholder furniture: Kenney's pieces are
-  visibly low-poly, and Poly Haven's skew rustic. Curtains have no model anywhere and stay
+  CC0 stock (see "Stock models" above), which is placeholder furniture: Poly Haven's skew
+  rustic. Curtains have no model anywhere and stay
   empty. `matchProducts` still falls back across styles when a style has nothing for a slot.
 - Partner archives carry one placeholder material per part (`wire_027177027`), so a daybed
   with an oak frame and a plaid mattress is textured as all oak. Per-part maps would need a

@@ -13,7 +13,8 @@
  *
  *   - **Poly Haven** (polyhaven.com, CC0): photoscanned and hand-modelled furniture with
  *     proper PBR maps and a rendered photo per asset. Real metres, Y-up, glTF with 1k maps.
- *   - **Kenney Furniture Kit** (kenney.nl, CC0): 140 clean low-poly pieces — the kitchens,
+ *   - **Kenney Furniture Kit** (kenney.nl, CC0) — no longer used: its flat, untextured low-poly
+ *     pieces were removed from the catalogue (Oct 2026); the loader stays for a future source. Was: 140 clean low-poly pieces — the kitchens,
  *     bathrooms, rugs and floor lamps nobody photoscans. Flat colours, isometric renders.
  *     Stylised, and honest about it: these are placeholders until a partner sells the real
  *     thing.
@@ -109,15 +110,6 @@ const ph = (
   extra: Partial<StockEntry> = {}
 ): StockEntry => ({ source: 'polyhaven', id, kind, styles, priceGel, storeSlug, ...extra });
 
-const kk = (
-  id: string,
-  kind: string,
-  styles: StyleId[],
-  priceGel: number,
-  storeSlug: string,
-  extra: Partial<StockEntry> = {}
-): StockEntry => ({ source: 'kenney', id, kind, styles, priceGel, storeSlug, fit: 'uniform', ...extra });
-
 // Stores: antikvari (vintage), domus-interior (modern), nordic-home (scandinavian),
 // loft-42 (industrial), lumina (lighting), textil-plus (rugs), san-plus (sanitary),
 // kartuli-aveji (kitchens and general).
@@ -128,11 +120,6 @@ const STOCK: StockEntry[] = [
   ph('Sofa_01', 'sofa_3seat', ['vintage'], 2200, 'antikvari'),
   ph('chinese_sofa', 'sofa_3seat', ['vintage'], 3600, 'antikvari'),
   ph('painted_wooden_sofa', 'sofa_3seat', ['scandinavian', 'vintage'], 1900, 'nordic-home'),
-  kk('loungeSofa', 'sofa_3seat', ['modern', 'scandinavian'], 1650, 'domus-interior'),
-  kk('loungeDesignSofa', 'sofa_3seat', ['modern'], 2100, 'domus-interior'),
-  kk('loungeSofaLong', 'sofa_3seat', ['modern', 'scandinavian'], 2350, 'domus-interior'),
-  kk('loungeSofaCorner', 'sofa_corner', ['modern', 'scandinavian'], 2900, 'domus-interior'),
-  kk('loungeDesignSofaCorner', 'sofa_corner', ['modern', 'industrial'], 3300, 'domus-interior'),
 
   // --- armchairs -----------------------------------------------------------
   ph('ArmChair_01', 'armchair', ['vintage'], 1200, 'antikvari'),
@@ -143,9 +130,6 @@ const STOCK: StockEntry[] = [
   ph('Rockingchair_01', 'armchair', ['vintage', 'scandinavian'], 980, 'antikvari'),
   ph('Ottoman_01', 'armchair', ['modern', 'industrial', 'scandinavian'], 520, 'loft-42', { facing: 'none' }),
   ph('BarberShopChair_01', 'armchair', ['industrial', 'vintage'], 2100, 'loft-42'),
-  kk('loungeChair', 'armchair', ['modern', 'scandinavian'], 780, 'domus-interior'),
-  kk('loungeChairRelax', 'armchair', ['modern', 'scandinavian'], 920, 'domus-interior'),
-  kk('loungeDesignChair', 'armchair', ['modern'], 990, 'domus-interior'),
 
   // --- coffee tables --------------------------------------------------------
   ph('CoffeeTable_01', 'coffee_table', ['vintage', 'scandinavian'], 640, 'antikvari', { facing: 'none' }),
@@ -157,19 +141,12 @@ const STOCK: StockEntry[] = [
   ph('chinese_tea_table', 'coffee_table', ['vintage'], 690, 'antikvari', { facing: 'none' }),
   ph('gallinera_table', 'coffee_table', ['vintage', 'scandinavian'], 450, 'antikvari', { facing: 'none' }),
   ph('small_wooden_table_01', 'coffee_table', ['scandinavian', 'vintage', 'industrial'], 380, 'nordic-home', { facing: 'none' }),
-  kk('tableCoffee', 'coffee_table', ['modern', 'scandinavian'], 420, 'domus-interior', { facing: 'none' }),
-  kk('tableCoffeeGlass', 'coffee_table', ['modern'], 560, 'domus-interior', { facing: 'none' }),
-  kk('tableCoffeeGlassSquare', 'coffee_table', ['modern', 'industrial'], 540, 'domus-interior', { facing: 'none' }),
 
   // --- TV units, consoles ---------------------------------------------------
   ph('modern_wooden_cabinet', 'tv_unit', ['modern', 'scandinavian'], 1900, 'domus-interior', { facing: 'panel' }),
   ph('vintage_wooden_drawer_01', 'tv_unit', ['industrial', 'vintage'], 640, 'loft-42', { facing: 'panel' }),
-  kk('cabinetTelevision', 'tv_unit', ['modern', 'scandinavian'], 720, 'domus-interior', { facing: 'panel' }),
-  kk('cabinetTelevisionDoors', 'tv_unit', ['modern', 'scandinavian', 'industrial'], 840, 'domus-interior', { facing: 'panel' }),
   ph('ClassicConsole_01', 'console_table', ['vintage'], 980, 'antikvari', { facing: 'panel' }),
   ph('chinese_console_table', 'console_table', ['vintage'], 1100, 'antikvari', { facing: 'panel' }),
-  kk('sideTableDrawers', 'console_table', ['modern', 'scandinavian', 'industrial'], 390, 'domus-interior', { facing: 'panel' }),
-  kk('cabinetBedDrawer', 'shoe_cabinet', ALL, 330, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
 
   // --- dining ---------------------------------------------------------------
   ph('dining_table', 'dining_table', ['vintage'], 1400, 'antikvari', { facing: 'none' }),
@@ -177,71 +154,35 @@ const STOCK: StockEntry[] = [
   ph('round_wooden_table_01', 'dining_table', ['vintage', 'modern'], 1350, 'antikvari', { facing: 'none' }),
   ph('round_wooden_table_02', 'dining_table', ['scandinavian', 'vintage'], 620, 'nordic-home', { facing: 'none' }),
   ph('wooden_table_02', 'dining_table', ['scandinavian', 'industrial'], 540, 'nordic-home', { facing: 'none' }),
-  kk('table', 'dining_table', ['modern', 'scandinavian'], 780, 'domus-interior', { facing: 'none' }),
-  kk('tableGlass', 'dining_table', ['modern'], 990, 'domus-interior', { facing: 'none' }),
-  kk('tableCross', 'dining_table', ['industrial', 'modern'], 860, 'loft-42', { facing: 'none' }),
   ph('dining_chair_02', 'dining_chair', ['modern', 'industrial'], 420, 'domus-interior'),
   ph('painted_wooden_chair_01', 'dining_chair', ['scandinavian', 'vintage'], 260, 'nordic-home'),
   ph('painted_wooden_chair_02', 'dining_chair', ['vintage'], 240, 'antikvari'),
   ph('SchoolChair_01', 'dining_chair', ['industrial', 'modern'], 190, 'loft-42'),
   ph('gallinera_chair', 'dining_chair', ['vintage'], 280, 'antikvari'),
-  kk('chair', 'dining_chair', ['modern', 'scandinavian'], 180, 'domus-interior'),
-  kk('chairCushion', 'dining_chair', ['modern', 'scandinavian'], 210, 'domus-interior'),
-  kk('chairModernCushion', 'dining_chair', ['modern'], 260, 'domus-interior'),
-  kk('chairRounded', 'dining_chair', ['scandinavian', 'modern'], 230, 'nordic-home'),
 
   // --- kitchen --------------------------------------------------------------
-  kk('kitchenCabinet', 'kitchen_run', ALL, 3200, 'kartuli-aveji', { fit: 'axis', facing: 'panel' }),
-  kk('kitchenCabinetDrawer', 'kitchen_run', ALL, 3600, 'kartuli-aveji', { name: 'kk-kitchenCabinetDrawer-run', fit: 'axis', facing: 'panel' }),
-  kk('kitchenBar', 'kitchen_island', ['modern', 'industrial', 'scandinavian'], 1900, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
-  kk('kitchenCabinetDrawer', 'kitchen_island', ALL, 1400, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
-  kk('kitchenFridge', 'fridge', ALL, 1850, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
-  kk('kitchenFridgeLarge', 'fridge', ['modern', 'industrial'], 2900, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
-  kk('kitchenFridgeSmall', 'fridge', ALL, 1100, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
-  kk('kitchenFridgeBuiltIn', 'fridge', ['modern', 'scandinavian'], 2400, 'kartuli-aveji', { facing: 'panel', fit: 'axis' }),
 
   // --- bathroom -------------------------------------------------------------
-  kk('toilet', 'toilet', ALL, 620, 'san-plus'),
-  kk('toiletSquare', 'toilet', ['modern', 'industrial'], 780, 'san-plus'),
-  kk('bathroomSink', 'sink', ALL, 540, 'san-plus', { facing: 'panel' }),
-  kk('bathroomSinkSquare', 'sink', ['modern', 'industrial'], 610, 'san-plus', { facing: 'panel' }),
-  kk('bathroomCabinet', 'sink', ['modern', 'scandinavian'], 890, 'san-plus', { facing: 'panel' }),
-  kk('bathroomCabinetDrawer', 'sink', ALL, 940, 'san-plus', { facing: 'panel' }),
-  kk('shower', 'shower', ALL, 1450, 'san-plus', { facing: 'panel', fit: 'axis' }),
-  kk('showerRound', 'shower', ['modern', 'scandinavian'], 1650, 'san-plus', { facing: 'panel', fit: 'axis' }),
-  kk('bathtub', 'bathtub', ALL, 1300, 'san-plus', { facing: 'none' }),
-  kk('washer', 'washer', ALL, 1250, 'san-plus', { facing: 'panel', fit: 'axis' }),
-  kk('dryer', 'washer', ALL, 1350, 'san-plus', { facing: 'panel', fit: 'axis' }),
-  kk('washerDryerStacked', 'washer', ['modern', 'industrial'], 2450, 'san-plus', { facing: 'panel', fit: 'axis' }),
   // Kenney's bathroomMirror is a cabinet with a shelf, 37 cm deep — not a wall mirror.
   ph('ornate_mirror_01', 'mirror', ALL, 380, 'antikvari', { facing: 'panel' }),
 
   // --- bedroom --------------------------------------------------------------
   ph('GothicBed_01', 'bed_double', ['vintage'], 2900, 'antikvari'),
-  kk('bedDouble', 'bed_double', ['modern', 'scandinavian', 'industrial'], 1900, 'domus-interior'),
   ph('old_bed_frame', 'bed_single', ['industrial', 'vintage'], 780, 'loft-42'),
   ph('vintage_day_bed', 'bed_single', ['vintage', 'scandinavian'], 1700, 'antikvari'),
-  kk('bedSingle', 'bed_single', ['modern', 'scandinavian'], 980, 'domus-interior'),
-  kk('bedBunk', 'bed_single', ['modern', 'scandinavian'], 1500, 'domus-interior'),
   ph('ClassicNightstand_01', 'nightstand', ['vintage'], 420, 'antikvari', { facing: 'panel' }),
   ph('painted_wooden_nightstand', 'nightstand', ['scandinavian', 'vintage'], 310, 'nordic-home', { facing: 'panel' }),
   ph('side_table_01', 'nightstand', ['modern', 'scandinavian'], 290, 'domus-interior', { facing: 'panel' }),
   ph('side_table_tall_01', 'nightstand', ['vintage', 'industrial'], 260, 'antikvari', { facing: 'none' }),
   ph('WoodenTable_02', 'nightstand', ['industrial', 'scandinavian'], 180, 'loft-42', { facing: 'none' }),
   ph('chinese_stool', 'nightstand', ['vintage'], 340, 'antikvari', { facing: 'none' }),
-  kk('sideTable', 'nightstand', ['modern', 'scandinavian'], 160, 'domus-interior', { facing: 'panel' }),
-  kk('cabinetBedDrawerTable', 'nightstand', ['modern', 'scandinavian', 'industrial'], 240, 'domus-interior', { facing: 'panel' }),
   ph('vintage_cabinet_01', 'wardrobe', ['vintage', 'scandinavian'], 2600, 'antikvari', { facing: 'panel' }),
   ph('GothicCabinet_01', 'wardrobe', ['vintage'], 2400, 'antikvari', { facing: 'panel' }),
   ph('painted_wooden_cabinet_02', 'wardrobe', ['vintage', 'scandinavian'], 1500, 'nordic-home', { facing: 'panel' }),
   ph('drawer_cabinet', 'wardrobe', ['modern', 'industrial'], 1300, 'loft-42', { facing: 'panel' }),
-  kk('bookcaseClosedDoors', 'wardrobe', ['modern', 'scandinavian'], 1450, 'domus-interior', { facing: 'panel' }),
-  kk('bookcaseClosedWide', 'wardrobe', ['modern', 'scandinavian', 'industrial'], 1750, 'domus-interior', { facing: 'panel' }),
   ph('GothicCommode_01', 'dresser', ['vintage'], 1250, 'antikvari', { facing: 'panel' }),
   ph('painted_wooden_cabinet', 'dresser', ['vintage', 'scandinavian'], 880, 'nordic-home', { facing: 'panel' }),
   ph('tool_cart', 'dresser', ['industrial'], 640, 'loft-42', { facing: 'panel' }),
-  kk('cabinetBedDrawer', 'dresser', ['modern', 'scandinavian'], 560, 'domus-interior', { name: 'kk-cabinetBedDrawer-dresser', facing: 'panel', fit: 'axis' }),
-  kk('kitchenCabinetDrawer', 'dresser', ['modern', 'industrial'], 520, 'domus-interior', { name: 'kk-kitchenCabinetDrawer-dresser', facing: 'panel', fit: 'axis' }),
 
   // --- shelves --------------------------------------------------------------
   ph('Shelf_01', 'bookshelf', ['scandinavian', 'modern'], 620, 'nordic-home', { facing: 'panel' }),
@@ -249,25 +190,19 @@ const STOCK: StockEntry[] = [
   ph('steel_frame_shelves_03', 'bookshelf', ['modern', 'industrial'], 1400, 'loft-42', { facing: 'panel' }),
   ph('wooden_bookshelf_worn', 'bookshelf', ['vintage', 'industrial'], 540, 'antikvari', { facing: 'panel' }),
   ph('wooden_display_shelves_01', 'bookshelf', ['scandinavian', 'modern'], 480, 'nordic-home', { facing: 'panel' }),
-  kk('bookcaseOpen', 'bookshelf', ['modern', 'scandinavian'], 450, 'domus-interior', { facing: 'panel' }),
-  kk('bookcaseClosed', 'bookshelf', ['modern', 'scandinavian', 'vintage'], 520, 'domus-interior', { facing: 'panel' }),
   ph('steel_frame_shelves_02', 'storage_shelf', ['industrial', 'modern'], 560, 'loft-42', { facing: 'panel' }),
   ph('painted_wooden_shelves', 'storage_shelf', ['vintage', 'scandinavian'], 320, 'antikvari', { facing: 'panel' }),
   ph('worn_metal_rack', 'storage_shelf', ['industrial'], 380, 'loft-42', { facing: 'panel' }),
   ph('industrial_storage_cart', 'storage_shelf', ['industrial'], 720, 'loft-42', { facing: 'panel' }),
-  kk('bookcaseOpenLow', 'storage_shelf', ['modern', 'scandinavian'], 340, 'domus-interior', { facing: 'panel' }),
 
   // --- office ---------------------------------------------------------------
   ph('metal_office_desk', 'desk', ['industrial', 'modern'], 1100, 'loft-42', { facing: 'panel' }),
   ph('SchoolDesk_01', 'desk', ['vintage', 'scandinavian'], 380, 'antikvari', { facing: 'panel' }),
   ph('WoodenTable_03', 'desk', ['vintage', 'industrial'], 520, 'antikvari', { facing: 'panel' }),
-  kk('desk', 'desk', ['modern', 'scandinavian'], 690, 'domus-interior', { facing: 'panel' }),
-  kk('deskCorner', 'desk', ['modern'], 940, 'domus-interior', { facing: 'panel' }),
   ph('metal_stool_01', 'office_chair', ['industrial', 'modern'], 260, 'loft-42', { facing: 'none' }),
   ph('metal_stool_03', 'office_chair', ['industrial'], 300, 'loft-42'),
   ph('SchoolChair_01', 'office_chair', ['modern', 'industrial'], 190, 'loft-42', { name: 'ph-SchoolChair_01-office' }),
   ph('dining_chair_02', 'office_chair', ['modern'], 420, 'domus-interior', { name: 'ph-dining_chair_02-office' }),
-  kk('chairDesk', 'office_chair', ['modern', 'scandinavian', 'industrial'], 380, 'domus-interior'),
 
   // --- lighting -------------------------------------------------------------
   ph('Chandelier_01', 'pendant', ['vintage'], 1400, 'lumina', { facing: 'none' }),
@@ -279,23 +214,12 @@ const STOCK: StockEntry[] = [
   ph('caged_hanging_light', 'pendant', ['industrial'], 380, 'lumina', { facing: 'none' }),
   ph('modern_ceiling_lamp_01', 'pendant', ['modern', 'scandinavian'], 460, 'lumina', { facing: 'none' }),
   ph('ceiling_fan', 'pendant', ['modern', 'industrial'], 520, 'lumina', { facing: 'none' }),
-  kk('lampSquareCeiling', 'pendant', ['modern', 'scandinavian'], 240, 'lumina', { facing: 'none' }),
-  kk('lampRoundFloor', 'floor_lamp', ['modern', 'scandinavian', 'vintage'], 290, 'lumina', { facing: 'none' }),
-  kk('lampSquareFloor', 'floor_lamp', ['modern', 'industrial'], 310, 'lumina', { facing: 'none' }),
 
   // --- rugs, plants, art ----------------------------------------------------
-  kk('rugRectangle', 'rug', ALL, 380, 'textil-plus', { fit: 'axis', facing: 'none' }),
-  kk('rugRounded', 'rug', ['modern', 'scandinavian'], 360, 'textil-plus', { fit: 'axis', facing: 'none' }),
-  kk('rugSquare', 'rug', ['modern', 'industrial'], 340, 'textil-plus', { fit: 'axis', facing: 'none' }),
-  kk('rugRound', 'rug', ['scandinavian', 'vintage'], 320, 'textil-plus', { fit: 'axis', facing: 'none' }),
-  kk('rugRectangle', 'rug_bed', ALL, 420, 'textil-plus', { name: 'kk-rugRectangle-bed', fit: 'axis', facing: 'none' }),
-  kk('rugRounded', 'rug_bed', ['modern', 'scandinavian', 'vintage'], 400, 'textil-plus', { name: 'kk-rugRounded-bed', fit: 'axis', facing: 'none' }),
   // The pot and pebbles sit below the foliage's box, so the touching rule would drop them.
   ph('potted_plant_01', 'plant', ALL, 140, 'domus-interior', { facing: 'none', nodes: /./ }),
   ph('potted_plant_02', 'plant', ALL, 120, 'domus-interior', { facing: 'none' }),
   ph('planter_box_03', 'plant', ['scandinavian', 'industrial'], 160, 'nordic-home', { facing: 'none' }),
-  kk('pottedPlant', 'plant', ALL, 95, 'domus-interior', { facing: 'none' }),
-  kk('plantSmall3', 'plant', ALL, 60, 'domus-interior', { facing: 'none' }),
   ph('hanging_picture_frame_01', 'artwork', ['modern', 'scandinavian'], 180, 'domus-interior', { facing: 'panel' }),
   ph('hanging_picture_frame_02', 'artwork', ['vintage', 'industrial'], 160, 'antikvari', { facing: 'panel' }),
   ph('hanging_picture_frame_03', 'artwork', ['vintage'], 120, 'antikvari', { facing: 'panel' }),

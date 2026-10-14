@@ -357,6 +357,12 @@ export interface PlacedItem {
    * Absent: priced at `KITCHEN_RATES`, an estimate.
    */
   kitchenMaterial?: SceneProduct | null;
+  /**
+   * The person chose `kitchenMaterial` themselves (the swap panel), so its model, when it has
+   * one, is what is drawn. A material the studio assigned on its own only prices the piece: the
+   * kitchen model they placed stays.
+   */
+  kitchenMaterialChosen?: boolean;
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */

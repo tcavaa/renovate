@@ -12,18 +12,18 @@ import type { PlacedItem, PlanRoom, SceneProduct } from '@/lib/design/types';
 /**
  * The whole chain on the files the studio really places: a model off the disk, the floor it
  * covers read off its triangles, and the layout rules asked whether a table may stand in the
- * corner an L-shaped sofa leaves empty. (Kenney's models carry no textures, so three's own
+ * corner an L-shaped sofa leaves empty. (Two of Kenney's CC0 models, kept as fixtures: they carry no textures, so three's own
  * loader reads them in node as it does in the browser.)
  */
 
-const CORNER_SOFA = '/models/stock/kk-loungeSofaCorner.glb';
-const STRAIGHT_SOFA = '/models/stock/kk-loungeSofa.glb';
+const CORNER_SOFA = 'tests/fixtures/models/corner-sofa.glb';
+const STRAIGHT_SOFA = 'tests/fixtures/models/straight-sofa.glb';
 
 /** A model as `loadModel` leaves it: standing on y = 0, centred on x/z, with its size. */
 async function load(url: string): Promise<{ root: THREE.Object3D; size: THREE.Vector3 }> {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
-  const file = readFileSync(`public${url}`);
+  const file = readFileSync(url);
   const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
   const gltf = await new Promise<{ scene: THREE.Object3D }>((resolve, reject) => loader.parse(bytes, '', resolve, reject));
   gltf.scene.updateMatrixWorld(true);

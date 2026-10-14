@@ -181,6 +181,7 @@ export const placedItemSchema = z.object({
   // A kitchen made to measure rather than bought at the model's price, and what it is made in.
   custom: z.boolean().optional(),
   kitchenMaterial: sceneProductSchema.nullable().optional(),
+  kitchenMaterialChosen: z.boolean().optional(),
   origin: itemOriginSchema.optional(),
   mirrored: z.boolean().optional(),
   locked: z.boolean().optional(),

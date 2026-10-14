@@ -249,8 +249,9 @@ the square metre (`kitchenFacadeM2`; an island is worked from both sides, with n
   and lets the person choose another in the item's panel. The save reprices the snapshot from
   the catalogue for the façade the piece has, and drops one the catalogue does not sell by the
   m² — that kitchen is the estimate again (`app/api/design/projects/route.ts`).
-- **A material with a 3D model is how the kitchen is drawn** (`drawnModelUrl`): chosen for a
-  piece, its model replaces the placed kitchen's own in 3D, stretched to the measured run like
+- **A material with a 3D model is how the kitchen is drawn — once the person chooses it**
+  (`drawnModelUrl`, `kitchenMaterialChosen`): the material the studio assigns by itself only
+  prices the piece, so the kitchen unit placed stays as it is. Chosen in the swap panel, its model replaces the placed kitchen's own in 3D, stretched to the measured run like
   any kitchen model. Its 3D kind says for which pieces — a `kitchen_run` model on runs, a
   `kitchen_island` model on islands, a model with no kind on both; a piece of the other kind
   keeps its own model (the snapshot's `model3dUrl` is left empty for it). A material is never a

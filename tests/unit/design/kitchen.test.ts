@@ -102,11 +102,13 @@ describe('the kitchen maker’s materials', () => {
     const run = item();
     const island = item({ id: 'k2', slot: 'kitchen_island', kind: 'kitchen_island', size: { width: 1.8, depth: 0.9, height: 0.94 } });
     expect(drawnModelUrl(run)).toBe('/models/k.glb');
-    expect(drawnModelUrl(withKitchenMaterial(run, runModel))).toBe('/uploads/models/veneer-run.glb');
+    // Assigned by the studio, a material only prices the piece; chosen, its model is drawn.
+    expect(drawnModelUrl(withKitchenMaterial(run, runModel))).toBe('/models/k.glb');
+    expect(drawnModelUrl(withKitchenMaterial(run, runModel, true))).toBe('/uploads/models/veneer-run.glb');
     // A run's model is not stretched over an island: the island keeps its own.
-    expect(drawnModelUrl(withKitchenMaterial(island, runModel))).toBe('/models/k.glb');
+    expect(drawnModelUrl(withKitchenMaterial(island, runModel, true))).toBe('/models/k.glb');
     // A model with no kind is drawn for either.
-    expect(drawnModelUrl(withKitchenMaterial(island, anyModel))).toBe('/uploads/models/veneer.glb');
+    expect(drawnModelUrl(withKitchenMaterial(island, anyModel, true))).toBe('/uploads/models/veneer.glb');
     // Nor is a material ever a piece of furniture on the shelf or in the swaps, model or not.
     expect(isFurnitureProduct(runModel)).toBe(false);
     expect(candidatesFor('kitchen_run', [runModel], 'modern')).toHaveLength(0);
@@ -118,7 +120,8 @@ describe('the kitchen maker’s materials', () => {
     // Admin uploads the MDF kitchen's model: the kitchen already made in MDF is drawn as it.
     const uploaded = catalog.map((p) => (p.id === 32 ? ({ ...p, model3dUrl: '/uploads/models/mdf.glb' } as CatalogProduct) : p));
     const redrawn = withKitchenMaterials(chosen, uploaded, 'modern');
-    expect(drawnModelUrl(redrawn[0])).toBe('/uploads/models/mdf.glb');
+    expect(drawnModelUrl(redrawn[0])).toBe('/models/k.glb');
+    expect(drawnModelUrl(withKitchenMaterials([{ ...chosen[0], kitchenMaterialChosen: true }], uploaded, 'modern')[0])).toBe('/uploads/models/mdf.glb');
     // Sold by the piece now: no longer a material, so the style's next one takes its place.
     const perPiece = catalog.map((p) => (p.id === 32 ? ({ ...p, unit: 'piece' } as CatalogProduct) : p));
     expect(withKitchenMaterials(chosen, perPiece, 'modern')[0].kitchenMaterial!.productId).toBe(33);

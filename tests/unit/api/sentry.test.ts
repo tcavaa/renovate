@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { scrubContext, scrubText, sentryOptions } from '@/lib/sentry';
 
+// The tunnel's rate limit counts in the database; without one (CI) it would fail open.
+vi.mock('@/lib/api/counterStore', async () => (await import('../../helpers/counterStore')).memoryCounterStore());
+
 describe('what reaches Sentry', () => {
   it('collects nothing personal on its own', () => {
     const dc = sentryOptions.dataCollection;

@@ -13,7 +13,7 @@
  * for the material it is made in (`kitchenMaterial` — a product of theirs sold by the m², in
  * the `kitchen-custom` category, so the order goes to them), or, with no material chosen, the
  * estimate at `KITCHEN_RATES` (per m² of façade and per metre of worktop). A material with a 3D
- * model of its own is drawn in the piece's place (`drawnModelUrl`). A person who would rather
+ * model of its own is drawn in the piece's place once the person chooses it (`drawnModelUrl`). A person who would rather
  * keep a stock price can, product by product (`custom: false` on the item).
  *
  * Pure arithmetic over the placed items; no React, no THREE.
@@ -99,14 +99,14 @@ export function kitchenFacadeM2(item: PlacedItem): number {
  * The material's own model, when it has one, is what the piece is drawn as — unless it is a
  * model of the other kind (a run's on an island): that one keeps the piece's own model.
  */
-export function withKitchenMaterial(item: PlacedItem, product: CatalogProduct | null): PlacedItem {
+export function withKitchenMaterial(item: PlacedItem, product: CatalogProduct | null, chosen = false): PlacedItem {
   if (!product) {
-    const { kitchenMaterial: _dropped, ...rest } = item;
+    const { kitchenMaterial: _dropped, kitchenMaterialChosen: _chosen, ...rest } = item;
     return rest;
   }
   const material = toSceneProduct(product, kitchenFacadeM2(item));
   if (product.model3dKind && product.model3dKind !== item.slot) material.model3dUrl = null;
-  return { ...item, kitchenMaterial: material };
+  return { ...item, kitchenMaterial: material, ...(chosen ? { kitchenMaterialChosen: true } : {}) };
 }
 
 /** A made-to-measure piece's material, when it has one that counts (the maker's, sold by the m²). */
@@ -115,9 +115,14 @@ export function kitchenMaterialOf(item: PlacedItem): SceneProduct | null {
   return material && isKitchenMaterial(material) ? material : null;
 }
 
-/** The model a placed piece is drawn as: a made-to-measure kitchen's material's own, when it has one; else the piece's product's. */
+/**
+ * The model a placed piece is drawn as: the material's own when the person chose that material
+ * and it has one; else the piece's product's. A material the studio assigned by itself never
+ * redraws the piece — every kitchen unit placed would otherwise look like that material's run.
+ */
 export function drawnModelUrl(item: PlacedItem): string | null {
-  return kitchenMaterialOf(item)?.model3dUrl || item.product?.model3dUrl || null;
+  const material = item.kitchenMaterialChosen ? kitchenMaterialOf(item) : null;
+  return material?.model3dUrl || item.product?.model3dUrl || null;
 }
 
 /**

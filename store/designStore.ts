@@ -1615,7 +1615,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         // Locking is an edit like any other: undo takes it back (it went around the history,
         // and an undo after it quietly unlocked the piece).
         lockItem: (itemId, locked) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
-        setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product) : i)) })),
+        setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product, true) : i)) })),
         ensureKitchenMaterials: (catalog) => {
           const { items, styleId } = get();
           if (catalog.length === 0) return;

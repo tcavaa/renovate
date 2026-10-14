@@ -108,7 +108,7 @@ so its card (`ItemCard` through `boughtProduct`) shows the material, its price f
 (façade × price per m²) and the maker's shop, and `SwapPanel` lists the maker's materials
 under the actions (`KitchenMaterials`: each with its price per m² and what the piece comes to
 in it, tagged **3D** when it brings a model of this piece's kind; `setKitchenMaterial`). Choosing
-one with a model redraws the kitchen as that model (`drawnModelUrl` — the wrapper's key follows
+one with a model redraws the kitchen as that model (`drawnModelUrl`, only for a material the person chose — `kitchenMaterialChosen`; the one the studio assigns keeps the placed model — the wrapper's key follows
 it, so the swap rebuilds it); without, the kitchen model placed stays. The alternatives below
 are the kitchen models — what is drawn while the material has none. The studio gives every such piece the style's material as the catalogue arrives and
 buys it again when the piece is stretched (`ensureKitchenMaterials`, watching
@@ -386,7 +386,7 @@ registry is plain data filled when a model loads (`lib/design3d/modelLoader.ts`)
 `lib/design` stays free of three.js; until a
 model has loaded, and everywhere else (`placeFitting`, `placeAdditional`, `tightSpots`), a
 piece is its box, which only ever errs on the side of keeping things apart.
-`tests/unit/design3d/footprintFromModel.test.ts` runs the real Kenney corner sofa through it.
+`tests/unit/design3d/footprintFromModel.test.ts` runs a real corner sofa through it (a Kenney GLB kept as a fixture, `tests/fixtures/models/`).
 
 **Any angle.** The card's angle row (`SwapPanel.onRotateTo`: a slider and a number, degrees
 from facing +Z — the code's comment says clockwise, while a positive rotation maps +Z towards

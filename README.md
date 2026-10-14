@@ -43,7 +43,7 @@ can actually buy.
 - **Procedural 3D** — walls extruded with real door and window openings, floors, skirting,
   and a doll's-house cutaway that hides whichever walls you are looking through.
 - **Real models, never stand-ins** — every object in the room is a downloadable 3D product:
-  the partners' own files where they exist, and CC0 stock furniture (Poly Haven, Kenney) for
+  the partners' own files where they exist, and CC0 stock furniture (Poly Haven) for
   the kitchens, bathrooms, rugs and lamps no partner sells yet. Each has a photo, a price and
   a shop, and the swap panel offers 3–4 alternatives per slot.
 - **Four styles** — თანამედროვე / სკანდინავიური / ინდუსტრიული / ვინტაჟი. Switching style
@@ -114,7 +114,7 @@ pnpm assets:extract
 # 6. Convert the partner 3D models, fetch the CC0 stock, and seed them as products.
 #    This is where the furniture comes from — without it the studio places nothing.
 pnpm models:convert     # needs the partner asset drop
-pnpm models:stock       # downloads from polyhaven.com and kenney.nl (cached beside the drop)
+pnpm models:stock       # downloads from polyhaven.com (cached beside the drop)
 pnpm models:seed
 pnpm textures:stock     # floor and wall textures → surface products (Poly Haven, ambientCG, the drop)
 pnpm db:seed:rates      # writes the default rate book in (editable at /admin/rates)
@@ -150,7 +150,7 @@ Default admin login (after seed): the email in `ADMIN_EMAIL` (default **admin@re
 | `pnpm models:convert` | Convert partner OBJ exports into textured, compressed, validated GLBs (`--only=a,b` to redo some) |
 | `pnpm models:fixtures` | The fittings (sockets, switches, lamps) and the doors and windows from Poly Haven and poly.pizza → `public/models/fixtures` |
 | `pnpm models:photos` | Render a product photo of each of those from its model (Playwright's Chromium) |
-| `pnpm models:stock`   | Fetch and convert CC0 stock furniture (Poly Haven + Kenney) into `public/models/stock` |
+| `pnpm models:stock`   | Fetch and convert CC0 stock furniture (Poly Haven) into `public/models/stock` |
 | `pnpm models:seed`    | One product per model in both manifests; deletes every other placeable product |
 | `pnpm textures:stock` | Download floor/wall textures and create or update the surface products |
 | `pnpm db:seed:rates`  | Write the calculator's default rate book into `rates` (a local tidy-up) |
