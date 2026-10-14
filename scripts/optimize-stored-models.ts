@@ -7,8 +7,12 @@
  *
  *   pnpm uploads:optimize-models              every model under the storage's `models/` (local or S3, from the env)
  *   pnpm uploads:optimize-models --dry-run    report what would change, write nothing
- *   node optimize-models.cjs --dir <folder>   a plain folder of .glb files, no env needed —
- *                                             run over the stored uploads
+ *   node optimize-models.cjs --dir <folder>   a folder of .glb files (and its subfolders), no env
+ *                                             needed — run over the stored uploads
+ *   pnpm uploads:optimize-models --dir public/library/models --mirror library/models/
+ *                                             the library: its local copy is optimized and every
+ *                                             file that changes is put in storage at the same
+ *                                             path under the prefix — no file is downloaded
  */
 import './lib/loadEnv';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
@@ -18,19 +22,30 @@ import { optimizeUploadedModel } from '../lib/uploads/glbOptimizeServer';
 
 const MODEL_MIME = 'model/gltf-binary';
 
-async function filesIn(dir: string): Promise<StoredModelFile[]> {
+/** The .glb files under `dir`, keyed by their path inside it; with `mirror`, a write also puts the file in storage at `mirror` + that path. */
+async function filesIn(dir: string, mirror: string | null): Promise<StoredModelFile[]> {
   let names: string[];
   try {
-    names = await readdir(dir);
+    names = await readdir(dir, { recursive: true });
   } catch {
     return [];
   }
+  const storage = mirror ? (await import('../lib/storage')).storage : null;
   return names
     .filter((name) => name.endsWith('.glb'))
     .sort()
     .map((name) => {
       const full = path.join(dir, name);
-      return { key: name, read: () => readFile(full).catch(() => null), write: (body: Buffer) => writeFile(full, body) };
+      const key = name.split(path.sep).join('/');
+      return {
+        key,
+        read: () => readFile(full).catch(() => null),
+        // Storage first: a put that fails leaves the local file as it was, so running again retries it.
+        write: async (body: Buffer) => {
+          if (storage) await storage.put(`${mirror}${key}`, body, MODEL_MIME);
+          await writeFile(full, body);
+        },
+      };
     });
 }
 
@@ -55,8 +70,11 @@ async function main() {
   const dirAt = args.indexOf('--dir');
   const dir = dirAt >= 0 ? args[dirAt + 1] : null;
   if (dirAt >= 0 && !dir) throw new Error('--dir needs a folder');
+  const mirrorAt = args.indexOf('--mirror');
+  const mirror = mirrorAt >= 0 ? args[mirrorAt + 1] : null;
+  if (mirrorAt >= 0 && (!mirror || !dir)) throw new Error('--mirror needs a storage prefix and --dir');
 
-  const files = dir ? await filesIn(path.resolve(dir)) : await filesInStorage();
+  const files = dir ? await filesIn(path.resolve(dir), mirror) : await filesInStorage();
   const reports = await optimizeStoredModels(files, optimizeUploadedModel, { dryRun });
   const kb = (n: number) => `${(n / 1024).toFixed(0)} KB`;
   let before = 0;

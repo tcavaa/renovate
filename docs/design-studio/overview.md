@@ -45,8 +45,9 @@ calculation in). The strip is `components/design/DesignSteps.tsx`; step URLs com
   calculator's drawing board.
 - Domain types are plain JSON in `lib/design/types.ts` and round-trip into `projects.plan` /
   `projects.scene` / `projects.versions` ([data-model.md](../data-model.md)).
-- The catalogue is fetched once (`hooks/useDesignCatalog.ts` ← `GET /api/design/catalog`) and
-  matched on the client.
+- The catalogue is fetched once a page (`hooks/useDesignCatalog.ts` ← `GET /api/design/catalog`,
+  packed by `lib/design/catalogWire.ts`, a 304 when the browser's copy is current) and matched on
+  the client.
 - Saving: `lib/design/saveDesign.ts` → `POST /api/design/projects`, which reprices every product
   line from the catalogue ([project-flow.md §10](../project-flow.md)).
 

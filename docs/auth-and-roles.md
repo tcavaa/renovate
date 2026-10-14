@@ -61,7 +61,11 @@ Related: [partners-and-admin.md](partners-and-admin.md) (the admin panel and par
   not verified is created unverified.
 - **Every later read of the session re-reads the account** (`refreshSessionToken`, called by
   the `jwt` callback whenever there is no sign-in in progress — `auth()` in a page or a route,
-  the client's `/api/auth/session`). The role, the partner link, the name and the e-mail are the
+  the client's `/api/auth/session`). The root layout reads the session with the page and hands
+  it to the client's `SessionProvider` (`components/providers/SessionProvider.tsx`), so a page
+  load makes no `/api/auth/session` request and the header's account corner has no placeholder
+  to swap; the client asks again when the tab comes back into view, and `signIn`/`signOut`
+  refresh it themselves. The role, the partner link, the name and the e-mail are the
   row's as it is now; an account that was deleted or deactivated gets no token, which signs it
   out. Reads are cached per process for `CLAIMS_TTL_MS` (30 s), and the admin routes that change
   an account call `forgetAccount`, so on the process that made the change it is immediate and

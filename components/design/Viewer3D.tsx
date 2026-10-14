@@ -29,12 +29,14 @@ import {
   buildRoomShells,
   disposeOwnedGeometry,
   frameFor,
+  releaseGhostMaterials,
   syncPlacedItems,
   visibleRoomIds,
   type SceneUserData,
   type WallCut,
 } from '@/lib/design3d/buildScene';
 import { buildFitting, hangingLampsKey, nightLights, type HangingLamp } from '@/lib/design3d/buildStructure';
+import { releaseCachedModels } from '@/lib/design3d/modelLoader';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
 import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
 import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
@@ -241,13 +243,21 @@ const sceneShownWhole = new Set<unknown>();
 const SETTLE_MS = 300;
 /** However slow the connection, the studio is not held behind the screen longer than this. */
 const MAX_WAIT_MS = 45_000;
+/**
+ * Once the scene is built, the screen waits this long at most for the rest of the files: then
+ * the flat is shown with the pieces still on their way as faint boxes (`buildPlacedItem`), each
+ * dropping in as it lands. A first visit to a furnished flat is 5–15 MB of models; behind the
+ * screen that was 25–30 s on a 1 MB/s line before anything could be done.
+ */
+const REVEAL_AFTER_BUILT_MS = 5_000;
 const FADE_MS = 300;
 
 /**
  * The loading screen's state: up from the moment the view mounts, through the first build of
  * the scene (`built`, called by `SceneContent` once everything in it has asked for its files)
  * and until every file asked for since has come in (or failed) and nothing new has been asked
- * for in `SETTLE_MS` — a bare door leaf asks for its casing only once it is in. Then it fades.
+ * for in `SETTLE_MS` — a bare door leaf asks for its casing only once it is in — or
+ * `REVEAL_AFTER_BUILT_MS` has passed since the build. Then it fades.
  */
 function useSceneLoading(sceneKey: string | number): { phase: 'loading' | 'leaving' | 'ready'; done: number; total: number; built: () => void } {
   const [phase, setPhase] = useState<'loading' | 'leaving' | 'ready'>(() => (sceneShownWhole.has(sceneKey) ? 'ready' : 'loading'));
@@ -264,6 +274,13 @@ function useSceneLoading(sceneKey: string | number): { phase: 'loading' | 'leavi
     }, SETTLE_MS);
     return () => window.clearTimeout(settle);
   }, [phase, isBuilt, progress.pending, progress.started, sceneKey]);
+
+  useEffect(() => {
+    if (phase !== 'loading' || !isBuilt) return;
+    // Not marked as shown whole: a view of this flat opened again waits for what is still missing.
+    const reveal = window.setTimeout(() => setPhase('leaving'), REVEAL_AFTER_BUILT_MS);
+    return () => window.clearTimeout(reveal);
+  }, [phase, isBuilt]);
 
   useEffect(() => {
     if (phase === 'leaving') {
@@ -394,6 +411,12 @@ function SceneContent({
     requestFrame();
   }, [gl, requestFrame]);
   useEffect(() => redrawShadows(gl));
+  // A frame of a live move — a carried or dragged piece, a wall, a fitting, an opening sliding
+  // under the pointer — draws the picture but not the shadow map: every mesh casts a shadow, so
+  // redrawing the map doubled each frame's draw calls and a drag ran at half the frame rate.
+  // The moved thing's shadow waits at its old spot until the release, whose store change (or
+  // `invalidate`) redraws the map once.
+  const moveFrame = requestFrame;
   const orbitRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -536,6 +559,15 @@ function SceneContent({
   // One material factory per style; disposed when the style changes or the viewer unmounts.
   const materials = useMemo(() => new StyleMaterials(style), [style]);
   useEffect(() => () => materials.dispose(), [materials]);
+  // The page-wide caches let go of this renderer as the view goes (`gpuRelease.ts`): they hold a
+  // dispose listener of every renderer that drew them, and through it the whole old flat.
+  useEffect(
+    () => () => {
+      releaseCachedModels();
+      releaseGhostMaterials();
+    },
+    []
+  );
 
   // The electrical layer's fittings, rebuilt when the layer or the plan changes; the lights
   // that are switched on become point lights below.
@@ -1397,7 +1429,7 @@ function SceneContent({
       wrapper.rotation.y = result.rotation;
       applyOutline(outlines.active, { ...item, position: result.position, rotation: result.rotation, elevationM }, result.valid ? 0x22c55e : 0xef4444);
       outlines.hover.visible = false;
-      invalidate();
+      moveFrame();
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -1426,7 +1458,7 @@ function SceneContent({
         wd.ghost.visible = true;
         wd.ghost.position.x = (wall.a.x + wall.b.x) / 2 + wd.normal.x * wd.distance;
         wd.ghost.position.z = (wall.a.z + wall.b.z) / 2 + wd.normal.z * wd.distance;
-        invalidate();
+        moveFrame();
         return;
       }
       const pd = pointDragRef.current;
@@ -1455,13 +1487,13 @@ function SceneContent({
           pd.position = { x: Math.round(spot.position.x * 100) / 100, z: Math.round(spot.position.z * 100) / 100 };
           pd.object.position.set(spot.position.x + spot.edge.inward.x * 0.006, pd.origin.y, spot.position.z + spot.edge.inward.z * 0.006);
           pd.object.rotation.y = spot.edge.facing;
-          invalidate();
+          moveFrame();
           return;
         }
         pd.position = { x: Math.round((pd.start.x + dx) * 100) / 100, z: Math.round((pd.start.z + dz) * 100) / 100 };
         // Slide the piece live; the store re-projects it on release.
         pd.object.position.set(pd.origin.x + dx, pd.origin.y, pd.origin.z + dz);
-        invalidate();
+        moveFrame();
         return;
       }
       const od = openingDragRef.current;
@@ -1484,7 +1516,7 @@ function SceneContent({
         const from = pointOnEdge(od.edge, od.opening.t);
         const to = pointOnEdge(od.edge, t);
         od.trim.position.set(to.x - from.x, 0, to.z - from.z);
-        invalidate();
+        moveFrame();
         return;
       }
       const drag = dragRef.current;
@@ -1538,7 +1570,7 @@ function SceneContent({
         result.valid ? 0x22c55e : 0xef4444
       );
       outlines.hover.visible = false;
-      invalidate();
+      moveFrame();
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -1648,7 +1680,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate]);
+  }, [gl, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame]);
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
   useEffect(() => {

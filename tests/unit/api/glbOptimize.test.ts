@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { Document, getBounds, NodeIO, type Texture } from '@gltf-transform/core';
 import { dequantize } from '@gltf-transform/functions';
-import { countTriangles, optimizeGlb, plainGlassMaterials, texcoordBits, type TextureEncoder } from '@/lib/uploads/glbOptimize';
+import { countDraws, countTriangles, MERGE_MIN_DRAWS, optimizeGlb, plainGlassMaterials, texcoordBits, type TextureEncoder } from '@/lib/uploads/glbOptimize';
 import { KHRMaterialsTransmission } from '@gltf-transform/extensions';
 import { glbServerIO, optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 
@@ -69,6 +69,33 @@ async function sphereGlb(segments: number, rings: number, texturePx = 256, uv = 
     .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(indices)).setBuffer(buffer))
     .setMaterial(material);
   doc.createScene().addChild(doc.createNode('sphere').setMesh(doc.createMesh('sphere').addPrimitive(prim)));
+  return new NodeIO().writeBinary(doc);
+}
+
+/**
+ * `count` little cubes in a row, each its own node and mesh, alternating two materials — the
+ * shape of an export that keeps every drawer front and screw a part of its own. `names` names
+ * the first nodes (a door's `leaf`).
+ */
+async function partsGlb(count: number, names: string[] = []): Promise<Uint8Array> {
+  const doc = new Document();
+  const buffer = doc.createBuffer();
+  const materials = [doc.createMaterial('oak').setBaseColorFactor([0.6, 0.4, 0.2, 1]), doc.createMaterial('steel').setBaseColorFactor([0.7, 0.7, 0.7, 1])];
+  const corners = [-1, 1];
+  const positions: number[] = [];
+  for (const x of corners) for (const y of corners) for (const z of corners) positions.push(x * 0.05, y * 0.05, z * 0.05);
+  const indices = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3];
+  const scene = doc.createScene();
+  const group = doc.createNode('cabinet');
+  scene.addChild(group);
+  for (let i = 0; i < count; i++) {
+    const prim = doc
+      .createPrimitive()
+      .setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(new Float32Array(positions)).setBuffer(buffer))
+      .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint16Array(indices)).setBuffer(buffer))
+      .setMaterial(materials[i % 2]);
+    group.addChild(doc.createNode(names[i] ?? `part-${i}`).setMesh(doc.createMesh(`part-${i}`).addPrimitive(prim)).setTranslation([i * 0.2, 0, 0]));
+  }
   return new NodeIO().writeBinary(doc);
 }
 
@@ -191,6 +218,28 @@ describe('optimizing an uploaded GLB', () => {
     expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16)))).toBe(12);
     expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16, (s, r) => [(s / 8) * 1500 - 1475, r / 4])))).toBe(23);
     expect(texcoordBits(await io.readBinary(await sphereGlb(8, 4, 16, (s, r) => [s * 1e6, r])))).toBe(24);
+  });
+
+  it('joins a model of many parts into one mesh per material, where it stood', async () => {
+    const input = await partsGlb(200);
+    const before = await read(input);
+    expect(countDraws(before)).toBe(200);
+    const result = await optimizeGlb(io, input, async () => null);
+    if (result.status !== 'optimized') throw new Error(`kept: ${result.reason}`);
+    const after = await read(result.bytes);
+    expect(countDraws(after)).toBe(2);
+    expect(result.stats).toMatchObject({ drawsIn: 200, drawsOut: 2 });
+    expect(after.getRoot().listMaterials().map((m) => m.getName()).sort()).toEqual(['oak', 'steel']);
+    extent(after).forEach((size, i) => expect(size).toBeCloseTo(extent(before)[i], 2));
+  });
+
+  it('leaves a model of a few parts, and a door the studio reads by its parts, as they were built', async () => {
+    const few = await read((await optimizeGlb(io, await partsGlb(MERGE_MIN_DRAWS), async () => null)).bytes);
+    expect(countDraws(few)).toBe(MERGE_MIN_DRAWS);
+    const door = await optimizeGlb(io, await partsGlb(200, ['leaf', 'frame']), async () => null);
+    const after = await read(door.bytes);
+    expect(countDraws(after)).toBe(200);
+    expect(after.getRoot().listNodes().map((n) => n.getName())).toEqual(expect.arrayContaining(['leaf', 'frame']));
   });
 
   it('keeps a file it has already optimized byte for byte', async () => {

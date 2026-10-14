@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { EMPTY_SHELF, type ShelfData } from '@/lib/design/shelf';
+import { unpackCatalog, type PackedCatalog } from '@/lib/design/catalogWire';
 
 export interface PartnerStore {
   id: number;
@@ -54,20 +55,26 @@ export async function refreshDesignCatalog(): Promise<void> {
   for (const listener of listeners) listener(data);
 }
 
-async function fetchCatalog() {
+/**
+ * The catalogue, once per page — the studio, the style page and the plan step's placement game
+ * share this one request.
+ */
+export async function fetchCatalog(): Promise<CatalogData> {
   if (cache) return cache;
   if (!inflight) {
-    // Never the browser's copy: the route answers with a minute of `max-age`, and a piece of
-    // the person's own added a moment ago would be missing from it for that minute. The
-    // server's own cache (`getDesignCatalog`) is what saves the work; this fetch is cheap.
-    inflight = fetch('/api/design/catalog', { cache: 'no-store' })
+    // The browser's copy, but checked every time (`no-cache`): the route answers 304 while its
+    // ETag still matches, and a new one once the catalogue or the person's own pieces changed —
+    // so a piece of their own added a moment ago is never missing, and a studio opened again
+    // downloads nothing.
+    inflight = fetch('/api/design/catalog', { cache: 'no-cache' })
       .then(async (res) => {
         const json = (await res.json()) as {
-          data: CatalogData | null;
+          data: PackedCatalog | CatalogData | null;
           error: string | null;
         };
         if (json.error || !json.data) throw new Error(json.error ?? 'catalog-failed');
-        cache = { ...json.data, shelf: json.data.shelf ?? EMPTY_SHELF };
+        const data = unpackCatalog(json.data);
+        cache = { ...data, shelf: data.shelf ?? EMPTY_SHELF };
         return cache;
       })
       .finally(() => {

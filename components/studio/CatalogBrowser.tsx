@@ -44,6 +44,9 @@ function ShelfIcon({ node }: { node: IconNode | null | undefined }) {
 /** Where a placed product goes: on the pointer in 3D, on the pointer on the board, or nowhere (the walk-through has no pointer to carry on). */
 export type CatalogPlaceMode = '2d' | '3d' | 'walk';
 
+/** Cards drawn at a time in the products column (see `pages`). */
+const CARDS_PER_PAGE = 60;
+
 export function CatalogBrowser({
   open,
   onOpenChange,
@@ -82,7 +85,26 @@ export function CatalogBrowser({
   const [refused, setRefused] = useState<number | null>(null);
 
   const index = useMemo(() => shelfIndex(shelf), [shelf]);
-  const browse = browseCatalog(catalog, state, { focusRoom, locale, shelf: index });
+  const browse = useMemo(() => browseCatalog(catalog, state, { focusRoom, locale, shelf: index }), [catalog, state, focusRoom, locale, index]);
+  // The cards are drawn a page at a time, the next page as the list nears its end: all ~1 200 at
+  // once were 19 000 DOM nodes and a 0.4 s freeze each time the modal opened or a filter changed.
+  const listRef = useRef<HTMLElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
+  // Back to the first page whenever the filters change: the count is kept with the filters it was for.
+  const filterKey = JSON.stringify({ ...state, selectedId: null });
+  const [paging, setPaging] = useState({ filterKey, pages: 1 });
+  const pages = paging.filterKey === filterKey ? paging.pages : 1;
+  const selectedAt = state.selectedId != null ? browse.results.findIndex((p) => p.id === state.selectedId) : -1;
+  const shownCount = Math.max(pages * CARDS_PER_PAGE, selectedAt + 1);
+  const shown = browse.results.slice(0, shownCount);
+  const hasMore = shownCount < browse.results.length;
+  useEffect(() => {
+    const sentinel = moreRef.current;
+    if (!open || !hasMore || !sentinel) return;
+    const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setPaging({ filterKey, pages: pages + 1 }), { root: listRef.current, rootMargin: '600px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [open, hasMore, filterKey, pages]);
   const patch = (next: Partial<CatalogBrowserState>) => onState({ ...state, ...next });
   const selected = state.selectedId != null ? (catalog.find((p) => p.id === state.selectedId) ?? null) : null;
   const canPlace = placeMode !== 'walk';
@@ -328,7 +350,7 @@ export function CatalogBrowser({
           </aside>
 
           {/* ---- middle: the products ---- */}
-          <section className="min-w-0 flex-1 overflow-y-auto p-4" aria-label={t.design.catalogTitle}>
+          <section ref={listRef} className="min-w-0 flex-1 overflow-y-auto p-4" aria-label={t.design.catalogTitle}>
             {browse.results.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{t.design.catalogNoResults}</p>
@@ -339,8 +361,9 @@ export function CatalogBrowser({
                 )}
               </div>
             ) : (
+              <>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
-                {browse.results.map((p) => {
+                {shown.map((p) => {
                   const name = localizedName(locale, p);
                   const active = state.selectedId === p.id;
                   const seller = (p.store ? localizedName(locale, p.store) : null) ?? p.brand ?? archetypeLabel(p.model3dKind!, locale);
@@ -388,6 +411,8 @@ export function CatalogBrowser({
                   );
                 })}
               </div>
+              {hasMore && <div ref={moreRef} className="h-px" aria-hidden />}
+              </>
             )}
           </section>
 

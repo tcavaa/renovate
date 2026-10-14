@@ -225,7 +225,9 @@ wants search, filters and names. The "კატალოგი" button on the sh
 search box across names, brands, shops, kinds and categories in any language; the rooms and
 their categories (a chosen one unfolding its subcategories),
 the styles, the colour swatches, a price band and the shop down the left, every one with a
-count; the products as cards with their names; the open product's photo, size, shop and page
+count; the products as cards with their names, drawn sixty at a time (`CARDS_PER_PAGE`, the next
+sixty as the list nears its end — all ~1 200 at once were 19 000 DOM nodes and a 0.4 s freeze on
+every opening); the open product's photo, size, shop and page
 link on the right, with the one button that matters. `browseCatalog` is pure and tested
 (`tests/unit/design/catalogBrowser.test.ts`): the filters apply from the outside in and each
 control's counts are read off the list *before* that control narrows it, so a control says

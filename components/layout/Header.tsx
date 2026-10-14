@@ -54,13 +54,16 @@ export function Header() {
         frosted ? 'border-b border-line/70 bg-bg-base/80 shadow-[0_1px_0_rgba(255,255,255,0.5)_inset] backdrop-blur-xl' : 'border-b border-transparent bg-transparent'
       )}
     >
-      <div className={cn('container flex items-center justify-between gap-4', HEADER_HEIGHT_CLASS)}>
-        <Link href="/" className="flex items-center gap-2.5" aria-label={t.app.name}>
+      {/* Three columns, the navigation in the middle one: centred by the grid rather than by the
+          space around it, it stays put when the account menu's placeholder gives way to the menu
+          (a different width) — that shift was most of the site's layout shift. */}
+      <div className={cn('container grid grid-cols-[1fr_auto_1fr] items-center gap-4', HEADER_HEIGHT_CLASS)}>
+        <Link href="/" className="col-start-1 flex items-center gap-2.5 justify-self-start" aria-label={t.app.name}>
           <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-[11px] font-bold text-white">რ</span>
           <span className="font-serif text-lg font-bold tracking-tight">{t.app.name}</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+        <nav className="col-start-2 hidden items-center gap-1 lg:flex" aria-label="Primary">
           {links.map((link) => {
             const active = pathname?.startsWith(link.href);
             return (
@@ -79,12 +82,12 @@ export function Header() {
           })}
         </nav>
 
-        <div className="hidden items-center gap-5 lg:flex">
+        <div className="col-start-3 hidden items-center gap-5 justify-self-end lg:flex">
           <UserMenu variant="desktop" />
           <LanguageSwitcher variant="desktop" />
         </div>
 
-        <div className="flex items-center gap-4 lg:hidden">
+        <div className="col-start-3 flex items-center gap-4 justify-self-end lg:hidden">
           <LanguageSwitcher variant="desktop" />
           <button
             type="button"

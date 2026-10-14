@@ -221,12 +221,31 @@ Each of these cost real debugging time. Don't undo them.
     with the shadows as they were — the 2048² shadow pass (207 of the sample flat's 545 draw
     calls) was redrawn on every one of them. A change made outside those paths that moves a
     caster must call that `invalidate`, not R3F's (checked in the Browser pane by counting the
-    2048² viewport switches: placing a piece draws the map, orbiting draws none).
+    2048² viewport switches: placing a piece draws the map, orbiting draws none). **A live move
+    draws no shadow map either**: the frames of a drag, a carried piece, a wall, fitting or
+    opening sliding under the pointer ask with `moveFrame` (R3F's own `invalidate`), and the map
+    is drawn once at the release, by the store change or the `invalidate` that ends the move.
+    Every mesh casts a shadow, so each drag frame was two whole-scene passes — on production
+    16 600 draw calls a frame and ≈ 20 fps on an M4 while dragging. The moved piece's shadow
+    waits at its old spot until the release.
 27. **`Viewer3D` is memoised, and the pages hand it stable props.** The pages read the store
     through `useDesignActions()` (the actions, one object that keeps its identity) and a
     `useShallow` pick of the fields they show; `useDesignStore()` with no selector gave them the
     whole state, so every `[store]` dependency — every callback handed to the view — changed with
     each set (a hover, a save status) and each re-render of the canvas's children drew a frame.
+28. **The page-wide caches let go of a viewer as it unmounts** (`lib/design3d/gpuRelease.ts`).
+    A `WebGLRenderer` hangs a `dispose` listener on every geometry, material and texture it
+    draws and drops it only when the thing is disposed. The model and fixture caches
+    (`modelLoader.ts`) and the ghost materials (`buildScene.ts`) live as long as the page, so each
+    cached material held a listener of every renderer that had ever drawn it — and through it the
+    renderer's canvas, the canvas's listeners, the old React closures and the whole old flat:
+    ≈ 8 000 meshes and ≈ 30 MB of heap kept for every time the studio was opened again in a tab
+    (found by heap snapshots, forced GC between visits: 78 → 124 → 156 → 187 MB). Unmounting,
+    `SceneContent` calls `releaseCachedModels()` and `releaseGhostMaterials()`, which dispose the
+    cached geometries, materials and their textures: that frees only the GPU copies (the next
+    viewer, a new WebGL context, uploads them again anyway), the objects stay whole and cached.
+    This is the one place a shared resource is disposed — never under a live renderer, where it
+    makes every model upload again on the next frame.
 
 ## A gap to the top of the wall: a balcony's railing
 
@@ -290,7 +309,13 @@ there:
   file the first scene needs has been asked for), then for nothing to be pending for 300 ms (a
   bare door leaf asks for its casing only once it is in, a finish product may arrive with the
   catalogue), and fades out. The bar counts the files asked for since the viewer mounted.
-- It never holds the studio longer than 45 s, however slow the connection.
+- It never holds the studio longer than 45 s, however slow the connection, and once the scene is
+  built it waits at most `REVEAL_AFTER_BUILT_MS` (5 s) for the rest: then the flat is shown with
+  every piece still on its way standing as a faint box of its size (`model-pending`, the ghost's
+  look, made by `buildPlacedItem` and replaced by the model when it lands — a cached model replaces
+  it before the next frame). A first visit to a furnished flat on production was 15.8 MB of
+  models and 25–30 s behind the screen on a 1.2 MB/s line. A flat revealed early is not marked as
+  shown whole, so a view of it opened again waits for what is still missing.
 - Once a flat has been shown whole on the page, a viewer of *that flat* mounted again (from the
   2D board, or the walk-through) skips the screen (`sceneShownWhole`, by the viewer's `sceneKey`
   — the project id in the studio): the models are cached, and only textures — per viewer — come

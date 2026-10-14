@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { auth } from '@/auth';
 import { Noto_Sans_Georgian, Noto_Serif_Georgian } from 'next/font/google';
 import './globals.css';
 import { SessionProvider } from '@/components/providers/SessionProvider';
@@ -47,8 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
-  const dictionary = await getT();
+  const [locale, dictionary, session] = await Promise.all([getLocale(), getT(), auth()]);
   return (
     <html lang={locale} className={`${sans.variable} ${serif.variable}`}>
       {/* Browser extensions write their own attributes on <body> before React hydrates
@@ -56,7 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           for <body>'s own attributes only — none are ours — not for anything inside it. */}
       <body suppressHydrationWarning>
         <LocaleProvider locale={locale} dictionary={dictionary}>
-          <SessionProvider>
+          <SessionProvider session={session}>
             <StoreOwnerGuard />
             {children}
           </SessionProvider>

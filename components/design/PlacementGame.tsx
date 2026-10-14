@@ -24,6 +24,7 @@ import { fill } from '@/lib/admin/list';
 import { cn, formatGEL } from '@/lib/utils';
 import type { RoomType } from '@/lib/calculator/types';
 import type { CatalogProduct } from '@/lib/design/matcher';
+import { fetchCatalog } from '@/hooks/useDesignCatalog';
 import { answer, currentPiece, hintRoom, pickRound, playablePieces, roundOver, startRound, type GamePiece, type GameState } from '@/lib/design/placementGame';
 
 /** Fewer playable pieces than this and there is no game worth showing. */
@@ -61,11 +62,11 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
   // --- the pieces: real catalogue products with a model and one right room ---
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/design/catalog')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json) => {
+    // The studio's own fetch: one request for the plan step's game and everything after it.
+    fetchCatalog()
+      .then((data) => {
         if (cancelled) return;
-        const pieces = playablePieces((json?.data?.products ?? []) as CatalogProduct[]);
+        const pieces = playablePieces(data.products);
         if (pieces.length < MIN_PIECES) {
           setPool('none');
           return;

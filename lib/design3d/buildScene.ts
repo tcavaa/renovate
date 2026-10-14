@@ -46,6 +46,7 @@ import { roomLook } from '@/lib/design/surfaces';
 import { FACADE_LOOK } from '@/lib/design/styles';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
+import { releaseMaterial } from './gpuRelease';
 import { WALL_STUB_M, type WallPartKind } from './wallMode';
 
 export interface SceneUserData {
@@ -735,9 +736,12 @@ function itemKey(item: PlacedItem): string {
  * One placed product.
  *
  * Every item is a partner model — there is no procedural furniture. The wrapper is created
- * empty and positioned immediately, so selection, dragging and the cost bar all work from the
- * first frame, and the mesh drops in when its GLB arrives. Most models are 100–400 KB, so that
- * is a beat, not a wait; the same URL is fetched once however many chairs share it.
+ * and positioned immediately, so selection, dragging and the cost bar all work from the first
+ * frame, and the mesh drops in when its GLB arrives; the same URL is fetched once however many
+ * chairs share it. Until then the wrapper holds a faint box of the item's size (`model-pending`,
+ * the ghost's look): the loading screen no longer waits for every file of a first visit
+ * (`useSceneLoading`), so a piece still on its way shows where it will stand. A model already
+ * cached replaces it before the next frame.
  *
  * An item with no model is not drawn at all. That is deliberate: a room furnished with
  * stand-ins would show the customer things nobody sells. An item whose model *fails* to load
@@ -762,10 +766,17 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
   tag(wrapper, { ...data });
   wrapper.userData.itemKey = itemKey(item);
 
+  const pending = ghostFor(item);
+  pending.name = 'model-pending';
+  tag(pending, { ...data });
+  wrapper.add(pending);
+
   loadModel(modelUrl)
     .then((model) => {
       // Swapped or deleted while the model was in flight.
       if (!wrapper.parent) return;
+      wrapper.remove(pending);
+      disposeOwnedGeometry(pending);
       fitToItem(model, item);
       finishModel(model);
       wrapper.add(model);
@@ -777,9 +788,9 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
       if (!wrapper.parent) return;
       // The product exists and the cost bar counts it; only its picture failed. Say so.
       console.warn(`[studio] model failed to load for "${item.product?.nameKa ?? item.id}": ${modelUrl}`, err);
-      const ghost = ghostFor(item);
-      tag(ghost, { pickKind: 'item', itemId: item.id, roomId: (wrapper.userData as SceneUserData).roomId });
-      wrapper.add(ghost);
+      // The box that stood in while it loaded stays, as the ghost.
+      pending.name = 'model-ghost';
+      tag(pending, { pickKind: 'item', itemId: item.id, roomId: (wrapper.userData as SceneUserData).roomId });
     });
 
   return wrapper;
@@ -787,6 +798,12 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
 
 const ghostMaterials = new Map<string, THREE.MeshStandardMaterial>();
 const ghostEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x8a8378, transparent: true, opacity: 0.9 });
+
+/** The ghosts' shared materials let go of the renderer that is going away (`gpuRelease.ts`). */
+export function releaseGhostMaterials(): void {
+  ghostMaterials.forEach(releaseMaterial);
+  releaseMaterial(ghostEdgeMaterial);
+}
 
 function ghostMaterial(colorHex: string | null | undefined): THREE.MeshStandardMaterial {
   const key = (colorHex ?? '#C9C4BA').toLowerCase();

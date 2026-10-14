@@ -22,6 +22,12 @@
  *   is already WebP and within its size is left alone, so the server does not encode again
  *   what the browser already encoded.
  *
+ * - **Parts** — a model drawn as more than `MERGE_MIN_DRAWS` pieces is flattened and its pieces
+ *   joined, one per material (`shouldMergeParts`): a library TV stand came as 6 775 meshes for
+ *   15 000 triangles — 6 775 draw calls a frame, and 4.8 MB of its 6.3 MB file the glTF's own
+ *   JSON describing them. A door keeps its tree: the studio swings its `leaf` and finishes its
+ *   `frame` and `body` by name.
+ *
  * - **Glass** — a transmissive material is stored as plain alpha-blended glass
  *   (`plainGlassMaterials`): transmission makes three render the whole flat twice a frame.
  *
@@ -33,7 +39,7 @@
 
 import { Logger, Primitive, type Document, type PlatformIO, type Texture } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTTextureWebP, type Transmission } from '@gltf-transform/extensions';
-import { dedup, dequantize, draco, getTextureColorSpace, meshopt, prune, simplify, weld } from '@gltf-transform/functions';
+import { dedup, dequantize, draco, flatten, getTextureColorSpace, join, meshopt, prune, simplify, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 
 export interface GlbOptimizeOptions {
@@ -121,6 +127,9 @@ export interface GlbOptimizeStats {
   bytesOut: number;
   trianglesIn: number;
   trianglesOut: number;
+  /** Draw calls the model costs before and after (`countDraws`): fewer when its parts were joined. */
+  drawsIn: number;
+  drawsOut: number;
   /** Textures re-encoded (converted, resized or both). */
   texturesEncoded: number;
   ms: number;
@@ -150,6 +159,29 @@ export function countTriangles(doc: Document): number {
     }
   }
   return triangles;
+}
+
+/**
+ * More draws than this and a model's parts are joined. A well-made piece is a handful (the shipped
+ * models are 8 at most, the library's median 7); the worst library files were thousands.
+ */
+export const MERGE_MIN_DRAWS = 32;
+
+/** Node names the studio reads a model's parts by (a door's swinging leaf, its frame and body). */
+const NAMED_PARTS = new Set(['leaf', 'frame', 'body']);
+
+/** Draw calls the model costs: every primitive of every node that places a mesh. */
+export function countDraws(doc: Document): number {
+  let draws = 0;
+  for (const node of doc.getRoot().listNodes()) draws += node.getMesh()?.listPrimitives().length ?? 0;
+  return draws;
+}
+
+/** Whether the recipe joins this model's parts: many of them, and none the studio needs by name. */
+export function shouldMergeParts(doc: Document): boolean {
+  if (doc.getRoot().listNodes().some((node) => NAMED_PARTS.has(node.getName()))) return false;
+  if (doc.getRoot().listAnimations().length || doc.getRoot().listSkins().length) return false;
+  return countDraws(doc) > MERGE_MIN_DRAWS;
 }
 
 /** What is left of a fully transmissive part: this much of it covers what is behind (the studio's `plainGlass`). */
@@ -211,6 +243,7 @@ function isOptimized(doc: Document, options: GlbOptimizeOptions): boolean {
   if (!root.listExtensionsUsed().some((ext) => ext.extensionName === geometryExtension(options))) return false;
   if (countTriangles(doc) > options.maxTriangles) return false;
   if (hasTransmission(doc)) return false;
+  if (shouldMergeParts(doc)) return false;
   return root.listTextures().every((texture) => texture.getMimeType() === 'image/webp' && withinCap(texture, options));
 }
 
@@ -250,9 +283,14 @@ export async function optimizeGlb(io: PlatformIO, bytes: Uint8Array, encodeTextu
     if (isOptimized(doc, options)) return { status: 'kept', bytes, reason: 'already-optimized' };
 
     const trianglesIn = countTriangles(doc);
+    const drawsIn = countDraws(doc);
     // Quantised input (a converted model sent again) goes back to floats first: welding and
     // simplifying want real positions, and meshopt quantises it all again at the end.
-    await doc.transform(dedup({ keepUniqueNames: true }), dequantize(), weld(), simplify({ simplifier: MeshoptSimplifier, error: LOSSLESS_ERROR }));
+    await doc.transform(dedup({ keepUniqueNames: true }), dequantize());
+    // One mesh per material for a model of many parts: the transforms are baked into the
+    // vertices, so it looks exactly as it did and costs a draw call per material.
+    if (shouldMergeParts(doc)) await doc.transform(flatten(), join({ keepNamed: false }));
+    await doc.transform(weld(), simplify({ simplifier: MeshoptSimplifier, error: LOSSLESS_ERROR }));
     for (const error of CAP_ERRORS) {
       const current = countTriangles(doc);
       if (current <= options.maxTriangles) break;
@@ -271,7 +309,9 @@ export async function optimizeGlb(io: PlatformIO, bytes: Uint8Array, encodeTextu
     else await doc.transform(meshopt({ encoder: MeshoptEncoder, level: 'high' }));
     const out = await io.writeBinary(doc);
 
-    if (out.byteLength >= bytes.byteLength) return { status: 'kept', bytes, reason: 'not-smaller' };
+    // Joined parts are kept even at the same size: the draw calls are the point.
+    const drawsOut = countDraws(doc);
+    if (out.byteLength >= bytes.byteLength && drawsOut >= drawsIn) return { status: 'kept', bytes, reason: 'not-smaller' };
     return {
       status: 'optimized',
       bytes: out,
@@ -280,6 +320,8 @@ export async function optimizeGlb(io: PlatformIO, bytes: Uint8Array, encodeTextu
         bytesOut: out.byteLength,
         trianglesIn,
         trianglesOut: countTriangles(doc),
+        drawsIn,
+        drawsOut,
         texturesEncoded,
         ms: Math.round(performance.now() - started),
       },

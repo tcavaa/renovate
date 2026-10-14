@@ -51,7 +51,10 @@ export async function Footer() {
               <ul className="space-y-2.5 text-sm">
                 {col.links.map((l) => (
                   <li key={l.href}>
-                    <Link href={l.href} className="text-ink-soft transition-colors hover:text-brand">
+                    {/* Not prefetched: every page is rendered per request, so each footer link in
+                        view cost a function call on every page, for pages rarely opened from here
+                        (the header prefetches the main four). */}
+                    <Link href={l.href} prefetch={false} className="text-ink-soft transition-colors hover:text-brand">
                       {l.label}
                     </Link>
                   </li>

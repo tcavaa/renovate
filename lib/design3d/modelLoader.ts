@@ -17,6 +17,7 @@ import { registerFootprintMask } from '@/lib/design/footprintMasks';
 import { footprintMaskOf } from './footprintFromModel';
 import { plainGlass } from './glass';
 import { trackLoad } from './loadProgress';
+import { releaseObject } from './gpuRelease';
 
 interface CachedModel {
   object: THREE.Object3D;
@@ -68,6 +69,17 @@ function replaceDecoder(failed: DRACOLoader): void {
   gltfLoader.setDRACOLoader(dracoLoader);
 }
 const modelCache = new Map<string, Promise<CachedModel>>();
+/** The cached originals that have arrived, models and fixtures: what `releaseCachedModels` walks. */
+const loaded = new Set<THREE.Object3D>();
+
+/**
+ * The cached models let go of the renderer that is going away (`gpuRelease.ts`): without this,
+ * every studio view ever opened in the tab stayed in memory, held by the cache's materials.
+ * The files stay cached; the next view uploads them to its own context.
+ */
+export function releaseCachedModels(): void {
+  for (const object of loaded) releaseObject(object);
+}
 
 /**
  * A clone of the model at `url`, standing on y = 0 and centred on x/z (see below), with its
@@ -107,6 +119,7 @@ export function loadModel(url: string): Promise<THREE.Object3D> {
       } catch {
         registerFootprintMask(url, null);
       }
+      loaded.add(root);
       return { object: root, size };
     }));
     remember(modelCache, url, entry);
@@ -135,6 +148,7 @@ export function loadFixture(url: string): Promise<THREE.Object3D> {
         if (child instanceof THREE.Mesh && !child.geometry.attributes.normal) child.geometry.computeVertexNormals();
       });
       plainGlass(object);
+      loaded.add(object);
       return object;
     }));
     remember(fixtureCache, url, entry);

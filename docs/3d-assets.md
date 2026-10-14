@@ -191,8 +191,15 @@ recipe (`glbOptimize.ts`, isomorphic):
   about 40 % of meshopt's bytes as served; texture coordinates at the bits their range needs,
   [above](#compression-webp-and-draco)), **meshopt (level `high`) in the browser**, which has
   no Draco encoder and only has to make the file small enough to send — the server rewrites that
-  geometry as Draco and keeps its WebP textures. The studio reads both. No `flatten` and no
-  `join`: the node tree stays as uploaded.
+  geometry as Draco and keeps its WebP textures. The studio reads both.
+- **Parts**: a model drawn as more than `MERGE_MIN_DRAWS` (32) pieces is flattened and joined,
+  one mesh per material (`shouldMergeParts`, after `dequantize` and before `weld`): exporters
+  that keep every drawer front and screw a mesh of its own made a library TV stand 6 775 meshes
+  for 15 000 triangles — 6 775 draw calls a frame and 4.8 MB of its 6.3 MB file the glTF's JSON
+  describing them; joined it is 3 meshes and 0.46 MB, and renders the same. A door keeps its
+  tree (the studio swings its `leaf` and finishes its `frame` and `body` by name), and so does
+  anything animated or skinned. Joined parts are kept even when the file is no smaller: the
+  draw calls are the point (`drawsIn`/`drawsOut` in the stats and the `model optimized` log).
 - **Glass**: a material with `KHR_materials_transmission` is stored as plain alpha-blended
   glass (`plainGlassMaterials`; the more it let through, the clearer): transmission makes three
   render the whole flat twice every frame the piece is on screen. The studio's loader does the
@@ -248,6 +255,15 @@ model copied into Supabase came from a store this had already been run over. Eac
 the product rows and saved designs that point at it keep working; a browser's cached old copy is
 still a valid model. Idempotent: an optimized file is left alone. Locally it took the three old
 uploads from 35.4 MB to 1.7 MB (originals kept in `~/Desktop/Projects/RenovationRoom-backups`).
+
+**The library is run from its local copy** — `pnpm uploads:optimize-models --dir
+public/library/models --mirror library/models/` optimizes `public/library/models` (subfolders
+included) and puts every file that changes in storage at the same path under the prefix, storage
+first, so a failed put leaves the local file to be retried; nothing is downloaded. Run on 14 Oct
+2026 for the part merging: 306 of 1 195 models, 329.6 MB → 152.5 MB (the worst kitchen run 9.1 MB
+and 9 740 draw calls → 0.37 MB and 11); originals in
+`RenovationRoom-backups/library-models-before-merge-2026-10-14`. Supabase's Smart CDN serves a
+replaced file at once; a browser keeps its cached copy (a year's `max-age`), still a valid model.
 
 ## Every object is a GLB
 

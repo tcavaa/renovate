@@ -16,7 +16,7 @@ const optimizer: ModelOptimizer = async (bytes) => {
   const text = bytes.toString();
   if (text === 'raw') {
     const body = Buffer.from('small');
-    return { body, result: { status: 'optimized', bytes: new Uint8Array(body), stats: { bytesIn: bytes.length, bytesOut: body.length, trianglesIn: 1, trianglesOut: 1, texturesEncoded: 1, ms: 1 } } };
+    return { body, result: { status: 'optimized', bytes: new Uint8Array(body), stats: { bytesIn: bytes.length, bytesOut: body.length, trianglesIn: 1, trianglesOut: 1, drawsIn: 1, drawsOut: 1, texturesEncoded: 1, ms: 1 } } };
   }
   const reason = text === 'done' ? 'already-optimized' : text === 'broken' ? 'failed' : 'not-smaller';
   return { body: bytes, result: { status: 'kept', bytes: new Uint8Array(bytes), reason, error: reason === 'failed' ? 'bad glb' : undefined } };
