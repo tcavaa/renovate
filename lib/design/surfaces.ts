@@ -34,7 +34,7 @@ export interface SurfaceSpecs {
 }
 
 /** The categories whose products can be finishes; the catalogue route serves these too. */
-export const SURFACE_CATEGORY_SLUGS = ['laminate', 'floor-tiles', 'wall-tiles', 'paint'];
+export const SURFACE_CATEGORY_SLUGS = ['laminate', 'carpet', 'floor-tiles', 'wall-tiles', 'paint'];
 
 export function isWetRoom(type: RoomType): boolean {
   return type === 'bathroom' || type === 'toilet';

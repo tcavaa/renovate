@@ -58,7 +58,7 @@ const TREE: Spec[] = [
         children: [old('floor-tiles', 'იატაკის ფილა', 'Floor Tiles', 'Напольная плитка', 'grid-2x2', { calculationType: 'per_m2_floor' }), old('wall-tiles', 'კედლის ფილა', 'Wall Tiles', 'Настенная плитка', 'layout-grid', { calculationType: 'per_m2_wall' })],
       }),
       add('flooring', 'იატაკი', 'Flooring', 'Напольные покрытия', 'layers', {
-        children: [old('laminate', 'ლამინატი', 'Laminate Flooring', 'Ламинат', 'rows-3', { calculationType: 'per_m2_floor' }), old('skirting', 'იატაკის პლინტუსი', 'Skirting boards', 'Напольные плинтусы', 'minus', { calculationType: 'per_linear_m' })],
+        children: [old('laminate', 'ლამინატი', 'Laminate Flooring', 'Ламинат', 'rows-3', { calculationType: 'per_m2_floor' }), add('carpet', 'კოვროლინი', 'Carpet', 'Ковролин', 'layers', { calculationType: 'per_m2_floor', isFurniture: false }), old('skirting', 'იატაკის პლინტუსი', 'Skirting boards', 'Напольные плинтусы', 'minus', { calculationType: 'per_linear_m' })],
       }),
       add('walls-ceilings', 'კედლები და ჭერი', 'Walls and ceilings', 'Стены и потолки', 'paint-roller', {
         children: [old('paint', 'საღებავი', 'Paint', 'Краска', 'paint-bucket', { calculationType: 'per_m2_wall' }), old('cornice', 'ჭერის პლინტუსი', 'Cornices', 'Потолочные плинтусы', 'frame', { calculationType: 'per_linear_m' })],

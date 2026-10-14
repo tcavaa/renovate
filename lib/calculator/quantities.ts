@@ -81,7 +81,7 @@ export function categorySlugFromKey(key: string): string {
 }
 
 /** Cutting waste on a finish bought by the square metre: a tenth more tiles or boards than the floor measures. */
-const FINISH_WASTE: Record<string, number> = { 'floor-tiles': 1.1, laminate: 1.1, 'wall-tiles': 1.1 };
+const FINISH_WASTE: Record<string, number> = { 'floor-tiles': 1.1, laminate: 1.1, carpet: 1.1, 'wall-tiles': 1.1 };
 
 /**
  * How many units of a finish an area comes to: square metres with the category's cutting
@@ -121,7 +121,7 @@ export type FinishSurface = 'floor' | 'wall';
  * A finish category made in admin (a category whose `calculationType` is `per_m2_floor` or
  * `per_m2_wall`) is not here, and its picks carry their surface themselves.
  */
-export const SURFACE_OF_SLUG: Readonly<Record<string, FinishSurface>> = { laminate: 'floor', 'floor-tiles': 'floor', 'wall-tiles': 'wall', paint: 'wall' };
+export const SURFACE_OF_SLUG: Readonly<Record<string, FinishSurface>> = { laminate: 'floor', carpet: 'floor', 'floor-tiles': 'floor', 'wall-tiles': 'wall', paint: 'wall' };
 
 /** The surface a pick covers — its own, else its category's — or null for a pick that is not a finish. */
 export function surfaceOfPick(pick: Pick<SelectedProduct, 'surface' | 'categorySlug'>): FinishSurface | null {

@@ -185,7 +185,10 @@ Where the style's products are laid:
   paint for a painted wall, a laminate for a laminate floor, a tile for a tiled kitchen), as wet
   or dry as the room — the style's own three times as likely as one tagged for the style, those
   ten times as likely as the rest — so the same plan generated twice is painted and floored
-  differently, and any finish of the kind can turn up (before, 31 of the 610 finishes ever did).
+  differently, and any finish of the kind can turn up (before, 31 of the 610 finishes ever did;
+  on test project #311's plan, 600 generations laid 211). The category is what keeps it in
+  character, so it has to be true to the finish: carpet tiles filed under laminate carpeted most
+  generated living rooms until they got their own category (`carpet`, [../categories.md](../categories.md)).
   `setStyle` passes no `Rng`: the style's own. A style's finish records the kind of room it was laid for (`laidFor`). `keepChosen` keeps what somebody chose (`studio`,
   `calculator`) and replaces the style's own with the fresh defaults — a new style, a retyped
   room. A plan edit (`reconcile`) has no catalogue: it keeps the style's product the room had.
