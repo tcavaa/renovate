@@ -6,7 +6,7 @@ import { products, stores, type Category } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY } from '@/lib/design/catalog';
 import { SURFACE_CATEGORY_SLUGS } from '@/lib/design/surfaces';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { ShelfData } from '@/lib/design/shelf';
+import { EMPTY_SHELF, type ShelfData } from '@/lib/design/shelf';
 import { nearestSlug, subtreeOfSlugs, type CategoryTree } from '@/lib/catalog/tree';
 import { loadCategoryTree, loadShelf } from '@/lib/catalog/queries';
 import type { PartnerStore } from '@/hooks/useDesignCatalog';
@@ -33,10 +33,32 @@ export const DESIGN_CATALOG_TAG = 'design-catalog';
  * The whole design catalogue — ~200 products with their stores and the shelf — assembled once
  * and served from the server cache. Every studio visit used to run the queries below.
  */
-export const getDesignCatalog = unstable_cache(loadDesignCatalog, [DESIGN_CATALOG_TAG], {
-  tags: [DESIGN_CATALOG_TAG],
-  revalidate: 300,
-});
+export async function getDesignCatalog(): Promise<DesignCatalog> {
+  const first = await cachedPart(0);
+  const rest = await Promise.all(Array.from({ length: first.parts - 1 }, (_, i) => cachedPart(i + 1)));
+  // Parts revalidate one by one, so for a moment two may come from different loads: no product twice.
+  const seen = new Set<number>();
+  const products = [first, ...rest].flatMap((p) => p.products).filter((p) => !seen.has(p.id) && seen.add(p.id));
+  return { stores: first.stores, shelf: first.shelf, products };
+}
+
+/**
+ * Products per cached part. Next's data cache refuses an entry over 2 MB, and the whole
+ * catalogue passed that with the 3D library (~1.2 KB a product, its files' long storage URLs) —
+ * the refusal kept serving the last copy that fitted. Part 0 also carries the stores and the shelf.
+ */
+const PRODUCTS_PER_PART = 600;
+
+const cachedPart = unstable_cache(
+  async (part: number): Promise<DesignCatalog & { parts: number }> => {
+    const catalog = await loadDesignCatalog();
+    const parts = Math.max(1, Math.ceil(catalog.products.length / PRODUCTS_PER_PART));
+    const products = catalog.products.slice(part * PRODUCTS_PER_PART, (part + 1) * PRODUCTS_PER_PART);
+    return part === 0 ? { ...catalog, products, parts } : { products, stores: [], shelf: EMPTY_SHELF, parts };
+  },
+  [DESIGN_CATALOG_TAG, 'parts'],
+  { tags: [DESIGN_CATALOG_TAG], revalidate: 300 },
+);
 
 export function invalidateDesignCatalog(): void {
   revalidateTag(DESIGN_CATALOG_TAG, 'max');

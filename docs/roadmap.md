@@ -28,8 +28,8 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Before real customers
 
-- **Plans and the 3D library**: Pro on Vercel and Supabase; the local library (1.5 GB) needs more
-  storage than Supabase's free 1 GB — [operations.md](operations.md#before-real-customers).
+- **Plans**: Pro on Vercel and Supabase; the 3D library takes about 0.72 GB of Supabase's free
+  1 GB of storage — [operations.md](operations.md#before-real-customers).
 - **Not measured yet**: delivery from Tbilisi off Vercel's and Supabase's CDNs —
   [operations.md](operations.md#known-gaps).
 

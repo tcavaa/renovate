@@ -321,16 +321,19 @@ a whole apartment's worth of **CC0** furniture so every slot has several options
   `User-Agent`. Files are cached under `<asset drop>/_STOCK/polyhaven/<id>/`.
 - **Kenney Furniture Kit** — no longer in the catalogue: its 68 flat, untextured low-poly
   pieces were removed in October 2026 (with every untextured model of the local library, see
-  [The local library](#the-local-library-is-not-deployed)). `stock-models.ts` keeps the loader
+  [The 3D library](#the-3d-library)). `stock-models.ts` keeps the loader
   (`source: 'kenney'`) but lists no Kenney piece.
 
-### The local library is not deployed
+### The 3D library
 
-`public/library/` (git-ignored) holds the 3D library imported from the partner drives: 1,195
-textured models and 562 wall/floor finishes after the October 2026 cleanup (untextured models,
-the Kenney pieces and the weaker half of each finish family removed; every texture capped at
-1024 px), about 0.73 GB. Its products exist only in the local database — Supabase's free 1 GB
-of storage would hold it only just, so it is not uploaded.
+The library imported from the partner drives: 1,195 textured models and 562 wall/floor finishes
+after the October 2026 cleanup (untextured models, the Kenney pieces and the weaker half of each
+finish family removed; every texture capped at 1024 px), about 0.72 GB. Locally its files are
+in `public/library/` (git-ignored) and its rows point at `/library/…`; in production the files
+are in Supabase Storage under `library/` in the public bucket and the rows point there (copied
+by hand on 14 Oct 2026 — nothing syncs the two). It fills most of Supabase's free 1 GB of
+storage. The catalogue it makes is cached in parts (`lib/api/designCatalog.ts`): Next's data
+cache refuses an entry over 2 MB.
 
 Style tags are deliberately loose (a gothic chair is `vintage`, a leather lounge chair is
 `modern`, `scandinavian` *and* `industrial`) so that most styles have more than one option per

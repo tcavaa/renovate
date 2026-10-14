@@ -211,8 +211,7 @@ A Vercel function takes a request body of at most **4.5 MB** and answers at most
    `production`; register the redirect URI with Google/Facebook if social logins are wanted.
 2. `ANTHROPIC_API_KEY` (the Claude plan reader) and SMTP (`MAIL_DRIVER=smtp`) if wanted.
 3. Pro plans on both (Vercel Hobby is non-commercial; Supabase's free plan pauses after a week
-   idle and keeps no backups) — and room for the local 3D library (`public/library`, 1.5 GB,
-   its rows only in the local database), more than Supabase's free 1 GB of storage.
+   idle and keeps no backups) — the 3D library alone takes about 0.72 GB of Supabase's free 1 GB of storage.
 
 ## Errors go to Sentry
 
