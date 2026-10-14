@@ -333,7 +333,9 @@ in `public/library/` (git-ignored) and its rows point at `/library/…`; in prod
 are in Supabase Storage under `library/` in the public bucket and the rows point there (copied
 by hand on 14 Oct 2026 — nothing syncs the two). It fills most of Supabase's free 1 GB of
 storage. The catalogue it makes is cached in parts (`lib/api/designCatalog.ts`): Next's data
-cache refuses an entry over 2 MB.
+cache refuses an entry over 2 MB. The parts expire once a day (admin edits clear them at once,
+each deployment starts its own) and are rebuilt by one shared load: every rebuild reads 2–3 MB
+of rows, which counts against Supabase's monthly egress.
 
 Style tags are deliberately loose (a gothic chair is `vintage`, a leather lounge chair is
 `modern`, `scandinavian` *and* `industrial`) so that most styles have more than one option per
