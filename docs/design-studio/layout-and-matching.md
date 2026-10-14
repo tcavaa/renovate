@@ -18,6 +18,7 @@ as products).
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
 | `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; `LayoutOptions.anchors` from technical points, `obstacles` for columns), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
+| `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
 | `lib/design/styles.ts`, `styleQuiz.ts` | the style a design is matched to |
@@ -31,6 +32,38 @@ slots + catalogue (useDesignCatalog) + style + budget ──matchProducts──�
   per floor slot: placeFitting — the product's real footprint must fit, else the next best
 scene ──tightSpots──▶ amber warnings (not a rule)
 ```
+
+## Generating is random
+
+The same plan generated twice gives two flats. `generate` draws a fresh seed (`randomSeed`) and
+hands one seeded `Rng` to the layout engine, the matcher and the finishes; everything else that
+lays out or matches (adding a piece, a swap, a change of style, the tests) passes none and is
+deterministic, so a person who swaps one product does not have the rest of the flat jump around.
+
+- **Placement** (`LayoutOptions.rng`): a piece against a wall goes to any spot scoring within
+  `SPOT_SPREAD` (10) of the best — another wall of similar merit, another stretch of the same
+  wall — the better the likelier (`pickNearBest`); a fixture's pull to its pipe (up to +40) is
+  far above the spread, so a toilet stays by the sewer. A corner piece takes any corner nearly as
+  empty as the emptiest, a wall-hung piece any wall wide enough (the longer the likelier), the
+  kitchen run any long-enough wall when the plan shows no water point.
+- **Decor comes and goes** (`OPTIONAL_DECOR`): a print 80 %, a plant 70 %, a floor lamp 70 %,
+  an armchair or a bookshelf 75 %, a dresser 80 %, a rug 85 % (under the bed 80 %), curtains
+  90 % — of the rooms they would fit in. The pieces a room is for (a bed, a sofa, a toilet) are
+  always laid out.
+- **Products** (`MatchOptions.rng`, `generationWeight`): each slot's product is drawn from
+  **every** candidate of its kind with a model — the style's own ten times as likely as an
+  untagged one (a kindred tag three times), a price that suits the budget level up to half again
+  as likely, one much wider than its slot a seventh, one already placed in another room a third.
+  None is ever zero: every product with a model can appear in a generated flat (`pnpm
+  audit:studio-products` lists, per kind, how many there are and which rooms generate them). A
+  product that does not fit gives way to another draw (`weightedOrder`). Still one product per
+  kind per room.
+- **Floors and walls** (`generatedFinish`, [finishes.md](finishes.md)): drawn from the finishes
+  like the style's own for the room.
+- **The kitchen run** is made to measure in a drawn material, or about a third of the time a
+  shop's unit that fits the run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
+
+The seed is not stored: a generated flat is saved as what it is, not how it was drawn.
 
 ## Layout fallbacks that keep rooms furnished (`autoLayout.ts`, `matcher.ts`)
 
@@ -53,8 +86,9 @@ scene ──tightSpots──▶ amber warnings (not a rule)
 Within one room, every slot of a kind gets the same product (six matching dining chairs) —
 unless that product does not fit one of the slots, which then gets the next that does
 (`placeFitting`, below);
-the next room gets the next-best product of the same style tier, so a flat with five
-pendants hangs five different lamps. The swap panel lists every candidate for the slot,
+the next room gets the next-best product of the same style tier — generating, another draw, a
+product already used three times less likely — so a flat with five pendants hangs five
+different lamps. The swap panel lists every candidate for the slot,
 matching style first, each with its photo.
 
 ## The product has to fit the slot (`matcher.ts` → `placeFitting`)
@@ -143,7 +177,11 @@ nothing of a layout standing through a wall, on project 219's corner),
 `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
 parts), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
-`tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`. The sample plan
+`tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
+`tests/unit/design/generationRandom.test.ts` (the same seed the same flat, seeds apart different
+flats with every piece inside its room, a bed in every bedroom, every sofa drawn over 400
+generations and the style's own most often, the best without an `rng`; drawn finishes in their
+category and wetness, kept by `withStyleFinishes` until the room is retyped). The sample plan
 `public/samples/plan-2br.png` run through `layoutPlan` is the manual check for the layout as a
 whole. `lib/design/matcher.ts` is in the coverage gate.
 

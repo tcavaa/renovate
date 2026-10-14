@@ -12,7 +12,9 @@
 
 import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
 import { getArchetype, isKitchenMaterial } from './catalog';
+import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { styleAffinity } from './styles';
+import { weightedOrder, weightedPick, type Rng } from './random';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -64,6 +66,34 @@ export interface MatchOptions {
   budgetGel?: number | null;
   /** Bias towards cheaper or dearer options within the matching set. */
   level?: BudgetLevel;
+  /**
+   * Seeded randomness (`lib/design/random`), when generating: each slot's product is drawn from
+   * every candidate of its kind (`generationWeight`) instead of taken off the top, so any product
+   * with a model can turn up and the same plan furnishes differently each time. None: the best.
+   */
+  rng?: Rng;
+}
+
+/** How often a generated kitchen run is a shop's kitchen unit (that fits the wall) rather than made to measure. */
+const STORE_KITCHEN_SHARE = 0.35;
+
+/** How strongly a style tag counts in the draw (`generationWeight`): its own style, a kindred tag, none. */
+const STYLE_WEIGHT = [1, 3, 10];
+
+/**
+ * A product's chance in a generated design's draw, relative to the slot's other candidates:
+ * its own style ten times another's, a price that suits the budget level up to half again as
+ * likely, much wider than the slot it would fill a seventh as likely, and a product already
+ * placed in another room a third — never zero, so every product with a model can appear.
+ */
+export function generationWeight(product: CatalogProduct, styleId: StyleId, level: BudgetLevel, slot: PlacedItem | undefined, usedElsewhere: boolean): number {
+  let weight = STYLE_WEIGHT[styleAffinity(styleId, product.styleTags, product.tags)] ?? 1;
+  const price = product.pricePerUnit;
+  const suits = level === 'value' ? 1 / (1 + price / 1500) : level === 'premium' ? Math.min(1, price / 3000) : 1 / (1 + Math.abs(price - 1200) / 1200);
+  weight *= 0.5 + suits;
+  if (slot && product.widthCm && slot.slot !== 'kitchen_run' && slot.slot !== 'rug' && slot.slot !== 'curtain' && product.widthCm / 100 / slot.size.width > 1.12) weight *= 0.15;
+  if (usedElsewhere) weight *= 0.35;
+  return weight;
 }
 
 /**
@@ -97,6 +127,8 @@ export function matchProducts(
   // pendants does not hang the same lamp five times. Rooms are taken in order of appearance.
   const chosenByRoom = new Map<string, CatalogProduct>();
   const rotation = new Map<string, number>();
+  // Generating: the products of each kind already placed, drawn less often in the next room.
+  const usedByKind = new Map<string, Set<number>>();
 
   return items.map((item, index) => {
     const finish = (matched: PlacedItem) => {
@@ -106,6 +138,24 @@ export function matchProducts(
     if (item.pinned && item.product) return finish(item);
 
     const candidates = byKind.get(item.kind) ?? [];
+
+    // A kitchen run along its wall is made to measure ("ავეჯის დამზადება"): stretched to the
+    // run the engine laid, in one of the kitchen maker's materials (the style's, or drawn), bought
+    // by its façade. Generating, now and then a shop's kitchen unit that fits the run takes it
+    // instead, at its own size and price — so the shops' units turn up too.
+    if (item.slot === 'kitchen_run') {
+      const materials = kitchenMaterialCandidates(catalog, options.styleId).filter((m) => !m.model3dKind || m.model3dKind === item.slot);
+      const units = candidates.filter((p) => !!p.widthCm && p.widthCm / 100 <= item.size.width + 0.01);
+      const rng = options.rng;
+      if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
+        const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
+        return finish(asPlacedKitchen({ ...item, product: toSceneProduct(material, quantityFor(item)), origin: 'style' as const }, material));
+      }
+      if (materials.length > 0 && rng) {
+        const unit = weightedPick(units, (p) => generationWeight(p, options.styleId, level, item, false), rng) ?? units[0];
+        return finish(asPlacedKitchen({ ...item, product: toSceneProduct(unit, quantityFor(item)), size: sizeFromProduct(unit, item), origin: 'style' as const }, unit));
+      }
+    }
     if (candidates.length === 0) return finish({ ...item, product: null });
 
     const room = roomsById.get(item.roomId);
@@ -116,6 +166,13 @@ export function matchProducts(
 
     const roomKey = `${item.kind}|${item.roomId}`;
     let chosen = chosenByRoom.get(roomKey);
+    const rng = options.rng;
+    const used = usedByKind.get(item.kind) ?? new Set<number>();
+    const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, item, used.has(product.id));
+    if (!chosen && rng) {
+      chosen = weightedPick(candidates, weigh, rng) ?? scored[0].product;
+      chosenByRoom.set(roomKey, chosen);
+    }
     if (!chosen) {
       const topAffinity = styleAffinity(options.styleId, scored[0].product.styleTags, scored[0].product.tags);
       const tier = scored.filter(
@@ -131,8 +188,12 @@ export function matchProducts(
     // laid against, or a cabinet that would stand in the doorway, is not placed at that size:
     // the next-best product that fits takes the slot, and when nothing fits the slot stays
     // empty rather than poke through the wall.
-    const placed = room ? placeFitting(item, chosen, scored.map((s) => s.product), room, others, slots) : { product: chosen, position: item.position };
+    // The next to try when the chosen does not fit: the best first, or — generating — another draw.
+    const ranked = rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
+    const placed = room ? placeFitting(item, chosen, ranked, room, others, slots) : { product: chosen, position: item.position };
     if (!placed) return finish({ ...item, product: null });
+    used.add(placed.product.id);
+    usedByKind.set(item.kind, used);
     return finish({
       ...item,
       position: placed.position,
@@ -141,6 +202,8 @@ export function matchProducts(
       // reflects the thing you would actually receive.
       size: sizeFromProduct(placed.product, item),
       origin: 'style' as const,
+      // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
+      ...(item.slot === 'kitchen_run' ? { custom: true, size: item.size } : {}),
     });
   });
 }
@@ -308,8 +371,9 @@ export function quantityFor(item: PlacedItem): number {
 }
 
 function sizeFromProduct(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {
-  // Kitchen runs and rugs are sized to the room by the layout engine, not by the SKU.
-  if (item.slot === 'kitchen_run' || item.slot === 'rug' || item.slot === 'curtain') {
+  // Rugs and curtains are sized to the room by the layout engine, not by the SKU, and so is a
+  // kitchen made to measure (its product a kitchen maker's material). A shop's kitchen unit is its own size.
+  if (item.slot === 'rug' || item.slot === 'curtain' || ((item.slot === 'kitchen_run' || item.slot === 'kitchen_island') && isKitchenMaterial(product))) {
     return item.size;
   }
   if (!product.widthCm || !product.depthCm || !product.heightCm) return item.size;
@@ -350,13 +414,17 @@ export function applySwap(
 ): PlacedItem[] {
   return items.map((item) => {
     if (item.id !== itemId) return item;
-    return {
-      ...item,
-      product: toSceneProduct(product, quantityFor(item)),
-      size: sizeFromProduct(product, item),
-      pinned: true,
-      origin: 'studio' as const,
-    };
+    // A kitchen maker's material makes a kitchen piece made to measure; a shop's unit, a unit (`asPlacedKitchen`).
+    return asPlacedKitchen(
+      {
+        ...item,
+        product: toSceneProduct(product, quantityFor(item)),
+        size: sizeFromProduct(product, item),
+        pinned: true,
+        origin: 'studio' as const,
+      },
+      product
+    );
   });
 }
 

@@ -100,6 +100,7 @@ pnpm textures:webp [--dry-run]   # every JPEG/PNG finish texture in public/textu
 pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products and /furniture as WebP (uploads convert on arrival)
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references (the daily cron does it in production)
 pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it
+pnpm audit:studio-products [--out r.md]    # read-only: which products the studio can place, generate, lay as finishes
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three
 ```
@@ -170,6 +171,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/layout-and-matching.md](docs/design-studio/layout-and-matching.md) | archetypes, room programs, automatic layout, product matching and fit, tight passages | `catalog.ts`, `autoLayout.ts`, `matcher.ts`, `clearance.ts`, `generate` |
 | [docs/design-studio/studio.md](docs/design-studio/studio.md) | the 3D studio page: trays, shelf, catalogue modal, carrying, dragging, swapping, hanging, photos | the studio page, `components/studio/`, `manipulate.ts`, carry/swap actions |
 | [docs/design-studio/3d-engine.md](docs/design-studio/3d-engine.md) | `lib/design3d/` and `Viewer3D`: scene building, walls, models, lighting, the Three.js gotchas | anything that draws in 3D |
+| [docs/design-studio/ai-layout-plan.md](docs/design-studio/ai-layout-plan.md) | **planned, not built**: an AI interior designer for generation — rules module, intent-not-coordinates, candidates, validation, phases | before any work on AI layout, product or finish choice |
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |
 | [docs/design-studio/technical-and-fittings.md](docs/design-studio/technical-and-fittings.md) | technical points and works, sockets/switches/lights, radiators, doors and windows | `technical.ts`, `electrical.ts`, `radiators.ts`, `openings.ts`, the technical step |
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |

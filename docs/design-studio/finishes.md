@@ -180,7 +180,13 @@ texture loads). The flat was generated in the style's look with nothing behind i
 had to paint every wall and tile every bathroom again before any of it reached the summary.
 Where the style's products are laid:
 - `generate` and `setStyle` (they have the catalogue): every room's floor and walls, through
-  `defaultFinishes(plan, styleId, catalog)`. `keepChosen` keeps what somebody chose (`studio`,
+  `defaultFinishes(plan, styleId, catalog)`. **Generating draws them** (`generatedFinish` with the
+  generation's `Rng`): another finish of the same category as the style's own for the room (a
+  paint for a painted wall, a laminate for a laminate floor, a tile for a tiled kitchen), as wet
+  or dry as the room — the style's own three times as likely as one tagged for the style, those
+  ten times as likely as the rest — so the same plan generated twice is painted and floored
+  differently, and any finish of the kind can turn up (before, 31 of the 610 finishes ever did).
+  `setStyle` passes no `Rng`: the style's own. A style's finish records the kind of room it was laid for (`laidFor`). `keepChosen` keeps what somebody chose (`studio`,
   `calculator`) and replaces the style's own with the fresh defaults — a new style, a retyped
   room. A plan edit (`reconcile`) has no catalogue: it keeps the style's product the room had.
 - **"The style's own"** in the tray (`setFinish(ids, surface, null, catalog)`) lays the style's
@@ -190,7 +196,9 @@ Where the style's products are laid:
   `ensureFinishProducts` → `withStyleFinishes` whenever the plan, the style or the finishes
   change: a design generated before the style's finishes were products, a room drawn or split
   since, a room retyped (a bedroom made a bathroom is tiled), the empty start, a version brought
-  back. What somebody chose is never touched; it is not a step of the history; a design saved
+  back. A style's finish laid for the room's kind (`laidFor`) that still suits it — the surface's,
+  wet in a bathroom, dry elsewhere — is kept, so a generated flat's drawn finishes are not put back
+  to the one look. What somebody chose is never touched; it is not a step of the history; a design saved
   before gets its products the next time any of its steps is opened.
 - Both modes buy them: a renovation whatever the home state, a design-only project as much —
   the design shows the flat in partner products, and those are what it buys. A floor or wall

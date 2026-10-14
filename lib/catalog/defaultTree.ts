@@ -156,7 +156,7 @@ const TREE: Spec[] = [
       // The kitchen maker's materials, each priced per m² of façade (`lib/design/kitchen`) — not a
       // piece placed in a room, so not furniture to the seeds, and beside the kitchen furniture
       // rather than under it, which the calculator's tab lists whole.
-      add('kitchen-custom', 'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება', 'Made-to-measure kitchens', 'Кухни на заказ', 'ruler', { isFurniture: false }),
+      add('kitchen-custom', 'სამზარეულო — ავეჯის დამზადება', 'Kitchen — made to measure', 'Кухня — изготовление на заказ', 'ruler', { isFurniture: false }),
     ],
   }),
   old('decor', 'დეკორი', 'Decor', 'Декор', 'flower-2', {
@@ -231,6 +231,8 @@ const ROOM_TEXT: Record<string, { slug: string; ka: string; en: string; ru: stri
  */
 export const DEFAULT_SHELF_ROOMS: readonly DefaultShelfRoom[] = SHELF_ROOMS.map((type) => {
   const text = ROOM_TEXT[type];
-  const categories = [...new Set(kindsForRoom(type).map((k) => DEFAULT_KIND_CATEGORY[k]).filter((slug): slug is string => !!slug))];
+  // The kitchen made to measure (the kitchen maker's materials) heads the kitchen's shelf: migration 0002.
+  const made = type === 'kitchen' ? ['kitchen-custom'] : [];
+  const categories = [...new Set([...made, ...kindsForRoom(type).map((k) => DEFAULT_KIND_CATEGORY[k]).filter((slug): slug is string => !!slug)])];
   return { slug: text.slug, nameKa: text.ka, nameEn: text.en, nameRu: text.ru, icon: text.icon, roomTypes: [type], categories };
 });

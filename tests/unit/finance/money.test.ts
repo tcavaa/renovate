@@ -184,7 +184,7 @@ describe('grouping a project into partner orders', () => {
     });
 
     it('leaves a made-to-measure kitchen to the joiner and what the flat already has to the flat', () => {
-      const kitchen: PlacedItem = { ...placed('k1', 'r1', sold(40, 'სამზარეულო', 5200, shop(14))), slot: 'kitchen_run', kind: 'kitchen_run', size: { width: 3, depth: 0.6, height: 0.9 } };
+      const kitchen: PlacedItem = { ...placed('k1', 'r1', sold(40, 'სამზარეულო', 5200, shop(14))), slot: 'kitchen_run', kind: 'kitchen_run', size: { width: 3, depth: 0.6, height: 0.9 }, custom: true };
       const paint = { roomId: 'r1', surface: 'wall' as const, colorHex: '#fff', textureUrl: null, textureScaleM: 1.5, product: sold(3, 'საღებავი', 12, shop(15), { unit: 'm2', qty: 30, totalPrice: 360 }) };
       const custom = sceneLinesByStore(flat(), design({ items: [kitchen], finishes: [paint] }));
       expect([...custom.groups.keys()]).toEqual([15]);

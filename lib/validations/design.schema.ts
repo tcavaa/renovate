@@ -218,6 +218,8 @@ export const surfaceFinishSchema = z.object({
   roughnessUrl: z.string().max(500).nullable().optional(),
   product: sceneProductSchema.nullable(),
   origin: itemOriginSchema.optional(),
+  // A style's finish: the kind of room it was laid for (`SurfaceFinish.laidFor`).
+  laidFor: z.string().max(32).nullable().optional(),
 });
 
 export const electricalKindSchema = z.enum(['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'tv', 'internet', 'light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture']);

@@ -225,12 +225,39 @@ whatever laid it.
 into the sections the budget page lists. `tradesNeeded` maps the labour keys to the six
 worker specialties for step 8.
 
-## Kitchens are measured, and made in the maker's material (`lib/design/kitchen.ts`)
+## Kitchens: a shop's units, or made to measure (`lib/design/kitchen.ts`)
 
-Every other product is a SKU with a price; a kitchen is built for the flat it stands in, so
-`kitchen_run` and `kitchen_island` are **measured** and their model's price is ignored — the
-model is only what is drawn. The measure is the façade: the lower units and the upper ones by
-the square metre (`kitchenFacadeM2`; an island is worked from both sides, with nothing above).
+There are two kinds of kitchen, and an item says which it is (`PlacedItem.custom`,
+`isCustomKitchenItem`):
+
+- **A shop's kitchen unit** (`custom: false`) — the 69 kitchen units and 20 islands the furniture
+  shops sell (`kitchen-units`, `kitchen-islands`): furniture like any other, at its own size, drawn
+  as its own model and bought at its shop's price. Its item panel swaps it for the shops' other
+  units (`candidatesFor` never lists a material).
+- **Made to measure — "ავეჯის დამზადება"** (`custom: true`) — a run or island a joiner makes
+  for the flat, from the kitchen maker's materials (category `kitchen-custom`, "სამზარეულო —
+  ავეჯის დამზადება", first on the kitchen's shelf: migration `0002_kitchen_made_to_measure`).
+  A material with a run's model is placeable (`isMadeToMeasureKitchen`, so `isFurnitureProduct`):
+  off the shelf or out of the catalogue it lands as a run stretched along a wall in that material,
+  drawn as the material's model. Its panel has no shop alternatives but its **length** (a slider
+  and a number in centimetres, `KITCHEN_LENGTH_M` 0.6–8 m, and "to the end of the wall":
+  `stretchedKitchen` / `kitchenToWall` — refused where it would leave the room or stand on another
+  piece) and its **material**. **The rate per m² is the material's price** — each kitchen maker's
+  product is sold by the m² of façade and admin sets that price in the product form like any
+  other; the joiner's fallback rates below apply only when the catalogue has no material at all.
+
+Which one a piece becomes is decided by the product put in it (`asPlacedKitchen`, from
+`applySwap` — adding, carrying and swapping all go through it): a kitchen maker's material makes
+it made to measure, a shop's unit makes it that unit (sized by the product, its material
+dropped). An item saved before `custom` was set is made to measure when it carries a material
+(every kitchen was given one then) or its product is a material, a shop's unit otherwise. Generating a design lays the kitchen's wall run made to
+measure in a material drawn for the style — and about a third of the time
+(`STORE_KITCHEN_SHARE`) a shop's unit that fits the run instead; an island is a shop's island
+([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#generating-is-random)).
+
+A made-to-measure kitchen is built for the flat it stands in, so it is **measured**. The
+measure is the façade: the lower units and the upper ones by the square metre
+(`kitchenFacadeM2`; an island is worked from both sides, with nothing above).
 
 - **In a material** (`PlacedItem.kitchenMaterial`): the kitchen maker's product for it, in the
   `kitchen-custom` category — "სამზარეულოს ავეჯი — ინდივიდუალური დამზადება", seeded with three
@@ -246,7 +273,8 @@ the square metre (`kitchenFacadeM2`; an island is worked from both sides, with n
   first style tag, else the cheapest — `withKitchenMaterials`), buys it again for the façade
   when the piece is stretched, keeps the snapshot as the catalogue has it now (a price, a photo,
   a model uploaded since; a product no longer sold by the m² gives way to the next material),
-  and lets the person choose another in the item's panel. The save reprices the snapshot from
+  and lets the person choose another in the item's panel — and buys it again whenever its length
+  changes (`kitchenMaterialSignature`). The save reprices the snapshot from
   the catalogue for the façade the piece has, and drops one the catalogue does not sell by the
   m² — that kitchen is the estimate again (`app/api/design/projects/route.ts`).
 - **A material with a 3D model is how the kitchen is drawn — once the person chooses it**
@@ -254,17 +282,16 @@ the square metre (`kitchenFacadeM2`; an island is worked from both sides, with n
   prices the piece, so the kitchen unit placed stays as it is. Chosen in the swap panel, its model replaces the placed kitchen's own in 3D, stretched to the measured run like
   any kitchen model. Its 3D kind says for which pieces — a `kitchen_run` model on runs, a
   `kitchen_island` model on islands, a model with no kind on both; a piece of the other kind
-  keeps its own model (the snapshot's `model3dUrl` is left empty for it). A material is never a
-  piece of furniture itself, model or not: it is not on the shelf, in the catalogue modal, in a
-  piece's alternatives or in what generation places (`isFurnitureProduct`, `candidatesFor`).
+  keeps its own model (the snapshot's `model3dUrl` is left empty for it). A material placed off
+  the shelf is chosen from the start, so the run is drawn as it at once. A material is never a
+  shop's unit's alternative (`candidatesFor`).
 - **With no material** (the catalogue has none): the quote a joiner gives — the façade by the
   square metre, the worktop and the fitting by the running metre (`KITCHEN_RATES`) — marked as
   an estimate, in no basket and on no store's order.
 
 The measurement is in `DesignCost.kitchens` either way. The furniture list and the item's card
-show a kitchen at what it is made for (`itemCostGel`, `boughtProduct`), not the model's price.
-A stock kitchen is an item with `custom: false` (a data flag — the studio has no control for it
-yet): an ordinary product and order line again.
+show a made-to-measure kitchen at what it is made for (`itemCostGel`, `boughtProduct`), and a
+shop's unit (`custom: false`) at its price — an ordinary product and order line.
 
 ## Tests
 
@@ -310,5 +337,6 @@ yet): an ordinary product and order line again.
 - The calculator's sheet links no product line to its page: `snapshot()` in
   `lib/summary/calculatorSheet.ts` sets `slug: ''` although the picks carry one. The design's
   sheet links as described above.
-- A made-to-measure kitchen can be turned into a stock product only by the data flag
-  `custom: false` on the item; the studio has no control for it yet.
+- A shop's kitchen unit placed as a wall run keeps its own length; nothing joins two units into
+  one run, or fills a run with several.
+- The made-to-measure tiles on the shelf show the material's price per m² without saying "per m²".

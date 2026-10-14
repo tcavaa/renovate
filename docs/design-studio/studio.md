@@ -102,15 +102,21 @@ is an overlay (`z-40`) the full height of the studio, scrolling inside itself un
 alternatives drawer: nothing is pushed aside for it; the help card and zoom (`z-30`) are
 the bottom-right corner's. The electric tray is one compact row.
 
-**A made-to-measure kitchen's card is its material.** A kitchen run or island is bought as the
-kitchen maker's material by the façade ([../budget.md](../budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents)),
+**A made-to-measure kitchen's card is its material and its length; a shop's kitchen unit's is
+its alternatives.** Placing a kitchen maker's material ("სამზარეულო — ავეჯის დამზადება", first on
+the kitchen's shelf) lays a run stretched along a wall in it; placing a shop's kitchen unit lays
+that unit, furniture like any other (`asPlacedKitchen`). A made-to-measure run or island is bought as the
+kitchen maker's material by the façade ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)),
 so its card (`ItemCard` through `boughtProduct`) shows the material, its price for this piece
 (façade × price per m²) and the maker's shop, and `SwapPanel` lists the maker's materials
 under the actions (`KitchenMaterials`: each with its price per m² and what the piece comes to
 in it, tagged **3D** when it brings a model of this piece's kind; `setKitchenMaterial`). Choosing
 one with a model redraws the kitchen as that model (`drawnModelUrl`, only for a material the person chose — `kitchenMaterialChosen`; the one the studio assigns keeps the placed model — the wrapper's key follows
-it, so the swap rebuilds it); without, the kitchen model placed stays. The alternatives below
-are the kitchen models — what is drawn while the material has none. The studio gives every such piece the style's material as the catalogue arrives and
+it, so the swap rebuilds it); without, the kitchen model placed stays. Above the materials, its
+**length** (`KitchenLength`: a slider and a number in centimetres, 0.6–8 m, and "კედლის ბოლომდე"
+— to the end of the wall; `setKitchenLength` / `stretchKitchenToWall`, refused with a word where
+the run would leave the room or stand on another piece). It lists no shop's units to swap to; a
+shop's unit lists the shops' other units and no material. The studio gives every such piece the style's material as the catalogue arrives and
 buys it again when the piece is stretched (`ensureKitchenMaterials`, watching
 `kitchenMaterialSignature`); like every re-derivation on the way in, that is not autosaved
 until the person edits something.

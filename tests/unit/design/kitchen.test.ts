@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { KITCHEN_RATES, drawnModelUrl, isCustomKitchenItem, isKitchenMaterial, kitchenFacadeM2, kitchenMaterialCandidates, kitchenMaterialSignature, kitchenTotals, measureKitchenItem, measureKitchens, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
+import { KITCHEN_RATES, asPlacedKitchen, drawnModelUrl, isCustomKitchenItem, isKitchenMaterial, kitchenFacadeM2, kitchenMaterialCandidates, kitchenMaterialSignature, kitchenTotals, measureKitchenItem, measureKitchens, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
 import { isFurnitureProduct } from '@/lib/design/catalogBrowser';
-import { candidatesFor } from '@/lib/design/matcher';
+import { applySwap, candidatesFor } from '@/lib/design/matcher';
 import { priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { DesignScene, FloorPlan, PlacedItem, SceneProduct, SceneStore } from '@/lib/design/types';
 
 const product = (price: number): SceneProduct => ({ productId: 7, nameKa: 'kitchen', slug: 'k', brand: null, pricePerUnit: price, unit: 'piece', qty: 1, totalPrice: price, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/models/k.glb', categorySlug: 'kitchen-furniture', store: null });
-const item = (over: Partial<PlacedItem> = {}): PlacedItem => ({ id: 'k1', roomId: 'r1', slot: 'kitchen_run', position: { x: 1, z: 1 }, elevationM: 0, rotation: 0, size: { width: 3, depth: 0.62, height: 0.92 }, kind: 'kitchen_run', product: product(1800), ...over });
+const item = (over: Partial<PlacedItem> = {}): PlacedItem => ({ id: 'k1', roomId: 'r1', slot: 'kitchen_run', position: { x: 1, z: 1 }, elevationM: 0, rotation: 0, size: { width: 3, depth: 0.62, height: 0.92 }, kind: 'kitchen_run', product: product(1800), custom: true, ...over });
 
 describe('made-to-measure kitchens', () => {
   it('measures a run by its façade — the lower units, the upper ones and the worktop', () => {
@@ -30,6 +30,9 @@ describe('made-to-measure kitchens', () => {
   it('leaves the rest of the furniture alone, and a kitchen the person buys off the shelf', () => {
     expect(isCustomKitchenItem(item())).toBe(true);
     expect(isCustomKitchenItem(item({ custom: false }))).toBe(false);
+    // No word either way: a shop's unit is a unit, a kitchen maker's material is made to measure.
+    expect(isCustomKitchenItem(item({ custom: undefined }))).toBe(false);
+    expect(isCustomKitchenItem(item({ custom: undefined, product: { ...product(650), categorySlug: 'kitchen-custom', unit: 'm2' } }))).toBe(true);
     expect(isCustomKitchenItem(item({ slot: 'sofa' }))).toBe(false);
     expect(measureKitchens([item(), item({ id: 's', slot: 'sofa' })])).toHaveLength(1);
     expect(kitchenTotals(measureKitchens([item(), item({ id: 'k2' })])).lengthM).toBe(6);
@@ -109,9 +112,31 @@ describe('the kitchen maker’s materials', () => {
     expect(drawnModelUrl(withKitchenMaterial(island, runModel, true))).toBe('/models/k.glb');
     // A model with no kind is drawn for either.
     expect(drawnModelUrl(withKitchenMaterial(island, anyModel, true))).toBe('/uploads/models/veneer.glb');
-    // Nor is a material ever a piece of furniture on the shelf or in the swaps, model or not.
-    expect(isFurnitureProduct(runModel)).toBe(false);
+    // A material with a run's model is on the shelf as the kitchen made to measure; one with no
+    // model, or no kind, is not; and none is ever among a shop's unit's alternatives.
+    expect(isFurnitureProduct(runModel)).toBe(true);
+    expect(isFurnitureProduct(anyModel)).toBe(false);
+    expect(isFurnitureProduct(material(38, 700, []))).toBe(false);
     expect(candidatesFor('kitchen_run', [runModel], 'modern')).toHaveLength(0);
+  });
+
+  it('makes a kitchen piece made to measure in a material, or a shop’s unit at its own size and price (asPlacedKitchen, applySwap)', () => {
+    const runModel = { ...material(36, 900, ['modern']), model3dKind: 'kitchen_run', model3dUrl: '/uploads/models/veneer-run.glb' } as CatalogProduct;
+    const shopUnit = { ...material(40, 4500, ['industrial']), categorySlug: 'kitchen-units', unit: 'piece', model3dKind: 'kitchen_run', model3dUrl: '/models/loft.glb', widthCm: 120, depthCm: 60, heightCm: 200 } as CatalogProduct;
+    const made = applySwap([item({ custom: undefined })], 'k1', runModel)[0];
+    expect(made.custom).toBe(true);
+    expect(made.size.width).toBe(3);
+    expect(made.kitchenMaterial?.productId).toBe(36);
+    expect(drawnModelUrl(made)).toBe('/uploads/models/veneer-run.glb');
+    expect(isCustomKitchenItem(made)).toBe(true);
+    const unit = applySwap([made], 'k1', shopUnit)[0];
+    expect(unit.custom).toBe(false);
+    expect(unit.kitchenMaterial).toBeUndefined();
+    expect(unit.size).toEqual({ width: 1.2, depth: 0.6, height: 2 });
+    expect(drawnModelUrl(unit)).toBe('/models/loft.glb');
+    // Any other piece is left as it is.
+    const sofa = item({ id: 's', slot: 'sofa', kind: 'sofa_3seat', custom: undefined });
+    expect(asPlacedKitchen(sofa, runModel)).toBe(sofa);
   });
 
   it('keeps a chosen material as the catalogue has it: a model uploaded since, a unit changed', () => {

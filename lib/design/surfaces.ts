@@ -18,6 +18,7 @@ import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
 import { roomWallAreaM2 } from './planGeometry';
 import { hasTrims, isTrimSurface } from './trims';
+import { weightedPick, type Rng } from './random';
 import type { ItemOrigin, PlanRoom, StyleDefinition, StyleId, StyleSurface, SurfaceFinish } from './types';
 
 export type Surface = 'floor' | 'wall';
@@ -182,10 +183,38 @@ export function styleFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling
   // A texture product seldom has a colour of its own; the style's is the one its look was
   // picked to — what shows until the texture is in, and what the 2D sheet is tinted with: the
   // style's plain wall's colour when that is what stood in for the room's paint.
-  const finish = finishFromProduct(room, surface, product, 'style');
+  const finish = { ...finishFromProduct(room, surface, product, 'style'), laidFor: room.type };
   if (product.colorHex) return finish;
   const generic = roomLook(getStyle(styleId), room.type, surface, true);
   return { ...finish, colorHex: !sameTexture(product.textureUrl, look.textureUrl) && sameTexture(product.textureUrl, generic.textureUrl) ? generic.colorHex : look.colorHex };
+}
+
+/**
+ * A generated design's finish for a surface of a room, drawn rather than fixed: another of the
+ * finishes like the style's own for the room — the same category (a paint for a painted wall, a
+ * laminate for a laminate floor, a tile for a tiled kitchen), as wet or dry as the room — the
+ * style's own three times as likely, then the style's tagged ones, any other least. Still
+ * `origin: 'style'`: nobody chose it, so a change of style or a fresh generation replaces it, and
+ * `withStyleFinishes` keeps it while it suits the room. Without an `rng`, or with nothing like
+ * the style's own in the catalogue, the style's finish (`styleFinish`).
+ */
+export function generatedFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling', styleId: StyleId, catalog: CatalogProduct[], rng?: Rng): SurfaceFinish {
+  const styled = styleFinish(room, surface, styleId, catalog);
+  if (!rng || surface === 'ceiling') return styled;
+  const own = styleFinishProduct(catalog, room, surface, styleId);
+  if (!own) return styled;
+  const wet = isWetRoom(room.type);
+  const pool = surfaceOptions(catalog, surface, room, styleId).filter((p) => p.categorySlug === own.categorySlug && !!surfaceSpecs(p).wet === wet);
+  const weight = (p: CatalogProduct) => (p.id === own.id ? 30 : [1, 4, 10][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1);
+  const product = weightedPick(pool, weight, rng);
+  if (!product || product.id === own.id) return styled;
+  const finish = { ...finishFromProduct(room, surface, product, 'style'), laidFor: room.type };
+  return product.colorHex ? finish : { ...finish, colorHex: styled.colorHex };
+}
+
+/** Whether a finish product suits this surface of this room as the style would lay it: the surface's, and wet in a bathroom, dry elsewhere. */
+function suitsRoom(product: CatalogProduct | undefined, room: PlanRoom, surface: Surface): boolean {
+  return !!product && isSurfaceProduct(product, surface) && !!surfaceSpecs(product).wet === isWetRoom(room.type);
 }
 
 /** A whole-room finish the style laid rather than a person: marked so, or from before finishes had an origin and bare. */
@@ -207,11 +236,17 @@ export function withStyleFinishes(finishes: SurfaceFinish[], rooms: PlanRoom[], 
   const bare = new Set(rooms.filter((r) => !hasTrims(r)).map((r) => r.id));
   let next = bare.size > 0 && finishes.some((f) => bare.has(f.roomId) && isTrimSurface(f.surface)) ? finishes.filter((f) => !(bare.has(f.roomId) && isTrimSurface(f.surface))) : finishes;
   if (catalog.length === 0) return next;
+  const byId = new Map(catalog.map((p) => [p.id, p]));
   for (const room of rooms) {
     for (const surface of ['floor', 'wall'] as const) {
       const index = next.findIndex((f) => f.roomId === room.id && f.surface === surface && isBaseFinish(f));
       const current = index >= 0 ? next[index] : undefined;
       if (current && !isStyleFinish(current)) continue;
+      // A product the style laid for this kind of room stays while it suits it — a generated design
+      // draws its finishes (`generatedFinish`), and this pass must not put every room back to the
+      // one look. A room retyped since (`laidFor`), or a finish from before it was recorded, is
+      // laid in the style's look for what the room is now.
+      if (current?.product && current.laidFor === room.type && suitsRoom(byId.get(current.product.productId), room, surface)) continue;
       const wanted = styleFinish(room, surface, styleId, catalog);
       if (!wanted.product || current?.product?.productId === wanted.product.productId) continue;
       if (next === finishes) next = [...finishes];

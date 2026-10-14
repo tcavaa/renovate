@@ -468,6 +468,12 @@ export interface SurfaceFinish {
   roughnessUrl?: string | null;
   product: SceneProduct | null;
   origin?: ItemOrigin;
+  /**
+   * A finish the style laid (`origin: 'style'`): the kind of room it was laid for. A generated
+   * design draws each room's finish (`generatedFinish`), and `withStyleFinishes` keeps one while
+   * the room is still that kind — a room retyped is laid in its new look.
+   */
+  laidFor?: RoomType | null;
 }
 
 // ---------------------------------------------------------------------------

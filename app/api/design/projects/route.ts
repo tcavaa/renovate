@@ -7,7 +7,7 @@ import { saveDesignSchema } from '@/lib/validations/design.schema';
 import { planToCalculatorRooms, totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { priceScene } from '@/lib/design/pricing';
 import { quantityFor } from '@/lib/design/matcher';
-import { kitchenFacadeM2 } from '@/lib/design/kitchen';
+import { isCustomKitchenItem, kitchenFacadeM2 } from '@/lib/design/kitchen';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { isTrimSurface } from '@/lib/design/trims';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
@@ -77,7 +77,10 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
       kitchenMaterial = known.get(kitchenMaterial.productId)?.unit === 'm2' ? { ...repriced, unit: 'm2' } : undefined;
     }
     const { kitchenMaterial: _sent, ...bare } = item;
-    const withMaterial = kitchenMaterial ? { ...bare, kitchenMaterial } : bare;
+    // A kitchen that was made to measure stays so with its material dropped — the estimate —
+    // rather than turning into a shop's unit at its model's price (`isCustomKitchenItem`).
+    const madeToMeasure = isCustomKitchenItem(item) ? { custom: true } : {};
+    const withMaterial = kitchenMaterial ? { ...bare, ...madeToMeasure, kitchenMaterial } : { ...bare, ...madeToMeasure };
     if (!item.product) {
       scene.items.push(withMaterial);
       continue;

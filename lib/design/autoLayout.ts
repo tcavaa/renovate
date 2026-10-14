@@ -7,10 +7,13 @@
  * see when you walk in, the sofa goes on the longest wall, the coffee table sits a metre in
  * front of it, nothing blocks a door — plus a collision pass to keep it honest.
  *
- * Being deterministic matters: the same plan and style always produce the same room, so a
- * user who swaps one product does not have the rest of the furniture jump around.
+ * Deterministic unless given an `rng` (`LayoutOptions.rng`): generating a design passes a freshly
+ * seeded one, so the same plan generated twice is laid out differently — a piece goes to another
+ * of the walls or spots that score close to the best, the optional decor comes and goes. Without
+ * one (adding a piece, the tests) the same plan always gives the same room, so a person who swaps
+ * one product does not have the rest of the furniture jump around.
  *
- * Pure: no THREE, no React, no randomness beyond a seeded shuffle.
+ * Pure: no THREE, no React, no randomness but the `rng` handed in.
  */
 
 import { studioParts } from './studio';
@@ -36,6 +39,7 @@ import {
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
 import { anchorsFor, type TechnicalAnchor } from './technical';
+import { pickNearBest, weightedOrder, type Rng } from './random';
 
 /** Axis-aligned box in the ground plane. */
 interface Box {
@@ -61,7 +65,25 @@ export interface LayoutOptions {
   anchors?: Record<string, TechnicalAnchor[]>;
   /** Per room, floor boxes nothing may stand on — the columns. */
   obstacles?: Record<string, Box[]>;
+  /** Seeded randomness (`lib/design/random`): another good spot, optional decor or not. None: the same room every time. */
+  rng?: Rng;
 }
+
+/** Decor a generated room may go without, and how likely each is to be laid out when it fits. */
+const OPTIONAL_DECOR: Record<string, number> = {
+  artwork: 0.8,
+  plant: 0.7,
+  floor_lamp: 0.7,
+  armchair: 0.75,
+  bookshelf: 0.75,
+  dresser: 0.8,
+  rug: 0.85,
+  rug_bed: 0.8,
+  curtain: 0.9,
+};
+
+/** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
+const SPOT_SPREAD = 10;
 
 // ---------------------------------------------------------------------------
 // Entry points
@@ -120,12 +142,14 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string): P
 
     const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
     if (room.areaM2 < gate) continue;
+    // A generated room varies its decor: a plant here, a print there, not every piece every time.
+    if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
 
     const count =
       entry.count === 'fill' ? seatCountFor(archetype, placed) : entry.count;
 
     for (let i = 0; i < count; i++) {
-      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors) });
+      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
@@ -200,27 +224,28 @@ function resolvePose(
   edges: PlanEdge[],
   placed: PlacedItem[],
   occupied: Box[],
-  options: { exact?: boolean; anchors?: TechnicalAnchor[] } = {}
+  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng } = {}
 ): Pose | null {
   const rule = archetype.placement;
+  const rng = options.rng;
   // A room separator is no wall: nothing stands against it, runs along it or hangs on it.
   const walled = edges.filter((e) => !isOpenEdge(room, e.index));
 
   switch (rule.type) {
     case 'wall':
-      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? []);
+      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng);
     case 'wall-run':
-      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? []);
+      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng);
     case 'center':
       return placeCentre(archetype, room, occupied);
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
     case 'corner':
-      return placeInCorner(archetype, room, edges, occupied, rule.clearanceM);
+      return placeInCorner(archetype, room, edges, occupied, rule.clearanceM, rng);
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
-      return placeOnWall(archetype, index, room, walled, rule.heightM);
+      return placeOnWall(archetype, index, room, walled, rule.heightM, rng);
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -239,7 +264,8 @@ function placeAgainstWall(
   prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
   clearanceM: number,
   exact = false,
-  anchors: TechnicalAnchor[] = []
+  anchors: TechnicalAnchor[] = [],
+  rng?: Rng
 ): Pose | null {
   const doorPoints = openingPoints(room, edges, isPassage);
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
@@ -253,7 +279,7 @@ function placeAgainstWall(
     : [archetype.size.width];
 
   for (const width of widths) {
-    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors);
+    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng);
     if (found) return found;
   }
   return null;
@@ -273,11 +299,12 @@ function bestAlongWalls(
   clearanceM: number,
   doorPoints: Vec2[],
   windowPoints: Vec2[],
-  anchors: TechnicalAnchor[] = []
+  anchors: TechnicalAnchor[] = [],
+  rng?: Rng
 ): Pose | null {
   const { width, depth, height } = size;
   const anchorPoints = anchors.map((a) => a.point);
-  let best: { pose: Pose; score: number } | null = null;
+  const spots: Array<{ value: Pose; score: number }> = [];
 
   for (const edge of edges) {
     if (edge.length < width + 0.25) continue;
@@ -324,11 +351,13 @@ function bestAlongWalls(
       // enough to outweigh the wall preferences, which are about looks, not plumbing.
       if (anchorPoints.length > 0) score += Math.max(0, 40 - minDistance(centre, anchorPoints) * 12);
 
-      if (!best || score > best.score) best = { pose, score };
+      spots.push({ value: pose, score });
     }
   }
 
-  return best?.pose ?? null;
+  // The best spot; generating, any spot close to it — another wall of similar merit, another
+  // stretch of the same wall. A fixture by its pipe keeps it: the anchor's pull is far above the spread.
+  return pickNearBest(spots, SPOT_SPREAD, rng);
 }
 
 /** Kitchen counters: stretch along the wall rather than sitting at a fixed width. */
@@ -339,7 +368,8 @@ function placeWallRun(
   occupied: Box[],
   prefer: 'longest' | 'shortest',
   clearanceM: number,
-  anchors: TechnicalAnchor[] = []
+  anchors: TechnicalAnchor[] = [],
+  rng?: Rng
 ): Pose | null {
   const { depth, height } = archetype.size;
   // The kitchen run goes on the wall the water comes to, when the plan says where that is.
@@ -352,8 +382,10 @@ function placeWallRun(
     }
     return prefer === 'longest' ? b.length - a.length : a.length - b.length;
   });
+  // Generating with no water point to follow, the run may take any long enough wall, the longer the likelier.
+  const order = rng && anchorPoints.length === 0 ? weightedOrder(sorted, (e) => (prefer === 'longest' ? e.length : 1 / Math.max(e.length, 0.5)), rng) : sorted;
 
-  for (const edge of sorted) {
+  for (const edge of order) {
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
 
     // Try the full wall first, then progressively shorter runs — a counter that has to stop
@@ -590,12 +622,13 @@ function placeInCorner(
   room: PlanRoom,
   edges: PlanEdge[],
   occupied: Box[],
-  clearanceM: number
+  clearanceM: number,
+  rng?: Rng
 ): Pose | null {
   const { width, depth } = archetype.size;
   const inset = Math.max(width, depth) / 2 + clearanceM * 0.4;
 
-  let best: { pose: Pose; score: number } | null = null;
+  const spots: Array<{ value: Pose; score: number }> = [];
 
   for (let i = 0; i < room.polygon.length; i++) {
     const corner = room.polygon[i];
@@ -624,11 +657,11 @@ function placeInCorner(
       (sum, box) => sum + 1 / (1 + distanceToBox(pose.position, box)),
       0
     );
-    const score = -crowding;
-    if (!best || score > best.score) best = { pose, score };
+    spots.push({ value: pose, score: -crowding });
   }
 
-  return best?.pose ?? null;
+  // The emptiest corner; generating, any corner nearly as empty.
+  return pickNearBest(spots, 1, rng);
 }
 
 /**
@@ -700,12 +733,13 @@ function placeOnWall(
   index: number,
   room: PlanRoom,
   edges: PlanEdge[],
-  heightM: number
+  heightM: number,
+  rng?: Rng
 ): Pose | null {
   const { width, depth, height } = archetype.size;
-  const candidates = edges
-    .filter((e) => e.length >= width + 0.3)
-    .sort((a, b) => b.length - a.length);
+  const longestFirst = edges.filter((e) => e.length >= width + 0.3).sort((a, b) => b.length - a.length);
+  // Generating, a print or a mirror may hang on any wall wide enough, the longer the likelier.
+  const candidates = rng ? weightedOrder(longestFirst, (e) => e.length, rng) : longestFirst;
 
   // A small bathroom has an opening on nearly every wall, so look for a clear stretch of
   // wall rather than a wall with nothing on it at all.

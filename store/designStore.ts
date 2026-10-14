@@ -22,7 +22,8 @@ import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
+import { defaultFinish, finishFromProduct, generatedFinish, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
+import { randomSeed, seededRng, type Rng } from '@/lib/design/random';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
@@ -52,7 +53,7 @@ import { technicalAnchors, technicalElevation, type TechnicalCheck } from '@/lib
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';
-import { withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
+import { kitchenToWall, stretchedKitchen, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
@@ -459,6 +460,10 @@ export interface DesignActions {
   lockItem: (itemId: string, locked: boolean) => void;
   /** The material a made-to-measure kitchen piece is made in, the kitchen maker's product priced per m² of façade (null: back to the estimate). */
   setKitchenMaterial: (itemId: string, product: CatalogProduct | null) => void;
+  /** A made-to-measure kitchen made `widthM` long along its wall; false when at that length it would not fit (`stretchedKitchen`). */
+  setKitchenLength: (itemId: string, widthM: number) => boolean;
+  /** A made-to-measure kitchen stretched as far along its wall as the room and its neighbours let it; false when it cannot grow. */
+  stretchKitchenToWall: (itemId: string) => boolean;
   /** Gives every made-to-measure piece without a material the style's, and buys the rest again for the façade they have now — no history entry. */
   ensureKitchenMaterials: (catalog: CatalogProduct[]) => void;
   /** A copy beside the original, where it fits. Returns the new id. */
@@ -1166,7 +1171,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         generate: (catalog) => {
           const { plan, styleId, budgetGel, calculatorPicks } = get();
           if (!plan) return;
-          const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])) });
+          // Every generation draws its own seed: the same plan gives another layout, other
+          // products and other floors and walls each time (`lib/design/random`).
+          const rng = seededRng(randomSeed());
+          const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])), rng });
           // A slot no partner product can fill is dropped rather than shown as a stand-in.
           //
           // Laying the flat out is the journey's hinge, so it is not an undoable edit: the
@@ -1175,11 +1183,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           // whole generation and leave every room bare — and, coming from the calculator,
           // carry on into the walls that were drawn there.
           set((s) => {
-            let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms }));
+            let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng }));
             // Every floor and wall is the style's product for its room — tiles in the bathroom,
             // laminate and paint elsewhere — so the budget buys what the flat is shown in. Re-laying
             // out the furniture is not a reason to lose the tiles someone picked.
-            let finishes = keepChosen(defaultFinishes(plan, styleId, catalog), s.finishes);
+            let finishes = keepChosen(defaultFinishes(plan, styleId, catalog, rng), s.finishes);
             if (calculatorPicks) {
               items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
@@ -1616,6 +1624,26 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         // and an undo after it quietly unlocked the piece).
         lockItem: (itemId, locked) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
         setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product, true) : i)) })),
+        // The material is bought again for the new façade by `ensureKitchenMaterials`, which the
+        // studio runs whenever a kitchen's length changes (`kitchenMaterialSignature`).
+        setKitchenLength: (itemId, widthM) => {
+          const { items, plan } = get();
+          const item = items.find((i) => i.id === itemId);
+          const room = item && plan?.rooms.find((r) => r.id === item.roomId);
+          const next = item && room ? stretchedKitchen(item, widthM, room, items) : null;
+          if (!next) return false;
+          commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? next : i)) }));
+          return true;
+        },
+        stretchKitchenToWall: (itemId) => {
+          const { items, plan } = get();
+          const item = items.find((i) => i.id === itemId);
+          const room = item && plan?.rooms.find((r) => r.id === item.roomId);
+          const next = item && room ? kitchenToWall(item, room, items) : null;
+          if (!next) return false;
+          commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? next : i)) }));
+          return true;
+        },
         ensureKitchenMaterials: (catalog) => {
           const { items, styleId } = get();
           if (catalog.length === 0) return;
@@ -1877,10 +1905,11 @@ function withStudioLine(room: PlanRoom): PlanRoom {
  * style's look. Without a catalogue the floor and walls are the look alone, until one comes
  * (`ensureFinishProducts`).
  */
-function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = []): SurfaceFinish[] {
+/** Every room's floor, walls, ceiling and mouldings as the style lays them — drawn from the style's kind of finish when generating (`rng`, `generatedFinish`). */
+function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = [], rng?: Rng): SurfaceFinish[] {
   if (!plan) return [];
   const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => styleFinish(room, surface, styleId, catalog)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
+  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, rng)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
 }
 
 /**

@@ -140,7 +140,7 @@ Reads the five manifests — `public/models/manifest.json` (partner), `stock/`, 
   as its model (`kitchen_run`) when the manifest has one — a model admin uploaded for a material
   (anything not under `/models/`) is theirs and stays, and without a manifest model a material
   keeps whatever model it has — and makes the kitchen maker's store when the database has none
-  ([budget.md](budget.md#kitchens-are-measured-and-made-in-the-makers-material-libdesignkitchents));
+  ([budget.md](budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents));
 - files each product in the category tree by its 3D kind (`categoryForKind`: the category that
   takes the kind — "Corner sofas" — else the archetype's own); one admin filed elsewhere under
   the archetype's category stays where it was put, one moved outside it goes back

@@ -1144,6 +1144,8 @@ export default function StudioPage() {
                   onDuplicate={() => store.duplicateItem(selected.id)}
                   onLock={(locked) => store.lockItem(selected.id, locked)}
                   onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => store.setKitchenMaterial(selected.id, product) : undefined}
+                  onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => store.setKitchenLength(selected.id, widthM) : undefined}
+                  onKitchenToWall={isCustomKitchenItem(selected) ? () => store.stretchKitchenToWall(selected.id) : undefined}
                 />
               </FloatingPanel>
             ) : selectedElement?.kind === 'electrical' && electrical.some((p) => p.id === selectedElement.id) ? (

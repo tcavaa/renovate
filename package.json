@@ -44,6 +44,7 @@
     "db:seed:partners": "tsx scripts/seed-partners.ts",
     "uploads:cleanup": "tsx scripts/cleanup-plans.ts",
     "uploads:optimize-models": "tsx scripts/optimize-stored-models.ts",
+    "audit:studio-products": "tsx scripts/audit-studio-products.ts",
     "db:backfill-translations": "tsx scripts/backfill-translations.ts",
     "pdf:worker": "node scripts/copy-pdf-worker.mjs",
     "draco:decoder": "node scripts/copy-draco-decoder.mjs",

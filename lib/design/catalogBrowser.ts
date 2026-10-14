@@ -61,7 +61,17 @@ export function hasCatalogFilters(state: CatalogBrowserState): boolean {
  * tray's), nor a kitchen maker's material (a kitchen's card, whatever model it has).
  */
 export function isFurnitureProduct(p: CatalogProduct): boolean {
-  return !!p.model3dUrl && !!p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind) && !isRadiatorProductKind(p.model3dKind) && !isEquipmentProductKind(p.model3dKind) && !isKitchenMaterial(p);
+  if (isKitchenMaterial(p)) return isMadeToMeasureKitchen(p);
+  return !!p.model3dUrl && !!p.model3dKind && !isFixtureProductKind(p.model3dKind) && !isOpeningProductKind(p.model3dKind) && !isRadiatorProductKind(p.model3dKind) && !isEquipmentProductKind(p.model3dKind);
+}
+
+/**
+ * A kitchen maker's material that can be placed as a kitchen made to measure ("ავეჯის დამზადება"):
+ * one with a model of a run or an island. Placed off the shelf or out of the catalogue, it is a run
+ * (or island) in that material, stretched in the studio and bought by its façade (`asPlacedKitchen`).
+ */
+export function isMadeToMeasureKitchen(p: CatalogProduct): boolean {
+  return isKitchenMaterial(p) && !!p.model3dUrl && (p.model3dKind === 'kitchen_run' || p.model3dKind === 'kitchen_island');
 }
 
 export function productStyles(p: Pick<CatalogProduct, 'styleTags'>): StyleId[] {

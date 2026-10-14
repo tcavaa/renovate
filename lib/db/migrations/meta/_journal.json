@@ -15,6 +15,13 @@
       "when": 1791928664597,
       "tag": "0001_starting_catalogue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792018624479,
+      "tag": "0002_kitchen_made_to_measure",
+      "breakpoints": true
     }
   ]
 }

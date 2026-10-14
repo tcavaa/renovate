@@ -22,6 +22,8 @@
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial } from './catalog';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId } from './types';
+import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
+import { polygonBounds } from './planGeometry';
 
 export { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial };
 
@@ -30,8 +32,66 @@ export const CUSTOM_KITCHEN_SLOTS = ['kitchen_run', 'kitchen_island'] as const;
 
 export type KitchenSlot = (typeof CUSTOM_KITCHEN_SLOTS)[number];
 
-export function isCustomKitchenItem(item: Pick<PlacedItem, 'slot' | 'custom'>): boolean {
-  return item.custom !== false && (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
+/**
+ * A kitchen piece made to measure ("ავეჯის დამზადება"): stretched to its wall, made in one of the
+ * kitchen maker's materials and bought by its façade — as against a kitchen unit a shop sells,
+ * which is furniture like any other: its own size, model and price (`custom: false`). An item
+ * says which it is (`custom`); one from before it did is made to measure when it carries a
+ * material (every kitchen was given one then) or its product is a kitchen maker's material.
+ */
+export function isCustomKitchenItem(item: Pick<PlacedItem, 'slot' | 'custom'> & { product?: PlacedItem['product']; kitchenMaterial?: PlacedItem['kitchenMaterial'] }): boolean {
+  if (!(CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot)) return false;
+  if (item.custom != null) return item.custom;
+  return !!item.kitchenMaterial || (!!item.product && isKitchenMaterial(item.product));
+}
+
+/**
+ * A kitchen piece as the product put in it makes it: a kitchen maker's material makes it made to
+ * measure, in that material, drawn as the material's model (`custom: true`); a shop's kitchen unit
+ * makes it that unit (`custom: false`, no material). Anything else, or a piece of another slot, as it is.
+ */
+export function asPlacedKitchen(item: PlacedItem, product: CatalogProduct): PlacedItem {
+  if (!(CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot)) return item;
+  if (isKitchenMaterial(product)) return withKitchenMaterial({ ...item, custom: true }, product, true);
+  const { kitchenMaterial: _material, kitchenMaterialChosen: _chosen, ...unit } = item;
+  return { ...unit, custom: false };
+}
+
+/** The shortest and longest a made-to-measure run or island may be made, metres. */
+export const KITCHEN_LENGTH_M = { min: 0.6, max: 8 } as const;
+
+/**
+ * A made-to-measure piece made `widthM` long, along its own wall: stretched from its middle and
+ * slid back inside the room where it would poke out — or null when at that length it would stand
+ * out of the room (a corner, a recess) or on another piece. A shop's unit is its own size: null.
+ */
+export function stretchedKitchen(item: PlacedItem, widthM: number, room: PlanRoom, items: PlacedItem[]): PlacedItem | null {
+  if (!isCustomKitchenItem(item) || item.locked) return null;
+  const width = Math.round(Math.min(KITCHEN_LENGTH_M.max, Math.max(KITCHEN_LENGTH_M.min, widthM)) * 100) / 100;
+  const size = { ...item.size, width };
+  const position = clampInsideRoom(room, item.position, size, item.rotation);
+  const footprint = footprintOf(position, size, item.rotation);
+  if (!footprintInRoom(footprint, room.polygon)) return null;
+  for (const other of blockingItems(items, room.id, item.id)) {
+    if (footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))) return null;
+  }
+  return { ...item, size, position };
+}
+
+/**
+ * The made-to-measure piece as long as its wall lets it be: the longest length, in 5 cm steps,
+ * at which it still stands inside the room and on nothing else (`stretchedKitchen`). Null when
+ * it cannot be made longer than it is.
+ */
+export function kitchenToWall(item: PlacedItem, room: PlanRoom, items: PlacedItem[]): PlacedItem | null {
+  if (!isCustomKitchenItem(item) || item.locked) return null;
+  const bounds = polygonBounds(room.polygon);
+  const reach = Math.min(KITCHEN_LENGTH_M.max, Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ));
+  for (let width = Math.floor(reach * 20) / 20; width > item.size.width + 0.001; width = Math.round((width - 0.05) * 100) / 100) {
+    const stretched = stretchedKitchen(item, width, room, items);
+    if (stretched) return stretched;
+  }
+  return null;
 }
 
 /**

@@ -205,6 +205,9 @@ a room clicked on the plan used to carry through the style test into the studio,
 the new layout one room at a time. `generate` clears it (and the board's room selection), and
 the studio page clears it whenever it opens; a room chosen in the studio stays chosen between
 its furniture and its finishes, which are the same page.
+**Generating twice gives two flats**: each `generate` draws a fresh seed, so the placement, the
+decor, the products and the floors and walls vary between the good options
+([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
 Generation also lays every room's floor and walls in the style's own partner products, by the
 kind of room (`roomLook` → `styleFinish`: tiles in the bathrooms, the bedroom painted calmer than
 the living room, the kitchen and the hall tiled — the style's `rooms` and its twelve paints),

@@ -105,8 +105,11 @@ sockets** (`socket_data`) under sockets and switches; **Building services**
 equipment the technical points are bought as — electrical panels, boilers and water heaters,
 air conditioners, cooker hoods, extractor fans, floor drains
 ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts));
-and **made-to-measure kitchens** ("სამზარეულოს ავეჯი — ინდივიდუალური დამზადება",
-`kitchen-custom`) under Furniture, beside kitchen furniture rather than under it — the
+and **made-to-measure kitchens** ("სამზარეულო — ავეჯის დამზადება", `kitchen-custom`) under
+Furniture, beside kitchen furniture rather than under it, and first on the kitchen studio room's
+shelf (migration `0002_kitchen_made_to_measure`, and `DEFAULT_SHELF_ROOMS` for a new database): a
+material with a run's model is placed from there as a run made to measure
+([budget.md](budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)) — the
 calculator's kitchen-furniture tab lists its whole subtree, and these are materials priced per
 m² of façade, not pieces — and not furniture to the seeds (`isFurniture: false`), which switch
 off model-less products in furniture categories. What it (or a subcategory under it) holds

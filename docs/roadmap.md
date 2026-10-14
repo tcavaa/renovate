@@ -36,6 +36,11 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
+- **AI generation** — after the style test, a model furnishes and finishes the flat by interior
+  design and building rules; the rule engine stays as fallback and geometry check. Phase 0 (a
+  rules module and metrics on today's generation) first —
+  [design-studio/ai-layout-plan.md](design-studio/ai-layout-plan.md).
+
 - **3D performance, what is left**: every paint click rebuilds every room's shell; switching
   2D ↔ 3D rebuilds the view; the 1.75 pixel ratio still costs on weak GPUs; textures are not
   GPU-compressed — about 400 MB of GPU memory for a

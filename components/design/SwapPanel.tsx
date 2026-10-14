@@ -12,7 +12,7 @@ import { ItemCard } from '@/components/design/ItemCard';
 import { ProductPageLink } from '@/components/design/ProductPageLink';
 import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
-import { kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
+import { KITCHEN_LENGTH_M, kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatM2, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -37,6 +37,10 @@ interface SwapPanelProps {
   onLock?: (locked: boolean) => void;
   /** A made-to-measure kitchen: the kitchen maker's material it is made in, priced per m² of façade. */
   onKitchenMaterial?: (product: CatalogProduct) => void;
+  /** A made-to-measure kitchen's length, metres; false when it would not fit at that length. */
+  onKitchenLength?: (widthM: number) => boolean;
+  /** Stretches a made-to-measure kitchen to the end of its wall; false when it cannot grow. */
+  onKitchenToWall?: () => boolean;
 }
 
 /** The angle as a slider and a number, 0–359°; both write the same rotation. */
@@ -87,6 +91,8 @@ export function SwapPanel({
   onDuplicate,
   onLock,
   onKitchenMaterial,
+  onKitchenLength,
+  onKitchenToWall,
 }: SwapPanelProps) {
   const t = useT();
   const locale = useLocale();
@@ -101,7 +107,10 @@ export function SwapPanel({
     );
   }
 
-  const alternatives = candidatesFor(item.kind, catalog, styleId);
+  // A kitchen made to measure is chosen by its material and its length, not swapped for a shop's
+  // unit; a shop's unit (and anything else) lists the shops' other products — never a material.
+  const madeToMeasure = !!onKitchenMaterial;
+  const alternatives = madeToMeasure ? [] : candidatesFor(item.kind, catalog, styleId);
   const currentId = item.product?.productId;
 
   return (
@@ -160,6 +169,7 @@ export function SwapPanel({
           <AngleRow degrees={Math.round(((item.rotation * 180) / Math.PI + 360) % 360)} onChange={(deg) => onRotateTo((deg * Math.PI) / 180)} label={t.design.angle} />
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
+        {onKitchenLength && !item.locked && <KitchenLength item={item} onLength={onKitchenLength} onToWall={onKitchenToWall} />}
         {onKitchenMaterial && <KitchenMaterials item={item} catalog={catalog} styleId={styleId} onPick={onKitchenMaterial} />}
         {rotateBlocked && (
           <p role="alert" className="text-[11px] text-danger">
@@ -174,6 +184,7 @@ export function SwapPanel({
         over the item card so the whole list gets the panel's height and scrolls inside.
         Scrolling back up from the top of the list closes it again.
       */}
+      {!madeToMeasure && (
       <section
         aria-expanded={open}
         className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}
@@ -227,7 +238,62 @@ export function SwapPanel({
           </ul>
         )}
       </section>
+      )}
     </div>
+  );
+}
+
+/**
+ * How long a made-to-measure kitchen is: a slider and a number in centimetres, and a button that
+ * stretches it to the end of its wall. A length at which it would leave the room or stand on
+ * another piece is refused, and says so.
+ */
+function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLength: (widthM: number) => boolean; onToWall?: () => boolean }) {
+  const t = useT();
+  const [blocked, setBlocked] = useState(false);
+  const cm = Math.round(item.size.width * 100);
+  const apply = (nextCm: number) => {
+    if (!Number.isFinite(nextCm)) return;
+    setBlocked(!onLength(nextCm / 100));
+  };
+  return (
+    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kitchenMadeToMeasure}</p>
+      <div className="flex items-center gap-2">
+        <span className="w-14 shrink-0 text-xs text-ink-soft">{t.build.kitchenLength}</span>
+        <input
+          type="range"
+          min={KITCHEN_LENGTH_M.min * 100}
+          max={KITCHEN_LENGTH_M.max * 100}
+          step={5}
+          value={cm}
+          onChange={(e) => apply(Number(e.target.value))}
+          aria-label={t.build.kitchenLength}
+          className="min-w-0 flex-1 accent-ink"
+        />
+        <input
+          type="number"
+          min={KITCHEN_LENGTH_M.min * 100}
+          max={KITCHEN_LENGTH_M.max * 100}
+          step={5}
+          value={cm}
+          onChange={(e) => apply(Number(e.target.value))}
+          aria-label={`${t.build.kitchenLength} (${t.units.cm})`}
+          className="h-8 w-16 rounded-[6px] border border-line bg-white px-1.5 text-right text-xs tabular-nums"
+        />
+        <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
+      </div>
+      {onToWall && (
+        <button type="button" onClick={() => setBlocked(!onToWall())} className="h-8 w-full rounded-[8px] border border-line bg-white text-xs font-medium text-ink hover:border-ink">
+          {t.build.kitchenToWall}
+        </button>
+      )}
+      {blocked && (
+        <p role="alert" className="text-[11px] text-danger">
+          {t.build.kitchenLengthBlocked}
+        </p>
+      )}
+    </section>
   );
 }
 

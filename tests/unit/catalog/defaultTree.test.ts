@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CATEGORY_TREE, DEFAULT_KIND_CATEGORY, DEFAULT_SHELF_ROOMS } from '@/lib/catalog/defaultTree';
@@ -14,7 +14,13 @@ import { ARCHETYPES, SHELF_ROOMS } from '@/lib/design/catalog';
  * the definition has is in the SQL.
  */
 
-const MIGRATION = readFileSync(path.join(process.cwd(), 'lib/db/migrations/0001_starting_catalogue.sql'), 'utf8');
+// The starting catalogue and every data migration after it (0002 put the kitchen made to measure on the kitchen's shelf).
+const MIGRATIONS_DIR = path.join(process.cwd(), 'lib/db/migrations');
+const MIGRATION = readdirSync(MIGRATIONS_DIR)
+  .filter((name) => /^\d{4}_.*\.sql$/.test(name) && name >= '0001')
+  .sort()
+  .map((name) => readFileSync(path.join(MIGRATIONS_DIR, name), 'utf8'))
+  .join('\n');
 const STATEMENTS = MIGRATION.split('--> statement-breakpoint');
 /** The statement that makes the category with this slug. */
 const categoryInsert = (slug: string) => STATEMENTS.find((s) => s.includes('INSERT INTO "categories"') && s.includes(`, '${slug}', `));
