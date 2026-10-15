@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { plainGlass } from '@/lib/design3d/glass';
+import { clearGlazing, plainGlass } from '@/lib/design3d/glass';
 
 /**
  * A transmissive part made three render the whole flat a second time every frame (measured at
@@ -39,5 +39,42 @@ describe('plainGlass', () => {
     const chair = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshPhysicalMaterial({ clearcoat: 1 }));
     expect(plainGlass(chair)).toBe(0);
     expect((chair.material as THREE.MeshPhysicalMaterial).transparent).toBe(false);
+  });
+});
+
+/**
+ * Window and glazed-door models that carry their glass as an opaque material named "Glass"
+ * (the fixtures' "Nordic" and "Grid") drew every window as a grey board.
+ */
+describe('clearGlazing', () => {
+  it('makes an opaque pane see-through and stops it casting a shadow', () => {
+    const pane = new THREE.MeshStandardMaterial({ name: 'Glass', roughness: 0.6 });
+    const frame = new THREE.MeshStandardMaterial({ name: 'White' });
+    const opening = new THREE.Group();
+    const paneMesh = new THREE.Mesh(new THREE.BoxGeometry(), pane);
+    const frameMesh = new THREE.Mesh(new THREE.BoxGeometry(), frame);
+    paneMesh.castShadow = frameMesh.castShadow = true;
+    opening.add(frameMesh, paneMesh);
+
+    expect(clearGlazing(opening)).toBe(1);
+    expect(pane.transparent).toBe(true);
+    expect(pane.opacity).toBeLessThan(0.3);
+    expect(pane.depthWrite).toBe(false);
+    expect(pane.roughness).toBeCloseTo(0.05, 6);
+    expect(paneMesh.castShadow).toBe(false);
+    // The frame is not glass.
+    expect(frame.transparent).toBe(false);
+    expect(frameMesh.castShadow).toBe(true);
+  });
+
+  it('changes a shared pane once and leaves glass that is already clear alone', () => {
+    const pane = new THREE.MeshStandardMaterial({ name: 'window_glass' });
+    const clear = new THREE.MeshStandardMaterial({ name: 'Glass.001', transparent: true, opacity: 0.4 });
+    const opening = new THREE.Group();
+    opening.add(new THREE.Mesh(new THREE.BoxGeometry(), pane), new THREE.Mesh(new THREE.BoxGeometry(), pane), new THREE.Mesh(new THREE.BoxGeometry(), clear));
+
+    expect(clearGlazing(opening)).toBe(1);
+    expect(clear.opacity).toBeCloseTo(0.4, 6);
+    expect(clearGlazing(opening)).toBe(0);
   });
 });

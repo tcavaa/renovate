@@ -29,6 +29,8 @@ export async function mountModelPreview(host: HTMLElement, url: string, options:
     import('three/examples/jsm/controls/OrbitControls.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
     import('three/examples/jsm/loaders/DRACOLoader.js'),
+    // The shader guards against NaN normals (shaderFixes.ts), in before the first compile.
+    import('./shaderFixes'),
   ]);
 
   const loader = new GLTFLoader();

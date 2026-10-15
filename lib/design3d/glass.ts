@@ -49,3 +49,40 @@ export function plainGlass(root: Object3D): number {
   });
   return done.size;
 }
+
+/** How much of the room a window's or a glazed door's pane still covers. */
+const PANE_OPACITY = 0.15;
+const PANE_NAME = /glass|glazing|pane|window_?glass|стекло|მინა|შუშა/i;
+
+interface PaneMaterial extends Material {
+  roughness?: number;
+  metalness?: number;
+}
+
+/**
+ * The panes of a door or window model, made see-through. Several of the fixture models (the
+ * two-leaf "Nordic", "Grid") and many converted windows carry their glass as an ordinary
+ * opaque material named "Glass" — every window in the studio was a grey board. Only for an
+ * opening's model: a black hob's glass or a lamp's frosted globe keeps its own look. Pane
+ * meshes cast no shadow, so the sun comes in. Returns how many materials it changed.
+ */
+export function clearGlazing(root: Object3D): number {
+  const done = new Set<Material>();
+  root.traverse((child) => {
+    const mesh = child as Mesh;
+    if (!mesh.isMesh) return;
+    for (const material of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as PaneMaterial[]) {
+      if (!PANE_NAME.test(material.name)) continue;
+      mesh.castShadow = false;
+      if (done.has(material) || (material.transparent && material.opacity < 1)) continue;
+      done.add(material);
+      material.transparent = true;
+      material.opacity = PANE_OPACITY;
+      material.depthWrite = false;
+      if (typeof material.roughness === 'number') material.roughness = 0.05;
+      if (typeof material.metalness === 'number') material.metalness = 0;
+      material.needsUpdate = true;
+    }
+  });
+  return done.size;
+}

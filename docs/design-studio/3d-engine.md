@@ -26,7 +26,8 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded`; `releaseUnused` lets go of the finishes no shell wears (gotcha 23) |
 | `lib/design3d/modelLoader.ts` | `loadModel` / `loadFixture`: one GLB per URL (meshopt or Draco), clones out, pivot onto y = 0, glass made plain, footprint mask registration; a failed load is forgotten so the next placement asks again |
 | `lib/design3d/loadProgress.ts` + `components/design/SceneLoading.tsx` | how many files the view asked for are still on their way (`trackLoad`, `loadStarted`), and the loading screen that waits on it (`useSceneLoading` in the viewer) |
-| `lib/design3d/glass.ts` | `plainGlass`: a transmissive glTF material (`KHR_materials_transmission`) turned into plain transparency (gotcha 20) |
+| `lib/design3d/glass.ts` | `plainGlass`: a transmissive glTF material (`KHR_materials_transmission`) turned into plain transparency (gotcha 20); `clearGlazing`: an opening model's opaque panes made see-through (gotcha 30) |
+| `lib/design3d/shaderFixes.ts` | guards in three's shared normal-mapping shader chunks against NaN normals, applied once on import by `modelLoader` and the turntable (gotcha 29) |
 | `lib/design3d/instancing.ts` | `instanced` / `alongX`: one model at several places as one `InstancedMesh` per mesh — radiator sections, a socket's plates, railing modules (gotcha 21) |
 | `lib/design3d/draco.ts` | `DRACO_DECODER_PATH`: where every browser loader finds the Draco decoder (`public/vendor/draco`, `pnpm draco:decoder`) |
 | `lib/design3d/footprintFromModel.ts` | a model's covered floor read off its triangles (→ `lib/design/footprintMasks.ts`) |
@@ -247,6 +248,32 @@ Each of these cost real debugging time. Don't undo them.
     This is the one place a shared resource is disposed — never under a live renderer, where it
     makes every model upload again on the next frame.
 
+29. **Some models shaded to NaN: white specks, black blocks under any blur**
+    (`lib/design3d/shaderFixes.ts`). A model with a normal map but no tangents is shaded with
+    three's screen-space tangent frame, which divides by how fast its UVs change across the
+    pixel. Converted library models often squash a part's UVs to (almost) a point — hundreds of
+    such triangles on several beds, sofas, a lamp shade, a chandelier — and quantised UVs make it
+    worse: the rate comes out a denormal, `det == 0.0` is false, `inversesqrt(det)` is infinite
+    and the normal is NaN. `normalize(tbn * mapN)` on a collapsed frame and `normalize(vNormal)`
+    on a zero stored normal do the same. A NaN normal lights the pixel NaN — a white speck in the
+    studio, and in anything that blurs the picture (bloom, a soft-shadow pass) a block of black
+    the size of a mip level. Rather than repair every file, three guards go into the shared
+    shader chunks once, before any material compiles (imported by `modelLoader` and, lazily, the
+    turntable): a frame with `det < 1e-24` falls back to the surface normal, a zero-length
+    mapped normal keeps the unmapped one, a zero vertex normal faces the camera. The camera-facing
+    fallback, not the face normal from derivatives: `MeshNormalMaterial` includes the chunk
+    without declaring `vViewPosition`. Each patch is a plain string replacement; after a three
+    upgrade `applyShaderFixes` warns if an anchor is gone, and `shaderFixes.test.ts` fails.
+30. **A window's glass can arrive opaque** (`clearGlazing` in `glass.ts`). The fixtures'
+    "Nordic" and "Grid" windows — the default window among them — carry their panes as an
+    ordinary opaque material named "Glass", so every window in the studio was a grey board that
+    also kept the sun out. `attachOpeningModel` runs `clearGlazing` on every door and window
+    model it mounts: a material named like glass (`Glass`, `glazing`, `pane`, `მინა`, `შუშა`,
+    `стекло`) that is not already see-through becomes transparent (opacity 0.15, no depth
+    write) and its meshes cast no shadow. Only for openings: a hob's black glass or a lamp's
+    frosted globe keeps its look. The files are unchanged, so the catalogue's turntable still
+    shows those windows opaque.
+
 ## A gap to the top of the wall: a balcony's railing
 
 Every hole in a wall stopped 2 cm under its top and 2 cm in from its ends, and the wall's top was
@@ -385,7 +412,7 @@ is not tone-mapped, so one hex colour comes out the same on both.
 ## Tests
 
 `tests/unit/design3d/wallGeometry.test.ts`, `wallSide.test.ts` (including the removed accent
-wall), `environment.test.ts`, `cornice.test.ts`, `footprintFromModel.test.ts`, `nightLights.test.ts`
+wall), `environment.test.ts`, `cornice.test.ts`, `footprintFromModel.test.ts`, `glass.test.ts` (`plainGlass`, `clearGlazing`), `shaderFixes.test.ts`, `nightLights.test.ts`
 (a light per room, a switch that keeps the count, the stand-in lamps, the hanging-lamp key);
 `tests/unit/design/wallPieces.test.ts`, `daylight.test.ts`. Pure three.js runs under Vitest's
 `node` environment as long as nothing needs a WebGL context. R3F 9 configures the renderer

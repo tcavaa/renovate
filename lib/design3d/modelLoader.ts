@@ -18,6 +18,9 @@ import { footprintMaskOf } from './footprintFromModel';
 import { plainGlass } from './glass';
 import { trackLoad } from './loadProgress';
 import { releaseObject } from './gpuRelease';
+// Guards three's shaders against the NaN normals some catalogue models produce; it has to run
+// before the first material compiles, and every model passes through here first.
+import './shaderFixes';
 
 interface CachedModel {
   object: THREE.Object3D;

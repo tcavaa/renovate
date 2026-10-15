@@ -401,7 +401,8 @@ else — the product's, or the manifest's default for its kind (`FixtureModel.ro
 white flush door, the two-leaf window, and Kenney's open doorway as the casing of an
 archway and of a bare leaf) — stretched to the opening's width and height (its depth in
 proportion, never much more than the wall); the hole is bare for the beat the file takes
-to arrive. The only thing drawn by hand is the translucent slab the build mode (structure unlocked)
+to arrive. Its panes are made see-through and shadowless as it is mounted (`clearGlazing`,
+[3d-engine.md](3d-engine.md) gotcha 30): several window models ship their glass opaque. The only thing drawn by hand is the translucent slab the build mode (structure unlocked)
 uses as a handle. `pnpm models:fixtures` frames a door or window centred on the opening, standing
 on y = 0, centred in the wall with the room side along +z, and sorts a door into the nodes
 `leaf` (hung from x min — `hinge: 'left'`) and `frame`, or `body` for a window or a door

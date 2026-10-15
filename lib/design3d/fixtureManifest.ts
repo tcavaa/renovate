@@ -383,6 +383,7 @@ export const FIXTURE_MODELS: FixtureModel[] = [
     "parts": [
       "body"
     ],
+    "role": "window",
     "license": "CC0",
     "author": "Quaternius"
   },

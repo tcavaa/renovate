@@ -45,6 +45,7 @@ import type {
 import { roomLook } from '@/lib/design/surfaces';
 import { FACADE_LOOK } from '@/lib/design/styles';
 import { StyleMaterials } from './materials';
+import { clearGlazing } from './glass';
 import { box, tag } from './primitives';
 import { releaseMaterial } from './gpuRelease';
 import { WALL_STUB_M, type WallPartKind } from './wallMode';
@@ -602,6 +603,8 @@ function attachOpeningModel(group: THREE.Group, url: string, ctx: { edge: PlanEd
       }
     }
     finishModel(root);
+    // Panes see-through and casting no shadow (some models ship their glass opaque).
+    clearGlazing(root);
     tag(root, data);
     group.add(root);
   };
