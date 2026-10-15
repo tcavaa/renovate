@@ -149,6 +149,7 @@ const TREE: Spec[] = [
       old('kitchen-furniture', 'სამზარეულოს ავეჯი', 'Kitchen Furniture', 'Кухонная мебель', 'kitchen-run', {
         children: [
           kind('kitchen_run', 'kitchen-units', 'სამზარეულოს კარადები', 'Kitchen units', 'Кухонные гарнитуры', 'kitchen-run'),
+          kind('kitchen_wall', 'kitchen-wall-units', 'სამზარეულოს ზედა კარადები', 'Kitchen wall cabinets', 'Навесные кухонные шкафы', 'panel-top'),
           kind('kitchen_island', 'kitchen-islands', 'სამზარეულოს კუნძულები', 'Kitchen islands', 'Кухонные острова', 'kitchen-island'),
           kind('fridge', 'fridges', 'მაცივრები', 'Fridges', 'Холодильники', 'refrigerator'),
         ],

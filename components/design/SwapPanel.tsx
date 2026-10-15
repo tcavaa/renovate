@@ -306,7 +306,7 @@ function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLengt
 function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem; catalog: CatalogProduct[]; styleId: StyleId; onPick: (product: CatalogProduct) => void }) {
   const t = useT();
   const locale = useLocale();
-  const materials = kitchenMaterialCandidates(catalog, styleId);
+  const materials = kitchenMaterialCandidates(catalog, styleId, item.slot);
   const facadeM2 = kitchenFacadeM2(item);
   return (
     <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">

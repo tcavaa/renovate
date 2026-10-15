@@ -76,6 +76,78 @@
         "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
       },
       "imageUrl": "/uploads/furniture/kitchen-run-veneer.webp"
+    },
+    {
+      "slug": "wall-ldsp",
+      "material": "kitchen-wall-material-ldsp",
+      "kind": "kitchen_wall",
+      "url": "/models/kitchens/wall-ldsp.glb",
+      "widthCm": 240,
+      "heightCm": 72,
+      "depthCm": 35,
+      "triangles": 108,
+      "bytes": 177356,
+      "title": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles",
+      "source": "procedural",
+      "sourceUrl": "",
+      "author": "RenovateGE",
+      "license": "own",
+      "credit": {
+        "title": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles",
+        "author": "RenovateGE",
+        "license": "own",
+        "url": "",
+        "text": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles — made from boxes by scripts/kitchen-wall-models.ts"
+      },
+      "imageUrl": "/uploads/furniture/kitchen-wall-ldsp.webp"
+    },
+    {
+      "slug": "wall-mdf",
+      "material": "kitchen-wall-material-mdf",
+      "kind": "kitchen_wall",
+      "url": "/models/kitchens/wall-mdf.glb",
+      "widthCm": 240,
+      "heightCm": 72,
+      "depthCm": 35,
+      "triangles": 108,
+      "bytes": 10364,
+      "title": "Wall cabinets, painted MDF, matt cashmere, black handles",
+      "source": "procedural",
+      "sourceUrl": "",
+      "author": "RenovateGE",
+      "license": "own",
+      "credit": {
+        "title": "Wall cabinets, painted MDF, matt cashmere, black handles",
+        "author": "RenovateGE",
+        "license": "own",
+        "url": "",
+        "text": "Wall cabinets, painted MDF, matt cashmere, black handles — made from boxes by scripts/kitchen-wall-models.ts"
+      },
+      "imageUrl": "/uploads/furniture/kitchen-wall-mdf.webp"
+    },
+    {
+      "slug": "wall-veneer",
+      "material": "kitchen-wall-material-veneer",
+      "kind": "kitchen_wall",
+      "url": "/models/kitchens/wall-veneer.glb",
+      "widthCm": 240,
+      "heightCm": 72,
+      "depthCm": 35,
+      "triangles": 108,
+      "bytes": 136320,
+      "title": "Wall cabinets, natural oak veneer, brass handles",
+      "source": "procedural",
+      "sourceUrl": "",
+      "author": "RenovateGE",
+      "license": "own",
+      "credit": {
+        "title": "Wall cabinets, natural oak veneer, brass handles",
+        "author": "RenovateGE",
+        "license": "own",
+        "url": "",
+        "text": "Wall cabinets, natural oak veneer, brass handles — made from boxes by scripts/kitchen-wall-models.ts"
+      },
+      "imageUrl": "/uploads/furniture/kitchen-wall-veneer.webp"
     }
   ]
 }

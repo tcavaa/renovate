@@ -96,4 +96,40 @@ export const KITCHEN_MATERIALS: KitchenMaterialSpec[] = [
     colorHex: '#B8875A',
     imageUrl: '/uploads/products/kitchen-material-veneer.webp',
   },
+  // The wall (hanging) cabinets in the same three materials — a piece of their own, made to the
+  // wall's measure and bought by their front (`kitchen_wall`): lighter than the base units (no
+  // drawers, no worktop), so less per m². Their models: `pnpm models:kitchen-walls`.
+  {
+    slug: 'kitchen-wall-material-ldsp',
+    nameKa: 'ზედა კარადები — ლამინირებული ლდსპ, ნაცრისფერი მუხა',
+    nameEn: 'Wall cabinets — laminated chipboard, grey oak',
+    nameRu: 'Навесные шкафы — ЛДСП, серый дуб',
+    descriptionKa: 'სამზარეულოს ზედა (კედლის) კარადები ზომაზე: კორპუსი და ფასადი — ლამინირებული ლდსპ (18 მმ), ABS კიდით. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 520,
+    styles: ['scandinavian', 'industrial'],
+    colorHex: '#B4AAA3',
+    imageUrl: '/uploads/furniture/kitchen-wall-ldsp.webp',
+  },
+  {
+    slug: 'kitchen-wall-material-mdf',
+    nameKa: 'ზედა კარადები — შეღებილი MDF, მატი, კაშემირი',
+    nameEn: 'Wall cabinets — painted MDF, matt cashmere',
+    nameRu: 'Навесные шкафы — крашеный МДФ, матовый кашемир',
+    descriptionKa: 'სამზარეულოს ზედა (კედლის) კარადები ზომაზე: ფასადი — შეღებილი MDF (19 მმ, მატი ლაქი), კორპუსი — ლამინირებული ლდსპ. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 680,
+    styles: ['modern', 'scandinavian'],
+    colorHex: '#DCD5C8',
+    imageUrl: '/uploads/furniture/kitchen-wall-mdf.webp',
+  },
+  {
+    slug: 'kitchen-wall-material-veneer',
+    nameKa: 'ზედა კარადები — მუხის ნატურალური შპონი',
+    nameEn: 'Wall cabinets — natural oak veneer',
+    nameRu: 'Навесные шкафы — натуральный шпон дуба',
+    descriptionKa: 'სამზარეულოს ზედა (კედლის) კარადები ზომაზე: ფასადი — მუხის ნატურალური შპონი (ზეთი-ცვილი), კორპუსი — ლამინირებული ლდსპ. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 920,
+    styles: ['vintage', 'modern', 'industrial'],
+    colorHex: '#B8875A',
+    imageUrl: '/uploads/furniture/kitchen-wall-veneer.webp',
+  },
 ];

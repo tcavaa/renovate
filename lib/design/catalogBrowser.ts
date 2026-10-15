@@ -67,11 +67,11 @@ export function isFurnitureProduct(p: CatalogProduct): boolean {
 
 /**
  * A kitchen maker's material that can be placed as a kitchen made to measure ("ავეჯის დამზადება"):
- * one with a model of a run or an island. Placed off the shelf or out of the catalogue, it is a run
- * (or island) in that material, stretched in the studio and bought by its façade (`asPlacedKitchen`).
+ * one with a model of a run, wall cabinets or an island. Placed off the shelf or out of the catalogue,
+ * it is that piece in that material, stretched in the studio and bought by its façade (`asPlacedKitchen`).
  */
 export function isMadeToMeasureKitchen(p: CatalogProduct): boolean {
-  return isKitchenMaterial(p) && !!p.model3dUrl && (p.model3dKind === 'kitchen_run' || p.model3dKind === 'kitchen_island');
+  return isKitchenMaterial(p) && !!p.model3dUrl && (p.model3dKind === 'kitchen_run' || p.model3dKind === 'kitchen_wall' || p.model3dKind === 'kitchen_island');
 }
 
 export function productStyles(p: Pick<CatalogProduct, 'styleTags'>): StyleId[] {

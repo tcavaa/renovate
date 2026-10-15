@@ -29,6 +29,13 @@
       "when": 1792019315758,
       "tag": "0003_carpet_category",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792022239196,
+      "tag": "0004_kitchen_wall_cabinets",
+      "breakpoints": true
     }
   ]
 }

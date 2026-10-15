@@ -642,10 +642,10 @@ describe('POST /api/design/projects (the design)', () => {
     const set = lastUpdate() as { plan: { technical: { points: Array<{ product: Record<string, number> }> } }; scene: { items: Array<{ kitchenMaterial: Record<string, number> }> } };
     expect(set.plan.technical.points[0].product).toMatchObject({ pricePerUnit: 1450, qty: 1, totalPrice: 1450 });
     // 3 m of run: 2.7 m² of lower fronts and 1.51 m² of upper ones.
-    expect(set.scene.items[0].kitchenMaterial).toMatchObject({ pricePerUnit: 850, qty: 4.21, totalPrice: 3578.5 });
+    expect(set.scene.items[0].kitchenMaterial).toMatchObject({ pricePerUnit: 850, qty: 2.7, totalPrice: 2295 });
     const { cost } = (await res.json()).data;
     expect(cost.lines.find((l: { key: string }) => l.key === 'product-10')).toMatchObject({ qty: 1, total: 1450, estimated: false });
-    expect(cost.lines.find((l: { key: string }) => l.key === 'product-11')).toMatchObject({ qty: 4.21, total: 3578.5, estimated: false });
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-11')).toMatchObject({ qty: 2.7, total: 2295, estimated: false });
   });
 
   it('drops a kitchen “material” the catalogue does not sell by the m² — the kitchen is the estimate again', async () => {

@@ -130,3 +130,50 @@ describe('a generated room’s floor and walls are drawn from the style’s kind
     expect(surfaceSpecs(catalog.find((p) => p.id === retyped[0].product!.productId)!).wet).toBe(true);
   });
 });
+
+describe('wall cabinets over the kitchen run', () => {
+  const kitchen = rect('k', 'kitchen', 4, 3);
+
+  it('hang over the run, on its wall, their bottom at 1.5 m and as long as it', () => {
+    const items = layoutRoom(kitchen);
+    const run = items.find((i) => i.slot === 'kitchen_run')!;
+    const wall = items.find((i) => i.slot === 'kitchen_wall')!;
+    expect(wall).toBeDefined();
+    expect(wall.rotation).toBeCloseTo(run.rotation, 6);
+    expect(wall.elevationM).toBeCloseTo(1.5, 2);
+    expect(wall.size.width).toBeCloseTo(run.size.width, 2);
+    // Its back on the run's wall: the two backs are the same line.
+    const back = (i: PlacedItem) => ({ x: i.position.x - Math.sin(i.rotation) * (i.size.depth / 2), z: i.position.z - Math.cos(i.rotation) * (i.size.depth / 2) });
+    expect(Math.hypot(back(wall).x - back(run).x, back(wall).z - back(run).z)).toBeLessThan(0.05);
+  });
+
+  it('leave the window over the run clear', () => {
+    const plain = layoutRoom(kitchen);
+    const run = plain.find((i) => i.slot === 'kitchen_run')!;
+    const edges = (r: PlanRoom) => r.polygon.map((a, i) => ({ a, b: r.polygon[(i + 1) % r.polygon.length] }));
+    // A window in the middle of the run's wall.
+    const wallIndex = edges(kitchen).findIndex(({ a, b }) => Math.abs((a.x + b.x) / 2 - run.position.x) < 1.6 && Math.abs((a.z + b.z) / 2 - run.position.z) < 0.5);
+    const withWindow = refreshRoom({ ...kitchen, openings: [{ id: 'w', kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 }] } as PlanRoom);
+    const items = layoutRoom(withWindow);
+    const wall = items.find((i) => i.slot === 'kitchen_wall');
+    if (wall) expect(wall.size.width).toBeLessThan(run.size.width);
+  });
+
+  it('are made in the run’s material, and left out over a shop’s run', () => {
+    const made = (id: number, slug: string, kind: string) =>
+      product(id, { slug, categorySlug: 'kitchen-custom', unit: 'm2', model3dKind: kind, model3dUrl: `/models/${slug}.glb`, widthCm: null, depthCm: null, heightCm: null, styleTags: ['scandinavian'] });
+    const catalog = [made(1, 'kitchen-material-mdf', 'kitchen_run'), made(2, 'kitchen-wall-material-ldsp', 'kitchen_wall'), made(3, 'kitchen-wall-material-mdf', 'kitchen_wall')];
+    const slots = layoutRoom(kitchen).filter((i) => i.slot === 'kitchen_run' || i.slot === 'kitchen_wall');
+    const [run, wall] = matchProducts(slots, catalog, { styleId: 'scandinavian', rooms: [kitchen] });
+    expect(run.custom).toBe(true);
+    expect(wall.custom).toBe(true);
+    expect(wall.kitchenMaterial?.slug).toBe('kitchen-wall-material-mdf');
+    // A shop's run (height 90, depth 60): no wall cabinets over it.
+    const shopRun = product(9, { slug: 'shop-run', model3dKind: 'kitchen_run', widthCm: 200, depthCm: 60, heightCm: 90, categorySlug: 'kitchen-units' });
+    for (let seed = 1; seed <= 40; seed++) {
+      const [r, w] = matchProducts(slots, [...catalog, shopRun], { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
+      if (r.custom === false) expect(w.product).toBeNull();
+      else expect(w.kitchenMaterial?.slug.startsWith('kitchen-wall-material-')).toBe(true);
+    }
+  });
+});

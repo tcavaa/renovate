@@ -61,7 +61,12 @@ deterministic, so a person who swaps one product does not have the rest of the f
 - **Floors and walls** (`generatedFinish`, [finishes.md](finishes.md)): drawn from the finishes
   like the style's own for the room.
 - **The kitchen run** is made to measure in a drawn material, or about a third of the time a
-  shop's unit that fits the run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
+  shop's unit that fits the run (only a run-shaped one: worktop-high, deeper than 45 cm, wider than
+  deep — the library files hobs and coffee machines under the same kind). **The wall cabinets**
+  (`kitchen_wall`, in the kitchen's program after the run) hang over it: `placeAbove` puts them on
+  the run's wall, as long as the run, shortened and slid along it to keep a window or a door clear
+  — and on the longest clear wall when the room has no run; made to measure in the run's
+  material's wall version, none over a shop's run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
 
 The seed is not stored: a generated flat is saved as what it is, not how it was drawn.
 

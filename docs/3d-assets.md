@@ -459,6 +459,18 @@ canopy, an air conditioner's front) shadows itself in rings.
 The Sketchfab files were taken from the Objaverse mirror under the licence its metadata
 records; the prices, stores and names are ours.
 
+## Kitchen wall cabinets (`scripts/kitchen-wall-models.ts`)
+
+`pnpm models:kitchen-walls` writes the made-to-measure wall cabinets, one per wall-cabinet
+material (`wall-ldsp`, `wall-mdf`, `wall-veneer` for `kitchen-wall-material-*`): four 60 cm doors
+on a carcase a shade darker than the fronts (so the gaps read), 2.4 × 0.72 × 0.35 m, a bar handle
+along each door's lower edge, the runs' fronts and handle colours, the fronts' texture laid on in
+metres as the runs have it. The runs' source has no wall units, so these are made from boxes
+(108 triangles, own work). Their rows go in the same `public/models/kitchens/manifest.json`, and
+`pnpm models:kitchens` keeps them when it writes its runs; `models:seed` gives each material its
+model, `pnpm models:photos --only=wall-ldsp,wall-mdf,wall-veneer` its photo (which falls back to
+the machine's Chrome when Playwright's Chromium is not installed).
+
 ## Kitchen runs (`scripts/kitchen-models.ts`)
 
 A made-to-measure kitchen is priced by the material the maker builds it in

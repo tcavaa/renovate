@@ -245,7 +245,8 @@ function resolvePose(
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
-      return placeOnWall(archetype, index, room, walled, rule.heightM, rng);
+      // Over its piece when the room has one (the wall cabinets over the run), else on a wall.
+      return (rule.above ? placeAbove(archetype, room, walled, placed, rule.above, rule.heightM) : null) ?? placeOnWall(archetype, index, room, walled, rule.heightM, rng);
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -763,6 +764,51 @@ function placeOnWall(
     }
   }
 
+  return null;
+}
+
+/**
+ * Hung over a piece standing against a wall — the wall cabinets over the kitchen run: on the
+ * same wall, as long as the piece and over it, its middle at `heightM`; shortened and slid along
+ * the piece where the full length would cross a window or a door. Null when the room has no such
+ * piece, or no stretch over it is clear.
+ */
+function placeAbove(archetype: Archetype, room: PlanRoom, edges: PlanEdge[], placed: PlacedItem[], to: string, heightM: number): Pose | null {
+  const under = placed.find((p) => p.slot === to);
+  if (!under) return null;
+  const { depth, height } = archetype.size;
+  const forward = { x: Math.sin(under.rotation), z: Math.cos(under.rotation) };
+  const back = { x: under.position.x - forward.x * (under.size.depth / 2), z: under.position.z - forward.z * (under.size.depth / 2) };
+  // The wall it stands against: one that faces as it does, the nearest to its back.
+  let wall: { edge: PlanEdge; t: number; distance: number } | null = null;
+  for (const edge of edges) {
+    const turn = edge.facing - under.rotation;
+    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.1) continue;
+    const dx = edge.b.x - edge.a.x;
+    const dz = edge.b.z - edge.a.z;
+    const t = ((back.x - edge.a.x) * dx + (back.z - edge.a.z) * dz) / (edge.length * edge.length);
+    const at = pointOnEdge(edge, Math.min(1, Math.max(0, t)));
+    const distance = Math.hypot(back.x - at.x, back.z - at.z);
+    if (!wall || distance < wall.distance) wall = { edge, t, distance };
+  }
+  if (!wall || wall.distance > 0.3) return null;
+  const { edge, t: centre } = wall;
+  const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+  for (const width of [1, 0.75, 0.5].map((f) => under.size.width * f).filter((w) => w >= 0.6)) {
+    const slack = (under.size.width - width) / 2;
+    for (const offset of [0, -slack, slack, -slack / 2, slack / 2]) {
+      const t = centre + offset / edge.length;
+      if (t - width / 2 / edge.length < 0 || t + width / 2 / edge.length > 1) continue;
+      if (coversOpening(edge, t, width, heightM + height / 2, blocked)) continue;
+      const anchor = pointOnEdge(edge, t);
+      return {
+        position: { x: anchor.x + edge.inward.x * (depth / 2 + 0.01), z: anchor.z + edge.inward.z * (depth / 2 + 0.01) },
+        rotation: edge.facing,
+        size: { ...archetype.size, width },
+        elevationM: heightM - height / 2,
+      };
+    }
+  }
   return null;
 }
 

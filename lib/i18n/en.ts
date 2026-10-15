@@ -2799,6 +2799,7 @@ export const en: Dictionary = {
     lineEntranceDoor: 'Entrance door',
     lineKitchenRun: 'Kitchen units — made to measure',
     lineKitchenIsland: 'Kitchen island — made to measure',
+    lineKitchenWall: 'Kitchen wall cabinets — made to measure',
     kitchenMeasureTitle: 'Kitchen units — measured',
     kitchenMeasureHint: 'The kitchen is made for this flat: priced by the m² of façade, the worktop by the running metre',
     kitchenLower: 'Lower units',

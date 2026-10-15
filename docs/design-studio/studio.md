@@ -104,7 +104,8 @@ the bottom-right corner's. The electric tray is one compact row.
 
 **A made-to-measure kitchen's card is its material and its length; a shop's kitchen unit's is
 its alternatives.** Placing a kitchen maker's material ("სამზარეულო — ავეჯის დამზადება", first on
-the kitchen's shelf) lays a run stretched along a wall in it; placing a shop's kitchen unit lays
+the kitchen's shelf) lays a run stretched along a wall in it — or, a wall-cabinet material, wall
+cabinets hung over the run (on the longest clear wall without one), with the same length control; placing a shop's kitchen unit lays
 that unit, furniture like any other (`asPlacedKitchen`). A made-to-measure run or island is bought as the
 kitchen maker's material by the façade ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)),
 so its card (`ItemCard` through `boughtProduct`) shows the material, its price for this piece

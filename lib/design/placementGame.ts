@@ -57,7 +57,7 @@ export interface GamePiece {
  * Kinds that are not a piece to pick up: a kitchen run is sold as its material (a veneer, a
  * lacquer) and measured to the wall, so its name and photo are a swatch, not furniture.
  */
-const NOT_PIECES: readonly string[] = ['kitchen_run'];
+const NOT_PIECES: readonly string[] = ['kitchen_run', 'kitchen_wall'];
 
 /** The products the game can use: a ready 3D model of a kind with one right room. */
 export function playablePieces(products: CatalogProduct[]): GamePiece[] {

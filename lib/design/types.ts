@@ -299,6 +299,7 @@ export type SlotKind =
   | 'dining_table'
   | 'dining_chair'
   | 'kitchen_run'
+  | 'kitchen_wall'
   | 'kitchen_island'
   | 'fridge'
   | 'desk'

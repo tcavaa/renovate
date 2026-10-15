@@ -106,7 +106,7 @@ const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
  * surface does): the kind of opening, the radiator, the equipment, the kind of fitting — the
  * four sockets as one, since one socket product serves them all — or a kitchen made to measure.
  */
-export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_island' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
+export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_wall' | 'kitchen_island' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
 export type ProductLabels = Record<ProductLabelKey, string>;
 
 const DEFAULT_PRODUCT_LABELS: ProductLabels = {
@@ -131,6 +131,7 @@ const DEFAULT_PRODUCT_LABELS: ProductLabels = {
   floor_drain: 'იატაკის ტრაპი',
   kitchen_run: 'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება',
   kitchen_island: 'სამზარეულოს კუნძული — ინდივიდუალური დამზადება',
+  kitchen_wall: 'სამზარეულოს ზედა კარადები — ინდივიდუალური დამზადება',
 };
 
 const fittingLabelKey = (kind: ElectricalPoint['kind']): ProductLabelKey => (kind.startsWith('socket') ? 'socket' : (kind as ProductLabelKey));
@@ -285,7 +286,7 @@ export function priceScene(
     const placed = scene.items.find((i) => i.id === kitchen.itemId);
     const material = placed ? kitchenMaterialOf(placed) : null;
     if (material) {
-      const label = kitchen.slot === 'kitchen_island' ? 'kitchen_island' : 'kitchen_run';
+      const label = kitchen.slot;
       raw.push({
         section: 'furniture',
         bucket: 'furniture',
@@ -306,7 +307,7 @@ export function priceScene(
     raw.push({
       section: 'furniture',
       bucket: 'furniture',
-      key: kitchen.slot === 'kitchen_island' ? 'kitchen_island_custom' : 'kitchen_run_custom',
+      key: `${kitchen.slot}_custom`,
       tick,
       roomName: kitchen.roomName,
       qty: kitchen.totalM2,

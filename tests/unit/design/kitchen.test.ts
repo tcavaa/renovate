@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { KITCHEN_RATES, asPlacedKitchen, drawnModelUrl, isCustomKitchenItem, isKitchenMaterial, kitchenFacadeM2, kitchenMaterialCandidates, kitchenMaterialSignature, kitchenTotals, measureKitchenItem, measureKitchens, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
+import { KITCHEN_RATES, asPlacedKitchen, drawnModelUrl, stretchedKitchen, isCustomKitchenItem, isKitchenMaterial, kitchenFacadeM2, kitchenMaterialCandidates, kitchenMaterialSignature, kitchenTotals, measureKitchenItem, measureKitchens, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
 import { isFurnitureProduct } from '@/lib/design/catalogBrowser';
 import { applySwap, candidatesFor } from '@/lib/design/matcher';
 import { priceScene } from '@/lib/design/pricing';
@@ -11,14 +11,25 @@ const product = (price: number): SceneProduct => ({ productId: 7, nameKa: 'kitch
 const item = (over: Partial<PlacedItem> = {}): PlacedItem => ({ id: 'k1', roomId: 'r1', slot: 'kitchen_run', position: { x: 1, z: 1 }, elevationM: 0, rotation: 0, size: { width: 3, depth: 0.62, height: 0.92 }, kind: 'kitchen_run', product: product(1800), custom: true, ...over });
 
 describe('made-to-measure kitchens', () => {
-  it('measures a run by its façade — the lower units, the upper ones and the worktop', () => {
+  it('measures a run by its base units’ façade and its worktop — the wall cabinets are a piece of their own', () => {
     const measure = measureKitchenItem(item());
     expect(measure.lengthM).toBe(3);
     expect(measure.lowerM2).toBeCloseTo(3 * 0.9, 2);
-    expect(measure.upperM2).toBeCloseTo(3 * 0.7 * 0.72, 2);
+    expect(measure.upperM2).toBe(0);
     expect(measure.worktopM).toBe(3);
-    expect(measure.totalM2).toBeCloseTo(measure.lowerM2 + measure.upperM2, 6);
-    expect(measure.totalGel).toBeCloseTo(measure.lowerM2 * KITCHEN_RATES.lowerPerM2 + measure.upperM2 * KITCHEN_RATES.upperPerM2 + 3 * KITCHEN_RATES.worktopPerM + 3 * KITCHEN_RATES.fittingPerM, 1);
+    expect(measure.totalM2).toBeCloseTo(measure.lowerM2, 6);
+    expect(measure.totalGel).toBeCloseTo(measure.lowerM2 * KITCHEN_RATES.lowerPerM2 + 3 * KITCHEN_RATES.worktopPerM + 3 * KITCHEN_RATES.fittingPerM, 1);
+  });
+
+  it('measures wall cabinets by their own front, with no worktop', () => {
+    const wall = item({ id: 'w1', slot: 'kitchen_wall', kind: 'kitchen_wall', elevationM: 1.5, size: { width: 2.4, depth: 0.35, height: 0.72 } });
+    const measure = measureKitchenItem(wall);
+    expect(measure.upperM2).toBeCloseTo(2.4 * 0.72, 2);
+    expect(measure.lowerM2).toBe(0);
+    expect(measure.worktopM).toBe(0);
+    expect(kitchenFacadeM2(wall)).toBeCloseTo(1.73, 2);
+    expect(measure.totalGel).toBeCloseTo(measure.upperM2 * KITCHEN_RATES.upperPerM2 + 2.4 * KITCHEN_RATES.fittingPerM, 1);
+    expect(isCustomKitchenItem(wall)).toBe(true);
   });
 
   it('works an island from both sides and hangs nothing above it', () => {
@@ -169,5 +180,39 @@ describe('the kitchen maker’s materials', () => {
     // The model placed is only what is drawn: its own price is in no line.
     expect(cost.lines.some((l) => l.key === 'product-7')).toBe(false);
     expect(cost.furnitureTotal).toBeCloseTo(measure.totalGel, 2);
+  });
+});
+
+describe('wall cabinets made to measure', () => {
+  const material = (id: number, slug: string, kind: string | null, price: number): CatalogProduct =>
+    ({ id, nameKa: slug, slug, brand: null, categorySlug: 'kitchen-custom', pricePerUnit: price, unit: 'm2', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: kind, model3dUrl: kind ? `/models/kitchens/${slug}.glb` : null, widthCm: null, depthCm: null, heightCm: null, styleTags: ['modern'], tags: [], isFeatured: false, specs: null, coveragePerUnit: null, store: null }) as unknown as CatalogProduct;
+  const runLdsp = material(1, 'kitchen-material-ldsp', 'kitchen_run', 650);
+  const wallLdsp = material(2, 'kitchen-wall-material-ldsp', 'kitchen_wall', 520);
+  const either = material(3, 'kitchen-material-plain', null, 700);
+  const catalog = [runLdsp, wallLdsp, either];
+
+  it('offers each piece the materials made for it, and one with no model to both', () => {
+    expect(kitchenMaterialCandidates(catalog, 'modern', 'kitchen_run').map((m) => m.id).sort()).toEqual([1, 3]);
+    expect(kitchenMaterialCandidates(catalog, 'modern', 'kitchen_wall').map((m) => m.id).sort()).toEqual([2, 3]);
+    expect(kitchenMaterialCandidates(catalog, 'modern').map((m) => m.id).sort()).toEqual([1, 2, 3]);
+  });
+
+  it('is placed from its material as wall cabinets drawn in it, and its material kept to its kind', () => {
+    const wall = item({ id: 'w1', slot: 'kitchen_wall', kind: 'kitchen_wall', elevationM: 1.5, size: { width: 2.4, depth: 0.35, height: 0.72 }, custom: undefined });
+    const made = applySwap([wall], 'w1', wallLdsp)[0];
+    expect(made.custom).toBe(true);
+    expect(drawnModelUrl(made)).toBe('/models/kitchens/kitchen-wall-material-ldsp.glb');
+    const [kept] = withKitchenMaterials([{ ...made, kitchenMaterial: undefined }], catalog, 'modern');
+    expect([2, 3]).toContain(kept.kitchenMaterial?.productId);
+  });
+
+  it('stretches past the run under it but not into a tall fridge beside it', () => {
+    const room = { id: 'r1', type: 'kitchen' as const, name: 'Kitchen', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 3 }, { x: 0, z: 3 }], heightM: 2.7, areaM2: 15, perimeterM: 16, openings: [] };
+    const run = item({ id: 'k1', position: { x: 2.5, z: 0.31 }, size: { width: 4, depth: 0.62, height: 0.92 } });
+    const wall = item({ id: 'w1', slot: 'kitchen_wall', kind: 'kitchen_wall', elevationM: 1.5, position: { x: 2, z: 0.175 }, size: { width: 2, depth: 0.35, height: 0.72 } });
+    expect(stretchedKitchen(wall, 3.5, room, [run, wall])?.size.width).toBe(3.5);
+    const fridge = item({ id: 'f1', slot: 'fridge', kind: 'fridge', custom: undefined, position: { x: 4.6, z: 0.35 }, size: { width: 0.6, depth: 0.65, height: 1.9 } });
+    expect(stretchedKitchen(wall, 4.6, room, [run, wall, fridge])).toBeNull();
+    expect(stretchedKitchen(wall, 4.2, room, [run, wall, fridge])?.size.width).toBe(4.2);
   });
 });

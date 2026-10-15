@@ -90,6 +90,7 @@ pnpm models:radiators   # the four radiator designs (one section each)
 pnpm models:railings    # the balcony railing (one metre module, not a product)
 pnpm models:equipment [--only=…]   # panels, boilers, ACs, hoods, fan, drain, TV/data sockets (CC0/CC BY downloads)
 pnpm models:kitchens    # a kitchen run per kitchen material (one CC BY kitchen, re-textured)
+pnpm models:kitchen-walls   # the made-to-measure wall cabinets per material (made from boxes)
 pnpm models:photos      # product photos rendered from those models (Playwright's Chromium)
 pnpm models:colors [--force]   # read each model's colours into the manifests
 pnpm models:compress [--dry-run]   # WebP textures + Draco geometry where it pays (every models:* runs it last)

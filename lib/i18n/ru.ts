@@ -2797,6 +2797,7 @@ export const ru: Dictionary = {
     lineEntranceDoor: 'Входная дверь',
     lineKitchenRun: 'Кухонный гарнитур — на заказ',
     lineKitchenIsland: 'Кухонный остров — на заказ',
+    lineKitchenWall: 'Навесные кухонные шкафы — на заказ',
     kitchenMeasureTitle: 'Кухонная мебель — по размерам',
     kitchenMeasureHint: 'Кухня изготавливается для этой квартиры: цена считается по м² фасада, столешница — по погонному метру',
     kitchenLower: 'Нижние модули',

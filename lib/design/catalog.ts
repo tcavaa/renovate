@@ -48,8 +48,11 @@ export type PlacementRule =
   | { type: 'corner'; clearanceM: number }
   /** Hangs from the ceiling. */
   | { type: 'ceiling' }
-  /** Fixed flat to a wall at a given height (mirrors, art). */
-  | { type: 'wall-mounted'; heightM: number }
+  /**
+   * Fixed flat to a wall at a given height (mirrors, art) — its middle at `heightM`. With
+   * `above`, over that piece along its wall when the room has one (the wall cabinets over the run).
+   */
+  | { type: 'wall-mounted'; heightM: number; above?: SlotKind }
   /** Laid on the floor under another item, sized to it. */
   | { type: 'under'; to: SlotKind; padM: number }
   /** Runs the full length of a wall (kitchen counters). */
@@ -257,6 +260,18 @@ export const ARCHETYPES: Record<string, Archetype> = {
     size: { width: 3.0, depth: 0.62, height: 0.92 },
     placement: { type: 'wall-run', prefer: 'longest', clearanceM: 0.95 },
     priority: 100,
+  },
+  // Hanging cabinets: over the run, their bottom 60 cm above its worktop (1.5 m), 35 cm deep.
+  kitchen_wall: {
+    kind: 'kitchen_wall',
+    slot: 'kitchen_wall',
+    labelKa: 'სამზარეულოს ზედა კარადები',
+    labelEn: 'Kitchen wall cabinets',
+    labelRu: 'Навесные кухонные шкафы',
+    categorySlug: 'kitchen-furniture',
+    size: { width: 2.4, depth: 0.35, height: 0.72 },
+    placement: { type: 'wall-mounted', heightM: 1.86, above: 'kitchen_run' },
+    priority: 95,
   },
   kitchen_island: {
     kind: 'kitchen_island',
@@ -541,6 +556,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   ],
   kitchen: [
     { kind: 'kitchen_run', count: 1 },
+    { kind: 'kitchen_wall', count: 1 },
     { kind: 'fridge', count: 1 },
     { kind: 'kitchen_island', count: 1, minAreaM2: 17 },
     { kind: 'dining_table', count: 1, minAreaM2: 10 },

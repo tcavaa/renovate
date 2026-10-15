@@ -31,6 +31,7 @@
     "models:railings": "tsx scripts/railing-models.ts",
     "models:equipment": "tsx scripts/equipment-models.ts",
     "models:kitchens": "tsx scripts/kitchen-models.ts",
+    "models:kitchen-walls": "tsx scripts/kitchen-wall-models.ts",
     "models:photos": "tsx scripts/model-photos.ts",
     "models:colors": "tsx scripts/model-colors.ts",
     "models:compress": "tsx scripts/compress-models.ts",

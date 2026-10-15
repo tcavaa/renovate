@@ -441,10 +441,14 @@ async function main() {
       isActive: true,
       isFeatured: false,
     };
-    if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
-    else await db.insert(products).values(row);
+    // The price per m² is admin's once the material exists — the rate a made-to-measure kitchen is
+    // bought at, set in the product form; every deploy runs this script and used to put it back.
+    if (existing.length) {
+      const { pricePerUnit: _admins, ...kept } = row;
+      await db.update(products).set(kept).where(eq(products.id, existing[0].id));
+    } else await db.insert(products).values(row);
     upserted++;
-    console.log(`  ✓ ${material.slug.padEnd(38)} kitchen        ${material.priceGelPerM2} ₾/მ² ფასადი${model ? `  · ${model.url}` : ''}`);
+    console.log(`  ✓ ${material.slug.padEnd(38)} kitchen        ${existing.length ? 'price as admin has it' : `${material.priceGelPerM2} ₾/მ² ფასადი`}${model ? `  · ${model.url}` : ''}`);
   }
 
   // Everything else the studio could have placed goes. The studio must never draw a product

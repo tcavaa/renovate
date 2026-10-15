@@ -143,9 +143,27 @@ export function matchProducts(
     // run the engine laid, in one of the kitchen maker's materials (the style's, or drawn), bought
     // by its façade. Generating, now and then a shop's kitchen unit that fits the run takes it
     // instead, at its own size and price — so the shops' units turn up too.
+    // Wall cabinets over the run: over a shop's unit, none (the shop's run is its own design);
+    // over a run made to measure, made to measure in the same material's wall version (the
+    // grey-oak run under grey-oak cabinets), else one drawn like the run's; with no wall-cabinet
+    // material, a shop's wall cabinet that fits.
+    if (item.slot === 'kitchen_wall') {
+      const run = settled.find((i) => i.roomId === item.roomId && i.slot === 'kitchen_run');
+      if (run && run.custom === false) return finish({ ...item, product: null });
+      const materials = kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => m.model3dKind === item.slot);
+      if (materials.length > 0) {
+        const runFinish = run?.kitchenMaterial?.slug?.split('-').pop();
+        const rng = options.rng;
+        const material = materials.find((m) => runFinish && m.slug.endsWith(`-${runFinish}`)) ?? (rng ? weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) : null) ?? materials[0];
+        return finish(asPlacedKitchen({ ...item, product: toSceneProduct(material, quantityFor(item)), origin: 'style' as const }, material));
+      }
+    }
+
     if (item.slot === 'kitchen_run') {
-      const materials = kitchenMaterialCandidates(catalog, options.styleId).filter((m) => !m.model3dKind || m.model3dKind === item.slot);
-      const units = candidates.filter((p) => !!p.widthCm && p.widthCm / 100 <= item.size.width + 0.01);
+      const materials = kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => !m.model3dKind || m.model3dKind === item.slot);
+      // Only what is a run — floor-standing, worktop-high or more, wider than deep: the library files
+      // hobs, coffee machines and a wall cabinet under the same kind.
+      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 80 && p.depthCm >= 45 && p.widthCm >= 100 && p.widthCm > p.depthCm);
       const rng = options.rng;
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
@@ -373,7 +391,7 @@ export function quantityFor(item: PlacedItem): number {
 function sizeFromProduct(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {
   // Rugs and curtains are sized to the room by the layout engine, not by the SKU, and so is a
   // kitchen made to measure (its product a kitchen maker's material). A shop's kitchen unit is its own size.
-  if (item.slot === 'rug' || item.slot === 'curtain' || ((item.slot === 'kitchen_run' || item.slot === 'kitchen_island') && isKitchenMaterial(product))) {
+  if (item.slot === 'rug' || item.slot === 'curtain' || ((item.slot === 'kitchen_run' || item.slot === 'kitchen_wall' || item.slot === 'kitchen_island') && isKitchenMaterial(product))) {
     return item.size;
   }
   if (!product.widthCm || !product.depthCm || !product.heightCm) return item.size;

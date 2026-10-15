@@ -191,7 +191,9 @@ async function main() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
 
-  const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'] });
+  // Playwright's own Chromium when it is installed, else the machine's Chrome (its cache is often empty here).
+  const args = ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'];
+  const browser = await chromium.launch({ args }).catch(() => chromium.launch({ args, channel: 'chrome' }));
   try {
     const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE }, deviceScaleFactor: 1 });
     page.on('pageerror', (error) => console.error('  page error:', error.message));

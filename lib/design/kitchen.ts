@@ -22,13 +22,14 @@
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial } from './catalog';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId } from './types';
-import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
+import { clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
+import { getArchetype } from './catalog';
 import { polygonBounds } from './planGeometry';
 
 export { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial };
 
 /** The archetypes that are made to measure. */
-export const CUSTOM_KITCHEN_SLOTS = ['kitchen_run', 'kitchen_island'] as const;
+export const CUSTOM_KITCHEN_SLOTS = ['kitchen_run', 'kitchen_wall', 'kitchen_island'] as const;
 
 export type KitchenSlot = (typeof CUSTOM_KITCHEN_SLOTS)[number];
 
@@ -72,10 +73,21 @@ export function stretchedKitchen(item: PlacedItem, widthM: number, room: PlanRoo
   const position = clampInsideRoom(room, item.position, size, item.rotation);
   const footprint = footprintOf(position, size, item.rotation);
   if (!footprintInRoom(footprint, room.polygon)) return null;
-  for (const other of blockingItems(items, room.id, item.id)) {
+  for (const other of sameHeight(items, item)) {
     if (footprintsOverlap(footprint, footprintOf(other.position, other.size, other.rotation))) return null;
   }
   return { ...item, size, position };
+}
+
+/**
+ * The pieces of its room a made-to-measure piece may not run into: those at its height. A run
+ * stops at the fridge beside it and not at the wall cabinets above; wall cabinets stop at the next
+ * wall cabinets and a tall fridge, not at the run under them. Rugs, prints and the like never count.
+ */
+function sameHeight(items: PlacedItem[], item: PlacedItem): PlacedItem[] {
+  const bottom = item.elevationM;
+  const top = item.elevationM + item.size.height;
+  return items.filter((other) => other.roomId === item.roomId && other.id !== item.id && !getArchetype(other.kind)?.ghost && other.elevationM < top - 0.01 && other.elevationM + other.size.height > bottom + 0.01);
 }
 
 /**
@@ -103,7 +115,7 @@ export function kitchenToWall(item: PlacedItem, room: PlanRoom, items: PlacedIte
 export const KITCHEN_RATES = {
   /** Lower units: carcase, front, drawer runners, hinges — per m² of façade. */
   lowerPerM2: 620,
-  /** Upper units — per m² of façade. Lighter than the lower ones: no drawers, no worktop. */
+  /** Wall (upper) cabinets — per m² of façade. Lighter than the lower ones: no drawers, no worktop. */
   upperPerM2: 480,
   /** Worktop — per running metre, a middling laminate; stone is dearer and is chosen as a finish. */
   worktopPerM: 260,
@@ -111,11 +123,8 @@ export const KITCHEN_RATES = {
   fittingPerM: 90,
 } as const;
 
-/** Where the upper units stop, and where the worktop sits: the usual kitchen heights. */
+/** Where the base units stop and the worktop sits: the usual kitchen height. */
 export const LOWER_UNIT_HEIGHT_M = 0.9;
-export const UPPER_UNIT_HEIGHT_M = 0.72;
-/** The upper units run above the worktop over this much of the run's length (the hob and the window break them). */
-export const UPPER_RUN_SHARE = 0.7;
 
 export interface KitchenMeasure {
   itemId: string;
@@ -136,21 +145,34 @@ export interface KitchenMeasure {
   totalGel: number;
 }
 
-/** The materials a made-to-measure kitchen can be made in — the maker's, sold by the m² — the style's own first, then the cheapest. */
-export function kitchenMaterialCandidates(catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+/**
+ * The materials a made-to-measure kitchen can be made in — the maker's, sold by the m² — the
+ * style's own first, then the cheapest. Given a piece's slot, only those for it: a material with a
+ * model of a run is a run's, of wall cabinets the wall cabinets', one with no model either's.
+ */
+export function kitchenMaterialCandidates(catalog: CatalogProduct[], styleId: StyleId, slot?: string): CatalogProduct[] {
   const affinity = (p: CatalogProduct) => {
     const tags = Array.isArray(p.styleTags) ? (p.styleTags as string[]) : [];
     return tags.includes(styleId) ? (tags[0] === styleId ? 2 : 1) : 0;
   };
-  return catalog.filter(isKitchenMaterial).sort((a, b) => affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
+  return catalog.filter((p) => isKitchenMaterial(p) && (!slot || !p.model3dKind || p.model3dKind === slot)).sort((a, b) => affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
+}
+
+/**
+ * A made-to-measure piece's fronts, m²: a run's base units to the worktop's height, an island's
+ * from both sides, wall cabinets their own front — each piece its own, since the wall cabinets
+ * are a piece of their own (a run used to count 70 % of its length in uppers nobody had placed).
+ */
+function facadeOf(item: PlacedItem): { lengthM: number; lowerM2: number; upperM2: number } {
+  const lengthM = round2(item.size.width);
+  if (item.slot === 'kitchen_wall') return { lengthM, lowerM2: 0, upperM2: round2(lengthM * item.size.height) };
+  const sides = item.slot === 'kitchen_island' ? 2 : 1;
+  return { lengthM, lowerM2: round2(lengthM * Math.min(item.size.height, LOWER_UNIT_HEIGHT_M) * sides), upperM2: 0 };
 }
 
 /** The façade a made-to-measure piece comes to — what its material is bought by. */
 export function kitchenFacadeM2(item: PlacedItem): number {
-  const lengthM = round2(item.size.width);
-  const island = item.slot === 'kitchen_island';
-  const lowerM2 = round2(lengthM * Math.min(item.size.height, LOWER_UNIT_HEIGHT_M) * (island ? 2 : 1));
-  const upperM2 = island ? 0 : round2(lengthM * UPPER_RUN_SHARE * UPPER_UNIT_HEIGHT_M);
+  const { lowerM2, upperM2 } = facadeOf(item);
   return round2(lowerM2 + upperM2);
 }
 
@@ -208,9 +230,7 @@ export function kitchenMaterialSignature(items: PlacedItem[]): string {
  */
 export function withKitchenMaterials(items: PlacedItem[], catalog: CatalogProduct[], styleId: StyleId): PlacedItem[] {
   if (!items.some(isCustomKitchenItem)) return items;
-  const candidates = kitchenMaterialCandidates(catalog, styleId);
-  const best = candidates[0] ?? null;
-  const materials = new Map(candidates.map((p) => [p.id, p]));
+  const candidatesFor = (slot: string) => kitchenMaterialCandidates(catalog, styleId, slot);
   const listed = new Set(catalog.map((p) => p.id));
   let changed = false;
   const next = items.map((item) => {
@@ -222,7 +242,8 @@ export function withKitchenMaterials(items: PlacedItem[], catalog: CatalogProduc
       changed = true;
       return { ...item, kitchenMaterial: { ...current, qty, totalPrice: round2(current.pricePerUnit * qty) } };
     }
-    const product = (current && materials.get(current.productId)) || best;
+    const candidates = candidatesFor(item.slot);
+    const product = (current && candidates.find((p) => p.id === current.productId)) || candidates[0] || null;
     if (!product) {
       if (!current) return item;
       changed = true;
@@ -243,12 +264,9 @@ function sameMaterial(a: SceneProduct, b: SceneProduct): boolean {
 /** The measurement of one made-to-measure piece. */
 export function measureKitchenItem(item: PlacedItem, roomName?: string): KitchenMeasure {
   const slot = item.slot as KitchenSlot;
-  const island = slot === 'kitchen_island';
-  // A run is measured along its front; an island is worked from both long sides.
-  const lengthM = round2(item.size.width);
-  const lowerM2 = round2(lengthM * Math.min(item.size.height, LOWER_UNIT_HEIGHT_M) * (island ? 2 : 1));
-  const upperM2 = island ? 0 : round2(lengthM * UPPER_RUN_SHARE * UPPER_UNIT_HEIGHT_M);
-  const worktopM = lengthM;
+  // A run is measured along its front; an island is worked from both long sides; wall cabinets by their own front, with no worktop.
+  const { lengthM, lowerM2, upperM2 } = facadeOf(item);
+  const worktopM = slot === 'kitchen_wall' ? 0 : lengthM;
   const totalM2 = round2(lowerM2 + upperM2);
   // The maker's price for the material, all in, per m² of façade; else the market's estimate.
   const material = kitchenMaterialOf(item);

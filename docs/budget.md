@@ -230,8 +230,8 @@ worker specialties for step 8.
 There are two kinds of kitchen, and an item says which it is (`PlacedItem.custom`,
 `isCustomKitchenItem`):
 
-- **A shop's kitchen unit** (`custom: false`) — the 69 kitchen units and 20 islands the furniture
-  shops sell (`kitchen-units`, `kitchen-islands`): furniture like any other, at its own size, drawn
+- **A shop's kitchen unit** (`custom: false`) — the kitchen units, wall cabinets and islands the
+  furniture shops sell (`kitchen-units`, `kitchen-wall-units`, `kitchen-islands`): furniture like any other, at its own size, drawn
   as its own model and bought at its shop's price. Its item panel swaps it for the shops' other
   units (`candidatesFor` never lists a material).
 - **Made to measure — "ავეჯის დამზადება"** (`custom: true`) — a run or island a joiner makes
@@ -244,7 +244,9 @@ There are two kinds of kitchen, and an item says which it is (`PlacedItem.custom
   `stretchedKitchen` / `kitchenToWall` — refused where it would leave the room or stand on another
   piece) and its **material**. **The rate per m² is the material's price** — each kitchen maker's
   product is sold by the m² of façade and admin sets that price in the product form like any
-  other; the joiner's fallback rates below apply only when the catalogue has no material at all.
+  other; `models:seed` (which every deploy runs) writes a material's price only when it creates
+  it, and leaves admin's alone after. The joiner's fallback rates below apply only when the
+  catalogue has no material at all.
 
 Which one a piece becomes is decided by the product put in it (`asPlacedKitchen`, from
 `applySwap` — adding, carrying and swapping all go through it): a kitchen maker's material makes
@@ -255,9 +257,18 @@ measure in a material drawn for the style — and about a third of the time
 (`STORE_KITCHEN_SHARE`) a shop's unit that fits the run instead; an island is a shop's island
 ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#generating-is-random)).
 
+**Wall (hanging) cabinets are a piece of their own** (`kitchen_wall`, hung with their bottom at
+1.5 m — 60 cm over the worktop — 35 cm deep): a shop's, or made to measure in the kitchen maker's
+wall-cabinet materials (`kitchen-wall-material-ldsp`, `-mdf`, `-veneer`, 520 / 680 / 920 ₾ per
+m² of front to start — lighter than the base units), placed off the same shelf category and given
+the same length control. Generating lays them over a made-to-measure run in the run's own
+material's wall version (grey oak over grey oak), and none over a shop's run.
+
 A made-to-measure kitchen is built for the flat it stands in, so it is **measured**. The
-measure is the façade: the lower units and the upper ones by the square metre
-(`kitchenFacadeM2`; an island is worked from both sides, with nothing above).
+measure is the façade by the square metre (`kitchenFacadeM2`): a run's base units to the
+worktop's height, an island's from both sides, wall cabinets their own front. A run no longer
+counts uppers — it used to add 70 % of its length in wall units that were neither placed nor
+drawn; the wall cabinets are bought as their own line (`kitchen_wall_custom` as an estimate).
 
 - **In a material** (`PlacedItem.kitchenMaterial`): the kitchen maker's product for it, in the
   `kitchen-custom` category — "სამზარეულოს ავეჯი — ინდივიდუალური დამზადება", seeded with three

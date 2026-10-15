@@ -60,13 +60,14 @@ const HEIGHT_M = 0.9;
 /** One repeat of a front texture, in metres, on every face. */
 const TEXTURE_TILE_M = 0.9;
 
-export type KitchenMaterialSlug = 'kitchen-material-ldsp' | 'kitchen-material-mdf' | 'kitchen-material-veneer';
+export type KitchenMaterialSlug = 'kitchen-material-ldsp' | 'kitchen-material-mdf' | 'kitchen-material-veneer' | 'kitchen-wall-material-ldsp' | 'kitchen-wall-material-mdf' | 'kitchen-wall-material-veneer';
 
 export interface KitchenManifestModel {
   slug: string;
   /** The kitchen maker's material product this model is drawn for. */
   material: KitchenMaterialSlug;
-  kind: 'kitchen_run';
+  /** A run of base units (this script), or hanging wall cabinets (`scripts/kitchen-wall-models.ts`). */
+  kind: 'kitchen_run' | 'kitchen_wall';
   url: string;
   /** Measured from the file, to the millimetre. */
   widthCm: number;
@@ -75,7 +76,7 @@ export interface KitchenManifestModel {
   triangles: number;
   bytes: number;
   title: string;
-  source: ModelSource['type'];
+  source: ModelSource['type'] | 'procedural';
   sourceUrl: string;
   author: string;
   license: string;
@@ -189,7 +190,9 @@ async function main() {
     }
   }
 
-  const all = VARIANTS.map((v) => models.find((m) => m.slug === v.slug) ?? previous.find((m) => m.slug === v.slug)).filter((m): m is KitchenManifestModel => !!m);
+  const runs = VARIANTS.map((v) => models.find((m) => m.slug === v.slug) ?? previous.find((m) => m.slug === v.slug)).filter((m): m is KitchenManifestModel => !!m);
+  // The wall cabinets' rows are `pnpm models:kitchen-walls`'s, kept as they are.
+  const all = [...runs, ...previous.filter((m) => !VARIANTS.some((v) => v.slug === m.slug))];
   await writeFile(
     manifestPath,
     JSON.stringify(

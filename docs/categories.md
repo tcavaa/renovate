@@ -105,6 +105,9 @@ sockets** (`socket_data`) under sockets and switches; **Building services**
 equipment the technical points are bought as — electrical panels, boilers and water heaters,
 air conditioners, cooker hoods, extractor fans, floor drains
 ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts));
+**kitchen wall cabinets** ("სამზარეულოს ზედა კარადები", `kitchen-wall-units`, kind
+`kitchen_wall`) under Kitchen furniture, on the kitchen's shelf after the units (migration
+`0004_kitchen_wall_cabinets`, which moved the library's one wall cabinet there from the runs);
 **carpet** ("კოვროლინი", `carpet`) under Flooring beside the laminate — migration `0003_carpet_category`
 moved the library's 141 carpet tiles and its sisal out of `laminate`, where they outnumbered the
 laminates four to one; a studio floor finish (`SURFACE_CATEGORY_SLUGS`), not a calculator tab;
