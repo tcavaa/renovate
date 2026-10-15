@@ -154,7 +154,7 @@ export default function ExistingHousePage() {
         <div className="container pb-10 lg:contents">
           <PlanWorkspace
             tools={['select', 'wall', 'room', 'divider', 'door', 'window', 'archway', 'railing', 'column', 'beam']}
-            layerKeys={['walls', 'openings', 'structure', 'dimensions', 'origins']}
+            layerKeys={['walls', 'openings', 'structure', 'electrical', 'dimensions', 'origins']}
             // The existing flat on white paper: its finishes are the studio's.
             layers={{ zones: false }}
             bleed={FLOW_BOARD_BLEED}

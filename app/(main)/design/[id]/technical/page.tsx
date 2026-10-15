@@ -254,7 +254,8 @@ export default function TechnicalPage() {
             onTechnicalKind={setKind}
             // White paper under the points: the finishes are the studio's, not this step's.
             layers={{ dimensions: false, zones: false }}
-            layerKeys={['walls', 'openings', 'structure', 'technical', 'dimensions']}
+            // The sockets, switches and lights too: a wired flat's board is crowded with them.
+            layerKeys={['walls', 'openings', 'structure', 'technical', 'electrical', 'dimensions']}
             locked
             bleed={FLOW_BOARD_BLEED}
             wallBuilding={mode === 'full' && !!homeState && buildsPartitions(effectivePhases(homeState, plan.technical?.works ?? null))}

@@ -242,7 +242,9 @@ line; in a black frame a wall still to build is grey. The PDF (`planPdfExport`) 
 cards' and page's picture (`PlanDrawing`) draw the same way, through one `drawPlanSheet`. **The floors stay white paper** wherever the plan
 is read rather than dressed: the room finishes are the `zones` layer, off on the existing-flat
 and technical steps, the calculator's board and the project page's viewer, and on in the
-studio's 2D view only while the finishes tray is open.
+studio's 2D view only while the finishes tray is open. The existing-flat and technical steps'
+layers menu offers the sockets, switches and lights too (`electrical`, "ელექტრო და განათება"),
+so a wired flat's board can be read without them.
 
 One canvas, one tool in hand: `select`, `wall` — **one tile with three shapes: a
 square, a line and a room separator**, in that order; the tile is called ოთახი and picks the
