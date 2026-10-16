@@ -37,7 +37,9 @@ import { cn } from '@/lib/utils';
 import { loadPlanImage, uploadPlanImage } from '@/lib/design/planImage';
 import { isPdfFile, rasterizePdfPlan } from '@/lib/design/planPdf';
 import { parseFloorPlan } from '@/lib/design/planParser';
-import { buildPlanFromRegions, metresPerPixelFromArea } from '@/lib/design/planGeometry';
+import { buildPlanFromRegions, metresPerPixelFromArea, totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { samplePlan } from '@/lib/design/samplePlan';
+import { formatM2 } from '@/lib/utils';
 import { PlacementGame } from '@/components/design/PlacementGame';
 import type { FloorPlan, ParseResult } from '@/lib/design/types';
 
@@ -85,6 +87,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [readNotice, setReadNotice] = useState<'fallback' | null>(null);
+  /** The sample flat is what was handed over (`samplePlan`): drawn here instead of a picture. */
+  const [sample, setSample] = useState<FloorPlan | null>(null);
   // The game while the plan is read: `ready` once it is (rooms found, or null for the CV path).
   const [game, setGame] = useState<{ ready: { rooms: number | null } | null } | null>(null);
   const played = useRef(false);
@@ -109,6 +113,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
     setError(null);
     setReadNotice(null);
     setParse(null);
+    setSample(null);
     onResetRef.current?.();
 
     let file = picked;
@@ -200,11 +205,25 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
     onPlanRef.current(buildPlanFromRegions(parse, { metresPerPixel: mpp }), uploadedUrl);
   }, [showContinue, phase, parse, areaValid, areaValue, uploadedUrl]);
 
-  const trySample = async () => {
-    const res = await fetch('/samples/plan-2br.png');
-    const blob = await res.blob();
-    await handleFile(new File([blob], 'plan-2br.png', { type: 'image/png' }));
-    setTotalArea('86');
+  /**
+   * The sample flat: a plan with every kind of room, doors, windows and balconies already in it
+   * (`lib/design/samplePlan`), handed over at once — nothing to read, no area to give, the same
+   * with or without a Claude key.
+   */
+  const trySample = () => {
+    setError(null);
+    setReadNotice(null);
+    setParse(null);
+    setGame(null);
+    setUploadedUrl(null);
+    setPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+    const plan = samplePlan();
+    setSample(plan);
+    setPhase('idle');
+    onPlanRef.current(plan, null);
   };
 
   const busy = phase === 'reading' || phase === 'parsing' || phase === 'pdf';
@@ -251,6 +270,12 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
             {phase === 'reading' && (
               <p className="max-w-xs text-center text-xs text-ink-muted">{t.design.readingPlanHint}</p>
             )}
+          </>
+        ) : sample ? (
+          <>
+            <SamplePlanDrawing plan={sample} />
+            <p className="text-xs font-medium text-ink">{t.design.sampleLoaded.replace('{rooms}', String(sample.rooms.length)).replace('{area}', formatM2(totalFloorAreaM2(sample)))}</p>
+            <p className="text-xs text-ink-muted">{t.design.uploadReplace}</p>
           </>
         ) : previewUrl ? (
           <>
@@ -356,5 +381,34 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
         </Card>
       )}
     </div>
+  );
+}
+
+/** Fills by kind of room, so the sample reads at a glance: wet rooms blue, outside green, the rest warm. */
+const ROOM_FILL: Record<string, string> = { bathroom: '#DCE9F2', toilet: '#DCE9F2', kitchen: '#F4E7D3', balcony: '#E3EEDB', hallway: '#EFECE6', closet: '#EDE7F0' };
+
+/** The sample flat drawn as its rooms with their names — what the picture of an uploaded plan is for an upload. */
+function SamplePlanDrawing({ plan }: { plan: FloorPlan }) {
+  const xs = plan.rooms.flatMap((r) => r.polygon.map((p) => p.x));
+  const zs = plan.rooms.flatMap((r) => r.polygon.map((p) => p.z));
+  const minX = Math.min(...xs) - 0.3;
+  const minZ = Math.min(...zs) - 0.3;
+  const w = Math.max(...xs) - minX + 0.3;
+  const h = Math.max(...zs) - minZ + 0.3;
+  return (
+    <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="h-40 w-full max-w-sm rounded-md border border-line bg-white" role="img" aria-label={plan.rooms.map((r) => r.name).join(', ')}>
+      {plan.rooms.map((room) => {
+        const cx = room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
+        const cz = room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length;
+        return (
+          <g key={room.id}>
+            <polygon points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')} fill={ROOM_FILL[room.type] ?? '#FBF8F3'} stroke="#2A2622" strokeWidth={0.08} strokeLinejoin="miter" />
+            <text x={cx} y={cz} fontSize={room.areaM2 < 6 ? 0.32 : 0.42} textAnchor="middle" dominantBaseline="middle" fill="#2A2622">
+              {room.name}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }

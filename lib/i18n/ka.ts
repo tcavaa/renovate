@@ -2262,6 +2262,7 @@ export const ka = {
     loading3d: '3D სცენა იტვირთება…',
     catalogError: 'კატალოგი ვერ ჩაიტვირთა',
     trySample: 'სანიმუშო გეგმის მოსინჯვა',
+    sampleLoaded: 'სანიმუშო ბინა — {rooms} ოთახი, {area}',
     readingPlan: 'ვკითხულობთ გეგმას…',
     readingPlanHint: 'ვპოულობთ ოთახებს და ვკითხულობთ ზომებს ნახაზიდან.',
     game: {

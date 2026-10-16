@@ -2256,6 +2256,7 @@ export const en: Dictionary = {
     loading3d: 'Loading the 3D scene…',
     catalogError: 'Could not load the catalogue',
     trySample: 'Try a sample plan',
+    sampleLoaded: 'Sample flat — {rooms} rooms, {area}',
     readingPlan: 'Reading your plan…',
     readingPlanHint: 'Finding the rooms and reading the dimensions off the drawing.',
     game: {

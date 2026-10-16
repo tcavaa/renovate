@@ -186,8 +186,8 @@ chair tucked under its table and its bed flush in a corner at −π/2, both let 
 `tests/unit/design/generationRandom.test.ts` (the same seed the same flat, seeds apart different
 flats with every piece inside its room, a bed in every bedroom, every sofa drawn over 400
 generations and the style's own most often, the best without an `rng`; drawn finishes in their
-category and wetness, kept by `withStyleFinishes` until the room is retyped). The sample plan
-`public/samples/plan-2br.png` run through `layoutPlan` is the manual check for the layout as a
+category and wetness, kept by `withStyleFinishes` until the room is retyped). The sample flat
+(`lib/design/samplePlan`, every kind of room) run through `layoutPlan` is the manual check for the layout as a
 whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps

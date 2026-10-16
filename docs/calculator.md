@@ -105,7 +105,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   and their sum as `wallM2`, a studio's parts theirs; so the plaster, the paint, the tiles and
   the strip-out are all counted without the openings, in the calculator and the design alike,
   and so is a wall chosen on its own on the catalogue step. An opening on a room separator's
-  open edge counts for nothing (there is no wall). The sample plan's eight windows, three doors
+  open edge counts for nothing (there is no wall). The sample image's eight windows, three doors
   and archway take 37.1 m² off its 233.35 m² of wall (196.25 m² to plaster and paint).
 - **The technical part is set up on the board too, with the studio's own trays.** The tool
   rail's technical and electrical tools open, along the bottom of the sheet, the studio's
@@ -214,7 +214,7 @@ rooms. So:
   door on the front door), a window on every window, a radiator on every radiator — its
   sections counted from its room — a socket, switch or light on every fitting of its kind, a
   skirting board or cornice round every room. It is bought for what it is on (`placedQuantity`):
-  the sample plan's 3 doors and 8 windows, a radiator's sections over all six radiators, a
+  the bundled sample image's (`public/samples/plan-2br.png`, read the CV way) 3 doors and 8 windows, a radiator's sections over all six radiators, a
   moulding's metres. The rest (sanitary ware, a pendant) is a line of its own at
   `suggestedQuantity`, as is one whose kind the board has none of.
 
@@ -373,11 +373,11 @@ where it cannot (`missingCounts` in `calculatorSheet.ts`; the same rules as `boa
   still estimated from the rooms;
 - the doors (`boardDoorCounts` → `countDoors`) once the board has its doorways drawn — a door or
   an archway anywhere on it. A plan read from an upload has them (the doors read off it, or
-  inferred by `deriveOpenings`, and checked on the plan step): the sample plan's board has three
+  inferred by `deriveOpenings`, and checked on the plan step): the sample image's board has three
   doors and an archway, and "კარის დაყენება" is 3, not the 5 of a door a room. A board drawn by
   hand, or rooms typed by size, usually has no doorway at all, and none drawn is not no doors:
   those are still a door a room. Only archways drawn is no door to hang;
-- the windows (`boardWindowCounts` → `countWindows`) once the board has any: the sample plan's
+- the windows (`boardWindowCounts` → `countWindows`) once the board has any: the sample image's
   eight, where the rooms would say five. The estimate itself hangs no window; they are what a
   window for the whole flat is bought for;
 - the points (`ROOM_POINTS`, `estimateCounts`) only while the board has neither a technical point
@@ -443,7 +443,7 @@ strings by hand.
 - `tests/unit/calculator/planSync.test.ts`, `tests/unit/design/freeSpot.test.ts` — rooms ⇄
   board, the walls read off it and filled in for rooms saved without them; free spots.
 - `tests/unit/calculator/boardCounts.test.ts` — `countDoors` (twins once), `countWindows`, the
-  board's doors and windows and when it has none drawn, the counts together, and the sample plan
+  board's doors and windows and when it has none drawn, the counts together, and the sample image
   read the way step 1 reads it: three doors ("კარის დაყენება" 3), eight windows, its walls
   painted without the doors and windows (196.25 m², not 233.35).
 - `tests/unit/calculator/planSync.test.ts` also takes the doors and windows off the walls read

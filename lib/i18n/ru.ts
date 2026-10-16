@@ -2254,6 +2254,7 @@ export const ru: Dictionary = {
     loading3d: 'Загружаем 3D-сцену…',
     catalogError: 'Не удалось загрузить каталог',
     trySample: 'Попробовать пример плана',
+    sampleLoaded: 'Пример квартиры — {rooms} комнат, {area}',
     readingPlan: 'Читаем ваш план…',
     readingPlanHint: 'Ищем комнаты и считываем размеры с чертежа.',
     game: {

@@ -33,7 +33,7 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   await page.getByRole('tab', { name: /ატვირთე გეგმა/ }).click();
   await page.getByRole('button', { name: /სანიმუშო გეგმის მოსინჯვა/ }).click();
 
-  // The plan is ready once the CV fallback has its area (pre-filled) or Claude read it.
+  // The sample flat is a plan, not a picture to read (`lib/design/samplePlan`): ready at once.
   await expect(page.getByText(/გეგმა მზადაა/)).toBeVisible({ timeout: 30_000 });
 
   // Neither mode is pre-selected; continuing without one is refused with a message.
