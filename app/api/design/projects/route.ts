@@ -5,6 +5,8 @@ import { projects } from '@/lib/db/schema';
 import { auth } from '@/auth';
 import { saveDesignSchema } from '@/lib/validations/design.schema';
 import { planToCalculatorRooms, totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { decorProductIds } from '@/lib/design/decor/quantities';
+import { isDecorUnit } from '@/lib/design/decor/materials';
 import { priceScene } from '@/lib/design/pricing';
 import { quantityFor } from '@/lib/design/matcher';
 import { isCustomKitchenItem, kitchenFacadeM2 } from '@/lib/design/kitchen';
@@ -57,6 +59,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   // are order lines a store is sent, exactly as a sofa is.
   const known = await loadProductPrices([
     ...[...submitted.items.flatMap((i) => [i.product?.productId, i.kitchenMaterial?.productId]), ...submitted.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number'),
+    ...decorProductIds(submitted.decor),
     ...planProductIds(submittedPlan, submitted.electrical ?? []),
   ]);
 
@@ -65,7 +68,7 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   const { plan, electrical, unknown: unknownProducts } = repricePlan(submittedPlan, submitted.electrical, known);
   if (unknownProducts.length > 0) return fail(`Unknown product ${unknownProducts[0]}`, 400);
 
-  const scene: DesignScene = { ...submitted, items: [], finishes: [], ...(electrical ? { electrical } : {}) };
+  const scene: DesignScene = { ...submitted, items: [], finishes: [], ...(electrical ? { electrical } : {}), ...(submitted.decor ? { decor: [] } : {}) };
   for (const item of submitted.items) {
     // A made-to-measure kitchen's material is bought by the façade the piece has (`lib/design/kitchen`),
     // and only a product the catalogue sells by the m² is one: anything else is dropped, and the
@@ -102,6 +105,26 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
     const product = isTrimSurface(finish.surface) ? repriceSnapshot(finish.product, known, quantity) : repriceFinishSnapshot(finish.product, known, quantity);
     if (!product) return fail(`Unknown product ${finish.product.productId}`, 400);
     scene.finishes.push({ ...finish, product });
+  }
+
+  // Decor: each material is the catalogue's at its price and unit now — the budget measures how
+  // much a piece uses from its geometry (`decorPurchases`), so only the unit price is taken from here.
+  // A material the catalogue no longer sells by a unit decor can be measured in is dropped from its slot.
+  for (const piece of submitted.decor ?? []) {
+    if (!roomsById.has(piece.roomId)) continue;
+    const materials: typeof piece.materials = {};
+    for (const [slot, material] of Object.entries(piece.materials) as Array<[keyof typeof piece.materials, NonNullable<(typeof piece.materials)[keyof typeof piece.materials]>]>) {
+      if (!material.product) {
+        materials[slot] = material;
+        continue;
+      }
+      const price = known.get(material.product.productId);
+      const repriced = repriceSnapshot(material.product, known, 1);
+      if (!price || !repriced) return fail(`Unknown product ${material.product.productId}`, 400);
+      if (!isDecorUnit(price.unit)) continue;
+      materials[slot] = { ...material, product: { ...repriced, unit: price.unit } };
+    }
+    scene.decor!.push({ ...piece, materials });
   }
 
   // Same rate book the studio's cost bar used, so a `full`-mode save matches the preview.

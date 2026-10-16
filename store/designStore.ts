@@ -21,7 +21,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
-import { electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
+import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
+import { proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
+import { decorMaterialFrom } from '@/lib/design/decor/resolve';
+import { slotTakes } from '@/lib/design/decor/families';
+import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
 import { defaultFinish, finishFromProduct, generatedFinish, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
 import { randomSeed, seededRng, type Rng } from '@/lib/design/random';
 import { finishQuantity } from '@/lib/design/finishQuantity';
@@ -64,6 +68,9 @@ import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
 import type {
   Beam,
   Column,
+  DecorParams,
+  DecorPiece,
+  DecorSlot,
   DesignMode,
   DesignScene,
   DesignVersion,
@@ -71,6 +78,7 @@ import type {
   ElectricalPoint,
   FinishZone,
   FloorPlan,
+  GenerationRecord,
   Opening,
   OpeningKind,
   PlacedItem,
@@ -97,6 +105,8 @@ export interface DesignSnapshot {
   items: PlacedItem[];
   finishes: SurfaceFinish[];
   electrical: ElectricalPoint[];
+  /** The custom wall decor (`lib/design/decor`). */
+  decor: DecorPiece[];
   /** A restored version or a style switch changes it; undo puts it back with the rest. */
   styleId: StyleId;
 }
@@ -111,6 +121,7 @@ export type ElementSelection =
   | { kind: 'electrical'; id: string }
   | { kind: 'room'; id: string }
   | { kind: 'zone'; id: string; roomId: string }
+  | { kind: 'decor'; id: string }
   | null;
 
 interface DesignState {
@@ -158,6 +169,10 @@ interface DesignState {
   finishes: SurfaceFinish[];
   /** Sockets, switches and lights. */
   electrical: ElectricalPoint[];
+  /** The custom wall decor, built in code and bought by its materials (`lib/design/decor`). */
+  decor: DecorPiece[];
+  /** How the flat was generated — the engine or the AI designer, with its notes and how many AI runs it has had. */
+  generation: GenerationRecord | null;
   /** The kept versions of the flat, oldest first; the first is the existing house. */
   versions: DesignVersion[];
   /**
@@ -352,8 +367,18 @@ export interface DesignActions {
   removeElectricalPoint: (id: string) => void;
   clearElectrical: () => void;
   // --- furniture ---
-  /** Runs the layout engine and fills every slot from the catalogue. */
-  generate: (catalog: CatalogProduct[]) => void;
+  /**
+   * Runs the layout engine and fills every slot from the catalogue. With the AI designer's
+   * proposal (`lib/design/aiProposal`), its product picks, finishes and decor are taken where they
+   * fit; without one — no key, an error, a bad answer — the engine's own draw, as always.
+   */
+  generate: (catalog: CatalogProduct[], proposal?: AiProposal | null) => void;
+  /** A decor slot's material (null takes an optional slot's material away); a colour where the material takes one. */
+  setDecorMaterial: (id: string, slot: DecorSlot, product: CatalogProduct | null) => void;
+  setDecorColor: (id: string, slot: DecorSlot, colorHex: string | null) => void;
+  /** A decor piece's knobs: its light line, slat gap, niche count… */
+  setDecorParams: (id: string, patch: DecorParams) => void;
+  removeDecor: (id: string) => void;
   /**
    * Empties the flat and leaves the flat: every piece of furniture, every fitting and every
    * chosen finish goes, the walls, doors, windows and technical points stay. The starting
@@ -533,6 +558,8 @@ const initial: DesignState = {
   items: [],
   finishes: [],
   electrical: [],
+  decor: [],
+  generation: null,
   versions: [],
   versionsLoaded: false,
   versionsSerial: 0,
@@ -610,11 +637,14 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           s.electrical.filter((p) => rooms.has(p.roomId)),
           plan
         );
+        // A decor piece goes with its room; one on a wall that moved is fitted again where it is drawn.
+        const decor = s.decor.some((d) => !rooms.has(d.roomId)) ? s.decor.filter((d) => rooms.has(d.roomId)) : s.decor;
         return {
           plan,
           items,
           finishes,
           electrical,
+          decor,
           focusRoomId: s.focusRoomId && rooms.has(s.focusRoomId) ? s.focusRoomId : null,
           selectedItemId: s.selectedItemId && items.some((i) => i.id === s.selectedItemId) ? s.selectedItemId : null,
         };
@@ -637,6 +667,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         startEmpty: () =>
           set((s) => ({
             items: [],
+            decor: [],
             electrical: [],
             finishes: defaultFinishes(s.plan, s.styleId),
             calculatorPicks: null,
@@ -722,6 +753,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               // A new plan is a new flat: the furniture laid out against the old one, the
               // calculator's picks for it, the wiring and the kept versions are gone with it.
               items: [],
+              decor: [],
               electrical: [],
               versions: [],
               versionsLoaded: true,
@@ -764,6 +796,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             items: scene.items,
             finishes: scene.finishes,
             electrical: scene.electrical ?? [],
+            decor: scene.decor ?? [],
+            generation: scene.generation ?? null,
             // The kept versions come on their own (`loadDesignVersions`), when the studio opens.
             versions: [],
             versionsLoaded: false,
@@ -1167,9 +1201,36 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         removeElectricalPoint: (id) => commit((s) => ({ electrical: s.electrical.filter((p) => p.id !== id), selectedElement: s.selectedElement?.kind === 'electrical' && s.selectedElement.id === id ? null : s.selectedElement })),
         clearElectrical: () => commit(() => ({ electrical: [] })),
 
+        // --- custom decor ---
+        setDecorMaterial: (id, slot, product) =>
+          commit((s) => {
+            const piece = s.decor.find((d) => d.id === id);
+            if (!piece) return null;
+            if (product && !(isDecorMaterial(product) && slotTakes(piece.family, slot, decorMaterialKind(product)))) return null;
+            const { [slot]: current, ...rest } = piece.materials;
+            // A new material keeps the colour the person gave the slot when it takes one too.
+            const materials = product ? { ...rest, [slot]: decorMaterialFrom(product, current?.colorHex ?? null) } : rest;
+            return { decor: s.decor.map((d) => (d.id === id ? { ...d, materials, origin: 'studio' as const } : d)) };
+          }),
+        setDecorColor: (id, slot, colorHex) =>
+          commit((s) => {
+            const piece = s.decor.find((d) => d.id === id);
+            const material = piece?.materials[slot];
+            if (!piece || !material || (colorHex && !material.specs?.tintable)) return null;
+            const next = { ...material, colorHex: colorHex ?? null };
+            return { decor: s.decor.map((d) => (d.id === id ? { ...d, materials: { ...d.materials, [slot]: next }, origin: 'studio' as const } : d)) };
+          }),
+        setDecorParams: (id, patch) =>
+          commit((s) => {
+            if (!s.decor.some((d) => d.id === id)) return null;
+            return { decor: s.decor.map((d) => (d.id === id ? { ...d, params: { ...d.params, ...patch }, origin: 'studio' as const } : d)) };
+          }),
+        removeDecor: (id) =>
+          commit((s) => ({ decor: s.decor.filter((d) => d.id !== id), selectedElement: s.selectedElement?.kind === 'decor' && s.selectedElement.id === id ? null : s.selectedElement })),
+
         // --- furniture ---
-        generate: (catalog) => {
-          const { plan, styleId, budgetGel, calculatorPicks } = get();
+        generate: (catalog, proposal) => {
+          const { plan, styleId, budgetGel, calculatorPicks, generation } = get();
           if (!plan) return;
           // Every generation draws its own seed: the same plan gives another layout, other
           // products and other floors and walls each time (`lib/design/random`).
@@ -1183,11 +1244,13 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           // whole generation and leave every room bare — and, coming from the calculator,
           // carry on into the walls that were drawn there.
           set((s) => {
-            let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng }));
+            // The AI designer's product picks go in where they fit their slot (`MatchOptions.picks`).
+            let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng, picks: proposalPicks(proposal) }));
             // Every floor and wall is the style's product for its room — tiles in the bathroom,
             // laminate and paint elsewhere — so the budget buys what the flat is shown in. Re-laying
-            // out the furniture is not a reason to lose the tiles someone picked.
-            let finishes = keepChosen(defaultFinishes(plan, styleId, catalog, rng), s.finishes);
+            // out the furniture is not a reason to lose the tiles someone picked. The designer's
+            // floors and walls replace the style's own draw.
+            let finishes = withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), s.finishes), plan, proposal, styleId, catalog);
             if (calculatorPicks) {
               items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
               finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
@@ -1203,9 +1266,18 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // A door, a window, a radiator, a socket or a light the calculation chose for the
             // whole flat stays its choice — the catalogue's product, from its shop.
             const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
+            // The designer's wall decor, measured against where the engine put the bed, the sofa,
+            // the TV unit (`proposalDecor`). An engine generation has none.
+            const decor = proposalDecor(laid, proposal, items, catalog);
+            const aiCount = (generation?.aiCount ?? 0) + (proposal ? 1 : 0);
+            const record: GenerationRecord = proposal
+              ? { by: 'ai', model: proposal.model, at: new Date().toISOString(), notes: proposalNotes(proposal), aiCount }
+              : { by: 'engine', at: new Date().toISOString(), aiCount };
             return {
               items,
               finishes,
+              decor,
+              generation: record,
               electrical: dressed.electrical,
               // The studio opens on the whole flat. A room picked out on the plan or the
               // technical board is that board's selection; kept, it showed the new layout one
@@ -1228,6 +1300,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         clearDesign: () =>
           commit((s) => ({
             items: [],
+            decor: [],
             electrical: [],
             finishes: defaultFinishes(s.plan, s.styleId),
             selectedItemId: null,
@@ -1300,6 +1373,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               calculatorPicks,
               pendingPicks: false,
               items: [],
+              decor: [],
               // The calculation's fittings on its own drawing; generating re-wires the flat for its furniture.
               electrical: current === fromCalculator ? fromCalculatorElectrical : [],
               finishes: defaultFinishes(plan, s.styleId),
@@ -1735,6 +1809,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               items: version.scene.items,
               finishes: version.scene.finishes,
               electrical: version.scene.electrical ?? [],
+              decor: version.scene.decor ?? [],
               styleId: version.scene.styleId,
               selectedItemId: null,
               selectedElement: null,
@@ -1752,13 +1827,13 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, finishes, electrical, styleProfile, excluded, quantities, step, generated, planFromCalculator, at, modeChosen, emptyStart } = get();
+          const { styleId, mode, budgetGel, finishes, electrical, decor, generation, styleProfile, excluded, quantities, step, generated, planFromCalculator, at, modeChosen, emptyStart } = get();
           // What rides on the pointer has not been put anywhere yet: the scene that is saved
           // and priced is the one Escape would leave.
           const items = withoutCarry(get());
           // An edit outlives nothing: one left by a piece since deleted is not saved.
           const ids = items.map((i) => i.id);
-          return { styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator, at, modeChosen, emptyStart } };
+          return { styleId, mode, budgetGel, items, finishes, electrical, decor, generation, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator, at, modeChosen, emptyStart } };
         },
       };
     };
@@ -1807,6 +1882,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         items: withoutCarry(s),
         finishes: s.finishes,
         electrical: s.electrical,
+        decor: s.decor,
+        generation: s.generation,
         // Not the kept versions: megabytes, written on every change. They come from the server.
         step: s.step,
         generated: s.generated,
@@ -1848,7 +1925,7 @@ export function useDesignActions(store: DesignStoreHook | typeof useCalculatorPl
 }
 
 function snapshotOf(s: DesignState): DesignSnapshot {
-  return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical, styleId: s.styleId };
+  return { plan: s.plan, items: s.items, finishes: s.finishes, electrical: s.electrical, decor: s.decor, styleId: s.styleId };
 }
 
 /**
@@ -1879,7 +1956,7 @@ function versionOf(s: DesignState, name: string, kind: DesignVersion['kind']): D
     kind,
     createdAt: new Date().toISOString(),
     plan: s.plan as FloorPlan,
-    scene: { styleId: s.styleId, mode: s.mode, budgetGel: s.budgetGel, items: s.items, finishes: s.finishes, electrical: s.electrical, styleProfile: s.styleProfile },
+    scene: { styleId: s.styleId, mode: s.mode, budgetGel: s.budgetGel, items: s.items, finishes: s.finishes, electrical: s.electrical, decor: s.decor, styleProfile: s.styleProfile },
   };
 }
 
@@ -2063,6 +2140,7 @@ const persistedSchema = z.object({
   items: z.array(placedItemSchema),
   finishes: z.array(surfaceFinishSchema),
   electrical: z.array(electricalPointSchema).optional(),
+  decor: z.array(decorPieceSchema).optional(),
   step: z.number().int().min(1).max(8),
   // The rest of what `partialize` keeps (save bookkeeping, ticks, the journey) rides along as it is.
 }).passthrough();

@@ -33,6 +33,7 @@ import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
 import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
+import { DecorPanel } from '@/components/studio/DecorPanel';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesignActions, useDesignStore } from '@/store/designStore';
 import { useDesignCatalog, refreshDesignCatalog } from '@/hooks/useDesignCatalog';
@@ -127,6 +128,7 @@ export default function StudioPage() {
     items,
     finishes,
     electrical,
+    decor,
     styleProfile,
     focusRoomId,
     selectedItemId,
@@ -151,6 +153,7 @@ export default function StudioPage() {
       items: s.items,
       finishes: s.finishes,
       electrical: s.electrical,
+      decor: s.decor,
       styleProfile: s.styleProfile,
       focusRoomId: s.focusRoomId,
       selectedItemId: s.selectedItemId,
@@ -355,7 +358,7 @@ export default function StudioPage() {
     setWorkspaceEl(el);
   }, []);
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile }), [styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile]);
 
   const cost = useMemo(
     () =>
@@ -1182,6 +1185,19 @@ export default function StudioPage() {
                   onRemove={() => store.removeOpening(selectedElement.roomId, selectedElement.id)}
                 />
               </FloatingPanel>
+            ) : selectedElement?.kind === 'decor' && decor.some((d) => d.id === selectedElement.id) && plan.rooms.some((r) => r.id === decor.find((d) => d.id === selectedElement.id)!.roomId) ? (
+              <FloatingPanel title={t.decor.panelTitle} subtitle={roomNameOf(decor.find((d) => d.id === selectedElement.id)!.roomId)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
+                <DecorPanel
+                  key={selectedElement.id}
+                  piece={decor.find((d) => d.id === selectedElement.id)!}
+                  room={plan.rooms.find((r) => r.id === decor.find((d) => d.id === selectedElement.id)!.roomId)!}
+                  catalog={products}
+                  onMaterial={(slot, product) => store.setDecorMaterial(selectedElement.id, slot, product)}
+                  onColor={(slot, colorHex) => store.setDecorColor(selectedElement.id, slot, colorHex)}
+                  onParams={(patch) => store.setDecorParams(selectedElement.id, patch)}
+                  onRemove={() => store.removeDecor(selectedElement.id)}
+                />
+              </FloatingPanel>
             ) : itemsPanelOpen ? (
               <FurnitureDrawer
                 items={items}
@@ -1426,6 +1442,8 @@ function elementTitle(kind: NonNullable<ReturnType<typeof useDesignStore.getStat
       return t.build.inspectorElectrical;
     case 'zone':
       return t.build.inspectorZone;
+    case 'decor':
+      return t.decor.panelTitle;
     default:
       return t.build.inspectorRoom;
   }

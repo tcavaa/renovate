@@ -112,8 +112,10 @@ column, as the flow uses it, is [project-flow.md §6](project-flow.md); in short
   product's `sizeM`; all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`**
   (items — a made-to-measure kitchen with its `kitchenMaterial`, the maker's product bought by
   the façade — finishes incl. per-wall and zones — a base floor two products share carries each
-  one's `share` — electrical, style profile, excluded, quantities, progress; a finish's product
-  snapshot carries how it is sold, `sale`),
+  one's `share` — electrical, **decor** (the code-built wall decor: family, wall, stretch,
+  height, knobs and per-slot materials — [design-studio/decor.md](design-studio/decor.md)),
+  **generation** (engine or AI, the model, the per-room notes, the AI run count), style profile,
+  excluded, quantities, progress; a finish's product snapshot carries how it is sold, `sale`),
   **`versions`** (`DesignVersion[]` — 0006);
 - concurrency: **`calculatorRev` / `designRev`** (each half's revision; a save from an older one
   is refused with 409 — 0012) and **`calculatorSaveId` / `designSaveId`** (the id of each

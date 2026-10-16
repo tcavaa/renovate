@@ -40,6 +40,7 @@ import { isEquipmentKind, pointProductKind, type EquipmentProductKind } from './
 import { kitchenMaterialOf, measureKitchens } from './kitchen';
 import { finishCoverage, type FinishCoverage } from './zones';
 import { visibleFinishes } from './finishQuantity';
+import { decorPurchases } from './decor/quantities';
 import { tickFor, tickedOff, validQuantity, type Quantities } from './ticks';
 import type {
   DesignCost,
@@ -106,7 +107,7 @@ const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
  * surface does): the kind of opening, the radiator, the equipment, the kind of fitting — the
  * four sockets as one, since one socket product serves them all — or a kitchen made to measure.
  */
-export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_wall' | 'kitchen_island' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
+export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_wall' | 'kitchen_island' | 'decor' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
 export type ProductLabels = Record<ProductLabelKey, string>;
 
 const DEFAULT_PRODUCT_LABELS: ProductLabels = {
@@ -132,6 +133,7 @@ const DEFAULT_PRODUCT_LABELS: ProductLabels = {
   kitchen_run: 'სამზარეულოს ავეჯი — ინდივიდუალური დამზადება',
   kitchen_island: 'სამზარეულოს კუნძული — ინდივიდუალური დამზადება',
   kitchen_wall: 'სამზარეულოს ზედა კარადები — ინდივიდუალური დამზადება',
+  decor: 'კედლის დეკორი — დამზადება ზომაზე',
 };
 
 const fittingLabelKey = (kind: ElectricalPoint['kind']): ProductLabelKey => (kind.startsWith('socket') ? 'socket' : (kind as ProductLabelKey));
@@ -363,6 +365,29 @@ export function priceScene(
       item: (surfacesOf.get(entry.product.productId) ?? []).map((surface) => options.surfaceLabels?.[surface] ?? DEFAULT_SURFACE_LABELS[surface]).join(', '),
     });
   }
+  // --- custom decor ---
+  // The wall decor built in code (slats, slabs, mouldings, niches, light lines…) is bought by its
+  // materials, each measured from the pieces' geometry (`decorPurchases`) at the catalogue's price
+  // per m², metre or piece: one line per material across the flat — its workshop is sent one order.
+  // An LED line is lighting; the rest is finishing.
+  for (const purchase of decorPurchases(scene.decor, plan.rooms)) {
+    const tick = tickFor.decor(purchase.product.productId);
+    raw.push({
+      section: purchase.product.categorySlug === 'decor-led' ? 'lighting' : 'finishes',
+      bucket: 'finishes',
+      key: `decor-${purchase.product.productId}`,
+      tick,
+      name: localizedName(purchase.product, locale),
+      qty: purchase.qty,
+      unit: purchase.unit,
+      unitPrice: purchase.product.pricePerUnit,
+      total: purchase.total,
+      estimated: false,
+      product: lineProduct(purchase.product, purchase.qty, purchase.total),
+      item: options.productLabels?.decor ?? DEFAULT_PRODUCT_LABELS.decor,
+    });
+  }
+
   // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
   // choosing it is asking for it — and one ticked off the order is fitted all the same.
   const trimMetres = round2(priced.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));

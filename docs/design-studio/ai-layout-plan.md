@@ -1,6 +1,14 @@
-# Plan: an AI interior designer for generation (not built)
+# Plan: an AI interior designer for generation (partly built)
 
-**Status: planned, nothing of it is built.** This is the plan for letting a model furnish and
+**Status: phase 1 is built, with custom wall decor ([decor.md](decor.md#the-ai-designer)).** The
+route (`/api/design/ai-generate`), the brief and candidates, one Claude call per flat with a
+validated structured answer, product picks the matcher takes where they fit (`MatchOptions.picks`),
+floors and walls per room, decor intents resolved against the engine's layout, the per-design cap
+(`MAX_AI_GENERATIONS`) and the generation record are in. **Not built:** the rules module
+(`lib/design/rules.ts`) and its scoring, layout constraints per piece (phase 2), the evaluation set,
+the retry with violations, explanations in the studio beyond the decor card's note.
+
+This is the plan for letting a model furnish and
 finish the flat after the style test, by interior design and building rules, instead of the rule
 engine alone. Today generation is the deterministic engine with seeded randomness
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); that engine stays — as the

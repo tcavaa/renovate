@@ -67,7 +67,7 @@ interface SentBooking {
 export default function TeamsStepPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, excluded, quantities } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities } = useDesignStore();
   const projectId = useProjectId();
   const { book } = useRateBook();
   const { status } = useSession();
@@ -75,7 +75,7 @@ export default function TeamsStepPage() {
   const [loading, setLoading] = useState(true);
   const [sent, setSent] = useState<SentBooking[]>([]);
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, excluded, quantities]);
   const cost = useMemo(() => (plan ? priceScene(plan, scene, { homeState: homeState ?? undefined, book, locale }) : null), [plan, scene, homeState, book, locale]);
   const trades = useMemo(() => (cost ? tradesNeeded(cost) : []), [cost]);
   const slugs: TradeSlug[] = trades.length > 0 ? trades.map((n) => n.slug) : TRADE_SLUGS;

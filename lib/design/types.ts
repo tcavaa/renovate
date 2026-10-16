@@ -528,12 +528,110 @@ export interface ElectricalPoint {
   locked?: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Decor: wall treatments built in code (lib/design/decor)
+// ---------------------------------------------------------------------------
+
+/**
+ * The families of custom wall decor (the reference library's primitives): slatted fields,
+ * picture-frame mouldings, built-out niches, stone slabs, light lines, upholstered or relief
+ * panels, brick or concrete cladding, murals and tiled fields. None of them is a model: each is
+ * fitted to its wall by code and bought by the material it uses.
+ */
+export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'panel' | 'cladding' | 'mural' | 'tile';
+
+/** The parts of a piece that wear a material of their own (`DECOR_FAMILIES` says which a family has). */
+export type DecorSlot = 'face' | 'backing' | 'led' | 'profile' | 'body' | 'shelf' | 'surround' | 'border' | 'trim';
+
+/** What a slot is made of: a catalogue material and, where it can be painted or tinted, a colour. */
+export interface DecorMaterial {
+  /** The decor material bought for it (unit and price from the catalogue); null while it is only a colour. */
+  product: SceneProduct | null;
+  /** A colour over the material — paint on a moulding, a lacquer on a slat — where the material takes one. */
+  colorHex?: string | null;
+  /** How the material draws, copied from the catalogue with it (`DecorMaterialSpecs`): texture scale, whether it takes a colour, an LED's colour temperature. */
+  specs?: { textureScaleM?: number; tintable?: boolean; cct?: number; profileMm?: number; roughness?: number } | null;
+}
+
+/** The knobs of a family; each builder reads its own and takes the family's defaults for the rest. */
+export interface DecorParams {
+  /** Slats: the section and the gap, millimetres. */
+  slatWidthMm?: number;
+  gapMm?: number;
+  depthMm?: number;
+  /** A board behind the slats, or none (a see-through screen). */
+  backing?: boolean;
+  /** Where its light line runs: under the field, over it, round it from behind (a halo), inside a niche. */
+  led?: 'none' | 'bottom' | 'top' | 'halo' | 'inside';
+  /** Moulding: the chair rail's height, the target width of a bay, and which rows are framed. */
+  dadoMm?: number;
+  bayWidthMm?: number;
+  upper?: boolean;
+  lower?: boolean;
+  rail?: boolean;
+  /** Niche: arched or square-headed, how many, each one's size, the build-out's depth, shelves, a mantel between two. */
+  shape?: 'arch' | 'rect';
+  count?: number;
+  nicheWidthMm?: number;
+  nicheHeightMm?: number;
+  shelves?: number;
+  mantel?: boolean;
+  /** Slab, panel, cladding, tile, mural: the module and its joint, the thickness, and a stand-off from the wall. */
+  moduleWidthMm?: number;
+  moduleHeightMm?: number;
+  jointMm?: number;
+  thicknessMm?: number;
+  standoffMm?: number;
+  /** Panel: upholstered channels, a fluted relief, or flat boards with joints. */
+  style?: 'upholstered' | 'fluted' | 'flat';
+  /** Tile: a band of the border material along the top. */
+  border?: boolean;
+  /** Light: round the ceiling (a cove), or a line set into the wall. */
+  path?: 'cove' | 'line';
+}
+
+/**
+ * One wall treatment: on one wall of one room (`wallIndex`), over a stretch of it (`span`, metres
+ * along the edge from its first corner, as a finish's span) and a band of its height. A light cove
+ * runs round the room and has no wall.
+ */
+export interface DecorPiece {
+  id: string;
+  roomId: string;
+  family: DecorFamily;
+  wallIndex: number | null;
+  span: { from: number; to: number };
+  height: { from: number; to: number };
+  params: DecorParams;
+  materials: Partial<Record<DecorSlot, DecorMaterial>>;
+  /** The reference library entry and concept it realises (`lib/design/decor/library`). */
+  reference?: { entryId: string; concept: string } | null;
+  /** Why it is there, in the person's language (the designer's note). */
+  note?: string | null;
+  origin?: 'ai' | 'studio';
+}
+
+/** How the flat was generated: by the rule engine or by the AI designer — kept so a flat can be explained. */
+export interface GenerationRecord {
+  by: 'engine' | 'ai';
+  model?: string | null;
+  at: string;
+  /** The designer's notes per room id, in the person's language. */
+  notes?: Record<string, string>;
+  /** How many AI generations this design has had — they are capped per design. */
+  aiCount?: number;
+}
+
 export interface DesignScene {
   styleId: StyleId;
   mode: DesignMode;
   budgetGel: number | null;
   items: PlacedItem[];
   finishes: SurfaceFinish[];
+  /** Custom wall decor built in code (`lib/design/decor`). Absent on scenes saved before it existed. */
+  decor?: DecorPiece[];
+  /** How this flat was generated (absent before it was recorded). */
+  generation?: GenerationRecord | null;
   /** Sockets, switches and lights. Absent on scenes saved before the layer existed. */
   electrical?: ElectricalPoint[];
   /** How the style was chosen: the five answers of the style test, when it was taken. */

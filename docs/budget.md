@@ -225,6 +225,17 @@ whatever laid it.
 into the sections the budget page lists. `tradesNeeded` maps the labour keys to the six
 worker specialties for step 8.
 
+## Custom wall decor (`lib/design/decor/quantities.ts`)
+
+The code-built wall decor ([design-studio/decor.md](design-studio/decor.md)) is bought by its
+materials: each piece's slots measured from the same fit the 3D view draws, in the material's own
+unit (m², metres with ×1.1 / ×1.05 cutting waste up to a tenth, pieces whole), folded per product
+across the flat (`decorPurchases`) — one line per material: key `decor-<productId>`, tick
+`tickFor.decor(productId)`, section `finishes` (an LED line `lighting`), bucket `finishes`, item
+label "კედლის დეკორი — დამზადება ზომაზე". The lines carry the product and its store (the decor
+workshop), so they are a store card on the sheet, ticked, edited and ordered like any other. The
+save route reprices the decor materials; the quantities are measured on the server by `priceScene`.
+
 ## Kitchens: a shop's units, or made to measure (`lib/design/kitchen.ts`)
 
 There are two kinds of kitchen, and an item says which it is (`PlacedItem.custom`,

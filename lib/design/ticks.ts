@@ -31,6 +31,8 @@ export const tickFor = {
   equipment: (productId: number): string => `equipment:${productId}`,
   /** A made-to-measure kitchen: one placed run or island, in the kitchen maker's material or at the joiner's estimate. */
   kitchen: (itemId: string): string => `kitchen:${itemId}`,
+  /** A custom decor material (`lib/design/decor`), folded per product across the flat. */
+  decor: (productId: number): string => `decor:${productId}`,
   /** A door or window with no product chosen, estimated on its own. */
   openingEstimate: (openingId: string): string => `opening-estimate:${openingId}`,
   /** A catalogue-free estimate folded per kind: `electrical_socket`, `technical_sewer`… */

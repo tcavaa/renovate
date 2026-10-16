@@ -61,6 +61,12 @@ export type BudgetLevel = 'value' | 'balanced' | 'premium';
 export interface MatchOptions {
   /** The rooms the items stand in; with them, a product that does not fit its slot is not placed at that size. */
   rooms?: PlanRoom[];
+  /**
+   * A designer's choices (`lib/design/aiProposal`): `${kind}|${roomId}` → product id. A pick that is
+   * a candidate of the kind is taken for the room in place of the draw — and, like any choice,
+   * only where it fits the slot; otherwise the matcher's own next-best takes it.
+   */
+  picks?: Record<string, number>;
   styleId: StyleId;
   /** Total furniture budget in GEL, or null for "no limit". */
   budgetGel?: number | null;
@@ -187,6 +193,13 @@ export function matchProducts(
     const rng = options.rng;
     const used = usedByKind.get(item.kind) ?? new Set<number>();
     const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, item, used.has(product.id));
+    if (!chosen && options.picks?.[roomKey] != null) {
+      const picked = candidates.find((p) => p.id === options.picks![roomKey]);
+      if (picked) {
+        chosen = picked;
+        chosenByRoom.set(roomKey, chosen);
+      }
+    }
     if (!chosen && rng) {
       chosen = weightedPick(candidates, weigh, rng) ?? scored[0].product;
       chosenByRoom.set(roomKey, chosen);

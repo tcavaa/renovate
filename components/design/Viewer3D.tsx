@@ -53,6 +53,7 @@ import { hangOnWall, isPlacementValid, isWallHung, roomAtPoint, snapPlacement, t
 import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } from '@/lib/design3d/wallMode';
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
+import { buildDecor, releaseDecorMaterials } from '@/lib/design3d/decor';
 import type { DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
 import { ViewerGuard } from './ViewerGuard';
@@ -565,6 +566,7 @@ function SceneContent({
     () => () => {
       releaseCachedModels();
       releaseGhostMaterials();
+      releaseDecorMaterials();
     },
     []
   );
@@ -595,6 +597,10 @@ function SceneContent({
   useEffect(() => () => disposeOwnedGeometry(radiatorGroup), [radiatorGroup]);
   // So does the equipment bought for them: the panel, the boiler, the air conditioners, hoods and fans, the drains.
   const equipmentGroup = useMemo(() => buildEquipment(plan, roomFilter), [plan, roomFilter]);
+
+  // The custom wall decor, rebuilt when it, the plan or the rooms in view change — not with the furniture.
+  const decorGroup = useMemo(() => buildDecor(plan, scene.decor, roomFilter), [plan, scene.decor, roomFilter]);
+  useEffect(() => () => disposeOwnedGeometry(decorGroup), [decorGroup]);
 
   // The room shells change only with the plan, the finishes or the style — not with furniture.
   const shell = useMemo(
@@ -1081,12 +1087,14 @@ function SceneContent({
   // the whole graph every frame.
   const wallParts = useMemo(() => {
     const parts: Array<{ object: THREE.Object3D; cut: WallCut }> = [];
-    shell.traverse((child) => {
-      const cut = child.userData.wallCut as WallCut | undefined;
-      if (cut) parts.push({ object: child, cut });
-    });
+    for (const root of [shell, decorGroup]) {
+      root.traverse((child) => {
+        const cut = child.userData.wallCut as WallCut | undefined;
+        if (cut) parts.push({ object: child, cut });
+      });
+    }
     return parts;
-  }, [shell]);
+  }, [shell, decorGroup]);
 
   // Inside the flat the walk-through keeps the cutaway: it takes away the neighbour's half of
   // a shared wall, which is behind the one you see.
@@ -1307,6 +1315,15 @@ function SceneContent({
         const start = floorPoint(event.clientX, event.clientY, 0);
         if (object && start) pointDragRef.current = { what: 'electrical', id: point.id, object, origin: object.position.clone(), originYaw: object.rotation.y, start, position: point.position, moved: false, absolute: false };
       }
+      return;
+    }
+
+    // A custom decor piece: picked to open its card (materials, colours, its light line).
+    if (data?.pickKind === 'decor' && data.decorId && !building && !wiring && !finishing) {
+      dragRef.current = null;
+      surfacePressRef.current = null;
+      openingDragRef.current = null;
+      callbacks.current.onSelectElement?.({ kind: 'decor', id: data.decorId });
       return;
     }
 
@@ -1725,6 +1742,7 @@ function SceneContent({
       */}
       <group onPointerMove={handleMove} onPointerOut={handleOut} onPointerDown={handleDown}>
         <primitive object={shell} />
+        <primitive object={decorGroup} />
         <primitive object={itemsGroup} />
         <primitive object={electricalGroup} />
         <primitive object={radiatorGroup} />

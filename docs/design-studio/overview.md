@@ -205,6 +205,10 @@ a room clicked on the plan used to carry through the style test into the studio,
 the new layout one room at a time. `generate` clears it (and the board's room selection), and
 the studio page clears it whenever it opens; a room chosen in the studio stays chosen between
 its furniture and its finishes, which are the same page.
+**With the AI designer** (a key on the server), the style page first asks
+`/api/design/ai-generate` for a proposal and the overlay waits on it; `generate(catalog, proposal)`
+then lays the flat out with the engine, taking the designer's product picks, floors, walls and
+wall decor where they fit, and records the run in `scene.generation` ([decor.md](decor.md#the-ai-designer)).
 **Generating twice gives two flats**: each `generate` draws a fresh seed, so the placement, the
 decor, the products and the floors and walls vary between the good options
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
@@ -227,15 +231,15 @@ the furniture, fittings and chosen finishes while the flat and version 01 stay. 
 them when it opens; until they are here the version actions wait (`versionsLoaded`,
 [project-flow.md](../project-flow.md#the-kept-versions)).
 
-## AI is optional, and only at the plan
+## AI is optional: the plan reader and the designer
 
-**The scene is built procedurally from structured data** — deterministic, free per view, the
-same result every time, fully interactive. That was the core recommendation in
-`AI_FEATURE_PLAN.md` and it is what shipped. The one place an AI is called is reading an
-uploaded plan: Claude reads it when `ANTHROPIC_API_KEY` is set, and the deterministic CV parser
-(`parseFloorPlan`) takes over when it is not ([plan-reading.md](plan-reading.md)). An LLM
-product ranker remains a possible addition at `matchProducts`. The app works fully without any
-API key and must keep doing so.
+**The scene is built procedurally from structured data** — deterministic, free per view, fully
+interactive. Claude is called in two places, both only when `ANTHROPIC_API_KEY` is set: reading an
+uploaded plan (the CV parser `parseFloorPlan` takes over without it — [plan-reading.md](plan-reading.md)),
+and **the AI designer** at generation, which picks the products for the engine's slots and the
+floors and walls from short lists and plans the custom wall decor, all realised and checked by the
+engine ([decor.md](decor.md#the-ai-designer)). Without a key, or when either fails, the app does
+the same work deterministically — and must keep doing so.
 
 ## Tests
 

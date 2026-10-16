@@ -26,6 +26,7 @@ Related: [overview.md](overview.md) · [studio.md](studio.md) (the page around t
 | `lib/design3d/materials.ts` | cached materials and textures by key; `metreSurface`, `whenLoaded`; `releaseUnused` lets go of the finishes no shell wears (gotcha 23) |
 | `lib/design3d/modelLoader.ts` | `loadModel` / `loadFixture`: one GLB per URL (meshopt or Draco), clones out, pivot onto y = 0, glass made plain, footprint mask registration; a failed load is forgotten so the next placement asks again |
 | `lib/design3d/loadProgress.ts` + `components/design/SceneLoading.tsx` | how many files the view asked for are still on their way (`trackLoad`, `loadStarted`), and the loading screen that waits on it (`useSceneLoading` in the viewer) |
+| `lib/design3d/decor.ts` | `buildDecor`: the custom wall decor from the fit `lib/design/decor/layout` works out (its own material cache, LED glow cards instead of lights, `wallCut` kind `decor`) — [decor.md](decor.md#in-3d-libdesign3ddecorts) |
 | `lib/design3d/glass.ts` | `plainGlass`: a transmissive glTF material (`KHR_materials_transmission`) turned into plain transparency (gotcha 20); `clearGlazing`: an opening model's opaque panes made see-through (gotcha 30) |
 | `lib/design3d/shaderFixes.ts` | guards in three's shared normal-mapping shader chunks against NaN normals, applied once on import by `modelLoader` and the turntable (gotcha 29) |
 | `lib/design3d/instancing.ts` | `instanced` / `alongX`: one model at several places as one `InstancedMesh` per mesh — radiator sections, a socket's plates, railing modules (gotcha 21) |

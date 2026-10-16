@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,9 @@ import { HingeDialog } from '@/components/flow/HingeDialog';
 import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
+import { aiDesignerEnabled, requestAiDesign } from '@/lib/design/aiDesignClient';
+import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
@@ -33,14 +35,27 @@ import { saveDesign } from '@/lib/design/saveDesign';
  */
 export default function StylePage() {
   const t = useT();
+  const locale = useLocale();
   const router = useRouter();
   const projectId = useProjectId();
-  const { plan, styleId, styleProfile, budgetGel, homeState, mode, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
+  const { plan, styleId, styleProfile, budgetGel, homeState, mode, generation, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
   /** The warning and the fee before the generation (`HingeDialog`). */
   const [hinge, setHinge] = useState(false);
+  /** The AI designer is there (a key on the server) and this design has AI runs left. */
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiRun, setAiRun] = useState(false);
+  /** The flat is laid out: the overlay may finish. */
+  const [laidOut, setLaidOut] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void aiDesignerEnabled().then((on) => live && setAiEnabled(on));
+    return () => {
+      live = false;
+    };
+  }, []);
 
   if (!plan || plan.rooms.length === 0) {
     return (
@@ -51,16 +66,26 @@ export default function StylePage() {
     );
   }
 
-  /** Paid: the flat is laid out in the style chosen, and the studio opens. */
+  /**
+   * Paid: the flat is laid out in the style chosen, and the studio opens. With the AI designer,
+   * its proposal first (furniture, colours, decor — `lib/design/aiProposal`); without it, or when
+   * it fails, the engine alone, as always.
+   */
   const generateNow = async () => {
     setHinge(false);
-    setGenerating(true);
     const budget = budgetInput ? Number(budgetInput) : null;
-    setBudget(Number.isFinite(budget as number) ? budget : null, products);
+    const budgetValue = Number.isFinite(budget as number) ? budget : null;
+    const useAi = aiEnabled && (generation?.aiCount ?? 0) < MAX_AI_GENERATIONS;
+    setAiRun(useAi);
+    setLaidOut(!useAi);
+    setGenerating(true);
+    setBudget(budgetValue, products);
     // Layout + matching are synchronous and fast; yield once so the overlay can appear.
     await new Promise((resolve) => setTimeout(resolve, 16));
-    generate(products);
+    const proposal = useAi ? await requestAiDesign({ projectId, plan, styleId, styleProfile, budgetGel: budgetValue, locale: locale as 'ka' | 'en' | 'ru' }) : null;
+    generate(products, proposal);
     setStep(5);
+    setLaidOut(true);
   };
 
   return (
@@ -141,7 +166,7 @@ export default function StylePage() {
       {hinge && (
         <HingeDialog open onOpenChange={setHinge} kind="design" projectId={projectId} save={() => saveDesign({ draft: true })} onPaid={generateNow} />
       )}
-      <GenerationOverlay open={generating} onDone={() => router.push(designStepHref(projectId, 5))} />
+      <GenerationOverlay open={generating} ai={aiRun} ready={laidOut} onDone={() => router.push(designStepHref(projectId, 5))} />
     </>
   );
 }

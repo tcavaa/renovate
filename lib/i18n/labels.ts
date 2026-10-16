@@ -127,6 +127,7 @@ export function basketLabels(t: Dictionary): { surfaceLabels: SurfaceLabels; pro
       kitchen_run: t.build.lineKitchenRun,
       kitchen_island: t.build.lineKitchenIsland,
       kitchen_wall: t.build.lineKitchenWall,
+      decor: t.decor.lineDecor,
       socket: t.build.ekSocket,
       switch: t.build.ekSwitch,
       tv: t.build.ekTv,

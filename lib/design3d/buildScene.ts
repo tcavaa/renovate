@@ -51,7 +51,7 @@ import { releaseMaterial } from './gpuRelease';
 import { WALL_STUB_M, type WallPartKind } from './wallMode';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical';
+  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor';
   itemId?: string;
   openingId?: string;
   roomId: string;
@@ -76,6 +76,8 @@ export interface SceneUserData {
   /** A technical point drawn in 3D — a radiator. */
   technicalId?: string;
   zoneId?: string;
+  /** A custom wall decor piece (`lib/design3d/decor`). */
+  decorId?: string;
 }
 
 /**

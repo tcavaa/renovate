@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { products, stores, type Category } from '@/lib/db/schema';
 import { DESIGN_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY } from '@/lib/design/catalog';
 import { SURFACE_CATEGORY_SLUGS } from '@/lib/design/surfaces';
+import { DECOR_MATERIAL_SLUGS } from '@/lib/design/decor/materials';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ShelfData } from '@/lib/design/shelf';
 import { nearestSlug, subtreeOfSlugs, type CategoryTree } from '@/lib/catalog/tree';
@@ -22,8 +23,8 @@ export interface DesignCatalog {
   shelf: ShelfData;
 }
 
-/** The categories the studio's code names: its furniture, fittings, openings, radiators, mouldings, finishes and the kitchen maker's materials. */
-const KNOWN_SLUGS: ReadonlySet<string> = new Set([...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY]);
+/** The categories the studio's code names: its furniture, fittings, openings, radiators, mouldings, finishes, the kitchen maker's materials and the decor materials (each kind its own, so a product's nearest slug is its kind). */
+const KNOWN_SLUGS: ReadonlySet<string> = new Set([...DESIGN_CATEGORY_SLUGS, ...SURFACE_CATEGORY_SLUGS, KITCHEN_MATERIAL_CATEGORY, ...DECOR_MATERIAL_SLUGS]);
 
 /**
  * What the studio can use: every product with a 3D kind (furniture, fittings, doors, radiators,

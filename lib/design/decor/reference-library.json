@@ -1,0 +1,1107 @@
+{
+  "title": "RenovationRoom custom architectural decor reference library",
+  "date": "2026-10-16",
+  "status": "Research and proposed design briefs; no app integration performed",
+  "scope": "Wall-sized treatments, built-out niches, custom cladding, mouldings and integrated lighting. Excludes loose furniture and decorative props. Custom cabinets are a separate joinery scope.",
+  "room_types": [
+    "living_room",
+    "bedroom",
+    "kitchen",
+    "bathroom",
+    "toilet",
+    "hallway",
+    "balcony",
+    "storage",
+    "office",
+    "closet",
+    "studio"
+  ],
+  "styles": [
+    "modern",
+    "scandinavian",
+    "industrial",
+    "vintage"
+  ],
+  "sources": {
+    "S1": {
+      "title": "WoodUpp — living-room panel gallery",
+      "url": "https://woodupp.com/collections/living-room-wall-panels",
+      "use": "Slatted feature-wall visual inspiration; some images may be AI enhanced."
+    },
+    "S2": {
+      "title": "WoodUpp — room inspiration galleries",
+      "url": "https://woodupp.com/collections/shop-by-room",
+      "use": "Light timber paneling in bedroom, office, hallway and open-plan settings; manufacturer flags some imagery as AI generated."
+    },
+    "S3": {
+      "title": "Orac — Heritage / New Classics",
+      "url": "https://www.oracdecor.com/en_us/blog/post/heritage",
+      "use": "Classical panel compositions and cornices."
+    },
+    "S4": {
+      "title": "Orac — 3D wall coverings",
+      "url": "https://www.oracdecor.com/en_gb/3d-wall-covering",
+      "use": "Paintable relief and fluted surface vocabulary."
+    },
+    "S5": {
+      "title": "Orac — indirect crown lighting",
+      "url": "https://www.oracdecor.com/en_us/crown-molding-lighting/c391_downlighter",
+      "use": "Concealed architectural lighting reference."
+    },
+    "S6": {
+      "title": "Cosentino — bathroom cladding",
+      "url": "https://www.cosentino.com/europe/bathrooms/bathroom-claddings/",
+      "use": "Large-format wet-room cladding and minimal-joint visual references."
+    },
+    "S7": {
+      "title": "Cosentino — kitchen cladding",
+      "url": "https://www.cosentino.com/usa/kitchens/kitchen-claddings/",
+      "use": "Stone-look, contemporary and textured kitchen wall surfaces."
+    },
+    "S8": {
+      "title": "ArchDaily — exposed brick apartment examples",
+      "url": "https://www.archdaily.com/965153/brick-apartment-interiors-5-examples-of-rustic-warmth",
+      "use": "Built-project inspiration for brick, wood and industrial material contrasts."
+    },
+    "S9": {
+      "title": "Schlüter — wall and shower niches",
+      "url": "https://eu.schluter.com/en-GB/wall-niches-and-shower-niches-11923.html",
+      "use": "Niche proportions and integrated lighting inspiration; construction depends on a compatible waterproof assembly."
+    },
+    "S10": {
+      "title": "Orac — wall mouldings guide",
+      "url": "https://www.oracdecor.com/en_ie/px",
+      "use": "Moulding vocabulary; bathroom guidance distinguishes humidity from direct water contact."
+    },
+    "S11": {
+      "title": "Rebel Walls — Flower Petals Vintage",
+      "url": "https://rebelwalls.com/uk/flower-petals-vintage",
+      "use": "Muted botanical mural reference."
+    },
+    "S12": {
+      "title": "Trekker — exterior cladding example",
+      "url": "https://www.trekkerglobal.com/products/trekker-cladding-polished-pearl",
+      "use": "Exterior cladding material reference; not a complete balcony installation specification."
+    }
+  },
+  "primitives": {
+    "slats": {
+      "parameters": [
+        "field_width",
+        "field_height",
+        "slat_width",
+        "gap",
+        "depth",
+        "material",
+        "edge_margin"
+      ],
+      "proposed_defaults_mm": {
+        "slat_width": [
+          20,
+          45
+        ],
+        "gap": [
+          10,
+          25
+        ],
+        "depth": [
+          10,
+          30
+        ]
+      },
+      "fit": "Choose a real section first; calculate whole slat count and center the remainder. Drop a secondary field before reducing details below fabrication limits.",
+      "quantity": "Count × actual length; backing net area; fixings separately."
+    },
+    "moulding": {
+      "parameters": [
+        "bay_count",
+        "bay_widths",
+        "rail_height",
+        "frame_inset",
+        "profile",
+        "projection"
+      ],
+      "proposed_defaults_mm": {
+        "wall_edge_margin": [
+          100,
+          180
+        ],
+        "gap_between_frames": [
+          80,
+          150
+        ],
+        "dado_height": [
+          900,
+          1100
+        ]
+      },
+      "fit": "Split at doors/windows, fit whole rectangular bays within each clear segment; never stretch profile cross sections.",
+      "quantity": "Sum actual profile path lengths; corner/joint counts and cutting waste separately."
+    },
+    "niche": {
+      "parameters": [
+        "outer_width",
+        "outer_height",
+        "clear_depth",
+        "arch_radius",
+        "lining",
+        "buildout_depth"
+      ],
+      "proposed_defaults_mm": {
+        "decorative_clear_depth": [
+          100,
+          250
+        ]
+      },
+      "fit": "Unknown existing wall construction means build outward or omit. A semicircular arch has radius half clear width; account for reveals and linings.",
+      "quantity": "Back + returns + soffit + shelf surfaces, framing and substrate; subtract opening from front face."
+    },
+    "slab": {
+      "parameters": [
+        "field_width",
+        "field_height",
+        "panel_thickness",
+        "seams",
+        "edge_finish",
+        "grain_direction"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Use actual sheet/slab sizes and transport constraints; add seams instead of inventing an unlimited slab. Bookmatching only when material supply supports it.",
+      "quantity": "Net cladding area plus separately calculated fabrication yield, returns and edges."
+    },
+    "light": {
+      "parameters": [
+        "path",
+        "channel_section",
+        "setback",
+        "driver_access",
+        "cct",
+        "dimming"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Use a real channel and assembly. Conceal the source from normal sightlines; maintain access to power components.",
+      "quantity": "Actual lit path, channel and diffuser lengths; drivers/connectors from electrical design."
+    },
+    "panel": {
+      "parameters": [
+        "field_width",
+        "field_height",
+        "module_width",
+        "joint_width",
+        "thickness",
+        "material"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Reflow modules around openings and access panels; do not stretch texture or relief pitch.",
+      "quantity": "Net area, module count, joint/edge length and substrate separately."
+    },
+    "cladding": {
+      "parameters": [
+        "field_polygon",
+        "module_size",
+        "joint_size",
+        "material",
+        "exposure_class"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Preserve real module scale and edge conditions; select interior/exterior assembly before generating geometry.",
+      "quantity": "Net area, corners, cuts and support assembly."
+    },
+    "mural": {
+      "parameters": [
+        "field_polygon",
+        "image_crop",
+        "repeat_scale",
+        "substrate",
+        "seams"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Crop or repeat deliberately, never distort the motif to fill a wall; avoid slicing key artwork at openings.",
+      "quantity": "Supplier roll or custom-print layout including pattern matching, not only net wall area."
+    },
+    "tile": {
+      "parameters": [
+        "field_polygon",
+        "tile_size",
+        "grout_joint",
+        "layout",
+        "border_height",
+        "edge_trim"
+      ],
+      "proposed_defaults_mm": {},
+      "fit": "Lay out actual tile modules with balanced end cuts; align niche/fixture edges where feasible.",
+      "quantity": "Tile counts/cuts, trim lengths, substrate, adhesive and grout separately."
+    }
+  },
+  "entries": [
+    {
+      "id": "living_room_modern",
+      "room_type": "living_room",
+      "style": "modern",
+      "concepts": [
+        "Floating stone media panel with walnut slat wing",
+        "Greige relief wall with a single recessed light slot"
+      ],
+      "families": [
+        "slats",
+        "slab",
+        "light"
+      ],
+      "reference_ids": [
+        "S1",
+        "S4",
+        "S5"
+      ],
+      "composition_rule": "TV or seating focal wall; center the main panel on the focal object, not automatically on the entire wall",
+      "room_constraint": "Anchor to TV or seating, keeping sockets, ventilation and cable access available.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "living_room_scandinavian",
+      "room_type": "living_room",
+      "style": "scandinavian",
+      "concepts": [
+        "Pale-oak slat field behind seating",
+        "Warm-white wall with shallow oak-lined rectangular alcoves"
+      ],
+      "families": [
+        "slats",
+        "niche"
+      ],
+      "reference_ids": [
+        "S2",
+        "S9"
+      ],
+      "composition_rule": "One seating wall; retain large quiet painted areas",
+      "room_constraint": "Anchor to TV or seating, keeping sockets, ventilation and cable access available.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "living_room_industrial",
+      "room_type": "living_room",
+      "style": "industrial",
+      "concepts": [
+        "Brick-slip focal wall edged with dark steel-look trim",
+        "Concrete-look panels with deliberate vertical joints"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "TV or sofa wall; one raw surface is enough",
+      "room_constraint": "Anchor to TV or seating, keeping sockets, ventilation and cable access available.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "living_room_vintage",
+      "room_type": "living_room",
+      "style": "vintage",
+      "concepts": [
+        "Balanced picture-frame mouldings with a central feature bay",
+        "Paired arched niches around a decorative mantel surround"
+      ],
+      "families": [
+        "moulding",
+        "niche"
+      ],
+      "reference_ids": [
+        "S3",
+        "S10"
+      ],
+      "composition_rule": "Use a centered axis; fireplace opening is decorative unless an appliance is separately specified",
+      "room_constraint": "Anchor to TV or seating, keeping sockets, ventilation and cable access available.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bedroom_modern",
+      "room_type": "bedroom",
+      "style": "modern",
+      "concepts": [
+        "Wide upholstered wall panels behind the bed",
+        "Fluted plaster headwall with one concealed upper light line"
+      ],
+      "families": [
+        "panel",
+        "light"
+      ],
+      "reference_ids": [
+        "S4",
+        "S5"
+      ],
+      "composition_rule": "Bed axis; extend treatment beyond bed sides only within the usable wall",
+      "room_constraint": "Anchor to the bed; avoid projecting details above the head and exposed LED glare.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bedroom_scandinavian",
+      "room_type": "bedroom",
+      "style": "scandinavian",
+      "concepts": [
+        "Half-height pale-oak batten headwall",
+        "Sage painted lower wall with a slim timber cap"
+      ],
+      "families": [
+        "slats",
+        "panel"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Keep the headwall quiet; no protruding ledges directly over pillows",
+      "room_constraint": "Anchor to the bed; avoid projecting details above the head and exposed LED glare.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bedroom_industrial",
+      "room_type": "bedroom",
+      "style": "industrial",
+      "concepts": [
+        "Brick-look inset framed by smooth charcoal paint",
+        "Warm wood panel band with thin dark joints"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "Headwall only; reduce high-contrast texture in a small bedroom",
+      "room_constraint": "Anchor to the bed; avoid projecting details above the head and exposed LED glare.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bedroom_vintage",
+      "room_type": "bedroom",
+      "style": "vintage",
+      "concepts": [
+        "Three moulded bays with a wider central bed bay",
+        "Muted botanical wallpaper inside shallow frames"
+      ],
+      "families": [
+        "moulding",
+        "mural"
+      ],
+      "reference_ids": [
+        "S3",
+        "S11"
+      ],
+      "composition_rule": "Align frame divisions with bed and bedside zones",
+      "room_constraint": "Anchor to the bed; avoid projecting details above the head and exposed LED glare.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "kitchen_modern",
+      "room_type": "kitchen",
+      "style": "modern",
+      "concepts": [
+        "Continuous stone-look backsplash with aligned seams",
+        "Slab backsplash with a shallow recessed display strip outside the cooking zone"
+      ],
+      "families": [
+        "slab",
+        "niche"
+      ],
+      "reference_ids": [
+        "S7",
+        "S9"
+      ],
+      "composition_rule": "Countertop and appliance anchors set the composition",
+      "room_constraint": "Use appliance positions and manufacturer-required clearances; keep trim out of heat and splash zones.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "kitchen_scandinavian",
+      "room_type": "kitchen",
+      "style": "scandinavian",
+      "concepts": [
+        "Warm-white stacked-tile backsplash with pale grout",
+        "Pale-timber panel field on the dry dining-facing wall"
+      ],
+      "families": [
+        "tile",
+        "slats"
+      ],
+      "reference_ids": [
+        "S7",
+        "S2"
+      ],
+      "composition_rule": "Separate splash/cooking surfaces from dry decorative timber",
+      "room_constraint": "Use appliance positions and manufacturer-required clearances; keep trim out of heat and splash zones.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "kitchen_industrial",
+      "room_type": "kitchen",
+      "style": "industrial",
+      "concepts": [
+        "Concrete-look backsplash with dark edge profiles",
+        "Brick-look tile on a dry return wall and a smooth cooking backsplash"
+      ],
+      "families": [
+        "slab",
+        "cladding"
+      ],
+      "reference_ids": [
+        "S7",
+        "S8"
+      ],
+      "composition_rule": "Avoid porous or difficult-to-clean relief directly behind the hob",
+      "room_constraint": "Use appliance positions and manufacturer-required clearances; keep trim out of heat and splash zones.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "kitchen_vintage",
+      "room_type": "kitchen",
+      "style": "vintage",
+      "concepts": [
+        "Cream tile field with a contrasting decorative border",
+        "Framed painted panels on the dry breakfast wall"
+      ],
+      "families": [
+        "tile",
+        "moulding"
+      ],
+      "reference_ids": [
+        "S7",
+        "S3"
+      ],
+      "composition_rule": "Align the border with cabinetry; keep mouldings outside splash zones",
+      "room_constraint": "Use appliance positions and manufacturer-required clearances; keep trim out of heat and splash zones.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bathroom_modern",
+      "room_type": "bathroom",
+      "style": "modern",
+      "concepts": [
+        "Large-format slab wall with a horizontal shower niche",
+        "Fluted wet-rated tile on the vanity wall"
+      ],
+      "families": [
+        "slab",
+        "niche",
+        "tile"
+      ],
+      "reference_ids": [
+        "S6",
+        "S9"
+      ],
+      "composition_rule": "Vanity/shower anchors; preserve fitting and maintenance access",
+      "room_constraint": "A recess needs a verified wall build-up and continuous waterproofing; choose wet-zone-rated materials and lighting.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bathroom_scandinavian",
+      "room_type": "bathroom",
+      "style": "scandinavian",
+      "concepts": [
+        "Warm-white tile with a pale terrazzo niche lining",
+        "Vertical cream tile wall with a small softly lit recess"
+      ],
+      "families": [
+        "tile",
+        "niche"
+      ],
+      "reference_ids": [
+        "S6",
+        "S9"
+      ],
+      "composition_rule": "Use tile to create rhythm instead of exposed timber in the shower",
+      "room_constraint": "A recess needs a verified wall build-up and continuous waterproofing; choose wet-zone-rated materials and lighting.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bathroom_industrial",
+      "room_type": "bathroom",
+      "style": "industrial",
+      "concepts": [
+        "Concrete-look tile wall with dark niche edging",
+        "Charcoal vertical tile strip against lighter cement-look walls"
+      ],
+      "families": [
+        "tile",
+        "niche"
+      ],
+      "reference_ids": [
+        "S6",
+        "S9"
+      ],
+      "composition_rule": "Keep enough light contrast to read fixtures and recesses",
+      "room_constraint": "A recess needs a verified wall build-up and continuous waterproofing; choose wet-zone-rated materials and lighting.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "bathroom_vintage",
+      "room_type": "bathroom",
+      "style": "vintage",
+      "concepts": [
+        "Cream tile wainscot with a slim border",
+        "Arched tiled vanity recess with a muted patterned inset"
+      ],
+      "families": [
+        "tile",
+        "niche"
+      ],
+      "reference_ids": [
+        "S6",
+        "S9",
+        "S10"
+      ],
+      "composition_rule": "Use moisture-suitable assemblies; decorative mouldings only where approved",
+      "room_constraint": "A recess needs a verified wall build-up and continuous waterproofing; choose wet-zone-rated materials and lighting.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "toilet_modern",
+      "room_type": "toilet",
+      "style": "modern",
+      "concepts": [
+        "Full-width slab feature above the concealed cistern",
+        "Painted service-wall panel with flush access joints"
+      ],
+      "families": [
+        "slab",
+        "panel"
+      ],
+      "reference_ids": [
+        "S6"
+      ],
+      "composition_rule": "Cistern and access hatch determine panel breaks",
+      "room_constraint": "Keep cistern maintenance access, plumbing and fan paths clear.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "toilet_scandinavian",
+      "room_type": "toilet",
+      "style": "scandinavian",
+      "concepts": [
+        "Warm-white tile half-wall with a soft sage upper wall",
+        "Pale terrazzo inset behind the basin"
+      ],
+      "families": [
+        "tile",
+        "slab"
+      ],
+      "reference_ids": [
+        "S6"
+      ],
+      "composition_rule": "Use shallow treatments that do not narrow the room",
+      "room_constraint": "Keep cistern maintenance access, plumbing and fan paths clear.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "toilet_industrial",
+      "room_type": "toilet",
+      "style": "industrial",
+      "concepts": [
+        "Concrete-look service wall with dark joint lines",
+        "Small brick-look tile field above splash height"
+      ],
+      "families": [
+        "tile",
+        "cladding"
+      ],
+      "reference_ids": [
+        "S6",
+        "S8"
+      ],
+      "composition_rule": "Preserve cistern access and cleanable surfaces around fixtures",
+      "room_constraint": "Keep cistern maintenance access, plumbing and fan paths clear.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "toilet_vintage",
+      "room_type": "toilet",
+      "style": "vintage",
+      "concepts": [
+        "Tile dado with a small-scale patterned upper field",
+        "Cream frame mouldings on dry walls above tiled splash zones"
+      ],
+      "families": [
+        "tile",
+        "moulding",
+        "mural"
+      ],
+      "reference_ids": [
+        "S10",
+        "S11"
+      ],
+      "composition_rule": "Match frame size to the small room; avoid crowded miniature panels",
+      "room_constraint": "Keep cistern maintenance access, plumbing and fan paths clear.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "hallway_modern",
+      "room_type": "hallway",
+      "style": "modern",
+      "concepts": [
+        "Shallow vertical relief panel at the entry focal point",
+        "Smooth panels with one recessed vertical light seam"
+      ],
+      "families": [
+        "panel",
+        "light"
+      ],
+      "reference_ids": [
+        "S4",
+        "S5"
+      ],
+      "composition_rule": "Use a clear wall bay; avoid reducing door or circulation clearance",
+      "room_constraint": "Use shallow details; preserve all door swings and circulation envelopes.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "hallway_scandinavian",
+      "room_type": "hallway",
+      "style": "scandinavian",
+      "concepts": [
+        "Pale-oak batten entry panel",
+        "Two-tone painted wainscot with a slim timber rail"
+      ],
+      "families": [
+        "slats",
+        "panel"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Treat one short section rather than making a narrow tunnel of slats",
+      "room_constraint": "Use shallow details; preserve all door swings and circulation envelopes.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "hallway_industrial",
+      "room_type": "hallway",
+      "style": "industrial",
+      "concepts": [
+        "Brick-slip end wall with dark edge trims",
+        "Concrete-look lower wall with a steel-look reveal grid"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "Emphasize an end wall instead of darkening both long walls",
+      "room_constraint": "Use shallow details; preserve all door swings and circulation envelopes.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "hallway_vintage",
+      "room_type": "hallway",
+      "style": "vintage",
+      "concepts": [
+        "Repeated picture-frame wainscoting between doors",
+        "Wallpaper upper wall above a simple dado rail"
+      ],
+      "families": [
+        "moulding",
+        "mural"
+      ],
+      "reference_ids": [
+        "S3",
+        "S11"
+      ],
+      "composition_rule": "Fit whole bays between openings and retain consistent rail heights",
+      "room_constraint": "Use shallow details; preserve all door swings and circulation envelopes.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "balcony_modern",
+      "room_type": "balcony",
+      "style": "modern",
+      "concepts": [
+        "Exterior-rated ribbed cladding on the sheltered side wall",
+        "Porcelain feature panel with a simple joint grid"
+      ],
+      "families": [
+        "cladding",
+        "tile"
+      ],
+      "reference_ids": [
+        "S12",
+        "S6"
+      ],
+      "composition_rule": "Exterior exposure governs material selection; bathroom approval alone is insufficient",
+      "room_constraint": "Exposure, drainage, fixing method and permitted loads must be established before detailed design.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "balcony_scandinavian",
+      "room_type": "balcony",
+      "style": "scandinavian",
+      "concepts": [
+        "Exterior-rated light timber-look vertical cladding",
+        "Warm mineral-render wall with a narrow weather-rated batten field"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S12",
+        "S2"
+      ],
+      "composition_rule": "Keep drainage and ventilation openings clear",
+      "room_constraint": "Exposure, drainage, fixing method and permitted loads must be established before detailed design.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "balcony_industrial",
+      "room_type": "balcony",
+      "style": "industrial",
+      "concepts": [
+        "Exterior-rated brick slips on one solid wall",
+        "Cement-look exterior panels with expressed joints"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S12",
+        "S8"
+      ],
+      "composition_rule": "Verify complete exterior system and fixings; do not clad railings by default",
+      "room_constraint": "Exposure, drainage, fixing method and permitted loads must be established before detailed design.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "balcony_vintage",
+      "room_type": "balcony",
+      "style": "vintage",
+      "concepts": [
+        "Exterior tile dado with a decorative border",
+        "Cream exterior render with shallow weather-rated frame details"
+      ],
+      "families": [
+        "tile",
+        "moulding"
+      ],
+      "reference_ids": [
+        "S12",
+        "S3"
+      ],
+      "composition_rule": "Use exterior-approved profiles and finishes; do not assume indoor plaster is suitable",
+      "room_constraint": "Exposure, drainage, fixing method and permitted loads must be established before detailed design.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "storage_modern",
+      "room_type": "storage",
+      "style": "modern",
+      "concepts": [
+        "Washable light wall panels with a simple joint grid",
+        "Painted wall with one durable lower protection band"
+      ],
+      "families": [
+        "panel"
+      ],
+      "reference_ids": [
+        "S4"
+      ],
+      "composition_rule": "Treat only exposed wall areas; skip decoration behind storage",
+      "room_constraint": "Decoration is optional: budget zero is a valid recommendation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "storage_scandinavian",
+      "room_type": "storage",
+      "style": "scandinavian",
+      "concepts": [
+        "Warm-white lower wall with a plain timber cap",
+        "Small pale-wood backing field in an exposed utility bay"
+      ],
+      "families": [
+        "panel"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Choose low-cost, easy-to-clean treatments; no decorative niches needed",
+      "room_constraint": "Decoration is optional: budget zero is a valid recommendation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "storage_industrial",
+      "room_type": "storage",
+      "style": "industrial",
+      "concepts": [
+        "Grey mineral-look finish with a dark lower band",
+        "Durable plain panels with exposed-looking trim divisions"
+      ],
+      "families": [
+        "panel",
+        "cladding"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "Favor practicality and visibility over dark loft styling",
+      "room_constraint": "Decoration is optional: budget zero is a valid recommendation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "storage_vintage",
+      "room_type": "storage",
+      "style": "vintage",
+      "concepts": [
+        "Cream beadboard-look lower wall",
+        "Simple olive dado line with an unornamented cream upper wall"
+      ],
+      "families": [
+        "panel",
+        "moulding"
+      ],
+      "reference_ids": [
+        "S3"
+      ],
+      "composition_rule": "Use the restrained palette; omit ornate cornices and wallpaper in damp storage",
+      "room_constraint": "Decoration is optional: budget zero is a valid recommendation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "office_modern",
+      "room_type": "office",
+      "style": "modern",
+      "concepts": [
+        "Tone-on-tone relief backdrop with a narrow light wash",
+        "Large fabric-covered wall rectangles in a regular grid"
+      ],
+      "families": [
+        "panel",
+        "light"
+      ],
+      "reference_ids": [
+        "S4",
+        "S5"
+      ],
+      "composition_rule": "Desk or video-call background; keep light out of the monitor reflection path",
+      "room_constraint": "Account for screen reflections and the camera background; do not promise soundproofing from appearance.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "office_scandinavian",
+      "room_type": "office",
+      "style": "scandinavian",
+      "concepts": [
+        "Pale-oak slat backdrop with warm-white margins",
+        "Muted-blue wall with a custom cork pinboard field"
+      ],
+      "families": [
+        "slats",
+        "panel"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Fit the backdrop to the work zone; acoustic benefit requires assembly-specific evidence",
+      "room_constraint": "Account for screen reflections and the camera background; do not promise soundproofing from appearance.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "office_industrial",
+      "room_type": "office",
+      "style": "industrial",
+      "concepts": [
+        "Brick feature behind the work zone",
+        "Concrete-look backdrop with a dark rectangular trim grid"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "Keep busy texture away from the main visual task area where possible",
+      "room_constraint": "Account for screen reflections and the camera background; do not promise soundproofing from appearance.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "office_vintage",
+      "room_type": "office",
+      "style": "vintage",
+      "concepts": [
+        "Olive picture-frame panelling",
+        "Walnut-look lower panelling with a plain upper wall"
+      ],
+      "families": [
+        "moulding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S3",
+        "S10"
+      ],
+      "composition_rule": "Align the composition with the desk axis and visible background",
+      "room_constraint": "Account for screen reflections and the camera background; do not promise soundproofing from appearance.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "closet_modern",
+      "room_type": "closet",
+      "style": "modern",
+      "concepts": [
+        "Flush decorative wall panels around a cut-to-size mirror field",
+        "Fine-ribbed accent at the dressing end wall"
+      ],
+      "families": [
+        "panel"
+      ],
+      "reference_ids": [
+        "S4"
+      ],
+      "composition_rule": "Decorate exposed dressing wall only; wardrobe doors remain separate furniture",
+      "room_constraint": "Do not conflict with wardrobe doors, hanging clothes or existing ventilation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "closet_scandinavian",
+      "room_type": "closet",
+      "style": "scandinavian",
+      "concepts": [
+        "Pale timber wall backing at the dressing bay",
+        "Warm-white panel with a slim oak perimeter"
+      ],
+      "families": [
+        "panel",
+        "slats"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Preserve wardrobe opening and standing space",
+      "room_constraint": "Do not conflict with wardrobe doors, hanging clothes or existing ventilation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "closet_industrial",
+      "room_type": "closet",
+      "style": "industrial",
+      "concepts": [
+        "Dark trim grid on a grey dressing wall",
+        "Warm reclaimed-wood-look panel at the end bay"
+      ],
+      "families": [
+        "panel",
+        "cladding"
+      ],
+      "reference_ids": [
+        "S8"
+      ],
+      "composition_rule": "Avoid splinter-prone raw surfaces near clothing",
+      "room_constraint": "Do not conflict with wardrobe doors, hanging clothes or existing ventilation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "closet_vintage",
+      "room_type": "closet",
+      "style": "vintage",
+      "concepts": [
+        "Cream moulded frame around a mirror opening",
+        "Muted botanical inset on the dressing wall"
+      ],
+      "families": [
+        "moulding",
+        "mural"
+      ],
+      "reference_ids": [
+        "S3",
+        "S11"
+      ],
+      "composition_rule": "Use one framed feature rather than repeating ornament behind cabinetry",
+      "room_constraint": "Do not conflict with wardrobe doors, hanging clothes or existing ventilation.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "studio_modern",
+      "room_type": "studio",
+      "style": "modern",
+      "concepts": [
+        "Shared slab-and-slat living feature with a related kitchen backsplash",
+        "Shallow ceiling lighting zone over living space with a plain kitchen wall"
+      ],
+      "families": [
+        "slab",
+        "slats",
+        "light"
+      ],
+      "reference_ids": [
+        "S1",
+        "S7",
+        "S5"
+      ],
+      "composition_rule": "Use the actual room parts; one dominant focal wall for the connected volume",
+      "room_constraint": "Read RoomSplit parts and their functions; use a shared palette and one overall focal hierarchy.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "studio_scandinavian",
+      "room_type": "studio",
+      "style": "scandinavian",
+      "concepts": [
+        "Pale-oak living wall repeated as a small dry dining accent",
+        "Warm-white walls with one sage painted zone and simple timber rail"
+      ],
+      "families": [
+        "slats",
+        "panel"
+      ],
+      "reference_ids": [
+        "S2"
+      ],
+      "composition_rule": "Continue a common palette across parts; do not copy a kitchen/living brief onto different part types",
+      "room_constraint": "Read RoomSplit parts and their functions; use a shared palette and one overall focal hierarchy.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "studio_industrial",
+      "room_type": "studio",
+      "style": "industrial",
+      "concepts": [
+        "Single brick feature linking living and dining",
+        "Concrete-look wall field with repeated dark reveals in the kitchen backdrop"
+      ],
+      "families": [
+        "cladding",
+        "panel"
+      ],
+      "reference_ids": [
+        "S8",
+        "S7"
+      ],
+      "composition_rule": "Use one raw material across zones, with smooth cleanable cooking surfaces",
+      "room_constraint": "Read RoomSplit parts and their functions; use a shared palette and one overall focal hierarchy.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    },
+    {
+      "id": "studio_vintage",
+      "room_type": "studio",
+      "style": "vintage",
+      "concepts": [
+        "Continuous dado height through living and dining with framed bays",
+        "One arched living-room feature balanced by restrained kitchen tile borders"
+      ],
+      "families": [
+        "moulding",
+        "niche",
+        "tile"
+      ],
+      "reference_ids": [
+        "S3",
+        "S7"
+      ],
+      "composition_rule": "Maintain one cornice and rail language; compose each part around its function",
+      "room_constraint": "Read RoomSplit parts and their functions; use a shared palette and one overall focal hierarchy.",
+      "provenance": "Original design synthesis informed by linked family references; not a sourced photograph of this exact room/style combination."
+    }
+  ],
+  "default_warning": "Numeric ranges are proposed design starting points, not code requirements, manufacturer dimensions or verified construction specifications."
+}

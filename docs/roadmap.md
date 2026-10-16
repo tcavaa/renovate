@@ -36,10 +36,13 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
-- **AI generation** — after the style test, a model furnishes and finishes the flat by interior
-  design and building rules; the rule engine stays as fallback and geometry check. Phase 0 (a
-  rules module and metrics on today's generation) first —
+- **AI generation, what is left** — phase 1 and the wall decor are built
+  ([design-studio/decor.md](design-studio/decor.md#the-ai-designer)); next: the rules module and
+  metrics, layout intent per piece (phase 2), an evaluation set, a retry with violations —
   [design-studio/ai-layout-plan.md](design-studio/ai-layout-plan.md).
+- **Decor, what is left**: moving, resizing and adding a decor piece by hand in the studio (and
+  decor without a key); a labour line for fitting it; coves in L-shaped rooms; sockets and
+  radiators on a decorated wall ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
 
 - **3D performance, what is left**: every paint click rebuilds every room's shell; switching
   2D ↔ 3D rebuilds the view; the 1.75 pixel ratio still costs on weak GPUs; textures are not
@@ -143,4 +146,5 @@ design studio: [overview](design-studio/overview.md#known-gaps),
 [studio](design-studio/studio.md#known-gaps),
 [3d-engine](design-studio/3d-engine.md#known-gaps),
 [finishes](design-studio/finishes.md#known-gaps),
-[technical-and-fittings](design-studio/technical-and-fittings.md#known-gaps).
+[technical-and-fittings](design-studio/technical-and-fittings.md#known-gaps),
+[decor](design-studio/decor.md#known-gaps).

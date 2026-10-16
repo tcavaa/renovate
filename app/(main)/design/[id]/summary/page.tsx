@@ -44,7 +44,7 @@ import type { FloorPlan } from '@/lib/design/types';
 export default function BudgetPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, styleProfile, homeState, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearBudgetEdits } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearBudgetEdits } = useDesignStore();
   const project = useProjectMeta();
   const projectId = project.id;
   // The project's calculation, when it has one: the design journey opens it beside the design.
@@ -58,7 +58,7 @@ export default function BudgetPage() {
   // The platform's fee was paid before the generation: a line of its own, not in the total.
   const paid = useProjectPayments(projectId);
 
-  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, styleProfile, excluded, quantities]);
+  const scene = useMemo(() => ({ styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, excluded, quantities }), [styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, excluded, quantities]);
   const { book } = useRateBook();
   const priceOptions = useMemo(() => ({ homeState: homeState ?? undefined, book, locale, ...basketLabels(t) }), [homeState, book, locale, t]);
   /** The project as it stands: what is being ordered. */

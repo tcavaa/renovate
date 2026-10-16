@@ -27,6 +27,8 @@ export const DESIGN_SAVED = [
   'items',
   'finishes',
   'electrical',
+  'decor',
+  'generation',
   'styleProfile',
   'excluded',
   'quantities',

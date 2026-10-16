@@ -28,10 +28,10 @@ export const WALL_STUB_M = 0.25;
 
 /**
  * What a part of the shell is, for the walls mode: the wall at full height, its low stub, a
- * skirting board, a cornice, a door / window / railing in it, or a beam overhead (no wall of
- * its own; it goes when the walls go down).
+ * skirting board, a cornice, a door / window / railing in it, a beam overhead (no wall of
+ * its own; it goes when the walls go down), or custom decor on it.
  */
-export type WallPartKind = 'wall' | 'stub' | 'skirting' | 'cornice' | 'opening' | 'beam';
+export type WallPartKind = 'wall' | 'stub' | 'skirting' | 'cornice' | 'opening' | 'beam' | 'decor';
 
 /**
  * Whether a part shows. `facing`: the camera stands on the wall's outward side, so the wall is
@@ -53,6 +53,10 @@ export function wallPartVisible(mode: WallMode, kind: WallPartKind, facing: bool
       return mode === 'up' || (mode !== 'down' && (!exterior || !facing));
     case 'beam':
       return mode !== 'down';
+    // Custom decor on a wall stands and goes with its wall, and with the walls down it goes too:
+    // a slat field or a niche hanging in the air where a wall was reads as a mistake.
+    case 'decor':
+      return mode === 'up' || (mode !== 'down' && !facing);
   }
 }
 

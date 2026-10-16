@@ -151,6 +151,17 @@ stays listed (marked `?`) rather than silently blanking the select and being los
 - **`products.widthCm/depthCm/heightCm`** — real dimensions; drives scale and collision in layout.
 - **`products.styleTags`** — `['scandinavian']`, `['industrial','modern']`, … drives style matching.
 
+## Decor materials (`decor-materials`)
+
+What the code-built wall decor is made of ([design-studio/decor.md](design-studio/decor.md#materials-the-catalogue)):
+products in the sub-categories of `decor-materials` (`decor-wood`, `-board`, `-led`, `-moulding`,
+`-gypsum`, `-stone`, `-fabric`, `-relief`, `-brick`, `-concrete`, `-tile`, `-wallpaper`, `-trim`),
+the kind being the category. Admin sets each one's unit — m², linear metre or piece — and price in
+the ordinary product form; `specs` may carry `textureScaleM`, `tintable`, `cct`, `profileMm`. The
+design catalogue serves them (`DECOR_MATERIAL_SLUGS`); they are not furniture, not in the calculator
+and not on the studio's shelf — the studio offers them per decor piece. Migration 0005 seeded the
+tree, the "დეკორის სახელოსნო" store and 36 starter materials at placeholder prices.
+
 ## What the calculator may sell
 
 Only products with a 3D model or a texture are on sale in the calculator's catalogue:

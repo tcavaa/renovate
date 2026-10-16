@@ -243,6 +243,74 @@ export const electricalPointSchema = z.object({
   locked: z.boolean().optional(),
 });
 
+const decorMaterialSchema = z.object({
+  product: sceneProductSchema.nullable(),
+  colorHex: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  specs: z
+    .object({
+      textureScaleM: z.number().min(0.05).max(20).optional(),
+      tintable: z.boolean().optional(),
+      cct: z.number().min(1500).max(8000).optional(),
+      profileMm: z.number().min(5).max(200).optional(),
+      roughness: z.number().min(0).max(1).optional(),
+    })
+    .nullable()
+    .optional(),
+});
+
+const decorSlotEnum = z.enum(['face', 'backing', 'led', 'profile', 'body', 'shelf', 'surround', 'border', 'trim']);
+
+/** A custom wall decor piece (`lib/design/decor`): where it stands, its knobs, its materials. */
+export const decorPieceSchema = z.object({
+  id: z.string().min(1).max(64),
+  roomId: z.string().max(64),
+  family: z.enum(['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile']),
+  wallIndex: z.number().int().min(0).max(64).nullable(),
+  span: z.object({ from: z.number().min(-1).max(100), to: z.number().min(-1).max(100) }),
+  height: z.object({ from: z.number().min(0).max(20), to: z.number().min(0).max(20) }),
+  params: z
+    .object({
+      slatWidthMm: z.number().min(5).max(200).optional(),
+      gapMm: z.number().min(0).max(200).optional(),
+      depthMm: z.number().min(5).max(600).optional(),
+      backing: z.boolean().optional(),
+      led: z.enum(['none', 'bottom', 'top', 'halo', 'inside']).optional(),
+      dadoMm: z.number().min(300).max(2000).optional(),
+      bayWidthMm: z.number().min(200).max(3000).optional(),
+      upper: z.boolean().optional(),
+      lower: z.boolean().optional(),
+      rail: z.boolean().optional(),
+      shape: z.enum(['arch', 'rect']).optional(),
+      count: z.number().int().min(1).max(6).optional(),
+      nicheWidthMm: z.number().min(200).max(3000).optional(),
+      nicheHeightMm: z.number().min(200).max(4000).optional(),
+      shelves: z.number().int().min(0).max(8).optional(),
+      mantel: z.boolean().optional(),
+      moduleWidthMm: z.number().min(10).max(5000).optional(),
+      moduleHeightMm: z.number().min(10).max(5000).optional(),
+      jointMm: z.number().min(0).max(50).optional(),
+      thicknessMm: z.number().min(0).max(200).optional(),
+      standoffMm: z.number().min(0).max(1500).optional(),
+      style: z.enum(['upholstered', 'fluted', 'flat']).optional(),
+      border: z.boolean().optional(),
+      path: z.enum(['cove', 'line']).optional(),
+    })
+    .strip(),
+  materials: z.record(decorSlotEnum, decorMaterialSchema),
+  reference: z.object({ entryId: z.string().max(64), concept: z.string().max(300) }).nullable().optional(),
+  note: z.string().max(600).nullable().optional(),
+  origin: z.enum(['ai', 'studio']).optional(),
+});
+
+/** How the flat was generated: by the engine or by the AI designer, with its per-room notes. */
+export const generationRecordSchema = z.object({
+  by: z.enum(['engine', 'ai']),
+  model: z.string().max(64).nullable().optional(),
+  at: z.string().max(40),
+  notes: z.record(z.string().max(64), z.string().max(1200)).optional(),
+  aiCount: z.number().int().min(0).max(1000).optional(),
+});
+
 const styleIdSchema = z.enum(['modern', 'scandinavian', 'industrial', 'vintage']);
 
 export const styleProfileSchema = z.object({
@@ -257,6 +325,8 @@ export const designSceneSchema = z.object({
   budgetGel: z.number().min(0).max(10_000_000).nullable(),
   items: z.array(placedItemSchema).max(600),
   finishes: z.array(surfaceFinishSchema).max(800),
+  decor: z.array(decorPieceSchema).max(200).optional(),
+  generation: generationRecordSchema.nullable().optional(),
   electrical: z.array(electricalPointSchema).max(600).optional(),
   styleProfile: styleProfileSchema.nullable().optional(),
   /** Ticked-off budget lines: `item:<id>`, `finish:<productId>`… — or a bare product id from an older scene. */

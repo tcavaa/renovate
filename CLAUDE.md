@@ -136,8 +136,10 @@ install` before running anything.
    answer `{ data, error }`, and `safeParse` every JSON body.
 7. **Every object in the studio is a GLB** with a manifest entry; only the architecture is built
    from the plan. Keyboard shortcuts match `event.code`, never `event.key`.
-8. **The app must work without any API key**: Claude is optional and only reads plans; card
-   payments fall back to Flitt's public sandbox merchant ([docs/payments.md](docs/payments.md)).
+8. **The app must work without any API key**: Claude is optional — it reads plans and, as the
+   AI designer, proposes the generated flat (products, finishes, wall decor) — and without it the
+   CV parser and the engine do the same work; card payments fall back to Flitt's public sandbox
+   merchant ([docs/payments.md](docs/payments.md)).
 9. Tailwind theme tokens only; money through `formatGEL()`, areas through `formatM2()`, dates
    through `formatDateTime()` or a `toLocale…` call with `{ timeZone: TIME_ZONE }` (Tbilisi, on
    both sides — `lib/utils.ts`); pictures through `@/components/ui/image`, never optimized
@@ -172,7 +174,8 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/layout-and-matching.md](docs/design-studio/layout-and-matching.md) | archetypes, room programs, automatic layout, product matching and fit, tight passages | `catalog.ts`, `autoLayout.ts`, `matcher.ts`, `clearance.ts`, `generate` |
 | [docs/design-studio/studio.md](docs/design-studio/studio.md) | the 3D studio page: trays, shelf, catalogue modal, carrying, dragging, swapping, hanging, photos | the studio page, `components/studio/`, `manipulate.ts`, carry/swap actions |
 | [docs/design-studio/3d-engine.md](docs/design-studio/3d-engine.md) | `lib/design3d/` and `Viewer3D`: scene building, walls, models, lighting, the Three.js gotchas | anything that draws in 3D |
-| [docs/design-studio/ai-layout-plan.md](docs/design-studio/ai-layout-plan.md) | **planned, not built**: an AI interior designer for generation — rules module, intent-not-coordinates, candidates, validation, phases | before any work on AI layout, product or finish choice |
+| [docs/design-studio/decor.md](docs/design-studio/decor.md) | custom wall decor built in code (slats, slabs, mouldings, niches, light, panels, cladding, murals, tiles): the fit, quantities and budget lines, decor materials, 3D, the decor card; **the AI designer** at generation (route, brief, schema, validation, fallback, cost) | `lib/design/decor/`, `lib/design3d/decor.ts`, `aiDesign.ts`, `aiProposal.ts`, `/api/design/ai-generate`, `DecorPanel`, decor materials |
+| [docs/design-studio/ai-layout-plan.md](docs/design-studio/ai-layout-plan.md) | the AI interior designer's plan — **phase 1 built** (see decor.md), the rules module, layout intent and evaluation still planned | before any work on AI layout, product or finish choice |
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |
 | [docs/design-studio/technical-and-fittings.md](docs/design-studio/technical-and-fittings.md) | technical points and works, sockets/switches/lights, radiators, doors and windows | `technical.ts`, `electrical.ts`, `radiators.ts`, `openings.ts`, the technical step |
 | [docs/ui-design-system.md](docs/ui-design-system.md) | tokens, type, corners, motion, step-flow components, full-window board steps | any visual change; `components/flow/`, `components/ui/`, `globals.css` |
