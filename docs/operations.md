@@ -209,8 +209,8 @@ A Vercel function takes a request body of at most **4.5 MB** and answers at most
 1. A domain of our own: Project → Domains, then `NEXT_PUBLIC_APP_URL` to it and a redeploy;
    delete `NEXT_PUBLIC_SENTRY_ENVIRONMENT` (the trial's `vercel` label) so events are
    `production`; register the redirect URI with Google/Facebook if social logins are wanted.
-2. `ANTHROPIC_API_KEY` (the Claude plan reader and the AI designer at generation — about $0.2 a
-   flat on Opus 5.5) and SMTP (`MAIL_DRIVER=smtp`) if wanted.
+2. `ANTHROPIC_API_KEY` (the Claude plan reader and the AI designer at generation — about $0.21–0.23
+   a flat on Opus 5.5) and SMTP (`MAIL_DRIVER=smtp`) if wanted.
 3. Pro plans on both (Vercel Hobby is non-commercial; Supabase's free plan pauses after a week
    idle and keeps no backups) — the 3D library alone takes about 0.55 GB of Supabase's free 1 GB of storage (553 MB in all, 14 Oct 2026).
 

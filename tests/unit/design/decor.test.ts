@@ -10,7 +10,7 @@ import { decorMaterialFrom, resolveDecor, resolveRoomDecor, sanitizeParams, wall
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
 import { proposalDecor, proposalPicks } from '@/lib/design/aiProposal';
 import { tickFor } from '@/lib/design/ticks';
-import { validateProposal, type Offer } from '@/lib/design/aiDesign';
+import { buildBrief, validateProposal, type Offer } from '@/lib/design/aiDesign';
 
 function room(openings: PlanRoom['openings'] = [], polygon = [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3.5 }, { x: 0, z: 3.5 }]): PlanRoom {
   return refreshRoom({ id: 'r1', type: 'bedroom', name: 'Bedroom', polygon, heightM: 2.7, areaM2: 0, perimeterM: 0, openings });
@@ -307,5 +307,41 @@ describe('checking the designer\'s answer', () => {
 
   it('refuses an answer with nothing usable', () => {
     expect(() => validateProposal({ rooms: [] }, plan, offer, 'm')).toThrow();
+  });
+});
+
+describe('every generation is offered a fresh draw', () => {
+  const living = refreshRoom({ id: 'r1', type: 'living_room', name: 'Living', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 4 }, { x: 0, z: 4 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+  const plan = { rooms: [living] } as FloorPlan;
+  const sofas = Array.from({ length: 40 }, (_, i) => ({ ...material(1000 + i, 'wood', 'piece', 1500 + i * 10), categorySlug: 'sofas', model3dKind: 'sofa_3seat', model3dUrl: `/s${i}.glb`, widthCm: 220, depthCm: 95, heightCm: 80, styleTags: i % 3 === 0 ? ['scandinavian'] : ['modern'] }));
+  const huge = { ...sofas[0], id: 2000, widthCm: 900, depthCm: 400 };
+  const catalog = [...sofas, huge, ...CATALOG];
+  const offered = (seed: number, previous?: number[]) => [...(buildBrief({ plan, styleId: 'scandinavian', locale: 'ka', catalog, seed, previous: previous ? { productIds: previous, decorFamilies: [] } : null }).offer.furniture.get('r1')?.get('sofa_3seat') ?? [])];
+
+  it('offers different products to different generations, all from the whole catalogue', () => {
+    const a = offered(1);
+    const b = offered(2);
+    expect(a).toHaveLength(12);
+    expect(new Set([...a, ...b]).size).toBeGreaterThan(12);
+    // The same seed reproduces the run.
+    expect(offered(1)).toEqual(a);
+  });
+
+  it('never offers a piece the room cannot hold', () => {
+    for (let seed = 1; seed < 30; seed++) expect(offered(seed)).not.toContain(2000);
+  });
+
+  it('rarely offers again what the last design used', () => {
+    const last = offered(5);
+    let again = 0;
+    for (let seed = 100; seed < 130; seed++) again += offered(seed, last).filter((id) => last.includes(id)).length;
+    // 12 of 40 used last time: an even draw would bring back ~3.6 a time; the penalty brings back far fewer.
+    expect(again / 30).toBeLessThan(1.5);
+  });
+
+  it('gives each generation a direction and names the last design', () => {
+    const { text } = buildBrief({ plan, styleId: 'scandinavian', locale: 'ka', catalog, seed: 3, previous: { productIds: [1001], decorFamilies: ['slats'] } });
+    expect(text).toMatch(/Direction for this flat: /);
+    expect(text).toMatch(/previous design used products 1001 and decor families slats/);
   });
 });

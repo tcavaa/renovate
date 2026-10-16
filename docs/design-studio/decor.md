@@ -156,10 +156,20 @@ real products from short lists; the engine checks):
 2. **The route** (signed in, the project the caller's, `RATE_RULES.aiGenerate`, the cap read from
    the saved scene, `maxDuration` 300) builds the brief from the plan and the cached design
    catalogue (`buildBrief`): per room its walls by index (side of the plan, length, doors, windows
-   with sills and heads, clear stretches), the engine's pieces for the room program with the top 8
-   products per kind (`candidatesFor`, `generationWeight`), the top 8 floor and wall finishes for
-   the room (`finishCandidates`), every decor material, and the reference library's entries for the
-   style and the room types. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
+   with sills and heads, clear stretches), the engine's pieces for the room program with 12
+   products per kind, 10 floor and 10 wall finishes for the room, every decor material, and the
+   reference library's entries for the style and the room types.
+   **Every generation is offered a fresh draw** (a seed per run, logged): the products are drawn
+   at random from every product of the kind that fits the room (`fitsRoom`, `candidatesFor`) —
+   the style's own and the well-priced more likely (`generationWeight`, weighted sampling without
+   replacement), any of them possible — and so are the finishes; the decor materials and each
+   reference's concepts come in a random order; and the run gets a **direction**, a palette and
+   mood within the style drawn from `DIRECTIONS` (six per style). What the flat's saved design
+   already uses is drawn far less often (`PREVIOUS_WEIGHT`) and named in the brief, so generating
+   again gives a new design. The prompt tells the designer the lists are random and unordered.
+   Measured on two flats in one style: 10 of 28 products shared, no finish shared; one flat
+   generated twice: 1 of 30 products, no finish and no decor family shared. Small pools (curtains,
+   desks, TV units — 8 to 16 products) are where two flats still meet. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
    server-side refusal fallback, the system prompt cached, structured output against
    `DESIGN_SCHEMA`) answers per room: furniture picks, floor, wall, up to three decor intents, a
    note — in the person's language. `validateProposal` keeps only what was offered.
@@ -177,9 +187,9 @@ decor, as before the designer existed.
 `DESIGN_SCHEMA` has none: "the default" is a sentinel (0, -1, "", "auto"), read back by
 `validateProposal`. An enum cannot sit beside a nullable type either.
 
-**Measured** (16 Oct 2026, project #311, five rooms): 51–57 s, 12.6–12.9k input and 4.7–5.6k output
-tokens, $0.17–0.19 on Claude Opus 5.5 (the system prompt's ~4k tokens cached for the next run).
-The route logs every run's tokens and cost (`ai-generate`).
+**Measured** (16 Oct 2026, projects #311 and #300, five rooms): 57–76 s, about 20k input and
+5.5–7.3k output tokens, $0.21–0.23 on Claude Opus 5.5 (the system prompt's ~4k tokens cached for
+the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 
 ## Known gaps
 

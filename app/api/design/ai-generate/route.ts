@@ -53,6 +53,15 @@ export const POST = handle('POST /api/design/ai-generate', 'Failed to generate',
   if (done >= MAX_AI_GENERATIONS) return Response.json({ data: null, error: 'AI_LIMIT', fallback: 'engine' }, { status: 429 });
 
   const plan = parsed.data.plan as FloorPlan;
+  // The flat's design so far (its last generation, or what the person has): offered rarely again,
+  // so "generate" a second time is a new design and not the same one reshuffled.
+  const saved = project.scene as DesignScene | null;
+  const previous = saved
+    ? {
+        productIds: [...(saved.items ?? []).map((i) => i.product?.productId), ...(saved.finishes ?? []).map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number'),
+        decorFamilies: (saved.decor ?? []).map((d) => d.family),
+      }
+    : null;
   if (plan.rooms.length === 0) return fail('No rooms', 400);
   try {
     const { products } = await getDesignCatalog();
@@ -63,6 +72,7 @@ export const POST = handle('POST /api/design/ai-generate', 'Failed to generate',
       budgetGel: parsed.data.budgetGel ?? null,
       locale: parsed.data.locale,
       catalog: products,
+      previous,
     });
     log.info('ai-generate', { projectId: project.id, rooms: plan.rooms.length, decor: proposal.rooms.reduce((n, r) => n + r.decor.length, 0), ...usage });
     return ok({ proposal });

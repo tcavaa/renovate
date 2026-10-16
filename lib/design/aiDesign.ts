@@ -15,6 +15,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import referenceLibrary from './decor/reference-library.json';
 import { ROOM_PROGRAMS, resolveVariant } from './catalog';
 import { candidatesFor, generationWeight, type CatalogProduct } from './matcher';
+import { randomSeed, seededRng, weightedOrder } from './random';
+import { styleAffinity } from './styles';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
 import { wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
@@ -35,6 +37,14 @@ export interface AiDesignRequest {
   budgetGel?: number | null;
   locale: 'ka' | 'en' | 'ru';
   catalog: CatalogProduct[];
+  /**
+   * The draw for this generation (`lib/design/random`): which products, finishes and direction the
+   * designer is offered. A fresh one every time — the same style on two flats, or one flat generated
+   * twice, is offered different lists and designed differently. Fixed only to reproduce a run.
+   */
+  seed?: number;
+  /** What the flat's last design used — offered far less often, and named so the designer moves on from it. */
+  previous?: { productIds: number[]; decorFamilies: string[] } | null;
   apiKey?: string;
   model?: string;
 }
@@ -48,6 +58,8 @@ export interface AiDesignUsage {
   model: string;
   /** What the call cost at the model's list price, US dollars (Opus 5.5: $4 / $20 per million, cache reads $0.20). */
   costUsd: number;
+  /** The draw it was offered (`AiDesignRequest.seed`), to reproduce a run. */
+  seed: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,8 +67,63 @@ export interface AiDesignUsage {
 // ---------------------------------------------------------------------------
 
 const KINDS_FURNISHED_BY_ENGINE = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island']);
-const CANDIDATES_PER_KIND = 8;
-const FINISHES_PER_SURFACE = 8;
+/** Products offered per piece and finishes per surface: a random draw from the whole catalogue each time, not the same top few. */
+const CANDIDATES_PER_KIND = 12;
+const FINISHES_PER_SURFACE = 10;
+/** How much less often something the last design used is drawn again. */
+const PREVIOUS_WEIGHT = 0.04;
+
+/**
+ * A direction for each generation — a palette and a mood within the style, drawn at random — so the
+ * designer does not settle on one favourite look per style: two Scandinavian flats come out pale
+ * oak and sage, or birch and dusty blue.
+ */
+const DIRECTIONS: Record<StyleId, string[]> = {
+  modern: [
+    'warm greige and walnut with black metal accents',
+    'cool white, concrete grey and smoked glass',
+    'taupe, travertine and brushed brass',
+    'graphite, light oak and deep olive accents',
+    'soft white and warm sand with bouclé textures',
+    'charcoal, marble and caramel leather',
+  ],
+  scandinavian: [
+    'pale oak, warm white and sage green',
+    'birch, linen and dusty blue',
+    'ash, oatmeal textiles and black accents',
+    'smoked oak, clay and cream',
+    'white-washed wood, soft greys and rattan',
+    'light walnut, mustard and off-white',
+  ],
+  industrial: [
+    'black steel, red brick and cognac leather',
+    'concrete grey, walnut and charcoal',
+    'raw oak, blackened metal and olive',
+    'smoked glass, grey brick and rust tones',
+    'dark timber, graphite and warm amber light',
+    'microcement, black-stained oak and tan',
+  ],
+  vintage: [
+    'walnut, cream and deep green velvet',
+    'mahogany, ivory mouldings and brass',
+    'warm cherry, dusty rose and gold',
+    'dark oak, navy and botanical prints',
+    'ochre, terracotta and carved wood',
+    'cream panelling, sage and antique bronze',
+  ],
+};
+
+/** A piece the room cannot hold is not offered: its footprint must fit inside the room's outline. */
+function fitsRoom(p: CatalogProduct, room: PlanRoom): boolean {
+  if (!p.widthCm || !p.depthCm) return true;
+  const xs = room.polygon.map((v) => v.x);
+  const zs = room.polygon.map((v) => v.z);
+  const long = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+  const short = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+  const a = Math.max(p.widthCm, p.depthCm) / 100;
+  const b = Math.min(p.widthCm, p.depthCm) / 100;
+  return a <= long - 0.2 && b <= short - 0.5;
+}
 
 export interface Offer {
   /** Per room: kind → product ids offered. */
@@ -97,8 +164,12 @@ function productLine(p: CatalogProduct): string {
 }
 
 /** The flat as the model reads it, and what it may choose from. */
-export function buildBrief(request: AiDesignRequest): { text: string; offer: Offer } {
+export function buildBrief(request: AiDesignRequest): { text: string; offer: Offer; seed: number } {
   const { plan, styleId, catalog } = request;
+  const seed = request.seed ?? randomSeed();
+  const rng = seededRng(seed);
+  const used = new Set(request.previous?.productIds ?? []);
+  const fresh = (p: CatalogProduct) => (used.has(p.id) ? PREVIOUS_WEIGHT : 1);
   const offer: Offer = { furniture: new Map(), floors: new Map(), walls: new Map(), decorMaterials: new Map(), referenceIds: new Set() };
   const products = new Map<number, CatalogProduct>();
   const lines: string[] = [];
@@ -124,11 +195,10 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
     const kinds = programKinds(room);
     const byKind = new Map<string, Set<number>>();
     for (const kind of kinds) {
-      const ranked = candidatesFor(kind, catalog, styleId)
-        .map((p) => ({ p, w: generationWeight(p, styleId, 'balanced', undefined, false) }))
-        .sort((a, b) => b.w - a.w)
-        .slice(0, CANDIDATES_PER_KIND)
-        .map(({ p }) => p);
+      // A fresh draw from every product of the kind that fits the room: the style's own and the
+      // well-priced more likely (`generationWeight`), any of them possible, the last design's rarely.
+      const pool = candidatesFor(kind, catalog, styleId).filter((p) => fitsRoom(p, room));
+      const ranked = weightedOrder(pool, (p) => generationWeight(p, styleId, 'balanced', undefined, false) * fresh(p), rng).slice(0, CANDIDATES_PER_KIND);
       if (ranked.length === 0) continue;
       byKind.set(kind, new Set(ranked.map((p) => p.id)));
       for (const p of ranked) products.set(p.id, p);
@@ -136,7 +206,8 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
     offer.furniture.set(room.id, byKind);
     if (byKind.size) lines.push(`Pieces the engine lays out (choose a product for each): ${[...byKind.entries()].map(([k, ids]) => `${k} [${[...ids].join(', ')}]`).join('; ')}`);
     for (const surface of ['floor', 'wall'] as const) {
-      const pool = finishCandidates(catalog, room, surface, styleId).slice(0, FINISHES_PER_SURFACE);
+      const all = finishCandidates(catalog, room, surface, styleId);
+      const pool = weightedOrder(all, (p) => ([1, 3, 8][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1) * fresh(p), rng).slice(0, FINISHES_PER_SURFACE);
       (surface === 'floor' ? offer.floors : offer.walls).set(room.id, new Set(pool.map((p) => p.id)));
       if (pool.length) lines.push(`${surface} finishes: ${pool.map((p) => `${p.id} ${p.nameEn ?? p.nameKa}${p.colorHex ? ` ${p.colorHex}` : ''}`).join('; ')}`);
     }
@@ -145,26 +216,33 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
   const productList = [...products.values()].map(productLine).join('\n');
 
   for (const p of catalog) if (isDecorMaterial(p)) offer.decorMaterials.set(p.id, p);
-  const materialList = [...offer.decorMaterials.values()]
+  // In no particular order, so the list's first lines are not the designer's habit.
+  const materialList = weightedOrder([...offer.decorMaterials.values()], () => 1, rng)
     .map((p) => `${p.id} | ${decorMaterialKind(p)} | ${p.nameEn ?? p.nameKa} | ${Math.round(p.pricePerUnit)}₾/${p.unit === 'linear_m' ? 'm' : p.unit === 'piece' ? 'pc' : 'm²'} | ${p.colorHex ?? ''}${decorSpecs(p).tintable ? ' | tintable' : ''}`)
     .join('\n');
 
   const types = new Set(plan.rooms.map((r) => r.type));
   const entries = referenceLibrary.entries.filter((e) => e.style === styleId && types.has(e.room_type as RoomType));
   for (const e of entries) offer.referenceIds.add(e.id);
+  // Each entry's concepts in a random order: the first is this flat's lean, not always the same one.
   const library = entries
-    .map((e) => `- ${e.id}: ${e.concepts.join(' / ')} | families ${e.families.join(', ')} | ${e.composition_rule} | ${e.room_constraint}`)
+    .map((e) => `- ${e.id}: ${weightedOrder(e.concepts, () => 1, rng).join(' / ')} | families ${e.families.join(', ')} | ${e.composition_rule} | ${e.room_constraint}`)
     .join('\n');
+  const direction = DIRECTIONS[styleId][Math.floor(rng() * DIRECTIONS[styleId].length)];
+  const previous = request.previous && (request.previous.productIds.length || request.previous.decorFamilies.length)
+    ? `\nThis flat's previous design used products ${request.previous.productIds.slice(0, 60).join(', ') || 'none'}${request.previous.decorFamilies.length ? ` and decor families ${[...new Set(request.previous.decorFamilies)].join(', ')}` : ''}. The person asked for a new design: choose differently wherever the lists allow.`
+    : '';
 
   const profile = request.styleProfile ? `Style test answers: ${JSON.stringify(request.styleProfile.answers)}.` : '';
   const text = [
     `Style: ${styleId}. ${profile} Furniture budget: ${request.budgetGel ? `${request.budgetGel} GEL for the whole flat` : 'not set (mid-range)'}. Write every note and concept in ${request.locale === 'ka' ? 'Georgian' : request.locale === 'ru' ? 'Russian' : 'English'}.`,
+    `Direction for this flat: ${direction}. Interpret it within the style through the products, the finishes and the decor.${previous}`,
     `\n# The flat${lines.join('\n')}`,
     `\n# Products offered (id | name | W×D×H | price | styles | colour)\n${productList}`,
     `\n# Decor materials (id | kind | name | price per unit | colour | tintable)\n${materialList}`,
     `\n# Decor references for this style and these rooms (realise one concept per piece; they are starting points, not rules)\n${library}`,
   ].join('\n');
-  return { text, offer };
+  return { text, offer, seed };
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +256,7 @@ const SYSTEM_PROMPT = `You are the interior designer of a Georgian home renovati
 Everything you choose is real and purchasable: you pick products and materials only by the ids offered, never invent one. You decide intent; the platform's engine decides exact geometry and checks it (it places the furniture in each room, then fits your decor to the walls and around doors and windows). So you never give coordinates — you give anchors, walls and sizes in metres.
 
 ## Furniture and finishes
-- For each room, choose one product per piece listed under "Pieces the engine lays out", from that piece's ids. Leave a piece out to let the engine choose. Pieces in one room should belong together (materials, colours, scale); keep a palette of at most 3–4 colour families per room, consistent across the flat, and respect the budget (mid-range when none is set).
+- For each room, choose one product per piece listed under "Pieces the engine lays out", from that piece's ids. Leave a piece out to let the engine choose. The lists are a fresh random draw from the catalogue for every flat and in no order: consider every id, not the first ones, and follow the flat's direction — no two flats should come out alike. Pieces in one room should belong together (materials, colours, scale); keep a palette of at most 3–4 colour families per room, consistent across the flat, and respect the budget (mid-range when none is set).
 - Choose one floor and one wall finish per room from its own lists (0 keeps the style's default). Keep floors continuous through living spaces; calmer walls in bedrooms; wet rooms only from their wet lists.
 
 ## Custom wall decor
@@ -393,7 +471,7 @@ export async function designWithClaude(request: AiDesignRequest): Promise<{ prop
   const apiKey = request.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new MissingApiKeyError();
   const model = request.model ?? DESIGN_MODEL;
-  const { text, offer } = buildBrief(request);
+  const { text, offer, seed } = buildBrief(request);
   const client = new Anthropic({ apiKey });
   const started = Date.now();
 
@@ -422,6 +500,6 @@ export async function designWithClaude(request: AiDesignRequest): Promise<{ prop
   const costUsd = (u.input_tokens * price.input + u.output_tokens * price.output + cacheRead * price.cacheRead + cacheWrite * price.cacheWrite) / 1_000_000;
   return {
     proposal,
-    usage: { inputTokens: u.input_tokens, outputTokens: u.output_tokens, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, durationMs: Date.now() - started, model: response.model, costUsd: Math.round(costUsd * 10000) / 10000 },
+    usage: { inputTokens: u.input_tokens, outputTokens: u.output_tokens, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite, durationMs: Date.now() - started, model: response.model, costUsd: Math.round(costUsd * 10000) / 10000, seed },
   };
 }
