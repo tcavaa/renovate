@@ -309,6 +309,7 @@ export const generationRecordSchema = z.object({
   at: z.string().max(40),
   notes: z.record(z.string().max(64), z.string().max(1200)).optional(),
   aiCount: z.number().int().min(0).max(1000).optional(),
+  reviewed: z.number().int().min(0).max(1000).optional(),
 });
 
 const styleIdSchema = z.enum(['modern', 'scandinavian', 'industrial', 'vintage']);

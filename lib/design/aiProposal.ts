@@ -9,10 +9,13 @@
  * actually put the bed, the sofa or the TV unit (`lib/design/decor/resolve`).
  */
 
-import type { CatalogProduct } from './matcher';
+import { applySwap, settledElevation, settledPosition, type CatalogProduct } from './matcher';
+import { fitSwapped, isPlacementValid } from './manipulate';
+import { roomEdges } from './planGeometry';
+import type { AiReview } from './aiReview';
 import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
 import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom, StyleId, SurfaceFinish } from './types';
-import { resolveRoomDecor, type DecorIntent } from './decor/resolve';
+import { COVERS_WALL, resolveRoomDecor, type DecorIntent } from './decor/resolve';
 
 export interface AiRoomProposal {
   roomId: string;
@@ -93,3 +96,80 @@ export function proposalNotes(proposal: AiProposal | null | undefined): Record<s
 
 /** How many AI generations a design may have before it is laid out by the engine alone. */
 export const MAX_AI_GENERATIONS = 5;
+
+/** Pieces placed off another (nightstands off the bed, the coffee table off the sofa, the desk chair off the desk). */
+const PLACED_OFF: Record<string, string> = { nightstand: 'bed', coffee_table: 'sofa', office_chair: 'desk' };
+
+/**
+ * The designer's check applied (`lib/design/aiReview`): a piece it took out goes; a replacement
+ * goes in where the old piece stood — its back on the same wall, at the height a hung one should
+ * hang (`settledElevation`) — only if it fits there; then the pieces placed off a replaced bed,
+ * sofa or desk move to stand by the new one, where they fit. A locked piece is left. Pure.
+ */
+export function applyReviewFixes(items: PlacedItem[], review: AiReview, plan: FloorPlan, catalog: CatalogProduct[]): PlacedItem[] {
+  const byId = new Map(catalog.map((p) => [p.id, p]));
+  const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
+  let out = [...items];
+  const changed = new Set<string>();
+  for (const fix of review.fixes) {
+    const index = out.findIndex((i) => i.id === fix.itemId);
+    if (index < 0 || out[index].locked) continue;
+    const item = out[index];
+    if (fix.action === 'remove') {
+      out = out.filter((i) => i.id !== item.id);
+      continue;
+    }
+    const product = fix.productId != null ? byId.get(fix.productId) : undefined;
+    const room = rooms.get(item.roomId);
+    if (!product || !room) continue;
+    // The pieces placed off it (the nightstands off a bed) follow it below: they are not in its way.
+    const others = out.filter((i) => i.id !== item.id && !(i.roomId === item.roomId && PLACED_OFF[i.kind] === item.slot));
+    const swapped = { ...applySwap([item], item.id, product)[0], pinned: false, origin: 'style' as const };
+    const hung = { ...swapped, elevationM: settledElevation(item, swapped.size, product, others) };
+    const placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, hung, others, plan.rooms);
+    if (!placed) continue;
+    out[index] = placed;
+    changed.add(`${item.roomId}|${item.slot}`);
+  }
+  // A nightstand stands by the bed the room has now, not where the old bed's side was; one with no
+  // room beside the new bed goes rather than stand in it.
+  return out.flatMap((item) => {
+    const anchorSlot = PLACED_OFF[item.kind];
+    if (!anchorSlot || item.locked || !changed.has(`${item.roomId}|${anchorSlot}`)) return [item];
+    const room = rooms.get(item.roomId);
+    if (!room) return [item];
+    const rest = out.filter((i) => i.id !== item.id);
+    const moved = { ...item, position: settledPosition(item, item.size, room, rest) };
+    if (isPlacementValid(room, moved, rest, plan.rooms)) return [moved];
+    return isPlacementValid(room, item, rest, plan.rooms) ? [item] : [];
+  });
+}
+
+
+/**
+ * Without the prints and mirrors that would hang over built decor on the same wall — the designer's
+ * slats behind the bed are the picture there. Pure.
+ */
+export function withoutArtOverDecor(items: PlacedItem[], decor: DecorPiece[], plan: FloorPlan): PlacedItem[] {
+  if (decor.length === 0) return items;
+  const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
+  return items.filter((item) => {
+    if ((item.slot !== 'artwork' && item.slot !== 'mirror') || item.elevationM < 0.05) return true;
+    const room = rooms.get(item.roomId);
+    if (!room) return true;
+    const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
+    const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
+    return !decor.some((piece) => {
+      if (piece.roomId !== item.roomId || piece.wallIndex == null || !COVERS_WALL.has(piece.family)) return false;
+      const edge = roomEdges(room.polygon).find((e) => e.index === piece.wallIndex);
+      if (!edge) return false;
+      const gap = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
+      if (Math.abs(gap) > 0.3) return false;
+      const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
+      const from = along - item.size.width / 2;
+      const to = along + item.size.width / 2;
+      const high = item.elevationM + item.size.height;
+      return from < piece.span.to - 0.05 && to > piece.span.from + 0.05 && item.elevationM < piece.height.to && high > piece.height.from;
+    });
+  });
+}

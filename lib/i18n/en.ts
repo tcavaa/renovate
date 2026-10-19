@@ -3159,6 +3159,7 @@ export const en: Dictionary = {
     genAiStep2: 'Choosing furniture from the catalogue…',
     genAiStep3: 'Setting colours and materials…',
     genAiStep4: 'Planning the wall decor…',
+    genAiStep5: 'Checking each room and fixing what is off…',
     genAiDone: 'The AI designer has finished',
     aiBadge: 'AI design',
     aiNotesTitle: 'Designer\'s notes',

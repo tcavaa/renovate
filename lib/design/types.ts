@@ -620,6 +620,8 @@ export interface GenerationRecord {
   notes?: Record<string, string>;
   /** How many AI generations this design has had — they are capped per design. */
   aiCount?: number;
+  /** The designer checked the flat after laying it out (`lib/design/aiReview`): how many fixes went in. */
+  reviewed?: number;
 }
 
 export interface DesignScene {

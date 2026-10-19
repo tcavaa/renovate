@@ -5,9 +5,10 @@
  * walls, doors and windows, furniture, finishes, wiring — so the person sees what was made
  * from what they drew. The engine takes a few milliseconds; the pace here is for the person.
  *
- * With the AI designer (`ai`), the furniture, colours and decor steps are its work and take as
- * long as its answer: the overlay holds on them, moving on every few seconds but never past the
- * last of them, until the flat is laid out (`ready`), then finishes the rest and opens the studio.
+ * With the AI designer (`ai`), the furniture, colours and decor steps and its check of every room
+ * are its work and take as long as its two answers: the overlay holds on them, moving on every few
+ * seconds but never past the last of them, until the flat is laid out and checked (`ready`), then
+ * finishes the rest and opens the studio.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -18,10 +19,10 @@ import { cn } from '@/lib/utils';
 export function GenerationOverlay({ open, onDone, ai = false, ready = true }: { open: boolean; onDone: () => void; ai?: boolean; ready?: boolean }) {
   const t = useT();
   const steps = ai
-    ? [t.build.genWalls, t.build.genOpenings, t.decor.genAiStep1, t.decor.genAiStep2, t.decor.genAiStep3, t.decor.genAiStep4, t.build.genWiring]
+    ? [t.build.genWalls, t.build.genOpenings, t.decor.genAiStep1, t.decor.genAiStep2, t.decor.genAiStep3, t.decor.genAiStep4, t.decor.genAiStep5, t.build.genWiring]
     : [t.build.genWalls, t.build.genOpenings, t.build.genFurniture, t.build.genFinishes, t.build.genWiring];
   /** The steps that wait for the designer: ticking stops at the last of them until `ready`. */
-  const holdAt = ai ? 5 : 0;
+  const holdAt = ai ? 6 : 0;
   const [done, setDone] = useState(0);
   const readyRef = useRef(ready);
   const doneRef = useRef(onDone);

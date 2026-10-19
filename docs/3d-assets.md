@@ -174,6 +174,30 @@ textures (`lib/uploads/glb.ts`): the studio's loader has no transcoder, and such
 upload fine and then render as nothing. Meshopt and Draco are fine. What is stored is not the
 file as it was picked but its optimized copy (next section).
 
+## Facing
+
+Every model's front faces +Z (Y up): the studio turns a piece only by its item's rotation
+(`wrapper.rotation.y = item.rotation`, 0 = faces +Z) and scales the model's X, Y and Z extents to the
+product's width, height and depth — so a model authored facing +X stands sideways *and* comes out
+with its width and depth swapped (a wardrobe 0.62 m wide and 2.2 m deep), and one facing −Z stands
+with its back to the room (a wardrobe showing its back panel, a washing machine its door to the wall).
+
+**The October 2026 audit.** The library import fixed only models lying on their side, so the facing
+of every product model with a front was checked once (966 files; not lamps, plants, rugs, doors,
+windows or electrical fittings): Blender rendered each from its front (+Z), right, back and left; Claude
+Opus 5.5 was shown the four views with what "front" means for that kind (the foot of a bed, the doors of
+a wardrobe, the round door of a washing machine, the glass of a mirror) and named the view that shows it
+(about $0.004 a model). 541 already faced +Z, 140 look alike from two sides, 13 could not be told;
+272 did not. Taken: every answer of confidence 0.7 or more (spot-checked by eye — the back panels, the
+mirror backs, the sideways beds were right), and a quarter turn below 0.7 only where the product's own
+width and depth say it is sideways; 96 low-confidence answers were left (mostly bathtubs and basins alike
+from both sides) and two by eye (an L-shaped kitchen, an outdoor air conditioner). **166 library models**
+were turned: the file rewritten under a new root node and stored as `<name>.f<yaw>.glb` beside the
+original (the old key is cached a year), the product pointed at it, width and depth swapped for a
+quarter turn. **8 stock models** faced −Z (Poly Haven's `facing: 'panel'` guess put the panel to the
+front): their files were turned in place and their entries carry `yawDegrees: 180`, so a re-run keeps
+them right. The tools were one-off and are not in the repository.
+
 ## Uploads are optimized
 
 A model uploaded in the product form or as a person's own furniture never goes through the
@@ -567,7 +591,14 @@ material names themselves, and their photos are worth a look side by side).
   render to tell the parts apart; the current single material per model is the honest
   compromise, chosen by eye per entry in `SOURCES`.
 - Which way a chair *faces* is not derivable from geometry — set `yawDegrees` on the source
-  entry by eye when one comes out backwards. The Cinquanta lamp is a 2.3 m two-arm fixture
+  entry by eye when one comes out backwards (the library's facing was checked once by renders and a
+  vision model, [Facing](#facing); a model added since is not, and 96 low-confidence answers — mostly
+  bathtubs and basins alike from both sides — and 13 unclear ones were left as they were).
+- **Some library products' sizes are wrong in the catalogue** (an IKEA eight-drawer dresser listed
+  138 × 166 cm, a linen sofa 225 × 275): the studio scales the model to them. The AI designer's check
+  flags such a piece as too big for its place; the catalogue still needs correcting.
+- **The library files taps and mixer panels under `sink`** (and bottles on a tray under `artwork`):
+  `slotPool` keeps a generated basin to one that stands 60 cm or more, but the swap list offers them. The Cinquanta lamp is a 2.3 m two-arm fixture
   and reads as a pendant only in a large room.
 - **The equipment models' credits are in the manifests only.** CC BY and CC BY-SA ask for the
   author, the title, the licence and a link wherever the model is used; nothing in the app

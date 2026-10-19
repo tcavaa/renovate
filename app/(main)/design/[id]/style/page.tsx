@@ -19,7 +19,7 @@ import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { aiDesignerEnabled, requestAiDesign } from '@/lib/design/aiDesignClient';
+import { aiDesignerEnabled, requestAiDesign, requestAiReview } from '@/lib/design/aiDesignClient';
 import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
@@ -84,13 +84,20 @@ export default function StylePage() {
     await new Promise((resolve) => setTimeout(resolve, 16));
     const proposal = useAi ? await requestAiDesign({ projectId, plan, styleId, styleProfile, budgetGel: budgetValue, locale: locale as 'ka' | 'en' | 'ru' }) : null;
     generate(products, proposal);
+    // The designer then looks at every room as laid out and fixes what is off (`lib/design/aiReview`);
+    // no answer, and the flat opens as the engine laid it.
+    if (proposal) {
+      const laid = useDesignStore.getState();
+      const review = laid.plan ? await requestAiReview({ projectId, plan: laid.plan, items: laid.items, decor: laid.decor, styleId, locale: locale as 'ka' | 'en' | 'ru' }) : null;
+      if (review) useDesignStore.getState().applyReview(review, products);
+    }
     setStep(5);
     setLaidOut(true);
   };
 
   return (
     <>
-      <DesignFlowGuard step={4} />
+      <DesignFlowGuard step={4} hold={generating} />
       <DesignSteps current={4} />
       <div className="container py-10 md:py-14">
         <StepHeader

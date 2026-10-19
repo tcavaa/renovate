@@ -245,8 +245,9 @@ function resolvePose(
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
-      // Over its piece when the room has one (the wall cabinets over the run), else on a wall.
-      return (rule.above ? placeAbove(archetype, room, walled, placed, rule.above, rule.heightM) : null) ?? placeOnWall(archetype, index, room, walled, rule.heightM, rng);
+      // Over its piece when the room has one (the wall cabinets over the run, the mirror over the
+      // basin, a print over the bed), else on a wall.
+      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng);
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -334,12 +335,20 @@ function bestAlongWalls(
       let score = 0;
       if (prefer === 'longest') score += edge.length * 3;
       if (prefer === 'shortest') score += 30 - edge.length * 3;
-      if (prefer === 'opposite-door') score += minDistance(centre, doorPoints) * 6;
+      // The wall furthest from the door, not that wall's far corner: a bed pushed into the corner
+      // left room for one nightstand.
+      if (prefer === 'opposite-door') score += minDistance(pointOnEdge(edge, 0.5), doorPoints) * 6;
       if (prefer === 'beside-window') score += 24 - minDistance(centre, windowPoints) * 5;
       if (prefer === 'any') score += edge.length;
 
       // Centred on the wall looks deliberate; jammed in a corner looks accidental.
       score += (1 - Math.abs(t - 0.5) * 2) * 3;
+      // A double bed wants a nightstand each side: room for both on this wall, the bed in the middle.
+      if (archetype.kind === 'bed_double') {
+        const reach = (width / 2 + 0.5) / edge.length;
+        if (t - reach >= 0 && t + reach <= 1 && !coversOpening(edge, t, width + 1, 0.6, blocked)) score += 14;
+        score += (1 - Math.abs(t - 0.5) * 2) * 6;
+      }
 
       // Reward keeping the walking space in front of the item genuinely clear.
       const approach = clearanceBox(pose, clearanceM);
@@ -492,30 +501,88 @@ function placeRelative(
   if (rule.align === 'facing') rotation = anchor.rotation + Math.PI;
   if (rule.align === 'sideways') rotation = anchor.rotation + Math.PI / 2;
 
-  // If the ideal spot is taken, pull the item in towards the anchor before giving up.
-  // A centred item (lateral 0) is instead nudged sideways in growing steps — a television
-  // a little off the sofa's axis beats no television, and it is usually a door that sits
-  // exactly on that axis.
+  const tries = relativeSpots(archetype, rule, anchor, room, preferredSide);
+  for (const { forward: ahead, lateral } of tries) {
+    const position = {
+      x: anchor.position.x + forward.x * ahead + right.x * lateral,
+      z: anchor.position.z + forward.z * ahead + right.z * lateral,
+    };
+    const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
+    if (!fitsInRoom(pose, room.polygon)) continue;
+    if (overlapsAny(boxFor(pose), occupied)) continue;
+    return pose;
+  }
+
+  return null;
+}
+
+/**
+ * Where a piece placed off another may stand, best first, as (metres ahead of the anchor's
+ * centre, metres to its right). Measured from both pieces' sizes where the rule says so
+ * (`gapM`, `beside`, `toWall`), so the pair still looks arranged when products of other sizes
+ * fill them: the matcher re-measures with the real sizes (`relativeOffset`).
+ */
+function relativeSpots(
+  archetype: Archetype,
+  rule: Extract<Archetype['placement'], { type: 'relative' }>,
+  anchor: PlacedItem,
+  room: PlanRoom,
+  preferredSide: number
+): Array<{ forward: number; lateral: number }> {
+  const out: Array<{ forward: number; lateral: number }> = [];
+  const size = archetype.size;
+  if (rule.beside != null) {
+    // A nightstand: its back in line with the bed's back (the wall), just off the bed's side.
+    const ahead = -anchor.size.depth / 2 + size.depth / 2;
+    for (const extra of [0, 0.1]) {
+      const lateral = anchor.size.width / 2 + size.width / 2 + rule.beside + extra;
+      out.push({ forward: ahead, lateral: lateral * preferredSide }, { forward: ahead, lateral: -lateral * preferredSide });
+    }
+    return out;
+  }
   const laterals =
     rule.lateral === 0
       ? [0, 0.45, -0.45, 0.9, -0.9]
       : [rule.lateral * preferredSide, -rule.lateral * preferredSide];
-
-  for (const shrink of [1, 0.82, 0.66, 0.5, 0.38]) {
-    for (const lateral of laterals) {
-      const position = {
-        x: anchor.position.x + forward.x * rule.forward * shrink + right.x * lateral,
-        z: anchor.position.z + forward.z * rule.forward * shrink + right.z * lateral,
-      };
-
-      const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
-      if (!fitsInRoom(pose, room.polygon)) continue;
-      if (overlapsAny(boxFor(pose), occupied)) continue;
-      return pose;
+  if (rule.toWall) {
+    // The TV unit: back to the wall the sofa faces, when that wall is a sensible way off.
+    const forward = { x: Math.sin(anchor.rotation), z: Math.cos(anchor.rotation) };
+    const reach = rayToOutline(anchor.position, forward, room.polygon);
+    if (reach != null) {
+      const ahead = reach - size.depth / 2 - 0.02;
+      const clear = ahead - size.depth / 2 - anchor.size.depth / 2;
+      if (clear >= 1.5 && clear <= 4.2) for (const lateral of laterals) out.push({ forward: ahead, lateral });
     }
   }
+  if (rule.gapM != null) {
+    // The coffee table this far off the sofa's front (a little nearer or further when it must).
+    const base = anchor.size.depth / 2 + rule.gapM + size.depth / 2;
+    for (const ahead of [base, base - 0.08, base + 0.12, base + 0.25]) for (const lateral of laterals) out.push({ forward: ahead, lateral });
+    return out;
+  }
+  // If the ideal spot is taken, pull the item in towards the anchor before giving up.
+  // A centred item (lateral 0) is instead nudged sideways in growing steps — a television
+  // a little off the sofa's axis beats no television, and it is usually a door that sits
+  // exactly on that axis.
+  for (const shrink of [1, 0.82, 0.66, 0.5, 0.38]) for (const lateral of laterals) out.push({ forward: rule.forward * shrink, lateral });
+  return out;
+}
 
-  return null;
+/** How far from `from`, along the unit direction `dir`, the ray first meets the outline; null if never. */
+function rayToOutline(from: Vec2, dir: Vec2, polygon: Vec2[]): number | null {
+  let best: number | null = null;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    const denom = dir.x * ez - dir.z * ex;
+    if (Math.abs(denom) < 1e-9) continue;
+    const t = ((a.x - from.x) * ez - (a.z - from.z) * ex) / denom;
+    const u = ((a.x - from.x) * dir.z - (a.z - from.z) * dir.x) / denom;
+    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && (best == null || t < best)) best = t;
+  }
+  return best;
 }
 
 /** Seats spaced around a table, each turned to face it. */
@@ -562,13 +629,13 @@ export const DINING_CHAIR_TUCK_M = 0.12;
 /**
  * Seat positions around a rectangular table: along both long sides first, then the ends, each
  * chair (`chairDepth` deep) with its seat `DINING_CHAIR_TUCK_M` under the edge. The gap per
- * seat (0.62 m) is the usual elbow-room allowance.
+ * seat (0.56 m) is the usual elbow-room allowance.
  */
-function seatSlots(table: PlacedItem, chairDepth = 0.5): Array<{ position: Vec2; rotation: number }> {
+export function seatSlots(table: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, chairDepth = 0.5): Array<{ position: Vec2; rotation: number }> {
   const forward = { x: Math.sin(table.rotation), z: Math.cos(table.rotation) };
   const right = { x: forward.z, z: -forward.x };
 
-  const perSide = Math.max(1, Math.min(4, Math.floor(table.size.width / 0.62)));
+  const perSide = Math.max(1, Math.min(4, Math.floor(table.size.width / 0.56)));
   const out = chairDepth / 2 - DINING_CHAIR_TUCK_M;
   const sideOffset = table.size.depth / 2 + out;
   const endOffset = table.size.width / 2 + out;
@@ -735,6 +802,7 @@ function placeOnWall(
   room: PlanRoom,
   edges: PlanEdge[],
   heightM: number,
+  placed: PlacedItem[] = [],
   rng?: Rng
 ): Pose | null {
   const { width, depth, height } = archetype.size;
@@ -749,10 +817,9 @@ function placeOnWall(
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
     for (const t of sampleAlong(edge, width)) {
       if (coversOpening(edge, t, width, heightM + height / 2, blocked)) continue;
-      if (skipped++ < index) continue;
 
       const anchor = pointOnEdge(edge, t);
-      return {
+      const pose: Pose = {
         position: {
           x: anchor.x + edge.inward.x * (depth / 2 + 0.01),
           z: anchor.z + edge.inward.z * (depth / 2 + 0.01),
@@ -761,6 +828,10 @@ function placeOnWall(
         size: archetype.size,
         elevationM: heightM - height / 2,
       };
+      // Not into what stands below it: a mirror hung over the washing machine, a print behind the wardrobe.
+      if (hangsIntoFloorPiece(pose, placed)) continue;
+      if (skipped++ < index) continue;
+      return pose;
     }
   }
 
@@ -768,15 +839,25 @@ function placeOnWall(
 }
 
 /**
- * Hung over a piece standing against a wall — the wall cabinets over the kitchen run: on the
- * same wall, as long as the piece and over it, its middle at `heightM`; shortened and slid along
- * the piece where the full length would cross a window or a door. Null when the room has no such
- * piece, or no stretch over it is clear.
+ * Hung over a piece standing against a wall — the wall cabinets over the kitchen run, the mirror
+ * over the basin, a print over the bed: on the same wall and centred over it, its middle at
+ * `aboveHeightM` (or `heightM`) and at least 15 cm over the piece's top. The cabinets are as long
+ * as the run (`stretch`), shortened and slid along it where the full length would cross a window
+ * or a door; anything else keeps its own width, no wider than the piece. Null when the room has
+ * none of those pieces, or no stretch over it is clear.
  */
-function placeAbove(archetype: Archetype, room: PlanRoom, edges: PlanEdge[], placed: PlacedItem[], to: string, heightM: number): Pose | null {
-  const under = placed.find((p) => p.slot === to);
+function placeAbove(
+  archetype: Archetype,
+  room: PlanRoom,
+  edges: PlanEdge[],
+  placed: PlacedItem[],
+  rule: Extract<Archetype['placement'], { type: 'wall-mounted' }>
+): Pose | null {
+  const slots = Array.isArray(rule.above) ? rule.above : rule.above ? [rule.above] : [];
+  const under = slots.map((slot) => placed.find((p) => p.slot === slot)).find(Boolean);
   if (!under) return null;
   const { depth, height } = archetype.size;
+  const middle = Math.max(rule.aboveHeightM ?? rule.heightM, rule.stretch ? 0 : under.size.height + 0.15 + height / 2);
   const forward = { x: Math.sin(under.rotation), z: Math.cos(under.rotation) };
   const back = { x: under.position.x - forward.x * (under.size.depth / 2), z: under.position.z - forward.z * (under.size.depth / 2) };
   // The wall it stands against: one that faces as it does, the nearest to its back.
@@ -794,22 +875,37 @@ function placeAbove(archetype: Archetype, room: PlanRoom, edges: PlanEdge[], pla
   if (!wall || wall.distance > 0.3) return null;
   const { edge, t: centre } = wall;
   const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
-  for (const width of [1, 0.75, 0.5].map((f) => under.size.width * f).filter((w) => w >= 0.6)) {
-    const slack = (under.size.width - width) / 2;
+  const widths = rule.stretch
+    ? [1, 0.75, 0.5].map((f) => under.size.width * f).filter((w) => w >= 0.6)
+    : [Math.min(archetype.size.width, Math.max(under.size.width, 0.4))];
+  for (const width of widths) {
+    const slack = rule.stretch ? (under.size.width - width) / 2 : 0;
     for (const offset of [0, -slack, slack, -slack / 2, slack / 2]) {
       const t = centre + offset / edge.length;
       if (t - width / 2 / edge.length < 0 || t + width / 2 / edge.length > 1) continue;
-      if (coversOpening(edge, t, width, heightM + height / 2, blocked)) continue;
+      if (coversOpening(edge, t, width, middle + height / 2, blocked)) continue;
       const anchor = pointOnEdge(edge, t);
-      return {
+      const pose: Pose = {
         position: { x: anchor.x + edge.inward.x * (depth / 2 + 0.01), z: anchor.z + edge.inward.z * (depth / 2 + 0.01) },
         rotation: edge.facing,
         size: { ...archetype.size, width },
-        elevationM: heightM - height / 2,
+        elevationM: middle - height / 2,
       };
+      if (hangsIntoFloorPiece(pose, placed.filter((p) => p !== under))) continue;
+      return pose;
     }
   }
   return null;
+}
+
+/** Whether a piece hung on a wall would cut into something standing on the floor below it. */
+function hangsIntoFloorPiece(pose: Pose, placed: PlacedItem[]): boolean {
+  const box = boxFor(pose);
+  return placed.some((p) => {
+    if (ARCHETYPES[p.kind]?.ghost || p.elevationM > 0.05) return false;
+    if (p.size.height <= pose.elevationM - 0.02) return false;
+    return overlaps(box, boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  });
 }
 
 /** Rugs: sized to the item they sit under, clamped so they stay inside the room. */

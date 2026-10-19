@@ -114,7 +114,7 @@ const DIRECTIONS: Record<StyleId, string[]> = {
 };
 
 /** A piece the room cannot hold is not offered: its footprint must fit inside the room's outline. */
-function fitsRoom(p: CatalogProduct, room: PlanRoom): boolean {
+export function fitsRoom(p: CatalogProduct, room: PlanRoom): boolean {
   if (!p.widthCm || !p.depthCm) return true;
   const xs = room.polygon.map((v) => v.x);
   const zs = room.polygon.map((v) => v.z);
@@ -135,7 +135,7 @@ export interface Offer {
 }
 
 /** Which side of the plan a wall is on, as the drawing shows it. */
-function side(edge: PlanEdge): string {
+export function side(edge: PlanEdge): string {
   if (edge.inward.z > 0.5) return 'top';
   if (edge.inward.z < -0.5) return 'bottom';
   if (edge.inward.x > 0.5) return 'left';
@@ -157,7 +157,7 @@ export function programKinds(room: PlanRoom): string[] {
   return [...kinds].filter((k) => !KINDS_FURNISHED_BY_ENGINE.has(k));
 }
 
-function productLine(p: CatalogProduct): string {
+export function productLine(p: CatalogProduct): string {
   const size = p.widthCm && p.depthCm && p.heightCm ? `${Math.round(p.widthCm)}×${Math.round(p.depthCm)}×${Math.round(p.heightCm)}cm` : '';
   const styles = Array.isArray(p.styleTags) ? (p.styleTags as string[]).slice(0, 3).join('/') : '';
   return `${p.id} | ${p.nameEn ?? p.nameKa} | ${size} | ${Math.round(p.pricePerUnit)}₾ | ${styles}${p.colorHex ? ` | ${p.colorHex}` : ''}`;
@@ -462,7 +462,7 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
 // ---------------------------------------------------------------------------
 
 /** List prices, US dollars per million tokens: what a generation costs, logged with it. */
-const PRICE_PER_MTOK: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+export const PRICE_PER_MTOK: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
 };

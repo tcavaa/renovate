@@ -3157,6 +3157,7 @@ export const ru: Dictionary = {
     genAiStep2: 'Подбираем мебель из каталога…',
     genAiStep3: 'Подбираем цвета и материалы…',
     genAiStep4: 'Планируем декор стен…',
+    genAiStep5: 'Проверяем каждую комнату и исправляем…',
     genAiDone: 'AI-дизайнер закончил',
     aiBadge: 'AI-дизайн',
     aiNotesTitle: 'Заметки дизайнера',

@@ -210,15 +210,15 @@ describe('the studio lets stand what the layout engine placed', () => {
     for (const piece of judged(kitchen, items)) expect(piece).toEqual({ id: piece.id, valid: true });
   });
 
-  it('a bed pushed flush into a corner at −π/2', async () => {
+  it('a bed at −π/2 on the east wall, clear of the door', async () => {
     const { layoutRoom } = await import('@/lib/design/autoLayout');
-    // A local project's bedroom, 3.68 × 2.84: the bed against the east wall, its side in the north-east corner.
+    // A local project's bedroom, 3.68 × 2.84: the bed against the east wall, as near its middle as
+    // the door's swing allows (centred, it would stand in it).
     const bedroom = at('bedroom', [P(0, 0), P(3.68, 0), P(3.68, 2.84), P(0, 2.84)], [opening('d', 'door', 2, 0.5, 0.85, 2.05, 0), opening('w', 'window', 0, 0.5, 1.4, 1.4, 0.9)]);
     const items = layoutRoom(bedroom);
     const bed = items.find((i) => i.kind === 'bed_double')!;
     expect(bed.rotation).toBe(-Math.PI / 2);
-    // Turned a quarter, its width runs along z: its side is exactly on the wall at z = 0.
-    expect(bed.position.z - bed.size.width / 2).toBe(0);
+    expect(bed.position.x + bed.size.depth / 2).toBeCloseTo(3.66, 5);
     for (const piece of judged(bedroom, items)) expect(piece).toEqual({ id: piece.id, valid: true });
   });
 });

@@ -43,6 +43,19 @@ export type PlacementRule =
       lateral: number;
       /** 'facing' turns to look back at the anchor, 'same' copies its rotation. */
       align: 'facing' | 'same' | 'sideways';
+      /**
+       * Measured from the pieces' real sizes rather than fixed metres — what makes the pair
+       * look arranged whatever products fill them:
+       * - `gapM`: this much clear floor between the anchor's front and this piece (a coffee
+       *   table 42 cm off the sofa; negative tucks it in — the desk chair under the desk);
+       * - `beside`: standing beside the anchor this far off its side, back in line with the
+       *   anchor's back (a nightstand at the head of the bed, against the same wall);
+       * - `toWall`: across the room against the wall the anchor faces, when that wall is a
+       *   sensible distance off (the TV unit facing the sofa), else `forward` metres.
+       */
+      gapM?: number;
+      beside?: number;
+      toWall?: boolean;
     }
   /** Tucked into the freest corner. */
   | { type: 'corner'; clearanceM: number }
@@ -50,9 +63,12 @@ export type PlacementRule =
   | { type: 'ceiling' }
   /**
    * Fixed flat to a wall at a given height (mirrors, art) — its middle at `heightM`. With
-   * `above`, over that piece along its wall when the room has one (the wall cabinets over the run).
+   * `above`, over the first of those pieces the room has, along its wall (the wall cabinets over
+   * the run, the mirror over the basin, a print over the bed or the sofa): its middle at
+   * `aboveHeightM` (default `heightM`) and clear of the piece's top by 15 cm; stretched to the
+   * piece's length when `stretch` (the cabinets), else its own width at most.
    */
-  | { type: 'wall-mounted'; heightM: number; above?: SlotKind }
+  | { type: 'wall-mounted'; heightM: number; above?: SlotKind | SlotKind[]; aboveHeightM?: number; stretch?: boolean }
   /** Laid on the floor under another item, sized to it. */
   | { type: 'under'; to: SlotKind; padM: number }
   /** Runs the full length of a wall (kitchen counters). */
@@ -114,7 +130,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Тумба прикроватная',
     categorySlug: 'storage',
     size: { width: 0.45, depth: 0.4, height: 0.52 },
-    placement: { type: 'relative', to: 'bed', forward: -0.05, lateral: 1.06, align: 'same' },
+    placement: { type: 'relative', to: 'bed', forward: 0, lateral: 1.06, align: 'same', beside: 0.04 },
     priority: 60,
   },
   wardrobe: {
@@ -186,7 +202,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Журнальный столик',
     categorySlug: 'tables',
     size: { width: 1.1, depth: 0.6, height: 0.42 },
-    placement: { type: 'relative', to: 'sofa', forward: 1.05, lateral: 0, align: 'same' },
+    placement: { type: 'relative', to: 'sofa', forward: 1.05, lateral: 0, align: 'same', gapM: 0.42 },
     priority: 70,
   },
   tv_unit: {
@@ -197,7 +213,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'ТВ-тумба',
     categorySlug: 'storage',
     size: { width: 1.8, depth: 0.42, height: 0.5 },
-    placement: { type: 'relative', to: 'sofa', forward: 3.0, lateral: 0, align: 'facing' },
+    placement: { type: 'relative', to: 'sofa', forward: 3.0, lateral: 0, align: 'facing', toWall: true },
     priority: 65,
   },
   storage_shelf: {
@@ -270,7 +286,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Навесные кухонные шкафы',
     categorySlug: 'kitchen-furniture',
     size: { width: 2.4, depth: 0.35, height: 0.72 },
-    placement: { type: 'wall-mounted', heightM: 1.86, above: 'kitchen_run' },
+    placement: { type: 'wall-mounted', heightM: 1.86, above: 'kitchen_run', stretch: true },
     priority: 95,
   },
   kitchen_island: {
@@ -317,7 +333,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Офисное кресло',
     categorySlug: 'chairs',
     size: { width: 0.62, depth: 0.62, height: 1.05 },
-    placement: { type: 'relative', to: 'desk', forward: 0.75, lateral: 0, align: 'facing' },
+    placement: { type: 'relative', to: 'desk', forward: 0.75, lateral: 0, align: 'facing', gapM: -0.18 },
     priority: 55,
   },
 
@@ -411,7 +427,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Зеркало',
     categorySlug: 'decor',
     size: { width: 0.7, depth: 0.05, height: 1.1 },
-    placement: { type: 'wall-mounted', heightM: 1.0 },
+    placement: { type: 'wall-mounted', heightM: 1.0, above: ['sink', 'console'], aboveHeightM: 1.55 },
     priority: 30,
     ghost: true,
   },
@@ -485,7 +501,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Картина',
     categorySlug: 'decor',
     size: { width: 0.95, depth: 0.05, height: 0.7 },
-    placement: { type: 'wall-mounted', heightM: 1.55 },
+    placement: { type: 'wall-mounted', heightM: 1.55, above: ['bed', 'sofa'], aboveHeightM: 1.45 },
     priority: 12,
     ghost: true,
   },

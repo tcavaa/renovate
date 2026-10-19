@@ -24,8 +24,12 @@ import { calculatorStepHref } from '@/lib/calculator/steps';
 import type { CalculatorStep } from '@/components/calculator/StepIndicator';
 import { useProjectId } from '@/components/projects/ProjectGate';
 
-/** On a design step: resume from step 1, and keep the pre-generation steps shut. */
-export function DesignFlowGuard({ step }: { step: StudioStep }) {
+/**
+ * On a design step: resume from step 1, and keep the pre-generation steps shut. `hold` keeps it
+ * still while the style step is still generating — the flat is laid out before the AI designer has
+ * checked it, and the studio opens once it has (`GenerationOverlay`).
+ */
+export function DesignFlowGuard({ step, hold = false }: { step: StudioStep; hold?: boolean }) {
   const router = useRouter();
   const projectId = useProjectId();
   const plan = useDesignStore((s) => s.plan);
@@ -37,6 +41,7 @@ export function DesignFlowGuard({ step }: { step: StudioStep }) {
   const modeChosen = useDesignStore((s) => s.modeChosen);
 
   useEffect(() => {
+    if (hold) return;
     const drawn = (plan?.rooms.length ?? 0) > 0;
     // Everything before the studio is closed once the flat has been laid out — while it has
     // rooms: one emptied of every room is drawn again.
@@ -61,7 +66,7 @@ export function DesignFlowGuard({ step }: { step: StudioStep }) {
     // to be open last.
     const resume: StudioStep = !generated && stored >= 5 ? 4 : stored;
     if (step === 1 && drawn && resume > 1) router.replace(designStepHref(projectId, resume));
-  }, [step, plan, stored, generated, planFromCalculator, modeChosen, homeState, mode, router, projectId]);
+  }, [step, plan, stored, generated, planFromCalculator, modeChosen, homeState, mode, router, projectId, hold]);
 
   return null;
 }

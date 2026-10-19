@@ -115,7 +115,7 @@ const ph = (
 // kartuli-aveji (kitchens and general).
 const STOCK: StockEntry[] = [
   // --- sofas -------------------------------------------------------------
-  ph('sofa_02', 'sofa_3seat', ['modern', 'scandinavian', 'industrial'], 2400, 'domus-interior'),
+  ph('sofa_02', 'sofa_3seat', ['modern', 'scandinavian', 'industrial'], 2400, 'domus-interior', { yawDegrees: 180 }),
   ph('sofa_03', 'sofa_3seat', ['vintage', 'industrial'], 3900, 'antikvari'),
   ph('Sofa_01', 'sofa_3seat', ['vintage'], 2200, 'antikvari'),
   ph('chinese_sofa', 'sofa_3seat', ['vintage'], 3600, 'antikvari'),
@@ -143,7 +143,7 @@ const STOCK: StockEntry[] = [
   ph('small_wooden_table_01', 'coffee_table', ['scandinavian', 'vintage', 'industrial'], 380, 'nordic-home', { facing: 'none' }),
 
   // --- TV units, consoles ---------------------------------------------------
-  ph('modern_wooden_cabinet', 'tv_unit', ['modern', 'scandinavian'], 1900, 'domus-interior', { facing: 'panel' }),
+  ph('modern_wooden_cabinet', 'tv_unit', ['modern', 'scandinavian'], 1900, 'domus-interior', { facing: 'panel', yawDegrees: 180 }),
   ph('vintage_wooden_drawer_01', 'tv_unit', ['industrial', 'vintage'], 640, 'loft-42', { facing: 'panel' }),
   ph('ClassicConsole_01', 'console_table', ['vintage'], 980, 'antikvari', { facing: 'panel' }),
   ph('chinese_console_table', 'console_table', ['vintage'], 1100, 'antikvari', { facing: 'panel' }),
@@ -164,24 +164,24 @@ const STOCK: StockEntry[] = [
 
   // --- bathroom -------------------------------------------------------------
   // Kenney's bathroomMirror is a cabinet with a shelf, 37 cm deep — not a wall mirror.
-  ph('ornate_mirror_01', 'mirror', ALL, 380, 'antikvari', { facing: 'panel' }),
+  ph('ornate_mirror_01', 'mirror', ALL, 380, 'antikvari', { facing: 'panel', yawDegrees: 180 }),
 
   // --- bedroom --------------------------------------------------------------
   ph('GothicBed_01', 'bed_double', ['vintage'], 2900, 'antikvari'),
   ph('old_bed_frame', 'bed_single', ['industrial', 'vintage'], 780, 'loft-42'),
   ph('vintage_day_bed', 'bed_single', ['vintage', 'scandinavian'], 1700, 'antikvari'),
-  ph('ClassicNightstand_01', 'nightstand', ['vintage'], 420, 'antikvari', { facing: 'panel' }),
+  ph('ClassicNightstand_01', 'nightstand', ['vintage'], 420, 'antikvari', { facing: 'panel', yawDegrees: 180 }),
   ph('painted_wooden_nightstand', 'nightstand', ['scandinavian', 'vintage'], 310, 'nordic-home', { facing: 'panel' }),
   ph('side_table_01', 'nightstand', ['modern', 'scandinavian'], 290, 'domus-interior', { facing: 'panel' }),
   ph('side_table_tall_01', 'nightstand', ['vintage', 'industrial'], 260, 'antikvari', { facing: 'none' }),
   ph('WoodenTable_02', 'nightstand', ['industrial', 'scandinavian'], 180, 'loft-42', { facing: 'none' }),
   ph('chinese_stool', 'nightstand', ['vintage'], 340, 'antikvari', { facing: 'none' }),
   ph('vintage_cabinet_01', 'wardrobe', ['vintage', 'scandinavian'], 2600, 'antikvari', { facing: 'panel' }),
-  ph('GothicCabinet_01', 'wardrobe', ['vintage'], 2400, 'antikvari', { facing: 'panel' }),
+  ph('GothicCabinet_01', 'wardrobe', ['vintage'], 2400, 'antikvari', { facing: 'panel', yawDegrees: 180 }),
   ph('painted_wooden_cabinet_02', 'wardrobe', ['vintage', 'scandinavian'], 1500, 'nordic-home', { facing: 'panel' }),
   ph('drawer_cabinet', 'wardrobe', ['modern', 'industrial'], 1300, 'loft-42', { facing: 'panel' }),
   ph('GothicCommode_01', 'dresser', ['vintage'], 1250, 'antikvari', { facing: 'panel' }),
-  ph('painted_wooden_cabinet', 'dresser', ['vintage', 'scandinavian'], 880, 'nordic-home', { facing: 'panel' }),
+  ph('painted_wooden_cabinet', 'dresser', ['vintage', 'scandinavian'], 880, 'nordic-home', { facing: 'panel', yawDegrees: 180 }),
   ph('tool_cart', 'dresser', ['industrial'], 640, 'loft-42', { facing: 'panel' }),
 
   // --- shelves --------------------------------------------------------------
@@ -196,8 +196,8 @@ const STOCK: StockEntry[] = [
   ph('industrial_storage_cart', 'storage_shelf', ['industrial'], 720, 'loft-42', { facing: 'panel' }),
 
   // --- office ---------------------------------------------------------------
-  ph('metal_office_desk', 'desk', ['industrial', 'modern'], 1100, 'loft-42', { facing: 'panel' }),
-  ph('SchoolDesk_01', 'desk', ['vintage', 'scandinavian'], 380, 'antikvari', { facing: 'panel' }),
+  ph('metal_office_desk', 'desk', ['industrial', 'modern'], 1100, 'loft-42', { facing: 'panel', yawDegrees: 180 }),
+  ph('SchoolDesk_01', 'desk', ['vintage', 'scandinavian'], 380, 'antikvari', { facing: 'panel', yawDegrees: 180 }),
   ph('WoodenTable_03', 'desk', ['vintage', 'industrial'], 520, 'antikvari', { facing: 'panel' }),
   ph('metal_stool_01', 'office_chair', ['industrial', 'modern'], 260, 'loft-42', { facing: 'none' }),
   ph('metal_stool_03', 'office_chair', ['industrial'], 300, 'loft-42'),

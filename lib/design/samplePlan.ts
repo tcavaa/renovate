@@ -1,9 +1,10 @@
 /**
  * The sample flat ("სანიმუშო გეგმა") behind "try the sample plan" on step 1 of both halves: a
- * complete flat of about 117 m² with every kind of room the studio furnishes — a hallway with the
- * entrance, a living room and a kitchen, two bedrooms (the first with a closet), an office, a
- * bathroom and a separate toilet, and two balconies — so a test of the calculator, the studio, the
- * AI designer or the decor starts in a second, with or without an API key.
+ * flat of about 150 m² laid out like an ordinary apartment — a long hallway with the entrance, and
+ * off it two bedrooms, a bathroom, a separate toilet, an office and the living room; the kitchen
+ * open to the living room; a balcony off the living room and one off the first bedroom — so a test
+ * of the calculator, the studio, the AI designer or the decor starts in a second, with or without
+ * an API key.
  *
  * It is a plan, not a picture to read: the rooms, their types and names, every door, archway,
  * window and balcony railing are given here and taken onto the board like any plan read
@@ -24,27 +25,29 @@ interface SampleRoom {
 }
 
 /*
- *   z=-1.5         ┌ balcony 2 ┐               ┌── balcony 1 ──┐
- *   z=0   ┌────────┴───────────┴──┬────────────┴───────────────┴────┐
- *         │  bedroom 1            │  living room                      │
- *   z=4.2 ├──closet──┬─bathroom──┬┴──hallway──┬──── kitchen ─────────┤
- *   z=6.4 ├──────────┴───────────┤            ├──────────────────────┤
- *         │  bedroom 2           │            ├─toilet─┐  office      │
- *   z=9   └──────────────────────┴──entrance──┴────────┴──────────────┘
- *        x=0       2.0          4.4          6.4      8.0            12
+ *   z=-1.5   ┌ balcony 2 ┐                    ┌─ balcony 1 ─┐
+ *   z=0   ┌──┴───────────┴──┬────────┬────────┴─────────────┴──┐
+ *         │  bedroom 1      │        │                          │
+ *   z=4.4 ├─────────────────┤        │  living room             │
+ *         │  bathroom       │hallway │                          │
+ *   z=6   │                 │        ├────────────┬─────────────┤
+ *   z=6.6 ├─────────────────┤        │  toilet    │  kitchen    │
+ *   z=7.4 │  bedroom 2      │        ├────────────┤             │
+ *         │                 │        │  office    │             │
+ *   z=10  └─────────────────┴entrance┴────────────┴─────────────┘
+ *        x=0               4.8      6.6          10            14
  */
 const ROOMS: SampleRoom[] = [
-  { id: 'r1', type: 'hallway', name: 'დერეფანი', polygon: [[4.4, 4.2], [6.4, 4.2], [6.4, 9], [4.4, 9]] },
-  { id: 'r2', type: 'living_room', name: 'მისაღები ოთახი', polygon: [[4.4, 0], [12, 0], [12, 4.2], [4.4, 4.2]] },
-  { id: 'r3', type: 'kitchen', name: 'სამზარეულო', polygon: [[6.4, 4.2], [12, 4.2], [12, 6.4], [6.4, 6.4]] },
-  { id: 'r4', type: 'bedroom', name: 'საძინებელი 1', polygon: [[0, 0], [4.4, 0], [4.4, 4.2], [0, 4.2]] },
-  { id: 'r5', type: 'closet', name: 'გარდერობი', polygon: [[0, 4.2], [2, 4.2], [2, 6.4], [0, 6.4]] },
-  { id: 'r6', type: 'bathroom', name: 'სააბაზანო', polygon: [[2, 4.2], [4.4, 4.2], [4.4, 6.4], [2, 6.4]] },
-  { id: 'r7', type: 'bedroom', name: 'საძინებელი 2', polygon: [[0, 6.4], [4.4, 6.4], [4.4, 9], [0, 9]] },
-  { id: 'r8', type: 'office', name: 'სამუშაო ოთახი', polygon: [[6.4, 6.4], [12, 6.4], [12, 9], [8, 9], [8, 7.4], [6.4, 7.4]] },
-  { id: 'r9', type: 'toilet', name: 'ტუალეტი', polygon: [[6.4, 7.4], [8, 7.4], [8, 9], [6.4, 9]] },
-  { id: 'r10', type: 'balcony', name: 'აივანი 1', polygon: [[7.2, -1.5], [10.8, -1.5], [10.8, 0], [7.2, 0]] },
-  { id: 'r11', type: 'balcony', name: 'აივანი 2', polygon: [[0.8, -1.4], [3.6, -1.4], [3.6, 0], [0.8, 0]] },
+  { id: 'r1', type: 'hallway', name: 'დერეფანი', polygon: [[4.8, 0], [6.6, 0], [6.6, 10], [4.8, 10]] },
+  { id: 'r2', type: 'living_room', name: 'მისაღები ოთახი', polygon: [[6.6, 0], [14, 0], [14, 6], [6.6, 6]] },
+  { id: 'r3', type: 'kitchen', name: 'სამზარეულო', polygon: [[10, 6], [14, 6], [14, 10], [10, 10]] },
+  { id: 'r4', type: 'bedroom', name: 'საძინებელი 1', polygon: [[0, 0], [4.8, 0], [4.8, 4.4], [0, 4.4]] },
+  { id: 'r5', type: 'bathroom', name: 'სააბაზანო', polygon: [[0, 4.4], [4.8, 4.4], [4.8, 6.6], [0, 6.6]] },
+  { id: 'r6', type: 'bedroom', name: 'საძინებელი 2', polygon: [[0, 6.6], [4.8, 6.6], [4.8, 10], [0, 10]] },
+  { id: 'r7', type: 'office', name: 'კაბინეტი', polygon: [[6.6, 7.4], [10, 7.4], [10, 10], [6.6, 10]] },
+  { id: 'r8', type: 'toilet', name: 'ტუალეტი', polygon: [[6.6, 6], [10, 6], [10, 7.4], [6.6, 7.4]] },
+  { id: 'r9', type: 'balcony', name: 'აივანი 1', polygon: [[9, -1.6], [12.6, -1.6], [12.6, 0], [9, 0]] },
+  { id: 'r10', type: 'balcony', name: 'აივანი 2', polygon: [[1, -1.5], [4, -1.5], [4, 0], [1, 0]] },
 ];
 
 interface SampleOpening {
@@ -64,31 +67,30 @@ const WINDOW = { heightM: 1.4, sillM: 0.9 };
 
 const OPENINGS: SampleOpening[] = [
   // The entrance, and every room off the hallway.
-  { kind: 'door', room: 'r1', to: null, at: [5.4, 9], widthM: 0.95, ...DOOR },
-  { kind: 'archway', room: 'r1', to: 'r2', at: [5.4, 4.2], widthM: 1.4, heightM: 2.2, sillM: 0 },
-  { kind: 'door', room: 'r1', to: 'r3', at: [6.4, 5.3], widthM: 0.85, ...DOOR },
-  { kind: 'door', room: 'r1', to: 'r6', at: [4.4, 5.3], widthM: 0.75, ...DOOR },
-  { kind: 'door', room: 'r1', to: 'r7', at: [4.4, 7.4], widthM: 0.85, ...DOOR },
-  { kind: 'door', room: 'r1', to: 'r8', at: [6.4, 6.9], widthM: 0.8, ...DOOR },
-  { kind: 'door', room: 'r1', to: 'r9', at: [6.4, 8.2], widthM: 0.7, ...DOOR },
-  // The bedroom off the living room, its closet off it; the kitchen open to the living room.
-  { kind: 'door', room: 'r2', to: 'r4', at: [4.4, 3.3], widthM: 0.85, ...DOOR },
-  { kind: 'door', room: 'r4', to: 'r5', at: [1, 4.2], widthM: 0.75, ...DOOR },
-  { kind: 'archway', room: 'r2', to: 'r3', at: [9.6, 4.2], widthM: 1.6, heightM: 2.2, sillM: 0 },
-  // The balconies: a door out from the living room and from the bedroom, a railing along each front.
-  { kind: 'door', room: 'r2', to: 'r10', at: [9, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
-  { kind: 'door', room: 'r4', to: 'r11', at: [2.2, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
-  { kind: 'railing', room: 'r10', to: null, at: [9, -1.5], widthM: 3.6, heightM: 1.05, sillM: 0 },
-  { kind: 'railing', room: 'r11', to: null, at: [2.2, -1.4], widthM: 2.8, heightM: 1.05, sillM: 0 },
+  { kind: 'door', room: 'r1', to: null, at: [5.7, 10], widthM: 0.95, ...DOOR },
+  { kind: 'archway', room: 'r1', to: 'r2', at: [6.6, 3], widthM: 1.6, heightM: 2.2, sillM: 0 },
+  { kind: 'door', room: 'r1', to: 'r4', at: [4.8, 3.4], widthM: 0.85, ...DOOR },
+  { kind: 'door', room: 'r1', to: 'r5', at: [4.8, 5.5], widthM: 0.8, ...DOOR },
+  { kind: 'door', room: 'r1', to: 'r6', at: [4.8, 8.2], widthM: 0.85, ...DOOR },
+  { kind: 'door', room: 'r1', to: 'r8', at: [6.6, 6.7], widthM: 0.7, ...DOOR },
+  { kind: 'door', room: 'r1', to: 'r7', at: [6.6, 8.3], widthM: 0.8, ...DOOR },
+  // The kitchen open to the living room.
+  { kind: 'archway', room: 'r2', to: 'r3', at: [12, 6], widthM: 1.8, heightM: 2.2, sillM: 0 },
+  // The balconies: a door out from the living room and from the first bedroom, a railing along each front.
+  { kind: 'door', room: 'r2', to: 'r9', at: [10.8, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
+  { kind: 'door', room: 'r4', to: 'r10', at: [2.5, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
+  { kind: 'railing', room: 'r9', to: null, at: [10.8, -1.6], widthM: 3.6, heightM: 1.05, sillM: 0 },
+  { kind: 'railing', room: 'r10', to: null, at: [2.5, -1.5], widthM: 3, heightM: 1.05, sillM: 0 },
   // Windows on the outside walls.
-  { kind: 'window', room: 'r2', to: null, at: [5.8, 0], widthM: 1.6, ...WINDOW },
-  { kind: 'window', room: 'r2', to: null, at: [12, 2.1], widthM: 1.8, ...WINDOW },
-  { kind: 'window', room: 'r3', to: null, at: [12, 5.3], widthM: 1.4, ...WINDOW },
-  { kind: 'window', room: 'r4', to: null, at: [0, 2.1], widthM: 1.6, ...WINDOW },
-  { kind: 'window', room: 'r7', to: null, at: [0, 7.7], widthM: 1.4, ...WINDOW },
-  { kind: 'window', room: 'r7', to: null, at: [2.2, 9], widthM: 1.4, ...WINDOW },
-  { kind: 'window', room: 'r8', to: null, at: [12, 7.7], widthM: 1.4, ...WINDOW },
-  { kind: 'window', room: 'r8', to: null, at: [10, 9], widthM: 1.6, ...WINDOW },
+  { kind: 'window', room: 'r2', to: null, at: [8, 0], widthM: 1.8, ...WINDOW },
+  { kind: 'window', room: 'r2', to: null, at: [14, 3], widthM: 1.8, ...WINDOW },
+  { kind: 'window', room: 'r3', to: null, at: [14, 8], widthM: 1.4, ...WINDOW },
+  { kind: 'window', room: 'r3', to: null, at: [12, 10], widthM: 1.4, ...WINDOW },
+  { kind: 'window', room: 'r4', to: null, at: [0, 2.2], widthM: 1.6, ...WINDOW },
+  { kind: 'window', room: 'r5', to: null, at: [0, 5.5], widthM: 0.8, heightM: 0.8, sillM: 1.5 },
+  { kind: 'window', room: 'r6', to: null, at: [0, 8.3], widthM: 1.4, ...WINDOW },
+  { kind: 'window', room: 'r6', to: null, at: [2.4, 10], widthM: 1.4, ...WINDOW },
+  { kind: 'window', room: 'r7', to: null, at: [8.3, 10], widthM: 1.2, ...WINDOW },
 ];
 
 /** The wall of a room a point lies on, and where along it (0..1). */

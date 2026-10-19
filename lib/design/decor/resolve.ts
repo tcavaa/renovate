@@ -10,7 +10,7 @@
 import { roomEdges, wallEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { toSceneProduct } from '@/lib/design/matcher';
-import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorSlot, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
+import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorSlot, Opening, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
 import { DECOR_FAMILIES, DECOR_FAMILY_LIST, decorSlots, slotTakes } from './families';
 import { freeSpans } from './layout';
 import { decorMaterialKind, decorSpecs, defaultDecorMaterial, isDecorMaterial } from './materials';
@@ -139,6 +139,21 @@ function along(edge: PlanEdge, point: { x: number; z: number }): number {
   return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
 }
 
+/** Decor that covers its stretch of wall: nothing hangs over it, and it keeps off what must hang there. */
+export const COVERS_WALL = new Set<string>(['slats', 'slab', 'panel', 'cladding', 'mural', 'tile', 'niche']);
+
+/**
+ * What hangs on this wall for use and must stay — a mirror over a basin in a bathroom or toilet,
+ * kitchen wall cabinets — as openings for `freeSpans` (its stretch along the wall, 10 cm aside).
+ */
+function fixturesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]): Opening[] {
+  const wet = room.type === 'bathroom' || room.type === 'toilet';
+  return items
+    .filter((i) => i.roomId === room.id && i.elevationM >= 0.05 && (i.slot === 'kitchen_wall' || (wet && i.slot === 'mirror')))
+    .filter((i) => wallBehind(i, room)?.index === edge.index)
+    .map((i) => ({ id: `fixture-${i.id}`, kind: 'window' as const, wallIndex: edge.index, t: along(edge, i.position) / edge.length, widthM: i.size.width + 0.2, heightM: i.size.height, sillM: i.elevationM, roomId: room.id, exterior: false }));
+}
+
 /** The longest clear wall of a room (fewest openings), for an intent whose wall cannot be used. */
 function longestClearWall(room: PlanRoom): PlanEdge | null {
   const scored = wallEdges(room).map((edge) => {
@@ -247,7 +262,9 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     from = 0;
     to = edge.length;
   } else {
-    const spans = freeSpans(edge, room.openings, 0, edge.length, 0.1);
+    // Clear of the openings and, for decor that covers its stretch, of what hangs there for use —
+    // the mirror over a basin, the wall cabinets: the niche goes beside the mirror, not over it.
+    const spans = freeSpans(edge, [...room.openings, ...(COVERS_WALL.has(family) ? fixturesOnWall(edge, room, items) : [])], 0, edge.length, 0.1);
     if (spans.length === 0) return null;
     const containing = centre != null ? spans.find(([a, b]) => centre! >= a && centre! <= b) : undefined;
     const [a, b] = containing ?? spans.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best));

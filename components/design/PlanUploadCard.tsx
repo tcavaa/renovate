@@ -385,7 +385,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
 }
 
 /** Fills by kind of room, so the sample reads at a glance: wet rooms blue, outside green, the rest warm. */
-const ROOM_FILL: Record<string, string> = { bathroom: '#DCE9F2', toilet: '#DCE9F2', kitchen: '#F4E7D3', balcony: '#E3EEDB', hallway: '#EFECE6', closet: '#EDE7F0' };
+const ROOM_FILL: Record<string, string> = { bathroom: '#DCE9F2', toilet: '#DCE9F2', kitchen: '#F4E7D3', balcony: '#E3EEDB', hallway: '#EFECE6', closet: '#EDE7F0', office: '#EAE6F2' };
 
 /** The sample flat drawn as its rooms with their names — what the picture of an uploaded plan is for an upload. */
 function SamplePlanDrawing({ plan }: { plan: FloorPlan }) {

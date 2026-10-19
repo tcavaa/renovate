@@ -11,7 +11,9 @@
  */
 
 import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
-import { getArchetype, isKitchenMaterial } from './catalog';
+import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
+import { roomEdges } from './planGeometry';
+import { seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { styleAffinity } from './styles';
 import { weightedOrder, weightedPick, type Rng } from './random';
@@ -136,14 +138,19 @@ export function matchProducts(
   // Generating: the products of each kind already placed, drawn less often in the next room.
   const usedByKind = new Map<string, Set<number>>();
 
-  return items.map((item, index) => {
+  return items.map((slotItem, index) => {
     const finish = (matched: PlacedItem) => {
       settled.push(matched);
       return matched;
     };
-    if (item.pinned && item.product) return finish(item);
+    if (slotItem.pinned && slotItem.product) return finish(slotItem);
+    // A dining chair sits round the table as matched, not the archetype's: as many as the real
+    // table seats, each at its place — six chairs used to stand round a 0.8 m round table.
+    const seat = seatAtTable(slotItem, settled);
+    if (seat === 'none') return finish({ ...slotItem, product: null });
+    const item = seat ?? slotItem;
 
-    const candidates = byKind.get(item.kind) ?? [];
+    const candidates = [...(byKind.get(item.kind) ?? [])];
 
     // A kitchen run along its wall is made to measure ("ავეჯის დამზადება"): stretched to the
     // run the engine laid, in one of the kitchen maker's materials (the style's, or drawn), bought
@@ -183,6 +190,13 @@ export function matchProducts(
     if (candidates.length === 0) return finish({ ...item, product: null });
 
     const room = roomsById.get(item.roomId);
+    // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
+    // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
+    // flat and no taller than 1.2 m. The swap list still offers the rest.
+    const fitting = slotPool(item, candidates, room);
+    if (fitting.length > 0 && fitting.length < candidates.length) {
+      candidates.splice(0, candidates.length, ...fitting);
+    }
     const others = [...settled, ...items.slice(index + 1)];
     const scored = candidates
       .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, item) }))
@@ -221,17 +235,20 @@ export function matchProducts(
     // empty rather than poke through the wall.
     // The next to try when the chosen does not fit: the best first, or — generating — another draw.
     const ranked = rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
-    const placed = room ? placeFitting(item, chosen, ranked, room, others, slots) : { product: chosen, position: item.position };
+    const placed = room ? placeFitting(item, chosen, ranked, room, others, slots, settled) : { product: chosen, position: item.position };
     if (!placed) return finish({ ...item, product: null });
     used.add(placed.product.id);
     usedByKind.set(item.kind, used);
+    const size = sizeFromProduct(placed.product, item);
+    const elevationM = settledElevation(item, size, placed.product, settled);
     return finish({
       ...item,
-      position: placed.position,
+      position: hungPosition(item, size, elevationM) ?? placed.position,
       product: toSceneProduct(placed.product, quantityFor(item)),
       // A product with real dimensions overrides the archetype's defaults, so the room
       // reflects the thing you would actually receive.
-      size: sizeFromProduct(placed.product, item),
+      size,
+      elevationM,
       origin: 'style' as const,
       // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
       ...(item.slot === 'kitchen_run' ? { custom: true, size: item.size } : {}),
@@ -256,26 +273,45 @@ function placeFitting(
   ranked: CatalogProduct[],
   room: PlanRoom,
   others: PlacedItem[],
-  slots: ReadonlyMap<string, PlacedItem>
+  slots: ReadonlyMap<string, PlacedItem>,
+  settled: PlacedItem[] = []
 ): { product: CatalogProduct; position: Vec2 } | null {
   if (!fitMatters(item)) return { product: preferred, position: item.position };
-  const blockers = blockingItems(others, room.id, item.id).map((other) => ({
+  // Pieces still to be matched that are placed off this one (the nightstands off the bed) move to
+  // it once it is matched: they do not stand in its way.
+  // The chairs round a table are seated again round the table as matched (`seatAtTable`): the
+  // ones still to come are in neither the table's way nor one another's.
+  const followers = (other: PlacedItem) => {
+    if (settled.includes(other)) return false;
+    if (item.slot === 'dining_chair' && other.slot === 'dining_chair') return true;
+    const rule = getArchetype(other.kind)?.placement;
+    return rule?.type === 'relative' && rule.to === item.slot && (rule.beside != null || rule.gapM != null || other.slot === 'dining_chair');
+  };
+  const blockers = blockingItems(others, room.id, item.id).filter((other) => !followers(other)).map((other) => ({
     other,
     box: footprintOf(other.position, other.size, other.rotation),
     chair: tuckedChair(item, other, slots),
   }));
-  const tryProduct = (product: CatalogProduct): Vec2 | null => {
-    const size = sizeFromProduct(product, item);
-    const position = clampInsideRoom(room, item.position, size, item.rotation);
+  const fits = (position: Vec2, size: PlacedItem['size']): boolean => {
     const footprint = footprintOf(position, size, item.rotation);
-    if (!footprintInRoom(footprint, room.polygon)) return null;
+    if (!footprintInRoom(footprint, room.polygon)) return false;
     for (const { other, box, chair } of blockers) {
       // Pieces may touch; a chair the engine tucked under its table may stand under it by up
       // to half its depth besides — its seat under the top, its back clear of it.
       const depth = chair === item ? size.depth : chair === other ? other.size.depth : 0;
-      if (footprintsOverlap(footprint, box, Math.max(PIECE_TOUCH_M, depth / 2))) return null;
+      if (footprintsOverlap(footprint, box, Math.max(PIECE_TOUCH_M, depth / 2))) return false;
     }
-    return position;
+    return true;
+  };
+  const tryProduct = (product: CatalogProduct): Vec2 | null => {
+    const size = sizeFromProduct(product, item);
+    // Where the real product belongs (its back on the wall the slot's back was on, a nightstand
+    // beside the real bed), then where the slot was — each kept inside the room.
+    for (const spot of [settledPosition(item, size, room, settled), item.position]) {
+      const position = clampInsideRoom(room, spot, size, item.rotation);
+      if (fits(position, size)) return position;
+    }
+    return null;
   };
   const first = tryProduct(preferred);
   if (first) return { product: preferred, position: first };
@@ -299,10 +335,140 @@ function placeFitting(
  */
 function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, PlacedItem>): PlacedItem | null {
   if (!tucksUnder(a, b)) return null;
+  // A chair seated round the table as matched (`seatAtTable`) is tucked in by its seat ring.
+  const chair = getArchetype(a.kind)?.slot === 'dining_chair' ? a : b;
+  const seated = slots.get(chair.id);
+  if (seated && (seated.position.x !== chair.position.x || seated.position.z !== chair.position.z)) return chair;
   const p = slots.get(a.id);
   const q = slots.get(b.id);
   if (!p || !q || !footprintsOverlap(footprintOf(p.position, p.size, p.rotation), footprintOf(q.position, q.size, q.rotation), 0)) return null;
   return getArchetype(a.kind)?.slot === 'dining_chair' ? a : b;
+}
+
+/**
+ * A dining chair's place round the table as matched (`seatSlots` with its real size): the n-th
+ * chair of the room takes the n-th seat; 'none' when the table seats fewer; null when there is no
+ * matched table to sit at (the slot stays as laid out).
+ */
+function seatAtTable(item: PlacedItem, settled: PlacedItem[]): PlacedItem | 'none' | null {
+  if (item.slot !== 'dining_chair') return null;
+  const table = [...settled].reverse().find((p) => p.roomId === item.roomId && p.slot === 'dining_table' && p.product);
+  if (!table) return null;
+  const index = settled.filter((p) => p.roomId === item.roomId && p.slot === 'dining_chair').length;
+  const seats = seatSlots(table, item.size.depth);
+  if (index >= seats.length) return 'none';
+  return { ...item, position: seats[index].position, rotation: seats[index].rotation };
+}
+
+/** Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw). */
+function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined): CatalogProduct[] {
+  if (item.slot === 'sink') return candidates.filter((p) => (p.heightCm ?? 0) >= 60);
+  if (item.slot === 'mirror' && (room?.type === 'bathroom' || room?.type === 'toilet')) {
+    return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) <= 120 && (p.depthCm ?? 0) <= 12);
+  }
+  return candidates;
+}
+
+/** Forward and right unit vectors of a piece turned `rotation` (0 faces +Z). */
+function axes(rotation: number): { forward: Vec2; right: Vec2 } {
+  const forward = { x: Math.sin(rotation), z: Math.cos(rotation) };
+  return { forward, right: { x: forward.z, z: -forward.x } };
+}
+
+/** Whether a piece's back stands on a wall of the room (within `slack` metres), facing into it as the wall does. */
+function backOnWall(item: PlacedItem, room: PlanRoom, slack: number): boolean {
+  const { forward } = axes(item.rotation);
+  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
+  return roomEdges(room.polygon).some((edge) => {
+    const turn = edge.facing - item.rotation;
+    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) return false;
+    const dx = edge.b.x - edge.a.x;
+    const dz = edge.b.z - edge.a.z;
+    const t = ((back.x - edge.a.x) * dx + (back.z - edge.a.z) * dz) / (edge.length * edge.length);
+    if (t < -0.02 || t > 1.02) return false;
+    const distance = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
+    return Math.abs(distance) <= slack;
+  });
+}
+
+/**
+ * Where a product of `size` stands in a slot laid out for the archetype's size: a piece placed
+ * off another is re-measured from that piece as it was matched (a nightstand beside the real
+ * bed, its back on the bed's wall; the coffee table 42 cm off the real sofa); a piece with its
+ * back on a wall keeps it there (a deeper wardrobe does not poke into the wall, a shallower one
+ * does not stand off it); anything else stays centred where the slot was.
+ */
+export function settledPosition(item: PlacedItem, size: PlacedItem['size'], room: PlanRoom, settled: PlacedItem[]): Vec2 {
+  const rule: Archetype['placement'] | undefined = getArchetype(item.kind)?.placement;
+  if (rule?.type === 'relative' && (rule.beside != null || rule.gapM != null)) {
+    const anchors = settled.filter((p) => p.roomId === item.roomId && p.slot === rule.to);
+    const anchor = anchors.sort((a, b) => Math.hypot(a.position.x - item.position.x, a.position.z - item.position.z) - Math.hypot(b.position.x - item.position.x, b.position.z - item.position.z))[0];
+    if (anchor) {
+      const { forward, right } = axes(anchor.rotation);
+      const off = { x: item.position.x - anchor.position.x, z: item.position.z - anchor.position.z };
+      const across = off.x * right.x + off.z * right.z;
+      const ahead = rule.beside != null ? -anchor.size.depth / 2 + size.depth / 2 : anchor.size.depth / 2 + rule.gapM! + size.depth / 2;
+      const lateral = rule.beside != null ? Math.sign(across || 1) * (anchor.size.width / 2 + size.width / 2 + rule.beside) : across;
+      return { x: anchor.position.x + forward.x * ahead + right.x * lateral, z: anchor.position.z + forward.z * ahead + right.z * lateral };
+    }
+  }
+  // A corner piece turned its back to the nearer wall when it stood within 30 cm of it.
+  if (backOnWall(item, room, rule?.type === 'corner' ? 0.35 : 0.06)) {
+    const { forward } = axes(item.rotation);
+    const back = rule?.type === 'corner' ? backGap(item, room) : 0;
+    const shift = (size.depth - item.size.depth) / 2 - back;
+    return { x: item.position.x + forward.x * shift, z: item.position.z + forward.z * shift };
+  }
+  return item.position;
+}
+
+/** How far a piece's back stands off the wall behind it (0 when on it). */
+function backGap(item: PlacedItem, room: PlanRoom): number {
+  const { forward } = axes(item.rotation);
+  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
+  let best = Infinity;
+  for (const edge of roomEdges(room.polygon)) {
+    const turn = edge.facing - item.rotation;
+    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) continue;
+    const distance = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
+    if (distance >= -0.01 && distance < best) best = distance;
+  }
+  return Number.isFinite(best) ? Math.max(0, best) : 0;
+}
+
+/**
+ * A piece on a wall keeps its back on the wall at the product's depth (a print flat on it, a
+ * floor mirror on its stand standing out from it); null for anything else.
+ */
+function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: number): Vec2 | null {
+  const rule = getArchetype(item.kind)?.placement;
+  if (rule?.type !== 'wall-mounted' || rule.stretch || item.elevationM < 0.05) return null;
+  const { forward } = axes(item.rotation);
+  const shift = (size.depth - item.size.depth) / 2 + (elevationM === 0 ? 0.01 : 0);
+  return { x: item.position.x + forward.x * shift, z: item.position.z + forward.z * shift };
+}
+
+/**
+ * The height a matched piece stands or hangs at. Floor pieces stay on the floor — a basin too
+ * short to stand (countertop, wall-hung) is lifted to wash at, its top at 86 cm. A piece on a
+ * wall keeps its middle where the slot's was, and clear of anything standing below it by 12 cm
+ * (a print over the bed's headboard); a mirror as tall as a person and deep enough to stand
+ * (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it.
+ */
+export function settledElevation(item: PlacedItem, size: PlacedItem['size'], product: CatalogProduct, settled: PlacedItem[]): number {
+  if (item.slot === 'sink' && size.height < 0.45) return round2(0.86 - size.height);
+  if (item.elevationM < 0.05) return item.elevationM;
+  const rule = getArchetype(item.kind)?.placement;
+  if (rule?.type !== 'wall-mounted' || rule.stretch) return item.elevationM;
+  if (item.slot === 'mirror' && size.height >= 1.4) return (product.depthCm ?? 0) >= 12 ? 0 : 0.3;
+  let elevation = item.elevationM + item.size.height / 2 - size.height / 2;
+  const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
+  for (const below of settled) {
+    if (below.roomId !== item.roomId || below.elevationM > 0.05) continue;
+    if (!footprintsOverlap(box, footprintOf(below.position, below.size, below.rotation), 0)) continue;
+    elevation = Math.max(elevation, below.size.height + 0.12);
+  }
+  return round2(Math.max(0.05, elevation));
 }
 
 /** Every catalogue row that could fill this slot, best first. */

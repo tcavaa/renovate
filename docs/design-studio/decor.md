@@ -4,8 +4,9 @@ Wall treatments that are not a product with a model — slatted fields, stone sl
 mouldings, built-out niches, light lines and coves, upholstered or relief panels, brick or concrete
 cladding, murals, tiled fields — built in code and fitted to the walls, and the AI designer that
 places them (with the furniture and the finishes) after the style test. Read this before touching
-`lib/design/decor/`, `lib/design3d/decor.ts`, `lib/design/aiDesign.ts`, `aiProposal.ts`, the
-`/api/design/ai-generate` route, `DecorPanel`, or the decor materials.
+`lib/design/decor/`, `lib/design3d/decor.ts`, `lib/design/aiDesign.ts`, `aiReview.ts`,
+`aiProposal.ts`, the `/api/design/ai-generate` or `/api/design/ai-review` route, `DecorPanel`, or
+the decor materials.
 
 Related: [overview.md](overview.md) (step 4, `generate`) · [ai-layout-plan.md](ai-layout-plan.md)
 (the plan this realises in part) · [layout-and-matching.md](layout-and-matching.md) (the engine the
@@ -23,13 +24,16 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/design/decor/quantities.ts` | what a piece uses per slot in m², metres and pieces (`decorUses`), bought in the material's unit with the waste (`quantityIn`, `DECOR_WASTE`), per piece (`piecePurchases`, `pieceCost`) and folded per product across the flat (`decorPurchases`); `decorProductIds` for the save route |
 | `lib/design/decor/resolve.ts` | intents → pieces: `resolveDecor` / `resolveRoomDecor` (anchors, walls, stretches off doors and windows, heights, `sanitizeParams`, `resolveMaterials`), `wallBehind`, `decorMaterialFrom` |
 | `lib/design3d/decor.ts` | `buildDecor` / `buildDecorPiece`: every family in 3D from the same fit; its own material cache (`decorMaterial`, `releaseDecorMaterials`); LED glow cards |
-| `lib/design/aiProposal.ts` | the proposal's shape and how it becomes a flat: `proposalPicks`, `withProposalFinishes`, `proposalDecor`, `proposalNotes`, `MAX_AI_GENERATIONS` |
+| `lib/design/aiProposal.ts` | the proposal's shape and how it becomes a flat: `proposalPicks`, `withProposalFinishes`, `proposalDecor`, `proposalNotes`, `MAX_AI_GENERATIONS`; `withoutArtOverDecor` (no print over built decor); `applyReviewFixes` (the check's fixes, pure) |
+| `lib/design/aiReview.ts` | server only: the designer's check of the furnished flat — `reviewFindings` (what measuring each room finds wrong), `buildReviewBrief`, `REVIEW_SCHEMA`, `validateReview`, `reviewWithClaude` |
 | `lib/design/aiDesign.ts` | server only: `buildBrief` (the flat, the candidates, the decor materials and references), `SYSTEM_PROMPT`, `DESIGN_SCHEMA`, `designWithClaude`, `validateProposal`, `DESIGN_MODEL` |
-| `lib/design/aiDesignClient.ts` | the browser's side: `aiDesignerEnabled`, `requestAiDesign` (null on any failure) |
+| `lib/design/aiDesignClient.ts` | the browser's side: `aiDesignerEnabled`, `requestAiDesign`, `requestAiReview` (each null on any failure) |
 | `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`; `POST` → `{ proposal }`, or 503/429 with `fallback: 'engine'` |
+| `app/api/design/ai-review/route.ts` | `POST` the laid-out flat → `{ review }`, or 503 (the flat stays as laid out) |
 | `components/studio/DecorPanel.tsx` | the card of a selected piece |
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
 | `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation |
+| `tests/unit/design/placementSettle.test.ts` | the check's findings, its validation and its fixes applied; no print over slats |
 
 ## The data (`DecorPiece` in `lib/design/types.ts`)
 
@@ -177,7 +181,38 @@ real products from short lists; the engine checks):
    the picks taken where they fit their slot (`MatchOptions.picks`), the designer's floors and walls
    over the style's draw (`withProposalFinishes`, a finish somebody chose stays), and the decor
    intents resolved against where the engine put the bed, the sofa or the TV unit
-   (`proposalDecor`). `scene.generation` records the run.
+   (`proposalDecor`). A print or a mirror that would hang over built decor that covers its wall
+   (slats, a slab, panels, cladding, a mural, tiles, niches — not mouldings or light lines) is left
+   out (`withoutArtOverDecor`): the decor is the picture there. The other way round, such decor keeps
+   off what hangs on a wall for use — the mirror over a bathroom's or toilet's basin, the kitchen's
+   wall cabinets (`fixturesOnWall` in `resolve.ts`): a niche goes beside the mirror, or not at all.
+   `scene.generation` records the run.
+4. **The designer checks the flat it furnished** (`requestAiReview` → `POST /api/design/ai-review`,
+   `lib/design/aiReview.ts`): the style page sends the laid-out pieces (ids, kinds, product ids,
+   positions, sizes) and the decor; the route takes names and prices from the catalogue, not the
+   browser. The brief describes each room as built — its walls with doors and windows, every piece
+   with its product, real size and where it stands (back to which wall, how far along, hung how
+   high, or free-standing) — and what **measuring the room found wrong** (`reviewFindings`): pieces
+   in each other or through a wall, a piece standing off the wall it backs onto, one deeper than wide
+   where that kind never is (a model turned sideways or the wrong product), a piece hung into what
+   stands under it, a mirror not over the basin, a standing floor mirror in a bathroom, a nightstand
+   away from the bed's head, a passage too tight (`tightSpotsByItem`). Each piece is offered five
+   alternatives of its kind that fit the room, the style's own likelier and — when the piece is in
+   trouble — the ones no bigger than it six times likelier. One call (same model and settings as the
+   proposal, `REVIEW_SCHEMA`) answers per room a note and fixes: `replace` with one of that piece's
+   alternatives, or `remove`. `validateReview` keeps an item of that room, a replacement it was
+   offered — applied to every piece of its set (both nightstands) — a removal only of what the room
+   can do without (never the bed, the sofa, the desk, the dining table, the toilet, the basin or the
+   kitchen), at most six fixes a room. `designStore.applyReview` → `applyReviewFixes`: a replacement
+   goes where the old piece stood, its back on the same wall (`fitSwapped`), a hung one at the height
+   it should hang (`settledElevation`), only if it fits; the nightstands, coffee table or desk chair
+   of a replaced bed, sofa or desk move to the new one (`settledPosition`), one with no room beside it
+   goes. The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The
+   overlay has a step for it ("checking each room"), and the style step's flow guard holds while
+   the generation runs (`DesignFlowGuard` `hold`): laying the flat out marks it generated, which used
+   to send the page to the studio at once and leave the check to land on the studio later. No answer within `AI_REVIEW_WAIT_MS` (150 s) or
+   any failure: the flat opens as laid out. Rate rule `aiReview` (8 an hour); the route logs
+   `ai-review` with tokens, cost and the number of fixes.
 
 Every failure — no key, the cap, a timeout, an error, a refusal, an answer that does not validate
 — is a 503/429 with `fallback: 'engine'`, and the flat is generated by the engine alone, without
@@ -201,4 +236,8 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 - The model's furniture choices are product picks for the engine's slots (the plan's phase 1); it
   does not yet decide the room program or the walls the furniture stands against.
 - No evaluation set yet: the model and the prompt are not compared against the engine on fixed plans.
+- The check reads the flat as measurements, not as a picture: a model that faces the wrong way while
+  its size looks right (a washing machine turned to the wall) is invisible to it — the library's
+  facing was audited once instead ([../3d-assets.md](../3d-assets.md#facing)). It cannot move a piece
+  to another wall, only replace or remove it.
 - The decor 3D is checked in the studio by eye; the walk-through shows it best.

@@ -120,6 +120,51 @@ Letting any chair and table overlap freely, as the studio does for a person, let
 products stand over chairs the engine had seated clear — some chairs all but wholly under —
 and changed the table in 53 local rooms where the engine had tucked no chair.
 
+## Pieces measured from the real products (`settledPosition`, `settledElevation`)
+
+The engine lays a room out with the archetypes' sizes; the products that fill the slots have their
+own. The matcher re-measures every piece from the product it got, so the room still looks arranged:
+
+- **A piece with its back on a wall keeps it there** (`backOnWall`): a deeper wardrobe does not poke
+  into the wall, a shallower bed does not stand off it. It used to keep the slot's centre, so a
+  product shallower than the archetype stood away from the wall by the difference. A corner piece
+  (the shower) is taken back to the wall it turned its back to.
+- **Pieces placed off another are measured from both pieces' sizes** — the `relative` rule's
+  `beside`, `gapM` and `toWall`: a nightstand stands beside the bed's head, its back in line with the
+  bed's (on the wall), 4 cm off the bed's side (`beside`); the coffee table 42 cm of clear floor off
+  the sofa's front (`gapM`); the desk chair 18 cm under the desk (`gapM` −0.18); the TV unit against
+  the wall the sofa faces when that leaves 1.5–4.2 m of floor between them (`toWall`), else 3 m off
+  as before. The engine places them so with the archetypes' sizes (`relativeSpots`), the matcher
+  again with the products' (`settledPosition`, from the anchor as matched). The nightstand rule used
+  to be "5 cm behind the bed's centre, 1.06 m to the side": every nightstand stood by the middle of
+  the bed. A piece still to be matched that follows this one (the nightstands of a bed being matched)
+  is not in its way: they move to it once it is matched — a wider bed used to be refused because the
+  nightstands at the archetype's positions were in its way.
+- **A double bed takes the middle of the wall furthest from the door**, with room for a nightstand
+  each side (+14 for a spot with 50 cm free each side, a stronger pull to the middle). The "opposite
+  the door" preference used to score each spot's own distance from the door, so the far corner beat
+  the middle of the wall and left room for one nightstand.
+- **Pieces on a wall hang over their piece** (`wall-mounted` with `above`): the wall cabinets over
+  the run (`stretch`: as long as it), the mirror over the basin — or over the hallway's console — its
+  middle at 1.55 m, a print over the bed or the sofa, its middle at 1.45 m; each at least 15 cm over
+  the piece's top, its own width, centred on it. With none of those pieces, any clear wall as before.
+  **Nothing hangs into what stands below it** (`hangsIntoFloorPiece`): a mirror used to hang 45 cm
+  off the floor over the washing machine.
+- **The height of a hung piece comes from the product** (`settledElevation`): its middle where the
+  slot's was, clear of anything standing below by 12 cm; a mirror as tall as a person and deep
+  enough to stand (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it
+  (`hungPosition` keeps its back on the wall at its depth). A basin too short to stand (countertop,
+  wall-hung) is lifted, its top at 86 cm.
+- **Dining chairs sit round the table as matched** (`seatAtTable`): the n-th chair of the room takes
+  the n-th seat of `seatSlots` with the real table, and a chair the table has no seat for goes — six
+  chairs used to stand round a 0.8 m round table. A seat is 56 cm of table edge. Chairs still to be
+  seated are in neither the table's nor one another's way, and a re-seated chair counts as tucked in
+  (its seat 12 cm under the edge). A bigger table no longer gives way to the chairs round its slot.
+- **What a slot can hold** (`slotPool`, before the draw): a basin that stands on the floor (60 cm or
+  taller — a countertop basin needs a counter the flat has not got; the library also files taps and
+  mixer panels under the kind), and in a bathroom or toilet a mirror that hangs flat and is no taller
+  than 1.2 m. The swap list still offers the rest.
+
 ## Nothing stands through a wall
 
 Every spot a layout rule tries is judged by `fitsInRoom`, which is `boxInPolygon`
@@ -179,6 +224,9 @@ corner of a room, a chair tucked under its table — both get products, no table
 half the chair, a chair seated clear still in the table's way),
 `tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — and
 nothing of a layout standing through a wall, on project 219's corner),
+`tests/unit/design/placementSettle.test.ts` (nightstands beside the bed's head, laid out and with a
+wider real bed; a shallower wardrobe kept on its wall; the bathroom mirror over the basin at eye level
+and only standing basins; a floor mirror standing),
 `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
 parts), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
@@ -187,7 +235,7 @@ chair tucked under its table and its bed flush in a corner at −π/2, both let 
 flats with every piece inside its room, a bed in every bedroom, every sofa drawn over 400
 generations and the style's own most often, the best without an `rng`; drawn finishes in their
 category and wetness, kept by `withStyleFinishes` until the room is retyped). The sample flat
-(`lib/design/samplePlan`, every kind of room) run through `layoutPlan` is the manual check for the layout as a
+(`lib/design/samplePlan`, an ordinary 150 m² apartment) run through `layoutPlan` is the manual check for the layout as a
 whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps

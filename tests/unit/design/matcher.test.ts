@@ -196,16 +196,18 @@ describe('matchProducts with a chair the engine tucked under its table', () => {
     expect(match([table, chair(0.03)], [tableProduct(1, 90, 1200), chairProduct(3, 58)])[1].product?.productId).toBe(3);
   });
 
-  it('never stands a table product over more than half of that chair', () => {
-    // 1.5 m deep, the table would cover 33 cm of the 50 cm chair: the next table that fits takes the slot.
-    const [t] = match([table, chair(0.03)], [tableProduct(4, 150, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);
-    expect(t.product?.productId).toBe(1);
-  });
-
-  it('keeps a chair the engine left clear of its table in the table’s way, as before', () => {
-    // Seated 9 cm off the edge, as the engine seats a chair it did not tuck in: a 1.18 m deep
-    // table would reach 5 cm into it, more than two pieces may touch.
-    const [t] = match([table, chair(-0.09)], [tableProduct(5, 118, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);
-    expect(t.product?.productId).toBe(1);
+  it('seats the chairs round a bigger table as matched, never more than half under it', () => {
+    // A 1.18 m deep table where the slot was 0.9: the chairs follow it (`seatAtTable`) instead of
+    // turning it down — the chair stands at its place round the real table, its seat 12 cm under.
+    for (const tuck of [0.03, -0.09]) {
+      const [t, c] = match([table, chair(tuck)], [tableProduct(5, 118, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);
+      expect(t.product?.productId).toBe(5);
+      expect(c.product?.productId).toBe(2);
+      // However far under its side of the table the seat is: tucked in, by no more than half the chair.
+      const under = t.size.depth / 2 + c.size.depth / 2 - Math.abs(c.position.z - t.position.z);
+      expect(Math.abs(c.position.x - t.position.x)).toBeLessThan(t.size.width / 2);
+      expect(under).toBeGreaterThan(0);
+      expect(under).toBeLessThanOrEqual(c.size.depth / 2 + 1e-9);
+    }
   });
 });

@@ -22,7 +22,8 @@ import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import { proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
+import { applyReviewFixes, withoutArtOverDecor, proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
+import type { AiReview } from '@/lib/design/aiReview';
 import { decorMaterialFrom } from '@/lib/design/decor/resolve';
 import { slotTakes } from '@/lib/design/decor/families';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
@@ -373,6 +374,8 @@ export interface DesignActions {
    * fit; without one — no key, an error, a bad answer — the engine's own draw, as always.
    */
   generate: (catalog: CatalogProduct[], proposal?: AiProposal | null) => void;
+  /** The designer's check of the flat just generated (`lib/design/aiReview`): its replacements and removals, and a note per room. */
+  applyReview: (review: AiReview, catalog: CatalogProduct[]) => void;
   /** A decor slot's material (null takes an optional slot's material away); a colour where the material takes one. */
   setDecorMaterial: (id: string, slot: DecorSlot, product: CatalogProduct | null) => void;
   setDecorColor: (id: string, slot: DecorSlot, colorHex: string | null) => void;
@@ -1269,6 +1272,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // The designer's wall decor, measured against where the engine put the bed, the sofa,
             // the TV unit (`proposalDecor`). An engine generation has none.
             const decor = proposalDecor(laid, proposal, items, catalog);
+            items = withoutArtOverDecor(items, decor, laid);
             const aiCount = (generation?.aiCount ?? 0) + (proposal ? 1 : 0);
             const record: GenerationRecord = proposal
               ? { by: 'ai', model: proposal.model, at: new Date().toISOString(), notes: proposalNotes(proposal), aiCount }
@@ -1296,6 +1300,16 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             };
           });
         },
+
+        applyReview: (review, catalog) =>
+          set((s) => {
+            if (!s.plan || !s.generation) return {};
+            const items = placeableOnly(applyReviewFixes(s.items, review, s.plan, catalog));
+            // The room's note after the check says how it reads now; the designer's first note stays before it.
+            const notes = { ...(s.generation.notes ?? {}) };
+            for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
+            return { items, generation: { ...s.generation, notes, reviewed: review.fixes.length } };
+          }),
 
         clearDesign: () =>
           commit((s) => ({
