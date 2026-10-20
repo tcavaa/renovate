@@ -1032,6 +1032,9 @@ export const ru: Dictionary = {
       selfRoleNote: 'Нельзя изменить свою роль',
       sku: 'SKU',
       slug: 'Slug',
+      slugHintNew: 'Заполняется из названия латиницей, пока вы не измените его сами.',
+      slugHintEdit: 'Адрес товара (/catalog/…). При смене названия он не меняется.',
+      slugFromName: 'Из названия',
       nameKa: 'Название (грузинский)',
       nameEn: 'Name (English)',
       nameRu: 'Название (Русский)',
@@ -1931,6 +1934,8 @@ export const ru: Dictionary = {
     add: 'Добавить',
     close: 'Закрыть',
     notFound: 'Не найдено',
+    typeToSearch: 'Введите для поиска',
+    noMatches: 'Ничего не найдено',
   },
   footer: {
     refund: 'Политика возврата',

@@ -17,7 +17,7 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 |---|---|
 | `tailwind.config.ts` | tokens: `brand`, `accent`, `ink` (+ `ink-muted`, `ink-soft`, `ink-faint`), `bg-base`, `bg-surface`, `bg-deep`, `sand`, `slate-deep`, `line`, `success` / `warning` / `danger`; shadows `card`, `cardHover`, `glass`, `float`; the collapsed radius scale |
 | `app/globals.css` | shared utilities: `.glass`, `.glass-dark`, `.grain`, `.display`, `.eyebrow`, `.bracket-link`, `.btn-3d`, the scroll-driven `.reveal*` / `.seq*` / `.parallax`, `.studio-bar` container rules, `.site-shell:has([data-flow-workspace])`, `.scrollbar-none` |
-| `components/ui/*` | primitives (button with the `ink` variant, card, dialog, input, select, …), `scroll-row.tsx`, `money-row.tsx`, `stat-card.tsx`, `button-3d.tsx` |
+| `components/ui/*` | primitives (button with the `ink` variant, card, dialog, input, select, `combobox` — a select with a search, …), `scroll-row.tsx`, `money-row.tsx`, `stat-card.tsx`, `button-3d.tsx` |
 | `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`), `HingeDialog` |
 | `components/layout/*` | `Header` (`HEADER_HEIGHT_CLASS`), `Footer`, `AdminSidebar`, `LanguageSwitcher`, `UserMenu`, `NotFoundContent` |
 | `components/landing/*`, `components/motion/*` | the landing page; `CountUp`, `Marquee`, `RotatingBadge` |
@@ -84,6 +84,13 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   and sort on top, a row of filter buttons that turn ink-dark with their own × when set, their
   choices in a panel under them (`FilterBar`); a list's views are one segmented control
   (`SegmentedLinks`). Details in [partners-and-admin.md](partners-and-admin.md#admin-lists-filters-sort-and-paging-live-in-the-url).
+  A form's long select is a `Combobox` (`components/ui/combobox.tsx`): it looks like `Select`'s
+  trigger, opens a Radix popover with a search over the list (`lib/optionSearch.ts`), indents a
+  tree by `depth` and shows a match with its parents, and takes the arrows, PageUp/PageDown,
+  Enter, Escape and a letter typed on the closed box; options carry `keywords` (other names, a
+  key), a `hint` at the row's end and a `selectedLabel` for the closed box. Short lists stay
+  `Select`. Its strings are `common.typeToSearch` and `common.noMatches`
+  ([catalog.md](catalog.md#managing-the-catalogue) has the product form's use).
 - **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
 - **Corners are sharp outside the build mode.** The Tailwind radius scale is collapsed to

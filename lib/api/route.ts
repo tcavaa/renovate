@@ -40,7 +40,7 @@ export const API_ERRORS = {
   CATEGORY_TOO_DEEP: 'CATEGORY_TOO_DEEP',
   /** The parent chosen for a category does not exist. */
   UNKNOWN_PARENT: 'UNKNOWN_PARENT',
-  /** Another category or studio room already has this slug. */
+  /** Another category, studio room or product already has this slug. */
   SLUG_EXISTS: 'SLUG_EXISTS',
   /** A new order for a list that has changed since the page was loaded: reload and try again. */
   STALE_ORDER: 'STALE_ORDER',

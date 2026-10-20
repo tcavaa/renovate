@@ -25,6 +25,8 @@ at runtime yet; the last one was seen on the sample plan.
 - The calculator's summary lines have no product link (`slug: ''`) — [budget.md](budget.md#known-gaps).
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample
   plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
+- The admin is cut off on a phone: its sidebar keeps 240 px at every width —
+  [partners-and-admin.md](partners-and-admin.md#known-gaps).
 
 ## Before real customers
 

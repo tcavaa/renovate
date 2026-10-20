@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { ImageUploader } from "@/components/admin/ImageUploader";
 import {
   ModelUploader,
@@ -39,11 +40,13 @@ import type { StyleId, TrimProfile } from "@/lib/design/types";
 import type { Category, Product, Store } from "@/lib/db/schema";
 import {
   buildCategoryTree,
+  flattenTree,
   nearestSlug,
-  treeOptions,
+  pathOf,
   type CategoryTree,
 } from "@/lib/catalog/tree";
 import { rememberedListHref } from "@/lib/admin/listMemory";
+import { latinSlug } from "@/lib/slug";
 
 const UNIT_KEYS = [
   "m2",
@@ -98,9 +101,16 @@ function studioKind(
  * Read straight from the registry rather than hard-coded, so adding a furniture builder makes
  * it selectable here without anyone remembering to update a list.
  */
-const MODEL_KINDS = Object.values(ARCHETYPES)
-  .map((a) => ({ kind: a.kind, label: a.labelKa, size: a.size }))
-  .sort((a, b) => a.label.localeCompare(b.label, "ka"));
+const MODEL_KINDS = Object.values(ARCHETYPES).map((a) => ({
+  kind: a.kind,
+  labelKa: a.labelKa,
+  labelEn: a.labelEn,
+  labelRu: a.labelRu,
+  size: a.size,
+}));
+
+/** A 3D kind is found by its key as written and with spaces ("coffee table"). */
+const kindKeywords = (kind: string) => [kind, kind.replace(/_/g, " ")];
 
 function asStyleTags(value: unknown): StyleId[] {
   if (!Array.isArray(value)) return [];
@@ -118,6 +128,11 @@ interface Props {
   partner?: { storeId: number; backHref: string };
   /** Whether the delete button is offered (`canDeleteProduct`): admin, or a store for its own. */
   canDelete?: boolean;
+  /**
+   * The fittings', openings' and equipment's names in all three languages
+   * (`productKindNames`, read on the server), so the 3D-kind search finds them in any.
+   */
+  kindNames?: Record<string, string[]>;
 }
 
 export function ProductForm({
@@ -126,19 +141,74 @@ export function ProductForm({
   stores,
   partner,
   canDelete = false,
+  kindNames,
 }: Props) {
   const router = useRouter();
   const ka = useT();
   const locale = useLocale();
-  // The categories as the tree has them, each under its parent.
+  // The categories as the tree has them, each under its parent; found by any of their names or
+  // the slug, and shown chosen by their whole path.
   const tree = useMemo(() => buildCategoryTree(categories), [categories]);
-  const categoryOptions = useMemo(
-    () =>
-      treeOptions(tree, (c) =>
-        pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu),
-      ),
-    [tree, locale],
+  const categoryOptions = useMemo<ComboboxOption[]>(() => {
+    const nameOf = (c: Category) =>
+      pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu);
+    return flattenTree(tree).map(({ row, depth }) => ({
+      value: String(row.id),
+      label: nameOf(row),
+      depth: depth - 1,
+      keywords: [row.nameKa, row.nameEn, row.nameRu, row.slug],
+      selectedLabel: pathOf(tree, row.id).map(nameOf).join(" › "),
+    }));
+  }, [tree, locale]);
+  const storeOptions = useMemo<ComboboxOption[]>(
+    () => [
+      { value: "none", label: ka.admin.forms.storeNone },
+      ...stores.map((s) => ({
+        value: String(s.id),
+        label: s.nameKa,
+        keywords: [s.nameEn, s.nameRu, s.city],
+      })),
+    ],
+    [stores, ka],
   );
+  // Every kind the studio draws: its furniture (by the archetype's three names), then the
+  // fittings, the doors and windows and the equipment (by the dictionaries'), each with its key.
+  const kindOptions = useMemo<ComboboxOption[]>(() => {
+    const build = ka.build as Record<string, string>;
+    const named = (kind: string, icon: string, labelKey: string) => {
+      const label = `${icon} ${build[labelKey] ?? kind}`;
+      return {
+        value: kind,
+        label,
+        hint: kind,
+        selectedLabel: `${label} · ${kind}`,
+        keywords: [...kindKeywords(kind), ...(kindNames?.[kind] ?? [])],
+      };
+    };
+    const furniture = MODEL_KINDS.map((m) => {
+      const label = pickLocalizedName(locale, m.labelKa, m.labelEn, m.labelRu);
+      return {
+        value: m.kind,
+        label,
+        hint: m.kind,
+        selectedLabel: `${label} · ${m.kind}`,
+        keywords: [m.labelKa, m.labelEn, m.labelRu, ...kindKeywords(m.kind)],
+      };
+    }).sort((a, b) => a.label.localeCompare(b.label, locale));
+    return [
+      { value: "none", label: ka.admin.forms.model3dKindNone },
+      ...furniture,
+      ...FIXTURE_PRODUCT_KINDS.map((kind) =>
+        named(kind, "⚡", FIXTURE_KIND_LABEL[kind]),
+      ),
+      ...OPENING_PRODUCT_KINDS.map((kind) =>
+        named(kind, "🚪", OPENING_KIND_LABEL[kind]),
+      ),
+      ...Object.entries(EQUIPMENT_KIND_LABEL).map(([kind, labelKey]) =>
+        named(kind, "🔧", labelKey),
+      ),
+    ];
+  }, [ka, locale, kindNames]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const backHref = partner?.backHref ?? "/admin/products";
@@ -206,6 +276,64 @@ export function ProductForm({
     value: (typeof form)[K],
   ) => setForm((f) => ({ ...f, [key]: value }));
   const kind = studioKind(tree, form.categoryId);
+
+  // A new product's slug follows its name, in Latin letters, until the slug is typed by hand; an
+  // existing product's is never rewritten by its name (it is the product's address).
+  const [slugFollows, setSlugFollows] = useState(!product);
+  const [slugTyped, setSlugTyped] = useState(false);
+  const slugFromName = latinSlug(form.nameKa);
+  const changeName = (nameKa: string) =>
+    setForm((f) => ({
+      ...f,
+      nameKa,
+      ...(slugFollows ? { slug: latinSlug(nameKa) } : {}),
+    }));
+  // A slug typed by hand is tidied as the field is left ("Stol Oslo" → "stol-oslo"); a new
+  // product's emptied slug follows the name again.
+  const tidySlug = () => {
+    if (!form.slug.trim()) {
+      if (!product) {
+        setSlugFollows(true);
+        update("slug", slugFromName);
+      }
+      return;
+    }
+    const clean = latinSlug(form.slug);
+    if (slugTyped && clean && clean !== form.slug) update("slug", clean);
+  };
+  // A 3D kind chosen with no size typed yet brings the archetype's real-world size, so the
+  // fields are never left empty by accident — an item with no dimensions is laid out at a guess.
+  const chooseModelKind = (v: string) => {
+    if (v === "none") {
+      update("model3dKind", "");
+      return;
+    }
+    const chosen = MODEL_KINDS.find((m) => m.kind === v);
+    setForm((f) =>
+      chosen && !f.widthCm && !f.depthCm && !f.heightCm
+        ? {
+            ...f,
+            model3dKind: v,
+            widthCm: String(Math.round(chosen.size.width * 100)),
+            depthCm: String(Math.round(chosen.size.depth * 100)),
+            heightCm: String(Math.round(chosen.size.height * 100)),
+          }
+        : { ...f, model3dKind: v },
+    );
+  };
+  /*
+    A stored kind that is no longer in the registry would otherwise show as nothing chosen and
+    be lost on the next save. Keep it listed so it is visible and deliberate to change.
+  */
+  const kindChoices: ComboboxOption[] =
+    form.model3dKind &&
+    !kindOptions.some((o) => o.value === form.model3dKind)
+      ? [
+          kindOptions[0],
+          { value: form.model3dKind, label: `${form.model3dKind} (?)` },
+          ...kindOptions.slice(1),
+        ]
+      : kindOptions;
 
   /**
    * Dimensions read from the uploaded GLB. Automatically only into empty fields — an admin
@@ -394,11 +522,12 @@ export function ProductForm({
         <form onSubmit={submit} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <Label>{ka.admin.table.name}</Label>
+              <Label htmlFor="product-name">{ka.admin.table.name}</Label>
               <Input
+                id="product-name"
                 required
                 value={form.nameKa}
-                onChange={(e) => update("nameKa", e.target.value)}
+                onChange={(e) => changeName(e.target.value)}
               />
             </div>
             <fieldset className="space-y-3 rounded-md border border-line p-4 md:col-span-2">
@@ -442,12 +571,40 @@ export function ProductForm({
               </div>
             </fieldset>
             <div className="space-y-2">
-              <Label>{ka.admin.forms.slug}</Label>
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="product-slug">{ka.admin.forms.slug}</Label>
+                {slugFromName && form.slug !== slugFromName && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      update("slug", slugFromName);
+                      setSlugTyped(false);
+                      if (!product) setSlugFollows(true);
+                    }}
+                    className="bracket-link text-xs text-ink-soft hover:text-brand"
+                  >
+                    {ka.admin.forms.slugFromName}
+                  </button>
+                )}
+              </div>
               <Input
+                id="product-slug"
                 required
                 value={form.slug}
-                onChange={(e) => update("slug", e.target.value)}
+                onChange={(e) => {
+                  setSlugFollows(false);
+                  setSlugTyped(true);
+                  update("slug", e.target.value);
+                }}
+                onBlur={tidySlug}
+                autoCapitalize="none"
+                spellCheck={false}
               />
+              <p className="text-xs text-ink-muted">
+                {product
+                  ? ka.admin.forms.slugHintEdit
+                  : ka.admin.forms.slugHintNew}
+              </p>
             </div>
             <div className="space-y-2">
               <Label>{ka.admin.forms.sku}</Label>
@@ -457,9 +614,14 @@ export function ProductForm({
               />
             </div>
             <div className="space-y-2">
-              <Label>{ka.admin.table.category}</Label>
-              <Select
+              <Label htmlFor="product-category">
+                {ka.admin.table.category}
+              </Label>
+              <Combobox
+                id="product-category"
                 value={form.categoryId}
+                options={categoryOptions}
+                placeholder={ka.admin.forms.chooseCategory}
                 onValueChange={(v) => {
                   // A category that takes a 3D kind gives it to a product that has none yet.
                   const kind = categories.find(
@@ -471,49 +633,27 @@ export function ProductForm({
                     ...(kind && !f.model3dKind ? { model3dKind: kind } : {}),
                   }));
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={ka.admin.forms.chooseCategory} />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoryOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
             <div className="space-y-2">
-              <Label>{ka.admin.forms.store}</Label>
+              <Label htmlFor="product-store">{ka.admin.forms.store}</Label>
               {partner ? (
                 <Input
+                  id="product-store"
                   value={
                     stores.find((s) => s.id === partner.storeId)?.nameKa ?? ""
                   }
                   disabled
                 />
               ) : (
-                <Select
+                <Combobox
+                  id="product-store"
                   value={form.storeId || "none"}
+                  options={storeOptions}
                   onValueChange={(v) =>
                     update("storeId", v === "none" ? "" : v)
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">
-                      {ka.admin.forms.storeNone}
-                    </SelectItem>
-                    {stores.map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {s.nameKa}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               )}
             </div>
             <div className="space-y-2">
@@ -845,97 +985,15 @@ export function ProductForm({
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>{ka.admin.forms.model3dKind}</Label>
-                    <Select
+                    <Label htmlFor="product-kind">
+                      {ka.admin.forms.model3dKind}
+                    </Label>
+                    <Combobox
+                      id="product-kind"
                       value={form.model3dKind || "none"}
-                      onValueChange={(v) => {
-                        if (v === "none") {
-                          update("model3dKind", "");
-                          return;
-                        }
-                        update("model3dKind", v);
-                        // Prefill the archetype's real-world size so the field is never left empty
-                        // by accident — an item with no dimensions is laid out at a guess.
-                        const chosen = MODEL_KINDS.find((m) => m.kind === v);
-                        if (
-                          chosen &&
-                          !form.widthCm &&
-                          !form.depthCm &&
-                          !form.heightCm
-                        ) {
-                          setForm((f) => ({
-                            ...f,
-                            model3dKind: v,
-                            widthCm: String(
-                              Math.round(chosen.size.width * 100),
-                            ),
-                            depthCm: String(
-                              Math.round(chosen.size.depth * 100),
-                            ),
-                            heightCm: String(
-                              Math.round(chosen.size.height * 100),
-                            ),
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">
-                          {ka.admin.forms.model3dKindNone}
-                        </SelectItem>
-                        {/*
-                          A stored kind that is no longer in the registry would otherwise render as
-                          an empty select and be lost on the next save. Keep it listed so it is
-                          visible and deliberate to change.
-                        */}
-                        {form.model3dKind &&
-                          !MODEL_KINDS.some(
-                            (m) => m.kind === form.model3dKind,
-                          ) &&
-                          !FIXTURE_PRODUCT_KINDS.includes(form.model3dKind) &&
-                          !(
-                            OPENING_PRODUCT_KINDS as readonly string[]
-                          ).includes(form.model3dKind) &&
-                          !(form.model3dKind in EQUIPMENT_KIND_LABEL) && (
-                            <SelectItem value={form.model3dKind}>
-                              {form.model3dKind} (?)
-                            </SelectItem>
-                          )}
-                        {MODEL_KINDS.map((m) => (
-                          <SelectItem key={m.kind} value={m.kind}>
-                            {m.label} · {m.kind}
-                          </SelectItem>
-                        ))}
-                        {FIXTURE_PRODUCT_KINDS.map((kind) => (
-                          <SelectItem key={kind} value={kind}>
-                            ⚡{" "}
-                            {(ka.build as Record<string, string>)[
-                              FIXTURE_KIND_LABEL[kind]
-                            ] ?? kind}{" "}
-                            · {kind}
-                          </SelectItem>
-                        ))}
-                        {OPENING_PRODUCT_KINDS.map((kind) => (
-                          <SelectItem key={kind} value={kind}>
-                            🚪{" "}
-                            {(ka.build as Record<string, string>)[
-                              OPENING_KIND_LABEL[kind]
-                            ] ?? kind}{" "}
-                            · {kind}
-                          </SelectItem>
-                        ))}
-                        {Object.entries(EQUIPMENT_KIND_LABEL).map(([kind, label]) => (
-                          <SelectItem key={kind} value={kind}>
-                            🔧{" "}
-                            {(ka.build as Record<string, string>)[label] ?? kind}{" "}
-                            · {kind}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      options={kindChoices}
+                      onValueChange={chooseModelKind}
+                    />
                   </div>
 
                   {colorField}

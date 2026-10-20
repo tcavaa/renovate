@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { categories, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';
 import { getT } from '@/lib/i18n/server';
+import { productKindNames } from '@/lib/i18n/kindNames';
 import { loadPartnerContext } from '@/lib/partner/context';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,7 @@ export default async function PartnerNewProductPage() {
         <p className="eyebrow">{ctx.name}</p>
         <h1 className="mt-2 font-serif text-3xl font-bold">{t.partner.addProduct}</h1>
       </div>
-      <ProductForm categories={cats} stores={storeRows} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} />
+      <ProductForm categories={cats} stores={storeRows} kindNames={productKindNames()} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} />
     </div>
   );
 }

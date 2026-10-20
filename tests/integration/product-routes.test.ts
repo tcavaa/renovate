@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * What these prove: a hidden product — inactive, of a store not approved yet, or a person's own
  * furniture — answers 404 to anybody not entitled to it, and is read by its owner, by staff
  * and by its own store; a catalogue agent may change any product while a store may change only
- * its own; deleting is admin's (any) and a store's (its own), never the catalogue agent's.
+ * its own; deleting is admin's (any) and a store's (its own), never the catalogue agent's; a
+ * slug another product has is refused.
  */
 
 type Row = Record<string, unknown>;
@@ -16,11 +17,14 @@ const state = vi.hoisted(() => ({
   storeActive: null as boolean | null,
   updates: [] as Row[],
   deletes: 0,
+  /** The id of another product that has the slug being saved; null when it is free. */
+  slugTakenBy: null as number | null,
 }));
 
 vi.mock('@/lib/db', () => {
-  /** What a select resolves to: the joined read (`product` + `storeActive`) or `editable`'s. */
+  /** What a select resolves to: the joined read (`product` + `storeActive`), the slug check, or `editable`'s. */
   const result = (fields: Row | undefined) => {
+    if (fields && Object.keys(fields).length === 1 && 'id' in fields) return state.slugTakenBy != null ? [{ id: state.slugTakenBy }] : [];
     if (!state.product) return [];
     if (fields && 'product' in fields) return [{ product: state.product, storeActive: state.storeActive }];
     return [{ id: state.product.id, storeId: state.product.storeId }];
@@ -73,6 +77,7 @@ beforeEach(() => {
   storeProduct();
   state.updates.length = 0;
   state.deletes = 0;
+  state.slugTakenBy = null;
   authMock.mockReset();
   authMock.mockResolvedValue(null);
 });
@@ -162,6 +167,18 @@ describe('PUT and DELETE /api/products/[id]', () => {
     expect((await remove()).status).toBe(403);
     expect(state.updates).toHaveLength(1);
     expect(state.deletes).toBe(0);
+  });
+
+  it('refuses a slug another product has, and saves one that is free', async () => {
+    admin();
+    state.slugTakenBy = 44;
+    const taken = await (await load()).PUT(put({ slug: 'oak-floor-2' }), ctx);
+    expect(taken.status).toBe(409);
+    expect((await taken.json()).error).toBe('SLUG_EXISTS');
+    expect(state.updates).toHaveLength(0);
+    state.slugTakenBy = null;
+    expect((await (await load()).PUT(put({ slug: 'oak-floor-2' }), ctx)).status).toBe(200);
+    expect(state.updates[0]).toMatchObject({ slug: 'oak-floor-2' });
   });
 
   it('saves a finish\'s and a moulding\'s studio settings in specs, and refuses what the studio cannot read', async () => {

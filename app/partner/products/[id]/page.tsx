@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { categories, products, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';
 import { getT } from '@/lib/i18n/server';
+import { productKindNames } from '@/lib/i18n/kindNames';
 import { loadPartnerContext } from '@/lib/partner/context';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,7 @@ export default async function PartnerEditProductPage(props: { params: Promise<{ 
         <p className="eyebrow">{ctx.name}</p>
         <h1 className="mt-2 font-serif text-3xl font-bold">{t.partner.editProduct}</h1>
       </div>
-      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} canDelete />
+      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} kindNames={productKindNames()} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} canDelete />
     </div>
   );
 }

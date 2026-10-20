@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
@@ -66,6 +66,11 @@ export const PUT = handle('PUT /api/products/[id]', 'Failed to update product', 
   if (!parsed.success) return fail(parsed.error.message, 400);
 
   const data = parsed.data;
+  // A slug is the product's address: one another product has is refused, not renumbered.
+  if (data.slug) {
+    const clash = await db.select({ id: products.id }).from(products).where(and(eq(products.slug, data.slug), ne(products.id, id))).limit(1);
+    if (clash.length > 0) return fail(API_ERRORS.SLUG_EXISTS, 409);
+  }
   // A store cannot move a product to another store or feature it.
   const own = editor.session.user.role === 'store' ? { storeId: undefined, isFeatured: undefined, sortOrder: undefined } : {};
   await db

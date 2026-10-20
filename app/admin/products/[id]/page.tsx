@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { products, categories, stores } from '@/lib/db/schema';
 import { ProductForm } from '@/components/admin/ProductForm';
 import { getT } from '@/lib/i18n/server';
+import { productKindNames } from '@/lib/i18n/kindNames';
 import { requireAdminPage } from '@/lib/admin/guard';
 import { canDeleteIn } from '@/lib/auth/roles';
 import { sectionCrumb } from '@/lib/admin/crumbs';
@@ -32,7 +33,7 @@ export default async function EditProductPage(
   return (
     <div className="space-y-6">
       <AdminPageHeader crumbs={[sectionCrumb(ka, 'products'), { label: productRow[0].nameKa }]} eyebrow={`${ka.admin.actions.edit} · #${productRow[0].id}${productRow[0].sku ? ` · ${productRow[0].sku}` : ''}`} title={productRow[0].nameKa} />
-      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} canDelete={canDeleteIn(session.user.role, 'products')} />
+      <ProductForm product={productRow[0]} categories={cats} stores={storeRows} kindNames={productKindNames()} canDelete={canDeleteIn(session.user.role, 'products')} />
     </div>
   );
 }

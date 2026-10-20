@@ -98,7 +98,10 @@ are where they surface.
 **What partners may edit.** `requireCatalogEditor()` in `lib/api/route.ts` admits admin,
 `agent_catalog` or a linked `store` account to the product routes; a store may only write its own products
 (`storeId` forced, `isFeatured`/`sortOrder` ignored), through the same `ProductForm` with a
-`partner` prop (`/partner/products/new`, `/partner/products/[id]`). **A store's product page**
+`partner` prop (`/partner/products/new`, `/partner/products/[id]`) — the same searchable
+category and 3D-kind selects and the slug written from the name
+([catalog.md](catalog.md#managing-the-catalogue)); the store is fixed there, and a slug another
+store's product has is numbered on create rather than refused. **A store's product page**
 (`/partner/products`) counts its shelf at the top — all, shown, hidden, without a photo,
 without a 3D model, each a link to that view — then search (name, SKU, brand), filters
 (category, visibility, 3D, photo), sorting (newest, best-selling, by revenue, name, price) and
@@ -240,6 +243,9 @@ and `e2e/public.spec.ts` the workers-directory redirect. The partner analytics
   them from finished orders yet, and a team has no portfolio of its own (its workers do).
 - Brigades cannot register themselves (logins come from `pnpm db:seed:teams` or admin's
   new-account page), and a brigade cannot change its own crew — admin does, in `TeamForm`.
+- The admin is not laid out for a phone: its sidebar (`AdminSidebar`, `w-60`) keeps 240 px at
+  every width, so at 375 px the page beside it is cut off on the right (seen on the product
+  form, 21 Oct 2026).
 - Admin previewing `/partner/products/new` or `/partner/products/[id]` gets an empty page; only
   `/partner/profile` sends admin to the admin form.
 - Admin previewing the portal (`?team=` and the others) sees the generic sidebar: a layout

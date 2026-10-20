@@ -1034,6 +1034,9 @@ export const en: Dictionary = {
       selfRoleNote: "You can't change your own role",
       sku: 'SKU',
       slug: 'Slug',
+      slugHintNew: 'Filled in from the name in Latin letters until you edit it.',
+      slugHintEdit: "The product's address (/catalog/…). Changing the name leaves it as it is.",
+      slugFromName: 'From the name',
       nameKa: 'Name (Georgian)',
       nameEn: 'Name (English)',
       nameRu: 'Name (Russian)',
@@ -1933,6 +1936,8 @@ export const en: Dictionary = {
     add: 'Add',
     close: 'Close',
     notFound: 'Not found',
+    typeToSearch: 'Type to search',
+    noMatches: 'Nothing matches',
   },
   footer: {
     refund: 'Refund policy',

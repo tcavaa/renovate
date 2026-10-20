@@ -32,6 +32,8 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `lib/uploads/textureColors.ts`, `lib/uploads/textureOptimize.ts`, `lib/uploads/imageOptimize.ts`, `app/api/upload/route.ts` | an image upload (sent to storage by the browser, claimed by the route — [uploads.md](uploads.md)), stored as WebP — a photo within 1600 px at quality 85, a texture (`folder: textures`) within 2048 px, which comes back with the colours read off it (`colorsOfImage`) ([3d-assets.md](3d-assets.md#photos-are-webp)) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
 | `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
+| `components/ui/combobox.tsx`, `lib/optionSearch.ts`, `lib/i18n/kindNames.ts` | the form's searchable selects (category, store, 3D kind): the combobox, its pure search (`searchOptions`), and the fittings', openings' and equipment's names in all three languages, read on the server for the kind search |
+| `lib/slug.ts` | `latinSlug` (a Latin slug from a Georgian or Russian name), `freeSlug` (the first free `-2`, `-3`, …), `likePrefix` |
 | `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload (straight to storage, then claimed — [uploads.md](uploads.md)), inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |
 | `app/api/design/models/**`, `components/studio/OwnModelDialog.tsx`, `components/profile/MyModels.tsx` | a person's own furniture |
 | `app/(main)/catalog/page.tsx`, `[slug]/page.tsx`, `components/catalog/*` | the public catalogue (sidebar, filters, grid) and the product page (`ProductModelDrawer`) |
@@ -78,6 +80,39 @@ the studio's shelf reads it through the rooms admin makes. All of it is in
 [categories.md](categories.md). The product form picks a category from the tree (a category
 that takes a 3D kind gives it to a product that has none), and the admin's and a store's
 product lists filter by one, subtree included.
+
+**The product form's selects search.** Category, store and 3D kind are one combobox
+(`components/ui/combobox.tsx`, on Radix's popover): the list opens under the box with a search
+focused, and what is typed filters it (`searchOptions` in `lib/optionSearch.ts`, pure). An
+option is found by its label and its other words anywhere in them — a category by its three
+names and its slug, a store by its three names and city, a 3D kind by its Georgian, English and
+Russian names and its key (`coffee_table`, or `coffee table`) — and by its label written in
+Latin letters from the start of a word ("magida" finds მაგიდა; "tv" does not find ჩამრთველი,
+chamrtveli); every word typed has to be found. The furniture kinds carry their three names in
+`ARCHETYPES`; the fittings', doors' and windows' and equipment's come from all three
+dictionaries, which only the server has (`productKindNames()` in `lib/i18n/kindNames.ts`, passed
+by the four product pages as `kindNames`). The category list keeps the tree, each level
+indented under its parent, and a match is shown with its parents (muted, still choosable), so
+it is clear where it sits; the closed box shows a chosen category's whole path ("ავეჯი ›
+მაგიდები › ჟურნალის მაგიდები") and a chosen kind as "label · key". Keys: ArrowDown or a letter
+typed on the closed box opens it (the letter starts the search), the arrows and PageUp/PageDown
+move, Enter chooses, Escape closes, Tab closes back onto the box; on a phone the rows are
+taller and the search is 16 px. The unit and the moulding profile stay plain selects (seven and
+six choices).
+
+**The slug follows the name.** A new product's slug is written from its Georgian name as it is
+typed (`latinSlug`: the national romanization — ჟ zh, ღ gh, ყ q, შ sh, ჩ/ჭ ch, ც/წ ts, ძ dz,
+ხ kh — Russian likewise, accents dropped, lower case, hyphens, at most 100 characters) until the
+slug field is typed in; a slug typed by hand is tidied the same way when the field is left
+("My Slug" → `my-slug`), an emptied one follows the name again, and "( from the name )" beside
+the label writes it from the name once more. An existing product's slug is never rewritten by
+its name (it is the product's address, `/catalog/<slug>`); the button is the deliberate way.
+On saving, `POST /api/products` gives a slug another product has the first free number after
+it (`stoli` → `stoli-2`, `freeSlug` over the slugs `LIKE 'stoli%'`) — two products may share a
+name and a store cannot see other stores' slugs — and `PUT /api/products/[id]` refuses one
+with 409 `SLUG_EXISTS` ("this slug is already taken"), so an address is never renumbered
+behind the editor's back. Two creates racing for one slug can still meet the unique index (a
+500); nothing guards that.
 
 The product form (the store is among its general fields) carries a **3D design settings**
 section: style tags, `model3dKind`, real dimensions in cm, and colour. Choosing an archetype
@@ -268,7 +303,10 @@ texture's colours, with sharp),
 `tests/integration/catalog-delete-routes.test.ts` (deleting a category, a store and products in
 bulk: admin's, a store's own products, never the catalogue agent's),
 `tests/unit/admin/categoryIcons.test.ts` (icon names, search, drawings), the category tree's
-tests ([categories.md](categories.md#tests)),
+tests ([categories.md](categories.md#tests)), `tests/unit/catalog/slug.test.ts` (Georgian and
+Russian to a Latin slug, the free number, the `LIKE` prefix), `tests/unit/admin/optionSearch.test.ts`
+(the combobox's search: the three names, the key, Latin from a word's start, a tree's parents;
+`product-routes.test.ts` above also refuses a taken slug on edit),
 `tests/unit/api/sniff.test.ts` (image and GLB sniffing, Basis refusal),
 `tests/unit/api/glbOptimize.test.ts` (an uploaded GLB optimized: meshopt, WebP at each map's
 size, the triangle cap, a file already optimized or unreadable kept as it came),
@@ -289,6 +327,6 @@ routes (`/api/design/models`), and the product page itself is covered only throu
   archive drop is still an entry in `SOURCES` per archive and `pnpm models:convert`.
 - Partner stores and their prices in the seed are **fictional** placeholders for the Georgian
   market. Replacing them with signed partners is a data change, not a code change.
-- The product form offers no `radiator` kind, so a radiator product's kind shows as unknown
-  (`?`) in the select.
+- The product form's comboboxes work at phone width, but the admin around them does not
+  ([partners-and-admin.md](partners-and-admin.md#known-gaps)).
 

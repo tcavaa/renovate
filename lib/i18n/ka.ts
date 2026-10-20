@@ -1035,6 +1035,9 @@ export const ka = {
       selfRoleNote: 'საკუთარი როლის შეცვლა შეუძლებელია',
       sku: 'SKU',
       slug: 'Slug',
+      slugHintNew: 'ივსება სახელიდან ლათინური ასოებით, სანამ ხელით არ შეცვლი.',
+      slugHintEdit: 'პროდუქტის მისამართი (/catalog/…). სახელის შეცვლა მას არ ცვლის.',
+      slugFromName: 'სახელიდან',
       nameKa: 'სახელი (ქართული)',
       nameEn: 'Name (English)',
       nameRu: 'Название (Русский)',
@@ -1936,6 +1939,8 @@ export const ka = {
     add: 'დამატება',
     close: 'დახურვა',
     notFound: 'არ მოიძებნა',
+    typeToSearch: 'ჩაწერე საძიებლად',
+    noMatches: 'ვერაფერი მოიძებნა',
   },
   footer: {
     refund: 'თანხის დაბრუნება',

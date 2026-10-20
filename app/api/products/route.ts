@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, like, sql } from 'drizzle-orm';
 import { desc, asc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { products, stores } from '@/lib/db/schema';
@@ -7,6 +7,7 @@ import { fail, handle, ok, requireCatalogEditor } from '@/lib/api/route';
 import { invalidateDesignCatalog } from '@/lib/api/designCatalog';
 import { publicProductCondition } from '@/lib/api/productAccess';
 import { loadCategoryTree, subtreeOfSlug } from '@/lib/catalog/queries';
+import { freeSlug, likePrefix } from '@/lib/slug';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,10 +64,16 @@ export const POST = handle('POST /api/products', 'Failed to create product', asy
 
   // A store writes into its own shelf and cannot promote itself to "featured".
   const own = editor.session.user.role === 'store' ? { storeId: editor.session.user.storeId, isFeatured: false, sortOrder: 0 } : {};
+  // A slug another product has gets the first free number after it ("stoli" → "stoli-2"): the
+  // form fills it in from the name, two products may share a name, and a store cannot see the
+  // other stores' slugs. The edit page shows the slug it got.
+  const taken = await db.select({ slug: products.slug }).from(products).where(like(products.slug, likePrefix(parsed.data.slug)));
+  const slug = freeSlug(parsed.data.slug, taken.map((row) => row.slug));
 
   const inserted = await db.insert(products).values({
     ...parsed.data,
     ...own,
+    slug,
     pricePerUnit: String(parsed.data.pricePerUnit),
     coveragePerUnit: parsed.data.coveragePerUnit != null ? String(parsed.data.coveragePerUnit) : null,
     imageUrl: parsed.data.imageUrl || null,
@@ -76,5 +83,5 @@ export const POST = handle('POST /api/products', 'Failed to create product', asy
   }).returning({ id: products.id });
   // The studio's cached catalogue must not outlive this write.
   invalidateDesignCatalog();
-  return ok({ id: inserted[0].id });
+  return ok({ id: inserted[0].id, slug });
 });
