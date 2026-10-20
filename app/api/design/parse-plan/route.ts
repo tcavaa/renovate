@@ -5,6 +5,7 @@ import { MissingApiKeyError, buildPlanFromReading, readPlanWithClaudeDetailed } 
 import { prepareForVision, type VisionInput } from '@/lib/design/planVision';
 import { parsePlanRequestSchema } from '@/lib/validations/plan.schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
+import { requirePlanFeature } from '@/lib/plans/server';
 import { env } from '@/lib/env';
 import { log } from '@/lib/log';
 import { storage } from '@/lib/storage';
@@ -18,10 +19,10 @@ export const maxDuration = 300;
 /**
  * Reads an uploaded floor plan with Claude.
  *
- * Open to visitors, like the upload endpoint it follows — a guest planning their flat has not
- * signed in yet. The cost guards are the per-IP rate limit and that it only ever reads a file
- * this app already stored (or the bundled sample), so it cannot be pointed at arbitrary
- * paths or used as a general image-analysis proxy.
+ * Premium's and Professional's: reading an uploaded plan is a paid feature (docs/subscriptions.md
+ * — `PLAN_REQUIRED` otherwise; Free draws its plan). The other cost guards are the per-IP rate
+ * limit and that it only ever reads a file this app already stored (or the bundled sample), so
+ * it cannot be pointed at arbitrary paths or used as a general image-analysis proxy.
  *
  * When no API key is configured this returns 503 with `fallback: 'cv'`, and the client parses
  * the plan locally instead. That is a deliberate degradation rather than an error: the
@@ -31,6 +32,8 @@ export async function POST(req: Request) {
   try {
     const limited = await rateLimited(req, RATE_RULES.parsePlan);
     if (limited) return limited;
+    const allowed = await requirePlanFeature('planUpload');
+    if (allowed.response) return allowed.response;
 
     const parsed = parsePlanRequestSchema.safeParse(await req.json());
     if (!parsed.success) {

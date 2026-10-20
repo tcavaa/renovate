@@ -41,6 +41,7 @@ export function Header() {
     { href: '/calculator', label: t.nav.calculator },
     { href: '/catalog', label: t.nav.catalog },
     { href: '/teams', label: t.nav.teams },
+    { href: '/pricing', label: t.plans.navPricing },
     ...(WORKERS_DIRECTORY ? [{ href: '/workers', label: t.nav.workers }] : []),
   ];
 

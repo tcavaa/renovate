@@ -52,7 +52,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
    the board's `setPlan`.
 3. `plan/` — `PlanWorkspace` on the calculator's own board store; `useCalculatorPlan` →
    `reconcileCalculatorPlan` → `setRooms` after every edit; the technical setup (below);
-   "გამოთვლის დაწყება" → `HingeDialog` (the warning, the calculation's fee) → `setCalculated`.
+   "გამოთვლის დაწყება" → `HingeDialog` (the warning) → `setCalculated`.
 4. `materials/` — `useRateBook()` → `calculationEstimate` (the works of the sheet: the board,
    its points and fittings, the person's `choices` — `WorkChoicesPicker` → `setChoices`).
 5. `catalog/` — a room's floor through `setFloorProduct` / `setFloorShare`, its walls through
@@ -135,14 +135,11 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   fitting: place them all by the standards (`placeByStandards(catalog)`: the three above and
   every door and window a product, one step of the history, then on), or carry on without — the
   points are then estimated from the room types (`ROOM_POINTS`), as below. **Then, every time,
-  the warning and the fee** (`HingeDialog`, [project-flow.md §12](project-flow.md#12-locks-and-why-there-is-no-start-over)):
-  from here the plan and the home's condition are settled and steps 1–2 shut; the calculation's
-  fee is its rooms' floor area × `calculatorFeePerM2` (`feeAreaM2`), the calculation saved first
-  (a draft — the rooms and their area reach the row while it is still pending) so the server
-  charges what is on screen, paid by card through Flitt (`POST /api/payments/flitt`,
-  [payments.md](payments.md)); a calculation already paid
-  goes straight on. The summary shows the fee as paid, under its total (`SummaryCard`'s `fee`,
-  `FeePaidNote`), not in it.
+  the warning** (`HingeDialog`, [project-flow.md §12](project-flow.md#12-locks-and-why-there-is-no-start-over)):
+  from here the plan and the home's condition are settled and steps 1–2 shut; "continue" saves
+  the calculation (a draft) and calculates. Nothing is paid here — the person's plan decides
+  what they may do ([subscriptions.md](subscriptions.md)); a calculation that paid the old per-m²
+  fee still shows it under its total (`SummaryCard`'s `fee`, `FeePaidNote`).
 - **Typed rooms.** A room typed by size (`RoomsPanel`) becomes four walls at the first free
   spot (`findFreeSpot`, `lib/design/freeSpot.ts`). Sizes are exact to the centimetre; a
   dragged room snaps wall to wall exactly as on the design's board (`snapRoomMove`,

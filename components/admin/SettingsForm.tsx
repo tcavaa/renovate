@@ -10,21 +10,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
-import { commissionFor, platformFee, withBankFee, type PlatformSettings } from '@/lib/finance/money';
+import { commissionFor, withBankFee, type PlatformSettings } from '@/lib/finance/money';
 import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
 
 /**
- * The platform's own prices — the fees, the commissions, what adding an own item costs and the
- * bank's commission every card payment shows — the numbers the business model hangs on, so the
- * form shows what they mean on a real flat before you save.
+ * The platform's own prices — the plans' (docs/subscriptions.md), the commissions, what adding
+ * an own item and a render cost, and the bank's commission every card payment shows — the
+ * numbers the business model hangs on, so the form shows what they mean before you save.
  */
 export function SettingsForm({ initial, stores }: { initial: PlatformSettings & { materialsStoreId: number | null; updatedAt: string | null }; stores: Array<{ id: number; name: string }> }) {
   const t = useT();
   const router = useRouter();
   const s = t.admin.settings;
   const [form, setForm] = useState({
-    calculatorFeePerM2: String(initial.calculatorFeePerM2),
-    designFeePerM2: String(initial.designFeePerM2),
+    premiumMonthPrice: String(initial.premiumMonthPrice),
+    premiumYearPrice: String(initial.premiumYearPrice),
+    professionalMonthPrice: String(initial.professionalMonthPrice),
+    professionalYearPrice: String(initial.professionalYearPrice),
+    renderPrice: String(initial.renderPrice),
     storeCommissionPct: String(initial.storeCommissionPct),
     workerCommissionPct: String(initial.workerCommissionPct),
     ownItemPrice: String(initial.ownItemPrice),
@@ -46,8 +49,11 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          calculatorFeePerM2: num(form.calculatorFeePerM2),
-          designFeePerM2: num(form.designFeePerM2),
+          premiumMonthPrice: num(form.premiumMonthPrice),
+          premiumYearPrice: num(form.premiumYearPrice),
+          professionalMonthPrice: num(form.professionalMonthPrice),
+          professionalYearPrice: num(form.professionalYearPrice),
+          renderPrice: num(form.renderPrice),
           storeCommissionPct: num(form.storeCommissionPct),
           workerCommissionPct: num(form.workerCommissionPct),
           ownItemPrice: num(form.ownItemPrice),
@@ -69,39 +75,45 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
     }
   };
 
-  const example = fill(s.example, {
-    calc: formatGEL(platformFee(75, num(form.calculatorFeePerM2))),
-    design: formatGEL(platformFee(75, num(form.designFeePerM2))),
-    store: formatGEL(commissionFor(10000, num(form.storeCommissionPct))),
-  });
+  const example = fill(s.commissionExample, { store: formatGEL(commissionFor(10000, num(form.storeCommissionPct))) });
 
-  // The design fee of the same 75 m² flat, as the person pays it by card.
-  const designCharge = withBankFee(platformFee(75, num(form.designFeePerM2)), num(form.bankFeePct));
+  // A month of Professional, as the person pays it by card.
+  const planCharge = withBankFee(num(form.professionalMonthPrice), num(form.bankFeePct));
   const ownCharge = withBankFee(num(form.ownItemPrice), num(form.bankFeePct));
+  const renderCharge = withBankFee(num(form.renderPrice), num(form.bankFeePct));
   const paymentsExample = fill(s.paymentsExample, {
-    fee: formatGEL(designCharge.amount, true),
-    bank: formatGEL(designCharge.bankFee, true),
-    total: formatGEL(designCharge.total, true),
+    fee: formatGEL(planCharge.amount, true),
+    bank: formatGEL(planCharge.bankFee, true),
+    total: formatGEL(planCharge.total, true),
     own: ownCharge.amount > 0 ? formatGEL(ownCharge.total, true) : s.ownItemFree,
+    render: renderCharge.amount > 0 ? formatGEL(renderCharge.total, true) : s.ownItemFree,
   });
+  const yearSaving = (month: string, year: string) => (num(month) > 0 ? Math.round((1 - num(year) / (num(month) * 12)) * 100) : 0);
+  const planField = (id: keyof typeof form, label: string) => (
+    <div className="space-y-2">
+      <Label htmlFor={`plan-${id}`}>{label}</Label>
+      <Input id={`plan-${id}`} type="number" step="0.5" min={1} value={form[id]} onChange={(e) => update(id, e.target.value)} />
+    </div>
+  );
 
   return (
     <form onSubmit={submit} className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="font-serif">{s.fees}</CardTitle>
-            <p className="text-sm text-ink-muted">{s.feesHint}</p>
+            <CardTitle className="font-serif">{s.plansTitle}</CardTitle>
+            <p className="text-sm text-ink-muted">{s.plansHint}</p>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{s.calculatorFee}</Label>
-              <Input type="number" step="0.1" min={0} value={form.calculatorFeePerM2} onChange={(e) => update('calculatorFeePerM2', e.target.value)} />
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {planField('premiumMonthPrice', s.premiumMonth)}
+              {planField('premiumYearPrice', s.premiumYear)}
+              {planField('professionalMonthPrice', s.professionalMonth)}
+              {planField('professionalYearPrice', s.professionalYear)}
             </div>
-            <div className="space-y-2">
-              <Label>{s.designFee}</Label>
-              <Input type="number" step="0.1" min={0} value={form.designFeePerM2} onChange={(e) => update('designFeePerM2', e.target.value)} />
-            </div>
+            <p className="text-xs text-ink-muted">
+              {fill(s.yearSaving, { premium: yearSaving(form.premiumMonthPrice, form.premiumYearPrice), professional: yearSaving(form.professionalMonthPrice, form.professionalYearPrice) })}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -124,7 +136,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
 
       <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">{example}</p>
 
-      {/* Card payments: what an own item costs, and the bank's cut every payment shows. */}
+      {/* Card payments: what an own item and a render cost, and the bank's cut every payment shows. */}
       <Card>
         <CardHeader>
           <CardTitle className="font-serif">{s.payments}</CardTitle>
@@ -135,6 +147,10 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
             <div className="space-y-2">
               <Label htmlFor="own-item-price">{s.ownItemPrice}</Label>
               <Input id="own-item-price" type="number" step="0.5" min={0} value={form.ownItemPrice} onChange={(e) => update('ownItemPrice', e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="render-price">{s.renderPrice}</Label>
+              <Input id="render-price" type="number" step="0.5" min={0} value={form.renderPrice} onChange={(e) => update('renderPrice', e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="bank-fee-pct">{s.bankFeePct}</Label>

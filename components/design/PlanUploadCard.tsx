@@ -23,6 +23,10 @@
  * card's own "continue" button; the studio hides it (`showContinue={false}`) and receives
  * the plan the moment the area is valid, because its continue button sits further down the
  * page, under the "what do you need" choice.
+ *
+ * Uploading is Premium's and Professional's (docs/subscriptions.md): on Free the card shows its
+ * lock, and a click or a dropped file opens the upgrade dialogue instead of reading anything;
+ * the sample flat stays open to everyone.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -41,6 +45,8 @@ import { buildPlanFromRegions, metresPerPixelFromArea, totalFloorAreaM2 } from '
 import { samplePlan } from '@/lib/design/samplePlan';
 import { formatM2 } from '@/lib/utils';
 import { PlacementGame } from '@/components/design/PlacementGame';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import { usePlanGate } from '@/hooks/usePlan';
 import type { FloorPlan, ParseResult } from '@/lib/design/types';
 
 type Phase = 'idle' | 'pdf' | 'reading' | 'parsing' | 'scale' | 'failed';
@@ -79,6 +85,8 @@ async function readPlanFromDrawing(imageUrl: string): Promise<FloorPlan | null> 
 
 export function PlanUploadCard({ onPlan, onReset, showSample = false, showContinue = true }: PlanUploadCardProps) {
   const t = useT();
+  const { gate, needs } = usePlanGate();
+  const locked = needs('planUpload');
   const [phase, setPhase] = useState<Phase>('idle');
   const [parse, setParse] = useState<ParseResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -240,9 +248,9 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
           e.preventDefault();
           setDragging(false);
           const dropped = e.dataTransfer.files?.[0];
-          if (dropped) void handleFile(dropped);
+          if (dropped && gate('planUpload')) void handleFile(dropped);
         }}
-        onClick={() => !busy && inputRef.current?.click()}
+        onClick={() => !busy && gate('planUpload') && inputRef.current?.click()}
         className={cn(
           'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 border border-dashed p-8 text-center transition-colors',
           dragging ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/50'
@@ -289,6 +297,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
             <span className="grid h-12 w-12 place-items-center border border-line bg-bg-surface text-ink">
               <Upload className="h-6 w-6" />
             </span>
+            {locked && <PlanBadge plan={locked} />}
             <p className="text-sm font-medium">{t.design.uploadHint}</p>
             <p className="text-xs text-ink-muted">{t.design.uploadFormats}</p>
             <Button type="button" variant="outline" size="sm">

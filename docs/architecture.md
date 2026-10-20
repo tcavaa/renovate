@@ -92,7 +92,7 @@ components/
   landing/     Hero ProductWall StatsBand StylesRow DesignerSection FinalCta
   motion/      CountUp Marquee RotatingBadge
   flow/        StepStrip StepHeader StepNav SideList EmptyStep StageBrief FlowGuard FlowWorkspace
-               HingeDialog (the warning and the fee before a half's hinge)
+               HingeDialog (the warning before a half's hinge)
   calculator/  StepIndicator HomeStateSelector MaterialsTable SummaryCard
                WorkChoicesPicker AskFurnitureDialog CalculatorAutosave RoomFinishCards PlanGlyphs
                RoomRow

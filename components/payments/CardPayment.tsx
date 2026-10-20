@@ -6,28 +6,34 @@ import { Button } from '@/components/ui/button';
 import { FlittCheckout } from '@/components/payments/FlittCheckout';
 import { fill } from '@/lib/admin/list';
 import type { CardCharge } from '@/lib/finance/money';
-import type { PaymentQuote, PaymentView } from '@/lib/finance/payments';
 import type { CardPaymentView } from '@/lib/payments/service';
 import type { StartPaymentBody } from '@/lib/validations/payment.schema';
 import { useT } from '@/lib/i18n/client';
 import { apiErrorMessage } from '@/lib/i18n/labels';
-import { cn, formatGEL, formatM2, formatNumber } from '@/lib/utils';
+import { cn, formatGEL, formatNumber } from '@/lib/utils';
+
+/** A subscription's purchase as it was quoted: an upgrade has the unused part of the lower plan off its price. */
+export interface SubscriptionOffer {
+  kind: 'new' | 'renew' | 'upgrade';
+  price: number;
+  credit: number;
+  startsAt: string;
+  endsAt: string;
+}
 
 /** What `POST /api/payments/flitt` answers. */
 export type StartPaymentResponse =
-  | { paid: PaymentView }
   | { free: true }
   | { credit: true }
-  | { payment: CardPaymentView; token: string; charge: CardCharge; quote?: PaymentQuote };
+  | { payment: CardPaymentView; token: string; charge: CardCharge; offer?: SubscriptionOffer };
 
 /** What `GET /api/payments/flitt/[orderId]` answers. */
 interface PaymentStatusResponse {
   payment: CardPaymentView;
-  half: PaymentView | null;
 }
 
-/** Why there was nothing to pay. */
-export type NothingToPay = { paid: PaymentView } | { free: true } | { credit: true };
+/** Why there was nothing to pay: free (a price of 0, an upgrade the credit covers), or paid for before. */
+export type NothingToPay = { free: true } | { credit: true };
 
 /*
  * A dialogue holding Flitt's form is not modal while the form is up. Flitt puts 3-D Secure — the
@@ -92,8 +98,8 @@ type Stage = 'starting' | 'form' | 'verifying' | 'approved' | 'declined' | 'pend
  * asks Flitt for the signed status, and only an `approved` from there reaches `onApproved`.
  * A declined card or a form that would not load can be tried again: a new order each time.
  *
- * Nothing to pay — a half already paid, an own item that is free or paid for before — goes to
- * `onNothingToPay` without a form.
+ * Nothing to pay — a price of 0, an upgrade the lower plan's credit covers, an own item or a
+ * render paid for before — goes to `onNothingToPay` without a form.
  */
 export function CardPayment({
   request,
@@ -111,10 +117,10 @@ export function CardPayment({
   footer?: React.ReactNode;
   /** The first line of the bill: what is being paid for. */
   itemLabel: string;
-  /** Runs before the payment is started — the hinge saves the half, so the fee is the saved row's. */
+  /** Runs before the payment is started (a save, say). */
   prepare?: () => Promise<unknown>;
   onNothingToPay: (why: NothingToPay) => void;
-  onApproved: (payment: CardPaymentView, half: PaymentView | null) => void;
+  onApproved: (payment: CardPaymentView) => void;
 }) {
   const t = useT();
   const p = t.payment;
@@ -179,7 +185,7 @@ export function CardPayment({
         const status = json.data?.payment.status;
         if (json.data && status === 'approved') {
           setStage('approved');
-          props.current.onApproved(json.data.payment, json.data.half);
+          props.current.onApproved(json.data.payment);
           return;
         }
         if (json.data && (status === 'declined' || status === 'expired' || status === 'reversed')) {
@@ -205,7 +211,7 @@ export function CardPayment({
   };
 
   const charge = started?.charge ?? null;
-  const quote = started?.quote ?? null;
+  const offer = started?.offer ?? null;
   const testMode = started?.payment.testMode ?? false;
 
   return (
@@ -217,12 +223,15 @@ export function CardPayment({
         {/* The bill: the price, the bank's commission on top, what the card is charged. */}
         <div className="rounded-[12px] border border-line p-4 text-sm">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0 text-ink-soft">
-              {itemLabel}
-              {quote && <span className="block text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(quote.feePerM2), m2: formatM2(quote.totalM2) })}</span>}
-            </span>
-            <span className="shrink-0 tabular-nums text-ink">{charge ? formatGEL(charge.amount, true) : '—'}</span>
+            <span className="min-w-0 text-ink-soft">{itemLabel}</span>
+            <span className="shrink-0 tabular-nums text-ink">{offer ? formatGEL(offer.price, true) : charge ? formatGEL(charge.amount, true) : '—'}</span>
           </div>
+          {offer && offer.credit > 0 && (
+            <div className="mt-1.5 flex items-baseline justify-between gap-3">
+              <span className="text-ink-soft">{t.plans.upgradeCredit}</span>
+              <span className="shrink-0 tabular-nums text-success">−{formatGEL(offer.credit, true)}</span>
+            </div>
+          )}
           <div className="mt-1.5 flex items-baseline justify-between gap-3">
             <span className="text-ink-soft">{fill(p.bankFee, { pct: `${formatNumber(charge?.bankFeePct ?? 0)}%` })}</span>
             <span className="shrink-0 tabular-nums text-ink">{charge ? formatGEL(charge.bankFee, true) : '—'}</span>

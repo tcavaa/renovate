@@ -6,6 +6,8 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
 import { WALL_MODES, type WallMode } from '@/lib/design3d/wallMode';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import type { PaidPlanId } from '@/lib/plans/plans';
 
 export type StudioView = '2d' | '3d' | 'walk';
 
@@ -17,6 +19,8 @@ export const WALL_MODE_ICONS: Record<WallMode, LucideIcon> = { up: BrickWall, cu
  * walls and the time of day — each one button showing what is on, opening its choices below —
  * then "start from scratch" and the camera that asks for a realistic photo of the view. It
  * was eleven buttons in five pills before, and read as a row of icons nobody could tell apart.
+ * What the person's plan has not got wears a lock (`locks` — the plan that has it); the button
+ * still answers, and the page opens the upgrade dialogue (docs/subscriptions.md).
  */
 export function ViewSwitch({
   view,
@@ -27,6 +31,7 @@ export function ViewSwitch({
   daylight,
   onDaylight,
   onPhoto,
+  locks,
 }: {
   view: StudioView;
   onView: (view: StudioView) => void;
@@ -38,6 +43,8 @@ export function ViewSwitch({
   onDaylight: (preset: DaylightPreset) => void;
   /** Absent while the 3D view is not up (2D plan, viewer still loading). */
   onPhoto?: () => void;
+  /** The plan each locked button needs: the walk-through, the photo (a render), emptying the flat. */
+  locks?: { walk?: PaidPlanId | null; photo?: PaidPlanId | null; clear?: PaidPlanId | null };
 }) {
   const t = useT();
   const views: Array<{ id: StudioView; label: string }> = [
@@ -57,9 +64,10 @@ export function ViewSwitch({
             aria-label={o.label}
             title={o.label}
             onClick={() => onView(o.id)}
-            className={cn('grid h-9 min-w-9 place-items-center px-2.5 text-sm font-medium transition-colors', view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
+            className={cn('relative grid h-9 min-w-9 place-items-center px-2.5 text-sm font-medium transition-colors', view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
           >
             {o.id === 'walk' ? <Eye className="h-4 w-4" /> : o.label}
+            {o.id === 'walk' && locks?.walk && <PlanBadge plan={locks.walk} iconOnly className="absolute -right-1 -top-1 px-1" />}
           </button>
         ))}
       </div>
@@ -73,10 +81,10 @@ export function ViewSwitch({
         second generation would sweep all of it away. Emptying the flat deliberately is what
         is left, and version 01 is always there to go back to.
       */}
-      <BarButton label={t.build.emptyRooms} onClick={onClear}>
+      <BarButton label={t.build.emptyRooms} onClick={onClear} lock={locks?.clear}>
         <Eraser className="h-4 w-4" />
       </BarButton>
-      <BarButton label={t.design.photo} disabled={!onPhoto} onClick={() => onPhoto?.()}>
+      <BarButton label={t.design.photo} disabled={!onPhoto} onClick={() => onPhoto?.()} lock={locks?.photo}>
         <Camera className="h-4 w-4" />
       </BarButton>
     </div>
@@ -178,10 +186,11 @@ function Divider() {
 }
 
 /** A plain icon button inside the bar. */
-function BarButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: React.ReactNode }) {
+function BarButton({ label, disabled, onClick, lock, children }: { label: string; disabled?: boolean; onClick: () => void; lock?: PaidPlanId | null; children: React.ReactNode }) {
   return (
-    <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className="grid h-9 w-9 place-items-center text-ink-soft transition-colors hover:bg-white hover:text-ink disabled:opacity-40">
+    <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className="relative grid h-9 w-9 place-items-center text-ink-soft transition-colors hover:bg-white hover:text-ink disabled:opacity-40">
       {children}
+      {lock && <PlanBadge plan={lock} iconOnly className="absolute -right-1 -top-1 px-1" />}
     </button>
   );
 }

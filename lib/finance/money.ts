@@ -28,6 +28,13 @@ export interface PlatformSettings {
   ownItemPrice: number;
   /** The bank's commission on a card payment, percent — added on top and shown as its own line. */
   bankFeePct: number;
+  /** The plans' prices, GEL before the bank's commission (docs/subscriptions.md). */
+  premiumMonthPrice: number;
+  premiumYearPrice: number;
+  professionalMonthPrice: number;
+  professionalYearPrice: number;
+  /** GEL for one render past a Professional month's free ones; 0 = free. */
+  renderPrice: number;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -37,6 +44,11 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   workerCommissionPct: 5,
   ownItemPrice: 10,
   bankFeePct: 2.2,
+  premiumMonthPrice: 15,
+  premiumYearPrice: 120,
+  professionalMonthPrice: 39,
+  professionalYearPrice: 320,
+  renderPrice: 7,
 };
 
 export type CheckoutKind = 'calculator' | 'design';

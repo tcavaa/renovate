@@ -42,8 +42,7 @@ import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
  * tray away. "Start the calculation" leaves from here, once there are rooms to calculate —
  * asking first, when nothing technical is on the board, whether to place it by the standards
  * (`placeByStandards` — the design's own rules), then warning that the plan is settled from
- * here and taking the platform's fee for the calculation (`HingeDialog`: a test card for now) —
- * and shuts this step and the one before it.
+ * here (`HingeDialog`) — and shuts this step and the one before it.
  *
  * From `lg` up the step is the whole window (`FlowWorkspace`): the sheet edge to edge, the
  * tools floating down its left, the rooms in a panel down its right, and whatever is picked on
@@ -67,7 +66,7 @@ export default function CalculatorPlanPage() {
   const [error, setError] = useState<string | null>(null);
   /** "Start the calculation" pressed with nothing technical on the board: asked first. */
   const [askTechnical, setAskTechnical] = useState(false);
-  /** The warning and the fee before the calculation starts (`HingeDialog`). */
+  /** The warning before the calculation starts (`HingeDialog`). */
   const [hinge, setHinge] = useState(false);
   // The tool on the rail, and — while the technical or the electrical tray is open — whether
   // its kind is in hand: the sheet places with it, or only selects.
@@ -309,9 +308,8 @@ export default function CalculatorPlanPage() {
           open
           onOpenChange={setHinge}
           kind="calculator"
-          projectId={projectId}
           save={() => saveCalculatorProject({ draft: true })}
-          onPaid={calculate}
+          onConfirm={calculate}
         />
       )}
 

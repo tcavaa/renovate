@@ -22,6 +22,8 @@
  * Both lines scroll without a scrollbar and fade at the edge they continue past (`ScrollRow`).
  */
 
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import type { PaidPlanId } from '@/lib/plans/plans';
 import Image from '@/components/ui/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, LayoutGrid, Package, Palette, Plus, Search, X } from 'lucide-react';
@@ -58,6 +60,7 @@ export function FurnitureTray({
   onDragProduct,
   onOpenCatalog,
   onAddOwn,
+  locks,
 }: {
   catalog: CatalogProduct[];
   /** The rooms and the category tree the shelf is arranged by. */
@@ -73,6 +76,12 @@ export function FurnitureTray({
   onOpenCatalog?: () => void;
   /** Opens the dialog for a piece of the person's own — a model or a photo of theirs. */
   onAddOwn?: () => void;
+  /**
+   * What the person's plan has not got (docs/subscriptions.md): placing from the shelf and the
+   * catalogue, adding a piece of one's own. The buttons wear the plan that has it; the page's
+   * handlers open the upgrade dialogue.
+   */
+  locks?: { catalog?: PaidPlanId | null; own?: PaidPlanId | null };
 }) {
   const t = useT();
   const locale = useLocale();
@@ -332,8 +341,9 @@ export function FurnitureTray({
 
           {/* A piece of the person's own: their model, or a photo waiting to become one. */}
           {onAddOwn && (
-            <button type="button" onClick={onAddOwn} title={t.design.ownAdd} aria-label={t.design.ownAdd} data-tour="own-add" className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-dashed border-ink/40 text-ink transition-colors hover:border-ink hover:bg-sand-light">
+            <button type="button" onClick={onAddOwn} title={t.design.ownAdd} aria-label={t.design.ownAdd} data-tour="own-add" className="relative grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-dashed border-ink/40 text-ink transition-colors hover:border-ink hover:bg-sand-light">
               <Plus className="h-3.5 w-3.5" />
+              {locks?.own && <PlanBadge plan={locks.own} iconOnly className="absolute -right-1.5 -top-1.5 px-1" />}
             </button>
           )}
           {/* The whole catalogue as a page — search, filters, details — for when the shelf is not enough. */}
@@ -341,6 +351,7 @@ export function FurnitureTray({
             <button type="button" onClick={onOpenCatalog} title={t.design.catalogOpenHint} data-tour="catalog" className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
               <LayoutGrid className="h-3.5 w-3.5" />
               {t.design.catalogOpen}
+              {locks?.catalog && <PlanBadge plan={locks.catalog} iconOnly tone="dark" className="px-1" />}
             </button>
           )}
           {/* The search: an icon until it is wanted, so the rooms have the line. */}

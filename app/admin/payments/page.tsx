@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 const PATH = '/admin/payments';
 type Sort = 'newest' | 'total';
 const STATUSES: readonly PaymentStatus[] = ['approved', 'created', 'processing', 'declined', 'expired', 'reversed'];
-const PURPOSES = ['calculator', 'design', 'own_item'] as const;
+const PURPOSES = ['subscription', 'own_item', 'render', 'calculator', 'design'] as const;
 
 /**
  * Every card payment through Flitt (docs/payments.md): who paid, for what, with which card,
@@ -60,6 +60,8 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
         id: payments.id,
         orderId: payments.orderId,
         purpose: payments.purpose,
+        plan: payments.plan,
+        billingPeriod: payments.billingPeriod,
         projectId: payments.projectId,
         productId: payments.productId,
         status: payments.status,
@@ -168,6 +170,7 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
                     {fill(s.projectRef, { id: r.projectId })}
                   </Link>
                 )}
+                {r.purpose === 'subscription' && r.plan && <span className="block text-xs text-ink-muted">{r.plan === 'premium' ? ka.plans.premium : ka.plans.professional} · {r.billingPeriod === 'year' ? ka.plans.periodYear : ka.plans.periodMonth}</span>}
                 {r.purpose === 'own_item' && <span className="block text-xs text-ink-muted">{r.productId ? fill(s.productRef, { id: r.productId }) : r.status === 'approved' ? s.creditUnused : ''}</span>}
               </td>
               <td className="px-4 py-2.5">

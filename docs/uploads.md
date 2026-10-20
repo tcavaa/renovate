@@ -72,7 +72,7 @@ Nothing in staging is ever served; nothing reaches the public bucket unchecked.
 |---|---|---|---|
 | `image` | 8 MB | admin, catalogue agents, linked partners (`requireUploader`) | `POST /api/upload` (folder: products, textures, workers, categories, stores, misc) |
 | `model` | 40 MB | admin, catalogue agents, stores (`requireCatalogEditor`) | `POST /api/upload/model` |
-| `plan` | 20 MB | anyone — the plan step is open to visitors — 10 an hour per address (`RATE_RULES.uploadPlan`) | `POST /api/design/upload-plan` |
+| `plan` | 20 MB | anyone may be granted a place — 10 an hour per address (`RATE_RULES.uploadPlan`) — but the claim is Premium's and Professional's ([subscriptions.md](subscriptions.md)) | `POST /api/design/upload-plan` |
 | `render` | 8 MB | a signed-in person, 60 an hour (`RATE_RULES.render`) | `POST /api/design/renders` (their own project) |
 | `own_model` | 40 MB (8 MB if it is a photo) | a signed-in person | `POST /api/design/models` |
 | `own_photo` | 8 MB | a signed-in person | `POST /api/design/models` (`photo`) |

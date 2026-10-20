@@ -151,6 +151,13 @@ export interface Viewer3DProps {
   /** Commits a drag. `roomId` is set when the item was dragged into a different room; `elevationM` when a wall-hung piece was hung at a height. */
   onPlaceItem?: (itemId: string, position: Vec2, rotation: number, roomId: string, elevationM?: number) => void;
   /**
+   * Every piece stays where it stands, as a locked piece does: a click selects it and a drag
+   * orbits the view — the plan does not move furniture (docs/subscriptions.md). `onLockedDrag`
+   * is told once per drag that started on a piece, so the page can say why it did not move.
+   */
+  lockItems?: boolean;
+  onLockedDrag?: () => void;
+  /**
    * When this changes the camera frames the flat again. It is the *plan's identity*
    * (`designStore.planSerial`), not the plan object: a door slid along its wall, a wall
    * dragged or a technical point moved makes a new plan object every time, and framing on
@@ -369,7 +376,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint'>;
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint' | 'onLockedDrag'> & { lockItems?: boolean };
 
 function SceneContent({
   plan,
@@ -394,6 +401,8 @@ function SceneContent({
   paintScope = null,
   onPaint,
   onPlaceItem,
+  lockItems = false,
+  onLockedDrag,
   onMoveOpening,
   frameKey,
   onApi,
@@ -549,7 +558,7 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint, onLockedDrag, lockItems };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
   // Doors and windows are grabbed in build mode once the structure is unlocked.
   const editingOpenings = editMode === 'build' && !structureLocked;
@@ -1544,6 +1553,16 @@ function SceneContent({
       if (drag.item.locked) return;
 
       const travel = Math.abs(event.clientX - drag.startX) + Math.abs(event.clientY - drag.startY);
+      // The plan moves no furniture: the drag orbits, as over a locked piece, and the page is
+      // told once that it was a piece the person tried to move. Past that it is no drag at all
+      // (the release must not select the piece the orbit started on).
+      if (callbacks.current.lockItems) {
+        if (travel >= DRAG_THRESHOLD_PX) {
+          dragRef.current = null;
+          callbacks.current.onLockedDrag?.();
+        }
+        return;
+      }
       if (!drag.moved) {
         if (travel < DRAG_THRESHOLD_PX) return;
         drag.moved = true;

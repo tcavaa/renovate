@@ -105,6 +105,9 @@ vi.mock('@/lib/db', () => {
 });
 
 vi.mock('@/lib/log', () => ({ log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+// What a subscription's approval buys is lib/plans/server's (tested on its own rules in plans.test.ts).
+const plans = vi.hoisted(() => ({ activate: vi.fn(async (_tx: unknown, _payment: unknown) => undefined), revoke: vi.fn(async (_tx: unknown, _payment: unknown) => undefined) }));
+vi.mock('@/lib/plans/server', () => ({ activateSubscription: plans.activate, revokeSubscription: plans.revoke }));
 
 const flitt = vi.hoisted(() => ({ token: vi.fn(), status: vi.fn() }));
 vi.mock('@/lib/payments/flittApi', async (importActual) => ({
@@ -115,7 +118,7 @@ vi.mock('@/lib/payments/flittApi', async (importActual) => ({
 
 import { paymentEvents, payments, projectPayments } from '@/lib/db/schema';
 import { log } from '@/lib/log';
-import { claimOwnItemCredit, ownItemCredit, refreshCardPayment, releaseOwnItemCredit, settleCardPayment, settleRecentPayments, spendOwnItemCredit, startCardPayment } from '@/lib/payments/service';
+import { claimPaidCredit, paidCredit, refreshCardPayment, releasePaidCredit, settleCardPayment, settleRecentPayments, spendOwnItemCredit, startCardPayment } from '@/lib/payments/service';
 import { FlittError } from '@/lib/payments/flittApi';
 import { settlementFor } from '@/lib/payments/flitt';
 
@@ -232,25 +235,67 @@ describe('an own item paid for', () => {
   const ownAnswer = (patch: Row = {}) => answer({ amount: '1022', ...patch });
 
   it('is a credit one upload takes, given back if the upload fails', async () => {
-    expect(await ownItemCredit(35)).toBeNull();
+    expect(await paidCredit(35, 'own_item')).toBeNull();
     await settleCardPayment(ownAnswer(), 'callback');
     expect(halves()).toHaveLength(0);
-    const claimed = await claimOwnItemCredit(35);
+    // An own item's credit is not a render's.
+    expect(await claimPaidCredit(35, 'render')).toBeNull();
+    const claimed = await claimPaidCredit(35, 'own_item');
     expect(claimed).toBe(1);
-    expect(await claimOwnItemCredit(35)).toBeNull();
-    await releaseOwnItemCredit(claimed!);
-    expect(await claimOwnItemCredit(35)).toBe(1);
+    expect(await claimPaidCredit(35, 'own_item')).toBeNull();
+    await releasePaidCredit(claimed!);
+    expect(await claimPaidCredit(35, 'own_item')).toBe(1);
   });
 
   it('is no credit any more once reversed', async () => {
     await settleCardPayment(ownAnswer(), 'callback');
     await settleCardPayment(ownAnswer({ order_status: 'reversed' }), 'callback');
-    expect(await claimOwnItemCredit(35)).toBeNull();
+    expect(await claimPaidCredit(35, 'own_item')).toBeNull();
+  });
+});
+
+describe('a render paid for', () => {
+  beforeEach(() => {
+    store.tables.set(payments, [payment({ purpose: 'render', projectId: null, totalM2: null, feePerM2: null, amount: '7.00', bankFee: '0.15', total: '7.15' })]);
+  });
+
+  it('is a credit the next render takes', async () => {
+    await settleCardPayment(answer({ amount: '715' }), 'callback');
+    expect(halves()).toHaveLength(0);
+    expect(await claimPaidCredit(35, 'own_item')).toBeNull();
+    expect(await claimPaidCredit(35, 'render')).toBe(1);
+  });
+});
+
+describe('a subscription paid for', () => {
+  beforeEach(() => {
+    plans.activate.mockClear();
+    plans.revoke.mockClear();
+    store.tables.set(payments, [payment({ purpose: 'subscription', projectId: null, totalM2: null, feePerM2: null, plan: 'premium', billingPeriod: 'month', amount: '15.00', bankFee: '0.33', total: '15.33' })]);
+  });
+
+  it('buys its plan once, in the approval, and takes it back when reversed', async () => {
+    await settleCardPayment(answer({ amount: '1533' }), 'callback');
+    await settleCardPayment(answer({ amount: '1533' }), 'status');
+    expect(plans.activate).toHaveBeenCalledTimes(1);
+    expect(plans.activate.mock.calls[0][1]).toMatchObject({ purpose: 'subscription', plan: 'premium', billingPeriod: 'month', status: 'approved' });
+    expect(halves()).toHaveLength(0);
+    await settleCardPayment(answer({ amount: '1533', order_status: 'reversed' }), 'callback');
+    expect(plans.revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not approved when buying the plan fails, so the next answer tries again', async () => {
+    plans.activate.mockRejectedValueOnce(new Error('db down'));
+    await expect(settleCardPayment(answer({ amount: '1533' }), 'callback')).rejects.toThrow('db down');
+    expect(paymentRow().status).toBe('created');
+    await settleCardPayment(answer({ amount: '1533' }), 'status');
+    expect(paymentRow().status).toBe('approved');
+    expect(plans.activate).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('starting a payment', () => {
-  const input = { userId: 35, email: 'a@b.ge', purpose: 'design' as const, projectId: 9, amount: 600, bankFeePct: 2.2, totalM2: 50, feePerM2: 12, description: 'დიზაინი', lang: 'ka' };
+  const input = { userId: 35, email: 'a@b.ge', purpose: 'subscription' as const, plan: 'professional' as const, billingPeriod: 'year' as const, amount: 600, bankFeePct: 2.2, description: 'გეგმა', lang: 'ka' };
 
   it('makes the row at the server\'s figures and asks Flitt for exactly that, in tetri', async () => {
     flitt.token.mockResolvedValue('tok');
@@ -258,10 +303,10 @@ describe('starting a payment', () => {
     expect(started.token).toBe('tok');
     expect(started.charge).toEqual({ amount: 600, bankFeePct: 2.2, bankFee: 13.2, total: 613.2 });
     expect(flitt.token).toHaveBeenCalledWith(expect.objectContaining({ amount: 61320, orderId: started.payment.orderId, lifetime: 3600 }));
-    expect(started.payment.orderId).toMatch(/^remonti-des-[a-z0-9]+-[0-9a-f]{10}$/);
+    expect(started.payment.orderId).toMatch(/^remonti-sub-[a-z0-9]+-[0-9a-f]{10}$/);
     // On a developer's machine Flitt cannot call back.
     expect(flitt.token.mock.calls[0][0].callbackUrl).toBeUndefined();
-    expect(store.tables.get(payments)!.at(-1)).toMatchObject({ status: 'created', total: '613.2', testMode: true });
+    expect(store.tables.get(payments)!.at(-1)).toMatchObject({ status: 'created', total: '613.2', testMode: true, plan: 'professional', billingPeriod: 'year' });
   });
 
   it('closes the row with Flitt\'s reason when Flitt refuses', async () => {

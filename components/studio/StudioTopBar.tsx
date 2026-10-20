@@ -21,8 +21,9 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import type { DaylightPreset } from '@/lib/design3d/daylight';
 import type { WallMode } from '@/lib/design3d/wallMode';
+import type { PaidPlanId } from '@/lib/plans/plans';
 
-export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, wallMode, onWallMode, onClear, daylight, onDaylight, onPhoto, canUndo, canRedo, onUndo, onRedo, locked, onToggleLock, versionsOpen, onVersions, onHelp, nextHref, nextLabel }: { roomLabel: string; itemCount: number; saveState: 'idle' | 'saving' | 'saved' | 'error'; view: StudioView; onView: (view: StudioView) => void; wallMode: WallMode; onWallMode: (mode: WallMode) => void; onClear: () => void; daylight: DaylightPreset; onDaylight: (preset: DaylightPreset) => void; onPhoto?: () => void; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; locked: boolean; onToggleLock: () => void; versionsOpen: boolean; onVersions: () => void; onHelp: () => void; nextHref: string; nextLabel: string }) {
+export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, wallMode, onWallMode, onClear, daylight, onDaylight, onPhoto, planLocks, canUndo, canRedo, onUndo, onRedo, locked, onToggleLock, versionsOpen, onVersions, onHelp, nextHref, nextLabel }: { roomLabel: string; itemCount: number; saveState: 'idle' | 'saving' | 'saved' | 'error'; view: StudioView; onView: (view: StudioView) => void; wallMode: WallMode; onWallMode: (mode: WallMode) => void; onClear: () => void; daylight: DaylightPreset; onDaylight: (preset: DaylightPreset) => void; onPhoto?: () => void; /** What the plan has not got: the walk-through, the photo, emptying the flat (docs/subscriptions.md). */ planLocks?: { walk?: PaidPlanId | null; photo?: PaidPlanId | null; clear?: PaidPlanId | null }; canUndo: boolean; canRedo: boolean; onUndo: () => void; onRedo: () => void; locked: boolean; onToggleLock: () => void; versionsOpen: boolean; onVersions: () => void; onHelp: () => void; nextHref: string; nextLabel: string }) {
   const t = useT();
   return (
     <div data-board-edge="top" className="studio-bar pointer-events-none absolute inset-x-4 top-4 z-[45] flex flex-nowrap items-start justify-between gap-3">
@@ -50,7 +51,7 @@ export function StudioTopBar({ roomLabel, itemCount, saveState, view, onView, wa
       </div>
 
       <div className="pointer-events-auto shrink-0">
-        <ViewSwitch view={view} onView={onView} wallMode={wallMode} onWallMode={onWallMode} onClear={onClear} daylight={daylight} onDaylight={onDaylight} onPhoto={onPhoto} />
+        <ViewSwitch view={view} onView={onView} wallMode={wallMode} onWallMode={onWallMode} onClear={onClear} daylight={daylight} onDaylight={onDaylight} onPhoto={onPhoto} locks={planLocks} />
       </div>
 
       <div className="bar-gap pointer-events-auto flex shrink-0 items-center gap-2">

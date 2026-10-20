@@ -43,7 +43,7 @@ action anywhere can write one project's work over another's.**
 | **journey** | which product's steps are open (`/calculator/<id>/…` or `/design/<id>/…`) |
 | **step** | how far a journey got (`step`) — drives the strip and the locks; only moves forward |
 | **at** | the page that was open last — what the project reopens on |
-| **hinge** | the act that shuts the steps before it: "გამოთვლის დაწყება" (`calculated`) in the calculator, the generation or an empty start (`generated`) in the studio — the first two behind a warning and the half's fee (`HingeDialog`, §12) |
+| **hinge** | the act that shuts the steps before it: "გამოთვლის დაწყება" (`calculated`) in the calculator, the generation or an empty start (`generated`) in the studio — the first two behind a warning (`HingeDialog`, §12) |
 | **entry** | `/calculator/<id>`, `/design/<id>`: works out where to open and redirects there |
 | **revision** | `calculator_rev` / `design_rev` on the row, one per half, +1 per write |
 | **base revision** | `baseRev` in a store: the row revision that copy was made from |
@@ -465,16 +465,14 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
 
 ## 12. Locks, and why there is no "start over"
 
-- **The hinge says so first, and takes the fee** (`components/flow/HingeDialog.tsx`). Both
-  "გამოთვლის დაწყება" and "დიზაინის გენერაცია" open it: the warning that the plan is settled
-  from here — what to check (the home's condition, the rooms, the walls, doors and windows, the
-  technical points) and that the steps before will be shut, a new project being the way to start
-  again — then the half's platform fee, the half saved first so it is charged on what is on
-  screen, paid by card through Flitt with the bank's commission on top (`CardPayment`,
-  [payments.md](payments.md), [marketplace.md](marketplace.md#how-the-platform-earns-libfinance));
-  "paid" only once Flitt's signed status says so, a moment, and
-  only then the hinge itself. A half already paid goes straight on. The page mounts the dialogue
-  only while it is open, so every press starts from the warning.
+- **The hinge says so first** (`components/flow/HingeDialog.tsx`). Both "გამოთვლის დაწყება" and
+  "დიზაინის გენერაცია" open it: the warning that the plan is settled from here — what to check
+  (the home's condition, the rooms, the walls, doors and windows, the technical points) and that
+  the steps before will be shut, a new project being the way to start again. "Continue" saves the
+  half (a draft) and goes through the hinge. Nothing is paid there: the per-m² fee each half used
+  to pay is gone, and the person's plan decides what they may do
+  ([subscriptions.md](subscriptions.md)). The page mounts the dialogue only while it is open, so
+  every press starts from the warning.
 - **Calculator.** "გამოთვლის დაწყება" on the plan step sets `calculated`, which shuts steps 1–2
   (padlocks in the strip — `StepStrip.lockedBefore`, tooltip `flow.lockedStepCalculator` — and
   `CalculatorFlowGuard` sends a typed URL onward). Redrawing the rooms or changing the home state
@@ -515,7 +513,7 @@ the mode (not preselected), the home state's three columns, the empty start, `?w
 A calculation and a 3D design of the same flat are one row — the project, made before either
 was started. Each half is saved by its own journey only (the design save no longer carries the
 calculator's picks); ordering does not fork a project either ([marketplace.md](marketplace.md):
-each half's fee is paid once, before its hinge; `mergeLines` unites the halves at checkout).
+`mergeLines` unites the halves at checkout).
 
 **Each half owns its shared columns.** Once the calculation exists it owns `homeState`, `rooms`
 and `totalM2`; the design writes them only in a project designed first, and writes `mode` unless

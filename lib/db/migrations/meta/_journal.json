@@ -43,6 +43,13 @@
       "when": 1792106901587,
       "tag": "0005_decor_materials",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792497184147,
+      "tag": "0006_subscriptions",
+      "breakpoints": true
     }
   ]
 }

@@ -66,6 +66,7 @@ import { openingProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
 import { SceneLoading } from '@/components/design/SceneLoading';
+import { usePlanGate } from '@/hooks/usePlan';
 
 /**
  * Three.js touches `window` at import time, so the viewport is client-only. Everything else
@@ -110,12 +111,21 @@ const CATEGORY_TOOLS: Record<StudioCategory, EditorTool[]> = {
  * surface. Walls, doors and windows start locked; unlocking them lets the person drag walls
  * in 3D (or draw new ones in 2D). Every change is undoable and the existing house is kept
  * as version 01.
+ *
+ * The plan decides what may change (docs/subscriptions.md): without the catalogue nothing is
+ * added, swapped, removed or finished anew, without moving furniture nothing is moved or turned
+ * (the 3D view holds every piece where it stands — `lockItems` — and the board drags none), and
+ * the walk-through, the photo for a render and a piece of one's own are Professional's. Each such
+ * handler goes through `gate`, which opens the upgrade dialogue; the buttons wear the plan's lock.
  */
 export default function StudioPage() {
   const t = useT();
   const locale = useLocale();
   const searchParams = useSearchParams();
   const projectId = useProjectId();
+  const { can, gate, needs } = usePlanGate();
+  const canCatalog = can('catalog');
+  const canMove = can('moveFurniture');
   // The actions keep their identity, the fields are picked one by one: the page (and every
   // callback it hands the 3D view) re-renders for what it shows, not for every store change.
   const store = useDesignActions();
@@ -229,7 +239,12 @@ export default function StudioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.rooms.length, versionsLoaded]);
 
-  const [view, setView] = useState<StudioView>('3d');
+  const [view, setViewState] = useState<StudioView>('3d');
+  /** The walk-through is Professional's: the switch and the 3 key open the upgrade instead. */
+  const setView = useCallback((next: StudioView) => {
+    if (next === 'walk' && !gate('walk')) return;
+    setViewState(next);
+  }, [gate]);
   const [category, setCategory] = useState<StudioCategory>(() => (searchParams.get('tool') === 'finishes' ? 'finishes' : 'furniture'));
   const [trayOpen, setTrayOpen] = useState(true);
   const [buildTool, setBuildTool] = useState<EditorTool>('select');
@@ -415,12 +430,15 @@ export default function StudioPage() {
       if (categoryRef.current !== 'finishes') return;
       setTrayOpen(true);
       if (brushRef.current === undefined) return;
+      if (!gate('catalog')) return;
       store.paintSurface(target, brushRef.current);
     },
-    [store]
+    [store, gate]
   );
   const onPlaceItem = useCallback((itemId: string, position: Vec2, rotation: number, roomId: string, elevationM?: number) => store.placeItem(itemId, position, rotation, roomId, elevationM), [store]);
   const onApi = useCallback((api: ViewerApi | null) => setViewerApi(api), []);
+  const lockedMoveNote = t.plans.studioLockedFurniture;
+  const onLockedDrag = useCallback(() => setRefused(lockedMoveNote), [lockedMoveNote]);
   const onCarryPlaced = useCallback(
     (itemId: string) => {
       store.finishCarry();
@@ -455,6 +473,7 @@ export default function StudioPage() {
   const rotateSelected = useCallback(
     (steps: number) => {
       if (!selected || !plan || selected.locked) return;
+      if (!gate('moveFurniture')) return;
       if (carryingItemId && selected.id === carryingItemId) {
         // A hung piece on the pointer faces out of whichever wall it is over; a turn means nothing.
         if (isWallHung(selected)) return;
@@ -470,7 +489,7 @@ export default function StudioPage() {
       // A hung piece goes round to the next wall at the height it hung at (`turnOnWall`).
       store.placeItem(selected.id, result.position, result.rotation, room.id, result.elevationM);
     },
-    [selected, plan, items, store, carryingItemId, viewerApi, planApi, view]
+    [selected, plan, items, store, carryingItemId, viewerApi, planApi, view, gate]
   );
 
   useEffect(() => setRotateBlocked(false), [selectedItemId]);
@@ -483,12 +502,13 @@ export default function StudioPage() {
   const rotateSelectedTo = useCallback(
     (radians: number) => {
       if (!selected || !plan || selected.locked) return;
+      if (!gate('moveFurniture')) return;
       const room = plan.rooms.find((r) => r.id === selected.roomId);
       if (!room) return;
       store.placeItem(selected.id, selected.position, radians, room.id);
       setRotateBlocked(!isPlacementValid(room, { ...selected, rotation: radians }, items, plan.rooms));
     },
-    [selected, plan, items, store]
+    [selected, plan, items, store, gate]
   );
 
   /**
@@ -534,10 +554,10 @@ export default function StudioPage() {
           store.copyItem(selectedItemId);
         } else if (code === 'KeyV') {
           event.preventDefault();
-          store.pasteItem(focusRoomId);
+          if (gate('catalog')) store.pasteItem(focusRoomId);
         } else if (code === 'KeyD' && selectedItemId) {
           event.preventDefault();
-          store.duplicateItem(selectedItemId);
+          if (gate('catalog')) store.duplicateItem(selectedItemId);
         }
         return;
       }
@@ -558,11 +578,11 @@ export default function StudioPage() {
         rotateSelected(event.shiftKey ? -1 : 1);
       } else if (code === 'KeyM' && selectedItemId) {
         event.preventDefault();
-        store.mirrorItem(selectedItemId);
+        if (gate('moveFurniture')) store.mirrorItem(selectedItemId);
       } else if ((code === 'Delete' || code === 'Backspace') && view !== '2d') {
         if (selectedItemId) {
           const item = items.find((i) => i.id === selectedItemId);
-          if (item && !item.locked) store.removeItem(selectedItemId);
+          if (item && !item.locked && gate('catalog')) store.removeItem(selectedItemId);
         } else if (selectedElement) {
           const structural = selectedElement.kind === 'wall' || selectedElement.kind === 'opening' || selectedElement.kind === 'column' || selectedElement.kind === 'beam';
           if (structural && structureLocked) return;
@@ -571,7 +591,7 @@ export default function StudioPage() {
           if (selectedElement.kind === 'column') store.removeColumn(selectedElement.id);
           if (selectedElement.kind === 'beam') store.removeBeam(selectedElement.id);
           if (selectedElement.kind === 'electrical') store.removeElectricalPoint(selectedElement.id);
-          if (selectedElement.kind === 'zone') store.removeFinishZone(selectedElement.roomId, selectedElement.id);
+          if (selectedElement.kind === 'zone' && gate('catalog')) store.removeFinishZone(selectedElement.roomId, selectedElement.id);
         }
       } else if (code === 'Digit1') setView('2d');
       else if (code === 'Digit2') setView('3d');
@@ -579,7 +599,7 @@ export default function StudioPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view, putToolsDown, catalogBrowser, finishCatalog]);
+  }, [rotateSelected, selectedItemId, selectedElement, carryingItemId, store, focusRoomId, items, structureLocked, view, setView, putToolsDown, catalogBrowser, finishCatalog, gate]);
 
   /** How many technical points of each kind stand on the plan, for the tray's tiles. */
   const technicalCounts = useMemo(() => {
@@ -678,7 +698,7 @@ export default function StudioPage() {
    * stood in the room by itself on the board, wherever the layout found a spot, which read
    * as the shelf placing furniture on its own.
    */
-  const pickProduct = (product: CatalogProduct): boolean => view !== 'walk' && store.beginAdd(product, focusRoomId) !== null;
+  const pickProduct = (product: CatalogProduct): boolean => view !== 'walk' && gate('catalog') && store.beginAdd(product, focusRoomId) !== null;
 
   /**
    * "Place" in the catalogue modal: the product goes on the pointer like a tile off the
@@ -703,6 +723,7 @@ export default function StudioPage() {
       return;
     }
     if (view === 'walk' || (view === '3d' && !viewerApi) || (view === '2d' && !planApi)) return;
+    if (!gate('catalog')) return;
     if (store.beginAdd(product, focusRoomId) !== null) dragCarry.current = true;
   };
 
@@ -749,7 +770,7 @@ export default function StudioPage() {
     if (!raw) return;
     event.preventDefault();
     const product = products.find((p) => p.id === Number(raw));
-    if (!product) return;
+    if (!product || !canCatalog) return;
     const target = view === '3d' ? viewerApi : view === '2d' ? planApi : null;
     if (!target) return;
     if (dragCarry.current) {
@@ -803,7 +824,7 @@ export default function StudioPage() {
   };
 
   const takePhoto = () => {
-    if (!viewerApi) return;
+    if (!viewerApi || !gate('renders')) return;
     const dataUrl = viewerApi.screenshot();
     if (!dataUrl) return;
     setShot({ dataUrl, roomName: focusRoom?.name ?? null, camera: viewerApi.cameraPose() });
@@ -815,6 +836,7 @@ export default function StudioPage() {
    * or, in the two painting scopes, into the brush, to be laid down a click at a time.
    */
   const pickFinish = (surface: FinishSurface, product: CatalogProduct | null) => {
+    if (!gate('catalog')) return;
     if (isPaintScope(finishScope)) {
       setBrush(product);
       return;
@@ -850,6 +872,7 @@ export default function StudioPage() {
    * the room is in view to paint or to look at.
    */
   const pickFromFinishCatalog = (product: CatalogProduct) => {
+    if (!gate('catalog')) return;
     pickFinish(finishSurface, product);
     setFinishCatalogLast(product);
     setFinishCatalog('minimized');
@@ -898,7 +921,11 @@ export default function StudioPage() {
       ? t.build.walkNoEdit
       : electricalArmed
         ? t.build.hintElectrical
-        : null;
+        : category === 'furniture' && !canCatalog
+          ? t.plans.studioLockedFurniture
+          : category === 'finishes' && !canCatalog
+            ? t.plans.studioLockedFinishes
+            : null;
 
   // The furniture shelf keeps a list of what is already standing beside it: the room's own
   // when one is in focus, the whole flat grouped by room otherwise.
@@ -1001,7 +1028,8 @@ export default function StudioPage() {
               showTotals={false}
               hint={false}
               frameless
-              furniture
+              // The board drags furniture only on a plan that moves it; the footprints show either way.
+              furniture={canMove}
               locked={structureLocked}
               wallBuilding={wallBuilding}
               electricalKind={electricalKind}
@@ -1042,6 +1070,8 @@ export default function StudioPage() {
               paintScope={category === 'finishes' ? paintScopeOf(finishScope) : null}
               onPaint={onPaint}
               onPlaceItem={onPlaceItem}
+              lockItems={!canMove}
+              onLockedDrag={onLockedDrag}
               carryingItemId={carryingItemId}
               onCarryPlaced={onCarryPlaced}
               onApi={onApi}
@@ -1058,10 +1088,11 @@ export default function StudioPage() {
           onView={setView}
           wallMode={wallMode}
           onWallMode={setWallMode}
-          onClear={() => setClearOpen(true)}
+          onClear={() => gate('catalog') && setClearOpen(true)}
           daylight={daylight}
           onDaylight={setDaylight}
           onPhoto={view !== '2d' && viewerApi ? takePhoto : undefined}
+          planLocks={{ walk: needs('walk'), photo: needs('renders'), clear: needs('catalog') }}
           canUndo={canUndo}
           canRedo={canRedo}
           onUndo={store.undo}
@@ -1137,18 +1168,21 @@ export default function StudioPage() {
                   styleId={styleId}
                   // A bigger piece that finds no room where the old one stood rides on the pointer;
                   // Escape brings the old one back.
-                  onSwap={(product) => store.swapProduct(selected.id, product, { carry: view === '3d' })}
+                  onSwap={(product) => gate('catalog') && store.swapProduct(selected.id, product, { carry: view === '3d' })}
                   onRotate={rotateSelected}
                   // A hung piece faces out of its wall: no angle but its walls' (the turn buttons go round them).
                   onRotateTo={isWallHung(selected) ? undefined : rotateSelectedTo}
                   rotateBlocked={rotateBlocked}
-                  onRemove={() => store.removeItem(selected.id)}
-                  onMirror={() => store.mirrorItem(selected.id)}
-                  onDuplicate={() => store.duplicateItem(selected.id)}
+                  onRemove={() => gate('catalog') && store.removeItem(selected.id)}
+                  onMirror={() => gate('moveFurniture') && store.mirrorItem(selected.id)}
+                  onDuplicate={() => gate('catalog') && store.duplicateItem(selected.id)}
                   onLock={(locked) => store.lockItem(selected.id, locked)}
-                  onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => store.setKitchenMaterial(selected.id, product) : undefined}
-                  onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => store.setKitchenLength(selected.id, widthM) : undefined}
-                  onKitchenToWall={isCustomKitchenItem(selected) ? () => store.stretchKitchenToWall(selected.id) : undefined}
+                  onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => gate('catalog') && store.setKitchenMaterial(selected.id, product) : undefined}
+                  onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => gate('catalog') && store.setKitchenLength(selected.id, widthM) : undefined}
+                  onKitchenToWall={isCustomKitchenItem(selected) ? () => gate('catalog') && store.stretchKitchenToWall(selected.id) : undefined}
+                  swapLock={needs('catalog')}
+                  moveLock={needs('moveFurniture')}
+                  onLockedSwap={() => gate('catalog')}
                 />
               </FloatingPanel>
             ) : selectedElement?.kind === 'electrical' && electrical.some((p) => p.id === selectedElement.id) ? (
@@ -1181,7 +1215,7 @@ export default function StudioPage() {
                   styleId={styleId}
                   locked={structureLocked}
                   onUpdate={(patch) => store.updateOpening(selectedElement.roomId, selectedElement.id, patch, products)}
-                  onSwap={(product) => store.setOpeningProduct(selectedElement.roomId, selectedElement.id, product)}
+                  onSwap={(product) => gate('catalog') && store.setOpeningProduct(selectedElement.roomId, selectedElement.id, product)}
                   onRemove={() => store.removeOpening(selectedElement.roomId, selectedElement.id)}
                 />
               </FloatingPanel>
@@ -1192,10 +1226,10 @@ export default function StudioPage() {
                   piece={decor.find((d) => d.id === selectedElement.id)!}
                   room={plan.rooms.find((r) => r.id === decor.find((d) => d.id === selectedElement.id)!.roomId)!}
                   catalog={products}
-                  onMaterial={(slot, product) => store.setDecorMaterial(selectedElement.id, slot, product)}
-                  onColor={(slot, colorHex) => store.setDecorColor(selectedElement.id, slot, colorHex)}
-                  onParams={(patch) => store.setDecorParams(selectedElement.id, patch)}
-                  onRemove={() => store.removeDecor(selectedElement.id)}
+                  onMaterial={(slot, product) => gate('catalog') && store.setDecorMaterial(selectedElement.id, slot, product)}
+                  onColor={(slot, colorHex) => gate('catalog') && store.setDecorColor(selectedElement.id, slot, colorHex)}
+                  onParams={(patch) => gate('catalog') && store.setDecorParams(selectedElement.id, patch)}
+                  onRemove={() => gate('catalog') && store.removeDecor(selectedElement.id)}
                 />
               </FloatingPanel>
             ) : itemsPanelOpen ? (
@@ -1210,14 +1244,14 @@ export default function StudioPage() {
                   const room = items.find((i) => i.id === id)?.roomId;
                   if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
                 }}
-                onRemove={(id) => store.removeItem(id)}
+                onRemove={(id) => gate('catalog') && store.removeItem(id)}
               />
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-[16px]">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} wallBuilding={wallBuilding} className="border-0" />
                 {selectedElement.kind === 'zone' && (
                   <div className="mt-3">
-                    <FinishPanel roomId={selectedElement.roomId} surface="floor" rooms={plan.rooms} catalog={products} styleId={styleId} finishes={finishes} onRoom={(id) => store.setFocusRoom(id)} onPick={(surface, product) => (surface === 'floor' ? store.updateFinishZone(selectedElement.roomId, selectedElement.id, { product }) : pickFinish(surface, product))} />
+                    <FinishPanel roomId={selectedElement.roomId} surface="floor" rooms={plan.rooms} catalog={products} styleId={styleId} finishes={finishes} onRoom={(id) => store.setFocusRoom(id)} onPick={(surface, product) => (surface === 'floor' ? gate('catalog') && store.updateFinishZone(selectedElement.roomId, selectedElement.id, { product }) : pickFinish(surface, product))} />
                   </div>
                 )}
               </FloatingPanel>
@@ -1261,7 +1295,8 @@ export default function StudioPage() {
                       onPick={pickProduct}
                       onDragProduct={onDragProduct}
                       onOpenCatalog={() => setCatalogBrowser('open')}
-                      onAddOwn={() => setOwnDialogOpen(true)}
+                      onAddOwn={() => gate('ownItems') && setOwnDialogOpen(true)}
+                      locks={{ catalog: needs('catalog'), own: needs('ownItems') }}
                     />
                   )}
                   {category === 'electric' && (
@@ -1309,11 +1344,12 @@ export default function StudioPage() {
                       currentId={currentFinishId}
                       onPick={(product) => pickFinish(finishSurface, product)}
                       canClear={canClearPartial}
-                      onClear={() => finishRoom && !trimSurface && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
+                      onClear={() => finishRoom && !trimSurface && gate('catalog') && store.clearPartialFinishes(finishRoom.id, finishSurface === 'wall' ? 'wall' : 'floor')}
                       flat={view === '2d'}
                       styleId={styleId}
                       onOpenCatalog={() => setFinishCatalog('open')}
                       emptyHint={trimSurface && finishRoom && !hasTrims(finishRoom) ? t.design.trimNoneOnBalcony : null}
+                      locked={needs('catalog')}
                     />
                   )}
                   {category === 'budget' && cost && <BudgetTray cost={cost} />}
@@ -1387,7 +1423,7 @@ export default function StudioPage() {
         onState={setCatalogState}
         placeMode={view}
         onPlace={placeFromCatalog}
-        onAddOwn={() => setOwnDialogOpen(true)}
+        onAddOwn={() => gate('ownItems') && setOwnDialogOpen(true)}
       />
 
       <FinishCatalog

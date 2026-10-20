@@ -2,8 +2,10 @@
 
 How the platform takes money by card: through **Flitt** (Tpay LLC, a Georgian payment service
 provider) with its **embedded** checkout — the card form inside our own dialogue, no redirect.
-What is paid by card today: each half's **fee before its hinge** (the calculation, the 3D
-design) and **adding a piece of one's own furniture** as a 3D model. Partner goods and
+What is paid by card today: **a plan** — Premium or Professional for a month or a year
+([subscriptions.md](subscriptions.md)) — and on Professional **a piece of one's own furniture**
+(a GLB or a photo) and **a render** past the month's free ones. (Until 20 October 2026 each half
+paid a per-m² fee before its hinge; those payments' rows stay, none is started any more.) Partner goods and
 brigades are still paid to the partners ([marketplace.md](marketplace.md)). Read this before
 touching `lib/payments/`, the payment routes, `CardPayment` / `FlittCheckout`, the hinge or
 own-item dialogues' payment step, `/admin/payments`, the payment settings, the legal pages, or
@@ -29,14 +31,14 @@ Source of the protocol: Flitt's documentation (docs.flitt.com; bundled in Flitt'
 | `lib/payments/service.ts` | the `payments` rows: `startCardPayment`, `settleCardPayment` (once-only approval, facts, `fulfil`), `refreshCardPayment`, `settleRecentPayments`, `recordFlittEvent`; the own item's credit (`ownItemCredit`, `claimOwnItemCredit`, `releaseOwnItemCredit`, `spendOwnItemCredit`); `CardPaymentView` |
 | `lib/finance/payments.ts` | a half's quote (`paymentQuote`), `recordHalfPayment` (the `project_payments` row an approved half writes), `halfPayment`, `paymentsOf`, `projectFees` |
 | `lib/finance/money.ts` | `withBankFee(amount, pct)` → `{ amount, bankFeePct, bankFee, total }`, `toTetri` |
-| `app/api/payments/flitt/route.ts` | `POST` — start a payment: `{ purpose: 'calculator' \| 'design', projectId }` or `{ purpose: 'own_item' }` → the token, the charge, the quote; or `{ paid }` / `{ free }` / `{ credit }` when there is nothing to pay |
+| `app/api/payments/flitt/route.ts` | `POST` — start a payment: `{ purpose: 'subscription', plan, period }`, `{ purpose: 'own_item' }` or `{ purpose: 'render' }` → the token, the charge (a subscription's `offer` too: new / renew / upgrade, the price and the credit); or `{ free }` / `{ credit }` when there is nothing to pay; `PLAN_LOWER` (409) for a lower plan than the one in force, `PLAN_REQUIRED` (402) for an own item or a render below Professional |
 | `app/api/payments/flitt/[orderId]/route.ts` | `GET` — the payment as Flitt has it now (asked when unsettled); the payer or admin |
 | `app/api/payments/flitt/callback/route.ts` | `POST` — Flitt's server-to-server result; no session, the signature is the proof |
-| `app/api/payments/own-item/route.ts` | `GET` — what adding an own item costs this person now, and whether they hold a paid credit |
+| `app/api/payments/own-item/route.ts` | `GET` — what adding an own item costs this person now, whether they hold a paid credit, and whether their plan has own items (`allowed`) |
 | `app/api/payments/route.ts` | `GET ?projectId=` — what each half paid and what it would cost (the summaries) |
 | `components/payments/FlittCheckout.tsx` | Flitt's `checkout.js` + CSS from pay.flitt.com, mounted with the token; `success` / `error` / `ready` |
 | `components/payments/CardPayment.tsx` | the card step: starts the payment, the bill (price · bank commission · total) beside Flitt's form, verifies with the server, retries; `keepOpenOutside` |
-| `components/flow/HingeDialog.tsx`, `components/studio/OwnModelDialog.tsx` | the two dialogues that pay |
+| `components/plans/SubscribeDialog.tsx`, `components/studio/OwnModelDialog.tsx`, `components/design/PhotoDialog.tsx` | the three dialogues that pay: a plan, an own item, a render |
 | `app/admin/payments/page.tsx`, `[id]/page.tsx`, `components/admin/PaymentStatusBadge.tsx` | the admin's transactions and one transaction with every Flitt answer |
 | `components/admin/SettingsForm.tsx` | the own item's price and the bank commission, with a worked example |
 | `app/(main)/terms`, `privacy`, `refund`, `lib/legal.ts`, `components/layout/Footer.tsx`, `PaymentMarks.tsx`, `public/payments/` | what a card-taking site must show (below) |
@@ -45,8 +47,8 @@ Source of the protocol: Flitt's documentation (docs.flitt.com; bundled in Flitt'
 ## The flow
 
 ```
-dialogue (hinge: after the warning and the save · own item: "pay and add")
-  → POST /api/payments/flitt { purpose, projectId? }
+dialogue (a plan: "buy" · own item: "pay and add" · render: "pay and request")
+  → POST /api/payments/flitt { purpose, plan?, period? }
       settleRecentPayments  — an unsettled payment of the same thing is asked about first
       paid / free / credit  → no form: the dialogue goes on
       startCardPayment      — payments row (status created), amount + bank fee = total,
@@ -57,9 +59,9 @@ dialogue (hinge: after the warning and the save · own item: "pay and add")
   → GET /api/payments/flitt/<orderId>  (up to 8 × 1.5 s)
       refreshCardPayment → POST pay.flitt.com/api/status/order_id (signed both ways)
       settleCardPayment  → payment_events row; approved once; fulfil:
-                           a half → project_payments row (method flitt, reference order id)
-                           an own item → a credit the upload spends
-  → approved: the hinge (calculated / generate) · the upload (POST /api/design/models)
+                           a subscription → its subscriptions row (activateSubscription)
+                           an own item or a render → a credit its upload spends
+  → approved: the plan is on · the upload (POST /api/design/models) · the render (POST /api/design/renders)
 
 Flitt → POST /api/payments/flitt/callback (signed) → settleCardPayment — whichever comes first
 ```
@@ -98,9 +100,9 @@ day was charged again.) Flitt answers "expired" for the rest, which settles them
 twice anyway (two tabs, two cards) keeps the first `project_payments` row; the second payment
 is logged for a refund.
 
-**A fee of 0** (admin set the half's rate to 0): the start answers `{ free: true }` with no order
-at Flitt, and `HingeDialog` goes straight on through the hinge. A half with no floor area is
-still `400 NOTHING_TO_PAY`.
+**Nothing to charge**: an own item or a render admin made free (price 0) answers `{ free: true }`
+with no order at Flitt; so does an upgrade whose price the lower plan's unused part covers whole
+— bought there and then (`activateFreeUpgrade`). A credit already paid for answers `{ credit: true }`.
 
 **The callback** (`server_callback_url`, `NEXT_PUBLIC_APP_URL/api/payments/flitt/callback`)
 is sent only when the app's URL is reachable — never for localhost, `*.localhost`, `*.test`.
@@ -146,16 +148,24 @@ used — the commission is ours to show.
 
 ## Own items
 
-`platform_settings.ownItemPrice` (admin, default **10 ₾**; 0 makes it free) for adding a GLB
-model. The dialogue reads `GET /api/payments/own-item` when it opens: the price line under the
+Own items are Professional's ([subscriptions.md](subscriptions.md)). `platform_settings.ownItemPrice`
+(admin, default **10 ₾**; 0 makes it free) for each one, a GLB model or a photo. The dialogue reads `GET /api/payments/own-item` when it opens: the price line under the
 form, and "pay and add · 10,22 ₾" instead of "add". Paying first renders the tile's photo off
 the turntable, then the card step; the approval is a **credit**, and the upload
 (`POST /api/design/models`) claims one before storing anything (`claimOwnItemCredit`: an update
 that matches only an unclaimed row, so two uploads cannot share one), gives it back if the
 upload fails (`releaseOwnItemCredit`), and records the product on it once made. A credit left
 over (a failed upload, a closed tab) is spent by the next upload without paying again — the
-dialogue says so. No credit → 402 `PAYMENT_REQUIRED`. **A photo is free** while nothing turns
-it into a model (it cannot be placed).
+dialogue says so. No credit → 402 `PAYMENT_REQUIRED`. A photo costs the same and waits under
+"my items" until a model is made for it.
+
+## Renders
+
+Professional's: each render takes one of the month's three free ones (`plan_usage`), and past
+them `platform_settings.renderPrice` (admin, default **7 ₾**; 0 makes them free). The photo
+dialogue says which; "pay and request" is the card step (purpose `render`), whose approval is a
+credit like an own item's — `POST /api/design/renders` claims it before storing the photo and
+gives it back if the render is not queued.
 
 ## The dialogue (`CardPayment`)
 
@@ -209,8 +219,11 @@ scripts, styles, fonts and requests; Google Pay's and Apple Pay's hosts; **`fram
 
 ## Admin
 
-- **`/admin/settings` → "card payments"**: the own item's price and the bank commission, with the
-  75 m² design worked out on a card ("{fee} + {bank} = {total}").
+- **`/admin/settings`**: the plans' prices (a month and a year of each) and, under "card
+  payments", the own item's and the render's prices and the bank commission, with a month of
+  Professional worked out on a card ("{fee} + {bank} = {total}").
+- **`/admin/users/[id]` → plan**: grant a plan for some months at no charge, or end every
+  subscription ([subscriptions.md](subscriptions.md)).
 - **`/admin/payments` (Transactions, its own section — admin only)**: every payment — order
   (id and Flitt's order id), the user (#id, name, e-mail), what for (calculation / design fee with
   the project, own item with the item or "paid, not uploaded yet"), the card (masked, type,
@@ -259,24 +272,24 @@ fills them into the pages); the phone and e-mail in `footer` too.
 - `tests/unit/payments/service.test.ts` — settling (above), in the coverage gate with `flitt.ts`.
 - `tests/unit/finance/money.test.ts` — `withBankFee`, `toTetri`.
 - `tests/integration/payment-routes.test.ts` — the callback (signed / forged / form / wrapped /
-  garbage), the start (401, 400, owner, quote, paid, nothing to pay, own item price / credit /
-  free, a half at a rate of 0, Flitt down → 502), an oversized callback, the status (payer,
+  garbage), the start (401, 400, a plan at its price, an upgrade less its credit and one the
+  credit covers, a lower plan refused, own item and render prices / credit / free, both
+  Professional's, Flitt down → 502), an oversized callback, the status (payer,
   others, bad ids).
 - `tests/unit/legal/legalSections.test.ts` — every section in three languages, the company filled in.
 - Walked through on the sandbox (headless Chrome at `renovate.localhost`): a design fee and two own
   items paid through 3-D Secure, the half recorded, the design generated, the item uploaded on its
-  credit, the admin pages.
+  credit, the admin pages (1 Oct 2026); Premium bought through 3-D Secure on 20 Oct 2026.
 
 ## Known gaps
 
 - **Refunds are made in Flitt's portal**, not from the admin: there is no reversal call
   (`api/create-reversal.md`) yet; a reversal shows up through the callback or the next status.
-- The **save routes still accept `calculated` / `generated` without a payment** (the browser's
-  word) — the hinge's payment is enforced by the dialogue only ([marketplace.md](marketplace.md)).
-- Own-item payments are not in the **revenue report** (only the halves' fees are); the
-  transactions page has them.
+- Subscriptions, own items and renders are not in the **revenue report** (only the halves' old
+  fees are); the transactions page has them.
 - **Payments that never finish** stay `created` until their payer starts the same payment again
-  (then Flitt is asked, within 30 days); there is no scheduled sweep. Harmless and filterable,
+  (then Flitt is asked, within 30 days — a subscription asks about the person's unsettled
+  subscriptions of any plan); there is no scheduled sweep. Harmless and filterable,
   except one approved at Flitt whose callback failed and whose payer never comes back: the
   admin's transaction page shows it `created` until someone asks Flitt.
 - **Sandbox rows look like real ones** in `project_payments` and the revenue report (the
@@ -286,6 +299,6 @@ fills them into the pages); the phone and e-mail in `footer` too.
 - **A partial refund** stays `approved` with its `reversal_amount`; the revenue report still
   counts the half's whole fee.
 - The **company details are placeholders** until the business fills them in.
-- A photo own item is free; when photos turn into models, decide its price.
+- A photo own item is paid for (10 ₾) before anything turns photos into models.
 - Apple Pay's domain association file is not served yet (Going live, step 5).
 - Partner goods are still paid to partners directly — no split payments (`api/split.md`) yet.

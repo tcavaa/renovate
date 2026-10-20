@@ -19,6 +19,8 @@ import { ELECTRICAL_ICON, TECHNICAL_ICON } from '@/components/plan/icons';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
 import { TECHNICAL_KIND_LIST } from '@/lib/design/technical';
 import { emptyDragImage } from './dragImage';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import type { PaidPlanId } from '@/lib/plans/plans';
 import { StylePicker } from './StylePicker';
 import { localizedName } from '@/lib/i18n/labels';
 import { finishUnitPrice, isTrimFinishSurface, narrowFinishShelf, type FinishSurface } from '@/lib/design/finishBrowser';
@@ -391,7 +393,7 @@ export function finishPriceLabel(t: Dictionary, product: CatalogProduct, surface
  * surface now stays on the shelf whatever they say: it is the one swatch a person must always
  * find.
  */
-export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false, styleId, onOpenCatalog, emptyHint }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean; /** The project's style: ticked on the style filter to begin with. */ styleId: StyleId; /** Opens every finish as a page (`FinishCatalog`): search, filters, details. */ onOpenCatalog?: () => void; /** What an empty shelf says instead of "nothing here" (a balcony's mouldings). */ emptyHint?: string | null }) {
+export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, roomName, areaLabel, options, currentId, onPick, canClear, onClear, flat = false, styleId, onOpenCatalog, emptyHint, locked }: { surface: FinishSurface; onSurface: (surface: FinishSurface) => void; scope: FinishScope; onScope: (scope: FinishScope) => void; hasWall: boolean; roomName: string | null; /** The area the pick will cover, already formatted. */ areaLabel?: string | null; options: CatalogProduct[]; /** The product on the target now (or in the brush); null for the style default, 'mixed' when the rooms differ, undefined when the brush is empty. */ currentId: number | null | 'mixed' | undefined; onPick: (product: CatalogProduct | null) => void; /** The room has single walls, strips or tiles of this surface to take off again. */ canClear?: boolean; onClear?: () => void; /** The 2D board is what is showing: a plan has no height, so a square metre of wall cannot be pointed at there. */ flat?: boolean; /** The project's style: ticked on the style filter to begin with. */ styleId: StyleId; /** Opens every finish as a page (`FinishCatalog`): search, filters, details. */ onOpenCatalog?: () => void; /** What an empty shelf says instead of "nothing here" (a balcony's mouldings). */ emptyHint?: string | null; /** The plan laying a finish needs, when the person's has not got it (docs/subscriptions.md): the shelf wears it, the page's handlers open the upgrade. */ locked?: PaidPlanId | null }) {
   const t = useT();
   const locale = useLocale();
   const trim = isTrimFinishSurface(surface);
@@ -476,6 +478,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             )}
           </div>
           <StylePicker styles={styles} onChange={setStyles} own={styleId} />
+          {locked && <PlanBadge plan={locked} />}
           {/* Every finish as a page — search, filters, details — for when the shelf is not enough. */}
           {onOpenCatalog && (
             <button type="button" onClick={onOpenCatalog} title={t.design.finishCatalogOpenHint} className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">

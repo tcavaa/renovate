@@ -20,7 +20,8 @@ import { optimizeUploadedModel } from '@/lib/uploads/glbOptimizeServer';
 import { slugify } from '@/lib/utils';
 import { log } from '@/lib/log';
 import { loadPlatformSettings } from '@/lib/finance/settings';
-import { claimOwnItemCredit, releaseOwnItemCredit, spendOwnItemCredit } from '@/lib/payments/service';
+import { claimPaidCredit, releasePaidCredit, spendOwnItemCredit } from '@/lib/payments/service';
+import { requirePlanFeature } from '@/lib/plans/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,13 +68,14 @@ export const GET = handle('GET /api/design/models', 'Failed to load models', asy
  * waiting for its model (`model3dStatus: 'pending'`), listed under "my items" until something
  * makes one. Either is the person's alone: `ownerUserId` keeps it out of every public list.
  *
- * Adding a model costs `platform_settings.ownItemPrice` (docs/payments.md): it spends one paid
+ * Own items are Professional's (docs/subscriptions.md — `PLAN_REQUIRED` otherwise), and each one,
+ * a GLB or a photo, costs `platform_settings.ownItemPrice` (docs/payments.md): it spends one paid
  * credit — a Flitt payment approved and not used yet — claimed before anything is stored and
  * given back if the upload fails after all, so a payment is never lost. No credit: 402
- * `PAYMENT_REQUIRED`. A photo is free while there is nothing to turn it into a model.
+ * `PAYMENT_REQUIRED`.
  */
 export const POST = handle('POST /api/design/models', 'Upload failed', async (req) => {
-  const { session, response } = await requireSession();
+  const { session, response } = await requirePlanFeature('ownItems');
   if (response) return response;
   const userId = Number(session.user.id);
 
@@ -88,7 +90,7 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
   const imageMime = modelMime ? null : sniffImage(bytes);
   if (!modelMime && !imageMime) return fail(API_ERRORS.MODEL_INVALID, 400);
 
-  /** The paid credit this upload spends, when a model costs money; given back unless spent. */
+  /** The paid credit this upload spends, when an own item costs money; given back unless spent. */
   let credit: number | null = null;
   let spent = false;
   if (modelMime) {
@@ -96,12 +98,12 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     if (!info || info.meshes === 0) return fail(API_ERRORS.MODEL_INVALID, 400);
     const blocked = unsupportedExtension(info);
     if (blocked) return fail(API_ERRORS.MODEL_UNSUPPORTED_COMPRESSION, 400);
-    if ((await loadPlatformSettings()).ownItemPrice > 0) {
-      credit = await claimOwnItemCredit(userId);
-      if (credit === null) return fail(API_ERRORS.PAYMENT_REQUIRED, 402);
-    }
   } else if (bytes.length > OWN_PHOTO_MAX_BYTES) {
     return fail(API_ERRORS.IMAGE_TOO_LARGE, 400);
+  }
+  if ((await loadPlatformSettings()).ownItemPrice > 0) {
+    credit = await claimPaidCredit(userId, 'own_item');
+    if (credit === null) return fail(API_ERRORS.PAYMENT_REQUIRED, 402);
   }
 
   try {
@@ -171,6 +173,6 @@ export const POST = handle('POST /api/design/models', 'Upload failed', async (re
     if (!product) return fail(API_ERRORS.NOT_FOUND, 500);
     return ok(product, { status: 201 });
   } finally {
-    if (credit !== null && !spent) await releaseOwnItemCredit(credit);
+    if (credit !== null && !spent) await releasePaidCredit(credit);
   }
 });

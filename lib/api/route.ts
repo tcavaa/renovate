@@ -90,6 +90,12 @@ export const API_ERRORS = {
   UPLOAD_MISSING: 'UPLOAD_MISSING',
   /** A file over its kind's limit (`lib/uploads/kinds.ts`). */
   FILE_TOO_LARGE: 'FILE_TOO_LARGE',
+  /** The person's plan does not include this (the `X-Plan-Required` header names the plan that does). */
+  PLAN_REQUIRED: 'PLAN_REQUIRED',
+  /** The plan's projects are used up: two on Free, the month's on a paid plan. */
+  PLAN_PROJECT_LIMIT: 'PLAN_PROJECT_LIMIT',
+  /** A lower plan while a higher one is paid for. */
+  PLAN_LOWER: 'PLAN_LOWER',
   /** A floor plan over its limit. */
   PLAN_TOO_LARGE: 'PLAN_TOO_LARGE',
   /** Not an image the app takes (PNG, JPEG, WebP, and GIF where a GIF may be). */

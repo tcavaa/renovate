@@ -9,6 +9,9 @@ import { safeKey, storage } from '@/lib/storage';
 import { claimUpload } from '@/lib/uploads/claim';
 import { IMAGE_EXTENSION, sniffImage } from '@/lib/uploads/sniff';
 import { log } from '@/lib/log';
+import { loadPlatformSettings } from '@/lib/finance/settings';
+import { claimPaidCredit, releasePaidCredit } from '@/lib/payments/service';
+import { recordPaidRender, releaseUsage, requirePlanFeature, takeFreeRender } from '@/lib/plans/server';
 
 const point = z.array(z.number().finite().min(-1000).max(1000)).length(3);
 const cameraSchema = z.object({ position: point, target: point });
@@ -36,9 +39,14 @@ const postSchema = z.object({
  * `project_renders` row is queued. Nothing produces the render yet — an image model will be
  * wired to the queue later — so rows wait in `queued` and the profile says so. Signed-in owners
  * only: renders live with the project.
+ *
+ * Renders are Professional's (docs/subscriptions.md — `PLAN_REQUIRED` otherwise): each takes one
+ * of the month's free renders (`plan_usage`), and past them spends a paid `render` credit (402
+ * `PAYMENT_REQUIRED` without one) — counted before the photo is stored and given back if it is
+ * not queued after all.
  */
 export const POST = handle('POST /api/design/renders', 'Failed to save the photo', async (req) => {
-  const { session, response } = await requireSession();
+  const { session, response } = await requirePlanFeature('renders');
   if (response) return response;
 
   const parsed = postSchema.safeParse(await req.json().catch(() => null));
@@ -53,13 +61,31 @@ export const POST = handle('POST /api/design/renders', 'Failed to save the photo
   const mime = sniffImage(bytes);
   if (!mime || mime === 'image/gif') return fail(API_ERRORS.IMAGE_INVALID, 400);
 
-  const roomName = parsed.data.roomName?.slice(0, 255) || null;
-  const camera = parsed.data.camera ?? null;
-  const key = safeKey('renders', `u${userId}-p${projectId}-${Date.now()}-${randomBytes(6).toString('hex')}.${IMAGE_EXTENSION[mime]}`);
-  const stored = await storage.put(key, bytes, mime);
-  const [{ id }] = await db.insert(projectRenders).values({ projectId, userId, sourceUrl: stored.url, status: 'queued', roomName, camera }).returning({ id: projectRenders.id });
-  log.info('render requested', { id, projectId, userId, bytes: stored.size });
-  return ok({ id, projectId, sourceUrl: stored.url, status: 'queued' as const });
+  // One of the month's free renders, else a paid credit (none to pay when admin made them free).
+  const account = { id: userId, role: session.user.role };
+  const free = await takeFreeRender(account, projectId);
+  let credit: number | null = null;
+  if (!free && (await loadPlatformSettings()).renderPrice > 0) {
+    credit = await claimPaidCredit(userId, 'render');
+    if (credit === null) return fail(API_ERRORS.PAYMENT_REQUIRED, 402);
+  }
+  let queued = false;
+  try {
+    const roomName = parsed.data.roomName?.slice(0, 255) || null;
+    const camera = parsed.data.camera ?? null;
+    const key = safeKey('renders', `u${userId}-p${projectId}-${Date.now()}-${randomBytes(6).toString('hex')}.${IMAGE_EXTENSION[mime]}`);
+    const stored = await storage.put(key, bytes, mime);
+    const [{ id }] = await db.insert(projectRenders).values({ projectId, userId, sourceUrl: stored.url, status: 'queued', roomName, camera }).returning({ id: projectRenders.id });
+    if (credit !== null) await recordPaidRender(userId, projectId, credit);
+    queued = true;
+    log.info('render requested', { id, projectId, userId, bytes: stored.size, free: !!free, paymentId: credit });
+    return ok({ id, projectId, sourceUrl: stored.url, status: 'queued' as const });
+  } finally {
+    if (!queued) {
+      if (free) await releaseUsage(free.usageId);
+      if (credit !== null) await releasePaidCredit(credit);
+    }
+  }
 });
 
 /** The photos and renders of one of the caller's projects, newest first. */

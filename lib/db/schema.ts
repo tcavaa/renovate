@@ -48,7 +48,17 @@ export const projectMode = pgEnum('project_mode', ['full', 'design_only']);
 export const renderStatus = pgEnum('render_status', ['queued', 'processing', 'ready', 'failed']);
 /** A project's two halves: what a checkout or a fee is for. */
 export const projectHalf = pgEnum('project_half', ['calculator', 'design']);
-export const paymentPurpose = pgEnum('payment_purpose', ['calculator', 'design', 'own_item']);
+/**
+ * What a card payment is for. `calculator` / `design` are the per-m² fees halves paid before
+ * their hinge until subscriptions replaced them (kept for the rows paid then); a `subscription`
+ * buys a plan for a month or a year; `own_item` and `render` are credits the next upload spends.
+ */
+export const paymentPurpose = pgEnum('payment_purpose', ['calculator', 'design', 'own_item', 'subscription', 'render']);
+/** The paid plans (docs/subscriptions.md). Free is the absence of a subscription. */
+export const subscriptionPlan = pgEnum('subscription_plan', ['premium', 'professional']);
+export const billingPeriod = pgEnum('billing_period', ['month', 'year']);
+/** What a plan counts: a project made, a render asked for. */
+export const planUsageKind = pgEnum('plan_usage_kind', ['project', 'render']);
 export const paymentStatus = pgEnum('payment_status', ['created', 'processing', 'approved', 'declined', 'expired', 'reversed']);
 export const paymentEventSource = pgEnum('payment_event_source', ['callback', 'status']);
 export const partnerType = pgEnum('partner_type', ['store', 'worker', 'team']);
@@ -538,6 +548,13 @@ export const platformSettings = pgTable('platform_settings', {
    * shown to the person as a line of its own (Flitt's GEL card rate is 2.2 %).
    */
   bankFeePct: numeric('bank_fee_pct', { precision: 5, scale: 2 }).default('2.20').notNull(),
+  /** The plans' prices, GEL, before the bank's commission (docs/subscriptions.md). */
+  premiumMonthPrice: numeric('premium_month_price', { precision: 8, scale: 2 }).default('15.00').notNull(),
+  premiumYearPrice: numeric('premium_year_price', { precision: 8, scale: 2 }).default('120.00').notNull(),
+  professionalMonthPrice: numeric('professional_month_price', { precision: 8, scale: 2 }).default('39.00').notNull(),
+  professionalYearPrice: numeric('professional_year_price', { precision: 8, scale: 2 }).default('320.00').notNull(),
+  /** GEL for one realistic render past a Professional month's free ones; 0 = free. */
+  renderPrice: numeric('render_price', { precision: 8, scale: 2 }).default('7.00').notNull(),
   /**
    * The store that supplies the construction materials of the rate book (blocks, plaster,
    * putty, pipes, cable…): a checkout sends the project's material lines to it as an order of
@@ -662,14 +679,59 @@ export const payments = pgTable('payments', {
   /** When Flitt last answered about it (a callback or a status). */
   lastEventAt: ts('last_event_at'),
   paidAt: ts('paid_at'),
-  /** When an own item's credit was claimed by an upload. */
+  /** When an own item's or a render's credit was claimed by its upload. */
   consumedAt: ts('consumed_at'),
+  /** A subscription's plan and period, as quoted when it was started. */
+  plan: subscriptionPlan('plan'),
+  billingPeriod: billingPeriod('billing_period'),
   createdAt: ts('created_at').defaultNow().notNull(),
   updatedAt: ts('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => ({
   userPurposeIdx: index('payments_user_purpose_idx').on(t.userId, t.purpose, t.status),
   projectIdx: index('payments_project_idx').on(t.projectId),
   createdIdx: index('payments_created_idx').on(t.createdAt),
+})).enableRLS();
+
+/**
+ * A paid plan for a stretch of time (docs/subscriptions.md): bought by card for a month or a
+ * year (`paymentId`), or granted by admin (`grantedBy`, no payment). The account's plan is the
+ * highest one whose `[startsAt, endsAt)` holds now; none is Free. A renewal of the same plan
+ * starts when the current one ends; an upgrade starts at once and cuts the lower plan short
+ * (its unused part was taken off the upgrade's price). A reversed payment deletes its row.
+ * `amount` is what was paid for it, the bank's commission left out.
+ */
+export const subscriptions = pgTable('subscriptions', {
+  id: id(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  plan: subscriptionPlan('plan').notNull(),
+  period: billingPeriod('period').notNull(),
+  startsAt: ts('starts_at').notNull(),
+  endsAt: ts('ends_at').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).default('0.00').notNull(),
+  paymentId: integer('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+  grantedBy: integer('granted_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').defaultNow().notNull(),
+}, (t) => ({
+  userEndsIdx: index('subscriptions_user_ends_idx').on(t.userId, t.endsAt),
+  paymentIdx: uniqueIndex('subscriptions_payment_idx').on(t.paymentId),
+})).enableRLS();
+
+/**
+ * What a plan counts, one row per use (docs/subscriptions.md): a project made (the monthly
+ * allowance) and a render asked for (a Professional month's free ones; a paid one names its
+ * payment). Kept apart from the projects and renders themselves so that deleting one does not
+ * hand the allowance back.
+ */
+export const planUsage = pgTable('plan_usage', {
+  id: id(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: planUsageKind('kind').notNull(),
+  projectId: integer('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  /** A render paid by card rather than taken from the month's free ones. */
+  paymentId: integer('payment_id').references(() => payments.id, { onDelete: 'set null' }),
+  createdAt: ts('created_at').defaultNow().notNull(),
+}, (t) => ({
+  userKindIdx: index('plan_usage_user_kind_idx').on(t.userId, t.kind, t.createdAt),
 })).enableRLS();
 
 /**
@@ -876,6 +938,8 @@ export type Project = typeof projects.$inferSelect;
 export type ProjectPayment = typeof projectPayments.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type PaymentEvent = typeof paymentEvents.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type PlanUsageRow = typeof planUsage.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectRender = typeof projectRenders.$inferSelect;
 export type ApprovalStatus = Store['approvalStatus'];

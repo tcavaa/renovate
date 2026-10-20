@@ -20,7 +20,8 @@ only), and a project can have both halves.
    purchasable partner products** → sockets and lighting → finishes → the budget → the brigade.
 
 The differentiator: every object in the 3D scene is a real SKU with a price and a shop. The
-platform earns a fee per m² and a commission on every partner order. UI copy is Georgian first,
+platform earns from subscriptions (Free, Premium, Professional — the plan decides what a person
+may do) and a commission on every partner order. UI copy is Georgian first,
 with English and Russian. Tagline: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
 
 ## Production is not public yet
@@ -163,6 +164,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/calculator.md](docs/calculator.md) | the calculator's six steps, the estimate engine, the rate book, phases and home states, per-room finishes, selection keys | `lib/calculator/`, `lib/summary/`, `store/calculatorStore.ts`, `app/(main)/calculator/`, `/admin/rates` |
 | [docs/budget.md](docs/budget.md) | the shared summary sheet, `priceScene`, ticks and quantity edits, baskets and delivery, kitchens, trades | either summary page, `lib/design/pricing.ts`, `ticks.ts`, anything that makes order lines |
 | [docs/marketplace.md](docs/marketplace.md) | fees (paid at each half's hinge) and commissions, checkout (materials · reserve · furniture, the contact and address, the construction-materials supplier), the platform's review and confirmation of store orders, partners' order steps and comments, brigade bookings, revenue and settings | `lib/finance/`, `lib/account/`, `lib/teams/`, the payment step, checkout/booking dialogues, anything that reads or changes an order, revenue |
+| [docs/subscriptions.md](docs/subscriptions.md) | the plans (Free, Premium, Professional) and what each unlocks, buying (prepaid, renew, upgrade with credit), project and render allowances, where a plan is enforced (routes, the studio's locks), the upgrade dialogue, `/pricing`, the profile's plan, admin's grant | `lib/plans/`, `usePlan` / `usePlanGate`, `components/plans/`, anything that should be locked on a plan, the hinge dialogue |
 | [docs/payments.md](docs/payments.md) | card payments through Flitt (embedded, sandbox now): the protocol and signatures, starting and settling a payment, the callback, the bank commission, the own item's price and credit, the two-column payment dialogue and 3-D Secure, local testing (`renovate.localhost`), the admin's transactions, the legal pages a card-taking site must show, going live | `lib/payments/`, `/api/payments/**`, `CardPayment` / `FlittCheckout`, the hinge or own-item payment, `/admin/payments`, the payment settings, the CSP, `/terms` `/privacy` `/refund` |
 | [docs/partners-and-admin.md](docs/partners-and-admin.md) | partner self-registration and approval, the partner portal (a store's products and analytics, a brigade's profile), the role-cut admin dashboard, admin sections and URL-driven lists (the filter bar, lists remembered where they were left, breadcrumbs), bulk actions, brigade and worker pages | `app/admin/`, `app/partner/`, registration, `/teams`, `/workers` |
 | [docs/catalog.md](docs/catalog.md) | products, stores, the product form, public catalogue and product page, own furniture, what the public may see | product/store routes, `ProductForm`, `/catalog`, the design catalogue |

@@ -61,7 +61,7 @@ export default async function AdminPaymentPage(props: { params: Promise<{ id: st
   const facts: Array<[string, React.ReactNode]> = [
     [s.orderId, <span key="o" className="font-mono text-xs">{pay.orderId}</span>],
     [s.user, pay.userId ? <Link key="u" href={`/admin/users/${pay.userId}`} className="text-brand hover:underline">#{pay.userId} · {row.userName} · {row.userEmail}</Link> : '—'],
-    [s.purpose, s.purposes[pay.purpose]],
+    [s.purpose, pay.purpose === 'subscription' && pay.plan ? `${s.purposes.subscription} · ${pay.plan === 'premium' ? ka.plans.premium : ka.plans.professional} · ${pay.billingPeriod === 'year' ? ka.plans.periodYear : ka.plans.periodMonth}` : s.purposes[pay.purpose]],
     [s.project, pay.projectId ? <Link key="p" href={`/admin/projects/${pay.projectId}`} className="text-brand hover:underline">#{pay.projectId} · {row.projectName}</Link> : '—'],
     ...(pay.purpose === 'own_item' ? ([[s.product, pay.productId ? fill(s.productRef, { id: pay.productId }) : pay.status === 'approved' ? s.creditUnused : '—']] as Array<[string, React.ReactNode]>) : []),
     ...(pay.totalM2 ? ([[s.quote, `${formatGEL(Number(pay.feePerM2), true)} × ${formatNumber(Number(pay.totalM2))} მ²`]] as Array<[string, React.ReactNode]>) : []),

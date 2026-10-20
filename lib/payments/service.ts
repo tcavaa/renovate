@@ -7,6 +7,8 @@ import { env } from '@/lib/env';
 import { log } from '@/lib/log';
 import { toTetri, withBankFee, type CardCharge } from '@/lib/finance/money';
 import { recordHalfPayment } from '@/lib/finance/payments';
+import { activateSubscription, revokeSubscription } from '@/lib/plans/server';
+import type { BillingPeriod, PaidPlanId } from '@/lib/plans/plans';
 import { cardLast4, flittOutcome, isFinalStatus, settlementFor, storedPayload, type FlittParams, type PaymentStatus } from './flitt';
 import { createCheckoutToken, fetchOrderStatus, flittConfig, FlittError } from './flittApi';
 
@@ -15,7 +17,8 @@ import { createCheckoutToken, fetchOrderStatus, flittConfig, FlittError } from '
  * a `payments` row made before Flitt is asked for a token, and settled by Flitt's signed
  * answer — the callback, or the status the server asks for when the embedded form reports it
  * is done. Whichever comes first approves it, once; the other finds it approved. Only then is
- * anything unlocked: a half's `project_payments` row, an own item's credit.
+ * anything unlocked: a plan's `subscriptions` row, an own item's or a render's credit (and, for
+ * the per-m² fees halves paid before subscriptions, a half's `project_payments` row).
  */
 
 export type PaymentPurpose = Payment['purpose'];
@@ -51,7 +54,7 @@ export function cardPaymentView(row: Payment): CardPaymentView {
 
 /** An order id Flitt has never seen: the test merchant is shared by everyone who tries it. */
 function newOrderId(purpose: PaymentPurpose): string {
-  const tag = purpose === 'own_item' ? 'own' : purpose === 'design' ? 'des' : 'calc';
+  const tag = { own_item: 'own', design: 'des', calculator: 'calc', subscription: 'sub', render: 'ren' }[purpose];
   return `remonti-${tag}-${Date.now().toString(36)}-${randomBytes(5).toString('hex')}`;
 }
 
@@ -86,9 +89,9 @@ export interface StartPaymentInput {
   /** The price before the bank's commission. */
   amount: number;
   bankFeePct: number;
-  /** A half's quote, kept with the payment. */
-  totalM2?: number | null;
-  feePerM2?: number | null;
+  /** A subscription's plan and period, kept with the payment and bought by its approval. */
+  plan?: PaidPlanId | null;
+  billingPeriod?: BillingPeriod | null;
   description: string;
   lang: string;
 }
@@ -113,8 +116,8 @@ export async function startCardPayment(input: StartPaymentInput): Promise<Starte
     userId: input.userId,
     purpose: input.purpose,
     projectId: input.projectId ?? null,
-    totalM2: input.totalM2 != null ? String(input.totalM2) : null,
-    feePerM2: input.feePerM2 != null ? String(input.feePerM2) : null,
+    plan: input.plan ?? null,
+    billingPeriod: input.billingPeriod ?? null,
     amount: String(charge.amount),
     bankFeePct: String(charge.bankFeePct),
     bankFee: String(charge.bankFee),
@@ -249,12 +252,17 @@ export async function settleCardPayment(params: FlittParams, source: 'callback' 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
- * What an approved payment unlocks, inside its approval's transaction: a half's fee is recorded;
- * an own item's credit is the approved row itself. A half another payment paid first (two tabs,
- * two cards) keeps that one, and this payment is logged for a refund — the approval stands, the
- * money was taken. A failure of any other kind rolls the approval back.
+ * What an approved payment unlocks, inside its approval's transaction: a subscription buys its
+ * plan (`activateSubscription`); an own item's or a render's credit is the approved row itself;
+ * a half's fee (paid before subscriptions) is recorded. A half another payment paid first keeps
+ * that one, and this payment is logged for a refund — the approval stands, the money was taken.
+ * A failure of any other kind rolls the approval back.
  */
 async function fulfil(tx: Tx, payment: Payment): Promise<void> {
+  if (payment.purpose === 'subscription') {
+    await activateSubscription(tx, payment);
+    return;
+  }
   if (payment.purpose !== 'calculator' && payment.purpose !== 'design') return;
   if (payment.projectId) {
     const [first] = await tx
@@ -271,11 +279,16 @@ async function fulfil(tx: Tx, payment: Payment): Promise<void> {
 }
 
 /**
- * What a reversed payment unlocked, taken back: the half's record (so it is neither "paid" nor
- * revenue), or an own item's credit not yet spent. A model already made from the credit stays.
+ * What a reversed payment unlocked, taken back: the plan it bought, an own item's or a render's
+ * credit not yet spent (a model or a render already made from it stays), or a half's record (so
+ * it is neither "paid" nor revenue).
  */
 async function revoke(tx: Tx, payment: Payment): Promise<void> {
-  if (payment.purpose === 'own_item') {
+  if (payment.purpose === 'subscription') {
+    await revokeSubscription(tx, payment);
+    return;
+  }
+  if (payment.purpose === 'own_item' || payment.purpose === 'render') {
     await tx.update(payments).set({ consumedAt: new Date() }).where(and(eq(payments.id, payment.id), isNull(payments.consumedAt)));
     return;
   }
@@ -329,12 +342,15 @@ export async function settleRecentPayments(where: { userId: number; purpose: Pay
   for (const row of rows) await refreshCardPayment(row);
 }
 
-/** An own item paid for and not yet added: the next upload uses it. */
-export async function ownItemCredit(userId: number): Promise<Payment | null> {
+/** What a credit is: a payment the next upload of its kind spends. */
+export type CreditPurpose = 'own_item' | 'render';
+
+/** An own item or a render paid for and not yet used: the next one spends it. */
+export async function paidCredit(userId: number, purpose: CreditPurpose): Promise<Payment | null> {
   const [row] = await db
     .select()
     .from(payments)
-    .where(and(eq(payments.userId, userId), eq(payments.purpose, 'own_item'), eq(payments.status, 'approved'), isNull(payments.consumedAt)))
+    .where(and(eq(payments.userId, userId), eq(payments.purpose, purpose), eq(payments.status, 'approved'), isNull(payments.consumedAt)))
     .orderBy(asc(payments.id))
     .limit(1);
   return row ?? null;
@@ -344,9 +360,9 @@ export async function ownItemCredit(userId: number): Promise<Payment | null> {
  * Takes one credit for an upload, before anything is stored: two uploads racing for one credit
  * get it once (the update matches only an unclaimed row). Null when there is none.
  */
-export async function claimOwnItemCredit(userId: number): Promise<number | null> {
+export async function claimPaidCredit(userId: number, purpose: CreditPurpose): Promise<number | null> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const credit = await ownItemCredit(userId);
+    const credit = await paidCredit(userId, purpose);
     if (!credit) return null;
     const claimed = await db
       .update(payments)
@@ -359,11 +375,11 @@ export async function claimOwnItemCredit(userId: number): Promise<number | null>
 }
 
 /** An upload that failed after taking its credit gives it back. */
-export async function releaseOwnItemCredit(paymentId: number): Promise<void> {
+export async function releasePaidCredit(paymentId: number): Promise<void> {
   await db.update(payments).set({ consumedAt: null, productId: null }).where(eq(payments.id, paymentId));
 }
 
-/** The credit was spent on this product. */
+/** An own item's credit was spent on this product. */
 export async function spendOwnItemCredit(paymentId: number, productId: number): Promise<void> {
   await db.update(payments).set({ productId }).where(eq(payments.id, paymentId));
 }

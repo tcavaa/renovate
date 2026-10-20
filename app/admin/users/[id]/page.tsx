@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
 import { AccountForm } from '@/components/admin/AccountForm';
+import { PlanGrantCard } from '@/components/admin/PlanGrantCard';
+import { planState } from '@/lib/plans/server';
 import { getT, getLocale } from '@/lib/i18n/server';
 import {
   formatM2L,
@@ -63,6 +65,8 @@ export default async function AdminUserDetailPage(
     .from(projects)
     .where(eq(projects.userId, id))
     .orderBy(desc(projects.createdAt));
+
+  const plan = await planState({ id: user.id, role: user.role });
 
   const totalSpent = userProjects.reduce(
     (s, p) => s + (p.totalCost ? Number(p.totalCost) : 0),
@@ -148,6 +152,8 @@ export default async function AdminUserDetailPage(
         workers={partnerWorkers}
         teams={partnerTeams}
       />
+
+      <PlanGrantCard userId={user.id} plan={plan.plan} paidUntil={plan.subscription?.paidUntil ?? null} staff={plan.staff} />
 
       <Card>
         <CardHeader>

@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { eq } from 'drizzle-orm';
-import { Box, Calculator, FolderOpen, Images, Package, Shapes, UserRound } from 'lucide-react';
+import { Box, Calculator, Crown, FolderOpen, Images, Package, Shapes, UserRound } from 'lucide-react';
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { HubModels } from '@/components/projects/hub/HubModels';
 import { ProfileForm } from '@/components/profile/ProfileForm';
+import { PlanDetails } from '@/components/plans/PlanDetails';
 import { loadAccountContact } from '@/lib/account/server';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
 import { CARD_FRAME, HubShell, ProjectThumbnail, RoundLink } from '@/components/projects/hub/HubShell';
@@ -24,16 +25,17 @@ import type { Dictionary } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
-type ProfileView = 'projects' | 'renders' | 'orders' | 'models' | 'account';
+type ProfileView = 'projects' | 'renders' | 'orders' | 'models' | 'plan' | 'account';
 
 function profileView(value: string | undefined): ProfileView {
-  return value === 'renders' || value === 'orders' || value === 'models' || value === 'account' ? value : 'projects';
+  return value === 'renders' || value === 'orders' || value === 'models' || value === 'plan' || value === 'account' ? value : 'projects';
 }
 
 /**
  * The person's own page, in the hubs' frame (`HubShell`): the account at the head of a sidebar
  * of four lists — every project, whichever product it is in; every render; every order, grouped
- * by project; the furniture they uploaded — and their own details (`?view=account`: name,
+ * by project; the furniture they uploaded — their plan (`?view=plan`, docs/subscriptions.md) and
+ * their own details (`?view=account`: name,
  * phone, default delivery address — what a checkout does not ask again). On the projects, the
  * way into each product and what their projects come to; a card opens the project's page.
  */
@@ -52,7 +54,7 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
     .limit(1);
   const needsVerification = !!account && !account.emailVerifiedAt && !!account.hasPassword;
 
-  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : view === 'models' ? t.profile.myModels : view === 'account' ? t.profile.accountTitle : t.nav.projects;
+  const title = view === 'renders' ? t.hub.navRenders : view === 'orders' ? t.hub.navOrders : view === 'models' ? t.profile.myModels : view === 'plan' ? t.plans.profileTitle : view === 'account' ? t.profile.accountTitle : t.nav.projects;
 
   return (
     <HubShell
@@ -63,6 +65,7 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
         { href: '/profile?view=renders', label: t.hub.navRenders, icon: Images, active: view === 'renders' },
         { href: '/profile?view=orders', label: t.hub.navOrders, icon: Package, active: view === 'orders' },
         { href: '/profile?view=models', label: t.profile.myModels, icon: Shapes, active: view === 'models' },
+        { href: '/profile?view=plan', label: t.plans.profileNav, icon: Crown, active: view === 'plan' },
         { href: '/profile?view=account', label: t.profile.accountTitle, icon: UserRound, active: view === 'account' },
       ]}
       crumb={{ label: t.nav.profile, href: '/profile' }}
@@ -78,6 +81,8 @@ export default async function ProfilePage(props: { searchParams: Promise<{ verif
         <HubOrders userId={userId} t={t} locale={locale} />
       ) : view === 'models' ? (
         <HubModels userId={userId} />
+      ) : view === 'plan' ? (
+        <PlanDetails userId={userId} role={session!.user.role} t={t} />
       ) : view === 'account' ? (
         <AccountDetails userId={userId} />
       ) : (

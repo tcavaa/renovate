@@ -13,6 +13,8 @@ import { StageBrief } from '@/components/flow/StageBrief';
 import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useT } from '@/lib/i18n/client';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import { usePlanGate } from '@/hooks/usePlan';
 import { cn } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import { DEFAULT_WALL_THICKNESS_M } from '@/lib/design/planGeometry';
@@ -38,6 +40,8 @@ function hasDrawing(plan: FloorPlan | null | undefined): boolean {
  */
 export default function DesignStartPage() {
   const t = useT();
+  // Uploading a plan is a paid plan's; the tile says so (the card itself opens the upgrade).
+  const uploadLocked = usePlanGate().needs('planUpload');
   const router = useRouter();
   const projectId = useProjectId();
   const search = useSearchParams();
@@ -131,7 +135,7 @@ export default function DesignStartPage() {
                   <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
                   <span className="min-w-0">
                     <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="mt-0.5 block font-serif text-lg font-semibold leading-tight">{o.label}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
                     <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
                 </button>

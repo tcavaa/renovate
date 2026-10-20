@@ -462,6 +462,21 @@ Known gaps). Matched on `event.code` like everything else, ignored while an inpu
 and owned by the viewer (walk mode has its own controls) — the studio page handles the rest:
 1/2/3, R, M, Delete/Backspace, Escape and Ctrl+Z / Y / C / V / D.
 
+## What the plan allows
+
+The studio is the same page on every plan; the plan decides what it changes
+([subscriptions.md](../subscriptions.md#the-browser)). Without the catalogue (Free) nothing is
+added, swapped, removed, finished or decorated anew — each of those handlers goes through
+`usePlanGate().gate('catalog')`, which opens the upgrade dialogue; without moving furniture the
+3D view holds every piece where it stands (`Viewer3D lockItems`: a click selects, a drag orbits,
+and the page says why once per drag), the board drags none (`PlanWorkspace furniture={canMove}`)
+and the turn, mirror, R and M go through `gate('moveFurniture')`. The walk-through (the switch and
+the 3 key), the photo for a render and "add my own" are Professional's. The locked controls wear
+`PlanBadge` (the view switch, the photo and empty buttons, the shelf's catalogue and own-item
+buttons, the finishes shelf, the item card's "შეცვალე პროდუქტი" — whose header opens the dialogue —
+and its move row, the angle slider hidden), and the tray's hint says what the plan does not
+allow. The electric and technical trays are not gated.
+
 ## Photos and renders
 
 **Photos.** The camera button (`ViewerApi.screenshot`: render, then `toDataURL` — the
@@ -478,7 +493,9 @@ the project: "გაგრძელება" closes the dialog and "რენ�
 scrolled to the project's group (`profileRendersHref`, `lib/projects/links.ts`). The project's
 page shows them too — `ProjectRenders` lists every shot with its status and a download of the
 screenshot now and of the render once `renderUrl` is set (`GET /api/design/renders`,
-`DELETE /api/design/renders/[id]`). **No generator is wired to the queue yet**: rows wait in `queued` until an image model
+`DELETE /api/design/renders/[id]`). On Professional each render takes one of the month's three free ones, then is paid for first
+(`renderPrice`, the dialogue's "pay and request" — [payments.md](../payments.md#renders)).
+**No generator is wired to the queue yet**: rows wait in `queued` until an image model
 (or a person) fills `renderUrl` and flips the status.
 
 ## Tests

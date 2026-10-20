@@ -2,7 +2,10 @@
 
 /**
  * Side panel for the selected object: what it is, what it costs, who sells it, and every
- * alternative in the catalogue that could take its place.
+ * alternative in the catalogue that could take its place. On a plan without the catalogue or
+ * moving furniture (docs/subscriptions.md) the drawer and the move buttons wear a lock: the
+ * drawer's header opens the upgrade dialogue instead (`onLockedSwap`), and the page gates the
+ * buttons.
  */
 
 import { useState } from 'react';
@@ -18,6 +21,8 @@ import { formatGEL, formatM2, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { localizedName } from '@/lib/i18n/labels';
 import type { PlacedItem, StyleId } from '@/lib/design/types';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import type { PaidPlanId } from '@/lib/plans/plans';
 
 interface SwapPanelProps {
   item: PlacedItem | null;
@@ -41,6 +46,12 @@ interface SwapPanelProps {
   onKitchenLength?: (widthM: number) => boolean;
   /** Stretches a made-to-measure kitchen to the end of its wall; false when it cannot grow. */
   onKitchenToWall?: () => boolean;
+  /** The plan swapping and removing need, when the person's has not got it. */
+  swapLock?: PaidPlanId | null;
+  /** The plan moving, turning and mirroring need, when the person's has not got it. */
+  moveLock?: PaidPlanId | null;
+  /** The drawer's header on a locked plan: the upgrade dialogue. */
+  onLockedSwap?: () => void;
 }
 
 /** The angle as a slider and a number, 0–359°; both write the same rotation. */
@@ -93,6 +104,9 @@ export function SwapPanel({
   onKitchenMaterial,
   onKitchenLength,
   onKitchenToWall,
+  swapLock,
+  moveLock,
+  onLockedSwap,
 }: SwapPanelProps) {
   const t = useT();
   const locale = useLocale();
@@ -135,6 +149,7 @@ export function SwapPanel({
           copy it, lock it, delete it. The words beside them were what made this panel scroll.
         */}
         <div className="flex items-center gap-1.5">
+          {moveLock && <PlanBadge plan={moveLock} iconOnly />}
           <IconAction label={t.design.rotateLeft} onClick={() => onRotate(-1)}>
             <RotateCcw className="h-4 w-4" />
           </IconAction>
@@ -165,7 +180,7 @@ export function SwapPanel({
           </IconAction>
         </div>
         {/* Any angle: a slider for the hand and a number for the eye, degrees clockwise from facing +Z. */}
-        {onRotateTo && !item.locked && (
+        {onRotateTo && !item.locked && !moveLock && (
           <AngleRow degrees={Math.round(((item.rotation * 180) / Math.PI + 360) % 360)} onChange={(deg) => onRotateTo((deg * Math.PI) / 180)} label={t.design.angle} />
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
@@ -189,8 +204,11 @@ export function SwapPanel({
         aria-expanded={open}
         className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}
       >
-        <button type="button" onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
-          <span className="text-sm font-semibold text-ink">{t.design.swapTitle}</span>
+        <button type="button" onClick={() => (swapLock ? onLockedSwap?.() : setOpen((v) => !v))} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
+          <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+            {t.design.swapTitle}
+            {swapLock && <PlanBadge plan={swapLock} />}
+          </span>
           <span className="flex items-center gap-1 text-[11px] text-ink-muted">
             {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
             {open ? t.design.swapClose : t.design.swapOpen}

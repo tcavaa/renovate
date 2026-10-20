@@ -94,6 +94,13 @@ export const platformSettingsSchema = z.object({
   ownItemPrice: z.coerce.number().min(0).max(10000).optional(),
   /** The bank's commission shown and charged on top of every card payment. */
   bankFeePct: z.coerce.number().min(0).max(20).optional(),
+  /** The plans' prices (docs/subscriptions.md): a month and a year of each; at least 1 ₾ — a 0 has no card payment. */
+  premiumMonthPrice: z.coerce.number().min(1).max(100000).optional(),
+  premiumYearPrice: z.coerce.number().min(1).max(100000).optional(),
+  professionalMonthPrice: z.coerce.number().min(1).max(100000).optional(),
+  professionalYearPrice: z.coerce.number().min(1).max(100000).optional(),
+  /** GEL for one render past a Professional month's free ones; 0 makes them free. */
+  renderPrice: z.coerce.number().min(0).max(10000).optional(),
   /** The store that supplies the rate book's construction materials; null for nobody. */
   materialsStoreId: z.number().int().positive().nullable().optional(),
 });

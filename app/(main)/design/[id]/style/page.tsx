@@ -30,8 +30,7 @@ import { saveDesign } from '@/lib/design/saveDesign';
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
  * a direct pick, and an optional furniture budget. "Generate" warns that the plan is settled
- * from here and takes the platform's fee for the design (`HingeDialog`: a test card for now),
- * then lays the flat out and opens the studio.
+ * from here (`HingeDialog`), then lays the flat out and opens the studio.
  */
 export default function StylePage() {
   const t = useT();
@@ -42,7 +41,7 @@ export default function StylePage() {
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
   const [generating, setGenerating] = useState(false);
-  /** The warning and the fee before the generation (`HingeDialog`). */
+  /** The warning before the generation (`HingeDialog`). */
   const [hinge, setHinge] = useState(false);
   /** The AI designer is there (a key on the server) and this design has AI runs left. */
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -171,7 +170,7 @@ export default function StylePage() {
         }}
       />
       {hinge && (
-        <HingeDialog open onOpenChange={setHinge} kind="design" projectId={projectId} save={() => saveDesign({ draft: true })} onPaid={generateNow} />
+        <HingeDialog open onOpenChange={setHinge} kind="design" save={() => saveDesign({ draft: true })} onConfirm={generateNow} />
       )}
       <GenerationOverlay open={generating} ai={aiRun} ready={laidOut} onDone={() => router.push(designStepHref(projectId, 5))} />
     </>

@@ -34,6 +34,11 @@ at runtime yet; the last one was seen on the sample plan.
   Sentry's server tracing does not load (no server timings anywhere on Hobby); Next prefetches
   every dynamic page twice per link (route tree, then the page) — [operations.md](operations.md#known-gaps).
 
+- **Subscriptions, what is left**: studio edits are checked in the browser only (the design save
+  takes the scene whole), no reminder before a plan ends, subscriptions not in the revenue
+  report, a photo own item paid for before photos become models, the old per-m² fee columns to
+  drop — [subscriptions.md](subscriptions.md#known-gaps).
+
 ## Next features
 
 - **AI generation, what is left** — phase 1 and the wall decor are built
@@ -135,6 +140,7 @@ Each topic document ends with its own "Known gaps" section:
 [project-flow.md §18](project-flow.md#18-known-gaps) ·
 [budget.md](budget.md#known-gaps) ·
 [marketplace.md](marketplace.md#known-gaps) ·
+[subscriptions.md](subscriptions.md#known-gaps) ·
 [partners-and-admin.md](partners-and-admin.md#known-gaps) ·
 [catalog.md](catalog.md#known-gaps) ·
 [categories.md](categories.md#known-gaps) ·

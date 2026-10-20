@@ -12,6 +12,9 @@ import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designStepHref } from '@/lib/design/steps';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import { fill } from '@/lib/admin/list';
+import { usePlan } from '@/hooks/usePlan';
+import { usePlanStore } from '@/store/planStore';
 
 /** A project the "from the other product" tile offers, with its drawing already rendered on the server. */
 export interface HubPick {
@@ -28,6 +31,10 @@ export interface HubPick {
  * first, in a dialogue, then its first step, where the plan is uploaded or drawn (step 1 offers
  * both) — and this product's half of a project the person already has in the other product,
  * chosen from a list.
+ *
+ * The plan decides how many projects may be made (docs/subscriptions.md): the line under the
+ * button says how many are left, and none left opens the upgrade dialogue instead of the name —
+ * as does the server's `PLAN_PROJECT_LIMIT`, should another tab have taken the last one.
  */
 export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator' | 'design'; defaultName: string; picks: HubPick[] }) {
   const t = useT();
@@ -38,8 +45,16 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
   const [name, setName] = useState(defaultName);
   const [creating, setCreating] = useState(false);
   const [failed, setFailed] = useState(false);
+  const { state, refresh } = usePlan();
+  const requestUpgrade = usePlanStore((s) => s.requestUpgrade);
+  const projects = state?.projects;
+  const allowance = projects && projects.limit != null && projects.left != null ? fill(projects.per === 'month' ? t.plans.hubProjectsLeftMonth : t.plans.hubProjectsLeft, { left: projects.left, limit: projects.limit }) : null;
 
   const startNew = () => {
+    if (projects?.left === 0) {
+      requestUpgrade({ limit: 'projects' });
+      return;
+    }
     setName(defaultName);
     setFailed(false);
     setNaming(true);
@@ -59,8 +74,17 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
       });
       const json = (await res.json().catch(() => null)) as { data: { id: number } | null; error: string | null } | null;
       const id = json?.data?.id;
+      if (json?.error === 'PLAN_PROJECT_LIMIT') {
+        setCreating(false);
+        setNaming(false);
+        await refresh();
+        requestUpgrade({ limit: 'projects' });
+        return;
+      }
       if (!res.ok || !id) throw new Error(json?.error ?? 'create-failed');
       const first = calculator ? calculatorStepHref(id, 1) : designStepHref(id, 1);
+      // One fewer left: the hubs say so when the person comes back.
+      void refresh();
       // Still "creating" while the first step loads: a second press would make a second project.
       router.push(first);
     } catch {
@@ -72,7 +96,14 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
   return (
     <>
       <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-5">
-        <RoundAction icon={<Plus className="h-7 w-7" strokeWidth={2.25} />} label={t.hub.createProject} title={calculator ? t.hub.newCalculatorLead : t.hub.newDesignLead} className="bg-brand group-hover:bg-brand-dark" onClick={startNew} />
+        <div className="flex w-36 flex-col items-center gap-1">
+          <RoundAction icon={<Plus className="h-7 w-7" strokeWidth={2.25} />} label={t.hub.createProject} title={calculator ? t.hub.newCalculatorLead : t.hub.newDesignLead} className="bg-brand group-hover:bg-brand-dark" onClick={startNew} />
+          {allowance && (
+            <Link href="/profile?view=plan" className={cn('text-center text-[11px] leading-snug hover:text-ink', projects?.left === 0 ? 'text-danger' : 'text-ink-muted')}>
+              {allowance}
+            </Link>
+          )}
+        </div>
         <span className="mt-4 hidden h-9 w-px bg-line sm:block" aria-hidden />
         <RoundAction
           icon={calculator ? <Box className="h-6 w-6" /> : <Calculator className="h-6 w-6" />}

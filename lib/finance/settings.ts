@@ -10,8 +10,8 @@ import { DEFAULT_PLATFORM_SETTINGS, type PlatformSettings } from './money';
  *
  * Same contract as the rate book: an unseeded table is not an error, and admin's change
  * takes effect on the next request without a restart. Every price the platform charges for
- * itself is read through here — the summaries, the checkout, the partner commission, the
- * price of an own item and the bank's commission every card payment shows.
+ * itself is read through here — the plans' prices, the partner commission, the price of an own
+ * item and of a render, and the bank's commission every card payment shows.
  */
 export interface PlatformSettingsWithMeta extends PlatformSettings {
   /** The store that supplies the rate book's construction materials; null = nobody yet. */
@@ -30,6 +30,11 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
     workerCommissionPct: Number(row.workerCommissionPct),
     ownItemPrice: Number(row.ownItemPrice),
     bankFeePct: Number(row.bankFeePct),
+    premiumMonthPrice: Number(row.premiumMonthPrice),
+    premiumYearPrice: Number(row.premiumYearPrice),
+    professionalMonthPrice: Number(row.professionalMonthPrice),
+    professionalYearPrice: Number(row.professionalYearPrice),
+    renderPrice: Number(row.renderPrice),
     materialsStoreId: row.materialsStoreId ?? null,
     updatedAt: row.updatedAt,
   };
@@ -65,6 +70,11 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     workerCommissionPct: patch.workerCommissionPct ?? current.workerCommissionPct,
     ownItemPrice: patch.ownItemPrice ?? current.ownItemPrice,
     bankFeePct: patch.bankFeePct ?? current.bankFeePct,
+    premiumMonthPrice: patch.premiumMonthPrice ?? current.premiumMonthPrice,
+    premiumYearPrice: patch.premiumYearPrice ?? current.premiumYearPrice,
+    professionalMonthPrice: patch.professionalMonthPrice ?? current.professionalMonthPrice,
+    professionalYearPrice: patch.professionalYearPrice ?? current.professionalYearPrice,
+    renderPrice: patch.renderPrice ?? current.renderPrice,
   };
   const materialsStoreId = patch.materialsStoreId !== undefined ? patch.materialsStoreId : current.materialsStoreId;
   const values = {
@@ -74,6 +84,11 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     workerCommissionPct: String(next.workerCommissionPct),
     ownItemPrice: String(next.ownItemPrice),
     bankFeePct: String(next.bankFeePct),
+    premiumMonthPrice: String(next.premiumMonthPrice),
+    premiumYearPrice: String(next.premiumYearPrice),
+    professionalMonthPrice: String(next.professionalMonthPrice),
+    professionalYearPrice: String(next.professionalYearPrice),
+    renderPrice: String(next.renderPrice),
     materialsStoreId,
   };
   const existing = await db.select({ id: platformSettings.id }).from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);

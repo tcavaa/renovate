@@ -16,6 +16,8 @@ import { useCalculatorStore } from '@/store/calculatorStore';
 import { useCalculatorPlanStore } from '@/store/designStore';
 import { useCalculatorPlan } from '@/hooks/useCalculatorPlan';
 import { useT } from '@/lib/i18n/client';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import { usePlanGate } from '@/hooks/usePlan';
 import { calculatorRoomsFromPlan } from '@/lib/design/planGeometry';
 import type { FloorPlan } from '@/lib/design/types';
 import { cn } from '@/lib/utils';
@@ -42,6 +44,8 @@ export default function CalculatorStep1Page() {
   const router = useRouter();
   const search = useSearchParams();
   const t = useT();
+  // Uploading a plan is a paid plan's; the tile says so (the card itself opens the upgrade).
+  const uploadLocked = usePlanGate().needs('planUpload');
   const projectId = useProjectId();
   const { homeState, rooms, setHomeState, replaceRooms } = useCalculatorStore();
   const plan = useCalculatorPlan();
@@ -120,7 +124,7 @@ export default function CalculatorStep1Page() {
                   <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
                   <span className="min-w-0">
                     <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="mt-0.5 block font-serif text-lg font-semibold leading-tight">{o.label}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
                     <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
                 </button>

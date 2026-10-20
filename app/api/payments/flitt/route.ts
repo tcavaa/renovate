@@ -1,16 +1,13 @@
-import { eq } from 'drizzle-orm';
-import { db } from '@/lib/db';
-import { projects } from '@/lib/db/schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { API_ERRORS, fail, handle, ok, requireSession } from '@/lib/api/route';
 import { fill } from '@/lib/admin/list';
-import { halfPayment, paymentQuote } from '@/lib/finance/payments';
 import { loadPlatformSettings } from '@/lib/finance/settings';
-import { formatM2 } from '@/lib/utils';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { log } from '@/lib/log';
 import { FlittError } from '@/lib/payments/flittApi';
-import { ownItemCredit, settleRecentPayments, startCardPayment } from '@/lib/payments/service';
+import { paidCredit, settleRecentPayments, startCardPayment } from '@/lib/payments/service';
+import { hasFeature, planPurchase, requiredPlan } from '@/lib/plans/plans';
+import { activateFreeUpgrade, liveSubscriptions, planOf, planPricesOf } from '@/lib/plans/server';
 import { startPaymentSchema } from '@/lib/validations/payment.schema';
 
 export const runtime = 'nodejs';
@@ -18,11 +15,14 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Starts a card payment through Flitt and hands the payment dialogue the token its embedded
- * form opens with (docs/payments.md). What is charged is the server's: a half's fee off the
- * saved row (the dialogue saved it first) at today's rate, or the own item's price — and the
- * bank's commission on top. Nothing to pay answers so instead of a token: a half already paid
- * (`paid`), a half or an own item that is free (`free` — admin's rate or price is 0), an own
- * item already paid for (`credit`).
+ * form opens with (docs/payments.md). What is charged is the server's: a plan's price for the
+ * period (less the unused part of a lower plan an upgrade replaces — `planPurchase`), the own
+ * item's or the render's price — and the bank's commission on top. Nothing to pay answers so
+ * instead of a token: free (admin's price is 0, or an upgrade the lower plan's credit covers —
+ * bought there and then), or a credit already paid for (`credit`).
+ *
+ * An own item and a render are Professional's (`PLAN_REQUIRED`); a lower plan than the one in
+ * force is refused (`PLAN_LOWER`).
  */
 export const POST = handle('POST /api/payments/flitt', 'Failed to start the payment', async (req) => {
   const limited = await rateLimited(req, RATE_RULES.payment);
@@ -32,50 +32,57 @@ export const POST = handle('POST /api/payments/flitt', 'Failed to start the paym
   const parsed = startPaymentSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return fail(parsed.error.message, 400);
   const userId = Number(session.user.id);
+  const account = { id: userId, role: session.user.role };
   const [settings, t, locale] = await Promise.all([loadPlatformSettings(), getT(), getLocale()]);
   const body = parsed.data;
 
   try {
-    if (body.purpose === 'own_item') {
-      if (settings.ownItemPrice <= 0) return ok({ free: true });
-      await settleRecentPayments({ userId, purpose: 'own_item' });
-      if (await ownItemCredit(userId)) return ok({ credit: true });
+    if (body.purpose === 'subscription') {
+      await settleRecentPayments({ userId, purpose: 'subscription' });
+      const quote = planPurchase(
+        (await liveSubscriptions(userId)).map((r) => ({ id: r.id, plan: r.plan, period: r.period, startsAt: r.startsAt, endsAt: r.endsAt, amount: Number(r.amount) })),
+        body.plan,
+        body.period,
+        planPricesOf(settings),
+        new Date()
+      );
+      if (!quote.ok) return fail(API_ERRORS.PLAN_LOWER, 409);
+      if (quote.amount <= 0) {
+        await activateFreeUpgrade(userId, body.plan, body.period);
+        return ok({ free: true });
+      }
+      const planName = body.plan === 'premium' ? t.plans.premium : t.plans.professional;
       const started = await startCardPayment({
         userId,
         email: session.user.email,
-        purpose: 'own_item',
-        amount: settings.ownItemPrice,
+        purpose: 'subscription',
+        plan: body.plan,
+        billingPeriod: body.period,
+        amount: quote.amount,
         bankFeePct: settings.bankFeePct,
-        description: t.payment.flittDescOwnItem,
+        description: fill(body.period === 'year' ? t.plans.flittDescYear : t.plans.flittDescMonth, { plan: planName }),
         lang: locale,
       });
-      return ok(started);
+      return ok({ ...started, offer: { kind: quote.kind, price: quote.price, credit: quote.credit, startsAt: quote.startsAt.toISOString(), endsAt: quote.endsAt.toISOString() } });
     }
 
-    const [project] = await db.select().from(projects).where(eq(projects.id, body.projectId)).limit(1);
-    if (!project) return fail(API_ERRORS.NOT_FOUND, 404);
-    if (project.userId !== userId) return fail(API_ERRORS.FORBIDDEN, 403);
-    await settleRecentPayments({ userId, purpose: body.purpose, projectId: project.id });
-    const paid = await halfPayment(project.id, body.purpose);
-    if (paid) return ok({ paid });
-    const quote = await paymentQuote(project, body.purpose);
-    // No rooms yet: nothing to charge for, and the half has nothing to start on.
-    if (quote.totalM2 <= 0) return fail(API_ERRORS.NOTHING_TO_PAY, 400);
-    // Admin set the half's rate to 0: it is free, and the dialogue goes on without a form.
-    if (quote.amount <= 0) return ok({ free: true });
+    // An own item and a render: Professional's, a price each, a credit the upload spends.
+    const feature = body.purpose === 'own_item' ? 'ownItems' : 'renders';
+    if (!hasFeature(await planOf(account), feature)) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': requiredPlan(feature) } });
+    const price = body.purpose === 'own_item' ? settings.ownItemPrice : settings.renderPrice;
+    if (price <= 0) return ok({ free: true });
+    await settleRecentPayments({ userId, purpose: body.purpose });
+    if (await paidCredit(userId, body.purpose)) return ok({ credit: true });
     const started = await startCardPayment({
       userId,
       email: session.user.email,
       purpose: body.purpose,
-      projectId: project.id,
-      amount: quote.amount,
+      amount: price,
       bankFeePct: settings.bankFeePct,
-      totalM2: quote.totalM2,
-      feePerM2: quote.feePerM2,
-      description: fill(body.purpose === 'design' ? t.payment.flittDescDesign : t.payment.flittDescCalculator, { project: project.nameKa ?? `#${project.id}`, m2: formatM2(quote.totalM2) }),
+      description: body.purpose === 'own_item' ? t.payment.flittDescOwnItem : t.plans.flittDescRender,
       lang: locale,
     });
-    return ok({ ...started, quote });
+    return ok(started);
   } catch (e) {
     if (e instanceof FlittError || (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'TypeError'))) {
       log.warn('card payment could not start', { purpose: body.purpose, err: e });

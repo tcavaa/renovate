@@ -100,9 +100,9 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   "STEP 02 / 05" head with title, lead, meta and actions; `SectionHead` numbers sections
   inside a step; `StepNav` is the sticky bottom bar (back link, running total, one primary
   action); `SideList` is the hairline index used for categories and rooms; `EmptyStep` is
-  the "finish the previous step first" card; `HingeDialog` is the warning, and the payment,
-  before a step that shuts the ones before it (a warning icon, a checklist, a padlock line, then
-  the card step and "paid"). The card step (`components/payments/CardPayment.tsx`) is two
+  the "finish the previous step first" card; `HingeDialog` is the warning
+  before a step that shuts the ones before it (a warning icon, a checklist, a padlock line). The
+  card step (`components/payments/CardPayment.tsx`) is two
   columns in a dialogue widened to 56 rem — the bill (price · bank commission · total) and the
   notes on the left, Flitt's embedded form on the right — and the dialogue is **not modal**
   while it is up, drawing its own backdrop (`DialogContent backdrop`), because Flitt's 3-D Secure

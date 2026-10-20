@@ -51,6 +51,17 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+// The plan's allowance of projects (docs/subscriptions.md): the count is lib/plans/server's, tested
+// on its rules in plans.test.ts; here a slot is free unless a test says the plan is used up.
+const slots = vi.hoisted(() => ({ full: false }));
+vi.mock('@/lib/plans/server', async () => {
+  const { db: mocked } = await import('@/lib/db');
+  return {
+    withProjectSlot: async (_account: unknown, make: (tx: unknown) => Promise<number>) =>
+      slots.full ? { ok: false, plan: 'free', limit: 2, per: 'total' } : { ok: true, id: await make(mocked) },
+  };
+});
+
 // The rate limits' shared counters, in memory.
 vi.mock('@/lib/api/counterStore', async () => (await import('../helpers/counterStore')).memoryCounterStore());
 
@@ -703,6 +714,17 @@ describe('POST /api/projects/create and PATCH /api/projects/[id]', () => {
     expect((await POST(post('http://localhost/api/projects/create', { name: 'ბინა', journey: 'calculator' }), ctx)).status).toBe(401);
     signedIn();
     expect((await POST(post('http://localhost/api/projects/create', { name: '   ', journey: 'calculator' }), ctx)).status).toBe(400);
+    expect(db.inserts).toHaveLength(0);
+  });
+
+  it('makes none once the plan’s projects are used up', async () => {
+    signedIn();
+    slots.full = true;
+    const POST = await create();
+    const res = await POST(post('http://localhost/api/projects/create', { name: 'ბინა', journey: 'design' }), ctx);
+    slots.full = false;
+    expect(res.status).toBe(402);
+    expect((await res.json()).error).toBe('PLAN_PROJECT_LIMIT');
     expect(db.inserts).toHaveLength(0);
   });
 

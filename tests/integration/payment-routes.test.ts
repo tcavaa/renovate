@@ -6,10 +6,11 @@ import { flittSignature } from '@/lib/payments/flitt';
  * database and the payment service mocked (docs/payments.md).
  *
  * What these prove: Flitt's callback changes nothing without our signature and settles with
- * it, however it is posted; a payment starts only for its owner, at the server's figures — the
- * saved row's quote or admin's price, the bank's commission on top — and not at all when there
- * is nothing to pay; Flitt being down is a 502 the dialogue can put into words; a payment's
- * status is its payer's to read.
+ * it, however it is posted; a payment starts at the server's figures — a plan's price (less what
+ * is left of a lower plan an upgrade replaces), admin's price of an own item or a render, the
+ * bank's commission on top — and not at all when there is nothing to pay; an own item and a
+ * render are Professional's, a lower plan than the one in force is refused; Flitt being down is
+ * a 502 the dialogue can put into words; a payment's status is its payer's to read.
  */
 
 type Row = Record<string, unknown>;
@@ -17,8 +18,11 @@ const state = vi.hoisted(() => ({
   project: null as Row | null,
   paid: null as Row | null,
   quote: { kind: 'design', feePerM2: 12, totalM2: 50, amount: 600 } as Row,
-  settings: { ownItemPrice: 10, bankFeePct: 2.2 } as Row,
+  settings: { ownItemPrice: 10, renderPrice: 7, bankFeePct: 2.2, premiumMonthPrice: 15, premiumYearPrice: 120, professionalMonthPrice: 39, professionalYearPrice: 320 } as Row,
   credit: null as Row | null,
+  plan: 'professional' as string,
+  subs: [] as Row[],
+  freeUpgrades: [] as Row[],
   payment: null as Row | null,
   started: [] as Row[],
   settled: [] as Array<{ params: Row; source: string }>,
@@ -37,12 +41,19 @@ vi.mock('@/lib/i18n/server', async () => {
   return { getT: async () => ka, getLocale: async () => 'ka' };
 });
 vi.mock('@/lib/finance/settings', () => ({ loadPlatformSettings: async () => state.settings }));
-vi.mock('@/lib/finance/payments', () => ({
-  halfPayment: async () => state.paid,
-  paymentQuote: async () => state.quote,
-}));
+vi.mock('@/lib/plans/server', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/plans/server')>('@/lib/plans/server');
+  return {
+    planPricesOf: actual.planPricesOf,
+    planOf: async () => state.plan,
+    liveSubscriptions: async () => state.subs,
+    activateFreeUpgrade: async (userId: number, plan: string, period: string) => {
+      state.freeUpgrades.push({ userId, plan, period });
+    },
+  };
+});
 vi.mock('@/lib/payments/service', () => ({
-  ownItemCredit: async () => state.credit,
+  paidCredit: async () => state.credit,
   settleRecentPayments: async () => undefined,
   startCardPayment: async (input: Row) => {
     if (state.startError) throw state.startError;
@@ -82,8 +93,11 @@ beforeEach(() => {
     project: { id: 9, userId: 35, nameKa: 'ბინა', rooms: [], plan: null },
     paid: null,
     quote: { kind: 'design', feePerM2: 12, totalM2: 50, amount: 600 },
-    settings: { ownItemPrice: 10, bankFeePct: 2.2 },
+    settings: { ownItemPrice: 10, renderPrice: 7, bankFeePct: 2.2, premiumMonthPrice: 15, premiumYearPrice: 120, professionalMonthPrice: 39, professionalYearPrice: 320 },
     credit: null,
+    plan: 'professional',
+    subs: [],
+    freeUpgrades: [],
     payment: { id: 1, orderId: 'remonti-des-abc-123', userId: 35, status: 'created', purpose: 'design', projectId: 9 },
     started: [],
     settled: [],
@@ -134,50 +148,47 @@ describe('Flitt\'s callback', () => {
 });
 
 describe('starting a payment', () => {
+  const sub = (patch: Row = {}): Row => ({ id: 1, plan: 'premium', period: 'month', startsAt: new Date(Date.now() - 10 * 86_400_000), endsAt: new Date(Date.now() + 20 * 86_400_000), amount: '15.00', ...patch });
+
   it('needs a signed-in person and a payload it understands', async () => {
-    expect((await start({ purpose: 'design', projectId: 9 })).status).toBe(401);
+    expect((await start({ purpose: 'subscription', plan: 'premium', period: 'month' })).status).toBe(401);
     as('35');
-    expect((await start({ purpose: 'design' })).status).toBe(400);
+    expect((await start({ purpose: 'subscription', plan: 'gold', period: 'month' })).status).toBe(400);
+    expect((await start({ purpose: 'design', projectId: 9 })).status).toBe(400);
     expect((await start({ purpose: 'gift' })).status).toBe(400);
   });
 
-  it("charges a half at the saved row's quote, the bank's commission on top", async () => {
+  it("charges a new plan at admin's price for the period, the bank's commission on top", async () => {
     as('35');
-    const res = await start({ purpose: 'design', projectId: 9 });
+    const res = await start({ purpose: 'subscription', plan: 'professional', period: 'year' });
     expect(res.status).toBe(200);
-    expect(state.started).toEqual([expect.objectContaining({ purpose: 'design', projectId: 9, amount: 600, bankFeePct: 2.2, totalM2: 50, feePerM2: 12, lang: 'ka' })]);
-    const json = (await res.json()) as { data: { token: string; quote: Row } };
+    expect(state.started).toEqual([expect.objectContaining({ purpose: 'subscription', plan: 'professional', billingPeriod: 'year', amount: 320, bankFeePct: 2.2, lang: 'ka' })]);
+    const json = (await res.json()) as { data: { token: string; offer: Row } };
     expect(json.data.token).toHaveLength(40);
-    expect(json.data.quote).toMatchObject({ amount: 600 });
+    expect(json.data.offer).toMatchObject({ kind: 'new', price: 320, credit: 0 });
   });
 
-  it('is only the owner\'s to start', async () => {
-    as('21');
-    expect((await start({ purpose: 'design', projectId: 9 })).status).toBe(403);
-    state.project = null;
-    expect((await start({ purpose: 'design', projectId: 9 })).status).toBe(404);
-    expect(state.started).toHaveLength(0);
-  });
-
-  it('answers a half already paid instead of charging it again, and refuses a half with no floor', async () => {
+  it('takes what is left of a lower plan off an upgrade, and buys it with no card when that covers it', async () => {
     as('35');
-    state.paid = { kind: 'design', amount: 600, reference: 'remonti-des-old' };
-    expect(((await (await start({ purpose: 'design', projectId: 9 })).json()) as { data: Row }).data).toEqual({ paid: state.paid });
-    state.paid = null;
-    state.quote = { kind: 'design', feePerM2: 12, totalM2: 0, amount: 0 };
-    const empty = await start({ purpose: 'design', projectId: 9 });
-    expect(empty.status).toBe(400);
-    expect(((await empty.json()) as { error: string }).error).toBe('NOTHING_TO_PAY');
-    expect(state.started).toHaveLength(0);
+    state.subs = [sub()];
+    await start({ purpose: 'subscription', plan: 'professional', period: 'month' });
+    const charged = state.started[0].amount as number;
+    // Two thirds of a 15 ₾ month are left: about 10 ₾ off 39 ₾.
+    expect(charged).toBeGreaterThan(28);
+    expect(charged).toBeLessThan(30);
+    state.subs = [sub({ period: 'year', amount: '120.00', endsAt: new Date(Date.now() + 300 * 86_400_000) })];
+    const free = await start({ purpose: 'subscription', plan: 'professional', period: 'month' });
+    expect(((await free.json()) as { data: Row }).data).toEqual({ free: true });
+    expect(state.freeUpgrades).toEqual([{ userId: 35, plan: 'professional', period: 'month' }]);
+    expect(state.started).toHaveLength(1);
   });
 
-  it('lets a half through for free when admin set its rate to 0, with no order at Flitt', async () => {
+  it('refuses a lower plan while a higher one runs', async () => {
     as('35');
-    state.project = { id: 9, userId: 35, nameKa: 'ბინა' };
-    state.quote = { kind: 'design', feePerM2: 0, totalM2: 50, amount: 0 };
-    const res = await start({ purpose: 'design', projectId: 9 });
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { data: Row }).data).toEqual({ free: true });
+    state.subs = [sub({ plan: 'professional', amount: '39.00' })];
+    const res = await start({ purpose: 'subscription', plan: 'premium', period: 'month' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toBe('PLAN_LOWER');
     expect(state.started).toHaveLength(0);
   });
 
@@ -188,22 +199,34 @@ describe('starting a payment', () => {
     expect(state.events).toHaveLength(0);
   });
 
-  it("charges an own item at admin's price — unless it is free or already paid for", async () => {
+  it("charges an own item and a render at admin's price — unless it is free or already paid for", async () => {
     as('35');
     await start({ purpose: 'own_item' });
-    expect(state.started).toEqual([expect.objectContaining({ purpose: 'own_item', amount: 10, bankFeePct: 2.2 })]);
+    await start({ purpose: 'render' });
+    expect(state.started).toEqual([expect.objectContaining({ purpose: 'own_item', amount: 10, bankFeePct: 2.2 }), expect.objectContaining({ purpose: 'render', amount: 7 })]);
     state.credit = { id: 4 };
     expect(((await (await start({ purpose: 'own_item' })).json()) as { data: Row }).data).toEqual({ credit: true });
-    state.settings = { ownItemPrice: 0, bankFeePct: 2.2 };
+    state.settings = { ...state.settings, ownItemPrice: 0 };
     expect(((await (await start({ purpose: 'own_item' })).json()) as { data: Row }).data).toEqual({ free: true });
-    expect(state.started).toHaveLength(1);
+    expect(state.started).toHaveLength(2);
+  });
+
+  it('keeps own items and renders to Professional', async () => {
+    as('35');
+    state.plan = 'premium';
+    const own = await start({ purpose: 'own_item' });
+    expect(own.status).toBe(402);
+    expect(((await own.json()) as { error: string }).error).toBe('PLAN_REQUIRED');
+    expect(own.headers.get('X-Plan-Required')).toBe('professional');
+    expect((await start({ purpose: 'render' })).status).toBe(402);
+    expect(state.started).toHaveLength(0);
   });
 
   it('turns Flitt being down into a code the dialogue can word', async () => {
     as('35');
     const { FlittError } = await import('@/lib/payments/flittApi');
     state.startError = new FlittError('Invalid signature', 1014);
-    const res = await start({ purpose: 'design', projectId: 9 });
+    const res = await start({ purpose: 'subscription', plan: 'premium', period: 'month' });
     expect(res.status).toBe(502);
     expect(((await res.json()) as { error: string }).error).toBe('PAYMENT_UNAVAILABLE');
   });

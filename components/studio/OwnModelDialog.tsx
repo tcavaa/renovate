@@ -9,10 +9,11 @@
  * comes later; until then the item stands under "my items" and cannot be placed). Either
  * way the product is the person's alone, at nothing in the budget and sold by nobody.
  *
- * Adding a model costs admin's `ownItemPrice` (docs/payments.md): the dialogue says so, and
- * "pay and add" takes the card through Flitt (`CardPayment`) before the upload, which spends
- * the paid credit. A credit left over from an upload that failed is spent without paying
- * again; a photo is free while nothing turns it into a model.
+ * Own items are Professional's (docs/subscriptions.md — the studio opens the upgrade dialogue
+ * instead of this one on another plan), and each, a model or a photo, costs admin's
+ * `ownItemPrice` (docs/payments.md): the dialogue says so, and "pay and add" takes the card
+ * through Flitt (`CardPayment`) before the upload, which spends the paid credit. A credit left
+ * over from an upload that failed is spent without paying again.
  */
 
 import Image from '@/components/ui/image';
@@ -110,8 +111,8 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
     };
   }, [open, status]);
 
-  /** A model costs money and none is paid for: the card comes first. */
-  const mustPay = mode === 'model' && !!price && !price.free && !price.credit;
+  /** An own item costs money and none is paid for: the card comes first. */
+  const mustPay = !!price && !price.free && !price.credit;
 
   // The chosen file as a URL the turntable and the picture can show.
   useEffect(() => {
@@ -205,7 +206,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
     }
     if (mustPay) {
       setError(null);
-      shotRef.current = (await handleRef.current?.snapshot().catch(() => null)) ?? null;
+      shotRef.current = mode === 'model' ? ((await handleRef.current?.snapshot().catch(() => null)) ?? null) : null;
       setPaying(true);
       return;
     }
@@ -394,7 +395,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
               </div>
             )}
             {mode === 'photo' && <p className="rounded-[10px] bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">{t.design.ownPhotoNote}</p>}
-            {mode === 'model' && priceNote && (
+            {priceNote && (
               <p className="flex items-start gap-2 rounded-[10px] border border-line bg-bg-base px-3 py-2 text-xs leading-relaxed text-ink">
                 <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden />
                 {priceNote}
