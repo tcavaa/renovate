@@ -150,16 +150,31 @@ own. The matcher re-measures every piece from the product it got, so the room st
   the piece's top, its own width, centred on it. With none of those pieces, any clear wall as before.
   **Nothing hangs into what stands below it** (`hangsIntoFloorPiece`): a mirror used to hang 45 cm
   off the floor over the washing machine.
-- **The height of a hung piece comes from the product** (`settledElevation`): its middle where the
-  slot's was, clear of anything standing below by 12 cm; a mirror as tall as a person and deep
-  enough to stand (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it
+- **The height of a hung piece comes from the product and its rule** (`settledElevation`), never
+  from the piece it replaces (a wall mirror swapped in for a floor mirror stood on the floor with
+  it): a mirror's middle at 1.5 m, a print's at the rule's height (1.45 m over a bed or a sofa),
+  each clear of anything standing below by 12 cm; a mirror as tall as a person and deep enough to
+  stand (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it
   (`hungPosition` keeps its back on the wall at its depth). A basin too short to stand (countertop,
-  wall-hung) is lifted, its top at 86 cm.
+  wall-hung) is lifted, its top at 86 cm. **A hanging lamp hangs from the ceiling by its own
+  length**, its bottom no lower than 1.9 m (1.45 m over a table): every pendant used to hang at
+  2.25 m whatever its length, so a 0.9 m one went through the ceiling; the slot takes only lamps
+  short enough (`slotPool`).
+- **No tall product stands across a window** (`blocksWindow`, `lib/design/manipulate.ts`: a piece
+  with its back to the window's wall, taller than the sill by 5 cm, across its width): the matcher
+  passes over one (a wardrobe for a dresser slot under a window), and a shop's kitchen unit with
+  wall cabinets is not taken for a run under a window.
 - **Dining chairs sit round the table as matched** (`seatAtTable`): the n-th chair of the room takes
   the n-th seat of `seatSlots` with the real table, and a chair the table has no seat for goes — six
   chairs used to stand round a 0.8 m round table. A seat is 56 cm of table edge. Chairs still to be
   seated are in neither the table's nor one another's way, and a re-seated chair counts as tucked in
   (its seat 12 cm under the edge). A bigger table no longer gives way to the chairs round its slot.
+- **Tidied once everything stands** (`designStore.generate`, after the decor is fitted; again
+  after the AI check — `lib/design/aiProposal.ts`): every piece the engine stands against a wall
+  back against it (`settleToWalls`, with what stands in front of it — the desk chair, the coffee
+  table — moved the same); nothing standing in built decor (`clearOfDecor`: moved off it by the
+  decor's depth, `decorDepth`); the lamps and ceiling points under a cove's lowered panel hung from
+  it (`underCeilingDecor`).
 - **What a slot can hold** (`slotPool`, before the draw): a basin that stands on the floor (60 cm or
   taller — a countertop basin needs a counter the flat has not got; the library also files taps and
   mixer panels under the kind), and in a bathroom or toilet a mirror that hangs flat and is no taller

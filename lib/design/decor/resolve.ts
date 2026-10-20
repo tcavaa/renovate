@@ -15,7 +15,7 @@ import { DECOR_FAMILIES, DECOR_FAMILY_LIST, decorSlots, slotTakes } from './fami
 import { freeSpans } from './layout';
 import { decorMaterialKind, decorSpecs, defaultDecorMaterial, isDecorMaterial } from './materials';
 
-export const DECOR_ANCHORS = ['bed', 'tv', 'sofa', 'desk', 'dining', 'wall', 'room'] as const;
+export const DECOR_ANCHORS = ['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room'] as const;
 export type DecorAnchor = (typeof DECOR_ANCHORS)[number];
 
 /** What a designer asks for, before it is measured. */
@@ -50,10 +50,10 @@ export function decorMaterialFrom(product: CatalogProduct, colorHex: string | nu
   return { product: toSceneProduct(product, 1), ...(tint ? { colorHex: tint } : {}), ...(Object.keys(kept).length ? { specs: kept } : {}) };
 }
 
-const ANCHOR_SLOT: Partial<Record<DecorAnchor, SlotKind>> = { bed: 'bed', tv: 'tv_unit', sofa: 'sofa', desk: 'desk', dining: 'dining_table' };
+export const ANCHOR_SLOT: Partial<Record<DecorAnchor, SlotKind>> = { bed: 'bed', tv: 'tv_unit', sofa: 'sofa', desk: 'desk', dining: 'dining_table', kitchen: 'kitchen_run' };
 
 /** How far past the piece it is anchored to a field runs, each side, by default. */
-const ANCHOR_MARGIN: Partial<Record<DecorAnchor, number>> = { bed: 0.75, tv: 0.6, sofa: 0.35, desk: 0.3, dining: 0.4 };
+const ANCHOR_MARGIN: Partial<Record<DecorAnchor, number>> = { bed: 0.75, tv: 0.6, sofa: 0.35, desk: 0.3, dining: 0.4, kitchen: 0 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -146,12 +146,50 @@ export const COVERS_WALL = new Set<string>(['slats', 'slab', 'panel', 'cladding'
  * What hangs on this wall for use and must stay — a mirror over a basin in a bathroom or toilet,
  * kitchen wall cabinets — as openings for `freeSpans` (its stretch along the wall, 10 cm aside).
  */
-function fixturesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]): Opening[] {
+function fixturesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[], band?: { from: number; to: number }): Opening[] {
   const wet = room.type === 'bathroom' || room.type === 'toilet';
   return items
     .filter((i) => i.roomId === room.id && i.elevationM >= 0.05 && (i.slot === 'kitchen_wall' || (wet && i.slot === 'mirror')))
+    // Only what hangs at the decor's height: a backsplash runs under the wall cabinets.
+    .filter((i) => !band || (i.elevationM < band.to - 0.02 && i.elevationM + i.size.height > band.from + 0.02))
     .filter((i) => wallBehind(i, room)?.index === edge.index)
     .map((i) => ({ id: `fixture-${i.id}`, kind: 'window' as const, wallIndex: edge.index, t: along(edge, i.position) / edge.length, widthM: i.size.width + 0.2, heightM: i.size.height, sillM: i.elevationM, roomId: room.id, exterior: false }));
+}
+
+/** Decor built out from the wall (a niche wall): it cannot stand behind anything. */
+const BUILT_OUT = new Set<string>(['niche']);
+
+/** What stands against this wall on the floor (the bath, the washing machine, a cabinet), as openings for `freeSpans`. */
+function floorPiecesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]): Opening[] {
+  return items
+    .filter((i) => i.roomId === room.id && i.elevationM < 0.05 && i.slot !== 'rug' && i.slot !== 'curtain')
+    .filter((i) => wallBehind(i, room)?.index === edge.index)
+    .map((i) => ({ id: `piece-${i.id}`, kind: 'window' as const, wallIndex: edge.index, t: along(edge, i.position) / edge.length, widthM: i.size.width + 0.1, heightM: i.size.height, sillM: 0, roomId: room.id, exterior: false }));
+}
+
+/**
+ * Decor that follows the piece it was anchored to — tiles behind the kitchen run, slats behind
+ * the bed — moved to that piece's wall and centred on it again when the piece has moved (a run
+ * swapped for a shop's unit on another wall); its width and height kept, clamped to the wall's
+ * clear stretch. A piece whose anchor is gone stays where it is. Pure.
+ */
+export function reanchorDecor(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[]): DecorPiece[] {
+  return decor.map((piece) => {
+    const slot = piece.anchor ? ANCHOR_SLOT[piece.anchor as DecorAnchor] : undefined;
+    const room = rooms.find((r) => r.id === piece.roomId);
+    if (!slot || !room || piece.wallIndex == null) return piece;
+    const anchorPiece = items.find((i) => i.roomId === room.id && i.slot === slot && !!i.product);
+    const edge = anchorPiece ? wallBehind(anchorPiece, room) : null;
+    if (!anchorPiece || !edge) return piece;
+    const width = piece.span.to - piece.span.from;
+    const spans = freeSpans(edge, room.openings, 0, edge.length, 0.1);
+    const centre = along(edge, anchorPiece.position);
+    const [a, b] = spans.find(([lo, hi]) => centre >= lo && centre <= hi) ?? [0, edge.length];
+    const w = Math.min(width, b - a);
+    const from = clamp(centre - w / 2, a, b - w);
+    if (edge.index === piece.wallIndex && Math.abs(from - piece.span.from) < 0.01) return piece;
+    return { ...piece, wallIndex: edge.index, span: { from: round3(from), to: round3(from + w) } };
+  });
 }
 
 /** The longest clear wall of a room (fewest openings), for an intent whose wall cannot be used. */
@@ -220,11 +258,15 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
   const family = intent.family;
   const params = sanitizeParams(family, intent.params);
   const H = room.heightM;
+  const run = items.find((i) => i.roomId === room.id && i.slot === 'kitchen_run' && !!i.product);
+  // Tiles in a kitchen are its backsplash: behind the run, whichever wall was named.
+  const anchor: DecorAnchor = family === 'tile' && room.type === 'kitchen' && run ? 'kitchen' : intent.anchor;
   const base = {
     id,
     roomId: room.id,
     family,
     params,
+    anchor,
     reference: intent.referenceId ? { entryId: intent.referenceId, concept: intent.concept ?? '' } : null,
     note: intent.note ?? null,
     origin: 'ai' as const,
@@ -240,7 +282,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
   let edge: PlanEdge | null = null;
   let centre: number | null = null;
   let anchorWidth = 0;
-  const slot = ANCHOR_SLOT[intent.anchor];
+  const slot = ANCHOR_SLOT[anchor];
   if (slot) {
     const piece = items.find((i) => i.roomId === room.id && i.slot === slot && !!i.product);
     if (!piece) return null;
@@ -248,11 +290,22 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     if (!edge) return null;
     centre = along(edge, piece.position);
     anchorWidth = piece.size.width;
-  } else if (intent.anchor === 'wall' && intent.wallIndex != null) {
+  } else if (anchor === 'wall' && intent.wallIndex != null) {
     edge = wallEdges(room).find((e) => e.index === intent.wallIndex) ?? null;
   }
   edge ??= longestClearWall(room);
   if (!edge) return null;
+
+  // Its band of height. A backsplash runs from the worktop to the wall cabinets over it (or 1.5 m).
+  const cabinets = anchor === 'kitchen' ? items.find((i) => i.roomId === room.id && i.slot === 'kitchen_wall' && wallBehind(i, room)?.index === edge!.index) : undefined;
+  const fallback = anchor === 'kitchen' && run
+    ? { from: run.size.height <= 1.1 ? run.size.height : 0.9, to: cabinets ? cabinets.elevationM : 1.5 }
+    : defaultHeight(family, anchor, H);
+  const hFrom = num(intent.heightFromM);
+  const hTo = num(intent.heightToM);
+  let height = { from: clamp(hFrom ?? fallback.from, 0, H - 0.1), to: clamp(hTo ?? fallback.to, 0.1, H) };
+  if (height.to - height.from < 0.15) height = fallback;
+  if (family === 'light') height = { from: clamp(hFrom ?? H - 0.1, 0.2, H - 0.02), to: clamp((hFrom ?? H - 0.1) + 0.05, 0.25, H) };
 
   // The stretch: the whole wall for mouldings, the longest clear stretch for niches (a build-out
   // over a door is no niche), else centred on its anchor and kept to the clear stretch it is in.
@@ -263,14 +316,17 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     to = edge.length;
   } else {
     // Clear of the openings and, for decor that covers its stretch, of what hangs there for use —
-    // the mirror over a basin, the wall cabinets: the niche goes beside the mirror, not over it.
-    const spans = freeSpans(edge, [...room.openings, ...(COVERS_WALL.has(family) ? fixturesOnWall(edge, room, items) : [])], 0, edge.length, 0.1);
+    // the mirror over a basin, the wall cabinets: the niche goes beside the mirror, not over it. A
+    // build-out (a niche wall) also keeps off what stands against the wall: it would stand in the
+    // bath. Thinner decor stays, and what stands in front of it is moved off it (`clearOfDecor`).
+    const blocked = [...(COVERS_WALL.has(family) ? fixturesOnWall(edge, room, items, height) : []), ...(BUILT_OUT.has(family) ? floorPiecesOnWall(edge, room, items) : [])];
+    const spans = freeSpans(edge, [...room.openings, ...blocked], 0, edge.length, 0.1);
     if (spans.length === 0) return null;
     const containing = centre != null ? spans.find(([a, b]) => centre! >= a && centre! <= b) : undefined;
     const [a, b] = containing ?? spans.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best));
     const clear = b - a;
     const widthAsked = num(intent.widthM);
-    const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[intent.anchor] ?? 0.4);
+    const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[anchor] ?? 0.4);
     const width = clamp(widthAsked ?? auto, 0.3, clear);
     const c = centre ?? (a + b) / 2;
     from = clamp(c - width / 2, a, b - width);
@@ -278,12 +334,6 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     if (WHOLE_WALL.includes(family) && clear < 1.2) return null;
   }
 
-  const fallback = defaultHeight(family, intent.anchor, H);
-  const hFrom = num(intent.heightFromM);
-  const hTo = num(intent.heightToM);
-  let height = { from: clamp(hFrom ?? fallback.from, 0, H - 0.1), to: clamp(hTo ?? fallback.to, 0.1, H) };
-  if (height.to - height.from < 0.15) height = fallback;
-  if (family === 'light') height = { from: clamp(hFrom ?? H - 0.1, 0.2, H - 0.02), to: clamp((hFrom ?? H - 0.1) + 0.05, 0.25, H) };
 
   return {
     ...base,

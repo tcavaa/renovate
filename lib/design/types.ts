@@ -609,6 +609,8 @@ export interface DecorPiece {
   /** Why it is there, in the person's language (the designer's note). */
   note?: string | null;
   origin?: 'ai' | 'studio';
+  /** What it was centred on (the bed, the kitchen run…): it follows that piece to its wall (`reanchorDecor`). */
+  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | null;
 }
 
 /** How the flat was generated: by the rule engine or by the AI designer — kept so a flat can be explained. */

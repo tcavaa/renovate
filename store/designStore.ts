@@ -22,8 +22,9 @@ import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import { applyReviewFixes, withoutArtOverDecor, proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
+import { applyReviewFixes, clearOfDecor, settleToWalls, underCeilingDecor, withoutArtOverDecor, proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
 import type { AiReview } from '@/lib/design/aiReview';
+import { reanchorDecor } from '@/lib/design/decor/resolve';
 import { decorMaterialFrom } from '@/lib/design/decor/resolve';
 import { slotTakes } from '@/lib/design/decor/families';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
@@ -1272,7 +1273,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // The designer's wall decor, measured against where the engine put the bed, the sofa,
             // the TV unit (`proposalDecor`). An engine generation has none.
             const decor = proposalDecor(laid, proposal, items, catalog);
-            items = withoutArtOverDecor(items, decor, laid);
+            // Tidied once everything stands: every wall piece back on its wall, nothing in the
+            // decor, the hanging lamps and ceiling points under a lowered ceiling hung from it.
+            items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
+            const ceiled = underCeilingDecor(items, dressed.electrical, decor, laid);
+            items = ceiled.items;
             const aiCount = (generation?.aiCount ?? 0) + (proposal ? 1 : 0);
             const record: GenerationRecord = proposal
               ? { by: 'ai', model: proposal.model, at: new Date().toISOString(), notes: proposalNotes(proposal), aiCount }
@@ -1282,7 +1287,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               finishes,
               decor,
               generation: record,
-              electrical: dressed.electrical,
+              electrical: ceiled.electrical,
               // The studio opens on the whole flat. A room picked out on the plan or the
               // technical board is that board's selection; kept, it showed the new layout one
               // room at a time.
@@ -1304,11 +1309,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         applyReview: (review, catalog) =>
           set((s) => {
             if (!s.plan || !s.generation) return {};
-            const items = placeableOnly(applyReviewFixes(s.items, review, s.plan, catalog));
+            const fixed = applyReviewFixes(s.items, s.decor, review, s.plan, catalog);
+            const items = placeableOnly(fixed.items);
             // The room's note after the check says how it reads now; the designer's first note stays before it.
             const notes = { ...(s.generation.notes ?? {}) };
             for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
-            return { items, generation: { ...s.generation, notes, reviewed: review.fixes.length } };
+            return { items, decor: fixed.decor, generation: { ...s.generation, notes, reviewed: review.fixes.length } };
           }),
 
         clearDesign: () =>
@@ -1677,7 +1683,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // No room and nobody to carry it (the 2D board): it goes in as it is, outlined red,
             // for the person to drag — which is what a swap always did.
             const next = placed ?? swapped;
-            commit(() => ({ items: others.map((i) => (i.id === itemId ? next : i)), carryingItemId: null, carryRestore: null }));
+            const items = others.map((i) => (i.id === itemId ? next : i));
+            // Decor centred on the piece (tiles behind the kitchen run) follows it to its wall.
+            commit(() => ({ items, decor: state.plan ? reanchorDecor(state.decor, items, state.plan.rooms) : state.decor, carryingItemId: null, carryRestore: null }));
             return 'swapped';
           }
           // It does not fit here: it rides on the pointer until it is set down somewhere it

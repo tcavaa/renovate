@@ -725,6 +725,9 @@ export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: Place
  * put somewhere else (the studio hands it to the pointer).
  */
 export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedItem[], rooms?: readonly PlanRoom[]): PlacedItem | null {
+  // A tall piece eased in front of a window does not fit there either: a kitchen unit with its
+  // wall cabinets went to stand across the window when it was too long for its own wall.
+  const clear = (p: PlacedItem) => (blocksWindow(p, room) ? null : p);
   const snapped = snapPlacement(room, swapped, { position: swapped.position, rotation: swapped.rotation }, others, rooms);
   const eased = { ...swapped, position: snapped.position, rotation: snapped.rotation };
   if (snapped.valid && snapped.snappedToWall) {
@@ -734,10 +737,70 @@ export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedIt
     const n = { x: Math.sin(snapped.rotation), z: Math.cos(snapped.rotation) };
     const step = (snapped.position.x - swapped.position.x) * n.x + (snapped.position.z - swapped.position.z) * n.z;
     const straight = { ...eased, position: { x: swapped.position.x + n.x * step, z: swapped.position.z + n.z * step } };
-    return isPlacementValid(room, straight, others, rooms) ? straight : eased;
+    return clear(isPlacementValid(room, straight, others, rooms) ? straight : eased);
   }
-  if (isPlacementValid(room, swapped, others, rooms)) return swapped;
-  return snapped.valid ? eased : null;
+  if (isPlacementValid(room, swapped, others, rooms) && !blocksWindow(swapped, room)) return swapped;
+  return snapped.valid ? clear(eased) : null;
+}
+
+/**
+ * The wall a piece stands with its back to — facing into the room as that wall does, its back
+ * within `slack` metres of it — how far off it the back stands, and where along it the piece's
+ * middle is. Null when its back is to no wall.
+ */
+export function pieceWall(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: PlanRoom, slack = 0.06): { edge: PlanEdge; gap: number; along: number } | null {
+  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
+  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
+  let best: { edge: PlanEdge; gap: number; along: number } | null = null;
+  for (const edge of roomEdges(room.polygon)) {
+    if (Math.abs(angleDifference(edge.facing, item.rotation)) > 0.05) continue;
+    const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
+    if (along < -0.05 || along > edge.length + 0.05) continue;
+    const gap = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
+    if (gap < -0.05 || gap > slack) continue;
+    if (!best || gap < best.gap) best = { edge, gap: Math.max(0, gap), along };
+  }
+  return best;
+}
+
+/**
+ * Whether a piece standing with its back to a wall would stand in front of a window in it: taller
+ * than the sill (5 cm to spare — a kitchen worktop under a window is fine) and across the window's
+ * width. Curtains and rugs never do.
+ */
+export function blocksWindow(item: Pick<PlacedItem, 'position' | 'rotation' | 'size' | 'elevationM' | 'slot'>, room: PlanRoom): boolean {
+  if (item.slot === 'curtain' || item.slot === 'rug') return false;
+  const wall = pieceWall(item, room, 0.3);
+  if (!wall) return false;
+  const top = item.elevationM + item.size.height;
+  return room.openings.some((o) => {
+    if (o.kind !== 'window' || o.wallIndex !== wall.edge.index) return false;
+    if (top <= o.sillM + 0.05 || item.elevationM >= o.sillM + o.heightM) return false;
+    const middle = o.t * wall.edge.length;
+    return wall.along + item.size.width / 2 > middle - o.widthM / 2 + 0.05 && wall.along - item.size.width / 2 < middle + o.widthM / 2 - 0.05;
+  });
+}
+
+/** Whether a piece on the floor stands in the way of a door or an archway: within 90 cm of it, inside the room. */
+export function inDoorway(item: Pick<PlacedItem, 'position' | 'rotation' | 'size' | 'elevationM'>, room: PlanRoom): boolean {
+  if (item.elevationM >= 0.05) return false;
+  const box = footprintOf(item.position, item.size, item.rotation);
+  const edges = roomEdges(room.polygon);
+  return room.openings.some((o) => {
+    if (!isPassage(o)) return false;
+    const edge = edges.find((e) => e.index === o.wallIndex);
+    if (!edge) return false;
+    const c = { x: edge.a.x + (edge.b.x - edge.a.x) * o.t, z: edge.a.z + (edge.b.z - edge.a.z) * o.t };
+    const half = o.widthM / 2;
+    const far = { x: c.x + edge.inward.x * 0.9, z: c.z + edge.inward.z * 0.9 };
+    const keepout = {
+      minX: Math.min(c.x - Math.abs(edge.dir.x) * half, far.x - Math.abs(edge.dir.x) * half),
+      maxX: Math.max(c.x + Math.abs(edge.dir.x) * half, far.x + Math.abs(edge.dir.x) * half),
+      minZ: Math.min(c.z - Math.abs(edge.dir.z) * half, far.z - Math.abs(edge.dir.z) * half),
+      maxZ: Math.max(c.z + Math.abs(edge.dir.z) * half, far.z + Math.abs(edge.dir.z) * half),
+    };
+    return footprintsOverlap(box, keepout, 0);
+  });
 }
 
 function normalise(v: Vec2): Vec2 {

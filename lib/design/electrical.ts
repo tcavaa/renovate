@@ -127,6 +127,11 @@ function backWall(room: PlanRoom, item: PlacedItem): { edge: PlanEdge; t: number
   return spot ? { edge: spot.edge, t: spot.t } : null;
 }
 
+/** Where along a wall a point falls, metres from its first corner. */
+function along(edge: PlanEdge, point: { x: number; z: number }): number {
+  return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
+}
+
 /** A point along an item's back wall, `lateral` metres to the item's right. */
 function alongBack(item: PlacedItem, wall: { edge: PlanEdge; t: number }, lateral: number): number {
   const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
@@ -223,8 +228,13 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[]): void {
     if (!wall) continue;
     for (const side of [-1, 1]) {
       const t = alongBack(bed, wall, side * (bed.size.width / 2 + 0.25));
+      // Off the wall's end there is no bedside: a bed pushed against the side wall has none there.
+      if (t * wall.edge.length < 0.15 || (1 - t) * wall.edge.length < 0.15) continue;
       makeOnWall(b, room, 'socket_double', wall.edge, t, { elevationM: BEDSIDE_SOCKET_M });
-      makeOnWall(b, room, 'light_wall', wall.edge, t, { elevationM: 1.45, category: 'bedside' });
+      // The reading lamp over that side's nightstand when there is one, else beside the bed.
+      const stand = here.find((i) => i.slot === 'nightstand' && Math.sign(along(wall.edge, i.position) - along(wall.edge, bed.position)) === Math.sign((t - wall.t) || side));
+      const lampT = stand ? along(wall.edge, stand.position) / wall.edge.length : t;
+      makeOnWall(b, room, 'light_wall', wall.edge, lampT, { elevationM: 1.45, category: 'bedside' });
     }
   }
 

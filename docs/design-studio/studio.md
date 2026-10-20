@@ -286,7 +286,11 @@ floor is — and the person had a sofa they never placed and did not want.
 a wall keeps its *back* on the wall rather than its centre where it was (a deeper sofa with
 the same centre has its back through the plaster; only the step towards the wall is taken,
 never the grid's rounding along it), anything else stays put when it fits and is otherwise
-eased back inside the room. It never goes looking across the room. When it answers null the
+eased back inside the room. It never goes looking across the room, and a tall piece eased in front
+of a window does not fit there (`blocksWindow`): a shop's kitchen unit with its wall cabinets used
+to be eased onto the window wall when it was too long for its own. Decor centred on the swapped
+piece (the backsplash behind the run, slats behind the bed — `DecorPiece.anchor`) follows it to its
+wall (`reanchorDecor`). When it answers null the
 3D view gets the new piece on the pointer with the old one kept in `carryRestore`; Escape
 (`cancelCarry`) or entering the walk-through puts the old piece back, selected, and reaching
 for another tile off the shelf puts it back too (the new tile's piece is then the one

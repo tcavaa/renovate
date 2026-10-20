@@ -300,6 +300,7 @@ export const decorPieceSchema = z.object({
   reference: z.object({ entryId: z.string().max(64), concept: z.string().max(300) }).nullable().optional(),
   note: z.string().max(600).nullable().optional(),
   origin: z.enum(['ai', 'studio']).optional(),
+  anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room']).nullable().optional(),
 });
 
 /** How the flat was generated: by the engine or by the AI designer, with its per-room notes. */

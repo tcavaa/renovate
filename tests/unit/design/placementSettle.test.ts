@@ -118,8 +118,8 @@ describe('mirrors and basins', () => {
     expect(sink.product?.productId).toBe(11);
     expect(mirror.product?.productId).toBe(13);
     expect(Math.hypot(mirror.position.x - sink.position.x, mirror.position.z - sink.position.z)).toBeLessThan(0.6);
-    // Its middle at 1.55 m, its bottom over the basin.
-    expect(mirror.elevationM + mirror.size.height / 2).toBeCloseTo(1.55, 1);
+    // Its middle at 1.5 m, its bottom over the basin.
+    expect(mirror.elevationM + mirror.size.height / 2).toBeCloseTo(1.5, 5);
     expect(mirror.elevationM).toBeGreaterThan(sink.size.height);
   });
 
@@ -164,10 +164,11 @@ describe('the designer\'s check of a furnished flat', () => {
             room: 'b',
             note: 'Calmer now.',
             fixes: [
-              { item: stands[0].id, action: 'replace', product: 5, reason: 'Lighter.' },
-              { item: bed.id, action: 'remove', product: 0, reason: 'No.' },
-              { item: bed.id, action: 'replace', product: 999, reason: 'Not offered.' },
-              { item: 'nope', action: 'remove', product: 0, reason: 'Unknown.' },
+              { target: stands[0].id, action: 'replace', product: 5, wall: -1, reason: 'Lighter.' },
+              { target: bed.id, action: 'remove', product: 0, wall: -1, reason: 'No.' },
+              { target: bed.id, action: 'replace', product: 999, wall: -1, reason: 'Not offered.' },
+              { target: 'nope', action: 'remove', product: 0, wall: -1, reason: 'Unknown.' },
+              { target: bed.id, action: 'move_to_wall', product: 0, wall: 42, reason: 'No such wall.' },
             ],
           },
           { room: 'elsewhere', note: 'x', fixes: [] },
@@ -177,14 +178,14 @@ describe('the designer\'s check of a furnished flat', () => {
       offer,
       'claude-opus-5-5',
     );
-    expect(review.fixes.map((f) => [f.itemId, f.action, f.productId]).sort()).toEqual([[stands[0].id, 'replace', 5], [stands[1].id, 'replace', 5]].sort());
+    expect(review.fixes.map((f) => [f.target, f.action, f.productId]).sort()).toEqual([[stands[0].id, 'replace', 5], [stands[1].id, 'replace', 5]].sort());
     expect(review.notes).toEqual({ b: 'Calmer now.' });
   });
 
   it('puts a replacement where the old piece stood, and the nightstands by a new, wider bed', () => {
     const items = laid();
     const bed = items.find((i) => i.slot === 'bed')!;
-    const fixed = applyReviewFixes(items, { model: 'm', notes: {}, fixes: [{ itemId: bed.id, action: 'replace', productId: 6, reason: '' }] }, plan, catalog);
+    const fixed = applyReviewFixes(items, [], { model: 'm', notes: {}, fixes: [{ target: bed.id, action: 'replace', productId: 6, wallIndex: null, reason: '' }] }, plan, catalog).items;
     const newBed = fixed.find((i) => i.id === bed.id)!;
     expect(newBed.product?.productId).toBe(6);
     expect(backGap(newBed, 4.4, 4.2)).toBeLessThan(0.03);
@@ -192,7 +193,7 @@ describe('the designer\'s check of a furnished flat', () => {
       const off = { x: stand.position.x - newBed.position.x, z: stand.position.z - newBed.position.z };
       expect(Math.abs(dot(off, right(newBed))) - newBed.size.width / 2 - stand.size.width / 2).toBeCloseTo(0.04, 3);
     }
-    const removed = applyReviewFixes(items, { model: 'm', notes: {}, fixes: [{ itemId: items.find((i) => i.slot === 'nightstand')!.id, action: 'remove', productId: null, reason: '' }] }, plan, catalog);
+    const removed = applyReviewFixes(items, [], { model: 'm', notes: {}, fixes: [{ target: items.find((i) => i.slot === 'nightstand')!.id, action: 'remove', productId: null, wallIndex: null, reason: '' }] }, plan, catalog).items;
     expect(removed.filter((i) => i.slot === 'nightstand')).toHaveLength(1);
   });
 });
@@ -243,5 +244,155 @@ describe('built decor keeps off a basin mirror', () => {
     expect(piece).toBeTruthy();
     // The mirror takes 1.2–1.8 m along the wall (10 cm aside): the niche stands clear of it.
     expect(piece!.span.to <= 1.1 + 1e-6 || piece!.span.from >= 1.9 - 1e-6).toBe(true);
+  });
+});
+
+describe('the room tidied after generating and after the check', () => {
+  const plan1 = (r: PlanRoom): FloorPlan => ({ rooms: [r], metresPerPixel: null, bounds: { width: 5, depth: 5 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 });
+  const piece = (id: string, kind: string, slot: string, x: number, z: number, rotation: number, w: number, d: number, h: number, extra: Partial<PlacedItem> = {}): PlacedItem => ({ id, roomId: 'b', kind, slot: slot as PlacedItem['slot'], position: { x, z }, rotation, elevationM: 0, size: { width: w, depth: d, height: h }, product: { productId: 1 } as PlacedItem['product'], ...extra });
+
+  it('puts a chest of drawers standing 48 cm off its wall back against it', async () => {
+    const { settleToWalls } = await import('@/lib/design/aiProposal');
+    const r = room('b', 'bedroom', 4.4, 4.2);
+    // Wall 0 runs along z = 0; the chest faces into the room (+z), its back at z = 0.48.
+    const chest = piece('chest', 'dresser', 'dresser', 1, 0.48 + 0.23, 0, 0.7, 0.46, 1.3);
+    const [settled] = settleToWalls([chest], plan1(r));
+    expect(settled.position.z - settled.size.depth / 2).toBeCloseTo(0.02, 5);
+  });
+
+  it('moves a bed off the headboard panel on its wall, by the panel\'s depth', async () => {
+    const { clearOfDecor } = await import('@/lib/design/aiProposal');
+    const r = room('b', 'bedroom', 4.4, 4.2);
+    const bed = piece('bed', 'bed_double', 'bed', 2.2, 0.02 + 1.025, 0, 1.6, 2.05, 1.0);
+    const panel = { id: 'd1', roomId: 'b', family: 'panel', wallIndex: 0, span: { from: 1, to: 3.4 }, height: { from: 0.35, to: 1.6 }, params: { style: 'upholstered', thicknessMm: 50 }, materials: {} } as unknown as DecorPiece;
+    const [moved] = clearOfDecor([bed], [panel], plan1(r));
+    expect(moved.position.z - moved.size.depth / 2).toBeGreaterThanOrEqual(0.05);
+  });
+
+  it('keeps a niche wall off the bath standing against that wall', async () => {
+    const { resolveDecor } = await import('@/lib/design/decor/resolve');
+    const r = room('b', 'bathroom', 4.4, 2.2);
+    const bath = piece('bath', 'bathtub', 'bathtub', 1.2, 0.02 + 0.375, 0, 1.7, 0.75, 0.55);
+    const niche = resolveDecor({ family: 'niche', anchor: 'wall', wallIndex: 0 } as never, r, [bath], [], 'n1');
+    // The bath takes 0.35–2.05 m along wall 0 (5 cm aside): the niche stands clear of it, or not at all.
+    if (niche) expect(niche.span.from >= 2.05 - 1e-6 || niche.span.to <= 0.35 + 1e-6).toBe(true);
+  });
+
+  it('lays kitchen tiles behind the run, from the worktop to the wall cabinets, and moves them with it', async () => {
+    const { resolveDecor, reanchorDecor } = await import('@/lib/design/decor/resolve');
+    const r = room('b', 'kitchen', 4, 4);
+    const run = piece('run', 'kitchen_run', 'kitchen_run', 2, 0.02 + 0.31, 0, 2.8, 0.62, 0.92);
+    const cabinets = piece('wall', 'kitchen_wall', 'kitchen_wall', 2, 0.01 + 0.175, 0, 2.8, 0.35, 0.72, { elevationM: 1.5 });
+    // Asked for wall 1, a kitchen's tiles are its backsplash anyway.
+    const tiles = resolveDecor({ family: 'tile', anchor: 'wall', wallIndex: 1 } as never, r, [run, cabinets], [], 't1')!;
+    expect(tiles.wallIndex).toBe(0);
+    expect(tiles.anchor).toBe('kitchen');
+    expect(tiles.height).toEqual({ from: 0.92, to: 1.5 });
+    // As long as the run: the wall cabinets hang above the tiles, not in their way.
+    expect(tiles.span.to - tiles.span.from).toBeCloseTo(2.8, 3);
+    // The run moved to wall 1 (x = 4, facing −x): the tiles follow it.
+    const moved = { ...run, position: { x: 4 - 0.02 - 0.31, z: 2 }, rotation: -Math.PI / 2 };
+    const [followed] = reanchorDecor([tiles], [moved], [r]);
+    expect(followed.wallIndex).toBe(1);
+  });
+
+  it('hangs lamps and ceiling points under a lowered ceiling from it, not through it', async () => {
+    const { underCeilingDecor } = await import('@/lib/design/aiProposal');
+    const r = room('b', 'living_room', 5, 4);
+    const cove = { id: 'c1', roomId: 'b', family: 'light', wallIndex: null, span: { from: 0, to: 0 }, height: { from: 2.5, to: 2.7 }, params: { path: 'cove' }, materials: {} } as unknown as DecorPiece;
+    const lamp = piece('lamp', 'pendant', 'pendant', 2.5, 2, 0, 0.5, 0.5, 0.6, { elevationM: 2.1 });
+    const point = { id: 'p1', roomId: 'b', kind: 'light_ceiling', position: { x: 2.5, z: 2 }, elevationM: 2.7 } as never;
+    const out = underCeilingDecor([lamp], [point], [cove], plan1(r));
+    // The panel's underside is 2.7 − 0.16 − 0.07 = 2.47 m.
+    expect(out.items[0].elevationM + out.items[0].size.height).toBeLessThanOrEqual(2.47 + 1e-6);
+    expect((out.electrical[0] as { elevationM: number }).elevationM).toBeCloseTo(2.465, 3);
+  });
+
+  it('never lets a tall piece stand across a window, a low one may', async () => {
+    const { blocksWindow } = await import('@/lib/design/manipulate');
+    const r = { ...room('b', 'bedroom', 4.4, 4.2), openings: [{ id: 'w', kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'b', exterior: true }] } as PlanRoom;
+    expect(blocksWindow(piece('ward', 'wardrobe', 'wardrobe', 2.2, 0.33, 0, 1.6, 0.62, 2.2), r)).toBe(true);
+    expect(blocksWindow(piece('side', 'dresser', 'dresser', 2.2, 0.25, 0, 1.2, 0.45, 0.8), r)).toBe(false);
+  });
+});
+
+describe('the check moves pieces and decor, and seats chairs round a new table', () => {
+  const r = room('k', 'kitchen', 5, 4);
+  const plan: FloorPlan = { rooms: [r], metresPerPixel: null, bounds: { width: 5, depth: 4 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 };
+  const p = (id: string, kind: string, slot: string, x: number, z: number, rotation: number, w: number, d: number, h: number, productId = 1): PlacedItem => ({ id, roomId: 'k', kind, slot: slot as PlacedItem['slot'], position: { x, z }, rotation, elevationM: 0, size: { width: w, depth: d, height: h }, product: { productId, nameKa: 'x', pricePerUnit: 1, unit: 'piece', qty: 1, totalPrice: 1 } as PlacedItem['product'] });
+
+  it('seats the chairs round a replaced bistro table and takes out the one it has no seat for', () => {
+    const table = p('t', 'dining_table', 'dining_table', 2.5, 2, 0, 1.6, 0.9, 0.76);
+    const chairs = [p('c1', 'dining_chair', 'dining_chair', 2.1, 1.3, 0, 0.45, 0.5, 0.85), p('c2', 'dining_chair', 'dining_chair', 2.9, 1.3, 0, 0.45, 0.5, 0.85), p('c3', 'dining_chair', 'dining_chair', 2.1, 2.7, Math.PI, 0.45, 0.5, 0.85)];
+    const catalog = [product(7, 'dining_table', 70, 70, 76)];
+    const { items } = applyReviewFixes([table, ...chairs], [], { model: 'm', notes: {}, fixes: [{ target: 't', action: 'replace', productId: 7, wallIndex: null, reason: '' }] }, plan, catalog);
+    const seated = items.filter((i) => i.slot === 'dining_chair');
+    const newTable = items.find((i) => i.slot === 'dining_table')!;
+    expect(newTable.size.width).toBeCloseTo(0.7);
+    expect(seated).toHaveLength(2);
+    for (const c of seated) expect(Math.hypot(c.position.x - newTable.position.x, c.position.z - newTable.position.z)).toBeLessThan(0.6);
+  });
+
+  it('pushes a piece back to its wall, moves one to another wall, and moves or takes out decor', () => {
+    const fridge = p('f', 'fridge', 'fridge', 4, 1, 0, 0.7, 0.7, 1.9);
+    const tiles = { id: 'd1', roomId: 'k', family: 'tile', wallIndex: 2, span: { from: 1, to: 3 }, height: { from: 0, to: 1.2 }, params: {}, materials: {} } as unknown as DecorPiece;
+    const slats = { id: 'd2', roomId: 'k', family: 'slats', wallIndex: 1, span: { from: 1, to: 2 }, height: { from: 0, to: 2.7 }, params: {}, materials: {} } as unknown as DecorPiece;
+    const back = applyReviewFixes([fridge], [tiles, slats], { model: 'm', notes: {}, fixes: [{ target: 'f', action: 'to_wall', productId: null, wallIndex: null, reason: '' }, { target: 'd2', action: 'remove_decor', productId: null, wallIndex: null, reason: '' }, { target: 'd1', action: 'decor_to_wall', productId: null, wallIndex: 0, reason: '' }] }, plan, []);
+    expect(back.items[0].position.z - back.items[0].size.depth / 2).toBeCloseTo(0.02, 3);
+    expect(back.decor.map((d) => d.id)).toEqual(['d1']);
+    expect(back.decor[0].wallIndex).toBe(0);
+    // Wall 1 is x = 5, facing −x.
+    const moved = applyReviewFixes([fridge], [], { model: 'm', notes: {}, fixes: [{ target: 'f', action: 'move_to_wall', productId: null, wallIndex: 1, reason: '' }] }, plan, []).items[0];
+    expect(moved.rotation).toBeCloseTo(-Math.PI / 2, 5);
+    expect(moved.position.x + moved.size.depth / 2).toBeCloseTo(5 - 0.02, 3);
+  });
+});
+
+describe('hanging lamps hang by their length', () => {
+  it('hangs a pendant from the ceiling, and only one short enough to clear a head', () => {
+    const living = room('l', 'living_room', 5, 4);
+    const laid = layoutRoom(living).filter((i) => i.slot === 'pendant');
+    const catalog = [product(30, 'pendant', 40, 40, 110), product(31, 'pendant', 40, 40, 60)];
+    const [lamp] = matchProducts(laid, catalog, { styleId: 'scandinavian', rooms: [living] });
+    expect(lamp.product?.productId).toBe(31);
+    expect(lamp.elevationM + lamp.size.height).toBeCloseTo(2.7, 5);
+  });
+});
+
+describe('a wall mirror swapped in for a floor mirror', () => {
+  it('hangs on the wall, not on the floor where the floor mirror stood', () => {
+    const hall = room('h', 'hallway', 4, 1.8);
+    const plan: FloorPlan = { rooms: [hall], metresPerPixel: null, bounds: { width: 4, depth: 1.8 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 };
+    const floorMirror: PlacedItem = { id: 'm', roomId: 'h', kind: 'mirror', slot: 'mirror', position: { x: 2, z: 0.3 }, rotation: 0, elevationM: 0, size: { width: 0.59, depth: 0.5, height: 1.64 }, product: { productId: 14 } as PlacedItem['product'] };
+    const { items } = applyReviewFixes([floorMirror], [], { model: 'm', notes: {}, fixes: [{ target: 'm', action: 'replace', productId: 13, wallIndex: null, reason: '' }] }, plan, [product(13, 'mirror', 60, 3, 80)]);
+    expect(items[0].elevationM + items[0].size.height / 2).toBeCloseTo(1.5, 5);
+  });
+});
+
+describe('a desk in front of slats', () => {
+  it('moves off the slats with its chair tucked under it', async () => {
+    const { clearOfDecor } = await import('@/lib/design/aiProposal');
+    const office = room('o', 'office', 3.4, 2.6);
+    const plan: FloorPlan = { rooms: [office], metresPerPixel: null, bounds: { width: 3.4, depth: 2.6 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 };
+    const desk: PlacedItem = { id: 'desk', roomId: 'o', kind: 'desk', slot: 'desk', position: { x: 1.7, z: 0.015 + 0.375 }, rotation: 0, elevationM: 0, size: { width: 1.58, depth: 0.75, height: 0.75 }, product: { productId: 1 } as PlacedItem['product'] };
+    const chair: PlacedItem = { id: 'chair', roomId: 'o', kind: 'office_chair', slot: 'office_chair', position: { x: 1.7, z: 0.39 + 0.375 + 0.335 - 0.18 }, rotation: Math.PI, elevationM: 0, size: { width: 0.67, depth: 0.67, height: 0.8 }, product: { productId: 2 } as PlacedItem['product'] };
+    const slats = { id: 's', roomId: 'o', family: 'slats', wallIndex: 0, span: { from: 0.5, to: 2.9 }, height: { from: 0, to: 2.7 }, params: {}, materials: {} } as unknown as DecorPiece;
+    const [d, c] = clearOfDecor([desk, chair], [slats], plan);
+    expect(d.position.z - d.size.depth / 2).toBeGreaterThanOrEqual(0.034);
+    expect(c.position.z - chair.position.z).toBeCloseTo(d.position.z - desk.position.z, 6);
+  });
+});
+
+describe('decor that follows a piece the check moved', () => {
+  it('goes with the desk to its new wall, and the desk stands clear of it there', () => {
+    const office = room('o', 'office', 3.4, 2.6);
+    const plan: FloorPlan = { rooms: [office], metresPerPixel: null, bounds: { width: 3.4, depth: 2.6 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 };
+    const desk: PlacedItem = { id: 'desk', roomId: 'o', kind: 'desk', slot: 'desk', position: { x: 1.7, z: 0.02 + 0.225 }, rotation: 0, elevationM: 0, size: { width: 1.18, depth: 0.45, height: 0.74 }, product: { productId: 1 } as PlacedItem['product'] };
+    const panel = { id: 'p', roomId: 'o', family: 'panel', anchor: 'desk', wallIndex: 0, span: { from: 1.2, to: 2.2 }, height: { from: 0, to: 2.7 }, params: { style: 'fluted' }, materials: {} } as unknown as DecorPiece;
+    // Wall 1 is x = 3.4.
+    const out = applyReviewFixes([desk], [panel], { model: 'm', notes: {}, fixes: [{ target: 'desk', action: 'move_to_wall', productId: null, wallIndex: 1, reason: '' }] }, plan, []);
+    expect(out.decor[0].wallIndex).toBe(1);
+    const moved = out.items[0];
+    expect(3.4 - (moved.position.x + moved.size.depth / 2)).toBeGreaterThanOrEqual(0.03);
   });
 });

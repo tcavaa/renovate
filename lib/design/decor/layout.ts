@@ -344,3 +344,31 @@ export function fitLight(piece: Pick<DecorPiece, 'params' | 'wallIndex' | 'span'
   const at = (s: number) => ({ x: edge.a.x + edge.dir.x * s, z: edge.a.z + edge.dir.z * s });
   return { runs: [{ a: at(wall.x0), b: at(wall.x1), y: wall.y0, outward: { x: -edge.inward.x, z: -edge.inward.z } }], panel: null, ledM: wall.width, panelM2: 0 };
 }
+
+/**
+ * How far a decor piece stands out from its wall, metres — what furniture in front of it has to
+ * stand clear of (`clearOfDecor`): slats with their backing and stand-off, a niche wall's build-out,
+ * a slab on its stand-off, a panel or cladding its thickness, a moulding its profile. A cove or a
+ * light line takes no floor.
+ */
+export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'>): number {
+  const params = paramsOf(piece);
+  switch (piece.family) {
+    case 'slats':
+      return (params.standoffMm && params.standoffMm > 0 ? params.standoffMm / 1000 : 0) + (params.backing === false ? 0 : 0.012) + mm(params.depthMm, 22);
+    case 'niche':
+      return Math.min(0.45, Math.max(0.12, mm(params.depthMm, 300)));
+    case 'slab':
+      return mm(params.standoffMm, 40) + mm(params.thicknessMm, 20);
+    case 'panel':
+      return params.style === 'fluted' ? 0.03 : Math.max(0.03, mm(params.thicknessMm, 50));
+    case 'cladding':
+    case 'tile':
+    case 'mural':
+      return mm(params.thicknessMm, piece.family === 'mural' ? 2 : piece.family === 'tile' ? 10 : 15);
+    case 'moulding':
+      return 0.03;
+    default:
+      return 0;
+  }
+}

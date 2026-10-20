@@ -150,6 +150,8 @@ const FIXTURES: FixtureEntry[] = [
     mount: 'wall',
     source: { type: 'polypizza', id: 'iLXKjr9t4A', url: `${PP}/a244bcc2-49bd-4f47-93cb-7a3337dc49a8.glb`, title: 'Sconce light', author: 'jrich01', license: 'CC-BY 3.0' },
     keepAxes: true,
+    // The file has its wall plate at the front: kept as authored it stood off the wall, arm to the plaster.
+    yawDegrees: 180,
     sizeCm: { width: 18, height: 40 },
     product: { kind: 'light_wall', categorySlug: 'lighting', priceGel: 95, storeSlug: 'lumina', nameKa: 'კედლის სანათი „Brass“ — ღია ნათურით', nameEn: 'Wall lamp "Brass" — open bulb', nameRu: 'Бра «Brass» — с открытой лампой', styles: ['vintage', 'scandinavian'] },
   },

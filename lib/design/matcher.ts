@@ -10,7 +10,7 @@
  * and swap it, and the same inputs always give the same room.
  */
 
-import { blockingItems, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
+import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
@@ -176,7 +176,9 @@ export function matchProducts(
       const materials = kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => !m.model3dKind || m.model3dKind === item.slot);
       // Only what is a run — floor-standing, worktop-high or more, wider than deep: the library files
       // hobs, coffee machines and a wall cabinet under the same kind.
-      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 80 && p.depthCm >= 45 && p.widthCm >= 100 && p.widthCm > p.depthCm);
+      const runRoom = roomsById.get(item.roomId);
+      // …and not one whose wall cabinets would stand across the window over the run.
+      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 80 && p.depthCm >= 45 && p.widthCm >= 100 && p.widthCm > p.depthCm && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
       const rng = options.rng;
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
@@ -193,7 +195,7 @@ export function matchProducts(
     // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
     // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
     // flat and no taller than 1.2 m. The swap list still offers the rest.
-    const fitting = slotPool(item, candidates, room);
+    const fitting = slotPool(item, candidates, room, settled);
     if (fitting.length > 0 && fitting.length < candidates.length) {
       candidates.splice(0, candidates.length, ...fitting);
     }
@@ -295,6 +297,8 @@ function placeFitting(
   const fits = (position: Vec2, size: PlacedItem['size']): boolean => {
     const footprint = footprintOf(position, size, item.rotation);
     if (!footprintInRoom(footprint, room.polygon)) return false;
+    // A product taller than the slot's piece stands across no window (a wardrobe for a dresser).
+    if (blocksWindow({ ...item, position, size }, room)) return false;
     for (const { other, box, chair } of blockers) {
       // Pieces may touch; a chair the engine tucked under its table may stand under it by up
       // to half its depth besides — its seat under the top, its back clear of it.
@@ -360,9 +364,20 @@ function seatAtTable(item: PlacedItem, settled: PlacedItem[]): PlacedItem | 'non
   return { ...item, position: seats[index].position, rotation: seats[index].rotation };
 }
 
+/** The lowest a hanging lamp may come: 1.45 m over a table or an island, else 1.9 m. */
+function lowestPendant(item: PlacedItem, settled: PlacedItem[]): number {
+  const overTable = settled.some((p) => p.roomId === item.roomId && (p.slot === 'dining_table' || p.slot === 'kitchen_island') && Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z) < 0.4);
+  return overTable ? 1.45 : 1.9;
+}
+
 /** Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw). */
-function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined): CatalogProduct[] {
+export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = []): CatalogProduct[] {
   if (item.slot === 'sink') return candidates.filter((p) => (p.heightCm ?? 0) >= 60);
+  // A pendant short enough to hang from the ceiling and clear a head (or the table under it).
+  if (getArchetype(item.kind)?.placement.type === 'ceiling') {
+    const drop = item.elevationM + item.size.height - lowestPendant(item, settled);
+    return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) / 100 <= drop);
+  }
   if (item.slot === 'mirror' && (room?.type === 'bathroom' || room?.type === 'toilet')) {
     return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) <= 120 && (p.depthCm ?? 0) <= 12);
   }
@@ -457,17 +472,19 @@ function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: nu
  */
 export function settledElevation(item: PlacedItem, size: PlacedItem['size'], product: CatalogProduct, settled: PlacedItem[]): number {
   if (item.slot === 'sink' && size.height < 0.45) return round2(0.86 - size.height);
-  if (item.elevationM < 0.05) return item.elevationM;
   const rule = getArchetype(item.kind)?.placement;
+  // A hanging lamp hangs from the ceiling by its own length, not through it: its top where the
+  // slot's was, its bottom no lower than 1.9 m (1.45 m over a table).
+  if (rule?.type === 'ceiling' && item.elevationM >= 0.05) return round2(Math.max(lowestPendant(item, settled), item.elevationM + item.size.height - size.height));
   if (rule?.type !== 'wall-mounted' || rule.stretch) return item.elevationM;
+  // From the product and the rule, never from the piece it replaces: a wall mirror swapped in for
+  // a floor mirror stood on the floor with it.
   if (item.slot === 'mirror' && size.height >= 1.4) return (product.depthCm ?? 0) >= 12 ? 0 : 0.3;
-  let elevation = item.elevationM + item.size.height / 2 - size.height / 2;
   const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
-  for (const below of settled) {
-    if (below.roomId !== item.roomId || below.elevationM > 0.05) continue;
-    if (!footprintsOverlap(box, footprintOf(below.position, below.size, below.rotation), 0)) continue;
-    elevation = Math.max(elevation, below.size.height + 0.12);
-  }
+  const below = settled.filter((p) => p.roomId === item.roomId && p.elevationM < 0.05 && p.id !== item.id && !getArchetype(p.kind)?.ghost && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
+  const middle = item.slot === 'mirror' ? 1.5 : below.length > 0 ? (rule.aboveHeightM ?? rule.heightM) : rule.heightM;
+  let elevation = middle - size.height / 2;
+  for (const piece of below) elevation = Math.max(elevation, piece.size.height + 0.12);
   return round2(Math.max(0.05, elevation));
 }
 

@@ -196,7 +196,11 @@ were turned: the file rewritten under a new root node and stored as `<name>.f<ya
 original (the old key is cached a year), the product pointed at it, width and depth swapped for a
 quarter turn. **8 stock models** faced −Z (Poly Haven's `facing: 'panel'` guess put the panel to the
 front): their files were turned in place and their entries carry `yawDegrees: 180`, so a re-run keeps
-them right. The tools were one-off and are not in the repository.
+them right. **Wall lamps** were checked the same way afterwards (31): 12 library lamps turned, and
+the stock "Brass" sconce (`wall-lamp-brass`), whose wall plate was at the front — a fitting is
+drawn as authored, so it stood 32 cm off the wall with its arm to the plaster — turned and its back
+put on z = 0 again (`yawDegrees: 180` in `scripts/fixture-models.ts`). The tools were one-off and
+are not in the repository.
 
 ## Uploads are optimized
 

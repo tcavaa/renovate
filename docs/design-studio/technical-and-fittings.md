@@ -87,7 +87,9 @@ position, height, outlets, on/off, a lighting `category`), in two parts with the
 **The standard fittings** (`standardElectrical`, decided by the room alone): one main light per
 room, a 105 cm switch by the handle side of every door, general 45 cm sockets on the long walls
 of the rooms people live in, off the walls the switches are on. **The furniture's**
-(`suggestElectrical` = the standard ones + these): 60 cm bedside sockets and lights, 115 cm
+(`suggestElectrical` = the standard ones + these): 60 cm bedside sockets and lights (the reading
+lamp centred over that side's nightstand, none past the wall's end when the bed stands against the
+side wall — one used to hang in the corner), 115 cm
 sockets over a 90 cm worktop and the kitchen's under-cabinet light, 170 cm high sockets, the
 television and data points. The calculator's board places the standard ones — it has no
 furniture — so a design of the same flat has exactly the calculator's fittings plus what its
