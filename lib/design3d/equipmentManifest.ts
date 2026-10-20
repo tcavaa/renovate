@@ -233,6 +233,123 @@ export const EQUIPMENT_MODELS: EquipmentModel[] = [
     "license": "CC-BY 4.0"
   },
   {
+    "slug": "tv-stand-50",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-stand-50.glb",
+    "widthCm": 112,
+    "heightCm": 71.3,
+    "depthCm": 13.4,
+    "styles": [
+      "modern",
+      "scandinavian",
+      "industrial",
+      "vintage"
+    ],
+    "title": "Flat TV on two feet, 50-inch",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/103f7a54a01f42a99f9196503e44dfc6",
+    "author": "infohack",
+    "license": "CC-BY 4.0"
+  },
+  {
+    "slug": "tv-stand-55",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-stand-55.glb",
+    "widthCm": 123,
+    "heightCm": 81.2,
+    "depthCm": 28.7,
+    "styles": [
+      "modern",
+      "scandinavian",
+      "industrial",
+      "vintage"
+    ],
+    "title": "Flat TV on a star stand, 55-inch",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/cc1d40351d294f6d99ee12dbd852c17c",
+    "author": "jann",
+    "license": "CC-BY 4.0"
+  },
+  {
+    "slug": "tv-stand-65",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-stand-65.glb",
+    "widthCm": 145,
+    "heightCm": 89.6,
+    "depthCm": 26,
+    "styles": [
+      "modern",
+      "scandinavian",
+      "industrial",
+      "vintage"
+    ],
+    "title": "Flat TV on a pedestal stand, 65-inch",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/7e3fc213f0cc4a3a9538ee18ef5a7245",
+    "author": "vxdesigns",
+    "license": "CC-BY 4.0"
+  },
+  {
+    "slug": "tv-wall-55",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-wall-55.glb",
+    "widthCm": 123,
+    "heightCm": 75.3,
+    "depthCm": 7.9,
+    "styles": [
+      "modern",
+      "scandinavian",
+      "industrial",
+      "vintage"
+    ],
+    "title": "Slim TV for the wall, 55-inch",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/ce05a5d98b54400184ab60262dbf7232",
+    "author": "AleixoAlonso",
+    "license": "CC-BY 4.0"
+  },
+  {
+    "slug": "tv-wall-65",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-wall-65.glb",
+    "widthCm": 145,
+    "heightCm": 81.8,
+    "depthCm": 5.3,
+    "styles": [
+      "modern",
+      "scandinavian",
+      "industrial",
+      "vintage"
+    ],
+    "title": "Slim TV for the wall, 65-inch",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/c91f9ac4de274b5aad362e0f19c3f16b",
+    "author": "abdillaamy",
+    "license": "CC-BY 4.0"
+  },
+  {
+    "slug": "tv-retro",
+    "kind": "tv",
+    "frame": "wall",
+    "url": "/models/equipment/tv-retro.glb",
+    "widthCm": 60,
+    "heightCm": 39.9,
+    "depthCm": 28.1,
+    "styles": [
+      "vintage"
+    ],
+    "title": "Retro TV in a wooden cabinet",
+    "source": "sketchfab",
+    "sourceUrl": "https://sketchfab.com/3d-models/ed2c74f57f2f44f78361bda1c0c0952b",
+    "author": "TurnipScribs",
+    "license": "CC-BY 4.0"
+  },
+  {
     "slug": "socket-tv",
     "kind": "socket_tv",
     "frame": "fitting",

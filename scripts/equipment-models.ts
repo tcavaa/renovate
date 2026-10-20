@@ -1,7 +1,8 @@
 /**
  * The plan's technical equipment as catalogue products — electrical panels, a gas boiler, a
- * water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain — and the TV and
- * data sockets, fetched from their sources, cleaned up, sized and framed for the studio.
+ * water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain — the TV and
+ * data sockets, and the TVs the layout engine puts over a TV unit, fetched from their sources,
+ * cleaned up, sized and framed for the studio.
  *
  *   pnpm models:equipment                 → public/models/equipment/*.glb + manifest.json
  *                                           + lib/design3d/equipmentManifest.ts (the same data, typed)
@@ -40,7 +41,7 @@ import { copyFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Logger } from '@gltf-transform/core';
-import { dedup, flatten, join, meshopt, prune, weld } from '@gltf-transform/functions';
+import { dedup, flatten, join, meshopt, metalRough, prune, weld } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import {
   bakeNodeTransforms,
@@ -257,6 +258,67 @@ const EQUIPMENT: EquipmentEntry[] = [
     product: { kind: 'floor_drain', categorySlug: 'floor-drains', priceGel: 85, unit: 'piece', storeSlug: 'san-plus', nameKa: 'იატაკის ტრაპი, უჟანგავი, 15×15 სმ', nameEn: 'Floor drain, stainless steel, 15×15 cm', nameRu: 'Трап напольный, нержавеющий, 15×15 см', styles: ALL, rank: 1 },
   },
 
+  // --- TVs (placed by the layout engine over the living room's TV unit, not technical points) ---
+  // One on its stand (deeper than 12 cm) stands on the unit's top; a flat one hangs on the wall
+  // over it (`settledElevation` in lib/design/matcher.ts). Sized by the screen's width.
+  {
+    slug: 'tv-stand-50',
+    title: 'Flat TV on two feet, 50-inch',
+    frame: 'wall',
+    source: { type: 'sketchfab', uid: '103f7a54a01f42a99f9196503e44dfc6', path: 'glbs/000-073/103f7a54a01f42a99f9196503e44dfc6.glb', title: 'Samsung Q60R', author: 'infohack', license: 'CC-BY 4.0' },
+    sizeCm: { width: 112, height: 71, depth: 13 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 1399, unit: 'piece', storeSlug: 'lumina', nameKa: 'ტელევიზორი 50", 4K, ფეხებზე', nameEn: '50" 4K TV on feet', nameRu: 'Телевизор 50", 4K, на ножках', styles: ALL, rank: 1 },
+  },
+  {
+    slug: 'tv-stand-55',
+    title: 'Flat TV on a star stand, 55-inch',
+    frame: 'wall',
+    // SketchUp units (inches); the screen faces +z.
+    source: { type: 'sketchfab', uid: 'cc1d40351d294f6d99ee12dbd852c17c', path: 'glbs/000-151/cc1d40351d294f6d99ee12dbd852c17c.glb', title: 'Flat Screen TV 46" with stand', author: 'jann', license: 'CC-BY 4.0' },
+    sizeCm: { width: 123, height: 81, depth: 29 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 1899, unit: 'piece', storeSlug: 'lumina', nameKa: 'ტელევიზორი 55", 4K, სადგამით', nameEn: '55" 4K TV on a stand', nameRu: 'Телевизор 55", 4K, на подставке', styles: ALL, rank: 2 },
+  },
+  {
+    slug: 'tv-stand-65',
+    title: 'Flat TV on a pedestal stand, 65-inch',
+    frame: 'wall',
+    source: { type: 'sketchfab', uid: '7e3fc213f0cc4a3a9538ee18ef5a7245', path: 'glbs/000-151/7e3fc213f0cc4a3a9538ee18ef5a7245.glb', title: 'LED TV (FREE)', author: 'vxdesigns', license: 'CC-BY 4.0' },
+    // The file's screen faces −x.
+    turn: [['y', 90]],
+    sizeCm: { width: 145, height: 90, depth: 26 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 2799, unit: 'piece', storeSlug: 'lumina', nameKa: 'ტელევიზორი 65", 4K, ცენტრალური სადგამით', nameEn: '65" 4K TV on a pedestal stand', nameRu: 'Телевизор 65", 4K, на центральной подставке', styles: ALL, rank: 3 },
+  },
+  {
+    slug: 'tv-wall-55',
+    title: 'Slim TV for the wall, 55-inch',
+    frame: 'wall',
+    source: { type: 'sketchfab', uid: 'ce05a5d98b54400184ab60262dbf7232', path: 'glbs/000-031/ce05a5d98b54400184ab60262dbf7232.glb', title: 'Television (Wall-mounted)', author: 'AleixoAlonso', license: 'CC-BY 4.0' },
+    sizeCm: { width: 123, height: 75, depth: 8 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 2099, unit: 'piece', storeSlug: 'lumina', nameKa: 'ტელევიზორი 55", 4K, კედლის სამაგრით', nameEn: '55" 4K TV with a wall mount', nameRu: 'Телевизор 55", 4K, с настенным креплением', styles: ALL, rank: 4 },
+  },
+  {
+    slug: 'tv-wall-65',
+    title: 'Slim TV for the wall, 65-inch',
+    frame: 'wall',
+    source: { type: 'sketchfab', uid: 'c91f9ac4de274b5aad362e0f19c3f16b', path: 'glbs/000-116/c91f9ac4de274b5aad362e0f19c3f16b.glb', title: 'Flat Screen Television', author: 'abdillaamy', license: 'CC-BY 4.0' },
+    sizeCm: { width: 145, height: 82, depth: 5 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 3299, unit: 'piece', storeSlug: 'lumina', nameKa: 'ტელევიზორი 65", OLED, კედლის სამაგრით', nameEn: '65" OLED TV with a wall mount', nameRu: 'Телевизор 65", OLED, с настенным креплением', styles: ALL, rank: 5 },
+  },
+  {
+    slug: 'tv-retro',
+    title: 'Retro TV in a wooden cabinet',
+    frame: 'wall',
+    source: { type: 'sketchfab', uid: 'ed2c74f57f2f44f78361bda1c0c0952b', path: 'glbs/000-116/ed2c74f57f2f44f78361bda1c0c0952b.glb', title: 'TV 2', author: 'TurnipScribs', license: 'CC-BY 4.0' },
+    sizeCm: { width: 60, height: 41, depth: 29 },
+    fit: 'width',
+    product: { kind: 'tv', categorySlug: 'tvs', priceGel: 650, unit: 'piece', storeSlug: 'antikvari', nameKa: 'რეტრო ტელევიზორი ხის კორპუსში', nameEn: 'Retro TV in a wooden cabinet', nameRu: 'Ретро-телевизор в деревянном корпусе', styles: ['vintage'], rank: 6 },
+  },
+
   // --- TV and data sockets (8 × 8 cm plates, like /models/fixtures) ------------------------
   {
     slug: 'socket-tv',
@@ -363,7 +425,9 @@ async function convertOne(entry: EquipmentEntry): Promise<EquipmentManifestModel
   }
   // Tangents would not survive the turns below, and three.js does without them.
   for (const prim of listPrimitives(doc)) if (prim.getAttribute('TANGENT')) prim.setAttribute('TANGENT', null);
-  await doc.transform(prune(), dedup(), flatten(), join({ keepNamed: false, keepMeshes: false }), weld(), prune());
+  // An older file's specular-glossiness material (KHR_materials_pbrSpecularGlossiness) as
+  // metal-roughness: left as it was, its colour texture was dropped and the TV came out white.
+  await doc.transform(metalRough(), prune(), dedup(), flatten(), join({ keepNamed: false, keepMeshes: false }), weld(), prune());
   bakeNodeTransforms(doc);
 
   await simplifyTowards(doc, TARGET_TRIANGLES);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-30",
+  "generatedAt": "2026-10-20",
   "note": "Written by scripts/equipment-models.ts from CC0 / CC-BY / CC-BY-SA sources (see each model’s credit). In metres, front along +z: a wall model stands on y = 0, centred on x, its back on z = 0; a fitting is centred on x and y, its back on z = 0; a floor model is centred on x and z with its top at y = 0.",
   "models": [
     {
@@ -478,6 +478,288 @@
           "vintage"
         ],
         "rank": 1
+      }
+    },
+    {
+      "slug": "tv-stand-50",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-stand-50.glb",
+      "widthCm": 112,
+      "heightCm": 71.3,
+      "depthCm": 13.4,
+      "styles": [
+        "modern",
+        "scandinavian",
+        "industrial",
+        "vintage"
+      ],
+      "title": "Flat TV on two feet, 50-inch",
+      "triangles": 1121,
+      "bytes": 14332,
+      "imageUrl": "/uploads/furniture/equipment-tv-stand-50.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/103f7a54a01f42a99f9196503e44dfc6",
+      "author": "infohack",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "Samsung Q60R",
+        "author": "infohack",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/103f7a54a01f42a99f9196503e44dfc6",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“Samsung Q60R” by infohack (https://sketchfab.com/3d-models/103f7a54a01f42a99f9196503e44dfc6), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 1399,
+        "unit": "piece",
+        "storeSlug": "lumina",
+        "nameKa": "ტელევიზორი 50\", 4K, ფეხებზე",
+        "nameEn": "50\" 4K TV on feet",
+        "nameRu": "Телевизор 50\", 4K, на ножках",
+        "styles": [
+          "modern",
+          "scandinavian",
+          "industrial",
+          "vintage"
+        ],
+        "rank": 1
+      }
+    },
+    {
+      "slug": "tv-stand-55",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-stand-55.glb",
+      "widthCm": 123,
+      "heightCm": 81.2,
+      "depthCm": 28.7,
+      "styles": [
+        "modern",
+        "scandinavian",
+        "industrial",
+        "vintage"
+      ],
+      "title": "Flat TV on a star stand, 55-inch",
+      "triangles": 480,
+      "bytes": 20480,
+      "imageUrl": "/uploads/furniture/equipment-tv-stand-55.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/cc1d40351d294f6d99ee12dbd852c17c",
+      "author": "jann",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "Flat Screen TV 46\" with stand",
+        "author": "jann",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/cc1d40351d294f6d99ee12dbd852c17c",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“Flat Screen TV 46\" with stand” by jann (https://sketchfab.com/3d-models/cc1d40351d294f6d99ee12dbd852c17c), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 1899,
+        "unit": "piece",
+        "storeSlug": "lumina",
+        "nameKa": "ტელევიზორი 55\", 4K, სადგამით",
+        "nameEn": "55\" 4K TV on a stand",
+        "nameRu": "Телевизор 55\", 4K, на подставке",
+        "styles": [
+          "modern",
+          "scandinavian",
+          "industrial",
+          "vintage"
+        ],
+        "rank": 2
+      }
+    },
+    {
+      "slug": "tv-stand-65",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-stand-65.glb",
+      "widthCm": 145,
+      "heightCm": 89.6,
+      "depthCm": 26,
+      "styles": [
+        "modern",
+        "scandinavian",
+        "industrial",
+        "vintage"
+      ],
+      "title": "Flat TV on a pedestal stand, 65-inch",
+      "triangles": 455,
+      "bytes": 30964,
+      "imageUrl": "/uploads/furniture/equipment-tv-stand-65.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/7e3fc213f0cc4a3a9538ee18ef5a7245",
+      "author": "vxdesigns",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "LED TV (FREE)",
+        "author": "vxdesigns",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/7e3fc213f0cc4a3a9538ee18ef5a7245",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“LED TV (FREE)” by vxdesigns (https://sketchfab.com/3d-models/7e3fc213f0cc4a3a9538ee18ef5a7245), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 2799,
+        "unit": "piece",
+        "storeSlug": "lumina",
+        "nameKa": "ტელევიზორი 65\", 4K, ცენტრალური სადგამით",
+        "nameEn": "65\" 4K TV on a pedestal stand",
+        "nameRu": "Телевизор 65\", 4K, на центральной подставке",
+        "styles": [
+          "modern",
+          "scandinavian",
+          "industrial",
+          "vintage"
+        ],
+        "rank": 3
+      }
+    },
+    {
+      "slug": "tv-wall-55",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-wall-55.glb",
+      "widthCm": 123,
+      "heightCm": 75.3,
+      "depthCm": 7.9,
+      "styles": [
+        "modern",
+        "scandinavian",
+        "industrial",
+        "vintage"
+      ],
+      "title": "Slim TV for the wall, 55-inch",
+      "triangles": 2538,
+      "bytes": 25060,
+      "imageUrl": "/uploads/furniture/equipment-tv-wall-55.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/ce05a5d98b54400184ab60262dbf7232",
+      "author": "AleixoAlonso",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "Television (Wall-mounted)",
+        "author": "AleixoAlonso",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/ce05a5d98b54400184ab60262dbf7232",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“Television (Wall-mounted)” by AleixoAlonso (https://sketchfab.com/3d-models/ce05a5d98b54400184ab60262dbf7232), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 2099,
+        "unit": "piece",
+        "storeSlug": "lumina",
+        "nameKa": "ტელევიზორი 55\", 4K, კედლის სამაგრით",
+        "nameEn": "55\" 4K TV with a wall mount",
+        "nameRu": "Телевизор 55\", 4K, с настенным креплением",
+        "styles": [
+          "modern",
+          "scandinavian",
+          "industrial",
+          "vintage"
+        ],
+        "rank": 4
+      }
+    },
+    {
+      "slug": "tv-wall-65",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-wall-65.glb",
+      "widthCm": 145,
+      "heightCm": 81.8,
+      "depthCm": 5.3,
+      "styles": [
+        "modern",
+        "scandinavian",
+        "industrial",
+        "vintage"
+      ],
+      "title": "Slim TV for the wall, 65-inch",
+      "triangles": 2880,
+      "bytes": 29504,
+      "imageUrl": "/uploads/furniture/equipment-tv-wall-65.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/c91f9ac4de274b5aad362e0f19c3f16b",
+      "author": "abdillaamy",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "Flat Screen Television",
+        "author": "abdillaamy",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/c91f9ac4de274b5aad362e0f19c3f16b",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“Flat Screen Television” by abdillaamy (https://sketchfab.com/3d-models/c91f9ac4de274b5aad362e0f19c3f16b), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 3299,
+        "unit": "piece",
+        "storeSlug": "lumina",
+        "nameKa": "ტელევიზორი 65\", OLED, კედლის სამაგრით",
+        "nameEn": "65\" OLED TV with a wall mount",
+        "nameRu": "Телевизор 65\", OLED, с настенным креплением",
+        "styles": [
+          "modern",
+          "scandinavian",
+          "industrial",
+          "vintage"
+        ],
+        "rank": 5
+      }
+    },
+    {
+      "slug": "tv-retro",
+      "kind": "tv",
+      "frame": "wall",
+      "url": "/models/equipment/tv-retro.glb",
+      "widthCm": 60,
+      "heightCm": 39.9,
+      "depthCm": 28.1,
+      "styles": [
+        "vintage"
+      ],
+      "title": "Retro TV in a wooden cabinet",
+      "triangles": 1696,
+      "bytes": 44340,
+      "imageUrl": "/uploads/furniture/equipment-tv-retro.webp",
+      "source": "sketchfab",
+      "sourceUrl": "https://sketchfab.com/3d-models/ed2c74f57f2f44f78361bda1c0c0952b",
+      "author": "TurnipScribs",
+      "license": "CC-BY 4.0",
+      "credit": {
+        "title": "TV 2",
+        "author": "TurnipScribs",
+        "license": "CC-BY 4.0",
+        "url": "https://sketchfab.com/3d-models/ed2c74f57f2f44f78361bda1c0c0952b",
+        "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
+        "text": "“TV 2” by TurnipScribs (https://sketchfab.com/3d-models/ed2c74f57f2f44f78361bda1c0c0952b), CC BY 4.0; resized, re-oriented and simplified for RenovateGE"
+      },
+      "product": {
+        "kind": "tv",
+        "categorySlug": "tvs",
+        "priceGel": 650,
+        "unit": "piece",
+        "storeSlug": "antikvari",
+        "nameKa": "რეტრო ტელევიზორი ხის კორპუსში",
+        "nameEn": "Retro TV in a wooden cabinet",
+        "nameRu": "Ретро-телевизор в деревянном корпусе",
+        "styles": [
+          "vintage"
+        ],
+        "rank": 6
       }
     },
     {

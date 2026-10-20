@@ -63,7 +63,7 @@ deterministic, so a person who swaps one product does not have the rest of the f
 - **The kitchen run** is made to measure in a drawn material, or about a third of the time a
   shop's unit that fits the run (only a run-shaped one: worktop-high, deeper than 45 cm, wider than
   deep — the library files hobs and coffee machines under the same kind). **The wall cabinets**
-  (`kitchen_wall`, in the kitchen's program after the run) hang over it: `placeAbove` puts them on
+  (`kitchen_wall`, in the kitchen's program after the run and the fridge) hang over it: `placeAbove` puts them on
   the run's wall, as long as the run, shortened and slid along it to keep a window or a door clear
   — and on the longest clear wall when the room has no run; made to measure in the run's
   material's wall version, none over a shop's run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
@@ -82,15 +82,18 @@ The seed is not stored: a generated flat is saved as what it is, not how it was 
   chair stands a little under its table** — its seat `DINING_CHAIR_TUCK_M` (12 cm) under the
   edge, from the chair's own depth (`seatSlots`): a ring standing clear of the edge looked set out
   for a photograph — and tucks in further when the room is tight (10 or 18 cm more), tested
-  against everything but the table. The matcher lets the products of such a
-  chair and its table overlap too (below), and the studio lets a chair stand under a table for
-  the same reason ([studio.md](studio.md#direct-manipulation-libdesignmanipulatets)).
+  against everything but the table. **A desk chair stands with its seat under the desk** too
+  (`gapM` −0.18, tested against everything but the desk). `TUCKS_UNDER` in `manipulate.ts` names
+  each chair and the top it slides under; the matcher lets the products of such a chair and its
+  top overlap (below), and the studio lets a chair stand under its table or desk for the same
+  reason ([studio.md](studio.md#direct-manipulation-libdesignmanipulatets)).
 
 ## One product per kind per room
 
 Within one room, every slot of a kind gets the same product (six matching dining chairs) —
 unless that product does not fit one of the slots, which then gets the next that does
-(`placeFitting`, below);
+(`placeFitting`, below; a pair of nightstands is then made one again where a product fits both,
+`pairsAlike`);
 the next room gets the next-best product of the same style tier — generating, another draw, a
 product already used three times less likely — so a flat with five pendants hangs five
 different lamps. The swap panel lists every candidate for the slot,
@@ -141,9 +144,53 @@ own. The matcher re-measures every piece from the product it got, so the room st
   is not in its way: they move to it once it is matched — a wider bed used to be refused because the
   nightstands at the archetype's positions were in its way.
 - **A double bed takes the middle of the wall furthest from the door**, with room for a nightstand
-  each side (+14 for a spot with 50 cm free each side, a stronger pull to the middle). The "opposite
-  the door" preference used to score each spot's own distance from the door, so the far corner beat
-  the middle of the wall and left room for one nightstand.
+  each side (+14 for a spot whose 55 cm each side, at the head, is in the room, off every opening on
+  that wall and clear of everything already placed — a door's swing included; a stronger pull to the
+  middle — 20 points at the middle, falling off to the ends — and a narrower draw than other
+  pieces get — `BED_SPREAD`, 3 points: another wall of the same merit, or within about 25 cm of the
+  middle, rather than another stretch of the same wall; a bed drawn 50–80 cm off the middle left a
+  wider real bed room for one nightstand). The "opposite the door" preference used to score each spot's own distance from the door,
+  so the far corner beat the middle of the wall and left room for one nightstand; and the free-side
+  test looked only at the wall's own openings, so a door on the side wall pushed a bed to 45 cm off
+  the far wall, and that side's nightstand had to be a narrower one.
+- **A big piece leaves room to walk past it** (a bed, a sofa, a wardrobe: `isLargeSize`): a spot that
+  would leave 15–60 cm between its long side and the room's edge — what the studio flags amber
+  (`tightSpots`) — scores 16 less than it would, so it is taken only when nothing better is left.
+- **Both nightstands are one product** (`pairsAlike`, after matching; `PAIRED_SLOTS`): when the
+  room's product did not fit one side and that side got another, each product the pair got is tried
+  on both — the one most of it has first, then the narrowest — and the first that fits both, each
+  beside the bed, takes the pair. The designer's check replaces both or neither (`applyReviewFixes`).
+  **A room's dining chairs are one product too**: once its first chair is placed, a seat that chair
+  does not fit is left empty rather than given another — a step stool stood among six dining chairs.
+  A piece the check replaces is re-measured as the matcher would (`settledPosition`): a wider fridge
+  against the end of the run, not 2 cm under its wall cabinets.
+- **The kitchen run takes a wall with no window first** (2.2 m or longer; the water point, when the
+  plan has one, still decides): the wall cabinets and the backsplash need the wall over the worktop,
+  and a run under a window had them shortened round it or none at all. **A shop's unit is taken for
+  the run only when it is shaped like one** — at least 1.8 m long, 55–72 cm deep, 85 cm high or more
+  (a range cooker filed under kitchen units, 166 × 67 × 80 cm, was taken for the whole kitchen) —
+  and stands with its back on the run's wall at its own depth.
+- **A small kitchen goes on one wall**: the run, the fridge at its end, the wall cabinets over the
+  run. The run tries first to start in one corner and leave the other end of the wall for the fridge
+  (`leaveFor: 'fridge'` — the fridge's width and 8 cm, clear of openings and door swings), and only
+  then runs the whole wall as before; the fridge (placed next, `beside: 'kitchen_run'`) scores +40
+  hard against an end of the run on its wall, backs in line, 2 cm off it; the wall cabinets come
+  after the fridge in the program, so they hang over the run alone. The matcher keeps a real fridge
+  of another width against the run's end (`settledPosition`). The cabinets used to be placed before
+  the fridge, which then stood at the run's end under them.
+- **A TV over the TV unit** (`tv`, after the unit in the living room's program; `onlyAbove`, so
+  none where the room has no unit): laid out on the unit's wall, centred over it, its middle at
+  1.15 m, as wide as a 65" TV and no wider than the unit — smaller (85 %, 70 %) and slid along the
+  unit when that would cover a window beside it (a unit running past a window had no TV at all).
+  Over a unit standing free in the room (its back to no wall — a big room's sofa faces a wall too
+  far off for the unit to stand against) the slot is on the unit's top, and only a TV on a stand
+  fills it.
+  Matched, only a TV no wider than its slot (none rather than one across the window); one on its
+  own stand (deeper than 12 cm, `onStand`) **stands on the unit's top**, in the middle of it front
+  to back, and only one no wider than the unit (`slotPool`); a flat one **hangs on the wall over it**, its back where the unit's back is,
+  12 cm clear of its top (`settledElevation`, `hungPosition`). A standing TV moves with its unit
+  (`shiftWithFront`), and a TV on the wall is hung on a slab behind it, not inside it
+  (`clearOfDecor`). The studio's swap hangs or stands a TV again for the new product (`rehung`).
 - **Pieces on a wall hang over their piece** (`wall-mounted` with `above`): the wall cabinets over
   the run (`stretch`: as long as it), the mirror over the basin — or over the hallway's console — its
   middle at 1.55 m, a print over the bed or the sofa, its middle at 1.45 m; each at least 15 cm over
@@ -222,8 +269,9 @@ it keeps the exact test.
 `tightSpots` flags a piece a person could not get past: a big piece (≥ 0.8 m², ≥ 1.2 m
 long) with less than 60 cm between its long side and a wall, two big pieces less than 35 cm
 apart, or anything within 30 cm of a doorway's inside point. Small things (chairs, a
-nightstand), the short ends of big ones, touching pieces and floating ones do not count —
-the first version flagged half the flat. The gap to a wall is measured to the room's bounding
+nightstand), the short ends of big ones, floating pieces, and pieces that touch or all but
+touch — a gap under 15 cm (`NO_PASSAGE_M`) is nobody's way through (a desk stood 6 cm off its wall
+in front of a wall panel was flagged) — do not count; the first version flagged half the flat. The gap to a wall is measured to the room's bounding
 box, and a doorway's inside point is 45 cm into the room. Rooms a room separator divides are
 judged as one floor (`openFloor`; `tightSpotsByItem` takes each floor once). The box is the
 floor's, so a separator is no wall to be squeezed against, and two pieces facing each other
@@ -241,7 +289,9 @@ half the chair, a chair seated clear still in the table's way),
 nothing of a layout standing through a wall, on project 219's corner),
 `tests/unit/design/placementSettle.test.ts` (nightstands beside the bed's head, laid out and with a
 wider real bed; a shallower wardrobe kept on its wall; the bathroom mirror over the basin at eye level
-and only standing basins; a floor mirror standing),
+and only standing basins; a floor mirror standing; the desk chair under the desk; room to walk past a
+double bed and one product for both nightstands; a small kitchen on one wall; a TV on or over its
+unit), `tests/unit/design/clearance.test.ts` (a piece 6 cm off its wall is no passage),
 `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
 parts), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
@@ -255,6 +305,10 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
+- **Only TVs of the home electronics are placed.** The library files a few appliances under
+  kinds that do not fit them — coffee machines, a built-in oven and range cookers as
+  `kitchen_run` — and there is no kind for a soundbar, speakers or a microwave; a kitchen's
+  appliances are the run's own.
 - A model's real footprint (`footprintMasks`) is known only once the 3D view has loaded that
   file in this session; the 2D board still draws every piece as its box, and the layout
   engine, the matcher's fit check and the tight-passage warning all use the box.

@@ -3,7 +3,7 @@ import { samplePlan } from '@/lib/design/samplePlan';
 import { ensureWalls } from '@/lib/design/walls';
 import { withPartialWallSeparators, withSplitRoomTypes } from '@/lib/design/separators';
 import { countDoors, countWindows } from '@/lib/design/openings';
-import { calculatorRoomsFromPlan } from '@/lib/design/planGeometry';
+import { calculatorRoomsFromPlan, roomEdges } from '@/lib/design/planGeometry';
 
 /** Taken onto the board as `designStore.setPlan` takes any plan. */
 function onBoard() {
@@ -64,7 +64,13 @@ describe('the sample flat (სანიმუშო გეგმა)', () => {
     expect(countDoors(plan)).toBe(8);
     expect(countWindows(plan)).toBe(9);
     expect(calculatorRoomsFromPlan(plan)).toHaveLength(10);
-    // Each balcony's front is a railing.
-    for (const balcony of plan.rooms.filter((r) => r.type === 'balcony')) expect(balcony.openings.some((o) => o.kind === 'railing')).toBe(true);
+    // Each balcony stands out from the facade: its front and both ends are railings, each the
+    // wall's whole length; the side against the flat has the door.
+    for (const balcony of plan.rooms.filter((r) => r.type === 'balcony')) {
+      const edges = roomEdges(balcony.polygon);
+      const railings = balcony.openings.filter((o) => o.kind === 'railing');
+      expect(new Set(railings.map((o) => o.wallIndex)).size).toBe(3);
+      for (const railing of railings) expect(railing.widthM).toBeCloseTo(edges.find((e) => e.index === railing.wallIndex)!.length, 3);
+    }
   });
 });

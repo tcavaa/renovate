@@ -2,7 +2,8 @@
  * The sample flat ("სანიმუშო გეგმა") behind "try the sample plan" on step 1 of both halves: a
  * flat of about 150 m² laid out like an ordinary apartment — a long hallway with the entrance, and
  * off it two bedrooms, a bathroom, a separate toilet, an office and the living room; the kitchen
- * open to the living room; a balcony off the living room and one off the first bedroom — so a test
+ * open to the living room; a balcony off the living room and one off the first bedroom, each with
+ * a railing on its three outer sides — so a test
  * of the calculator, the studio, the AI designer or the decor starts in a second, with or without
  * an API key.
  *
@@ -76,11 +77,16 @@ const OPENINGS: SampleOpening[] = [
   { kind: 'door', room: 'r1', to: 'r7', at: [6.6, 8.3], widthM: 0.8, ...DOOR },
   // The kitchen open to the living room.
   { kind: 'archway', room: 'r2', to: 'r3', at: [12, 6], widthM: 1.8, heightM: 2.2, sillM: 0 },
-  // The balconies: a door out from the living room and from the first bedroom, a railing along each front.
+  // The balconies: a door out from the living room and from the first bedroom. Each stands out
+  // from the facade, so its three outer sides are railings — the front and both ends.
   { kind: 'door', room: 'r2', to: 'r9', at: [10.8, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
   { kind: 'door', room: 'r4', to: 'r10', at: [2.5, 0], widthM: 0.9, heightM: 2.2, sillM: 0 },
   { kind: 'railing', room: 'r9', to: null, at: [10.8, -1.6], widthM: 3.6, heightM: 1.05, sillM: 0 },
+  { kind: 'railing', room: 'r9', to: null, at: [9, -0.8], widthM: 1.6, heightM: 1.05, sillM: 0 },
+  { kind: 'railing', room: 'r9', to: null, at: [12.6, -0.8], widthM: 1.6, heightM: 1.05, sillM: 0 },
   { kind: 'railing', room: 'r10', to: null, at: [2.5, -1.5], widthM: 3, heightM: 1.05, sillM: 0 },
+  { kind: 'railing', room: 'r10', to: null, at: [1, -0.75], widthM: 1.5, heightM: 1.05, sillM: 0 },
+  { kind: 'railing', room: 'r10', to: null, at: [4, -0.75], widthM: 1.5, heightM: 1.05, sillM: 0 },
   // Windows on the outside walls.
   { kind: 'window', room: 'r2', to: null, at: [8, 0], widthM: 1.8, ...WINDOW },
   { kind: 'window', room: 'r2', to: null, at: [14, 3], widthM: 1.8, ...WINDOW },

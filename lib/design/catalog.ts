@@ -30,6 +30,11 @@ export type PlacementRule =
       clearanceM: number;
       /** Slide along the wall: 0.5 = centred, 0 = hard against the start corner. */
       along?: number;
+      /**
+       * At an end of that piece, on its wall, when there is room — the fridge at the end of the
+       * kitchen run, the way a fitted kitchen ends — else wherever the wall rule puts it.
+       */
+      beside?: SlotKind;
     }
   /** Free-standing in the middle of the room. */
   | { type: 'center' }
@@ -66,13 +71,18 @@ export type PlacementRule =
    * `above`, over the first of those pieces the room has, along its wall (the wall cabinets over
    * the run, the mirror over the basin, a print over the bed or the sofa): its middle at
    * `aboveHeightM` (default `heightM`) and clear of the piece's top by 15 cm; stretched to the
-   * piece's length when `stretch` (the cabinets), else its own width at most.
+   * piece's length when `stretch` (the cabinets), else its own width at most. With `onlyAbove`,
+   * nowhere when the room has none of those pieces (a TV with no TV unit).
    */
-  | { type: 'wall-mounted'; heightM: number; above?: SlotKind | SlotKind[]; aboveHeightM?: number; stretch?: boolean }
+  | { type: 'wall-mounted'; heightM: number; above?: SlotKind | SlotKind[]; aboveHeightM?: number; stretch?: boolean; onlyAbove?: boolean }
   /** Laid on the floor under another item, sized to it. */
   | { type: 'under'; to: SlotKind; padM: number }
-  /** Runs the full length of a wall (kitchen counters). */
-  | { type: 'wall-run'; prefer: 'longest' | 'shortest'; clearanceM: number }
+  /**
+   * Runs the full length of a wall (kitchen counters). With `leaveFor`, it first tries running
+   * from one corner and leaving the other end of the wall for that piece (the fridge): the run,
+   * the fridge and the wall cabinets on one wall.
+   */
+  | { type: 'wall-run'; prefer: 'longest' | 'shortest'; clearanceM: number; leaveFor?: SlotKind }
   /** Hangs at a window. */
   | { type: 'window' };
 
@@ -216,6 +226,19 @@ export const ARCHETYPES: Record<string, Archetype> = {
     placement: { type: 'relative', to: 'sofa', forward: 3.0, lateral: 0, align: 'facing', toWall: true },
     priority: 65,
   },
+  // The TV over the TV unit: one on its stand stands on the unit's top, a flat one hangs on the
+  // wall over it (`settledElevation`). None where the room has no TV unit.
+  tv: {
+    kind: 'tv',
+    slot: 'tv',
+    labelKa: 'ტელევიზორი',
+    labelEn: 'TV',
+    labelRu: 'Телевизор',
+    categorySlug: 'tvs',
+    size: { width: 1.45, depth: 0.08, height: 0.82 },
+    placement: { type: 'wall-mounted', heightM: 1.15, above: 'tv_unit', aboveHeightM: 1.15, onlyAbove: true },
+    priority: 60,
+  },
   storage_shelf: {
     kind: 'storage_shelf',
     slot: 'bookshelf',
@@ -274,7 +297,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Кухонный гарнитур',
     categorySlug: 'kitchen-furniture',
     size: { width: 3.0, depth: 0.62, height: 0.92 },
-    placement: { type: 'wall-run', prefer: 'longest', clearanceM: 0.95 },
+    placement: { type: 'wall-run', prefer: 'longest', clearanceM: 0.95, leaveFor: 'fridge' },
     priority: 100,
   },
   // Hanging cabinets: over the run, their bottom 60 cm above its worktop (1.5 m), 35 cm deep.
@@ -309,7 +332,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Холодильник',
     categorySlug: 'kitchen-furniture',
     size: { width: 0.72, depth: 0.72, height: 1.92 },
-    placement: { type: 'wall', prefer: 'shortest', clearanceM: 0.8 },
+    placement: { type: 'wall', prefer: 'shortest', clearanceM: 0.8, beside: 'kitchen_run' },
     priority: 75,
   },
 
@@ -559,6 +582,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'sofa_3seat', count: 1, preferAboveM2: 22 },
     { kind: 'coffee_table', count: 1 },
     { kind: 'tv_unit', count: 1 },
+    { kind: 'tv', count: 1 },
     { kind: 'armchair', count: 1, minAreaM2: 16 },
     { kind: 'bookshelf', count: 1, minAreaM2: 15 },
     { kind: 'rug', count: 1 },
@@ -570,10 +594,11 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'dining_table', count: 1, minAreaM2: 26 },
     { kind: 'dining_chair', count: 'fill', minAreaM2: 26 },
   ],
+  // The fridge before the wall cabinets: they hang over the run, never over the fridge beside it.
   kitchen: [
     { kind: 'kitchen_run', count: 1 },
-    { kind: 'kitchen_wall', count: 1 },
     { kind: 'fridge', count: 1 },
+    { kind: 'kitchen_wall', count: 1 },
     { kind: 'kitchen_island', count: 1, minAreaM2: 17 },
     { kind: 'dining_table', count: 1, minAreaM2: 10 },
     { kind: 'dining_chair', count: 'fill', minAreaM2: 10 },

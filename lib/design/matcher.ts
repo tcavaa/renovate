@@ -10,7 +10,7 @@
  * and swap it, and the same inputs always give the same room.
  */
 
-import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, tucksUnder } from './manipulate';
+import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, isPlacementValid, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder } from './manipulate';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
@@ -137,8 +137,10 @@ export function matchProducts(
   const rotation = new Map<string, number>();
   // Generating: the products of each kind already placed, drawn less often in the next room.
   const usedByKind = new Map<string, Set<number>>();
+  // The rooms whose set of dining chairs has its first chair.
+  const setStarted = new Set<string>();
 
-  return items.map((slotItem, index) => {
+  const matched = items.map((slotItem, index) => {
     const finish = (matched: PlacedItem) => {
       settled.push(matched);
       return matched;
@@ -178,7 +180,9 @@ export function matchProducts(
       // hobs, coffee machines and a wall cabinet under the same kind.
       const runRoom = roomsById.get(item.roomId);
       // …and not one whose wall cabinets would stand across the window over the run.
-      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 80 && p.depthCm >= 45 && p.widthCm >= 100 && p.widthCm > p.depthCm && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
+      // A run is at least 1.8 m long, a cabinet's depth (55–72 cm) and worktop-high: a range cooker
+      // filed under kitchen units (166 × 67 × 80 cm) was taken for the whole kitchen.
+      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 85 && p.depthCm >= 55 && p.depthCm <= 72 && p.widthCm >= 180 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
       const rng = options.rng;
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
@@ -186,7 +190,10 @@ export function matchProducts(
       }
       if (materials.length > 0 && rng) {
         const unit = weightedPick(units, (p) => generationWeight(p, options.styleId, level, item, false), rng) ?? units[0];
-        return finish(asPlacedKitchen({ ...item, product: toSceneProduct(unit, quantityFor(item)), size: sizeFromProduct(unit, item), origin: 'style' as const }, unit));
+        const size = sizeFromProduct(unit, item);
+        // Its back on the wall the run's was on, at its own depth.
+        const position = runRoom ? settledPosition(item, size, runRoom, settled) : item.position;
+        return finish(asPlacedKitchen({ ...item, product: toSceneProduct(unit, quantityFor(item)), size, position, origin: 'style' as const }, unit));
       }
     }
     if (candidates.length === 0) return finish({ ...item, product: null });
@@ -196,6 +203,8 @@ export function matchProducts(
     // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
     // flat and no taller than 1.2 m. The swap list still offers the rest.
     const fitting = slotPool(item, candidates, room, settled);
+    // No TV is better than one across the window beside its unit.
+    if (item.slot === 'tv' && fitting.length === 0) return finish({ ...item, product: null });
     if (fitting.length > 0 && fitting.length < candidates.length) {
       candidates.splice(0, candidates.length, ...fitting);
     }
@@ -236,16 +245,23 @@ export function matchProducts(
     // the next-best product that fits takes the slot, and when nothing fits the slot stays
     // empty rather than poke through the wall.
     // The next to try when the chosen does not fit: the best first, or — generating — another draw.
-    const ranked = rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
+    // The chairs round a table are one set: once the room has one, a seat its chair does not fit is
+    // left empty rather than given another chair — a step stool stood among six dining chairs.
+    const inSet = item.slot === 'dining_chair' && setStarted.has(roomKey);
+    const ranked = inSet ? [] : rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
     const placed = room ? placeFitting(item, chosen, ranked, room, others, slots, settled) : { product: chosen, position: item.position };
     if (!placed) return finish({ ...item, product: null });
+    if (item.slot === 'dining_chair') {
+      setStarted.add(roomKey);
+      chosenByRoom.set(roomKey, placed.product);
+    }
     used.add(placed.product.id);
     usedByKind.set(item.kind, used);
     const size = sizeFromProduct(placed.product, item);
     const elevationM = settledElevation(item, size, placed.product, settled);
     return finish({
       ...item,
-      position: hungPosition(item, size, elevationM) ?? placed.position,
+      position: hungPosition(item, size, elevationM, settled) ?? placed.position,
       product: toSceneProduct(placed.product, quantityFor(item)),
       // A product with real dimensions overrides the archetype's defaults, so the room
       // reflects the thing you would actually receive.
@@ -256,6 +272,52 @@ export function matchProducts(
       ...(item.slot === 'kitchen_run' ? { custom: true, size: item.size } : {}),
     });
   });
+  return pairsAlike(matched, catalog, roomsById);
+}
+
+/** Slots placed as a pair either side of a piece, which must match: two nightstands, not one of each. */
+export const PAIRED_SLOTS: ReadonlySet<string> = new Set(['nightstand']);
+
+/**
+ * One product for both of a pair (`PAIRED_SLOTS`). When the room's product did not fit one side —
+ * a bed 45 cm off its wall left a sliver there — that side got the next that did, and the bed stood
+ * between two different nightstands. Each product the pair got is tried on every one of it, the
+ * one most of it has first, then the narrowest, and the first that fits all takes the pair; when
+ * none does, the pair stays as matched. Pinned pieces are left. Pure.
+ */
+export function pairsAlike(items: PlacedItem[], catalog: CatalogProduct[], rooms: ReadonlyMap<string, PlanRoom>): PlacedItem[] {
+  const byId = new Map(catalog.map((p) => [p.id, p]));
+  const groups = new Map<string, PlacedItem[]>();
+  for (const item of items) {
+    if (!PAIRED_SLOTS.has(item.slot) || !item.product || item.pinned || item.locked) continue;
+    const key = `${item.roomId}|${item.slot}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  let out = items;
+  for (const group of groups.values()) {
+    const room = rooms.get(group[0].roomId);
+    const counts = new Map<number, number>();
+    for (const item of group) counts.set(item.product!.productId, (counts.get(item.product!.productId) ?? 0) + 1);
+    if (!room || counts.size < 2) continue;
+    const products = [...counts.keys()]
+      .map((id) => byId.get(id))
+      .filter((p): p is CatalogProduct => p != null)
+      .sort((a, b) => counts.get(b.id)! - counts.get(a.id)! || (a.widthCm ?? 0) - (b.widthCm ?? 0));
+    const ids = new Set(group.map((item) => item.id));
+    const rest = out.filter((item) => !ids.has(item.id));
+    for (const product of products) {
+      const moved = group.map((item) => {
+        const size = sizeFromProduct(product, item);
+        const position = clampInsideRoom(room, settledPosition(item, size, room, rest), size, item.rotation);
+        return { ...item, size, position, product: toSceneProduct(product, quantityFor(item)) };
+      });
+      const fit = moved.every((piece) => !blocksWindow(piece, room) && isPlacementValid(room, piece, [...rest, ...moved.filter((other) => other !== piece)]));
+      if (!fit) continue;
+      out = out.map((item) => moved.find((piece) => piece.id === item.id) ?? item);
+      break;
+    }
+  }
+  return out;
 }
 
 /** Slots the layout engine sizes itself, or that float above the floor — size is not a fit question there. */
@@ -328,9 +390,10 @@ function placeFitting(
 }
 
 /**
- * The chair of a dining chair and the table the layout engine tucked it under (`tucksUnder`) —
- * their slots, as laid out, overlapping: `placeSeatAroundTable` pushes a seat in when the room
- * is tight — or null for any other pair, a chair the engine left clear of its table included.
+ * The chair of a chair and the top the layout engine tucked it under (`tucksUnder`) — their
+ * slots, as laid out, overlapping: `placeSeatAroundTable` pushes a seat in when the room is
+ * tight, and a desk chair stands with its seat under the desk (`gapM` below zero) — or null for
+ * any other pair, a chair the engine left clear of its top included.
  *
  * Only the engine's tucks, and only up to half the chair, where the studio lets a person put
  * any chair under any table: here a product of another size takes the engine's slot, and with
@@ -339,14 +402,15 @@ function placeFitting(
  */
 function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, PlacedItem>): PlacedItem | null {
   if (!tucksUnder(a, b)) return null;
+  const slot = getArchetype(a.kind)?.slot;
+  const chair = slot != null && TUCKS_UNDER[slot] ? a : b;
   // A chair seated round the table as matched (`seatAtTable`) is tucked in by its seat ring.
-  const chair = getArchetype(a.kind)?.slot === 'dining_chair' ? a : b;
   const seated = slots.get(chair.id);
   if (seated && (seated.position.x !== chair.position.x || seated.position.z !== chair.position.z)) return chair;
   const p = slots.get(a.id);
   const q = slots.get(b.id);
   if (!p || !q || !footprintsOverlap(footprintOf(p.position, p.size, p.rotation), footprintOf(q.position, q.size, q.rotation), 0)) return null;
-  return getArchetype(a.kind)?.slot === 'dining_chair' ? a : b;
+  return chair;
 }
 
 /**
@@ -373,6 +437,15 @@ function lowestPendant(item: PlacedItem, settled: PlacedItem[]): number {
 /** Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw). */
 export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = []): CatalogProduct[] {
   if (item.slot === 'sink') return candidates.filter((p) => (p.heightCm ?? 0) >= 60);
+  // A TV no wider than its slot — the layout slid or shrank it off a window beside the unit — and
+  // one on its stand only where it fits on the unit's top; a flat one on the wall over any.
+  // Over a unit standing free in the room there is no wall to hang one on: a TV on a stand only.
+  if (item.slot === 'tv') {
+    const unit = tvUnitUnder(item, settled);
+    const walled = room ? backOnWall(item, room, 0.15) : true;
+    const fitsUnit = (p: CatalogProduct) => unit != null && (p.widthCm ?? 0) / 100 <= unit.size.width && (p.depthCm ?? 0) / 100 <= unit.size.depth + 0.02;
+    return candidates.filter((p) => (p.widthCm ?? 0) / 100 <= item.size.width + 0.02 && (onStand(p) ? fitsUnit(p) : walled));
+  }
   // A pendant short enough to hang from the ceiling and clear a head (or the table under it).
   if (getArchetype(item.kind)?.placement.type === 'ceiling') {
     const drop = item.elevationM + item.size.height - lowestPendant(item, settled);
@@ -409,7 +482,8 @@ function backOnWall(item: PlacedItem, room: PlanRoom, slack: number): boolean {
 /**
  * Where a product of `size` stands in a slot laid out for the archetype's size: a piece placed
  * off another is re-measured from that piece as it was matched (a nightstand beside the real
- * bed, its back on the bed's wall; the coffee table 42 cm off the real sofa); a piece with its
+ * bed, its back on the bed's wall; the coffee table 42 cm off the real sofa; the fridge against
+ * the end of the run); a piece with its
  * back on a wall keeps it there (a deeper wardrobe does not poke into the wall, a shallower one
  * does not stand off it); anything else stays centred where the slot was.
  */
@@ -425,6 +499,23 @@ export function settledPosition(item: PlacedItem, size: PlacedItem['size'], room
       const ahead = rule.beside != null ? -anchor.size.depth / 2 + size.depth / 2 : anchor.size.depth / 2 + rule.gapM! + size.depth / 2;
       const lateral = rule.beside != null ? Math.sign(across || 1) * (anchor.size.width / 2 + size.width / 2 + rule.beside) : across;
       return { x: anchor.position.x + forward.x * ahead + right.x * lateral, z: anchor.position.z + forward.z * ahead + right.z * lateral };
+    }
+  }
+  // A piece the engine stood hard against an end of another (the fridge at the end of the run)
+  // stays against that end at its real width, its back in line with the other's.
+  if (rule?.type === 'wall' && rule.beside) {
+    const piece = settled.find((p) => p.roomId === item.roomId && p.slot === rule.beside && Math.abs(Math.atan2(Math.sin(p.rotation - item.rotation), Math.cos(p.rotation - item.rotation))) < 0.05);
+    if (piece) {
+      const { forward, right } = axes(piece.rotation);
+      const across = (item.position.x - piece.position.x) * right.x + (item.position.z - piece.position.z) * right.z;
+      const ahead = (item.position.x - piece.position.x) * forward.x + (item.position.z - piece.position.z) * forward.z;
+      const gap = Math.abs(across) - piece.size.width / 2 - item.size.width / 2;
+      const inLine = Math.abs(ahead - (item.size.depth - piece.size.depth) / 2) < 0.1;
+      if (inLine && gap > -0.05 && gap < 0.15) {
+        const lateral = Math.sign(across) * (piece.size.width / 2 + 0.02 + size.width / 2);
+        const depthOff = (size.depth - piece.size.depth) / 2;
+        return { x: piece.position.x + right.x * lateral + forward.x * depthOff, z: piece.position.z + right.z * lateral + forward.z * depthOff };
+      }
     }
   }
   // A corner piece turned its back to the nearer wall when it stood within 30 cm of it.
@@ -455,10 +546,19 @@ function backGap(item: PlacedItem, room: PlanRoom): number {
  * A piece on a wall keeps its back on the wall at the product's depth (a print flat on it, a
  * floor mirror on its stand standing out from it); null for anything else.
  */
-function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: number): Vec2 | null {
+function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: number, settled: PlacedItem[] = []): Vec2 | null {
   const rule = getArchetype(item.kind)?.placement;
   if (rule?.type !== 'wall-mounted' || rule.stretch || item.elevationM < 0.05) return null;
   const { forward } = axes(item.rotation);
+  // A TV on its stand stands in the middle of the unit's top, front to back; a flat one hangs
+  // with its back where the unit's back is, on the wall — measured from the unit, so a flat TV
+  // swapped in for one standing on it goes back onto the wall.
+  const unit = tvUnitUnder(item, settled);
+  if (unit) {
+    const ahead = (unit.position.x - item.position.x) * forward.x + (unit.position.z - item.position.z) * forward.z;
+    const off = Math.abs(elevationM - unit.size.height) < 0.01 ? ahead : ahead - unit.size.depth / 2 + size.depth / 2 - 0.01;
+    return { x: item.position.x + forward.x * off, z: item.position.z + forward.z * off };
+  }
   const shift = (size.depth - item.size.depth) / 2 + (elevationM === 0 ? 0.01 : 0);
   return { x: item.position.x + forward.x * shift, z: item.position.z + forward.z * shift };
 }
@@ -480,12 +580,37 @@ export function settledElevation(item: PlacedItem, size: PlacedItem['size'], pro
   // From the product and the rule, never from the piece it replaces: a wall mirror swapped in for
   // a floor mirror stood on the floor with it.
   if (item.slot === 'mirror' && size.height >= 1.4) return (product.depthCm ?? 0) >= 12 ? 0 : 0.3;
+  // A TV on its stand stands on the TV unit under it; a flat one hangs on the wall over it.
+  const unit = onStand(product) ? tvUnitUnder(item, settled) : undefined;
+  if (unit) return round2(unit.size.height);
   const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
   const below = settled.filter((p) => p.roomId === item.roomId && p.elevationM < 0.05 && p.id !== item.id && !getArchetype(p.kind)?.ghost && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
   const middle = item.slot === 'mirror' ? 1.5 : below.length > 0 ? (rule.aboveHeightM ?? rule.heightM) : rule.heightM;
   let elevation = middle - size.height / 2;
   for (const piece of below) elevation = Math.max(elevation, piece.size.height + 0.12);
   return round2(Math.max(0.05, elevation));
+}
+
+/** A TV on its own stand (deeper than 12 cm), made to stand on furniture rather than hang. */
+export function onStand(product: Pick<CatalogProduct, 'depthCm'>): boolean {
+  return (product.depthCm ?? 0) >= 12;
+}
+
+/** The TV unit a TV slot hangs over — standing on the floor under it, in its room. */
+function tvUnitUnder(item: PlacedItem, settled: PlacedItem[]): PlacedItem | undefined {
+  if (item.slot !== 'tv') return undefined;
+  const box = footprintOf(item.position, { ...item.size, depth: Math.max(item.size.depth, 0.05) }, item.rotation);
+  return settled.find((p) => p.roomId === item.roomId && p.slot === 'tv_unit' && p.elevationM < 0.05 && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
+}
+
+/**
+ * A piece hung on a wall, hung or stood again for the product it now has (`settledElevation`,
+ * `hungPosition`) — the studio's swap of a TV: one on its stand onto the unit's top, a flat one
+ * onto the wall over it.
+ */
+export function rehung(original: PlacedItem, swapped: PlacedItem, product: CatalogProduct, settled: PlacedItem[]): PlacedItem {
+  const elevationM = settledElevation(original, swapped.size, product, settled);
+  return { ...swapped, elevationM, position: hungPosition(original, swapped.size, elevationM, settled) ?? swapped.position };
 }
 
 /** Every catalogue row that could fill this slot, best first. */

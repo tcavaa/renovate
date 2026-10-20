@@ -57,6 +57,13 @@
       "when": 1792502355898,
       "tag": "0007_plan_config",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792511895482,
+      "tag": "0008_tv_category",
+      "breakpoints": true
     }
   ]
 }

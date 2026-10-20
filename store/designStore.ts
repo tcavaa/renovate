@@ -47,7 +47,7 @@ import {
   toCounterClockwise,
   planFromCalculatorRooms,
 } from '@/lib/design/planGeometry';
-import { applySwap, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { applySwap, matchProducts, rehung, type CatalogProduct } from '@/lib/design/matcher';
 import { isAutoRoomName, nextRoomName, withRoomNames } from '@/lib/design/roomNames';
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
@@ -1675,7 +1675,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const room = original && state.plan?.rooms.find((r) => r.id === original.roomId);
           if (!original || !room) return null;
           const others = withoutCarry(state);
-          const swapped = applySwap([original], itemId, product)[0];
+          // A TV changes how it is put up with its product: on its stand onto the unit, flat onto the wall.
+          const bare = applySwap([original], itemId, product)[0];
+          const swapped = original.slot === 'tv' ? rehung(original, bare, product, others) : bare;
           // Where the old one stood — its back kept on the wall it stood against — if the new
           // one fits there (`fitSwapped`).
           const placed = fitSwapped(room, swapped, others, state.plan?.rooms);

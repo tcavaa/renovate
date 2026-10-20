@@ -197,25 +197,35 @@ export function blockingItems(items: PlacedItem[], roomId: string | readonly str
  * under the sofa, and the moment a person picked that rug up there was no floor in the room
  * it could be put down on again, because every spot worth a rug has furniture standing on it.
  *
- * A dining chair and a dining table are not in each other's way either (`tucksUnder`): the
+ * A chair and the top it slides under are not in each other's way either (`tucksUnder`): the
  * layout engine seats chairs part-way under their table when the room is tight, testing a seat
  * against everything but the table (`placeSeatAroundTable`), and the studio outlined the chair
  * and the table it had tucked it under red — nor could a person push a chair in themselves.
  */
 function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly PlanRoom[]): PlacedItem[] {
   if (getArchetype(item.kind)?.ghost) return [];
-  return blockingItems(others, floor.map((room) => room.id), item.id).filter((other) => !tucksUnder(item, other));
+  // A hung piece is in the way only of what reaches up to it: wall cabinets hang over the
+  // worktop, not over the fridge — the floor pieces under every spot along the run made each one
+  // red, and a person could not move the cabinets at all.
+  const hung = item.elevationM >= 0.05;
+  return blockingItems(others, floor.map((room) => room.id), item.id).filter(
+    (other) => !tucksUnder(item, other) && (!hung || other.size.height > item.elevationM + 0.02)
+  );
 }
 
+/** The chairs whose seat slides under a top, and the top each goes under. */
+export const TUCKS_UNDER: Readonly<Record<string, string>> = { dining_chair: 'dining_table', office_chair: 'desk' };
+
 /**
- * A dining chair and a dining table, either way round: the chair's seat slides under the table's
- * top. The studio lets such a pair overlap freely; the matcher, which puts real products of other
- * sizes into the engine's slots, only for a chair the engine tucked under its table, and only up
- * to half the chair (`placeFitting`).
+ * A chair and the top it slides under — a dining chair and a dining table, a desk chair and a
+ * desk — either way round. The studio lets such a pair overlap freely; the matcher, which puts
+ * real products of other sizes into the engine's slots, only for a chair the engine tucked under
+ * its top, and only up to half the chair (`placeFitting`).
  */
 export function tucksUnder(a: Pick<PlacedItem, 'kind'>, b: Pick<PlacedItem, 'kind'>): boolean {
-  const slots = [getArchetype(a.kind)?.slot, getArchetype(b.kind)?.slot];
-  return slots.includes('dining_chair') && slots.includes('dining_table');
+  const p = getArchetype(a.kind)?.slot;
+  const q = getArchetype(b.kind)?.slot;
+  return (p != null && TUCKS_UNDER[p] === q) || (q != null && TUCKS_UNDER[q] === p);
 }
 
 /**
@@ -349,7 +359,7 @@ export function hangOnWall(room: PlanRoom, item: PlacedItem, wallIndex: number, 
   const elevationM = clamp(Math.round((y - item.size.height / 2) * 100) / 100, 0, Math.max(0, room.heightM - item.size.height));
   const footprint = footprintOf(position, item.size, rotation);
   const cover = itemFootprints(item, { position, rotation });
-  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor(item, others, [room]).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  const valid = footprintInRoom(footprint, room.polygon) && !blockersFor({ ...item, elevationM }, others, [room]).some((other) => coverOverlaps(cover, itemFootprints(other)));
   return { position, rotation, elevationM, valid, snappedToWall: true };
 }
 

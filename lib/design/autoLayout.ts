@@ -38,6 +38,7 @@ import {
   type PlanEdge,
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
+import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
 
@@ -84,6 +85,8 @@ const OPTIONAL_DECOR: Record<string, number> = {
 
 /** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
 const SPOT_SPREAD = 10;
+/** A double bed's spread: another wall of the same merit, not another stretch of its wall. */
+const BED_SPREAD = 3;
 
 // ---------------------------------------------------------------------------
 // Entry points
@@ -232,10 +235,14 @@ function resolvePose(
   const walled = edges.filter((e) => !isOpenEdge(room, e.index));
 
   switch (rule.type) {
-    case 'wall':
-      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng);
-    case 'wall-run':
-      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng);
+    case 'wall': {
+      const beside = rule.beside ? placed.find((p) => p.slot === rule.beside) : undefined;
+      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng, beside);
+    }
+    case 'wall-run': {
+      const leave = rule.leaveFor ? Object.values(ARCHETYPES).find((a) => a.slot === rule.leaveFor)?.size : undefined;
+      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave);
+    }
     case 'center':
       return placeCentre(archetype, room, occupied);
     case 'relative':
@@ -246,8 +253,8 @@ function resolvePose(
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
       // Over its piece when the room has one (the wall cabinets over the run, the mirror over the
-      // basin, a print over the bed), else on a wall.
-      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng);
+      // basin, a print over the bed, the TV over its unit), else on a wall — the TV nowhere.
+      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? (rule.onlyAbove ? null : placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng));
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -267,7 +274,8 @@ function placeAgainstWall(
   clearanceM: number,
   exact = false,
   anchors: TechnicalAnchor[] = [],
-  rng?: Rng
+  rng?: Rng,
+  beside?: PlacedItem
 ): Pose | null {
   const doorPoints = openingPoints(room, edges, isPassage);
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
@@ -281,11 +289,14 @@ function placeAgainstWall(
     : [archetype.size.width];
 
   for (const width of widths) {
-    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng);
+    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng, beside);
     if (found) return found;
   }
   return null;
 }
+
+/** The width beside a double bed for a nightstand and the step to it. */
+const BEDSIDE_M = 0.55;
 
 const NARROWABLE = new Set([
   'wardrobe', 'bookshelf', 'storage_shelf', 'dresser', 'tv_unit', 'console_table', 'shoe_cabinet', 'desk', 'sofa_3seat',
@@ -302,19 +313,23 @@ function bestAlongWalls(
   doorPoints: Vec2[],
   windowPoints: Vec2[],
   anchors: TechnicalAnchor[] = [],
-  rng?: Rng
+  rng?: Rng,
+  beside?: PlacedItem
 ): Pose | null {
   const { width, depth, height } = size;
   const anchorPoints = anchors.map((a) => a.point);
   const spots: Array<{ value: Pose; score: number }> = [];
+  const bounds = polygonBounds(room.polygon);
 
   for (const edge of edges) {
     if (edge.length < width + 0.25) continue;
 
     // Don't stand a wardrobe in a doorway or across a window.
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+    // Hard against an end of the piece it goes beside, when that piece stands on this wall.
+    const ends = beside ? besideSpots(edge, beside, width) : [];
 
-    for (const t of sampleAlong(edge, width)) {
+    for (const t of [...ends, ...sampleAlong(edge, width)]) {
       const anchor = pointOnEdge(edge, t);
       const centre = {
         x: anchor.x + edge.inward.x * (depth / 2 + 0.02),
@@ -343,12 +358,24 @@ function bestAlongWalls(
 
       // Centred on the wall looks deliberate; jammed in a corner looks accidental.
       score += (1 - Math.abs(t - 0.5) * 2) * 3;
-      // A double bed wants a nightstand each side: room for both on this wall, the bed in the middle.
+      // A double bed wants a nightstand each side: room for both on this wall — clear of a door's
+      // swing too, which pushed a bed 45 cm off the far wall and left one nightstand a sliver —
+      // the bed in the middle.
       if (archetype.kind === 'bed_double') {
-        const reach = (width / 2 + 0.5) / edge.length;
-        if (t - reach >= 0 && t + reach <= 1 && !coversOpening(edge, t, width + 1, 0.6, blocked)) score += 14;
-        score += (1 - Math.abs(t - 0.5) * 2) * 6;
+        const heads = { width: width + 2 * BEDSIDE_M, depth: 0.45, height: 0.6 };
+        const headPose: Pose = {
+          position: { x: anchor.x + edge.inward.x * (heads.depth / 2 + 0.02), z: anchor.z + edge.inward.z * (heads.depth / 2 + 0.02) },
+          rotation: edge.facing,
+          size: heads,
+          elevationM: 0,
+        };
+        if (fitsInRoom(headPose, room.polygon) && !overlapsAny(boxFor(headPose), occupied) && !coversOpening(edge, t, heads.width, heads.height, blocked)) score += 14;
+        // Strong enough that a draw (`BED_SPREAD`) keeps it within about 25 cm of the middle.
+        score += (1 - Math.abs(t - 0.5) * 2) * 20;
       }
+      // A big piece leaves room to walk past its long sides, or none at all: the gap the studio
+      // warns of (`tightSpots`) — a bed 45 cm off the side wall — is the last choice.
+      if (isLargeSize(size) && longSideGaps(boxFor(pose), bounds).some(isTightPassage)) score -= 16;
 
       // Reward keeping the walking space in front of the item genuinely clear.
       const approach = clearanceBox(pose, clearanceM);
@@ -356,6 +383,9 @@ function bestAlongWalls(
         score += 8;
       }
       if (!overlapsAny(approach, occupied)) score += 12;
+
+      // The fridge at the end of the run: above every preference but the pipes.
+      if (ends.includes(t)) score += 40;
 
       // A fixture wants its pipe: the toilet by the sewer, the sink by the water. Strong
       // enough to outweigh the wall preferences, which are about looks, not plumbing.
@@ -367,7 +397,9 @@ function bestAlongWalls(
 
   // The best spot; generating, any spot close to it — another wall of similar merit, another
   // stretch of the same wall. A fixture by its pipe keeps it: the anchor's pull is far above the spread.
-  return pickNearBest(spots, SPOT_SPREAD, rng);
+  // A double bed keeps to the middle of its wall with a nightstand each side: a draw within the
+  // usual spread put one 80 cm off the middle, and a wider real bed then left room for one.
+  return pickNearBest(spots, archetype.kind === 'bed_double' ? BED_SPREAD : SPOT_SPREAD, rng);
 }
 
 /** Kitchen counters: stretch along the wall rather than sitting at a fixed width. */
@@ -379,24 +411,59 @@ function placeWallRun(
   prefer: 'longest' | 'shortest',
   clearanceM: number,
   anchors: TechnicalAnchor[] = [],
-  rng?: Rng
+  rng?: Rng,
+  leave?: Size3
 ): Pose | null {
   const { depth, height } = archetype.size;
   // The kitchen run goes on the wall the water comes to, when the plan says where that is.
   const anchorPoints = anchors.map((a) => a.point);
   const nearAnchor = (edge: PlanEdge) => (anchorPoints.length === 0 ? 0 : minDistance(pointOnEdge(edge, 0.5), anchorPoints));
+  // A wall with no window comes first: the wall cabinets and the backsplash need the wall over the
+  // worktop — the run used to go under a window, the cabinets shortened round it or none at all.
+  const clean = (edge: PlanEdge) => edge.length >= 2.2 && !room.openings.some((o) => o.wallIndex === edge.index && o.kind === 'window');
   const sorted = [...edges].sort((a, b) => {
     if (anchorPoints.length > 0) {
       const byAnchor = nearAnchor(a) - nearAnchor(b);
       if (Math.abs(byAnchor) > 0.5) return byAnchor;
     }
+    if (clean(a) !== clean(b)) return clean(a) ? -1 : 1;
     return prefer === 'longest' ? b.length - a.length : a.length - b.length;
   });
-  // Generating with no water point to follow, the run may take any long enough wall, the longer the likelier.
-  const order = rng && anchorPoints.length === 0 ? weightedOrder(sorted, (e) => (prefer === 'longest' ? e.length : 1 / Math.max(e.length, 0.5)), rng) : sorted;
+  // Generating with no water point to follow, the run may take any long enough wall, the longer the
+  // likelier — the walls with no window first.
+  const weight = (e: PlanEdge) => (prefer === 'longest' ? e.length : 1 / Math.max(e.length, 0.5));
+  const order = rng && anchorPoints.length === 0 ? [...weightedOrder(sorted.filter(clean), weight, rng), ...weightedOrder(sorted.filter((e) => !clean(e)), weight, rng)] : sorted;
 
   for (const edge of order) {
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+    // Standing against this wall at `t`, `size` big — or null where it would not stand.
+    const standing = (t: number, size: Size3, clearance: number): Pose | null => {
+      if (coversOpening(edge, t, size.width, size.height, blocked)) return null;
+      const anchor = pointOnEdge(edge, t);
+      const pose: Pose = {
+        position: { x: anchor.x + edge.inward.x * (size.depth / 2 + 0.02), z: anchor.z + edge.inward.z * (size.depth / 2 + 0.02) },
+        rotation: edge.facing,
+        size,
+        elevationM: 0,
+      };
+      if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) return null;
+      if (clearance > 0 && overlapsAny(clearanceBox(pose, clearance), occupied)) return null;
+      return pose;
+    };
+
+    // From one corner, the other end of the wall left for the fridge (`leaveFor`): the run, the
+    // fridge and the wall cabinets on one wall, the way a small kitchen is fitted — the cabinets
+    // used to hang over the fridge the room put at the run's end afterwards.
+    if (leave) {
+      const runLength = Math.min(edge.length - leave.width - 0.08, archetype.size.width * 1.6);
+      const spare = { ...leave, width: leave.width + 0.04 };
+      for (const fromStart of runLength >= 1.2 ? [true, false] : []) {
+        const t = fromStart ? (0.02 + runLength / 2) / edge.length : 1 - (0.02 + runLength / 2) / edge.length;
+        const pose = standing(t, { width: runLength, depth, height }, clearanceM * 0.4);
+        const end = fromStart ? 1 - (0.02 + spare.width / 2) / edge.length : (0.02 + spare.width / 2) / edge.length;
+        if (pose && standing(end, spare, 0)) return pose;
+      }
+    }
 
     // Try the full wall first, then progressively shorter runs — a counter that has to stop
     // short of a doorway is still a counter.
@@ -405,29 +472,29 @@ function placeWallRun(
       if (runLength < 1.2) continue;
 
       for (const t of sampleAlong(edge, runLength)) {
-        if (coversOpening(edge, t, runLength, height, blocked)) continue;
-
-        const anchor = pointOnEdge(edge, t);
-        const pose: Pose = {
-          position: {
-            x: anchor.x + edge.inward.x * (depth / 2 + 0.02),
-            z: anchor.z + edge.inward.z * (depth / 2 + 0.02),
-          },
-          rotation: edge.facing,
-          size: { width: runLength, depth, height },
-          elevationM: 0,
-        };
-
-        if (!fitsInRoom(pose, room.polygon)) continue;
-        if (overlapsAny(boxFor(pose), occupied)) continue;
-        if (overlapsAny(clearanceBox(pose, clearanceM * 0.4), occupied)) continue;
-
-        return pose;
+        const pose = standing(t, { width: runLength, depth, height }, clearanceM * 0.4);
+        if (pose) return pose;
       }
     }
   }
 
   return null;
+}
+
+/**
+ * Where a piece `width` wide stands hard against either end of `piece` along this wall (2 cm
+ * apart), as positions along the edge — none when `piece` does not stand against this wall.
+ */
+function besideSpots(edge: PlanEdge, piece: PlacedItem, width: number): number[] {
+  const turn = edge.facing - piece.rotation;
+  if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) return [];
+  const forward = { x: Math.sin(piece.rotation), z: Math.cos(piece.rotation) };
+  const back = { x: piece.position.x - forward.x * (piece.size.depth / 2), z: piece.position.z - forward.z * (piece.size.depth / 2) };
+  const off = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
+  if (Math.abs(off) > 0.1) return [];
+  const along = (piece.position.x - edge.a.x) * edge.dir.x + (piece.position.z - edge.a.z) * edge.dir.z;
+  const reach = piece.size.width / 2 + 0.02 + width / 2;
+  return [along - reach, along + reach].map((a) => a / edge.length).filter((t) => t - width / 2 / edge.length >= -1e-6 && t + width / 2 / edge.length <= 1 + 1e-6);
 }
 
 /** Free-standing in the middle, nudged outward until it stops colliding. */
@@ -501,6 +568,10 @@ function placeRelative(
   if (rule.align === 'facing') rotation = anchor.rotation + Math.PI;
   if (rule.align === 'sideways') rotation = anchor.rotation + Math.PI / 2;
 
+  // A desk chair stands with its seat under the desk (`gapM` below zero): like the chairs at a
+  // table, it is tested against everything but the piece it slides under.
+  const anchorBox = boxFor({ position: anchor.position, rotation: anchor.rotation, size: anchor.size, elevationM: 0 });
+  const others = rule.gapM != null && rule.gapM < 0 ? occupied.filter((b) => !overlaps(b, anchorBox)) : occupied;
   const tries = relativeSpots(archetype, rule, anchor, room, preferredSide);
   for (const { forward: ahead, lateral } of tries) {
     const position = {
@@ -509,7 +580,7 @@ function placeRelative(
     };
     const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
     if (!fitsInRoom(pose, room.polygon)) continue;
-    if (overlapsAny(boxFor(pose), occupied)) continue;
+    if (overlapsAny(boxFor(pose), others)) continue;
     return pose;
   }
 
@@ -843,8 +914,9 @@ function placeOnWall(
  * over the basin, a print over the bed: on the same wall and centred over it, its middle at
  * `aboveHeightM` (or `heightM`) and at least 15 cm over the piece's top. The cabinets are as long
  * as the run (`stretch`), shortened and slid along it where the full length would cross a window
- * or a door; anything else keeps its own width, no wider than the piece. Null when the room has
- * none of those pieces, or no stretch over it is clear.
+ * or a door; anything else keeps its own width, no wider than the piece — the TV (`onlyAbove`)
+ * smaller and slid along its unit too. Null when the room has none of those pieces, or no stretch
+ * over it is clear.
  */
 function placeAbove(
   archetype: Archetype,
@@ -872,14 +944,24 @@ function placeAbove(
     const distance = Math.hypot(back.x - at.x, back.z - at.z);
     if (!wall || distance < wall.distance) wall = { edge, t, distance };
   }
-  if (!wall || wall.distance > 0.3) return null;
+  if (!wall || wall.distance > 0.3) {
+    // A TV unit standing free in the room (its back to no wall, facing a sofa across a big room): a
+    // TV on its stand on its top, in the middle — the matcher gives such a slot only a TV on a stand.
+    if (!rule.onlyAbove) return null;
+    return { position: { ...under.position }, rotation: under.rotation, size: { ...archetype.size, width: Math.min(archetype.size.width, under.size.width) }, elevationM: under.size.height };
+  }
   const { edge, t: centre } = wall;
   const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+  // A piece that goes nowhere else (`onlyAbove`: the TV) may also be smaller and slide along its
+  // piece: a TV centred on a unit that runs past a window would cover the window.
+  const own = Math.min(archetype.size.width, Math.max(under.size.width, 0.4));
   const widths = rule.stretch
     ? [1, 0.75, 0.5].map((f) => under.size.width * f).filter((w) => w >= 0.6)
-    : [Math.min(archetype.size.width, Math.max(under.size.width, 0.4))];
+    : rule.onlyAbove
+      ? [own, own * 0.85, own * 0.7]
+      : [own];
   for (const width of widths) {
-    const slack = rule.stretch ? (under.size.width - width) / 2 : 0;
+    const slack = rule.stretch || rule.onlyAbove ? (under.size.width - width) / 2 : 0;
     for (const offset of [0, -slack, slack, -slack / 2, slack / 2]) {
       const t = centre + offset / edge.length;
       if (t - width / 2 / edge.length < 0 || t + width / 2 / edge.length > 1) continue;

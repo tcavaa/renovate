@@ -24,7 +24,7 @@ doors, windows and radiators — their models' framing rules) ·
 | `pnpm models:fixtures` | `scripts/fixture-models.ts` | sockets, switches, lamps, doors and windows (Poly Haven, poly.pizza) → `public/models/fixtures/` + manifest, and the generated `lib/design3d/fixtureManifest.ts` |
 | `pnpm models:radiators` | `scripts/radiator-models.ts` | four radiator designs written in code, one section each → `public/models/radiators/` + the generated `lib/design3d/radiatorManifest.ts` |
 | `pnpm models:railings` | `scripts/railing-models.ts` | the balcony railing written in code with the radiators' mesh kit: one metre module (a handrail, a bottom rail, eight balusters, half a post at each end) centred on x with an x-extent of exactly its pitch, standing on y = 0, centred on z → `public/models/railings/railing.glb` + manifest + the generated `lib/design3d/railingManifest.ts`. Not a product — no photo, nothing seeded; the studio repeats the module along a railing's gap ([technical-and-fittings.md](design-studio/technical-and-fittings.md#balcony-railings)) |
-| `pnpm models:equipment [--only=a,b]` | `scripts/equipment-models.ts` | twelve pieces of technical equipment (electrical panels, a boiler, a water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain, TV and data sockets) from CC0 / CC BY / CC BY-SA sources → `public/models/equipment/` + manifest + the generated `lib/design3d/equipmentManifest.ts` ([below](#equipment-models-scriptsequipment-modelsts)) |
+| `pnpm models:equipment [--only=a,b]` | `scripts/equipment-models.ts` | twelve pieces of technical equipment (electrical panels, a boiler, a water heater, air conditioners, cooker hoods, a bathroom fan, a floor drain, TV and data sockets) and six TVs, from CC0 / CC BY / CC BY-SA sources → `public/models/equipment/` + manifest + the generated `lib/design3d/equipmentManifest.ts` ([below](#equipment-models-scriptsequipment-modelsts)) |
 | `pnpm models:kitchens [--only=a,b]` | `scripts/kitchen-models.ts` | one straight kitchen run per kitchen-maker material (LDSP, MDF, veneer), a CC BY source re-textured three ways → `public/models/kitchens/` + manifest ([below](#kitchen-runs-scriptskitchen-modelsts)) |
 | `pnpm models:photos [--only=a,b]` | `scripts/model-photos.ts` | a product photo per fixture, radiator, piece of equipment and kitchen run, rendered from the model in Playwright's Chromium, written as WebP with its transparency |
 | `pnpm photos:webp [--dry-run]` | `scripts/webp-photos.ts` (+ `lib/uploads/imageOptimize.ts`, `scripts/lib/photos.ts`) | every seed picture in `public/uploads/products` and `/furniture` as WebP, the manifests' `imageUrl` following ([below](#photos-are-webp)) |
@@ -406,8 +406,13 @@ Output is the same manifest shape as the partner pipeline, plus `styles`, `sourc
 
 The plan's technical equipment sold as products — two electrical panels, a gas combi boiler,
 an electric water heater, two air conditioners, two cooker hoods, a bathroom fan, a floor
-drain — and the TV and data sockets: twelve models, one product each, all of them other
-people's models fetched at build time. `EQUIPMENT` at the top of the script is the list: per
+drain — the TV and data sockets, and **six TVs** (kind `tv`, category `tvs`): three flat ones on
+a stand (50", 55", 65" — the 65" file faces −x and is turned), two slim ones for the wall (55",
+65") and a retro set in a wooden cabinet for the vintage style, sized by the screen's width.
+Eighteen models, one product each, all of them other people's models fetched at build time.
+The TVs are not technical points: the layout engine places them over the living room's TV unit
+([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)), one deeper than
+12 cm on the unit's top, a flat one on the wall over it. `EQUIPMENT` at the top of the script is the list: per
 entry the source, what to keep of it, how to turn and size it, and the catalogue product it
 is sold as. What it shares with the kitchen script — fetching and caching a source, the
 credit, the glTF steps — is `scripts/lib/gltfPipeline.ts`.
@@ -423,13 +428,17 @@ attribution CC BY asks for. A CC BY-SA model changed by the script is still CC B
 User-Agent), poly.pizza's static GLBs, and Sketchfab uploads through the Objaverse mirror on
 Hugging Face (`huggingface.co/datasets/allenai/objaverse`, `glbs/000-NNN/<uid>.glb`, the
 path recorded on the entry): Sketchfab needs an account to download, the mirror does not,
-and every object keeps its uploader's licence. To look for more, the mirror's
+and every object keeps its uploader's licence. To look for more, Sketchfab's public search
+(`api.sketchfab.com/v3/search?type=models&q=…&license=by`, no account) finds candidates whose
+uid the mirror's `object-paths.json.gz` also has — how the TVs were found; or the mirror's
 `metadata/000-NNN.json.gz` (name, tags, licence and face count of all ~800 000 objects, about
 580 MB) can be searched offline, and `lvis-annotations.json.gz` groups a subset by category
 (`water_heater`, `air_conditioner`, `wall_socket`, `fume_hood`…). Downloads are cached in
 `node_modules/.cache/renovate-equipment/`.
 
-**What it does to a file**, in this order: keeps the mesh nodes whose name path matches
+**What it does to a file**, in this order: converts an older file's specular-glossiness
+material (`KHR_materials_pbrSpecularGlossiness`) to metal-roughness (`metalRough()` — left as it
+was, its colour texture was dropped and the pedestal TV came out white); keeps the mesh nodes whose name path matches
 `keep` (Poly Haven's panel loses the door that hangs open 30 cm into the room, the TV socket
 keeps its plate and connector, the grate pack its one clean grate); drops tangents (they would
 not survive the turns, and three.js does without); flattens, joins per material, welds;
@@ -452,7 +461,7 @@ write the same bytes; `--only=a,b` redoes a few and merges.
 **Frames** (metres, front along +z) — what `frame` says and the checks enforce:
 
 - `wall` — standing on y = 0, centred on x, its back on z = 0: the panels, boilers, air
-  conditioners, hoods and the fan;
+  conditioners, hoods, the fan and the TVs;
 - `fitting` — centred on x and y, its back on z = 0, like the sockets in `/models/fixtures`;
 - `floor` — centred on x and z, its top at y = 0 and the rest below: the drain.
 

@@ -191,9 +191,15 @@ real products from short lists; the engine checks):
    run the whole bathroom wall behind the bath and the washing machine. Thinner decor stays, and what
    stands in front of it is moved off it by its depth (`clearOfDecor`, `decorDepth`). **Tiles in a
    kitchen are its backsplash** (anchor `kitchen`): behind the run, from the worktop to the bottom
-   of the wall cabinets (or 1.5 m), whatever wall was named. Every piece records what it was centred
+   of the wall cabinets (or 1.5 m), whatever wall was named — and so is a slab asked for behind the
+   run, on the run's wall or as a band no higher than 1.8 m (`isBacksplash`; a slab floor to
+   ceiling on another wall stays a feature wall). **A backsplash is as long as the run**, whatever
+   width was asked: a 1.2 m strip of marble behind a 2.5 m worktop looked unfinished. Every piece records what it was centred
    on (`DecorPiece.anchor`) and follows that piece to its wall when a swap or the check moves it
-   (`reanchorDecor`) — the tiles stayed on the old wall when the run was swapped onto another. Under
+   (`reanchorDecor`) — the tiles stayed on the old wall when the run was swapped onto another. When
+   the piece stands at a door or a window (a desk under a window), the decor takes the nearest clear
+   stretch of that wall beside it, and goes when there is none 30 cm wide: slats followed a desk onto
+   the window over it. Under
    a cove's floating panel (16 cm down, 40 cm in from the walls) the hanging lamps and ceiling
    points are hung from the panel (`underCeilingDecor`), not through it.
    `scene.generation` records the run.

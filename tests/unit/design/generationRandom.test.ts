@@ -148,15 +148,24 @@ describe('wall cabinets over the kitchen run', () => {
   });
 
   it('leave the window over the run clear', () => {
-    const plain = layoutRoom(kitchen);
-    const run = plain.find((i) => i.slot === 'kitchen_run')!;
-    const edges = (r: PlanRoom) => r.polygon.map((a, i) => ({ a, b: r.polygon[(i + 1) % r.polygon.length] }));
-    // A window in the middle of the run's wall.
-    const wallIndex = edges(kitchen).findIndex(({ a, b }) => Math.abs((a.x + b.x) / 2 - run.position.x) < 1.6 && Math.abs((a.z + b.z) / 2 - run.position.z) < 0.5);
-    const withWindow = refreshRoom({ ...kitchen, openings: [{ id: 'w', kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 }] } as PlanRoom);
-    const items = layoutRoom(withWindow);
+    // A window in the middle of every wall: the run goes under one, the cabinets keep off it.
+    const window = (wallIndex: number) => ({ id: `w${wallIndex}`, kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 });
+    const windowed = refreshRoom({ ...kitchen, openings: [0, 1, 2, 3].map(window) } as PlanRoom);
+    const items = layoutRoom(windowed);
+    const run = items.find((i) => i.slot === 'kitchen_run')!;
     const wall = items.find((i) => i.slot === 'kitchen_wall');
     if (wall) expect(wall.size.width).toBeLessThan(run.size.width);
+  });
+
+  it('take the wall with no window when the room has one', () => {
+    // Windows on both long walls and one short one: the run and its cabinets go on the other short wall.
+    const window = (wallIndex: number) => ({ id: `w${wallIndex}`, kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 });
+    const room = refreshRoom({ ...kitchen, openings: [0, 1, 2].map(window) } as PlanRoom);
+    for (let seed = 1; seed <= 5; seed++) {
+      const run = layoutRoom(room, { rng: seededRng(seed) }).find((i) => i.slot === 'kitchen_run')!;
+      // Wall 3 runs from (0, 3) to (0, 0): the run's back is on x = 0.
+      expect(run.position.x - run.size.depth / 2).toBeCloseTo(0.02, 5);
+    }
   });
 
   it('are made in the run’s material, and left out over a shop’s run', () => {

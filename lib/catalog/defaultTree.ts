@@ -146,6 +146,7 @@ const TREE: Spec[] = [
           kind('shoe_cabinet', 'shoe-cabinets', 'ფეხსაცმლის კარადები', 'Shoe cabinets', 'Обувницы', 'footprints'),
         ],
       }),
+      kind('tv', 'tvs', 'ტელევიზორები', 'TVs', 'Телевизоры', 'tv'),
       old('kitchen-furniture', 'სამზარეულოს ავეჯი', 'Kitchen Furniture', 'Кухонная мебель', 'kitchen-run', {
         children: [
           kind('kitchen_run', 'kitchen-units', 'სამზარეულოს კარადები', 'Kitchen units', 'Кухонные гарнитуры', 'kitchen-run'),

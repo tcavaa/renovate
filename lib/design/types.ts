@@ -295,6 +295,7 @@ export type SlotKind =
   | 'armchair'
   | 'coffee_table'
   | 'tv_unit'
+  | 'tv'
   | 'bookshelf'
   | 'dining_table'
   | 'dining_chair'

@@ -290,7 +290,10 @@ eased back inside the room. It never goes looking across the room, and a tall pi
 of a window does not fit there (`blocksWindow`): a shop's kitchen unit with its wall cabinets used
 to be eased onto the window wall when it was too long for its own. Decor centred on the swapped
 piece (the backsplash behind the run, slats behind the bed — `DecorPiece.anchor`) follows it to its
-wall (`reanchorDecor`). When it answers null the
+wall (`reanchorDecor`). **A TV is put up again for its new product** (`rehung` in
+`lib/design/matcher.ts`): one on its stand onto the TV unit's top, a flat one onto the wall over
+it — swapped as it was, a wall TV stood in mid-air where the standing one had been. Other hung
+pieces keep the height a person gave them. When it answers null the
 3D view gets the new piece on the pointer with the old one kept in `carryRestore`; Escape
 (`cancelCarry`) or entering the walk-through puts the old piece back, selected, and reaching
 for another tile off the shelf puts it back too (the new tile's piece is then the one
@@ -374,12 +377,14 @@ person picked that rug up there was no floor in the room to put it down on again
 every spot worth a rug has furniture on it. A moving ghost now has no blockers; the walls
 still hold it in.
 
-**A dining chair tucks under its table** (`tucksUnder`, in `blockersFor`). When a room is tight
+**A dining chair tucks under its table, a desk chair under its desk** (`tucksUnder` and
+`TUCKS_UNDER`, in `blockersFor`). When a room is tight
 the layout engine pushes a seat 12 or 24 cm in towards its table — up to 15 cm of it under the
 table's edge — and tests it against everything but the table (`placeSeatAroundTable`); adding a
 chair from the shelf seats it the same way (`placeAdditional`). The studio kept the two apart, so
-it outlined such a chair and its table red, and a person could not push a chair in. Now a dining
-chair and a dining table, either way round, are not in each other's way: a chair drags in under
+it outlined such a chair and its table red, and a person could not push a chair in. Now a chair and
+its top (a dining chair and a dining table, a desk chair and a desk), either way round, are not in
+each other's way: a chair drags in under
 a table, a table is set down or turned over its chairs, and the walls, the other chairs and
 everything else still hold both off. The matcher shares the rule but bounds it — only the
 engine's tucks, and only up to half the chair — because it puts products of other sizes into
@@ -413,8 +418,8 @@ stays as set. A wall-hung piece has no angle row (below).
 
 **A wall-hung piece goes on the wall face under the pointer, at the pointer's height**
 (`hangOnWall` in `lib/design/manipulate.ts`, `hangTargetAt` in the viewer). A mirror or a
-picture (`placement.type === 'wall-mounted'` — the wall-mounted archetypes are `mirror` and
-`artwork`) carried or dragged in 3D used to
+picture (`placement.type === 'wall-mounted'` — the wall-mounted archetypes are `mirror`,
+`artwork` and the kitchen's wall cabinets) carried or dragged in 3D used to
 follow the ray's meeting point with the horizontal plane of its own base like everything
 else, and a pointer on a wall face has no such point: above the piece's height the ray met
 the plane *behind* the wall, below it *short* of the wall, and `snapPlacement`'s nearest
@@ -429,6 +434,13 @@ for it. A grab off the piece's centre keeps its offset along the wall and up it 
 drag stays on that wall (`DragState.hang`). Over the floor a hung piece still snaps to the
 nearest wall from the floor point, as before; on the 2D board nothing changes, since a plan
 has no faces and no heights.
+
+**A hung piece is in the way only of what reaches up to it** (`blockersFor`: a floor piece taller
+than the hung piece's base, by 2 cm). The kitchen's wall cabinets hang over the run, the mirror
+over the console: the footprints overlapped wherever they belonged, so every spot along the run
+was red — including the one they stood in — and a person could not move the cabinets at all. Now
+they move along the run freely and are refused only over something as tall as they hang, such as
+the fridge.
 
 **Turning a hung piece takes it round to the next wall** (`turnOnWall`, which `rotateItem`
 hands every wall-hung piece). Turned 45° in place like a chair, a picture stood off its wall on

@@ -46,7 +46,9 @@ at runtime yet; the last one was seen on the sample plan.
   [design-studio/ai-layout-plan.md](design-studio/ai-layout-plan.md).
 - **The catalogue's library rows**: some sizes are wrong (a dresser listed 138 × 166 cm), taps and
   mixer panels are filed as basins, 96 models' facing was left unconfirmed by the audit
-  ([3d-assets.md](3d-assets.md#known-gaps)).
+  ([3d-assets.md](3d-assets.md#known-gaps)); coffee machines, an oven and range cookers are filed as
+  kitchen runs, and only TVs of the electronics are placed
+  ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps)).
 - **Decor, what is left**: moving, resizing and adding a decor piece by hand in the studio (and
   decor without a key); a labour line for fitting it; coves in L-shaped rooms; sockets and
   radiators on a decorated wall ([design-studio/decor.md](design-studio/decor.md#known-gaps)).

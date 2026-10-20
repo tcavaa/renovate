@@ -18,6 +18,8 @@ describe('tightSpots', () => {
 
   it('does not flag pieces standing against a wall or well clear of it', () => {
     expect(tightSpots(room, [item('bed', 0.9, 2, 1.8, 2)])).toHaveLength(0); // flush left, a metre to the other walls
+    // 6 cm off the wall — in front of a wall panel — is no passage either
+    expect(tightSpots(room, [item('bed', 0.96, 2, 1.8, 2)])).toHaveLength(0);
     expect(tightSpots(room, [item('t', 3, 2, 0.8, 0.8)])).toHaveLength(0); // middle of the room
   });
 
@@ -67,8 +69,8 @@ describe('tight passages across a room separator', () => {
   const at = (id: string, roomId: string, x: number, z: number, width: number, depth: number, kind = 'sofa_3seat'): PlacedItem => ({ ...item(id, x, z, width, depth, kind), roomId });
 
   it('does not take the separator for a wall to squeeze past', () => {
-    // A sofa's long side 8 cm short of the line: judged in its room alone, that is a wall.
-    const sofa = at('sofa', upper.id, 3, 2.47, 1.8, 0.9);
+    // A sofa's long side 30 cm short of the line: judged in its room alone, that is a wall.
+    const sofa = at('sofa', upper.id, 3, 2.25, 1.8, 0.9);
     expect(tightSpots(upper, [sofa]).map((s) => s.against)).toEqual(['wall']);
     expect(tightSpots(upper, [sofa], plan.rooms)).toHaveLength(0);
     expect(tightSpotsByItem(plan.rooms, [sofa]).has('sofa')).toBe(false);

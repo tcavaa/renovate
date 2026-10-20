@@ -171,24 +171,30 @@ function floorPiecesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]):
  * Decor that follows the piece it was anchored to — tiles behind the kitchen run, slats behind
  * the bed — moved to that piece's wall and centred on it again when the piece has moved (a run
  * swapped for a shop's unit on another wall); its width and height kept, clamped to the wall's
- * clear stretch. A piece whose anchor is gone stays where it is. Pure.
+ * clear stretch — the nearest one when the piece stands at a door or a window, and the decor goes
+ * when that wall has none 30 cm wide. A piece whose anchor is gone stays where it is. Pure.
  */
 export function reanchorDecor(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[]): DecorPiece[] {
-  return decor.map((piece) => {
+  return decor.flatMap((piece) => {
     const slot = piece.anchor ? ANCHOR_SLOT[piece.anchor as DecorAnchor] : undefined;
     const room = rooms.find((r) => r.id === piece.roomId);
-    if (!slot || !room || piece.wallIndex == null) return piece;
+    if (!slot || !room || piece.wallIndex == null) return [piece];
     const anchorPiece = items.find((i) => i.roomId === room.id && i.slot === slot && !!i.product);
     const edge = anchorPiece ? wallBehind(anchorPiece, room) : null;
-    if (!anchorPiece || !edge) return piece;
+    if (!anchorPiece || !edge) return [piece];
     const width = piece.span.to - piece.span.from;
     const spans = freeSpans(edge, room.openings, 0, edge.length, 0.1);
     const centre = along(edge, anchorPiece.position);
-    const [a, b] = spans.find(([lo, hi]) => centre >= lo && centre <= hi) ?? [0, edge.length];
+    // Where the piece stands at an opening (a desk under a window), the nearest clear stretch beside
+    // it — the slats followed the desk onto the window — or, with none wide enough, the decor goes.
+    const gapTo = ([lo, hi]: [number, number]) => Math.max(lo - centre, 0, centre - hi);
+    const stretch = spans.find(([lo, hi]) => centre >= lo && centre <= hi) ?? spans.filter(([lo, hi]) => hi - lo >= 0.3).sort((p, q) => gapTo(p) - gapTo(q))[0];
+    if (!stretch) return [];
+    const [a, b] = stretch;
     const w = Math.min(width, b - a);
     const from = clamp(centre - w / 2, a, b - w);
-    if (edge.index === piece.wallIndex && Math.abs(from - piece.span.from) < 0.01) return piece;
-    return { ...piece, wallIndex: edge.index, span: { from: round3(from), to: round3(from + w) } };
+    if (edge.index === piece.wallIndex && Math.abs(from - piece.span.from) < 0.01 && Math.abs(w - width) < 0.01) return [piece];
+    return [{ ...piece, wallIndex: edge.index, span: { from: round3(from), to: round3(from + w) } }];
   });
 }
 
@@ -250,6 +256,21 @@ export function resolveMaterials(
 }
 
 /**
+ * Whether a tile or slab asked for in a kitchen is its backsplash — worktop to wall cabinets,
+ * the length of the run (the `kitchen` anchor): tiles always, whichever wall was named; a slab
+ * asked for behind the run, on the run's wall, or as a band no higher than 1.8 m. A slab
+ * floor to ceiling on another wall stays the feature wall it was asked to be.
+ */
+function isBacksplash(intent: DecorIntent, runWall: PlanEdge | null): boolean {
+  if (intent.family === 'tile') return true;
+  if (intent.family !== 'slab') return false;
+  if (intent.anchor === 'kitchen') return true;
+  if (runWall && intent.anchor === 'wall' && intent.wallIndex === runWall.index) return true;
+  const top = num(intent.heightToM);
+  return top != null && top <= 1.8;
+}
+
+/**
  * One intent made a piece in a room laid out with `items`, or null when it cannot be: an unknown
  * family, an anchor the room does not have, no wall clear enough.
  */
@@ -259,8 +280,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
   const params = sanitizeParams(family, intent.params);
   const H = room.heightM;
   const run = items.find((i) => i.roomId === room.id && i.slot === 'kitchen_run' && !!i.product);
-  // Tiles in a kitchen are its backsplash: behind the run, whichever wall was named.
-  const anchor: DecorAnchor = family === 'tile' && room.type === 'kitchen' && run ? 'kitchen' : intent.anchor;
+  const anchor: DecorAnchor = run && room.type === 'kitchen' && isBacksplash(intent, wallBehind(run, room)) ? 'kitchen' : intent.anchor;
   const base = {
     id,
     roomId: room.id,
@@ -325,7 +345,9 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     const containing = centre != null ? spans.find(([a, b]) => centre! >= a && centre! <= b) : undefined;
     const [a, b] = containing ?? spans.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best));
     const clear = b - a;
-    const widthAsked = num(intent.widthM);
+    // A backsplash is as long as the run, whatever width was asked: a 1.2 m strip of marble
+    // behind a 2.5 m worktop looked unfinished.
+    const widthAsked = anchor === 'kitchen' ? null : num(intent.widthM);
     const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[anchor] ?? 0.4);
     const width = clamp(widthAsked ?? auto, 0.3, clear);
     const c = centre ?? (a + b) / 2;

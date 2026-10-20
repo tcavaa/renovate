@@ -8,13 +8,18 @@ import type { PlacedItem, PlanRoom } from './types';
  * Only the cases that bite on delivery day: a big piece (a bed, a sofa, a wardrobe) that
  * leaves less than a shoulder between its long side and a wall, two big pieces with a
  * sliver between them, or anything standing in a doorway. Small things — chairs at a table,
- * a nightstand, a plant — are never in the way, and pieces that touch are not a passage at
- * all. Rugs, lamps and anything floating do not count.
+ * a nightstand, a plant — are never in the way, and pieces that touch or all but touch
+ * (`NO_PASSAGE_M`) are not a passage at all. Rugs, lamps and anything floating do not count.
  */
 export const MIN_WALL_PASSAGE_M = 0.6;
 export const MIN_ITEM_PASSAGE_M = 0.35;
 export const DOOR_CLEARANCE_M = 0.3;
-const TOUCHING_M = 0.05;
+/**
+ * Under this, a gap is no passage at all: nobody tries to walk through it. A piece stood a few
+ * centimetres off its wall — in front of a wall panel or slats, or the depth of its own
+ * skirting — was flagged as leaving 6 cm to walk past.
+ */
+const NO_PASSAGE_M = 0.15;
 /** A piece counts as big when it is at least this large and this long. */
 const LARGE_AREA_M2 = 0.8;
 const LARGE_SIDE_M = 1.2;
@@ -74,15 +79,13 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly
   // Big pieces: the passage along their long side.
   for (const { item, box, large } of boxes) {
     if (!large) continue;
-    const alongX = box.maxX - box.minX >= box.maxZ - box.minZ;
-    const gaps = alongX ? [box.minZ - bounds.minZ, bounds.maxZ - box.maxZ] : [box.minX - bounds.minX, bounds.maxX - box.maxX];
-    for (const gap of gaps) if (gap > TOUCHING_M && gap < MIN_WALL_PASSAGE_M) note(item.id, gap, 'wall');
+    for (const gap of longSideGaps(box, bounds)) if (isTightPassage(gap)) note(item.id, gap, 'wall');
   }
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       if (!boxes[i].large || !boxes[j].large) continue;
       const gap = gapBetween(boxes[i].box, boxes[j].box);
-      if (gap != null && gap > TOUCHING_M && gap < MIN_ITEM_PASSAGE_M) {
+      if (gap != null && gap >= NO_PASSAGE_M && gap < MIN_ITEM_PASSAGE_M) {
         note(boxes[i].item.id, gap, boxes[j].item.id);
         note(boxes[j].item.id, gap, boxes[i].item.id);
       }
@@ -92,8 +95,23 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly
 }
 
 function isLarge(item: PlacedItem): boolean {
-  const { width, depth } = item.size;
+  return isLargeSize(item.size);
+}
+
+/** A piece big enough for the passage past it to matter (a bed, a sofa, a wardrobe). */
+export function isLargeSize({ width, depth }: { width: number; depth: number }): boolean {
   return width * depth >= LARGE_AREA_M2 && Math.max(width, depth) >= LARGE_SIDE_M;
+}
+
+/** The two gaps between a box's long sides and the bounds round it. */
+export function longSideGaps(box: Footprint, bounds: Footprint): [number, number] {
+  const alongX = box.maxX - box.minX >= box.maxZ - box.minZ;
+  return alongX ? [box.minZ - bounds.minZ, bounds.maxZ - box.maxZ] : [box.minX - bounds.minX, bounds.maxX - box.maxX];
+}
+
+/** A gap to a wall a person would have to squeeze through: some, but less than a shoulder. */
+export function isTightPassage(gap: number): boolean {
+  return gap >= NO_PASSAGE_M && gap < MIN_WALL_PASSAGE_M;
 }
 
 /** The passage between two boxes that face each other — null when they overlap or are diagonal to each other. */

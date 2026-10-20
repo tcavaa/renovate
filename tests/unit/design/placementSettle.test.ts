@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
-import { refreshRoom } from '@/lib/design/planGeometry';
+import { refreshRoom, roomEdges as roomEdgesOf } from '@/lib/design/planGeometry';
 import { reviewFindings, validateReview, type ReviewOffer } from '@/lib/design/aiReview';
 import { applyReviewFixes, withoutArtOverDecor } from '@/lib/design/aiProposal';
 import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom } from '@/lib/design/types';
@@ -394,5 +394,315 @@ describe('decor that follows a piece the check moved', () => {
     expect(out.decor[0].wallIndex).toBe(1);
     const moved = out.items[0];
     expect(3.4 - (moved.position.x + moved.size.depth / 2)).toBeGreaterThanOrEqual(0.03);
+  });
+});
+
+describe('the desk chair under the desk', () => {
+  it('lays it out and matches it with its seat under the desk, and the studio lets it stand there', async () => {
+    const { isPlacementValid, tucksUnder } = await import('@/lib/design/manipulate');
+    expect(tucksUnder({ kind: 'office_chair' }, { kind: 'desk' })).toBe(true);
+    expect(tucksUnder({ kind: 'desk' }, { kind: 'office_chair' })).toBe(true);
+    expect(tucksUnder({ kind: 'office_chair' }, { kind: 'dining_table' })).toBe(false);
+    const office = room('o', 'office', 3.4, 2.6);
+    const items = matchProducts(layoutRoom(office), [product(1, 'desk', 140, 60, 75), product(2, 'office_chair', 74, 76, 96)], { styleId: 'scandinavian', rooms: [office] });
+    const desk = items.find((i) => i.slot === 'desk')!;
+    const chair = items.find((i) => i.slot === 'office_chair')!;
+    expect(chair.product?.productId).toBe(2);
+    const off = { x: chair.position.x - desk.position.x, z: chair.position.z - desk.position.z };
+    // 18 cm of the chair under the desk's front edge, as the rule says (it used to stand 7–10 cm off it).
+    expect(dot(off, forward(desk)) - desk.size.depth / 2 - chair.size.depth / 2).toBeCloseTo(-0.18, 2);
+    expect(isPlacementValid(office, chair, items)).toBe(true);
+  });
+});
+
+describe('a double bed and its nightstands', () => {
+  // 335's first bedroom: the hallway door on the east wall, 0.94 m from the corner of the bed's wall.
+  const bedroom = refreshRoom({
+    id: 'b',
+    type: 'bedroom',
+    name: 'b',
+    polygon: [{ x: 0, z: 0 }, { x: 4.74, z: 0 }, { x: 4.74, z: 4.28 }, { x: 0, z: 4.28 }],
+    heightM: 2.8,
+    areaM2: 0,
+    perimeterM: 0,
+    openings: [
+      { id: 'd1', kind: 'door', wallIndex: 1, t: 0.78, widthM: 0.85, heightM: 2.05, sillM: 0, roomId: 'b', exterior: false },
+      { id: 'd2', kind: 'door', wallIndex: 0, t: 0.53, widthM: 0.9, heightM: 2.2, sillM: 0, roomId: 'b', exterior: true },
+      { id: 'w1', kind: 'window', wallIndex: 3, t: 0.5, widthM: 1.6, heightM: 1.4, sillM: 0.9, roomId: 'b', exterior: true },
+    ],
+  });
+
+  it('leaves room to walk past either side of the bed, whatever the draw', async () => {
+    const { tightSpots } = await import('@/lib/design/clearance');
+    const { seededRng } = await import('@/lib/design/random');
+    for (let seed = 1; seed <= 12; seed++) {
+      const items = layoutRoom(bedroom, { rng: seededRng(seed) });
+      const bed = items.find((i) => i.slot === 'bed')!;
+      expect(items.filter((i) => i.slot === 'nightstand')).toHaveLength(2);
+      expect(tightSpots(bedroom, items).find((t) => t.itemId === bed.id && t.against === 'wall')).toBeUndefined();
+    }
+  });
+
+  it('keeps the bed near the middle of its wall, whatever the draw', async () => {
+    const { seededRng } = await import('@/lib/design/random');
+    // 335's second bedroom: windows on the west and north walls, the door on the east wall.
+    const second = refreshRoom({
+      id: 'b2',
+      type: 'bedroom',
+      name: 'b2',
+      polygon: [{ x: 4.74, z: 3.34 }, { x: 0, z: 3.34 }, { x: 0, z: 0 }, { x: 4.74, z: 0 }],
+      heightM: 2.8,
+      areaM2: 0,
+      perimeterM: 0,
+      openings: [
+        { id: 'w1', kind: 'window', wallIndex: 1, t: 0.51, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'b2', exterior: true },
+        { id: 'w0', kind: 'window', wallIndex: 0, t: 0.49, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'b2', exterior: true },
+        { id: 'd', kind: 'door', wallIndex: 3, t: 0.46, widthM: 0.85, heightM: 2.05, sillM: 0, roomId: 'b2', exterior: false },
+      ],
+    });
+    for (let seed = 1; seed <= 12; seed++) {
+      const bed = layoutRoom(second, { rng: seededRng(seed) }).find((i) => i.slot === 'bed')!;
+      // On the wall at z = 0 (4.74 m), its middle at x = 2.37.
+      expect(Math.abs(bed.position.x - 2.37)).toBeLessThanOrEqual(0.3);
+    }
+  });
+
+  it('puts one product on both nightstands when the room\'s did not fit one side', async () => {
+    const { pairsAlike, toSceneProduct } = await import('@/lib/design/matcher');
+    const wide = product(11, 'nightstand', 58, 44, 42);
+    const narrow = product(12, 'nightstand', 45, 38, 55);
+    const bed: PlacedItem = { id: 'bed', roomId: 'b', kind: 'bed_double', slot: 'bed', position: { x: 0.5 + 0.8, z: 0.02 + 1.025 }, rotation: 0, elevationM: 0, size: { width: 1.6, depth: 2.05, height: 1 }, product: toSceneProduct(product(1, 'bed_double', 160, 205, 100), 1) };
+    const stand = (id: string, p: CatalogProduct, side: number): PlacedItem => {
+      const size = { width: p.widthCm! / 100, depth: p.depthCm! / 100, height: p.heightCm! / 100 };
+      return { id, roomId: 'b', kind: 'nightstand', slot: 'nightstand', position: { x: 1.3 + side * (0.8 + 0.04 + size.width / 2), z: 0.02 + size.depth / 2 }, rotation: 0, elevationM: 0, size, product: toSceneProduct(p, 1) };
+    };
+    // 50 cm between the bed and the west wall: the 58 cm nightstand only fitted the east side.
+    const items = [bed, stand('s1', narrow, -1), stand('s2', wide, 1)];
+    const out = pairsAlike(items, [wide, narrow], new Map([['b', bedroom]]));
+    const stands = out.filter((i) => i.slot === 'nightstand');
+    expect(stands.map((s) => s.product?.productId)).toEqual([12, 12]);
+    for (const s of stands) expect(Math.abs(s.position.x - 1.3) - 0.8 - s.size.width / 2).toBeCloseTo(0.04, 5);
+  });
+
+  it('has the check replace both nightstands together, each beside the bed', () => {
+    const plan: FloorPlan = { rooms: [bedroom], metresPerPixel: null, bounds: { width: 4.74, depth: 4.28 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8 };
+    const catalog = [product(1, 'bed_double', 160, 205, 100), product(2, 'nightstand', 45, 40, 52), product(5, 'nightstand', 52, 36, 50)];
+    const items = matchProducts(layoutRoom(bedroom), catalog.slice(0, 2), { styleId: 'scandinavian', rooms: [bedroom] });
+    const stands = items.filter((i) => i.slot === 'nightstand');
+    const fixed = applyReviewFixes(items, [], { model: 'm', notes: {}, fixes: [{ target: stands[0].id, action: 'replace', productId: 5, wallIndex: null, reason: '' }] }, plan, catalog).items;
+    const bed = fixed.find((i) => i.slot === 'bed')!;
+    const after = fixed.filter((i) => i.slot === 'nightstand');
+    expect(after.map((s) => s.product?.productId)).toEqual([5, 5]);
+    for (const s of after) {
+      const off = { x: s.position.x - bed.position.x, z: s.position.z - bed.position.z };
+      expect(Math.abs(dot(off, right(bed))) - bed.size.width / 2 - s.size.width / 2).toBeCloseTo(0.04, 3);
+    }
+  });
+});
+
+describe('a small kitchen on one wall', () => {
+  const kitchen = (w: number, d: number): PlanRoom =>
+    refreshRoom({
+      id: 'k',
+      type: 'kitchen',
+      name: 'k',
+      polygon: [{ x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: d }, { x: 0, z: d }],
+      heightM: 2.7,
+      areaM2: 0,
+      perimeterM: 0,
+      openings: [{ id: 'a', kind: 'archway', wallIndex: 2, t: 0.5, widthM: 1.2, heightM: 2.1, sillM: 0, roomId: 'k', exterior: false }],
+    });
+
+  it('runs the units from a corner, the fridge at their end and the wall cabinets over the units only', async () => {
+    const { seededRng } = await import('@/lib/design/random');
+    // In a 2.6 × 3.4 kitchen the archway's approach takes the end of the run's wall: the fridge
+    // goes on another wall there, and the cabinets still hang over the run alone.
+    for (const [w, d, together] of [[3, 2.6, true], [3.94, 3.94, true], [4, 3, true], [2.6, 3.4, false]] as const) {
+      for (let seed = 1; seed <= 4; seed++) {
+        const r = kitchen(w, d);
+        const items = layoutRoom(r, { rng: seededRng(seed) });
+        const run = items.find((i) => i.slot === 'kitchen_run')!;
+        const fridge = items.find((i) => i.slot === 'fridge')!;
+        const cabinets = items.find((i) => i.slot === 'kitchen_wall')!;
+        if (together) {
+          // On the run's wall, hard against its end, backs in line.
+          expect(fridge.rotation).toBeCloseTo(run.rotation, 5);
+          const off = { x: fridge.position.x - run.position.x, z: fridge.position.z - run.position.z };
+          expect(Math.abs(dot(off, right(run))) - run.size.width / 2 - fridge.size.width / 2).toBeCloseTo(0.02, 5);
+          expect(dot(off, forward(run))).toBeCloseTo((fridge.size.depth - run.size.depth) / 2, 5);
+        }
+        // The cabinets over the run, not over the fridge.
+        expect(cabinets.rotation).toBeCloseTo(run.rotation, 5);
+        const c = { x: cabinets.position.x - run.position.x, z: cabinets.position.z - run.position.z };
+        expect(Math.abs(dot(c, right(run))) + cabinets.size.width / 2).toBeLessThanOrEqual(run.size.width / 2 + 1e-6);
+      }
+    }
+  });
+
+  it('keeps a real fridge of another width against the end of the run', () => {
+    const r = kitchen(3, 2.6);
+    const items = matchProducts(layoutRoom(r), [product(3, 'fridge', 60, 65, 185)], { styleId: 'scandinavian', rooms: [r] });
+    const run = items.find((i) => i.slot === 'kitchen_run')!;
+    const fridge = items.find((i) => i.slot === 'fridge')!;
+    expect(fridge.product?.productId).toBe(3);
+    const off = { x: fridge.position.x - run.position.x, z: fridge.position.z - run.position.z };
+    expect(Math.abs(dot(off, right(run))) - run.size.width / 2 - fridge.size.width / 2).toBeCloseTo(0.02, 5);
+    expect(dot(off, forward(run))).toBeCloseTo((fridge.size.depth - run.size.depth) / 2, 5);
+  });
+
+  it('makes a slab on the run\'s wall the backsplash, as long as the run whatever width was asked', async () => {
+    const { resolveDecor } = await import('@/lib/design/decor/resolve');
+    const r = kitchen(4, 4);
+    const run: PlacedItem = { id: 'run', roomId: 'k', kind: 'kitchen_run', slot: 'kitchen_run', position: { x: 1.3, z: 0.02 + 0.31 }, rotation: 0, elevationM: 0, size: { width: 2.55, depth: 0.62, height: 0.92 }, product: { productId: 1 } as PlacedItem['product'] };
+    const slab = resolveDecor({ family: 'slab', anchor: 'wall', wallIndex: 0, widthM: 1.2, heightFromM: 0.92, heightToM: 1.5 } as never, r, [run], [], 's1')!;
+    expect(slab.anchor).toBe('kitchen');
+    expect(slab.span.to - slab.span.from).toBeCloseTo(2.55, 3);
+    // A slab floor to ceiling on another wall stays the feature wall it was asked to be.
+    const feature = resolveDecor({ family: 'slab', anchor: 'wall', wallIndex: 1, widthM: 0, heightFromM: 0, heightToM: 2.7 } as never, r, [run], [], 's2')!;
+    expect(feature.anchor).toBe('wall');
+    expect(feature.wallIndex).toBe(1);
+  });
+
+  it('lets wall cabinets hang over the units but not over the fridge', async () => {
+    const { hangOnWall } = await import('@/lib/design/manipulate');
+    const r = kitchen(4, 3);
+    const items = layoutRoom(r, { rng: (await import('@/lib/design/random')).seededRng(3) });
+    const run = items.find((i) => i.slot === 'kitchen_run')!;
+    const fridge = items.find((i) => i.slot === 'fridge')!;
+    const cabinets = { ...items.find((i) => i.slot === 'kitchen_wall')!, size: { width: 0.8, depth: 0.35, height: 0.72 } };
+    const wall = roomEdgesOf(r.polygon).find((e) => Math.abs(Math.atan2(Math.sin(e.facing - run.rotation), Math.cos(e.facing - run.rotation))) < 0.01)!;
+    const over = (p: PlacedItem) => hangOnWall(r, cabinets, wall.index, p.position, 1.86, items)!;
+    expect(over(run).valid).toBe(true);
+    expect(over(fridge).valid).toBe(false);
+  });
+});
+
+describe('a TV over the TV unit', () => {
+  // The door on a side wall near a corner, so the wall the sofa faces is free for the TV unit.
+  const living = refreshRoom({
+    ...room('l', 'living_room', 5.2, 4.4),
+    openings: [{ id: 'l-door', kind: 'door', wallIndex: 1, t: 0.85, widthM: 0.85, heightM: 2.05, sillM: 0, roomId: 'l', exterior: true }],
+  });
+  const unitProduct = product(20, 'tv_unit', 160, 40, 50);
+  const standing = product(21, 'tv', 123, 29, 81);
+  const flat = product(22, 'tv', 145, 5, 82);
+  const tooWide = product(23, 'tv', 190, 30, 110);
+
+  it('lays a TV slot out over the unit, and none in a room without one', () => {
+    const items = layoutRoom(living);
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv')!;
+    expect(Math.cos(tv.rotation - unit.rotation)).toBeCloseTo(1, 5);
+    const off = { x: tv.position.x - unit.position.x, z: tv.position.z - unit.position.z };
+    expect(Math.abs(dot(off, right(unit)))).toBeLessThan(0.01);
+    expect(tv.elevationM).toBeGreaterThan(unit.size.height);
+    expect(layoutRoom(room('b', 'bedroom', 4.4, 4.2)).some((i) => i.slot === 'tv')).toBe(false);
+  });
+
+  it('stands a TV on its stand on the unit\'s top, in the middle of it front to back', () => {
+    const items = matchProducts(layoutRoom(living), [unitProduct, standing], { styleId: 'scandinavian', rooms: [living] });
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv')!;
+    expect(tv.product?.productId).toBe(21);
+    expect(tv.elevationM).toBeCloseTo(0.5, 5);
+    const off = { x: tv.position.x - unit.position.x, z: tv.position.z - unit.position.z };
+    expect(dot(off, forward(unit))).toBeCloseTo(0, 5);
+  });
+
+  it('hangs a flat TV on the wall over the unit, clear of it, and never stands one wider than the unit on it', () => {
+    const items = matchProducts(layoutRoom(living), [unitProduct, flat, tooWide], { styleId: 'scandinavian', rooms: [living] });
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv')!;
+    expect(tv.product?.productId).toBe(22);
+    expect(tv.elevationM).toBeGreaterThanOrEqual(unit.size.height + 0.12);
+    expect(backGap(tv, 5.2, 4.4)).toBeLessThan(0.02);
+  });
+
+  it('swaps between the two in the studio: onto the unit, then onto the wall', async () => {
+    const { applySwap, rehung } = await import('@/lib/design/matcher');
+    const items = matchProducts(layoutRoom(living), [unitProduct, flat], { styleId: 'scandinavian', rooms: [living] });
+    const tv = items.find((i) => i.slot === 'tv')!;
+    const others = items.filter((i) => i.id !== tv.id);
+    const onUnit = rehung(tv, applySwap([tv], tv.id, standing)[0], standing, others);
+    expect(onUnit.elevationM).toBeCloseTo(0.5, 5);
+    const back = rehung(onUnit, applySwap([onUnit], tv.id, flat)[0], flat, others);
+    expect(back.elevationM).toBeGreaterThanOrEqual(0.62);
+    expect(backGap(back, 5.2, 4.4)).toBeLessThan(0.02);
+  });
+});
+
+describe('what the generation of 20 Oct got wrong', () => {
+  it('keeps decor that follows a desk off the window the desk stands under', async () => {
+    const { reanchorDecor } = await import('@/lib/design/decor/resolve');
+    // A 3.28 m office wall with a 1.2 m window in its middle; the desk stands under it.
+    const office = refreshRoom({
+      ...room('o', 'office', 3.28, 2.54),
+      openings: [{ id: 'w', kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9, roomId: 'o', exterior: true }],
+    });
+    const desk: PlacedItem = { id: 'desk', roomId: 'o', kind: 'desk', slot: 'desk', position: { x: 1.4, z: 0.02 + 0.225 }, rotation: 0, elevationM: 0, size: { width: 1.18, depth: 0.45, height: 0.74 }, product: { productId: 1 } as PlacedItem['product'] };
+    const slats = { id: 's', roomId: 'o', family: 'slats', anchor: 'desk', wallIndex: 0, span: { from: 2.4, to: 3.2 }, height: { from: 0, to: 2.8 }, params: {}, materials: {} } as unknown as DecorPiece;
+    const [moved] = reanchorDecor([slats], [desk], [office]);
+    // The window takes 1.04–2.24 m along the wall (10 cm aside): the slats stand beside it.
+    expect(moved.span.to <= 0.94 + 1e-6 || moved.span.from >= 2.34 - 1e-6).toBe(true);
+  });
+
+  it('slides or shrinks the TV along its unit off a window beside it', () => {
+    const living = refreshRoom({
+      ...room('l', 'living_room', 5.2, 4.4),
+      openings: [
+        { id: 'd', kind: 'door', wallIndex: 1, t: 0.85, widthM: 0.85, heightM: 2.05, sillM: 0, roomId: 'l', exterior: true },
+        // On the wall the TV unit goes on (z = 4.4), just left of its middle.
+        { id: 'w', kind: 'window', wallIndex: 2, t: 0.72, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'l', exterior: true },
+      ],
+    });
+    const items = layoutRoom(living);
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv')!;
+    expect(unit).toBeDefined();
+    expect(tv).toBeDefined();
+    // Wall 2 runs from (5.2, 4.4) to (0, 4.4): the window takes x 0.756–2.156.
+    expect(tv.position.x - tv.size.width / 2 >= 2.156 - 1e-6 || tv.position.x + tv.size.width / 2 <= 0.756 + 1e-6).toBe(true);
+    expect(Math.abs(tv.position.x - unit.position.x) + tv.size.width / 2).toBeLessThanOrEqual(unit.size.width / 2 + 1e-6);
+  });
+
+  it('never takes a range cooker for the kitchen run', async () => {
+    const { seededRng } = await import('@/lib/design/random');
+    const kitchen = room('k', 'kitchen', 4, 3);
+    const material = product(30, 'kitchen_run', 0, 0, 0, { slug: 'kitchen-material-mdf', categorySlug: 'kitchen-custom', unit: 'm2', widthCm: null, depthCm: null, heightCm: null });
+    const range = product(31, 'kitchen_run', 166, 67, 80, { categorySlug: 'kitchen-units' });
+    const cooker = product(32, 'kitchen_run', 126, 77, 93, { categorySlug: 'kitchen-units' });
+    for (let seed = 1; seed <= 12; seed++) {
+      const items = matchProducts(layoutRoom(kitchen), [material, range, cooker], { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
+      expect(items.find((i) => i.slot === 'kitchen_run')?.product?.productId).toBe(30);
+    }
+  });
+});
+
+describe('sets and free-standing units', () => {
+  it('seats one product round a table: a seat the set\'s chair does not fit stays empty', async () => {
+    const { seededRng } = await import('@/lib/design/random');
+    const kitchen = room('k', 'kitchen', 4, 3.6);
+    const table = product(40, 'dining_table', 140, 80, 75);
+    const wide = product(41, 'dining_chair', 70, 66, 100);
+    const stool = product(42, 'dining_chair', 40, 40, 65);
+    for (let seed = 1; seed <= 8; seed++) {
+      const items = matchProducts(layoutRoom(kitchen), [table, wide, stool], { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
+      const chairs = items.filter((i) => i.slot === 'dining_chair' && i.product);
+      expect(new Set(chairs.map((c) => c.product!.productId)).size).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('stands a TV on its stand on a unit standing free in the room, and never a flat one there', () => {
+    const living = room('l', 'living_room', 6, 5);
+    const unit: PlacedItem = { id: 'u', roomId: 'l', kind: 'tv_unit', slot: 'tv_unit', position: { x: 3, z: 2.5 }, rotation: 0, elevationM: 0, size: { width: 1.6, depth: 0.4, height: 0.5 }, product: null };
+    // The TV slot the layout gives such a unit: on its top, in the middle.
+    const slot: PlacedItem = { id: 't', roomId: 'l', kind: 'tv', slot: 'tv', position: { x: 3, z: 2.5 }, rotation: 0, elevationM: 0.5, size: { width: 1.45, depth: 0.08, height: 0.82 }, product: null };
+    const standing = product(21, 'tv', 123, 29, 81);
+    const flat = product(22, 'tv', 123, 5, 75);
+    const items = matchProducts([unit, slot], [product(20, 'tv_unit', 160, 40, 50), standing, flat], { styleId: 'scandinavian', rooms: [living] });
+    const tv = items.find((i) => i.slot === 'tv')!;
+    expect(tv.product?.productId).toBe(21);
+    expect(tv.elevationM).toBeCloseTo(0.5, 5);
+    expect(tv.position.z).toBeCloseTo(2.5, 5);
   });
 });

@@ -9,7 +9,7 @@
  * actually put the bed, the sofa or the TV unit (`lib/design/decor/resolve`).
  */
 
-import { applySwap, settledElevation, settledPosition, type CatalogProduct } from './matcher';
+import { applySwap, PAIRED_SLOTS, rehung, settledPosition, type CatalogProduct } from './matcher';
 import { getArchetype } from './catalog';
 import { seatSlots } from './autoLayout';
 import { decorDepth, fitLight, paramsOf } from './decor/layout';
@@ -193,7 +193,8 @@ const IN_FRONT: Record<string, string> = { office_chair: 'desk', coffee_table: '
 function shiftWithFront(item: PlacedItem, step: number, out: PlacedItem[], room: PlanRoom, rooms: readonly PlanRoom[]): PlacedItem[] | null {
   const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
   const move = (p: PlacedItem) => ({ ...p, position: { x: p.position.x + forward.x * step, z: p.position.z + forward.z * step } });
-  const front = out.filter((p) => p.roomId === item.roomId && IN_FRONT[p.kind] === item.slot && !p.locked);
+  // …and a TV standing on a TV unit, with it.
+  const front = out.filter((p) => p.roomId === item.roomId && !p.locked && (IN_FRONT[p.kind] === item.slot || (item.slot === 'tv_unit' && p.slot === 'tv' && Math.abs(p.elevationM - item.size.height) < 0.02)));
   const group = [item, ...front];
   const moved = group.map(move);
   const ids = new Set(group.map((p) => p.id));
@@ -229,17 +230,27 @@ export function settleToWalls(items: PlacedItem[], plan: FloorPlan): PlacedItem[
 export function clearOfDecor(items: PlacedItem[], decor: DecorPiece[], plan: FloorPlan): PlacedItem[] {
   if (decor.length === 0) return items;
   const out = [...items];
-  out.forEach((item) => {
-    if (item.locked || item.elevationM >= 0.05 || item.slot === 'rug' || item.slot === 'curtain') return;
+  out.forEach((item, index) => {
+    // A TV on the wall is hung on the slab behind it, not inside it; other hung pieces keep off decor when it is fitted.
+    const hung = item.elevationM >= 0.05;
+    if (item.locked || (hung && item.slot !== 'tv') || item.slot === 'rug' || item.slot === 'curtain') return;
     const room = plan.rooms.find((r) => r.id === item.roomId);
-    const wall = room && pieceWall(item, room, 0.3);
+    const wall = room && pieceWall(out[index], room, 0.3);
     if (!room || !wall) return;
-    const top = item.size.height;
+    const bottom = hung ? item.elevationM : 0;
+    const top = bottom + item.size.height;
     const need = Math.max(0, ...decor
       .filter((d) => d.roomId === room.id && d.wallIndex === wall.edge.index && STANDS_OUT.has(d.family))
-      .filter((d) => wall.along + item.size.width / 2 > d.span.from + 0.02 && wall.along - item.size.width / 2 < d.span.to - 0.02 && d.height.from < top - 0.02)
+      .filter((d) => wall.along + item.size.width / 2 > d.span.from + 0.02 && wall.along - item.size.width / 2 < d.span.to - 0.02 && d.height.from < top - 0.02 && d.height.to > bottom + 0.02)
       .map((d) => decorDepth(d) + 0.01));
     if (need <= wall.gap) return;
+    if (hung) {
+      const current = out[index];
+      const forward = { x: Math.sin(current.rotation), z: Math.cos(current.rotation) };
+      const step = need - wall.gap;
+      out[index] = { ...current, position: { x: current.position.x + forward.x * step, z: current.position.z + forward.z * step } };
+      return;
+    }
     const group = shiftWithFront(item, need - wall.gap, out, room, plan.rooms);
     if (group) for (const p of group) out[out.findIndex((q) => q.id === p.id)] = p;
   });
@@ -281,6 +292,7 @@ export function underCeilingDecor(items: PlacedItem[], electrical: ElectricalPoi
  * The designer's check applied (`lib/design/aiReview`), and the room tidied after it:
  * - `remove`: the piece goes; `replace`: the new product goes where the old piece stood — its back
  *   on the same wall, a hung one at the height it should hang (`settledElevation`) — if it fits;
+ *   both of a pair (`PAIRED_SLOTS`: the nightstands) are replaced, each beside the bed, or neither;
  * - `to_wall`: back against the wall behind it, or the nearest; `move_to_wall`: against wall N,
  *   as near its middle as it stands well (clear of windows if tall, and of doorways);
  * - `remove_decor`: the decor piece goes; `decor_to_wall`: fitted again on wall N.
@@ -341,9 +353,32 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
     if (fix.action === 'replace') {
       const product = fix.productId != null ? byId.get(fix.productId) : undefined;
       if (!product) continue;
+      // A pair (two nightstands) is replaced together or not at all — each beside the bed at the new
+      // size: replacing one left a bed between two different nightstands.
+      if (PAIRED_SLOTS.has(item.slot)) {
+        const group = out.filter((i) => i.roomId === item.roomId && i.slot === item.slot);
+        // The check names every piece of the set; the first replaced them all.
+        if (group.some((i) => i.locked) || group.every((i) => i.product?.productId === product.id)) continue;
+        const rest = others.filter((i) => !group.includes(i));
+        const done: PlacedItem[] = [];
+        for (const piece of group) {
+          const swapped = { ...applySwap([piece], piece.id, product)[0], pinned: false, origin: 'style' as const };
+          const beside = { ...swapped, position: settledPosition(piece, swapped.size, room, rest) };
+          const fitted = fitSwapped(room, beside, [...rest, ...done], plan.rooms);
+          if (!fitted) break;
+          done.push(fitted);
+        }
+        if (done.length !== group.length) continue;
+        out = out.map((i) => done.find((d) => d.id === i.id) ?? i);
+        changed.add(`${item.roomId}|${item.slot}`);
+        continue;
+      }
       const swapped = { ...applySwap([item], item.id, product)[0], pinned: false, origin: 'style' as const };
-      const hung = { ...swapped, elevationM: settledElevation(item, swapped.size, product, others) };
-      placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, hung, others, plan.rooms);
+      // A hung piece at the height and place the new product hangs or stands at (a TV on its stand
+      // onto the unit); a standing one re-measured as the matcher would — a wider fridge against the
+      // end of the run, not 2 cm under its wall cabinets.
+      const hung = rehung(item, swapped, product, others);
+      placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, { ...hung, position: settledPosition(item, hung.size, room, others) }, others, plan.rooms);
     } else if (fix.action === 'to_wall') {
       placed = backToWall(item, room, others, plan.rooms);
     } else if (fix.action === 'move_to_wall') {
