@@ -53,12 +53,14 @@ vi.mock('@/lib/db', () => ({
 
 // The plan's allowance of projects (docs/subscriptions.md): the count is lib/plans/server's, tested
 // on its rules in plans.test.ts; here a slot is free unless a test says the plan is used up.
-const slots = vi.hoisted(() => ({ full: false }));
+const slots = vi.hoisted(() => ({ full: false, free: false }));
 vi.mock('@/lib/plans/server', async () => {
   const { db: mocked } = await import('@/lib/db');
   return {
     withProjectSlot: async (_account: unknown, make: (tx: unknown) => Promise<number>) =>
       slots.full ? { ok: false, plan: 'free', limit: 2, per: 'total' } : { ok: true, id: await make(mocked) },
+    // Free: no catalogue, no moving (the guard's own rules are tested in sceneGuard.test.ts).
+    featureAccess: async () => ({ plan: slots.free ? 'free' : 'premium', has: () => !slots.free, needs: () => 'premium' }),
   };
 });
 
@@ -693,6 +695,20 @@ describe('POST /api/design/projects (the design)', () => {
       ctx
     );
     expect(res.status).toBe(400);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  it('refuses on Free a change the studio locks, and writes nothing', async () => {
+    signedIn();
+    slots.free = true;
+    const laidOut = { styleId: 'scandinavian', mode: 'design_only', budgetGel: null, items: [], finishes: [], generation: { by: 'engine', at: '2026-10-20T10:00:00Z' }, progress: { step: 5, generated: true } };
+    db.row = designRow({ plan, scene: { ...laidOut, finishes: [] } });
+    const POST = await load();
+    const res = await POST(post('http://localhost/api/design/projects', { projectId: 42, plan, scene: { ...laidOut, generation: { by: 'engine', at: '2026-10-21T10:00:00Z' } } }), ctx);
+    slots.free = false;
+    expect(res.status).toBe(402);
+    expect((await res.json()).error).toBe('PLAN_REQUIRED');
+    expect(res.headers.get('X-Plan-Feature')).toBe('catalog');
     expect(db.updates).toHaveLength(0);
   });
 

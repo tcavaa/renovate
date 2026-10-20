@@ -15,6 +15,16 @@ Related: [payments.md](payments.md) (Flitt, credits, the card dialogue) ·
 
 ## The plans
 
+**What each plan includes is admin's** (`/admin/settings` → plans, `PlanMatrix`): the plans
+across with their month and year prices, and down the side a tick per plan for every feature,
+the projects each may make (blank: no limit) and the renders a month a plan with renders
+includes. It is stored as one JSON value, `platform_settings.plan_config` (`PlanConfig`, read
+through `normalizePlanConfig` — anything missing or odd is the default), and everything reads it:
+the pricing page and its lines (`planLines` — "everything in X, plus" only when a plan has
+everything the one below has), the upgrade dialogue (`plansWith`: the plans that have the
+feature), the studio's locks, and every route. A change applies at once, to plans already bought
+too. The defaults, as built:
+
 | | Free | Premium | Professional |
 |---|---|---|---|
 | Projects (a calculation and a design together are one) | **2 at a time** | **5 new a month** | **10 new a month** |
@@ -28,9 +38,11 @@ Related: [payments.md](payments.md) (Flitt, credits, the card dialogue) ·
 
 Prices are admin's (`platform_settings`, `/admin/settings` → plan prices): Premium **15 ₾ a
 month or 120 ₾ a year**, Professional **39 ₾ or 320 ₾**, before the bank's commission
-(`bankFeePct`, shown as a line of its own). The rules are pure, in `lib/plans/plans.ts`:
-`PLAN_FEATURES`, `requiredPlan`, `hasFeature`, `featuresOf`, `PROJECT_ALLOWANCE`,
-`FREE_RENDERS_PER_MONTH`.
+(`bankFeePct`, shown as a line of its own). The rules are pure, in `lib/plans/plans.ts`, each
+taking the configuration: `PLAN_FEATURES`, `DEFAULT_PLAN_CONFIG`, `normalizePlanConfig`,
+`hasFeature`, `plansWith`, `requiredPlan` (null when admin gave a feature to no paid plan),
+`featuresOf`, `projectAllowance`, `projectsLeft`, `freeRendersOf`, `freeRendersLeft`. On the
+server `featureAccess(account)` resolves the plan and the configuration once (`has`, `needs`).
 
 Not gated: the calculator's own steps (materials, furniture picks, the summary), the technical
 step and the studio's electric and technical trays (sockets, lights, radiators, equipment), the
@@ -78,7 +90,8 @@ allowance back:
   transaction, an advisory lock per person (two tabs cannot both take the last one), the count,
   the insert and a `plan_usage` row (`kind` `project`). Free counts the projects the person has
   now (deleting one makes room); a paid plan counts the `project` rows made in the current month
-  of its subscription. None left: 402 `PLAN_PROJECT_LIMIT`.
+  of its subscription (Free, which has none, counts the calendar month for anything monthly). None
+  left: 402 `PLAN_PROJECT_LIMIT`.
 - **Renders** — `POST /api/design/renders` takes one of the month's free renders
   (`takeFreeRender`, a `render` row with no payment) or, past them, claims a paid `render`
   credit (`claimPaidCredit`, then `recordPaidRender`); none: 402 `PAYMENT_REQUIRED`. Both are
@@ -86,9 +99,32 @@ allowance back:
 
 ## Where it is enforced
 
-| Server (`requirePlanFeature`, 402 `PLAN_REQUIRED` + `X-Plan-Required: <plan>`) | Browser only |
+| Server (`requirePlanFeature` / `featureAccess`, 402 `PLAN_REQUIRED` + `X-Plan-Required: <plan>`) | Browser only |
 |---|---|
-| `POST /api/projects/create` (allowance) · `POST /api/design/upload-plan` and `/api/design/parse-plan` (`planUpload`) · `POST /api/design/models` (`ownItems`, and a credit for a GLB or a photo alike) · `POST /api/design/renders` (`renders`, free or paid) · `POST /api/payments/flitt` for `own_item` / `render` (Professional) | every studio edit (the scene is saved whole by `POST /api/design/projects`, which cannot tell a swapped sofa from a generated one) · the walk-through · the CV parser, which reads a plan in the browser when the Claude reader is refused |
+| `POST /api/projects/create` (allowance) · `POST /api/design/upload-plan` and `/api/design/parse-plan` (`planUpload`) · `POST /api/design/models` (`ownItems`, and a credit for a GLB or a photo alike) · `POST /api/design/renders` (`renders`, free or paid) · `POST /api/payments/flitt` for `own_item` / `render` · **`POST /api/design/projects`: every studio edit** (`catalog`, `moveFurniture` — below; `X-Plan-Feature` names which) | the walk-through (nothing is saved by walking) · the CV parser, which reads a plan in the browser when the Claude reader is refused |
+
+### The studio's locks on the server (`lib/plans/sceneGuard.ts`)
+
+The design save compares the scene it is sent with the one stored (`refusedSceneChange`), on a
+plan without the catalogue or moving furniture, and names what is not allowed: `catalog` — a
+piece added, swapped or removed, a finish laid, painted or taken off, decor added, removed or
+re-materialled, a door's or window's product swapped, a kitchen material the person chose — or
+`moveFurniture` — a piece moved, turned, mirrored or resized. Refused, nothing is written. What
+happens on every plan by itself passes: anything **before the flat is laid out**
+(`progress.generated === false` — the generation, the empty start, the drawing); **the
+designer's check** once, right after the generation (`generation.reviewed` set the first time);
+**the calculator's picks** (a piece, floor or wall whose product the project's calculation picked
+— `calculatorPickIds`, the calculator being open to every plan); **a room whose outline changed**
+(a wall moved refits its furniture, finishes and decor — that room is not compared); a door or
+window given its first product, or a new one because its kind or size changed; a kitchen
+material the studio assigned itself. Laying a laid-out flat out again, or turning it back into
+an unlaid one, is refused (no plan's studio does either). Not compared: sockets, lights,
+technical points, equipment, the budget's ticks and quantities, style, mode, versions kept.
+
+In the browser a refused save is the project banner's "plan" problem (`SaveProblemBanner`,
+`problemOf` → `plan`): "this change is not in your plan" — back to the saved design, see the
+plans, or try again once upgraded. Restoring a kept version is gated as a catalogue change
+(`VersionsPanel`).
 
 ## The browser
 
@@ -131,7 +167,13 @@ allowance back:
 
 ## Tests
 
-- `tests/unit/plans/plans.test.ts` — features and plans, allowances, months (short months, no
+- `tests/unit/plans/sceneGuard.test.ts` — the server's studio locks: what is refused (a swap, an
+  addition, a removal, a floor, decor, a door's product, a move, a turn, a mirror, a new
+  generation, un-laying) and what passes (nothing guarded changed, before the layout, the
+  designer's check, the calculator's picks, a reshaped room, a first product, the studio's own
+  kitchen material).
+- `tests/unit/plans/plans.test.ts` — admin's configuration (features, projects with no limit,
+  free renders needing the feature, a stored value made whole), features and plans, allowances, months (short months, no
   drift), the plan in force, renewals' end, new / renew / upgrade (credit, never below 0) /
   lower refused, a granted plan's credit.
 - `tests/unit/payments/service.test.ts` — a subscription's approval buys its plan once, a failed
@@ -140,7 +182,12 @@ allowance back:
 - `tests/integration/payment-routes.test.ts` — the start: a plan at admin's price, an upgrade
   less its credit and a covered one with no card, a lower plan refused, own items and renders
   Professional's and priced.
-- `tests/integration/save-routes.test.ts` — no project once the allowance is used.
+- `tests/integration/save-routes.test.ts` — no project once the allowance is used; a locked studio
+  change refused on Free with nothing written.
+- Walked through on 20 Oct 2026 (later): the admin matrix ticked and saved (Premium given the
+  walk-through, seen in a Premium account's plan and on the pricing page, then taken back), and
+  on the real route as a Free account a flat laid out, then a swap, a move and a second layout
+  refused.
 - Walked through on 20 Oct 2026 (headless Chrome at `renovate.localhost`, test-user #35): two
   projects on Free and the third refused (dialogue and 402), the server's refusals of an upload
   and an own item, the studio's locks on Free, Premium bought through Flitt's sandbox (3-D
@@ -149,9 +196,10 @@ allowance back:
 
 ## Known gaps
 
-- **Studio edits are enforced in the browser only.** The design save route takes the scene
-  whole; a Free account that edits its scene by hand (or through the API) is not refused. Diffing
-  the saved scene against the previous one per feature would close it.
+- **The server's studio check trusts what passes by itself**: a save that sets
+  `generation.reviewed` for the first time, or moves a wall, has the pieces of that save (or that
+  room) let through — a hand-made request could use either once. The generation itself (before
+  the flat is laid out) is the browser's engine and cannot be re-run on the server.
 - **The CV plan reader runs in the browser**: with the Claude reader and the upload refused, a
   determined Free account could still read a picture locally. The UI never lets it.
 - **No auto-renew** — a person renews by hand; there is no reminder mail before a plan ends yet.

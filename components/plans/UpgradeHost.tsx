@@ -10,7 +10,7 @@ import { SubscribeDialog } from '@/components/plans/SubscribeDialog';
 import { usePlan } from '@/hooks/usePlan';
 import { fill } from '@/lib/admin/list';
 import { useT } from '@/lib/i18n/client';
-import { planRank, requiredPlan, type BillingPeriod, type PaidPlanId, type PlanFeature } from '@/lib/plans/plans';
+import { PAID_PLANS, planRank, plansWith, type BillingPeriod, type PaidPlanId, type PlanConfig, type PlanFeature } from '@/lib/plans/plans';
 import { usePlanStore, type UpgradeRequest } from '@/store/planStore';
 import { formatDateTime, formatGEL } from '@/lib/utils';
 
@@ -33,11 +33,14 @@ export function featureText(t: ReturnType<typeof useT>, feature: PlanFeature): {
   }
 }
 
-/** The lowest plan that answers a request: the feature's, one above the plan for used-up projects. */
-function wantedPlan(request: UpgradeRequest, current: PaidPlanId | 'free'): PaidPlanId {
-  if ('feature' in request) return requiredPlan(request.feature);
-  if ('plan' in request) return request.plan;
-  return current === 'free' ? 'premium' : 'professional';
+/**
+ * The plans that answer a request: those admin gave the feature to, the one chosen, or — for
+ * used-up projects — the paid plans above the current one.
+ */
+function offeredPlans(request: UpgradeRequest, current: PaidPlanId | 'free', config: PlanConfig | undefined): PaidPlanId[] {
+  if ('feature' in request) return plansWith(request.feature, config);
+  if ('plan' in request) return [request.plan];
+  return PAID_PLANS.filter((plan) => planRank(plan) > planRank(current));
 }
 
 /**
@@ -56,8 +59,8 @@ export function UpgradeHost() {
   const [buying, setBuying] = useState<PaidPlanId | null>(null);
 
   const current = state?.plan ?? 'free';
-  const wanted = request ? wantedPlan(request, current) : 'premium';
-  const offered = (['premium', 'professional'] as const).filter((plan) => planRank(plan) >= planRank(wanted));
+  const offered = request ? offeredPlans(request, current, state?.config) : [];
+  const wanted: PaidPlanId = offered[0] ?? 'professional';
   const feature = request && 'feature' in request ? featureText(t, request.feature) : null;
   const wantedName = wanted === 'premium' ? p.premium : p.professional;
 
@@ -72,7 +75,7 @@ export function UpgradeHost() {
     desc = !projects || projects.per === 'total' ? fill(p.limitDescFree, { n: projects?.limit ?? 2 }) : fill(p.limitDescMonth, { n: projects.limit ?? 0, date: projects.resetsAt ? formatDateTime(projects.resetsAt, false) : '—' });
   }
 
-  const prices = state ? { prices: state.prices, ownItemPrice: state.ownItemPrice, renderPrice: state.renderPrice } : null;
+  const prices = state ? { prices: state.prices, ownItemPrice: state.ownItemPrice, renderPrice: state.renderPrice, config: state.config } : null;
   const saving = state ? Math.round((1 - state.prices.premium.year / (state.prices.premium.month * 12)) * 100) : 0;
 
   return (

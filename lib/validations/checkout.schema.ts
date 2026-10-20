@@ -101,6 +101,14 @@ export const platformSettingsSchema = z.object({
   professionalYearPrice: z.coerce.number().min(1).max(100000).optional(),
   /** GEL for one render past a Professional month's free ones; 0 makes them free. */
   renderPrice: z.coerce.number().min(0).max(10000).optional(),
+  /** What each plan includes (docs/subscriptions.md): its features, projects (null: no limit) and free renders a month. */
+  planConfig: z
+    .object({
+      features: z.record(z.enum(['free', 'premium', 'professional']), z.array(z.enum(['planUpload', 'catalog', 'moveFurniture', 'walk', 'renders', 'ownItems'])).max(6)),
+      projects: z.record(z.enum(['free', 'premium', 'professional']), z.number().int().min(0).max(10000).nullable()),
+      freeRenders: z.record(z.enum(['free', 'premium', 'professional']), z.number().int().min(0).max(10000)),
+    })
+    .optional(),
   /** The store that supplies the rate book's construction materials; null for nobody. */
   materialsStoreId: z.number().int().positive().nullable().optional(),
 });

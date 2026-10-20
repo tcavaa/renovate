@@ -17,7 +17,9 @@ import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { loadProductPrices, planProductIds, repriceFinishSnapshot, repricePlan, repriceSnapshot } from '@/lib/api/productPrices';
 import { ownProject } from '@/lib/api/projectSave';
 import { loadRateBook } from '@/lib/api/rateBook';
-import { fail, handle, ok } from '@/lib/api/route';
+import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
+import { calculatorPickIds, refusedSceneChange } from '@/lib/plans/sceneGuard';
+import { featureAccess } from '@/lib/plans/server';
 import { readJson } from '@/lib/api/body';
 
 export const runtime = 'nodejs';
@@ -50,6 +52,22 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   const homeState = (calculatorOwns ? existing.homeState : parsed.data.homeState) ?? null;
   const submittedPlan = parsed.data.plan as FloorPlan;
   const submitted = parsed.data.scene as DesignScene;
+
+  // The studio's locks, here too (docs/subscriptions.md): against the design stored, a change the
+  // plan does not allow — furniture or a finish changed, a piece moved — is refused, so the
+  // browser's locks are not the only ones. What happens by itself on every plan (a generation,
+  // the designer's check, the calculator's picks, a wall moved) passes (`refusedSceneChange`).
+  const access = await featureAccess({ id: userId, role: session?.user?.role });
+  const catalog = access.has('catalog');
+  const moveFurniture = access.has('moveFurniture');
+  if (!catalog || !moveFurniture) {
+    const refused = refusedSceneChange(
+      { plan: existing.plan as FloorPlan | null, scene: existing.scene as DesignScene | null },
+      { plan: submittedPlan, scene: submitted },
+      { catalog, moveFurniture, picks: calculatorPickIds(existing.selectedProducts, existing.selectedFurniture) }
+    );
+    if (refused) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': access.needs(refused) ?? 'none', 'X-Plan-Feature': refused } });
+  }
   const roomsById = new Map(submittedPlan.rooms.map((r) => [r.id, r]));
 
   // The client's prices and quantities are a preview. Every product snapshot in the scene is

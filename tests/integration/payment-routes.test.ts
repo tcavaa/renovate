@@ -45,7 +45,10 @@ vi.mock('@/lib/plans/server', async () => {
   const actual = await vi.importActual<typeof import('@/lib/plans/server')>('@/lib/plans/server');
   return {
     planPricesOf: actual.planPricesOf,
-    planOf: async () => state.plan,
+    featureAccess: async () => {
+      const { hasFeature, requiredPlan } = await import('@/lib/plans/plans');
+      return { plan: state.plan, has: (f: Parameters<typeof hasFeature>[1]) => hasFeature(state.plan as 'free', f), needs: (f: Parameters<typeof hasFeature>[1]) => requiredPlan(f) };
+    },
     liveSubscriptions: async () => state.subs,
     activateFreeUpgrade: async (userId: number, plan: string, period: string) => {
       state.freeUpgrades.push({ userId, plan, period });

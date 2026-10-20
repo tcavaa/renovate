@@ -18,5 +18,5 @@ export async function generateMetadata() {
  */
 export default async function PricingPage() {
   const settings = await loadPlatformSettings();
-  return <PricingView prices={{ prices: planPricesOf(settings), ownItemPrice: settings.ownItemPrice, renderPrice: settings.renderPrice }} bankFeePct={settings.bankFeePct} />;
+  return <PricingView prices={{ prices: planPricesOf(settings), ownItemPrice: settings.ownItemPrice, renderPrice: settings.renderPrice, config: settings.planConfig }} bankFeePct={settings.bankFeePct} />;
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_PLAN_CONFIG,
   DEFAULT_PLAN_PRICES,
+  normalizePlanConfig,
+  plansWith,
+  projectAllowance,
   activeSubscription,
   addMonths,
   currentPlan,
@@ -30,6 +34,31 @@ describe('what each plan has', () => {
     expect(requiredPlan('catalog')).toBe('premium');
     expect(requiredPlan('walk')).toBe('professional');
     expect(hasFeature('professional', 'planUpload')).toBe(true);
+  });
+
+  it('follows what admin set each plan to include', () => {
+    const config = normalizePlanConfig({ features: { free: ['planUpload'], premium: ['planUpload', 'walk'] }, projects: { premium: null, professional: 3 }, freeRenders: { premium: 9 } });
+    expect(hasFeature('free', 'planUpload', config)).toBe(true);
+    expect(hasFeature('premium', 'catalog', config)).toBe(false);
+    // What was not sent stays the default.
+    expect(config.features.professional).toEqual(DEFAULT_PLAN_CONFIG.features.professional);
+    expect(plansWith('walk', config)).toEqual(['premium', 'professional']);
+    expect(requiredPlan('catalog', config)).toBe('professional');
+    expect(requiredPlan('catalog', normalizePlanConfig({ features: { premium: [], professional: [] } }))).toBeNull();
+    expect(projectAllowance('premium', config)).toEqual({ limit: null, per: 'month' });
+    expect(projectsLeft('premium', 99, config)).toBeNull();
+    expect(projectsLeft('professional', 2, config)).toBe(1);
+    // Free renders need the feature: Premium's 9 count only once it has renders.
+    expect(freeRendersLeft('premium', 0, config)).toBe(0);
+    expect(freeRendersLeft('premium', 2, normalizePlanConfig({ features: { premium: ['renders'] }, freeRenders: { premium: 9 } }))).toBe(7);
+  });
+
+  it('makes a stored configuration whole, whatever it holds', () => {
+    expect(normalizePlanConfig(null)).toEqual(DEFAULT_PLAN_CONFIG);
+    const odd = normalizePlanConfig({ features: { free: ['walk', 'walk', 'nonsense'] }, projects: { free: -4, premium: 2.6, professional: 'x' }, freeRenders: { professional: 1e9 } });
+    expect(odd.features.free).toEqual(['walk']);
+    expect(odd.projects).toEqual({ free: 0, premium: 3, professional: 10 });
+    expect(odd.freeRenders.professional).toBe(10_000);
   });
 
   it('counts the projects and the free renders left', () => {

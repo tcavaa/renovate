@@ -7,6 +7,7 @@
  * keeps the present first, so nothing is thrown away.
  */
 
+import { usePlanGate } from '@/hooks/usePlan';
 import { useState } from 'react';
 import { Clock, History, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
@@ -20,6 +21,8 @@ export function VersionsPanel({ className }: { className?: string }) {
   const versions = useDesignStore((s) => s.versions);
   const saveVersion = useDesignStore((s) => s.saveVersion);
   const restoreVersion = useDesignStore((s) => s.restoreVersion);
+  // A version brings its own furniture and finishes back: the catalogue's to change (docs/subscriptions.md).
+  const { gate } = usePlanGate();
   const renameVersion = useDesignStore((s) => s.renameVersion);
   const deleteVersion = useDesignStore((s) => s.deleteVersion);
   const [name, setName] = useState('');
@@ -56,7 +59,7 @@ export function VersionsPanel({ className }: { className?: string }) {
                 </button>
               )}
             </div>
-            <button type="button" onClick={() => restoreVersion(v.id, t.build.versionBeforeRestore)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] border border-line text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
+            <button type="button" onClick={() => gate('catalog') && restoreVersion(v.id, t.build.versionBeforeRestore)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] border border-line text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
               <RotateCcw className="h-3.5 w-3.5" />
               {t.build.versionRestore}
             </button>

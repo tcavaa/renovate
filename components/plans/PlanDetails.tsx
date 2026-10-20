@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { fill } from '@/lib/admin/list';
 import type { Dictionary } from '@/lib/i18n';
 import type { UserRole } from '@/lib/auth/roles';
-import { planLines } from '@/components/plans/planLines';
+import { featureLine, projectsLine } from '@/components/plans/planLines';
 import { planState, subscriptionHistory } from '@/lib/plans/server';
 import { cn, formatDateTime, formatGEL } from '@/lib/utils';
 
@@ -71,12 +71,10 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
         )}
 
         <ul className="mt-6 grid gap-x-6 gap-y-2 border-t border-line pt-6 text-sm text-ink-soft sm:grid-cols-2">
-          {(['free', 'premium', 'professional'] as const)
-            .filter((plan) => plan === 'free' || plan === state.plan || (plan === 'premium' && state.plan === 'professional'))
-            .flatMap((plan) => planLines(t, plan, state))
-            .map((line) => (
-              <li key={line}>· {line}</li>
-            ))}
+          {/* Everything the plan has, by what admin set it to include. */}
+          {[projectsLine(t, state.plan, state.config), t.plans.fView3d, t.plans.fBudget, t.plans.fDraw, ...state.config.features[state.plan].map((f) => featureLine(t, f, state.plan, state))].map((line) => (
+            <li key={line}>· {line}</li>
+          ))}
         </ul>
       </section>
 

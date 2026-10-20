@@ -9,22 +9,24 @@ import { loadPlatformSettings, type PlatformSettingsWithMeta } from '@/lib/finan
 import { log } from '@/lib/log';
 import {
   BILLING_PERIODS,
-  FREE_RENDERS_PER_MONTH,
   PAID_PLANS,
-  PROJECT_ALLOWANCE,
+  PLAN_FEATURES,
   activeSubscription,
   addMonths,
   featuresOf,
   freeRendersLeft,
+  freeRendersOf,
   hasFeature,
   isPaidPlan,
   planPaidUntil,
   planPurchase,
+  projectAllowance,
   projectsLeft,
   requiredPlan,
   subscriptionMonth,
   type BillingPeriod,
   type PaidPlanId,
+  type PlanConfig,
   type PlanFeature,
   type PlanId,
   type PlanPrices,
@@ -33,9 +35,10 @@ import {
 
 /**
  * A person's plan as the database has it (docs/subscriptions.md): the subscription in force,
- * what its month has used, what each purchase would cost now. Staff (admin and the agents) work
- * as Professional with no project allowance, so they can open any part of the studio for a
- * customer; partners are customers like anyone else.
+ * what its month has used, what each purchase would cost now — by what admin set each plan to
+ * include (`platform_settings.plan_config`). Staff (admin and the agents) count as Professional
+ * with every feature and no allowance, so they can open any part of the studio for a customer;
+ * partners are customers like anyone else.
  */
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -64,6 +67,8 @@ export type OfferView =
 
 export interface PlanState {
   plan: PlanId;
+  /** What admin set each plan to include — the pricing page and the upgrade dialogue list it. */
+  config: PlanConfig;
   /** Staff: Professional, with no project allowance. */
   staff: boolean;
   features: Record<PlanFeature, boolean>;
@@ -115,18 +120,33 @@ export async function subscriptionHistory(userId: number): Promise<SubscriptionV
 interface Resolved {
   plan: PlanId;
   staff: boolean;
+  config: PlanConfig;
   rows: Subscription[];
   active: Subscription | null;
-  /** The current month of the subscription in force. */
-  month: { from: Date; to: Date } | null;
+  /**
+   * The month the allowances are counted in: the current month of the subscription in force, or
+   * — on Free, which has none — the calendar month.
+   */
+  month: { from: Date; to: Date };
+}
+
+function calendarMonth(now: Date): { from: Date; to: Date } {
+  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return { from, to: addMonths(from, 1) };
 }
 
 async function resolve(account: PlanAccount, now: Date, tx: Db = db): Promise<Resolved> {
-  const rows = await liveSubscriptions(account.id, now, tx);
+  const [rows, settings] = await Promise.all([liveSubscriptions(account.id, now, tx), loadPlatformSettings()]);
   const activeId = activeSubscription(rows.map(spanOf), now)?.id;
   const active = rows.find((r) => r.id === activeId) ?? null;
-  if (isStaff(account.role)) return { plan: 'professional', staff: true, rows, active, month: active ? subscriptionMonth(active.startsAt, now) : null };
-  return { plan: active?.plan ?? 'free', staff: false, rows, active, month: active ? subscriptionMonth(active.startsAt, now) : null };
+  const month = active ? subscriptionMonth(active.startsAt, now) : calendarMonth(now);
+  const staff = isStaff(account.role);
+  return { plan: staff ? 'professional' : (active?.plan ?? 'free'), staff, config: settings.planConfig, rows, active, month };
+}
+
+/** Whether the resolved account has a feature: staff every one, anyone else by their plan. */
+function can(r: Pick<Resolved, 'plan' | 'staff' | 'config'>, feature: PlanFeature): boolean {
+  return r.staff || hasFeature(r.plan, feature, r.config);
 }
 
 /** The plan a person is on now. */
@@ -134,12 +154,20 @@ export async function planOf(account: PlanAccount, now = new Date()): Promise<Pl
   return (await resolve(account, now)).plan;
 }
 
+/**
+ * What a person may do now: their plan, and `has(feature)` by what admin set that plan to
+ * include (staff have everything). `needs(feature)` is the lowest plan that has it, for a 402.
+ */
+export async function featureAccess(account: PlanAccount, now = new Date()): Promise<{ plan: PlanId; has: (feature: PlanFeature) => boolean; needs: (feature: PlanFeature) => PaidPlanId | null }> {
+  const r = await resolve(account, now);
+  return { plan: r.plan, has: (feature) => can(r, feature), needs: (feature) => requiredPlan(feature, r.config) };
+}
+
 async function countProjects(r: Resolved, userId: number, tx: Db = db): Promise<number> {
-  if (r.plan === 'free') {
+  if (projectAllowance(r.plan, r.config).per === 'total') {
     const [row] = await tx.select({ n: count() }).from(projects).where(eq(projects.userId, userId));
     return Number(row?.n ?? 0);
   }
-  if (!r.month) return 0;
   const [row] = await tx
     .select({ n: count() })
     .from(planUsage)
@@ -148,7 +176,6 @@ async function countProjects(r: Resolved, userId: number, tx: Db = db): Promise<
 }
 
 async function countFreeRenders(r: Resolved, userId: number, tx: Db = db): Promise<number> {
-  if (!r.month) return 0;
   const [row] = await tx
     .select({ n: count() })
     .from(planUsage)
@@ -161,8 +188,9 @@ export async function planState(account: PlanAccount, now = new Date()): Promise
   const [r, settings] = await Promise.all([resolve(account, now), loadPlatformSettings()]);
   const prices = planPricesOf(settings);
   const [usedProjects, usedRenders] = await Promise.all([countProjects(r, account.id), countFreeRenders(r, account.id)]);
-  const allowance = PROJECT_ALLOWANCE[r.plan];
+  const allowance = projectAllowance(r.plan, r.config);
   const spans = r.rows.map(spanOf);
+  const freeRenders = freeRendersOf(r.plan, r.config);
 
   const offers = {} as PlanState['offers'];
   for (const plan of PAID_PLANS) {
@@ -179,14 +207,15 @@ export async function planState(account: PlanAccount, now = new Date()): Promise
   const paidUntil = active ? planPaidUntil(spans, active.plan, now) : null;
   return {
     plan: r.plan,
+    config: r.config,
     staff: r.staff,
-    features: featuresOf(r.plan),
+    features: r.staff ? (Object.fromEntries(PLAN_FEATURES.map((f) => [f, true])) as Record<PlanFeature, boolean>) : featuresOf(r.plan, r.config),
     subscription: active ? { ...viewOf(active), paidUntil: (paidUntil ?? active.endsAt).toISOString() } : null,
     queued: r.rows.filter((row) => row.startsAt.getTime() > now.getTime() && row.endsAt.getTime() > row.startsAt.getTime()).map(viewOf),
     projects: r.staff
       ? { used: usedProjects, limit: null, left: null, per: allowance.per, resetsAt: null }
-      : { used: usedProjects, limit: allowance.limit, left: projectsLeft(r.plan, usedProjects), per: allowance.per, resetsAt: allowance.per === 'month' && r.month ? r.month.to.toISOString() : null },
-    renders: r.plan === 'professional' && r.month ? { freeLeft: r.staff ? FREE_RENDERS_PER_MONTH : freeRendersLeft(r.plan, usedRenders), freeTotal: FREE_RENDERS_PER_MONTH, resetsAt: r.month.to.toISOString() } : r.plan === 'professional' ? { freeLeft: FREE_RENDERS_PER_MONTH, freeTotal: FREE_RENDERS_PER_MONTH, resetsAt: addMonths(now, 1).toISOString() } : null,
+      : { used: usedProjects, limit: allowance.limit, left: projectsLeft(r.plan, usedProjects, r.config), per: allowance.per, resetsAt: allowance.per === 'month' && allowance.limit != null ? r.month.to.toISOString() : null },
+    renders: can(r, 'renders') ? { freeLeft: r.staff ? Math.max(freeRenders, 1) : freeRendersLeft(r.plan, usedRenders, r.config), freeTotal: r.staff ? Math.max(freeRenders, 1) : freeRenders, resetsAt: r.month.to.toISOString() } : null,
     prices,
     renderPrice: settings.renderPrice,
     ownItemPrice: settings.ownItemPrice,
@@ -206,12 +235,12 @@ export async function planState(account: PlanAccount, now = new Date()): Promise
 export async function requirePlanFeature(feature: PlanFeature) {
   const session = await auth();
   if (!session?.user?.id) return { session: null, plan: null, response: fail(API_ERRORS.UNAUTHORIZED, 401) };
-  const plan = await planOf({ id: Number(session.user.id), role: session.user.role });
-  if (!hasFeature(plan, feature)) {
-    log.info('plan feature refused', { userId: session.user.id, feature, plan });
-    return { session: null, plan, response: fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': requiredPlan(feature) } }) };
+  const access = await featureAccess({ id: Number(session.user.id), role: session.user.role });
+  if (!access.has(feature)) {
+    log.info('plan feature refused', { userId: session.user.id, feature, plan: access.plan });
+    return { session: null, plan: access.plan, response: fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': access.needs(feature) ?? 'none' } }) };
   }
-  return { session, plan, response: null };
+  return { session, plan: access.plan, response: null };
 }
 
 /** One lock per person for the length of a transaction: two tabs counting an allowance at once count once. */
@@ -219,7 +248,7 @@ async function lockAccount(tx: Tx, userId: number): Promise<void> {
   await tx.execute(sql`select pg_advisory_xact_lock(${7_301}, ${userId})`);
 }
 
-export type ProjectSlot = { ok: true } | { ok: false; plan: PlanId; limit: number; per: 'total' | 'month' };
+export type ProjectSlot = { ok: true } | { ok: false; plan: PlanId; limit: number | null; per: 'total' | 'month' };
 
 /**
  * Makes a project if the plan has room for one, in one transaction with the count and its
@@ -231,8 +260,9 @@ export async function withProjectSlot(account: PlanAccount, make: (tx: Tx) => Pr
     const r = await resolve(account, now, tx);
     if (!r.staff) {
       const used = await countProjects(r, account.id, tx);
-      const allowance = PROJECT_ALLOWANCE[r.plan];
-      if (projectsLeft(r.plan, used) <= 0) return { ok: false as const, plan: r.plan, limit: allowance.limit, per: allowance.per };
+      const allowance = projectAllowance(r.plan, r.config);
+      const left = projectsLeft(r.plan, used, r.config);
+      if (left != null && left <= 0) return { ok: false as const, plan: r.plan, limit: allowance.limit, per: allowance.per };
     }
     const id = await make(tx);
     await tx.insert(planUsage).values({ userId: account.id, kind: 'project', projectId: id, createdAt: now });
@@ -249,8 +279,8 @@ export async function takeFreeRender(account: PlanAccount, projectId: number, no
   return db.transaction(async (tx) => {
     await lockAccount(tx, account.id);
     const r = await resolve(account, now, tx);
-    if (r.plan !== 'professional') return null;
-    if (!r.staff && freeRendersLeft(r.plan, await countFreeRenders(r, account.id, tx)) <= 0) return null;
+    if (!can(r, 'renders')) return null;
+    if (!r.staff && freeRendersLeft(r.plan, await countFreeRenders(r, account.id, tx), r.config) <= 0) return null;
     const [row] = await tx.insert(planUsage).values({ userId: account.id, kind: 'render', projectId, createdAt: now }).returning({ id: planUsage.id });
     return { usageId: row.id };
   });

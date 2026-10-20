@@ -8,7 +8,7 @@ import { SubscribeDialog } from '@/components/plans/SubscribeDialog';
 import { usePlan } from '@/hooks/usePlan';
 import { fill } from '@/lib/admin/list';
 import { useT } from '@/lib/i18n/client';
-import { FREE_RENDERS_PER_MONTH, type BillingPeriod, type PaidPlanId } from '@/lib/plans/plans';
+import { freeRendersOf, plansWith, type BillingPeriod, type PaidPlanId } from '@/lib/plans/plans';
 import { formatGEL, formatNumber } from '@/lib/utils';
 
 /** The pricing page's body: the period, the three plans, what is paid apart, and how billing works. */
@@ -20,7 +20,10 @@ export function PricingView({ prices: serverPrices, bankFeePct }: { prices: Plan
   const [period, setPeriod] = useState<BillingPeriod>('month');
   const [buying, setBuying] = useState<PaidPlanId | null>(null);
   // The signed-in person's state carries the same prices; the server's are there for a visitor.
-  const prices = state ? { prices: state.prices, ownItemPrice: state.ownItemPrice, renderPrice: state.renderPrice } : serverPrices;
+  const prices = state ? { prices: state.prices, ownItemPrice: state.ownItemPrice, renderPrice: state.renderPrice, config: state.config } : serverPrices;
+  const planName = (plan: PaidPlanId) => (plan === 'premium' ? p.premium : p.professional);
+  const ownPlans = plansWith('ownItems', prices.config);
+  const renderPlans = plansWith('renders', prices.config);
   const saving = Math.round((1 - prices.prices.premium.year / (prices.prices.premium.month * 12)) * 100);
 
   return (
@@ -44,7 +47,7 @@ export function PricingView({ prices: serverPrices, bankFeePct }: { prices: Plan
           </span>
           <div>
             <h2 className="font-serif text-lg font-semibold">{p.extraOwnTitle}</h2>
-            <p className="mt-1 text-sm leading-relaxed text-ink-muted">{fill(p.extraOwnDesc, { price: formatGEL(prices.ownItemPrice) })}</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-muted">{fill(p.extraOwnDesc, { plans: ownPlans.map(planName).join(', ') || '—', price: formatGEL(prices.ownItemPrice) })}</p>
           </div>
         </div>
         <div className="flex gap-4 rounded-[20px] border border-line bg-bg-surface p-6">
@@ -53,7 +56,7 @@ export function PricingView({ prices: serverPrices, bankFeePct }: { prices: Plan
           </span>
           <div>
             <h2 className="font-serif text-lg font-semibold">{p.extraRenderTitle}</h2>
-            <p className="mt-1 text-sm leading-relaxed text-ink-muted">{fill(p.extraRenderDesc, { n: FREE_RENDERS_PER_MONTH, price: formatGEL(prices.renderPrice) })}</p>
+            <p className="mt-1 text-sm leading-relaxed text-ink-muted">{fill(p.extraRenderDesc, { plans: renderPlans.map(planName).join(', ') || '—', n: renderPlans[0] ? freeRendersOf(renderPlans[0], prices.config) : 0, price: formatGEL(prices.renderPrice) })}</p>
           </div>
         </div>
       </section>

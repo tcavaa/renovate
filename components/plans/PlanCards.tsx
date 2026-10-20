@@ -7,7 +7,7 @@ import { PlanName } from '@/components/plans/PlanBadge';
 import { fill } from '@/lib/admin/list';
 import { useT } from '@/lib/i18n/client';
 import { planLines } from '@/components/plans/planLines';
-import type { BillingPeriod, PaidPlanId, PlanId, PlanPrices } from '@/lib/plans/plans';
+import type { BillingPeriod, PaidPlanId, PlanConfig, PlanId, PlanPrices } from '@/lib/plans/plans';
 import type { OfferView, PlanState } from '@/lib/plans/server';
 import { cn, formatDateTime, formatGEL } from '@/lib/utils';
 
@@ -15,6 +15,8 @@ export interface PlanCardsPrices {
   prices: PlanPrices;
   ownItemPrice: number;
   renderPrice: number;
+  /** What admin set each plan to include. */
+  config: PlanConfig;
 }
 
 /**
@@ -53,6 +55,7 @@ export function PlanCards({
         const popular = plan === 'professional';
         const offer: OfferView | null = plan !== 'free' ? (state?.offers[plan][period] ?? null) : null;
         const monthly = plan === 'free' ? 0 : period === 'month' ? prices.prices[plan].month : prices.prices[plan].year / 12;
+        const included = planLines(t, plan, prices);
         const saving = plan === 'free' ? 0 : Math.round((1 - prices.prices[plan].year / (prices.prices[plan].month * 12)) * 100);
         return (
           <div
@@ -110,9 +113,9 @@ export function PlanCards({
             </div>
 
             <div className={cn('border-t border-line', compact ? 'mt-4 pt-4' : 'mt-6 pt-6')}>
-              <p className="text-sm font-semibold text-ink">{plan === 'free' ? p.whatsIncluded : plan === 'premium' ? p.allFreePlus : p.allPremiumPlus}</p>
+              <p className="text-sm font-semibold text-ink">{included.heading}</p>
               <ul className="mt-3 space-y-2.5">
-                {planLines(t, plan, prices).map((line) => (
+                {included.lines.map((line) => (
                   <li key={line} className="flex items-start gap-2.5 text-sm leading-relaxed text-ink-soft">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
                     {line}

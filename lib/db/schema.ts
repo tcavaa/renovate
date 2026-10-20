@@ -553,8 +553,14 @@ export const platformSettings = pgTable('platform_settings', {
   premiumYearPrice: numeric('premium_year_price', { precision: 8, scale: 2 }).default('120.00').notNull(),
   professionalMonthPrice: numeric('professional_month_price', { precision: 8, scale: 2 }).default('39.00').notNull(),
   professionalYearPrice: numeric('professional_year_price', { precision: 8, scale: 2 }).default('320.00').notNull(),
-  /** GEL for one realistic render past a Professional month's free ones; 0 = free. */
+  /** GEL for one realistic render past a month's free ones; 0 = free. */
   renderPrice: numeric('render_price', { precision: 8, scale: 2 }).default('7.00').notNull(),
+  /**
+   * What each plan includes (`PlanConfig`, lib/plans/plans.ts): its features, its projects, its
+   * free renders a month. NULL is the defaults; whatever is stored is read through
+   * `normalizePlanConfig`, so a missing or odd part is the default too.
+   */
+  planConfig: jsonb('plan_config'),
   /**
    * The store that supplies the construction materials of the rate book (blocks, plaster,
    * putty, pipes, cable…): a checkout sends the project's material lines to it as an order of

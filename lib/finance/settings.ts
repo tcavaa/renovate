@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { platformSettings, type PlatformSettingsRow } from '@/lib/db/schema';
 import { log } from '@/lib/log';
 import { DEFAULT_PLATFORM_SETTINGS, type PlatformSettings } from './money';
+import { DEFAULT_PLAN_CONFIG, normalizePlanConfig, type PlanConfig } from '@/lib/plans/plans';
 
 /**
  * The one row of `platform_settings`, or the defaults when it is empty or missing.
@@ -16,11 +17,13 @@ import { DEFAULT_PLATFORM_SETTINGS, type PlatformSettings } from './money';
 export interface PlatformSettingsWithMeta extends PlatformSettings {
   /** The store that supplies the rate book's construction materials; null = nobody yet. */
   materialsStoreId: number | null;
+  /** What each plan includes (docs/subscriptions.md), made whole. */
+  planConfig: PlanConfig;
   updatedAt: Date | null;
 }
 
 /** What admin's settings form may change. */
-export type PlatformSettingsPatch = Partial<PlatformSettings> & { materialsStoreId?: number | null };
+export type PlatformSettingsPatch = Partial<PlatformSettings> & { materialsStoreId?: number | null; planConfig?: PlanConfig };
 
 function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
   return {
@@ -36,6 +39,7 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
     professionalYearPrice: Number(row.professionalYearPrice),
     renderPrice: Number(row.renderPrice),
     materialsStoreId: row.materialsStoreId ?? null,
+    planConfig: normalizePlanConfig(row.planConfig),
     updatedAt: row.updatedAt,
   };
 }
@@ -43,11 +47,11 @@ function fromRow(row: PlatformSettingsRow): PlatformSettingsWithMeta {
 export async function loadPlatformSettings(): Promise<PlatformSettingsWithMeta> {
   try {
     const rows = await db.select().from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);
-    if (!rows[0]) return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, updatedAt: null };
+    if (!rows[0]) return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, planConfig: DEFAULT_PLAN_CONFIG, updatedAt: null };
     return fromRow(rows[0]);
   } catch (e) {
     log.warn('platform settings unavailable, using defaults', { err: e });
-    return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, updatedAt: null };
+    return { ...DEFAULT_PLATFORM_SETTINGS, materialsStoreId: null, planConfig: DEFAULT_PLAN_CONFIG, updatedAt: null };
   }
 }
 
@@ -77,6 +81,7 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     renderPrice: patch.renderPrice ?? current.renderPrice,
   };
   const materialsStoreId = patch.materialsStoreId !== undefined ? patch.materialsStoreId : current.materialsStoreId;
+  const planConfig = patch.planConfig ? normalizePlanConfig(patch.planConfig) : current.planConfig;
   const values = {
     calculatorFeePerM2: String(next.calculatorFeePerM2),
     designFeePerM2: String(next.designFeePerM2),
@@ -90,9 +95,10 @@ export async function savePlatformSettings(patch: PlatformSettingsPatch): Promis
     professionalYearPrice: String(next.professionalYearPrice),
     renderPrice: String(next.renderPrice),
     materialsStoreId,
+    planConfig,
   };
   const existing = await db.select({ id: platformSettings.id }).from(platformSettings).orderBy(asc(platformSettings.id)).limit(1);
   if (existing[0]) await db.update(platformSettings).set(values).where(eq(platformSettings.id, existing[0].id));
   else await db.insert(platformSettings).values(values);
-  return { ...next, materialsStoreId, updatedAt: new Date() };
+  return { ...next, materialsStoreId, planConfig, updatedAt: new Date() };
 }

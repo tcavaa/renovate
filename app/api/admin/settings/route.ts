@@ -1,5 +1,6 @@
 import { loadPlatformSettings, savePlatformSettings } from '@/lib/finance/settings';
 import { platformSettingsSchema } from '@/lib/validations/checkout.schema';
+import { normalizePlanConfig } from '@/lib/plans/plans';
 import { fail, handle, ok, requireAdmin } from '@/lib/api/route';
 import { log } from '@/lib/log';
 
@@ -17,7 +18,8 @@ export const PUT = handle('PUT /api/admin/settings', 'Failed to save settings', 
   if (admin.response) return admin.response;
   const parsed = platformSettingsSchema.safeParse(await req.json());
   if (!parsed.success) return fail(parsed.error.message, 400);
-  const saved = await savePlatformSettings(parsed.data);
+  const { planConfig, ...rest } = parsed.data;
+  const saved = await savePlatformSettings({ ...rest, ...(planConfig ? { planConfig: normalizePlanConfig(planConfig) } : {}) });
   log.info('platform settings changed', { by: admin.session.user.id, ...parsed.data });
   return ok(saved);
 });

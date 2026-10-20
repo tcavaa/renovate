@@ -34,8 +34,7 @@ at runtime yet; the last one was seen on the sample plan.
   Sentry's server tracing does not load (no server timings anywhere on Hobby); Next prefetches
   every dynamic page twice per link (route tree, then the page) — [operations.md](operations.md#known-gaps).
 
-- **Subscriptions, what is left**: studio edits are checked in the browser only (the design save
-  takes the scene whole), no reminder before a plan ends, subscriptions not in the revenue
+- **Subscriptions, what is left**: no reminder before a plan ends, subscriptions not in the revenue
   report, a photo own item paid for before photos become models, the old per-m² fee columns to
   drop — [subscriptions.md](subscriptions.md#known-gaps).
 

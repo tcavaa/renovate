@@ -475,7 +475,9 @@ the 3 key), the photo for a render and "add my own" are Professional's. The lock
 `PlanBadge` (the view switch, the photo and empty buttons, the shelf's catalogue and own-item
 buttons, the finishes shelf, the item card's "შეცვალე პროდუქტი" — whose header opens the dialogue —
 and its move row, the angle slider hidden), and the tray's hint says what the plan does not
-allow. The electric and technical trays are not gated.
+allow. The electric and technical trays are not gated. The save route checks the same on the
+server (`lib/plans/sceneGuard.ts`), so a refused change is the project banner's "plan" problem
+rather than a silent loss; restoring a kept version is a catalogue change too.
 
 ## Photos and renders
 

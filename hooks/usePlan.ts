@@ -42,6 +42,7 @@ export function usePlanGate() {
     [can, requestUpgrade]
   );
   /** The plan a locked feature asks for, for its badge. */
-  const needs = useCallback((feature: PlanFeature): PaidPlanId | null => (can(feature) ? null : requiredPlan(feature)), [can]);
+  // A feature admin gave to no paid plan still shows a lock: Professional's, the plan above all.
+  const needs = useCallback((feature: PlanFeature): PaidPlanId | null => (can(feature) ? null : (requiredPlan(feature, state?.config) ?? 'professional')), [can, state]);
   return { can, gate, needs, loaded };
 }

@@ -6,8 +6,8 @@ import { getLocale, getT } from '@/lib/i18n/server';
 import { log } from '@/lib/log';
 import { FlittError } from '@/lib/payments/flittApi';
 import { paidCredit, settleRecentPayments, startCardPayment } from '@/lib/payments/service';
-import { hasFeature, planPurchase, requiredPlan } from '@/lib/plans/plans';
-import { activateFreeUpgrade, liveSubscriptions, planOf, planPricesOf } from '@/lib/plans/server';
+import { planPurchase } from '@/lib/plans/plans';
+import { activateFreeUpgrade, featureAccess, liveSubscriptions, planPricesOf } from '@/lib/plans/server';
 import { startPaymentSchema } from '@/lib/validations/payment.schema';
 
 export const runtime = 'nodejs';
@@ -68,7 +68,8 @@ export const POST = handle('POST /api/payments/flitt', 'Failed to start the paym
 
     // An own item and a render: Professional's, a price each, a credit the upload spends.
     const feature = body.purpose === 'own_item' ? 'ownItems' : 'renders';
-    if (!hasFeature(await planOf(account), feature)) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': requiredPlan(feature) } });
+    const access = await featureAccess(account);
+    if (!access.has(feature)) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': access.needs(feature) ?? 'none' } });
     const price = body.purpose === 'own_item' ? settings.ownItemPrice : settings.renderPrice;
     if (price <= 0) return ok({ free: true });
     await settleRecentPayments({ userId, purpose: body.purpose });

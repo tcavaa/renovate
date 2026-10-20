@@ -11,6 +11,7 @@ import { forgetHalf, type ProjectHalf } from '@/lib/flow/projectSync';
 import { problemOf, useSaveProblems } from '@/lib/flow/saveQueue';
 import { CALCULATOR_HUB_HREF } from '@/lib/calculator/steps';
 import { DESIGN_HUB_HREF } from '@/lib/design/steps';
+import { usePlanStore } from '@/store/planStore';
 
 /**
  * Says so when a half of the open project could not be saved, and offers the way out. The work
@@ -25,6 +26,9 @@ import { DESIGN_HUB_HREF } from '@/lib/design/steps';
  *    more, and the way on is the hub.
  *  - **Signed out** — the session ran out: sign in in a new tab (this one holds the work), then
  *    try again.
+ *  - **Not in the plan** — the server refused a change the person's plan does not include (the
+ *    studio's locks, docs/subscriptions.md): go back to the design as saved, or see the plans
+ *    (once upgraded, "try again" saves it).
  *  - **No local copy** — this browser's storage is full, so the work is only in this tab until a
  *    save goes through: keep it open (it clears itself once a copy fits again).
  *  - **Anything else** — offline, the server down: try again (the next change tries anyway).
@@ -66,7 +70,9 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
             ? t.hub.signedOutText
             : problem === 'no-local-copy'
               ? t.hub.noLocalCopyText
-              : t.hub.saveErrorText;
+              : problem === 'plan'
+                ? t.plans.saveRefusedText
+                : t.hub.saveErrorText;
   const signInHref = `/login?callbackUrl=${encodeURIComponent(typeof window === 'undefined' ? '/' : window.location.pathname)}`;
   return (
     <div role="alert" className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-xl border border-warning/60 bg-white p-4 shadow-cardHover">
@@ -79,6 +85,18 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
           <Button size="sm" variant="ink" asChild>
             <Link href={half === 'calculator' ? CALCULATOR_HUB_HREF : DESIGN_HUB_HREF}>{t.hub.allProjects}</Link>
           </Button>
+        ) : problem === 'plan' ? (
+          <>
+            <Button size="sm" variant="outline" disabled={busy} onClick={loadLatest}>
+              {t.plans.saveRefusedRevert}
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => usePlanStore.getState().requestUpgrade({ feature: 'catalog' })}>
+              {t.plans.seePlans}
+            </Button>
+            <Button size="sm" variant="ink" disabled={busy} onClick={() => save(false)}>
+              {t.hub.retry}
+            </Button>
+          </>
         ) : problem === 'conflict' ? (
           <>
             <Button size="sm" variant="outline" disabled={busy} onClick={loadLatest}>

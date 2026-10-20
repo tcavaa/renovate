@@ -2,11 +2,14 @@
  * The plans and what each lets a person do (docs/subscriptions.md) — pure, no DB, shared by the
  * routes that enforce them and the pages that show them.
  *
- * Free makes two projects at most, sees its flat in 3D and the budget, and draws its plans.
- * Premium adds uploading a plan, the full catalogue (swapping furniture, laying floors and
- * walls) and moving the furniture, with five new projects a month. Professional adds the
+ * What each plan includes is admin's (`platform_settings.plan_config`, `/admin/settings`): which
+ * features it has, how many projects it makes, how many renders a month it includes. The
+ * defaults: Free makes two projects at most, sees its flat in 3D and the budget, and draws its
+ * plans; Premium adds uploading a plan, the full catalogue (swapping furniture, laying floors and
+ * walls) and moving the furniture, with five new projects a month; Professional adds the
  * walk-through, renders (three free a month, then a price each) and adding pieces of one's own
- * (a GLB or a photo, a price each), with ten new projects a month.
+ * (a GLB or a photo, a price each), with ten new projects a month. Every function takes the
+ * configuration, the defaults when none is given.
  */
 
 export type PlanId = 'free' | 'premium' | 'professional';
@@ -22,9 +25,10 @@ export function isPaidPlan(value: unknown): value is PaidPlanId {
 }
 
 /**
- * What a plan unlocks beyond seeing the flat and its budget.
+ * What a plan can unlock beyond seeing the flat, its budget and drawing its plan (which every
+ * plan has).
  *
- * - `planUpload` — reading an uploaded drawing (PDF or picture) into a plan; Free draws it.
+ * - `planUpload` — reading an uploaded drawing (PDF or picture) into a plan.
  * - `catalog` — changing what the flat is furnished and finished with: adding, swapping and
  *   removing furniture, floors and walls, wall decor, doors' and windows' products.
  * - `moveFurniture` — moving, turning and mirroring the furniture that stands.
@@ -36,54 +40,93 @@ export type PlanFeature = 'planUpload' | 'catalog' | 'moveFurniture' | 'walk' | 
 
 export const PLAN_FEATURES: readonly PlanFeature[] = ['planUpload', 'catalog', 'moveFurniture', 'walk', 'renders', 'ownItems'];
 
-const RANK: Record<PlanId, number> = { free: 0, premium: 1, professional: 2 };
+export function isPlanFeature(value: unknown): value is PlanFeature {
+  return typeof value === 'string' && (PLAN_FEATURES as readonly string[]).includes(value);
+}
 
-/** The lowest plan each feature comes with. */
-const FEATURE_PLAN: Record<PlanFeature, PaidPlanId> = {
-  planUpload: 'premium',
-  catalog: 'premium',
-  moveFurniture: 'premium',
-  walk: 'professional',
-  renders: 'professional',
-  ownItems: 'professional',
+/**
+ * What admin decides of each plan. `projects`: how many a plan may make — Free counts the
+ * projects the person has now (deleting one makes room), a paid plan the projects made in the
+ * current month of its subscription, kept or deleted since (`plan_usage`); null is no limit.
+ * `freeRenders`: the renders a month a plan with `renders` includes before each is paid for.
+ */
+export interface PlanConfig {
+  features: Record<PlanId, PlanFeature[]>;
+  projects: Record<PlanId, number | null>;
+  freeRenders: Record<PlanId, number>;
+}
+
+export const DEFAULT_PLAN_CONFIG: PlanConfig = {
+  features: {
+    free: [],
+    premium: ['planUpload', 'catalog', 'moveFurniture'],
+    professional: [...PLAN_FEATURES],
+  },
+  projects: { free: 2, premium: 5, professional: 10 },
+  freeRenders: { free: 0, premium: 0, professional: 3 },
 };
+
+const MAX_COUNT = 10_000;
+
+/**
+ * A stored configuration made whole: what is missing or not understood is the default, features
+ * are deduplicated and in their own order, counts whole and not negative. So a column written by
+ * an older form, or by hand, never breaks the plans.
+ */
+export function normalizePlanConfig(raw: unknown): PlanConfig {
+  const value = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof PlanConfig, Partial<Record<PlanId, unknown>>>>;
+  const out: PlanConfig = { features: { ...DEFAULT_PLAN_CONFIG.features }, projects: { ...DEFAULT_PLAN_CONFIG.projects }, freeRenders: { ...DEFAULT_PLAN_CONFIG.freeRenders } };
+  for (const plan of PLAN_IDS) {
+    const features = value.features?.[plan];
+    if (Array.isArray(features)) out.features[plan] = PLAN_FEATURES.filter((f) => features.includes(f));
+    const projects = value.projects?.[plan];
+    if (projects === null) out.projects[plan] = null;
+    else if (typeof projects === 'number' && Number.isFinite(projects)) out.projects[plan] = Math.min(MAX_COUNT, Math.max(0, Math.round(projects)));
+    const renders = value.freeRenders?.[plan];
+    if (typeof renders === 'number' && Number.isFinite(renders)) out.freeRenders[plan] = Math.min(MAX_COUNT, Math.max(0, Math.round(renders)));
+  }
+  return out;
+}
+
+const RANK: Record<PlanId, number> = { free: 0, premium: 1, professional: 2 };
 
 export function planRank(plan: PlanId): number {
   return RANK[plan];
 }
 
-/** The lowest plan that has this feature. */
-export function requiredPlan(feature: PlanFeature): PaidPlanId {
-  return FEATURE_PLAN[feature];
+export function hasFeature(plan: PlanId, feature: PlanFeature, config: PlanConfig = DEFAULT_PLAN_CONFIG): boolean {
+  return config.features[plan].includes(feature);
 }
 
-export function hasFeature(plan: PlanId, feature: PlanFeature): boolean {
-  return RANK[plan] >= RANK[FEATURE_PLAN[feature]];
+/** The paid plans that have a feature, lowest first — what an upgrade dialogue offers for it. */
+export function plansWith(feature: PlanFeature, config: PlanConfig = DEFAULT_PLAN_CONFIG): PaidPlanId[] {
+  return PAID_PLANS.filter((plan) => hasFeature(plan, feature, config));
+}
+
+/** The lowest paid plan that has this feature; null when admin gave it to none. */
+export function requiredPlan(feature: PlanFeature, config: PlanConfig = DEFAULT_PLAN_CONFIG): PaidPlanId | null {
+  return plansWith(feature, config)[0] ?? null;
 }
 
 /** Every feature, true or false, for a plan — what the browser is handed. */
-export function featuresOf(plan: PlanId): Record<PlanFeature, boolean> {
-  return Object.fromEntries(PLAN_FEATURES.map((f) => [f, hasFeature(plan, f)])) as Record<PlanFeature, boolean>;
+export function featuresOf(plan: PlanId, config: PlanConfig = DEFAULT_PLAN_CONFIG): Record<PlanFeature, boolean> {
+  return Object.fromEntries(PLAN_FEATURES.map((f) => [f, hasFeature(plan, f, config)])) as Record<PlanFeature, boolean>;
 }
 
-/**
- * How many projects a plan may make. Free counts the projects the person has (deleting one
- * makes room again); a paid plan counts the projects made in the current month of the
- * subscription, kept or deleted since (`plan_usage`).
- */
+/** How a plan's projects are counted: Free those it has, a paid plan those made this month of it. */
 export interface ProjectAllowance {
-  limit: number;
+  limit: number | null;
   per: 'total' | 'month';
 }
 
-export const PROJECT_ALLOWANCE: Record<PlanId, ProjectAllowance> = {
-  free: { limit: 2, per: 'total' },
-  premium: { limit: 5, per: 'month' },
-  professional: { limit: 10, per: 'month' },
-};
+export function projectAllowance(plan: PlanId, config: PlanConfig = DEFAULT_PLAN_CONFIG): ProjectAllowance {
+  return { limit: config.projects[plan], per: plan === 'free' ? 'total' : 'month' };
+}
 
-/** Renders a Professional month includes before each one is paid for. */
-export const FREE_RENDERS_PER_MONTH = 3;
+/** Renders a month a plan includes before each is paid for (none without the feature). */
+export function freeRendersOf(plan: PlanId, config: PlanConfig = DEFAULT_PLAN_CONFIG): number {
+  return hasFeature(plan, 'renders', config) ? config.freeRenders[plan] : 0;
+}
 
 /** The prices admin sets (`platform_settings`), GEL before the bank's commission. */
 export interface PlanPrices {
@@ -246,12 +289,13 @@ export function planPurchase(rows: readonly SubscriptionSpan[], plan: PaidPlanId
 // Allowances
 // ---------------------------------------------------------------------------
 
-/** Whether one more project may be made, from what has been counted. */
-export function projectsLeft(plan: PlanId, counted: number): number {
-  return Math.max(0, PROJECT_ALLOWANCE[plan].limit - counted);
+/** How many more projects may be made, from what has been counted; null when there is no limit. */
+export function projectsLeft(plan: PlanId, counted: number, config: PlanConfig = DEFAULT_PLAN_CONFIG): number | null {
+  const limit = config.projects[plan];
+  return limit == null ? null : Math.max(0, limit - counted);
 }
 
-/** A Professional month's free renders still to use; none on another plan. */
-export function freeRendersLeft(plan: PlanId, usedThisMonth: number): number {
-  return plan === 'professional' ? Math.max(0, FREE_RENDERS_PER_MONTH - usedThisMonth) : 0;
+/** The month's free renders still to use; none on a plan without renders. */
+export function freeRendersLeft(plan: PlanId, usedThisMonth: number, config: PlanConfig = DEFAULT_PLAN_CONFIG): number {
+  return Math.max(0, freeRendersOf(plan, config) - usedThisMonth);
 }

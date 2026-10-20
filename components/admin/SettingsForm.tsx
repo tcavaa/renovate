@@ -12,13 +12,15 @@ import { apiErrorMessage } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
 import { commissionFor, withBankFee, type PlatformSettings } from '@/lib/finance/money';
 import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
+import { PlanMatrix } from '@/components/admin/PlanMatrix';
+import type { PlanConfig } from '@/lib/plans/plans';
 
 /**
  * The platform's own prices — the plans' (docs/subscriptions.md), the commissions, what adding
  * an own item and a render cost, and the bank's commission every card payment shows — the
  * numbers the business model hangs on, so the form shows what they mean before you save.
  */
-export function SettingsForm({ initial, stores }: { initial: PlatformSettings & { materialsStoreId: number | null; updatedAt: string | null }; stores: Array<{ id: number; name: string }> }) {
+export function SettingsForm({ initial, stores }: { initial: PlatformSettings & { materialsStoreId: number | null; planConfig: PlanConfig; updatedAt: string | null }; stores: Array<{ id: number; name: string }> }) {
   const t = useT();
   const router = useRouter();
   const s = t.admin.settings;
@@ -34,6 +36,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
     bankFeePct: String(initial.bankFeePct),
     materialsStoreId: initial.materialsStoreId != null ? String(initial.materialsStoreId) : '',
   });
+  const [planConfig, setPlanConfig] = useState<PlanConfig>(initial.planConfig);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -59,6 +62,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
           ownItemPrice: num(form.ownItemPrice),
           bankFeePct: num(form.bankFeePct),
           materialsStoreId: form.materialsStoreId ? Number(form.materialsStoreId) : null,
+          planConfig,
         }),
       });
       const json = (await res.json()) as { error: string | null };
@@ -89,33 +93,24 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
     render: renderCharge.amount > 0 ? formatGEL(renderCharge.total, true) : s.ownItemFree,
   });
   const yearSaving = (month: string, year: string) => (num(month) > 0 ? Math.round((1 - num(year) / (num(month) * 12)) * 100) : 0);
-  const planField = (id: keyof typeof form, label: string) => (
-    <div className="space-y-2">
-      <Label htmlFor={`plan-${id}`}>{label}</Label>
-      <Input id={`plan-${id}`} type="number" step="0.5" min={1} value={form[id]} onChange={(e) => update(id, e.target.value)} />
-    </div>
-  );
 
   return (
     <form onSubmit={submit} className="space-y-6">
+      {/* The plans: what each includes and costs (docs/subscriptions.md). */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-serif">{s.plansTitle}</CardTitle>
+          <p className="text-sm text-ink-muted">{s.plansHint}</p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <PlanMatrix config={planConfig} onConfig={setPlanConfig} prices={form} onPrice={update} />
+          <p className="text-xs text-ink-muted">
+            {fill(s.yearSaving, { premium: yearSaving(form.premiumMonthPrice, form.premiumYearPrice), professional: yearSaving(form.professionalMonthPrice, form.professionalYearPrice) })}
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-serif">{s.plansTitle}</CardTitle>
-            <p className="text-sm text-ink-muted">{s.plansHint}</p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {planField('premiumMonthPrice', s.premiumMonth)}
-              {planField('premiumYearPrice', s.premiumYear)}
-              {planField('professionalMonthPrice', s.professionalMonth)}
-              {planField('professionalYearPrice', s.professionalYear)}
-            </div>
-            <p className="text-xs text-ink-muted">
-              {fill(s.yearSaving, { premium: yearSaving(form.premiumMonthPrice, form.premiumYearPrice), professional: yearSaving(form.professionalMonthPrice, form.professionalYearPrice) })}
-            </p>
-          </CardContent>
-        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="font-serif">{s.commissions}</CardTitle>
