@@ -7,8 +7,9 @@
  *
  * As with the proposal (`aiDesign.ts`) the model hands over no coordinates: it names an item by
  * its id and a replacement by a product id from that item's alternatives, every one of them checked
- * (`validateReview`); the store puts a replacement where the old piece stood only if it fits there
- * (`designStore.applyReview`). Any failure → no review, and the flat stays as the engine laid it.
+ * (`validateReview`); the server's generation job puts a replacement where the old piece stood only
+ * if it fits there (`reviewedScene` in `generateScene.ts`, `lib/api/designJob`). Any failure → no
+ * review, and the flat stays as the engine laid it.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -54,6 +55,8 @@ export interface AiReviewRequest {
   seed?: number;
   apiKey?: string;
   model?: string;
+  /** Lets the call go — the server's generation job gives it a deadline inside its function's 300 s. */
+  signal?: AbortSignal;
 }
 
 /** The pieces a room is for: replaced when wrong, never taken out. */
@@ -405,7 +408,7 @@ export async function reviewWithClaude(request: AiReviewRequest): Promise<{ revi
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: REVIEW_SCHEMA as unknown as Record<string, unknown> } },
     system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: [{ type: 'text', text: `Check this flat room by room.\n${text}` }] }],
-  });
+  }, { signal: request.signal });
   const response = await stream.finalMessage();
   if (response.stop_reason === 'refusal') throw new Error('The reviewer declined');
   if (response.stop_reason === 'max_tokens') throw new Error('The reviewer ran out of room');

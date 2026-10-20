@@ -47,6 +47,8 @@ export interface AiDesignRequest {
   previous?: { productIds: number[]; decorFamilies: string[] } | null;
   apiKey?: string;
   model?: string;
+  /** Lets the call go — the server's generation job gives it a deadline inside its function's 300 s. */
+  signal?: AbortSignal;
 }
 
 export interface AiDesignUsage {
@@ -485,7 +487,7 @@ export async function designWithClaude(request: AiDesignRequest): Promise<{ prop
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: DESIGN_SCHEMA as unknown as Record<string, unknown> } },
     system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: [{ type: 'text', text: `Design this flat.\n${text}` }] }],
-  });
+  }, { signal: request.signal });
   const response = await stream.finalMessage();
   if (response.stop_reason === 'refusal') throw new Error('The designer declined');
   if (response.stop_reason === 'max_tokens') throw new Error('The designer ran out of room');

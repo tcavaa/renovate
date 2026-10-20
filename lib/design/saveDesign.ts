@@ -19,6 +19,7 @@ import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/
 import type { SavedRow } from '@/lib/calculator/saveProject';
 import type { DesignVersion } from '@/lib/design/types';
 import { jsonBody } from '@/lib/flow/jsonBody';
+import { autosaveSignature, DESIGN_SAVED, pickFields } from '@/lib/flow/autosaveSignature';
 
 /**
  * The kept versions each store last had confirmed by the server. They run to megabytes (0.7 MB at
@@ -52,6 +53,19 @@ export function loadDesignVersions(projectId: number): Promise<void> {
 }
 
 const versionsInFlight = new Map<number, Promise<void>>();
+
+/**
+ * The autosave signature of what each project's last save wrote, when the design did not change
+ * while it was on its way. The autosave does not write the same content again (`alreadySaved`): a
+ * save made by the page (before a generation, the summary's button) used to be repeated by the
+ * autosave's timer a moment later — and before the server's generation job, a repeat moves the
+ * revision the job writes over.
+ */
+const confirmedSignature = new Map<number, string>();
+
+export function savedSignature(projectId: number): string | null {
+  return confirmedSignature.get(projectId) ?? null;
+}
 
 export function saveDesign(options: { draft: boolean; projectId?: number; force?: boolean }): Promise<SavedRow> {
   const id = options.projectId ?? activeProjectId();
@@ -90,7 +104,10 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
     if (s.versionsLoaded) versionsConfirmed.set(store, s.versions);
     store.setState({ baseRev: json.data.rev, pendingSaveId: null });
     useSaveProblems.getState().report('design', id, null);
-    if (unchanged) markClean('design', id);
+    if (unchanged) {
+      markClean('design', id);
+      confirmedSignature.set(id, autosaveSignature(pickFields(s, DESIGN_SAVED)));
+    }
     return { id: json.data.id, rev: json.data.rev };
   });
 }

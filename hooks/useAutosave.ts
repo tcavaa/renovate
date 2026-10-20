@@ -49,10 +49,13 @@ export function useAutosave({
   baselineKey,
   projectId,
   half,
+  alreadySaved,
 }: {
   enabled: boolean;
   signature: string;
   baselineKey?: string;
+  /** This signature was just written by a save of the page's own: it is not written again. */
+  alreadySaved?: (signature: string) => boolean;
   save: () => Promise<unknown>;
   onState?: (state: SaveState) => void;
   delayMs?: number;
@@ -68,6 +71,8 @@ export function useAutosave({
   const inFlight = useRef(0);
   const saveRef = useRef(save);
   const onStateRef = useRef(onState);
+  const enabledRef = useRef(enabled);
+  const alreadySavedRef = useRef(alreadySaved);
   const baselineSeen = useRef<string | undefined>(baselineKey);
   const loadedAt = useRef(0);
   const pendingBaseline = useRef(true);
@@ -85,6 +90,8 @@ export function useAutosave({
   useEffect(() => {
     saveRef.current = save;
     onStateRef.current = onState;
+    enabledRef.current = enabled;
+    alreadySavedRef.current = alreadySaved;
     latest.current = signature;
   });
 
@@ -143,6 +150,11 @@ export function useAutosave({
           return;
         }
       }
+      if (alreadySavedRef.current?.(signature)) {
+        lastSaved.current = signature;
+        if (inFlight.current === 0) markClean(half, projectId);
+        return;
+      }
       void run(signature);
     }, delayMs);
     return () => window.clearTimeout(handle);
@@ -163,13 +175,18 @@ export function useAutosave({
   }, [half, projectId, gone]);
 
   // Leaving the project, hiding the tab, closing it: what is waiting goes now — the state as it
-  // is, which is what the save sends (a signature waited for may have been undone since).
+  // is, which is what the save sends (a signature waited for may have been undone since). Not
+  // while the autosave is off: a design the server is generating is the server's to write.
   useEffect(() => {
     const flush = () => {
       const sig = latest.current;
-      if (waiting.current == null || sig === lastSaved.current || gone()) return;
+      if (!enabledRef.current || waiting.current == null || sig === lastSaved.current || gone()) return;
       if (pendingBaseline.current && !mustWrite()) return;
       waiting.current = null;
+      if (alreadySavedRef.current?.(sig)) {
+        lastSaved.current = sig;
+        return;
+      }
       pendingBaseline.current = false;
       void run(sig);
     };

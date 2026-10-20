@@ -5,29 +5,32 @@
  * walls, doors and windows, furniture, finishes, wiring — so the person sees what was made
  * from what they drew. The engine takes a few milliseconds; the pace here is for the person.
  *
- * With the AI designer (`ai`), the furniture, colours and decor steps and its check of every room
- * are its work and take as long as its two answers: the overlay holds on them, moving on every few
- * seconds but never past the last of them, until the flat is laid out and checked (`ready`), then
- * finishes the rest and opens the studio.
+ * With the AI designer (`ai`), the server's generation job is the pace (`stage`, as the style page
+ * last heard it — `lib/design/generationJob`): while it is designing the overlay moves through the
+ * designer's steps every few seconds but stops before the check; when it is checking it stands on
+ * the check; when it is done it finishes the rest and calls `onDone`.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Sparkles } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import type { GenerationStage } from '@/lib/design/generationJob';
 
-export function GenerationOverlay({ open, onDone, ai = false, ready = true }: { open: boolean; onDone: () => void; ai?: boolean; ready?: boolean }) {
+/** The AI steps' positions: the designer's own run from 2; the check is 6. */
+const DESIGNER_FROM = 2;
+const CHECK_STEP = 6;
+
+export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: { open: boolean; onDone: () => void; ai?: boolean; stage?: GenerationStage }) {
   const t = useT();
   const steps = ai
     ? [t.build.genWalls, t.build.genOpenings, t.decor.genAiStep1, t.decor.genAiStep2, t.decor.genAiStep3, t.decor.genAiStep4, t.decor.genAiStep5, t.build.genWiring]
     : [t.build.genWalls, t.build.genOpenings, t.build.genFurniture, t.build.genFinishes, t.build.genWiring];
-  /** The steps that wait for the designer: ticking stops at the last of them until `ready`. */
-  const holdAt = ai ? 6 : 0;
   const [done, setDone] = useState(0);
-  const readyRef = useRef(ready);
+  const stageRef = useRef(stage);
   const doneRef = useRef(onDone);
   useEffect(() => {
-    readyRef.current = ready;
+    stageRef.current = stage;
     doneRef.current = onDone;
   });
 
@@ -45,11 +48,20 @@ export function GenerationOverlay({ open, onDone, ai = false, ready = true }: { 
         timer = window.setTimeout(() => !cancelled && doneRef.current(), 450);
         return;
       }
-      // Holding on the designer's steps until the flat is laid out: looking again every moment,
-      // moving on a step every few seconds, never past the last of them.
-      if (ai && n >= 2 && !readyRef.current) {
-        timer = window.setTimeout(() => (heldMs >= 7000 && n < holdAt ? tick(n + 1) : tick(n, heldMs + 400)), 400);
-        return;
+      if (ai && n >= DESIGNER_FROM) {
+        const current = stageRef.current;
+        // How far the job's stage lets the steps go: before the check while designing, the check
+        // while checking, all of them once done.
+        const ceiling = current === 'done' || current === 'failed' ? steps.length : current === 'checking' ? CHECK_STEP : CHECK_STEP - 1;
+        if (n >= ceiling) {
+          timer = window.setTimeout(() => tick(n), 400);
+          return;
+        }
+        // While the designer works: a step every few seconds, looking again every moment.
+        if (current === 'designing') {
+          timer = window.setTimeout(() => (heldMs >= 7000 ? tick(n + 1) : tick(n, heldMs + 400)), 400);
+          return;
+        }
       }
       timer = window.setTimeout(() => tick(n + 1), ai ? 300 : 380);
     };
@@ -58,7 +70,7 @@ export function GenerationOverlay({ open, onDone, ai = false, ready = true }: { 
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // The step labels only change with the language; `ready` is read through its ref.
+    // The step labels only change with the language; `stage` is read through its ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ai]);
 

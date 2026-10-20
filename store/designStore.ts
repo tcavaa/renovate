@@ -22,21 +22,20 @@ import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import { applyReviewFixes, clearOfDecor, settleToWalls, underCeilingDecor, withoutArtOverDecor, proposalDecor, proposalNotes, proposalPicks, withProposalFinishes, type AiProposal } from '@/lib/design/aiProposal';
-import type { AiReview } from '@/lib/design/aiReview';
+import type { AiProposal } from '@/lib/design/aiProposal';
+import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
 import { reanchorDecor } from '@/lib/design/decor/resolve';
 import { decorMaterialFrom } from '@/lib/design/decor/resolve';
 import { slotTakes } from '@/lib/design/decor/families';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
-import { defaultFinish, finishFromProduct, generatedFinish, isStyleFinish, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
-import { randomSeed, seededRng, type Rng } from '@/lib/design/random';
+import { defaultFinish, finishFromProduct, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
+import { randomSeed } from '@/lib/design/random';
 import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
 import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
-import { layoutPlan } from '@/lib/design/autoLayout';
 import {
   DEFAULT_WALL_THICKNESS_M,
   deriveOpenings,
@@ -52,10 +51,10 @@ import { isAutoRoomName, nextRoomName, withRoomNames } from '@/lib/design/roomNa
 import { placeAdditional } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
 import { addOpening as addOpeningTo, mirrorHinge, mirrorSwing, moveOpening as moveOpeningIn, moveOpeningToWall as moveOpeningToWallIn, removeOpening as removeOpeningFrom, setOpeningProduct as setOpeningProductIn, setOpeningWall as setOpeningWallIn, twinOf, updateOpening as updateOpeningIn, withOpeningProducts, type WallTarget } from '@/lib/design/openings';
-import { addWalls, columnFootprints, ensureWalls, moveNode as moveWallNodeIn, moveWallEnd as moveWallEndIn, offsetWall as offsetWallIn, offsetWallAlone as offsetWallAloneIn, planWallThickness, rebuildRooms, moveRooms as moveRoomsIn, roomCluster, resizeWall as resizeWallIn, updateWall as updateWallIn, wallsBoundingRoom, wallsForRectangle, withBounds } from '@/lib/design/walls';
+import { addWalls, ensureWalls, moveNode as moveWallNodeIn, moveWallEnd as moveWallEndIn, offsetWall as offsetWallIn, offsetWallAlone as offsetWallAloneIn, planWallThickness, rebuildRooms, moveRooms as moveRoomsIn, roomCluster, resizeWall as resizeWallIn, updateWall as updateWallIn, wallsBoundingRoom, wallsForRectangle, withBounds } from '@/lib/design/walls';
 import { fittingClashes, fixtureCandidates, placeElectrical, reprojectElectrical, slideAlongWall, standardElectrical, suggestElectrical, withFixtureProduct, withFixtureProducts } from '@/lib/design/electrical';
 import { ELECTRICAL_KINDS, fixtureQuantity as fixtureQuantityOf } from '@/lib/design/electrical';
-import { technicalAnchors, technicalElevation, type TechnicalCheck } from '@/lib/design/technical';
+import { technicalElevation, type TechnicalCheck } from '@/lib/design/technical';
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';
@@ -232,6 +231,12 @@ interface DesignState {
   at: StudioStep | null;
   /** What the autosave is doing right now. Not persisted. */
   saveState: 'idle' | 'saving' | 'saved' | 'error';
+  /**
+   * The server is laying the flat out (a generation job — `lib/api/designJob`): the autosave
+   * writes nothing meanwhile, not even on leaving, because the job writes the design itself and
+   * only over the revision it started from. Not persisted.
+   */
+  autosaveHeld: boolean;
   /** Undo/redo. Not persisted. */
   history: History<DesignSnapshot>;
   /**
@@ -244,6 +249,8 @@ interface DesignState {
 
 export interface DesignActions {
   setSaveState: (state: DesignState['saveState']) => void;
+  /** Holds the autosave while the server generates the flat (`autosaveHeld`), or lets it go. */
+  holdAutosave: (held: boolean) => void;
   setMode: (mode: DesignMode) => void;
   /** Chooses the empty start (see `emptyStart`): design only, and the studio opened on empty rooms. */
   chooseEmptyStart: () => void;
@@ -370,13 +377,13 @@ export interface DesignActions {
   clearElectrical: () => void;
   // --- furniture ---
   /**
-   * Runs the layout engine and fills every slot from the catalogue. With the AI designer's
-   * proposal (`lib/design/aiProposal`), its product picks, finishes and decor are taken where they
-   * fit; without one — no key, an error, a bad answer — the engine's own draw, as always.
+   * Runs the layout engine and fills every slot from the catalogue (`generateScene`, from `seed`,
+   * a fresh one by default). With the AI designer's proposal (`lib/design/aiProposal`), its product
+   * picks, finishes and decor are taken where they fit; without one — no key, an error, a bad
+   * answer — the engine's own draw, as always. The designer's flat is laid out on the server
+   * (`lib/api/designJob`), by the same function.
    */
-  generate: (catalog: CatalogProduct[], proposal?: AiProposal | null) => void;
-  /** The designer's check of the flat just generated (`lib/design/aiReview`): its replacements and removals, and a note per room. */
-  applyReview: (review: AiReview, catalog: CatalogProduct[]) => void;
+  generate: (catalog: CatalogProduct[], proposal?: AiProposal | null, seed?: number) => void;
   /** A decor slot's material (null takes an optional slot's material away); a colour where the material takes one. */
   setDecorMaterial: (id: string, slot: DecorSlot, product: CatalogProduct | null) => void;
   setDecorColor: (id: string, slot: DecorSlot, colorHex: string | null) => void;
@@ -581,6 +588,7 @@ const initial: DesignState = {
   step: 1,
   at: null,
   saveState: 'idle',
+  autosaveHeld: false,
   history: emptyHistory(),
   planSerial: 0,
 };
@@ -662,6 +670,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
       return {
         ...initial,
         setSaveState: (saveState) => set({ saveState }),
+        holdAutosave: (autosaveHeld) => set({ autosaveHeld }),
 
         // Renovation needs a starting state to price from; white frame is the common case.
         // A renovation's home state is the person's to choose (step 1 asks before going on): none
@@ -1233,61 +1242,35 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => ({ decor: s.decor.filter((d) => d.id !== id), selectedElement: s.selectedElement?.kind === 'decor' && s.selectedElement.id === id ? null : s.selectedElement })),
 
         // --- furniture ---
-        generate: (catalog, proposal) => {
+        generate: (catalog, proposal, seed = randomSeed()) => {
           const { plan, styleId, budgetGel, calculatorPicks, generation } = get();
           if (!plan) return;
-          // Every generation draws its own seed: the same plan gives another layout, other
-          // products and other floors and walls each time (`lib/design/random`).
-          const rng = seededRng(randomSeed());
-          const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])), rng });
-          // A slot no partner product can fill is dropped rather than shown as a stand-in.
-          //
           // Laying the flat out is the journey's hinge, so it is not an undoable edit: the
           // versions kept for an earlier layout describe a flat that no longer exists and go
           // with it, and the history starts empty. One Ctrl+Z in the studio used to undo the
           // whole generation and leave every room bare — and, coming from the calculator,
           // carry on into the walls that were drawn there.
           set((s) => {
-            // The AI designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-            let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng, picks: proposalPicks(proposal) }));
-            // Every floor and wall is the style's product for its room — tiles in the bathroom,
-            // laminate and paint elsewhere — so the budget buys what the flat is shown in. Re-laying
-            // out the furniture is not a reason to lose the tiles someone picked. The designer's
-            // floors and walls replace the style's own draw.
-            let finishes = withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), s.finishes), plan, proposal, styleId, catalog);
-            if (calculatorPicks) {
-              items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
-              finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
-            }
-            // The wiring follows the furniture; a room the person wired by hand — on this
-            // board or on the calculation's — is kept whole. Points from before origins were
-            // recorded go, as they always did. Every fitting is bought as a product where the
-            // catalogue has one — and so is every door and window.
-            const known = s.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
-            const wired = withFixtureProducts(suggestElectrical(plan, items, known), catalog, styleId);
-            const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
-            const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
-            // A door, a window, a radiator, a socket or a light the calculation chose for the
-            // whole flat stays its choice — the catalogue's product, from its shop.
-            const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
-            // The designer's wall decor, measured against where the engine put the bed, the sofa,
-            // the TV unit (`proposalDecor`). An engine generation has none.
-            const decor = proposalDecor(laid, proposal, items, catalog);
-            // Tidied once everything stands: every wall piece back on its wall, nothing in the
-            // decor, the hanging lamps and ceiling points under a lowered ceiling hung from it.
-            items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
-            const ceiled = underCeilingDecor(items, dressed.electrical, decor, laid);
-            items = ceiled.items;
-            const aiCount = (generation?.aiCount ?? 0) + (proposal ? 1 : 0);
-            const record: GenerationRecord = proposal
-              ? { by: 'ai', model: proposal.model, at: new Date().toISOString(), notes: proposalNotes(proposal), aiCount }
-              : { by: 'engine', at: new Date().toISOString(), aiCount };
+            // The same layout the server's generation job makes (`lib/design/generateScene`).
+            const laid = generateScene({
+              plan,
+              styleId,
+              budgetGel,
+              catalog,
+              proposal,
+              finishes: s.finishes,
+              electrical: s.electrical,
+              calculatorPicks,
+              seed,
+              at: new Date().toISOString(),
+              aiCount: (generation?.aiCount ?? 0) + (proposal ? 1 : 0),
+            });
             return {
-              items,
-              finishes,
-              decor,
-              generation: record,
-              electrical: ceiled.electrical,
+              items: laid.items,
+              finishes: laid.finishes,
+              decor: laid.decor,
+              generation: laid.generation,
+              electrical: laid.electrical,
               // The studio opens on the whole flat. A room picked out on the plan or the
               // technical board is that board's selection; kept, it showed the new layout one
               // room at a time.
@@ -1296,7 +1279,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               selectedElement: null,
               carryingItemId: null,
               carryRestore: null,
-              ...(dressed.plan !== plan ? { plan: dressed.plan } : {}),
+              ...(laid.plan !== plan ? { plan: laid.plan } : {}),
               generated: true,
               versions: [],
               versionsLoaded: true,
@@ -1305,17 +1288,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             };
           });
         },
-
-        applyReview: (review, catalog) =>
-          set((s) => {
-            if (!s.plan || !s.generation) return {};
-            const fixed = applyReviewFixes(s.items, s.decor, review, s.plan, catalog);
-            const items = placeableOnly(fixed.items);
-            // The room's note after the check says how it reads now; the designer's first note stays before it.
-            const notes = { ...(s.generation.notes ?? {}) };
-            for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
-            return { items, decor: fixed.decor, generation: { ...s.generation, notes, reviewed: review.fixes.length } };
-          }),
 
         clearDesign: () =>
           commit((s) => ({
@@ -1984,11 +1956,6 @@ function versionOf(s: DesignState, name: string, kind: DesignVersion['kind']): D
   };
 }
 
-/** Keeps only the items that ended up with a real partner model behind them. */
-function placeableOnly(items: PlacedItem[]): PlacedItem[] {
-  return items.filter((item) => !!item.product?.model3dUrl);
-}
-
 /**
  * A room that has just become a studio is divided the default way (kitchen a third, across
  * the longer side); a room that stopped being one lets go of its line.
@@ -1998,19 +1965,6 @@ function withStudioLine(room: PlanRoom): PlanRoom {
   if (!room.split) return room;
   const { split: _split, ...rest } = room;
   return rest;
-}
-
-/**
- * Every room's finishes as the style lays them: its floor and walls as the partner products
- * they are when the catalogue is to hand (`styleFinish`), its ceiling and mouldings as the
- * style's look. Without a catalogue the floor and walls are the look alone, until one comes
- * (`ensureFinishProducts`).
- */
-/** Every room's floor, walls, ceiling and mouldings as the style lays them — drawn from the style's kind of finish when generating (`rng`, `generatedFinish`). */
-function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = [], rng?: Rng): SurfaceFinish[] {
-  if (!plan) return [];
-  const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, rng)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
 }
 
 /**
@@ -2058,21 +2012,6 @@ function measured(room: PlanRoom, finish: SurfaceFinish): SurfaceFinish {
   const qty = finishQuantity(room, finish);
   if (Math.abs(qty - finish.product.qty) < 1e-9) return finish;
   return { ...finish, product: { ...finish.product, qty, totalPrice: round2(finish.product.pricePerUnit * qty) } };
-}
-
-/**
- * Defaults, except where a room already has a finish somebody chose; single walls and zones
- * ride along. The style's own product is kept too, unless the defaults could look the style
- * up again — a new layout, with the catalogue to hand, lays the style's product for each room
- * as it is now; an edit to the plan has no catalogue, and keeps what the style had laid.
- */
-function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): SurfaceFinish[] {
-  const base = defaults.map((d) => {
-    const kept = current.find((c) => c.roomId === d.roomId && c.surface === d.surface && isBaseFinish(c) && c.product);
-    return !kept || (isStyleFinish(kept) && d.product) ? d : kept;
-  });
-  const extras = current.filter((c) => !isBaseFinish(c) && defaults.some((d) => d.roomId === c.roomId));
-  return [...base, ...extras];
 }
 
 /** A wall a person moved is theirs from then on. */

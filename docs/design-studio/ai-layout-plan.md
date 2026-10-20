@@ -4,7 +4,9 @@
 route (`/api/design/ai-generate`), the brief and candidates, one Claude call per flat with a
 validated structured answer, product picks the matcher takes where they fit (`MatchOptions.picks`),
 floors and walls per room, decor intents resolved against the engine's layout, the per-design cap
-(`MAX_AI_GENERATIONS`) and the generation record are in. **Not built:** the rules module
+(`MAX_AI_GENERATIONS`) and the generation record are in, and the generation runs on the server
+as a job that finishes with the page closed — the proposal laid out by `generateScene`, the
+function the store's `generate` runs (`lib/api/designJob.ts`). **Not built:** the rules module
 (`lib/design/rules.ts`) and its scoring, layout constraints per piece (phase 2), the evaluation set,
 the retry with violations, explanations in the studio beyond the decor card's note.
 

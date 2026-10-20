@@ -35,6 +35,7 @@ deployments run).
 | `lib/api/rateLimit.ts`, `lib/api/counterStore.ts` | per-IP sliding-window limits (`RATE_RULES`) in the shared `rate_limits` table |
 | `lib/api/body.ts`, `lib/flow/jsonBody.ts` | gzipped JSON bodies and answers past Vercel's 4.5 MB ([below](#request-and-response-size)) |
 | `lib/api/after.ts` | `afterResponse()`: work after the answer that Vercel waits for |
+| `lib/api/designJob.ts` | the AI designer's generation as a server job in two invocations ([below](#the-pieces), [design-studio/decor.md](design-studio/decor.md#the-ai-designer)) |
 | `app/api/health/route.ts` | `GET /api/health` |
 | `app/api/cron/cleanup/route.ts` | the daily sweep Vercel Cron calls |
 | `lib/storage/index.ts`, `supabase.ts`, `local.ts` | uploads: `STORAGE_DRIVER=supabase|local` ([uploads.md](uploads.md)) |
@@ -89,7 +90,7 @@ built during the test — [Deploying](#deploying)):
 | `STORAGE_DRIVER` | `supabase` | `local` is refused on Vercel (a read-only disk) |
 | `SUPABASE_URL` | `https://qmcdocpcrbjqgcopzcgd.supabase.co` | also read at **build** time, for the CSP |
 | `SUPABASE_SECRET_KEY` | the project's secret key (`sb_secret_…`) | sensitive; storage writes and signed upload URLs |
-| `AUTH_SECRET` | 48 random bytes | sensitive |
+| `AUTH_SECRET` | 48 random bytes | sensitive; also signs the generation job's request to itself (`jobToken`) |
 | `CRON_SECRET` | 32 random bytes | sensitive; Vercel Cron sends it to `/api/cron/*` |
 | `NEXT_PUBLIC_APP_URL` | `https://renovatege.vercel.app` | baked in at build: Flitt's callback, mail links |
 | `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_ENVIRONMENT`, `SENTRY_AUTH_TOKEN` | the Sentry project's; environment `vercel` | [below](#errors-go-to-sentry) |
@@ -137,6 +138,20 @@ Locally `.env.local` points at a local Postgres (`DATABASE_URL=postgresql://loca
   files), rate-limit and lockout counters two days stale, and floor plans no project refers to
   after a day. Vercel sends `Authorization: Bearer $CRON_SECRET`; anyone else gets a 401. Run it
   by hand: `curl -H "Authorization: Bearer $CRON_SECRET" https://renovatege.vercel.app/api/cron/cleanup`.
+- **Long work runs after the answer, inside the function's 300 s.** `after()` (`afterResponse`)
+  keeps the function alive after it has answered, but the work counts towards that function's
+  `maxDuration` **from the request's start**. The AI designer's generation is therefore a job in
+  two invocations, each with its own 300 s (`lib/api/designJob.ts`, table `design_jobs`):
+  `POST /api/design/ai-generate` answers 202 at once and then designs (one Claude call, let go after
+  240 s), lays the flat out and writes it; it then starts the check with a request of its own to
+  `POST /api/design/ai-review` on the origin it was called on — signed with an HMAC of the job id
+  under `AUTH_SECRET`, so nothing else can — which answers 202 at once and checks every room (let go
+  after 200 s) and writes the flat laid out. Measured locally on the 150 m² sample flat (21 Oct
+  2026): 91 s and $0.33 for the design, 35 s and $0.13 for the check. Both routes declare
+  `maxDuration = 300`, the most a Hobby function may run; a stage whose function died is settled
+  when the job is next read (after 6 minutes). The request to itself goes to the production domain
+  (`renovatege.vercel.app`), which is outside Vercel's deployment protection, as Flitt's callback
+  needs it to be; a protected preview URL would refuse it and the flat would open unchecked.
 - **Mail** goes through `lib/email.ts` (`MAIL_DRIVER=log|smtp`). With `log` the reset and
   verification links are written to the log — on Vercel, its runtime logs. `smtp` needs
   `SMTP_HOST`/`PORT`/`USER`/`PASSWORD` (port 587 or 465: Vercel lets nothing out on port 25);

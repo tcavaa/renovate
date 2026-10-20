@@ -282,6 +282,10 @@ removing a cache (`safeLocalStorage.removeItem`, a store's `drop`) cancels its w
 - **It never drops an id above the newest listed**: a hub restored by Back holds a list older
   than a project made since.
 - `forgetProject(id)` removes a project whole (`DeleteProjectButton`).
+- `dropCachedCopy(half, id)` lets go of a half's cache and line but not of its stores in memory,
+  for a page about to load again that must read the half from the server: the style page, once the
+  server's generation job has written the design, then loads the studio (the conflict banner's
+  "load the latest" does the same with `forgetHalf` and a reload).
 
 ## 10. Saving
 
@@ -315,6 +319,18 @@ removing a cache (`safeLocalStorage.removeItem`, a store's `drop`) cancels its w
   waiting or on its way — otherwise a reload here took the server's copy over it.
 - **Stops.** Nothing is saved for a project that is gone. Autosaves have their own rate bucket
   (`RATE_RULES.autosave`, 400 an hour).
+- **A save the page made is not repeated.** The design's save helper records the signature of what
+  it wrote when nothing changed while it was on its way (`savedSignature` in
+  `lib/design/saveDesign.ts`), and the design's autosave does not write that signature again
+  (`alreadySaved` — on its timer and on leaving). The hinge's save, the summary's button and a
+  photo's save used to be written twice, the second a moment later; before the server's generation
+  job, the second write moved the revision the job writes over.
+- **Held while the server generates the flat.** While the style page waits on a generation job
+  (`designStore.autosaveHeld`, [design-studio/decor.md](design-studio/decor.md#the-ai-designer))
+  the design's autosave is off — no write, no unsaved mark, no flush on leaving (`useAutosave`
+  flushes only while enabled): the job writes the design over the revision it started from. The
+  page lets it go when the job comes to nothing (the engine then lays the flat out here) and when
+  the page is left for another step, where a change is saved as usual and wins over the job.
 
 ### The save helpers and the queue (`lib/calculator/saveProject.ts`, `lib/design/saveDesign.ts`, `lib/flow/saveQueue.ts`)
 
@@ -379,7 +395,12 @@ first too.
 **What each route writes.**
 - **The calculation**, while pending, gets no pricing and no totals.
 - **The design** is repriced from the catalogue first (furniture per slot, finishes per m²,
-  doors, fittings, radiators). A product the catalogue does not know refuses the save.
+  doors, fittings, radiators). A product the catalogue does not know refuses the save. The columns
+  are worked out by `designWriteColumns` (`lib/api/designWrite.ts`) and the plan's locks checked by
+  `refusedDesignChange`; **the server's generation job writes the design with the same two**
+  (`lib/api/designJob.ts`), over the revision it started from (`baseRev`, then `baseRev + 1` for
+  the check), its save id `job-<id>-design` / `job-<id>-review`, in one transaction with the job's
+  stage — a design that moved on under it is never written over.
 - **Column ownership** (§15).
 
 **The write itself.**
@@ -457,7 +478,10 @@ looking back before forward in the project's own order.
   answered (`modeChosen`); a flat drawn in the calculator has 1–2 shut; the technical step and
   the style test need rooms. A flat laid out and then emptied of every room counts as not laid
   out. `at` is trusted (the design records `step` only on its "next" buttons, so a flat left
-  half drawn has `step` 1 and `at` 2).
+  half drawn has `step` 1 and `at` 2). **A flat the server is generating** is not laid out until
+  its check is written (the design stage writes it with `generated` false), so a project opened
+  meanwhile reopens on the style step, which finds the job and waits on it; the check's write sets
+  `generated`, `step` 5 and `at` 5, and the project then opens in the studio.
 
 The design entry also carries a calculation in first when it has to (§15). **`step` only moves
 forward** — `StepIndicator` records a step only when the page really has it to show and only when
@@ -602,7 +626,10 @@ to save gets the conflict banner.
   swap and paint.
 - **Integration** (`tests/integration/save-routes.test.ts`): sign-in and ownership, conflicts,
   own-unconfirmed saves, the racing write, column ownership, per-room quantities on the server,
-  create and rename.
+  create and rename. `tests/integration/design-job.test.ts`: the server's generation
+  job's writes over their revisions, a design changed under it, a dead job settled;
+  `tests/unit/design/generationJob.test.ts`: what the style page does with a job, also on opening
+  the project again.
 - **e2e** (`e2e/design-studio.spec.ts`): registers an account, makes a project from the hub and
   checks it reopens where it was left (needs the DB; not in CI).
 
@@ -619,6 +646,10 @@ the repository), and remove `.next-build` afterwards; never build over :3000):
   and open `/calculator/<id>` — it must come back exactly, on the page left.
 - *The handoff*: calculate, "see it in 3D" (style step, `planFromCalculator`), generate, then
   "see it in 3D" again from the summary — the studio, with the same furniture and versions.
+- *A generation with the page closed*: on a TEST project (a key on the server), "generate", wait
+  for the overlay, close the tab; `design_jobs` goes `designing` → `checking` → `done` and the
+  project, opened again, lands in the studio furnished (`generation.reviewed` set). Opened while
+  the job runs, it lands on the style step with the overlay on the job's stage.
 
 ## 17. Pitfalls already paid for
 

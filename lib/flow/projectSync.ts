@@ -95,6 +95,17 @@ export function forgetHalf(half: ProjectHalf, id: number): void {
   safeLocalStorage.removeItem(lineKey(half, id));
 }
 
+/**
+ * Lets go of this browser's copy of a half — its cache and its line — when the page is about to
+ * load again and should read the half from the server: the server wrote it (the design's
+ * generation job, `lib/api/designJob`). The stores in memory stay as they are until the page
+ * goes, so what is on screen does not empty under the person meanwhile.
+ */
+export function dropCachedCopy(half: ProjectHalf, id: number): void {
+  for (const store of storesOf(half)) safeLocalStorage.removeItem(store.storageKey(id));
+  safeLocalStorage.removeItem(lineKey(half, id));
+}
+
 /** Forgets a project in this browser: its three caches, their stores in memory, and what is known about them. */
 export function forgetProject(id: number): void {
   forgetHalf('calculator', id);

@@ -1,25 +1,13 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { isDesignPending, projectKind } from '@/lib/projects/saved';
 import { db } from '@/lib/db';
 import { projects } from '@/lib/db/schema';
 import { auth } from '@/auth';
 import { saveDesignSchema } from '@/lib/validations/design.schema';
-import { planToCalculatorRooms, totalFloorAreaM2 } from '@/lib/design/planGeometry';
-import { decorProductIds } from '@/lib/design/decor/quantities';
-import { isDecorUnit } from '@/lib/design/decor/materials';
-import { priceScene } from '@/lib/design/pricing';
-import { quantityFor } from '@/lib/design/matcher';
-import { isCustomKitchenItem, kitchenFacadeM2 } from '@/lib/design/kitchen';
-import { finishQuantity } from '@/lib/design/finishQuantity';
-import { isTrimSurface } from '@/lib/design/trims';
-import type { DesignScene, FloorPlan } from '@/lib/design/types';
+import type { DesignScene, DesignVersion, FloorPlan } from '@/lib/design/types';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
-import { loadProductPrices, planProductIds, repriceFinishSnapshot, repricePlan, repriceSnapshot } from '@/lib/api/productPrices';
 import { ownProject } from '@/lib/api/projectSave';
-import { loadRateBook } from '@/lib/api/rateBook';
+import { designWriteColumns, refusedDesignChange } from '@/lib/api/designWrite';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
-import { calculatorPickIds, refusedSceneChange } from '@/lib/plans/sceneGuard';
-import { featureAccess } from '@/lib/plans/server';
 import { readJson } from '@/lib/api/body';
 
 export const runtime = 'nodejs';
@@ -45,155 +33,29 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   // other. Unless the write it follows is this browser's own, which landed with no answer.
   const ownUnconfirmed = prevSaveId != null && existing.designSaveId === prevSaveId && baseRev === existing.designRev - 1;
   if (!force && baseRev != null && baseRev < existing.designRev && !ownUnconfirmed) return fail('PROJECT_CHANGED', 409);
-  // The home's condition belongs to the calculation when the project has one; the studio's own
-  // choice counts only in a project designed first.
-  const calculatorOwns = existing.selectedProducts != null;
-  const calculatorDone = calculatorOwns && !projectKind(existing).calculatorPending;
-  const homeState = (calculatorOwns ? existing.homeState : parsed.data.homeState) ?? null;
-  const submittedPlan = parsed.data.plan as FloorPlan;
-  const submitted = parsed.data.scene as DesignScene;
+  const plan = parsed.data.plan as FloorPlan;
+  const scene = parsed.data.scene as DesignScene;
 
   // The studio's locks, here too (docs/subscriptions.md): against the design stored, a change the
   // plan does not allow — furniture or a finish changed, a piece moved — is refused, so the
   // browser's locks are not the only ones. What happens by itself on every plan (a generation,
   // the designer's check, the calculator's picks, a wall moved) passes (`refusedSceneChange`).
-  const access = await featureAccess({ id: userId, role: session?.user?.role });
-  const catalog = access.has('catalog');
-  const moveFurniture = access.has('moveFurniture');
-  if (!catalog || !moveFurniture) {
-    const refused = refusedSceneChange(
-      { plan: existing.plan as FloorPlan | null, scene: existing.scene as DesignScene | null },
-      { plan: submittedPlan, scene: submitted },
-      { catalog, moveFurniture, picks: calculatorPickIds(existing.selectedProducts, existing.selectedFurniture) }
-    );
-    if (refused) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': access.needs(refused) ?? 'none', 'X-Plan-Feature': refused } });
-  }
-  const roomsById = new Map(submittedPlan.rooms.map((r) => [r.id, r]));
+  const refused = await refusedDesignChange(existing, { plan, scene }, { id: userId, role: session?.user?.role });
+  if (refused) return fail(API_ERRORS.PLAN_REQUIRED, 402, { headers: { 'X-Plan-Required': refused.plan ?? 'none', 'X-Plan-Feature': refused.feature } });
 
-  // The client's prices and quantities are a preview. Every product snapshot in the scene is
-  // repriced from the catalogue and re-quantified from the slot or the room before anything
-  // is summed or stored, so a figure edited in devtools never becomes the record. That
-  // goes for the plan's snapshots as much as the scene's: a door, a socket and a radiator
-  // are order lines a store is sent, exactly as a sofa is.
-  const known = await loadProductPrices([
-    ...[...submitted.items.flatMap((i) => [i.product?.productId, i.kitchenMaterial?.productId]), ...submitted.finishes.map((f) => f.product?.productId)].filter((id): id is number => typeof id === 'number'),
-    ...decorProductIds(submitted.decor),
-    ...planProductIds(submittedPlan, submitted.electrical ?? []),
-  ]);
-
-  // Doors and windows are bought one apiece; a radiator by the section, as many as its room
-  // calls for; a double socket is two plates and a strip is bought by the metre (`repricePlan`).
-  const { plan, electrical, unknown: unknownProducts } = repricePlan(submittedPlan, submitted.electrical, known);
-  if (unknownProducts.length > 0) return fail(`Unknown product ${unknownProducts[0]}`, 400);
-
-  const scene: DesignScene = { ...submitted, items: [], finishes: [], ...(electrical ? { electrical } : {}), ...(submitted.decor ? { decor: [] } : {}) };
-  for (const item of submitted.items) {
-    // A made-to-measure kitchen's material is bought by the façade the piece has (`lib/design/kitchen`),
-    // and only a product the catalogue sells by the m² is one: anything else is dropped, and the
-    // kitchen is the joiner's estimate again rather than a per-piece price times square metres.
-    let kitchenMaterial = item.kitchenMaterial;
-    if (kitchenMaterial) {
-      const repriced = repriceSnapshot(kitchenMaterial, known, kitchenFacadeM2(item));
-      if (!repriced) return fail(`Unknown product ${kitchenMaterial.productId}`, 400);
-      kitchenMaterial = known.get(kitchenMaterial.productId)?.unit === 'm2' ? { ...repriced, unit: 'm2' } : undefined;
-    }
-    const { kitchenMaterial: _sent, ...bare } = item;
-    // A kitchen that was made to measure stays so with its material dropped — the estimate —
-    // rather than turning into a shop's unit at its model's price (`isCustomKitchenItem`).
-    const madeToMeasure = isCustomKitchenItem(item) ? { custom: true } : {};
-    const withMaterial = kitchenMaterial ? { ...bare, ...madeToMeasure, kitchenMaterial } : { ...bare, ...madeToMeasure };
-    if (!item.product) {
-      scene.items.push(withMaterial);
-      continue;
-    }
-    const product = repriceSnapshot(item.product, known, quantityFor(item));
-    if (!product) return fail(`Unknown product ${item.product.productId}`, 400);
-    scene.items.push({ ...withMaterial, product });
-  }
-  for (const finish of submitted.finishes) {
-    if (!finish.product) {
-      scene.finishes.push(finish);
-      continue;
-    }
-    const room = roomsById.get(finish.roomId);
-    if (!room) return fail(`Unknown room ${finish.roomId}`, 400);
-    // What the finish covers decides the quantity (one wall, a strip, a zone, painted tiles,
-    // the whole room); a moulding is sold by the metre at its own price, the rest per m².
-    const quantity = finishQuantity(room, finish);
-    const product = isTrimSurface(finish.surface) ? repriceSnapshot(finish.product, known, quantity) : repriceFinishSnapshot(finish.product, known, quantity);
-    if (!product) return fail(`Unknown product ${finish.product.productId}`, 400);
-    scene.finishes.push({ ...finish, product });
-  }
-
-  // Decor: each material is the catalogue's at its price and unit now — the budget measures how
-  // much a piece uses from its geometry (`decorPurchases`), so only the unit price is taken from here.
-  // A material the catalogue no longer sells by a unit decor can be measured in is dropped from its slot.
-  for (const piece of submitted.decor ?? []) {
-    if (!roomsById.has(piece.roomId)) continue;
-    const materials: typeof piece.materials = {};
-    for (const [slot, material] of Object.entries(piece.materials) as Array<[keyof typeof piece.materials, NonNullable<(typeof piece.materials)[keyof typeof piece.materials]>]>) {
-      if (!material.product) {
-        materials[slot] = material;
-        continue;
-      }
-      const price = known.get(material.product.productId);
-      const repriced = repriceSnapshot(material.product, known, 1);
-      if (!price || !repriced) return fail(`Unknown product ${material.product.productId}`, 400);
-      if (!isDecorUnit(price.unit)) continue;
-      materials[slot] = { ...material, product: { ...repriced, unit: price.unit } };
-    }
-    scene.decor!.push({ ...piece, materials });
-  }
-
-  // Same rate book the studio's cost bar used, so a `full`-mode save matches the preview.
-  const cost = priceScene(plan, scene, { homeState: homeState ?? undefined, book: await loadRateBook() });
-  const rooms = planToCalculatorRooms(plan);
-
-  const designColumns = {
-    // The columns the two halves share are the calculation's once it exists: its home state,
-    // its rooms and area, and — once it has been worked out — the renovation it makes of the
-    // project. The design writes them only for a project designed first.
-    ...(calculatorOwns ? {} : { homeState, totalM2: String(totalFloorAreaM2(plan)), rooms }),
-    ...(calculatorDone ? {} : { mode: scene.mode }),
-    styleId: scene.styleId,
-    budgetGel: scene.budgetGel != null ? String(scene.budgetGel) : null,
-    floorPlanUrl: floorPlanUrl ?? plan.imageUrl ?? null,
-    plan,
-    scene,
-    // Versions are snapshots the person keeps to come back to; they are stored as sent (the
-    // live scene above is the one that is repriced).
-    ...(versions ? { versions } : {}),
-  };
-  // Autosaved before it was generated: the flat and the choices so far are kept, but its
-  // budget is not the project's total yet (in a renovation it would be the works alone).
-  const pending = isDesignPending(scene);
-  const costColumns = {
-    totalMaterialsCost: String(cost.materialsTotal + cost.finishesTotal + cost.technicalTotal + cost.openingsTotal),
-    totalFurnitureCost: String(cost.furnitureTotal),
-    totalWorkersCost: String(cost.labourTotal),
-    // What to plan with, as the calculator stores it: the sheet and a renovation's contingency.
-    totalCost: String(Math.round((cost.grandTotal + cost.contingencyTotal) * 100) / 100),
-  };
-  const noCosts = { totalMaterialsCost: null, totalFurnitureCost: null, totalWorkersCost: null, totalCost: null };
+  // Repriced from the catalogue and its budget worked out here (`designWriteColumns`), as the
+  // server's own generation writes it.
+  const write = await designWriteColumns(existing, { plan, scene, homeState: parsed.data.homeState ?? null, floorPlanUrl: floorPlanUrl ?? null, versions: versions as DesignVersion[] | undefined, draft: !!draft });
+  if (!write.ok) return fail(write.error, write.status);
 
   // Writing into the project keeps whatever calculator half it already has.
   const written = await db
     .update(projects)
-    .set({
-      ...designColumns,
-      // A calculation already worked out keeps the scene a renovation, whatever this copy says.
-      ...(calculatorDone && scene.mode !== 'full' ? { scene: { ...scene, mode: 'full' as const } } : {}),
-      // A pending design leaves a finished calculation's totals where they are.
-      ...(pending ? (calculatorDone ? {} : noCosts) : costColumns),
-      designRev: sql`${projects.designRev} + 1`,
-      designSaveId: saveId ?? null,
-      // An explicit save confirms a draft; an autosave leaves the status as it is.
-      ...(!draft && existing.status === 'draft' ? { status: 'saved' as const } : {}),
-    })
+    .set({ ...write.set, designRev: sql`${projects.designRev} + 1`, designSaveId: saveId ?? null })
     // The revision is checked again in the write itself, forced or not: two saves racing each
     // other cannot both win, and the revision this one made is the one it names back.
     .where(and(eq(projects.id, existing.id), eq(projects.designRev, existing.designRev)))
     .returning({ id: projects.id });
   if (written.length === 0) return fail('PROJECT_CHANGED', 409);
-  return ok({ id: existing.id, cost, rev: existing.designRev + 1 });
+  return ok({ id: existing.id, cost: write.cost, rev: existing.designRev + 1 });
 });

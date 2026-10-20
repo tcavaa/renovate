@@ -5,8 +5,8 @@ mouldings, built-out niches, light lines and coves, upholstered or relief panels
 cladding, murals, tiled fields — built in code and fitted to the walls, and the AI designer that
 places them (with the furniture and the finishes) after the style test. Read this before touching
 `lib/design/decor/`, `lib/design3d/decor.ts`, `lib/design/aiDesign.ts`, `aiReview.ts`,
-`aiProposal.ts`, the `/api/design/ai-generate` or `/api/design/ai-review` route, `DecorPanel`, or
-the decor materials.
+`aiProposal.ts`, `generateScene.ts`, `generationJob.ts`, `lib/api/designJob.ts`, the
+`/api/design/ai-generate` or `/api/design/ai-review` route, `DecorPanel`, or the decor materials.
 
 Related: [overview.md](overview.md) (step 4, `generate`) · [ai-layout-plan.md](ai-layout-plan.md)
 (the plan this realises in part) · [layout-and-matching.md](layout-and-matching.md) (the engine the
@@ -27,13 +27,23 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/design/aiProposal.ts` | the proposal's shape and how it becomes a flat: `proposalPicks`, `withProposalFinishes`, `proposalDecor`, `proposalNotes`, `MAX_AI_GENERATIONS`; `withoutArtOverDecor` (no print over built decor); `applyReviewFixes` (the check's fixes, pure) |
 | `lib/design/aiReview.ts` | server only: the designer's check of the furnished flat — `reviewFindings` (what measuring each room finds wrong), `buildReviewBrief`, `REVIEW_SCHEMA`, `validateReview`, `reviewWithClaude` |
 | `lib/design/aiDesign.ts` | server only: `buildBrief` (the flat, the candidates, the decor materials and references), `SYSTEM_PROMPT`, `DESIGN_SCHEMA`, `designWithClaude`, `validateProposal`, `DESIGN_MODEL` |
-| `lib/design/aiDesignClient.ts` | the browser's side: `aiDesignerEnabled`, `requestAiDesign`, `requestAiReview` (each null on any failure) |
-| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`; `POST` → `{ proposal }`, or 503/429 with `fallback: 'engine'` |
-| `app/api/design/ai-review/route.ts` | `POST` the laid-out flat → `{ review }`, or 503 (the flat stays as laid out) |
+| `lib/design/generateScene.ts` | laying the flat out, pure and isomorphic: `generateScene` (the store's `generate` and the server's job both run it), `reviewedScene` (the check's fixes and notes), `defaultFinishes`, `keepChosen`, `placeableOnly` |
+| `lib/design/generationJob.ts` | the job as the style page sees it, pure: `GenerationJobView`, `GenerationStatus`, `JOB_STALE_MS` (6 min), the deadlines, `JOB_POLL_MS`, `isStale`, `generationAction` (wait / reload / engine / none) |
+| `lib/api/designJob.ts` | server only: the generation job — `startDesignJob`, `runDesignStage`, `runReviewStage`, `settleStaleJob`, `generationStatus`, `jobToken` / `validJobToken` |
+| `lib/api/designJobRows.ts` | the job's queries, one each (`withJobLock`, `claimJob`, `writeDesignForJob` …) — mocked in memory by the tests |
+| `lib/api/designWrite.ts` | a design write's columns (`designWriteColumns`: repriced, its budget worked out) and the plan's locks (`refusedDesignChange`) — the save route's and the job's |
+| `lib/design/aiDesignClient.ts` | the browser's side: `generationStatus`, `startAiGeneration` (each null on any failure) |
+| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`, with `?projectId=` also `{ job, designGenerated }`; `POST` starts a job → 202 `{ job }`, or 503/429/409 with `fallback: 'engine'` (402 on the plan's locks) |
+| `app/api/design/ai-review/route.ts` | the job's second invocation: `POST` from the server itself, signed (`x-design-job`, `x-design-job-token`) → 202, the check run after the answer; 403 otherwise |
+| `components/design/GenerationOverlay.tsx` | the overlay, paced by the job's stage |
+| `lib/db/migrations/0009_design_jobs.sql` | the `design_jobs` table |
 | `components/studio/DecorPanel.tsx` | the card of a selected piece |
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
 | `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation |
 | `tests/unit/design/placementSettle.test.ts` | the check's findings, its validation and its fixes applied; no print over slats |
+| `tests/unit/design/generateScene.test.ts` | the store and `generateScene` make the same flat for a seed, with the designer and without; `reviewedScene` |
+| `tests/unit/design/generationJob.test.ts` | a stale job; what the style page does with each job, on starting one and on opening the project again |
+| `tests/integration/design-job.test.ts` | the job end to end with its rows in memory and Claude mocked: both stages over their revisions, every fallback, a design changed under it, the cap, a dead job settled, the locks on Free, an unsigned check refused |
 
 ## The data (`DecorPiece` in `lib/design/types.ts`)
 
@@ -151,19 +161,48 @@ material's own), and the materials it buys with their cost. Edits are undoable s
 
 Generation after the style test asks Claude for the whole flat when the server has
 `ANTHROPIC_API_KEY` (docs/design-studio/ai-layout-plan.md's principles: intent, not coordinates;
-real products from short lists; the engine checks):
+real products from short lists; the engine checks). **It runs on the server as a job**
+(`lib/api/designJob.ts`, table `design_jobs`), so a flat asked for is furnished and checked whether
+or not the page stays open: closing the tab, losing the connection or reloading changes nothing, and
+the project opens furnished afterwards.
 
-1. **The style page** asks `GET /api/design/ai-generate` whether the designer is there. On
-   "generate", with it there and the design under `MAX_AI_GENERATIONS` (5) AI runs, it posts the
-   plan, the style and its test answers, the budget and the locale, and the overlay holds on the
-   designer's steps (`GenerationOverlay` `ai` / `ready`) until the answer or `AI_WAIT_MS` (240 s).
-2. **The route** (signed in, the project the caller's, `RATE_RULES.aiGenerate`, the cap read from
-   the saved scene, `maxDuration` 300) builds the brief from the plan and the cached design
-   catalogue (`buildBrief`): per room its walls by index (side of the plan, length, doors, windows
-   with sills and heads, clear stretches), the engine's pieces for the room program with 12
+1. **The style page** asks `GET /api/design/ai-generate?projectId=` when it opens: whether the
+   designer is there, the project's last job, and whether its design is laid out on the server. On
+   "generate" (after the hinge, whose "continue" puts the budget in and saves the design with the
+   autosave held — `saveBeforeGenerating`), with the designer there and the design under
+   `MAX_AI_GENERATIONS` (5) AI runs, it starts a job (`POST`, `{ projectId, baseRev, locale }` —
+   `baseRev` the revision that save made) and from then on only asks after it every
+   `JOB_POLL_MS` (3 s; a failed request is asked again), the overlay showing the job's real stage
+   (`GenerationOverlay` `stage`: the designer's steps while `designing`, never past them; the check
+   while `checking`; the rest once `done`). Done, it lets go of this browser's copy of the design
+   (`dropCachedCopy`) and loads the studio, which reads the design from the row — the way a
+   revision saved in another tab is taken (`lib/flow/projectSync`). **Opening the project while a
+   job runs** lands on the style page (the design is not laid out yet), which finds the job and
+   waits on it again; a job that finished meanwhile laid the flat out, so the project opens in the
+   studio. What the page does with each answer is `generationAction`: `wait`, `reload` (the server's
+   design is laid out and this browser's is not), `engine` (the job it waits on came to nothing, or
+   a failed job newer than this browser's last generation), `none`.
+   **The autosave is held while the page waits** (`designStore.autosaveHeld`, `DesignAutosave`):
+   the job writes the design over the revision it started from, so nothing else may move it — not
+   a change, not the flush on leaving (`useAutosave` flushes only while enabled), not the autosave
+   repeating the hinge's save (it no longer writes a signature a save of the page's own just wrote —
+   `savedSignature`). Leaving the style page for another step lets the autosave go again: a change
+   made there is saved and wins, and the job, finding the design moved, writes nothing.
+2. **The start** (`startDesignJob`; signed in, the project the caller's, `RATE_RULES.aiGenerate`)
+   settles a dead job first, refuses what the plan's locks refuse (laying a laid-out flat out again
+   without the catalogue — 402, as the save route would), then in one transaction holding the
+   project's lock (`pg_advisory_xact_lock`): hands back the job already running (two clicks, two
+   tabs: one job), refuses a design not at `baseRev` (409), counts the cap from the jobs the project
+   has had (and the scene's `generation.aiCount` from before jobs existed — every job is one AI run,
+   so a repeat cannot bill past it; 429), and writes the job (`designing`, a seed, its `aiCount`).
+   It answers 202 at once; everything after runs in `after()` (`afterResponse`).
+3. **The design stage** (`runDesignStage`, after the start's answer, in its function's 300 s):
+   the brief is built from the row's plan (`ensureWalls`, as the browser opens it) and the cached
+   design catalogue (`buildBrief`): per room its walls by index (side of the plan, length, doors,
+   windows with sills and heads, clear stretches), the engine's pieces for the room program with 12
    products per kind, 10 floor and 10 wall finishes for the room, every decor material, and the
    reference library's entries for the style and the room types.
-   **Every generation is offered a fresh draw** (a seed per run, logged): the products are drawn
+   **Every generation is offered a fresh draw** (the job's seed, logged): the products are drawn
    at random from every product of the kind that fits the room (`fitsRoom`, `candidatesFor`) —
    the style's own and the well-priced more likely (`generationWeight`, weighted sampling without
    replacement), any of them possible — and so are the finishes; the decor materials and each
@@ -175,9 +214,21 @@ real products from short lists; the engine checks):
    generated twice: 1 of 30 products, no finish and no decor family shared. Small pools (curtains,
    desks, TV units — 8 to 16 products) are where two flats still meet. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
    server-side refusal fallback, the system prompt cached, structured output against
-   `DESIGN_SCHEMA`) answers per room: furniture picks, floor, wall, up to three decor intents, a
-   note — in the person's language. `validateProposal` keeps only what was offered.
-3. **The store** (`generate(catalog, proposal)`) lays the flat out with the engine as always, with
+   `DESIGN_SCHEMA`, let go after `DESIGN_DEADLINE_MS` — 240 s) answers per room: furniture picks,
+   floor, wall, up to three decor intents, a note — in the person's language. `validateProposal`
+   keeps only what was offered. The flat is then laid out by **`generateScene`**
+   (`lib/design/generateScene.ts`) — the function the browser's store runs for `generate`, from the
+   same seed (the job's), so the server's flat is the one the browser would have laid out — and
+   written as a design save made on the server (`designWriteColumns`: every product repriced, the
+   budget worked out, the calculation's columns left alone; the versions emptied, as a generation
+   does), over `baseRev` only and in one transaction with the job's stage (`writeDesignForJob`).
+   It is written **not yet laid out** (`progress.generated` false): until it is checked, a page
+   that opens the project waits on the style step, and the check's write is still the
+   generation's own on every plan. The job is then `checking`, and the stage starts the check with
+   a request of its own (`POST /api/design/ai-review` to the origin the start came in on, signed
+   with `jobToken` — an HMAC of the job id under `AUTH_SECRET`, `validJobToken`), which answers at
+   once. A check that cannot be started leaves the flat as laid out (`REVIEW_NOT_STARTED`).
+   What `generateScene` does with the proposal: the engine lays the flat out as always, with
    the picks taken where they fit their slot (`MatchOptions.picks`), the designer's floors and walls
    over the style's draw (`withProposalFinishes`, a finish somebody chose stays), and the decor
    intents resolved against where the engine put the bed, the sofa or the TV unit
@@ -203,10 +254,10 @@ real products from short lists; the engine checks):
    a cove's floating panel (16 cm down, 40 cm in from the walls) the hanging lamps and ceiling
    points are hung from the panel (`underCeilingDecor`), not through it.
    `scene.generation` records the run.
-4. **The designer checks the flat it furnished** (`requestAiReview` → `POST /api/design/ai-review`,
-   `lib/design/aiReview.ts`): the style page sends the laid-out pieces (ids, kinds, product ids,
-   positions, sizes) and the decor; the route takes names and prices from the catalogue, not the
-   browser. The brief describes each room as built — its walls with doors and windows, every piece
+4. **The designer checks the flat it furnished** (`runReviewStage`, in the second invocation's own
+   300 s; `lib/design/aiReview.ts`): the pieces as the row holds them (their products the
+   catalogue's, repriced on the design write), every one with a product and a kind the engine
+   knows, and the decor. The brief describes each room as built — its walls with doors and windows, every piece
    with its product, real size and where it stands (back to which wall, how far along, hung how
    high, or free-standing) — and what **measuring the room found wrong** (`reviewFindings`): pieces
    in each other or through a wall, a piece standing off the wall it backs onto, one deeper than wide
@@ -215,20 +266,22 @@ real products from short lists; the engine checks):
    away from the bed's head, a passage too tight (`tightSpotsByItem`). Each piece is offered five
    alternatives of its kind that fit the room, the style's own likelier and — when the piece is in
    trouble — the ones no bigger than it six times likelier. One call (same model and settings as the
-   proposal, `REVIEW_SCHEMA`) answers per room a note and fixes: `replace` with one of that piece's
+   proposal, `REVIEW_SCHEMA`, let go after `REVIEW_DEADLINE_MS` — 200 s) answers per room a note and fixes: `replace` with one of that piece's
    alternatives, or `remove`. `validateReview` keeps an item of that room, a replacement it was
    offered — applied to every piece of its set (both nightstands) — a removal only of what the room
    can do without (never the bed, the sofa, the desk, the dining table, the toilet, the basin or the
-   kitchen), at most six fixes a room. `designStore.applyReview` → `applyReviewFixes`: a replacement
+   kitchen), at most six fixes a room. `reviewedScene` → `applyReviewFixes`: a replacement
    goes where the old piece stood, its back on the same wall (`fitSwapped`), a hung one at the height
    it should hang (`settledElevation`), only if it fits; the nightstands, coffee table or desk chair
    of a replaced bed, sofa or desk move to the new one (`settledPosition`), one with no room beside it
-   goes. The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The
-   overlay has a step for it ("checking each room"), and the style step's flow guard holds while
-   the generation runs (`DesignFlowGuard` `hold`): laying the flat out marks it generated, which used
-   to send the page to the studio at once and leave the check to land on the studio later. No answer within `AI_REVIEW_WAIT_MS` (150 s) or
-   any failure: the flat opens as laid out. Rate rule `aiReview` (8 an hour); the route logs
-   `ai-review` with tokens, cost and the number of fixes. **Besides replacing and removing, the check
+   goes. The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The flat
+   is then written laid out (`progress` generated, step 5, `at` 5 — the studio is where the project
+   opens) over the design stage's revision, and the job is `done` with the review on it
+   (`finishFlat`). A check that fails or times out writes the flat as laid out, unchecked, the job
+   `done` with its error; a design changed since the design stage is left as it is (`PROJECT_CHANGED`).
+   The style step's flow guard holds while the page waits (`DesignFlowGuard` `hold`). Rate rule
+   `aiGenerate` (8 starts an hour) covers both calls; the stages log `ai-generate` and `ai-review` with
+   the job id, tokens, cost and the number of fixes. **Besides replacing and removing, the check
    moves**: `to_wall` (back against the wall behind a piece, or the nearest), `move_to_wall` (against
    wall N, as near its middle as it stands well — clear of windows if tall, `blocksWindow`, and of
    doorways, `inDoorway`), `remove_decor` and `decor_to_wall` (a decor piece fitted again on wall N).
@@ -239,9 +292,24 @@ real products from short lists; the engine checks):
    round a replaced table are seated round it (`reseatChairs` — a chair stood 1.3 m from a new bistro
    table), decor follows its piece, and the room is tidied (`settleToWalls`, `clearOfDecor`).
 
-Every failure — no key, the cap, a timeout, an error, a refusal, an answer that does not validate
-— is a 503/429 with `fallback: 'engine'`, and the flat is generated by the engine alone, without
-decor, as before the designer existed.
+**Two invocations, because of the 300 s.** Work in `after()` counts towards the function that
+answered, from the request's start; the designer (one to two minutes, longer for a big flat or a
+slow answer) and the check (about 40 s) together run too close to Vercel's 300 s to share one. Each
+stage has its own function and its own deadline inside it.
+
+**What fails, and what then.** The designer failing — an error, a refusal, an answer that does not
+validate, the deadline — is the engine's flat, laid out by the design stage in the same write, no
+decor, the job `done` with the error (`generation.by` `engine`; the run still counts against the cap,
+it was billed). A job whose function died stays in its stage; past `JOB_STALE_MS` (6 minutes — a
+stage's function lives 300 s at most) it is **settled the next time it is read** (`settleStaleJob`,
+from the page's status call or the next start; claimed by its `stageAt`, so two readers settle it
+once): dead while `checking`, its flat is written laid out, unchecked (`REVIEW_TIMEOUT`), and the
+page reads it again; dead while `designing`, nothing was written, the job is `failed` (`TIMEOUT`) and
+the page lays the flat out with the engine. Every way a job cannot start — no key, the cap, the design
+changed, the server unreachable — is the engine's flat in the page, at once, as before the designer
+existed. **The plan's locks** hold for the job's writes: each is checked with `refusedSceneChange`
+against the design stored, with none of the studio's features (a generation over a flat not laid out
+passes on every plan), and with the account's own plan otherwise.
 
 **The structured output's limit.** A schema may hold at most 16 nullable (union-typed) fields;
 `DESIGN_SCHEMA` has none: "the default" is a sentinel (0, -1, "", "auto"), read back by
@@ -263,6 +331,12 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 - No evaluation set yet: the model and the prompt are not compared against the engine on fixed plans.
 - The check reads the flat as measurements, not as a picture: a model that faces the wrong way while
   its size looks right (a washing machine turned to the wall) is invisible to it — the library's
-  facing was audited once instead ([../3d-assets.md](../3d-assets.md#facing)). It cannot move a piece
-  to another wall, only replace or remove it.
+  facing was audited once instead ([../3d-assets.md](../3d-assets.md#facing)).
 - The decor 3D is checked in the studio by eye; the walk-through shows it best.
+- The overlay's steps within the designing stage are paced by time (one every 7 s), not by the
+  designer's progress: one call answers the whole flat.
+- The check is started by a request from the server to the origin the start came in on. Locally
+  `http://renovate.localhost:3000` (the Flitt test origin) may not resolve inside Node: the check
+  then does not start and the flat opens as laid out.
+- A job started and then left (another step opened, a change saved there) writes nothing, but the
+  run is billed and counted against the cap.

@@ -3290,7 +3290,7 @@ export const en: Dictionary = {
     aroundRoom: 'Round the ceiling',
     concept: 'Idea',
     genAi: 'The AI designer is choosing furniture and decor',
-    genAiHint: 'This can take up to a minute',
+    genAiHint: 'This takes two to three minutes. You can close the page — the flat will be ready when you come back.',
     genAiStep1: 'Reading the rooms and walls…',
     genAiStep2: 'Choosing furniture from the catalogue…',
     genAiStep3: 'Setting colours and materials…',

@@ -62,7 +62,8 @@ upload image or PDF (step 1) ─ plan-reading.md
   → walls.ts               ensureWalls (wallsFromRooms for polygons) / roomsFromWalls: walls are lines, rooms their faces
   → /design/<id>/plan      the board: confirm and edit walls, rooms, openings ─ plan-board.md
   → technical step         points, works, what the flat already has ─ technical-and-fittings.md
-  → style step → generate  autoLayout (slots) → matcher (real products) ─ layout-and-matching.md
+  → style step → generate  generateScene: autoLayout (slots) → matcher (real products) ─ layout-and-matching.md;
+                           with the AI designer a server job (designJob) runs it ─ decor.md
   → studio                 Viewer3D composes buildRoomShells + syncPlacedItems + buildElectrical
                            + buildRadiators (lib/design3d) ─ 3d-engine.md; manipulate.ts for
                            everything a person moves ─ studio.md
@@ -185,10 +186,17 @@ The store records a snapshot (plan, items, finishes, electrical, the style) befo
 
 **Before it, the warning.** "დიზაინის გენერაცია" opens `HingeDialog` (`components/flow/`):
 after generation the plan steps are shut, so the rooms, the walls, doors and windows and the
-technical points are checked now; "continue" saves the design (a draft), and the style step sets
-the budget, `generate`s and plays the overlay. Nothing is paid here — the plan decides what the
+technical points are checked now; "continue" puts the budget into the design and saves it (a
+draft), and the style step generates and plays the overlay. Nothing is paid here — the plan decides what the
 studio then lets the person change ([subscriptions.md](../subscriptions.md)); a design that paid
 the old per-m² fee still shows it under its total (`FeePaidNote`).
+
+**One function lays the flat out: `generateScene`** (`lib/design/generateScene.ts`, pure and
+isomorphic) — the layout engine's slots, the products matched to them, the style's floors and
+walls, the calculation's picks, the fittings and openings as products, the designer's decor and the
+tidy-up. The store's `generate(catalog, proposal, seed?)` runs it in the browser (the engine's flat,
+no key) and the server's generation job runs it on the server (the AI designer's flat), so the two
+make the same flat from the same seed.
 
 **Generating is the journey's hinge, not an undoable edit.** `generate` (called by the style
 step) does not go through `commit`: it clears `versions` and the history itself and sets
@@ -203,10 +211,16 @@ a room clicked on the plan used to carry through the style test into the studio,
 the new layout one room at a time. `generate` clears it (and the board's room selection), and
 the studio page clears it whenever it opens; a room chosen in the studio stays chosen between
 its furniture and its finishes, which are the same page.
-**With the AI designer** (a key on the server), the style page first asks
-`/api/design/ai-generate` for a proposal and the overlay waits on it; `generate(catalog, proposal)`
-then lays the flat out with the engine, taking the designer's product picks, floors, walls and
-wall decor where they fit, and records the run in `scene.generation` ([decor.md](decor.md#the-ai-designer)).
+**With the AI designer** (a key on the server) the flat is generated **on the server, as a job**
+(`lib/api/designJob.ts`, `design_jobs`): the style page saves the design and starts it, the
+designer's proposal is laid out by `generateScene` with the job's seed — the designer's product
+picks, floors, walls and wall decor where they fit, the run recorded in `scene.generation` — and
+written, then checked room by room in a second invocation and written laid out. The page only waits:
+it asks after the job every few seconds, the overlay showing its real stage, and when it is done
+reads the design from the server and opens the studio. Closing the page or losing the connection
+stops none of it — the project opens on the style page while the job runs (and waits on it again)
+and in the studio once it is done ([decor.md](decor.md#the-ai-designer)). Without a key, or when a
+job cannot start or comes to nothing, the page lays the flat out with the engine as before.
 **Generating twice gives two flats**: each `generate` draws a fresh seed, so the placement, the
 decor, the products and the floors and walls vary between the good options
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
@@ -244,7 +258,9 @@ the same work deterministically — and must keep doing so.
 `tests/unit/design/styleQuiz.test.ts`, `history.test.ts`, `fromCalculator.test.ts` (the
 calculator's picks landing on their surfaces), `budget.test.ts` (what the flat already has),
 `tests/unit/store/designStore.test.ts` (the empty start, carry, swap, paint, room names, the
-whole flat after generating),
+whole flat after generating), `tests/unit/design/generateScene.test.ts` (the store and
+`generateScene` make the same flat for a seed), `tests/unit/design/generationJob.test.ts` and
+`tests/integration/design-job.test.ts` (the server's generation job),
 `e2e/design-studio.spec.ts`. Nothing tests `designStepOrder` / `nextStep`, `generate` clearing
 the versions and history, or `ensureExistingVersion` / `restoreVersion`.
 

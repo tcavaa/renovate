@@ -1,68 +1,41 @@
 /**
- * The browser's side of the AI designer: whether it is there, and asking it for a flat. Every
- * failure answers null — the store then lays the flat out with the engine, as it always has.
+ * The browser's side of the AI designer: whether it is there, starting a generation on the server
+ * (`lib/api/designJob`), and asking after it. The server lays the flat out and checks it whether
+ * the page stays open or not; the page only waits, and reads the design again when it is done.
+ * Every failure answers null — the page then lays the flat out with the engine, as it always has.
  */
 
-import type { AiProposal } from './aiProposal';
-import type { AiReview } from './aiReview';
-import type { DecorPiece, FloorPlan, PlacedItem, StyleId, StyleProfile } from './types';
+import type { GenerationJobView, GenerationStatus } from './generationJob';
 
-/** Longest the studio waits for the designer before laying the flat out itself. */
-export const AI_WAIT_MS = 240_000;
-
-export async function aiDesignerEnabled(): Promise<boolean> {
+/** Whether the designer is there, the project's last generation job, and whether its design is laid out on the server; null on any failure. */
+export async function generationStatus(projectId: number): Promise<GenerationStatus | null> {
   try {
-    const res = await fetch('/api/design/ai-generate', { cache: 'no-store' });
-    const body = (await res.json()) as { data?: { enabled?: boolean } };
-    return !!body.data?.enabled;
+    const res = await fetch(`/api/design/ai-generate?projectId=${projectId}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { data?: GenerationStatus };
+    return body.data ? { enabled: !!body.data.enabled, job: body.data.job ?? null, designGenerated: !!body.data.designGenerated } : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-export async function requestAiDesign(input: { projectId: number; plan: FloorPlan; styleId: StyleId; styleProfile: StyleProfile | null; budgetGel: number | null; locale: 'ka' | 'en' | 'ru' }): Promise<AiProposal | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_WAIT_MS);
+/**
+ * Starts the designer on the design as it was just saved (`baseRev`). The job that runs — a new
+ * one, or the one already running for this project — or null: no key, the cap, the design changed
+ * since, the server unreachable; the page lays the flat out with the engine.
+ */
+export async function startAiGeneration(input: { projectId: number; baseRev: number; locale: 'ka' | 'en' | 'ru' }): Promise<GenerationJobView | null> {
   try {
     const res = await fetch('/api/design/ai-generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(30_000),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { data?: { proposal?: AiProposal } };
-    return body.data?.proposal ?? null;
+    const body = (await res.json()) as { data?: { job?: GenerationJobView } };
+    return body.data?.job ?? null;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Longest the studio waits for the designer's check of the flat before opening it as laid out. */
-export const AI_REVIEW_WAIT_MS = 150_000;
-
-/** The designer's check of the flat just furnished (`lib/design/aiReview`); null on any failure — the flat stays as laid out. */
-export async function requestAiReview(input: { projectId: number; plan: FloorPlan; items: PlacedItem[]; decor: DecorPiece[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru' }): Promise<AiReview | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_REVIEW_WAIT_MS);
-  try {
-    const items = input.items
-      .filter((i) => i.product)
-      .map((i) => ({ id: i.id, roomId: i.roomId, kind: i.kind, productId: i.product!.productId, position: i.position, rotation: i.rotation, elevationM: i.elevationM, size: i.size }));
-    const res = await fetch('/api/design/ai-review', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId: input.projectId, plan: input.plan, items, decor: input.decor, styleId: input.styleId, locale: input.locale }),
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const body = (await res.json()) as { data?: { review?: AiReview } };
-    return body.data?.review ?? null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
   }
 }

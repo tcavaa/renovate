@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -19,42 +19,131 @@ import { useDesignStore } from '@/store/designStore';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useLocale, useT } from '@/lib/i18n/client';
-import { aiDesignerEnabled, requestAiDesign, requestAiReview } from '@/lib/design/aiDesignClient';
+import { generationStatus, startAiGeneration } from '@/lib/design/aiDesignClient';
+import { generationAction, JOB_POLL_MS, type GenerationStage, type GenerationStatus } from '@/lib/design/generationJob';
 import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
+import { dropCachedCopy } from '@/lib/flow/projectSync';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
 import { designStepHref, designStepPosition, previousStepHref } from '@/lib/design/steps';
 import { saveDesign } from '@/lib/design/saveDesign';
 
+/** What the overlay is showing: the engine's flat being opened, or the server's job at its stage. */
+type Run = { kind: 'engine' } | { kind: 'ai'; stage: GenerationStage };
+
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
  * a direct pick, and an optional furniture budget. "Generate" warns that the plan is settled
  * from here (`HingeDialog`), then lays the flat out and opens the studio.
+ *
+ * With the AI designer the flat is laid out on the server (`lib/api/designJob`): the page saves
+ * the design, starts the job and asks after it every few seconds, the overlay showing its stage,
+ * and when it is done reads the design again from the server and opens the studio. Closing the
+ * page or losing the connection stops none of it: opening the project again lands here while the
+ * job runs (and waits on it again) or in the studio once it is done. Without the designer, or when
+ * the job fails, the engine lays the flat out here, as always.
  */
 export default function StylePage() {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
   const projectId = useProjectId();
-  const { plan, styleId, styleProfile, budgetGel, homeState, mode, generation, setStyle, setStyleProfile, setBudget, generate, setStep } = useDesignStore();
+  const { plan, styleId, styleProfile, budgetGel, homeState, mode, generation, setStyle, setStyleProfile, setBudget, generate, setStep, holdAutosave } = useDesignStore();
   const { products, loading, error } = useDesignCatalog();
   const [budgetInput, setBudgetInput] = useState(budgetGel ? String(budgetGel) : '');
-  const [generating, setGenerating] = useState(false);
   /** The warning before the generation (`HingeDialog`). */
   const [hinge, setHinge] = useState(false);
-  /** The AI designer is there (a key on the server) and this design has AI runs left. */
+  /** The AI designer is there (a key on the server). */
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiRun, setAiRun] = useState(false);
-  /** The flat is laid out: the overlay may finish. */
-  const [laidOut, setLaidOut] = useState(true);
+  const [run, setRun] = useState<Run | null>(null);
+  /** This page started the job, or found it running, and waits on it. */
+  const waiting = useRef(false);
+  /** The engine is to lay the flat out as soon as the catalogue is here (a job found failed on opening). */
+  const engineDue = useRef(false);
+  /** The catalogue as it is now, for what the server's answers set off. */
+  const catalogNow = useRef(products);
+  const generating = run != null;
+
+  /** Lays the flat out here with the engine, and opens the studio. */
+  const engineNow = useCallback(
+    (catalog: typeof products) => {
+      engineDue.current = false;
+      generate(catalog, null);
+      setStep(5);
+      setRun({ kind: 'engine' });
+    },
+    [generate, setStep]
+  );
+
+  /** Lays the flat out here with the engine — no designer, or the server's job came to nothing. */
+  const layOutWithEngine = useCallback(() => {
+    waiting.current = false;
+    holdAutosave(false);
+    const catalog = catalogNow.current;
+    if (catalog.length > 0) engineNow(catalog);
+    else engineDue.current = true;
+  }, [holdAutosave, engineNow]);
+
+  useEffect(() => {
+    catalogNow.current = products;
+    if (engineDue.current && products.length > 0) engineNow(products);
+  }, [products, engineNow]);
+
+  /** What the server says about the job, acted on (`generationAction`). */
+  const follow = useCallback(
+    (status: Pick<GenerationStatus, 'job' | 'designGenerated'>) => {
+      const local = useDesignStore.getState();
+      const action = generationAction(status, { generated: local.generated, generatedAt: local.generation?.at ?? null }, waiting.current);
+      if (action === 'wait' && status.job) {
+        waiting.current = true;
+        holdAutosave(true);
+        setRun({ kind: 'ai', stage: status.job.stage });
+      } else if (action === 'reload') {
+        waiting.current = false;
+        holdAutosave(true);
+        setRun({ kind: 'ai', stage: 'done' });
+      } else if (action === 'engine') {
+        layOutWithEngine();
+      } else if (waiting.current) {
+        waiting.current = false;
+        holdAutosave(false);
+        setRun(null);
+      }
+    },
+    [holdAutosave, layOutWithEngine]
+  );
+
+  // Whether the designer is there — and a job of this project's that is running, or finished
+  // while the page was closed: the overlay comes back on it.
   useEffect(() => {
     let live = true;
-    void aiDesignerEnabled().then((on) => live && setAiEnabled(on));
+    void generationStatus(projectId).then((status) => {
+      if (!live || !status) return;
+      setAiEnabled(status.enabled);
+      follow(status);
+    });
     return () => {
       live = false;
     };
-  }, []);
+  }, [projectId, follow]);
+
+  // While a job runs: asked after every few seconds. A failed request is asked again — the
+  // connection dropping changes nothing on the server.
+  const stage = run?.kind === 'ai' ? run.stage : null;
+  useEffect(() => {
+    if (stage !== 'designing' && stage !== 'checking') return;
+    const timer = window.setTimeout(() => {
+      void generationStatus(projectId).then((status) => {
+        if (status) follow(status);
+        else setRun((r) => (r ? { ...r } : r));
+      });
+    }, JOB_POLL_MS);
+    return () => window.clearTimeout(timer);
+  }, [stage, run, projectId, follow]);
+
+  // The autosave writes again when the page is left while a job runs (another step, the back button).
+  useEffect(() => () => useDesignStore.for(projectId).getState().holdAutosave(false), [projectId]);
 
   if (!plan || plan.rooms.length === 0) {
     return (
@@ -66,32 +155,48 @@ export default function StylePage() {
   }
 
   /**
+   * Before the hinge: the budget into the design and the design saved, with the autosave held — a
+   * generation on the server writes over exactly the revision this save makes.
+   */
+  const saveBeforeGenerating = async () => {
+    const budget = budgetInput ? Number(budgetInput) : null;
+    holdAutosave(true);
+    setBudget(Number.isFinite(budget as number) ? budget : null, products);
+    try {
+      return await saveDesign({ draft: true, projectId });
+    } catch (err) {
+      holdAutosave(false);
+      throw err;
+    }
+  };
+
+  /**
    * Paid: the flat is laid out in the style chosen, and the studio opens. With the AI designer,
-   * its proposal first (furniture, colours, decor — `lib/design/aiProposal`); without it, or when
-   * it fails, the engine alone, as always.
+   * on the server (its proposal, then its check of every room — `lib/api/designJob`); without
+   * it, or when it cannot start, the engine here, as always.
    */
   const generateNow = async () => {
     setHinge(false);
-    const budget = budgetInput ? Number(budgetInput) : null;
-    const budgetValue = Number.isFinite(budget as number) ? budget : null;
     const useAi = aiEnabled && (generation?.aiCount ?? 0) < MAX_AI_GENERATIONS;
-    setAiRun(useAi);
-    setLaidOut(!useAi);
-    setGenerating(true);
-    setBudget(budgetValue, products);
-    // Layout + matching are synchronous and fast; yield once so the overlay can appear.
-    await new Promise((resolve) => setTimeout(resolve, 16));
-    const proposal = useAi ? await requestAiDesign({ projectId, plan, styleId, styleProfile, budgetGel: budgetValue, locale: locale as 'ka' | 'en' | 'ru' }) : null;
-    generate(products, proposal);
-    // The designer then looks at every room as laid out and fixes what is off (`lib/design/aiReview`);
-    // no answer, and the flat opens as the engine laid it.
-    if (proposal) {
-      const laid = useDesignStore.getState();
-      const review = laid.plan ? await requestAiReview({ projectId, plan: laid.plan, items: laid.items, decor: laid.decor, styleId, locale: locale as 'ka' | 'en' | 'ru' }) : null;
-      if (review) useDesignStore.getState().applyReview(review, products);
+    if (!useAi) {
+      layOutWithEngine();
+      return;
     }
-    setStep(5);
-    setLaidOut(true);
+    waiting.current = true;
+    setRun({ kind: 'ai', stage: 'designing' });
+    const job = await startAiGeneration({ projectId, baseRev: useDesignStore.getState().baseRev ?? 0, locale: locale as 'ka' | 'en' | 'ru' });
+    if (job) follow({ job, designGenerated: false });
+    else layOutWithEngine();
+  };
+
+  /** The overlay has finished: the studio — the engine's flat as it is here, the server's read again from the server. */
+  const opened = () => {
+    if (run?.kind === 'ai') {
+      dropCachedCopy('design', projectId);
+      window.location.assign(designStepHref(projectId, 5));
+      return;
+    }
+    router.push(designStepHref(projectId, 5));
   };
 
   return (
@@ -170,9 +275,9 @@ export default function StylePage() {
         }}
       />
       {hinge && (
-        <HingeDialog open onOpenChange={setHinge} kind="design" save={() => saveDesign({ draft: true })} onConfirm={generateNow} />
+        <HingeDialog open onOpenChange={setHinge} kind="design" save={saveBeforeGenerating} onConfirm={generateNow} />
       )}
-      <GenerationOverlay open={generating} ai={aiRun} ready={laidOut} onDone={() => router.push(designStepHref(projectId, 5))} />
+      <GenerationOverlay open={generating} ai={run?.kind === 'ai'} stage={run?.kind === 'ai' ? run.stage : 'done'} onDone={opened} />
     </>
   );
 }

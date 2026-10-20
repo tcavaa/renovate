@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAutosave } from '@/hooks/useAutosave';
 import { useDesignStore } from '@/store/designStore';
-import { saveDesign } from '@/lib/design/saveDesign';
+import { saveDesign, savedSignature } from '@/lib/design/saveDesign';
 import { autosaveSignature, DESIGN_SAVED, pickFields } from '@/lib/flow/autosaveSignature';
 
 /**
@@ -19,14 +19,17 @@ export function DesignAutosave({ projectId }: { projectId: number }) {
   const storeProjectId = useDesignStore((s) => s.projectId);
   const setSaveState = useDesignStore((s) => s.setSaveState);
   const loadSerial = useDesignStore((s) => s.loadSerial);
+  const held = useDesignStore((s) => s.autosaveHeld);
 
   const signature = useMemo(() => autosaveSignature(fields), [fields]);
 
   useAutosave({
-    // Nothing to write before the project has a plan (a blank sheet counts).
-    enabled: storeProjectId === projectId && !!fields.plan,
+    // Nothing to write before the project has a plan (a blank sheet counts), nor while the server
+    // lays the flat out: its generation job writes the design over the revision it started from.
+    enabled: storeProjectId === projectId && !!fields.plan && !held,
     signature,
     save: () => saveDesign({ draft: true, projectId }),
+    alreadySaved: (sig) => savedSignature(projectId) === sig,
     onState: setSaveState,
     projectId,
     half: 'design',

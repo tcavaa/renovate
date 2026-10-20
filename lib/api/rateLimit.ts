@@ -102,10 +102,8 @@ export const RATE_RULES = {
   uploads: { key: 'uploads', limit: 120, windowMs: 60 * 60_000 },
   /** Each call spends Claude tokens. */
   parsePlan: { key: 'parse-plan', limit: 10, windowMs: 60 * 60_000 },
-  /** An AI generation of a whole flat: tens of cents of Claude tokens each. */
+  /** An AI generation of a whole flat started (a job on the server, its check included): tens of cents of Claude tokens each. */
   aiGenerate: { key: 'ai-generate', limit: 8, windowMs: 60 * 60_000 },
-  /** The AI designer's check of a flat it just furnished: one after each AI generation. */
-  aiReview: { key: 'ai-review', limit: 8, windowMs: 60 * 60_000 },
   /** A press of "save" (or an order, which saves first). */
   saveProject: { key: 'save-project', limit: 20, windowMs: 60 * 60_000 },
   /** "New project": each one is a row. */

@@ -525,6 +525,40 @@ export const projectRenders = pgTable('project_renders', {
   projectIdx: index('project_renders_project_idx').on(t.projectId, t.createdAt),
 })).enableRLS();
 
+export const designJobStage = pgEnum('design_job_stage', ['designing', 'checking', 'done', 'failed']);
+
+/**
+ * A generation the server runs for a project's design (docs/design-studio/decor.md#the-ai-designer),
+ * so it finishes whether or not the page that asked for it stays open: `designing` (the AI
+ * designer's call, then the flat laid out and written — `proposal`), `checking` (the designer's
+ * check of every room — `review`), `done` (the flat written as laid out and checked, or as the
+ * engine laid it when the designer failed) or `failed` (nothing written: the page lays the flat out
+ * with the engine). `stageAt` is when it entered its stage; one in a stage past `JOB_STALE_MS` died
+ * with its function and is settled when it is next read. The flat is written only over `baseRev`,
+ * the revision the design had when the job started (and `baseRev + 1` for the check). Every row is
+ * one AI run: their count is the design's cap (`MAX_AI_GENERATIONS`).
+ */
+export const designJobs = pgTable('design_jobs', {
+  id: id(),
+  projectId: integer('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  stage: designJobStage('stage').default('designing').notNull(),
+  locale: varchar('locale', { length: 2 }).notNull(),
+  baseRev: integer('base_rev').notNull(),
+  /** The draw the brief and the layout were made from (`lib/design/random`): the run reproduced. */
+  seed: integer('seed').notNull(),
+  /** The AI runs the design has had with this one — what its flat records (`generation.aiCount`). */
+  aiCount: integer('ai_count').notNull(),
+  proposal: jsonb('proposal'),
+  review: jsonb('review'),
+  error: varchar('error', { length: 500 }),
+  createdAt: ts('created_at').defaultNow().notNull(),
+  stageAt: ts('stage_at').defaultNow().notNull(),
+  finishedAt: ts('finished_at'),
+}, (t) => ({
+  projectIdx: index('design_jobs_project_idx').on(t.projectId, t.createdAt),
+})).enableRLS();
+
 // ---------------------------------------------------------------------------
 // Marketplace: platform fees, partner orders and commissions
 // ---------------------------------------------------------------------------
@@ -948,6 +982,8 @@ export type Subscription = typeof subscriptions.$inferSelect;
 export type PlanUsageRow = typeof planUsage.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type ProjectRender = typeof projectRenders.$inferSelect;
+export type DesignJob = typeof designJobs.$inferSelect;
+export type DesignJobStage = DesignJob['stage'];
 export type ApprovalStatus = Store['approvalStatus'];
 export type PlatformSettingsRow = typeof platformSettings.$inferSelect;
 export type Checkout = typeof checkouts.$inferSelect;
