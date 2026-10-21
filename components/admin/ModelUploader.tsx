@@ -199,7 +199,9 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
+      {/* The controls above, the turntable below across the whole width — big enough to judge the
+          model's front, proportions and textures before it goes into a room. */}
+      <div className="space-y-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={busy}>
@@ -259,12 +261,12 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
           )}
         </div>
 
-        <div className="relative aspect-[4/3] overflow-hidden border border-line bg-[#EEEBE4]">
+        <div className="relative aspect-[4/3] max-h-[560px] w-full overflow-hidden border border-line bg-[#EEEBE4] sm:aspect-[16/10]">
           <div ref={hostRef} className="absolute inset-0" />
           {!value && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-ink-muted">
-              <Box className="h-8 w-8" />
-              <span className="text-xs">{t.modelUploader.noModel}</span>
+              <Box className="h-10 w-10" />
+              <span className="text-sm">{t.modelUploader.noModel}</span>
             </div>
           )}
           {value && loading && (
@@ -274,7 +276,7 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
             </div>
           )}
           {value && loadError && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-danger">{t.modelUploader.loadError}</div>}
-          {value && !loading && !loadError && <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-white/70 px-2 py-1 text-[10px] text-ink-muted">{t.modelUploader.previewHint}</p>}
+          {value && !loading && !loadError && <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-white/70 px-3 py-1.5 text-xs text-ink-muted">{t.modelUploader.previewHint}</p>}
         </div>
       </div>
 

@@ -81,6 +81,11 @@ the studio's shelf reads it through the rooms admin makes. All of it is in
 that takes a 3D kind gives it to a product that has none), and the admin's and a store's
 product lists filter by one, subtree included.
 
+**The product form hides the Russian fields.** Its translations show the English name and
+description only; a Russian name or description already stored is kept and sent back untouched
+on save, and the site falls back from Russian to English, then Georgian. The other admin forms
+(categories, stores, workers, brigades, studio rooms) still show theirs.
+
 **The product form's selects search.** Category, store and 3D kind are one combobox
 (`components/ui/combobox.tsx`, on Radix's popover): the list opens under the box with a search
 focused, and what is typed filters it (`searchOptions` in `lib/optionSearch.ts`, pure). An
@@ -144,7 +149,9 @@ without one before it looks at archetype or style. There are two ways a product 
   [3d-assets.md](3d-assets.md#uploads-are-optimized)), and lands under `models/` in storage
   (Supabase's public bucket; `/uploads/models/…` locally); the form shows the size it went from
   and to. The form then loads that
-  URL with a GLTFLoader and meshopt decoder like the studio's (`mountPreview`) and shows it on a turntable with a grid and an arrow for the front (+Z), reads the real
+  URL with a GLTFLoader and meshopt decoder like the studio's (`mountPreview`) and shows it on a turntable with a grid and an arrow for the front (+Z) — a large one, the
+  form's whole width under the upload controls (16:10, at most 560 px tall), so the front, the
+  proportions and the textures can be judged before saving — reads the real
   size from the geometry to prefill width/depth/height (a file in cm or mm is recognised by
   its size and converted), counts triangles and textures, and can render a PNG of the model
   to use as the product photo when there is none. Saving a URL sets `model3dStatus = 'ready'`

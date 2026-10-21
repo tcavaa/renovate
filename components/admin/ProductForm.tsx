@@ -537,6 +537,8 @@ export function ProductForm({
               <p className="text-xs text-ink-muted">
                 {ka.admin.forms.translationsHint}
               </p>
+              {/* Russian is hidden here for now: what is stored is kept and sent back untouched, and
+                  the site falls back to English, then Georgian (docs/catalog.md). */}
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label>{ka.admin.forms.nameEn}</Label>
@@ -546,26 +548,11 @@ export function ProductForm({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>{ka.admin.forms.nameRu}</Label>
-                  <Input
-                    value={form.nameRu}
-                    onChange={(e) => update("nameRu", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
                   <Label>{ka.admin.forms.descriptionEn}</Label>
                   <Textarea
                     rows={2}
                     value={form.descriptionEn ?? ""}
                     onChange={(e) => update("descriptionEn", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>{ka.admin.forms.descriptionRu}</Label>
-                  <Textarea
-                    rows={2}
-                    value={form.descriptionRu ?? ""}
-                    onChange={(e) => update("descriptionRu", e.target.value)}
                   />
                 </div>
               </div>
