@@ -11,7 +11,7 @@
  */
 
 import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
-import type { PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from './types';
+import type { PlacedItem, PlanRoom, SlotKind, TechnicalPoint, Vec2 } from './types';
 
 // ---------------------------------------------------------------------------
 // Sockets and switches
@@ -77,6 +77,51 @@ export const RADIATOR_BESIDE_WINDOW_M = 0.15;
 export const BOILER_ROOMS: Array<PlanRoom['type']> = ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'];
 
 // ---------------------------------------------------------------------------
+// Water (წყალმომარაგება): cold in blue, hot in red, a point per pipe at every fixture
+// ---------------------------------------------------------------------------
+
+/** What each fixture is fed: cold, and hot too where somebody washes under it. */
+export interface WaterNeed {
+  hot: boolean;
+  /** The height the pipes come out of the wall for it. */
+  elevationM: number;
+}
+
+/**
+ * The brief's sanitary plan: a basin, a kitchen sink, a shower, a bath (and a bidet, which the
+ * app has no piece for yet) take cold and hot; a WC, a washing machine and a dishwasher cold only.
+ * The heights are the usual outlets: under a basin, behind a WC's cistern, a shower's and a
+ * bath's mixer, a washing machine's tap above it.
+ */
+export const WATER_NEEDS: Partial<Record<SlotKind, WaterNeed>> = {
+  sink: { hot: true, elevationM: 0.55 },
+  shower: { hot: true, elevationM: 1.0 },
+  bathtub: { hot: true, elevationM: 0.75 },
+  toilet: { hot: false, elevationM: 0.2 },
+  washer: { hot: false, elevationM: 0.9 },
+};
+/** A kitchen run's sink and dishwasher (`kitchenRunZones`). */
+export const KITCHEN_SINK_WATER: WaterNeed = { hot: true, elevationM: 0.5 };
+export const DISHWASHER_WATER: WaterNeed = { hot: false, elevationM: 0.3 };
+/** A boiler takes cold in and gives hot out, under it. */
+export const BOILER_PIPES_BELOW_M = 0.15;
+/**
+ * The two pipes of a pair, apart along the wall: a mixer's inlets are 15 cm apart. Hot is on the
+ * left, cold on the right, as one stands facing the wall.
+ */
+export const WATER_PAIR_SPACING_M = 0.15;
+/** A point already within this of where one would go, and within this of its height, counts as that one. */
+export const WATER_POINT_REACH_M = 0.5;
+export const WATER_HEIGHT_REACH_M = 0.2;
+
+/**
+ * The sewer point stands for the plumbing shaft: the WC, the kitchen's sink and the washing
+ * machine go close to it (short pipes, a fall that drains). Further than this, a warning.
+ */
+export const SHAFT_MAX_DISTANCE_M = 2;
+export const SHAFT_FIXTURES: SlotKind[] = ['toilet', 'washer', 'kitchen_run'];
+
+// ---------------------------------------------------------------------------
 // Doors and passages
 // ---------------------------------------------------------------------------
 
@@ -134,7 +179,7 @@ export function kitchenRunZones(room: PlanRoom, run: PlacedItem, points: Technic
   const span = high - low;
 
   const ends = [low, high].map((s) => ({ s, at: pointOnEdge(edge, s / edge.length) }));
-  const pipes = points.filter((p) => p.roomId === room.id && (p.kind === 'water_supply' || p.kind === 'sewer')).map((p) => p.position);
+  const pipes = points.filter((p) => p.roomId === room.id && (p.kind === 'water_supply' || p.kind === 'water_hot' || p.kind === 'sewer')).map((p) => p.position);
   const fridge = items.find((i) => i.roomId === room.id && i.slot === 'fridge');
   const lure = pipes.length > 0 ? pipes : fridge ? [fridge.position] : [];
   const distance = (at: Vec2) => (lure.length === 0 ? 0 : Math.min(...lure.map((p) => Math.hypot(p.x - at.x, p.z - at.z))));

@@ -145,7 +145,10 @@ export interface Beam {
 // ---------------------------------------------------------------------------
 
 export type TechnicalKind =
+  /** Cold water (blue on the plan). */
   | 'water_supply'
+  /** Hot water (red on the plan). */
+  | 'water_hot'
   | 'sewer'
   | 'floor_drain'
   | 'electrical_panel'

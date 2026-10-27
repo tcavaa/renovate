@@ -138,6 +138,8 @@ export default function TechnicalPage() {
     switch (s.code) {
       case 'far_from_sewer':
         return fill(t.build.sgFarFromSewer, { room, item, n });
+      case 'far_from_shaft':
+        return fill(t.build.sgFarFromShaft, { room, item, n });
       case 'far_from_water':
         return fill(t.build.sgFarFromWater, { room, item, n });
       case 'radiator_not_exterior':

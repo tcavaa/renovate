@@ -15,7 +15,7 @@ import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges, wallEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
-import { RADIATOR_FLOOR_GAP_M } from './rules';
+import { RADIATOR_FLOOR_GAP_M, SHAFT_FIXTURES, SHAFT_MAX_DISTANCE_M, kitchenRunZones } from './rules';
 import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
@@ -31,6 +31,7 @@ export interface TechnicalKindInfo {
 
 export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
   water_supply: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['sink', 'shower', 'bathtub', 'washer', 'kitchen_run', 'kitchen_island'] },
+  water_hot: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'kitchen', 'studio'], attracts: ['sink', 'shower', 'bathtub', 'kitchen_run', 'kitchen_island'] },
   sewer: { placement: 'any', defaultElevationM: 0, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'kitchen_run'] },
   floor_drain: { placement: 'floor', defaultElevationM: 0, rooms: ['bathroom', 'toilet'], attracts: ['shower', 'bathtub', 'washer'] },
   electrical_panel: { placement: 'wall', defaultElevationM: 1.4, rooms: ['hallway'], attracts: [] },
@@ -244,7 +245,7 @@ export function anchorsFor(kind: string, anchors: TechnicalAnchor[] | undefined)
 // ---------------------------------------------------------------------------
 
 export interface TechnicalSuggestion {
-  code: 'far_from_sewer' | 'far_from_water' | 'radiator_not_exterior' | 'no_extractor' | 'no_drain';
+  code: 'far_from_sewer' | 'far_from_shaft' | 'far_from_water' | 'radiator_not_exterior' | 'no_extractor' | 'no_drain';
   roomId: string;
   itemId?: string;
   pointId?: string;
@@ -265,11 +266,18 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
   for (const room of plan.rooms) {
     const here = anchors[room.id] ?? [];
     const sewer = here.filter((a) => a.kind === 'sewer' || a.kind === 'floor_drain');
-    const water = here.filter((a) => a.kind === 'water_supply');
+    const shaft = here.filter((a) => a.kind === 'sewer');
+    const water = here.filter((a) => a.kind === 'water_supply' || a.kind === 'water_hot');
     for (const item of items.filter((i) => i.roomId === room.id)) {
-      if (['toilet', 'shower', 'bathtub'].includes(item.slot) && sewer.length > 0) {
+      if (['shower', 'bathtub'].includes(item.slot) && sewer.length > 0) {
         const d = nearest(item.position, sewer);
         if (d > MAX_FIXTURE_DISTANCE_M) out.push({ code: 'far_from_sewer', roomId: room.id, itemId: item.id, distanceM: round1(d) });
+      }
+      // The sewer stands for the plumbing shaft: the WC, the kitchen's sink and the washer close to it.
+      if (SHAFT_FIXTURES.includes(item.slot) && shaft.length > 0) {
+        const zones = item.slot === 'kitchen_run' ? kitchenRunZones(room, item, plan.technical?.points ?? [], items) : null;
+        const d = nearest(zones?.sink ?? item.position, shaft);
+        if (d > SHAFT_MAX_DISTANCE_M) out.push({ code: 'far_from_shaft', roomId: room.id, itemId: item.id, distanceM: round1(d) });
       }
       if (['sink', 'kitchen_run', 'washer'].includes(item.slot) && water.length > 0) {
         const d = nearest(item.position, water);

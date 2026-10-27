@@ -24,7 +24,7 @@ import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, studioParts } from './studio';
 import { outsideEdges } from './radiators';
-import { BOILER_ROOMS, kitchenRunZones } from './rules';
+import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
@@ -34,14 +34,24 @@ const MIN_ROOM_M2 = 1.2;
 
 /** What a room of this type gets, in the order it is placed. */
 const BY_ROOM: Partial<Record<PlanRoom['type'], TechnicalKind[]>> = {
-  bathroom: ['water_supply', 'sewer', 'floor_drain', 'extractor'],
-  toilet: ['water_supply', 'sewer', 'extractor'],
-  kitchen: ['water_supply', 'sewer', 'gas', 'extractor'],
+  bathroom: ['sewer', 'floor_drain', 'extractor'],
+  toilet: ['sewer', 'extractor'],
+  kitchen: ['sewer', 'gas', 'extractor'],
   living_room: ['ac_unit'],
   // A studio is serviced part by part (`servicedAreas`); this is only its fallback.
-  studio: ['water_supply', 'sewer', 'gas', 'extractor', 'ac_unit'],
+  studio: ['sewer', 'gas', 'extractor', 'ac_unit'],
   bedroom: ['ac_unit'],
   office: ['ac_unit'],
+};
+
+/**
+ * The water a room gets before it is furnished: a kitchen's sink and a bathroom's basin take
+ * cold and hot, a toilet's WC cold. Once it is furnished, every fixture gets its own (`WATER_NEEDS`).
+ */
+const ROOM_WATER: Partial<Record<PlanRoom['type'], WaterNeed>> = {
+  kitchen: KITCHEN_SINK_WATER,
+  bathroom: WATER_NEEDS.sink!,
+  toilet: WATER_NEEDS.toilet!,
 };
 
 /** One per flat, in the first room of this list that the flat has. */
@@ -66,12 +76,56 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   const has = (kind: TechnicalKind, roomId?: string) =>
     [...existing, ...points].some((p) => p.kind === kind && (roomId === undefined || p.roomId === roomId));
 
+  const add = (room: PlanRoom, kind: TechnicalKind, position: Vec2, elevationM: number) => {
+    points.push({ id: nextId(), kind, roomId: room.id, position, elevationM, origin: 'user' });
+    counts[kind] = (counts[kind] ?? 0) + 1;
+  };
   const place = (room: PlanRoom, kind: TechnicalKind, notOn: Array<[Vec2, Vec2]> = [], prefer: PlanEdge[] = []) => {
     if (has(kind, room.id)) return;
     const position = spotFor(plan, room, kind, items, notOn, [...existing, ...points], prefer);
     if (!position) return;
-    points.push({ id: nextId(), kind, roomId: room.id, position, elevationM: technicalElevation(kind, room), origin: 'user' });
-    counts[kind] = (counts[kind] ?? 0) + 1;
+    add(room, kind, position, technicalElevation(kind, room));
+  };
+  // A cold (and a hot) point on the wall at `s` along `edge`: hot on the left, cold on the right
+  // as one faces the wall, 15 cm apart. One of the kind already within reach, at about that
+  // height, counts as placed (a WC's pipe low on the wall is not the boiler's above it).
+  const pipes = (room: PlanRoom, edge: PlanEdge, s: number, need: WaterNeed, elevationM = need.elevationM) => {
+    const right = { x: edge.inward.z, z: -edge.inward.x };
+    const sign = right.x * edge.dir.x + right.z * edge.dir.z >= 0 ? 1 : -1;
+    const wanted: Array<[TechnicalKind, number]> = need.hot
+      ? [
+          ['water_supply', s + (sign * WATER_PAIR_SPACING_M) / 2],
+          ['water_hot', s - (sign * WATER_PAIR_SPACING_M) / 2],
+        ]
+      : [['water_supply', s]];
+    for (const [kind, at] of wanted) {
+      const position = offInto(edge, Math.max(0.02, Math.min(0.98, at / edge.length)));
+      const near = [...existing, ...points].some((p) => p.kind === kind && Math.hypot(p.position.x - position.x, p.position.z - position.z) < WATER_POINT_REACH_M && Math.abs((p.elevationM ?? 0) - elevationM) < WATER_HEIGHT_REACH_M);
+      if (!near) add(room, kind, position, elevationM);
+    }
+  };
+  // Every fixture its water (the brief's sanitary plan); a room not furnished yet, its sink's or
+  // its WC's. A room that already has water of its own and no fixtures to go by is left alone.
+  const water = (room: PlanRoom, notOn: Array<[Vec2, Vec2]> = []) => {
+    const edges = wallEdges(room).filter((edge) => !notOn.some(([a, b]) => onSegment(pointOnEdge(edge, 0.5), a, b)));
+    if (edges.length === 0) return;
+    const here = items.filter((i) => i.roomId === room.id && (WATER_NEEDS[i.slot] || i.slot === 'kitchen_run'));
+    for (const item of here) {
+      if (item.slot === 'kitchen_run') {
+        const zones = kitchenRunZones(room, item, [...existing, ...points], items);
+        if (!zones) continue;
+        pipes(room, zones.edge, zones.sinkS, KITCHEN_SINK_WATER);
+        if (zones.dishwasherS !== null) pipes(room, zones.edge, zones.dishwasherS, DISHWASHER_WATER);
+        continue;
+      }
+      const edge = nearestEdge(edges, item.position);
+      if (edge) pipes(room, edge, alongWall(edge, item.position), WATER_NEEDS[item.slot]!);
+    }
+    const need = ROOM_WATER[room.type];
+    if (here.length > 0 || !need || has('water_supply', room.id)) return;
+    const at = spotFor(plan, room, 'water_supply', items, notOn, [...existing, ...points]);
+    const edge = at ? nearestEdge(edges, at) : null;
+    if (at && edge) pipes(room, edge, alongWall(edge, at), need);
   };
 
   for (const room of plan.rooms) {
@@ -83,10 +137,12 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
       for (const part of parts) {
         const area: PlanRoom = { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined };
         for (const kind of BY_ROOM[part.type] ?? []) place(area, kind, dividerSegments(room));
+        water(area, dividerSegments(room));
       }
       continue;
     }
     for (const kind of BY_ROOM[room.type] ?? []) place(room, kind);
+    water(room);
   }
 
   for (const { kind, rooms } of ONE_PER_FLAT) {
@@ -99,6 +155,12 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   if (!has('boiler')) {
     const spot = boilerRoom(plan);
     if (spot) place(spot.room, 'boiler', [], spot.outside);
+  }
+  // The boiler's cold in and hot out, under it.
+  for (const boiler of [...existing, ...points].filter((p) => p.kind === 'boiler')) {
+    const room = plan.rooms.find((r) => r.id === boiler.roomId);
+    const edge = room ? nearestEdge(wallEdges(room), boiler.position) : null;
+    if (room && edge) pipes(room, edge, alongWall(edge, boiler.position), { hot: true, elevationM: 0 }, Math.max(0.3, Math.round(((boiler.elevationM ?? 1.6) - BOILER_PIPES_BELOW_M) * 100) / 100));
   }
 
   return { points, counts };
@@ -147,7 +209,7 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
     // to the hob (`kitchenRunZones` — the same order the run's sockets are placed by).
     const zones = kitchenRunZones(room, served, placed, items);
     if (zones) {
-      const s = kind === 'water_supply' || kind === 'sewer' ? zones.sinkS : zones.hobS;
+      const s = kind === 'water_supply' || kind === 'water_hot' || kind === 'sewer' ? zones.sinkS : zones.hobS;
       return offInto(zones.edge, s / zones.edge.length);
     }
   }

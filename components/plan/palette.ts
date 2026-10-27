@@ -37,6 +37,7 @@ export const ORIGIN_COLOR: Record<ElementOrigin, string> = {
 /** Technical systems by what runs through them. */
 export const TECHNICAL_COLOR: Record<TechnicalKind, string> = {
   water_supply: '#2F7FD6',
+  water_hot: '#D9363E',
   sewer: '#8A5A2B',
   floor_drain: '#5C4A34',
   electrical_panel: '#D9A000',

@@ -43,7 +43,7 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 
 ## Technical setup (`lib/design/technical.ts`), electrical (`lib/design/electrical.ts`)
 
-Technical points (`water_supply`, `sewer`, `floor_drain`, `electrical_panel`, `gas`,
+Technical points (`water_supply` — cold water, blue — and `water_hot` — hot water, red — `sewer`, `floor_drain`, `electrical_panel`, `gas`,
 `radiator`, `ac_unit`, `extractor`, `boiler`, `heating_pipe`) live in `plan.technical` with
 the works checklist (`WORK_ITEMS`, keyed to the calculator's phases; `effectivePhases`
 replaces the home state's phase list when works are ticked — `calculateMaterials` /
@@ -51,9 +51,11 @@ replaces the home state's phase list when works are ticked — `calculateMateria
 `technicalAnchors` feeds the layout engine (`LayoutOptions.anchors`): a fixture scores up
 to +40 for standing near the point it needs, and a kitchen run takes the wall the water
 comes to; `LayoutOptions.obstacles` keeps furniture off the columns. `technicalSuggestions`
-is the hint list on step 3 (a toilet, shower or bath far from the sewer; a sink, kitchen run
-or washer more than 2.2 m from the water; a bathroom with no floor drain or sewer; a radiator on
-an interior wall; no extractor in a bathroom or toilet). `suggestTechnical`
+is the hint list on step 3 (a shower or bath far from the sewer or a drain; a WC, a washer or
+the kitchen's sink end more than 2 m from the sewer, which stands for the plumbing shaft
+(`far_from_shaft`); a sink, kitchen run or washer more than 2.2 m from the water, hot or cold; a
+bathroom with no floor drain or sewer; a radiator on an interior wall; no extractor in a bathroom
+or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
 panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. **The boiler** goes on
 an outside wall (`outsideEdges`), where its flue can leave, in the first room of `BOILER_ROOMS`
@@ -62,7 +64,21 @@ else the bathroom. **A kitchen run's** water and waste go to the end its sink is
 its gas and its hood to the hob (`kitchenRunZones`, [design-rules.md](design-rules.md#the-rules-module-libdesignrulests)).
 The step's hints also list what the design rules find (`ruleViolations`: furniture in front of
 a radiator, a radiator reaching within 10 cm of its sill, a boiler on an inside wall, a door
-narrower than 80 cm — 70 cm into a bathroom or toilet). Nothing is fixed to a
+narrower than 80 cm — 70 cm into a bathroom or toilet).
+
+**Water is two kinds, a point per pipe** (the brief's sanitary plan, `WATER_NEEDS` in
+`lib/design/rules.ts`): cold (`water_supply`, blue) and hot (`water_hot`, red) are two tiles side by
+side in every technical tray, and the automatic placement puts them at every fixture, on the wall
+behind it — a basin, a shower, a bath and the kitchen's sink (at the run's sink end) cold and hot,
+a WC, a washing machine and the run's dishwasher cold, each at its outlet's height (basin 55 cm,
+kitchen sink 50, shower 1 m, bath 75 cm, WC 20, washer 90, dishwasher 30). A pair stands 15 cm
+apart, hot on the left and cold on the right as one faces the wall. A room not furnished yet
+(the technical step comes before the studio) gets its sink's pair — a kitchen's or a bathroom's —
+or a toilet room's WC cold, where its one water point used to go. The boiler gets a cold inlet
+and a hot outlet 15 cm under it. A point of the kind already within 50 cm and 20 cm of the height
+counts as placed, so pressing it again adds nothing and a WC's pipe does not swallow the basin's
+beside it. Each point is a plumbing point in the budget (`TECHNICAL_RATES`). A bidet has no piece
+in the app yet, so it has no water of its own. Nothing is fixed to a
 room separator's open edge — not these points, not a socket or switch (`wallSpotNear`,
 `suggestElectrical`), not a radiator (`radiatorWallSpot`, `suggestRadiators`), not a door or a
 window (`nearestWall`, `addOpening`): they all go by `wallEdges`

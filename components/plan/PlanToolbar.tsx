@@ -21,6 +21,7 @@ import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 
 export const TECHNICAL_LABEL_KEY: Record<TechnicalKind, keyof Dictionary['build']> = {
   water_supply: 'tkWater',
+  water_hot: 'tkWaterHot',
   sewer: 'tkSewer',
   floor_drain: 'tkDrain',
   electrical_panel: 'tkPanel',

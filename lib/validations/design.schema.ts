@@ -105,7 +105,7 @@ export const beamSchema = z.object({
   locked: z.boolean().optional(),
 });
 
-export const technicalKindSchema = z.enum(['water_supply', 'sewer', 'floor_drain', 'electrical_panel', 'gas', 'radiator', 'ac_unit', 'extractor', 'boiler', 'heating_pipe']);
+export const technicalKindSchema = z.enum(['water_supply', 'water_hot', 'sewer', 'floor_drain', 'electrical_panel', 'gas', 'radiator', 'ac_unit', 'extractor', 'boiler', 'heating_pipe']);
 
 export const technicalPointSchema = z.object({
   id: z.string().min(1).max(64),

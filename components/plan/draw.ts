@@ -534,7 +534,8 @@ export function drawBeam(ctx: CanvasRenderingContext2D, t: Transform, beam: Beam
 
 /** What a point is written as where its icon cannot be drawn (`strokeIcon` said no). */
 const TECHNICAL_GLYPH: Record<TechnicalPoint['kind'], string> = {
-  water_supply: 'W',
+  water_supply: 'CW',
+  water_hot: 'HW',
   sewer: 'S',
   floor_drain: 'D',
   electrical_panel: 'E',

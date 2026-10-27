@@ -19,7 +19,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 | Stage | What | State |
 |---|---|---|
 | 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
-| 2 | hot and cold water: two point kinds, a pair at every fixture | planned |
+| 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
 | 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | planned |
 | 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | planned |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
@@ -54,12 +54,13 @@ The brief is built in five stages, each tested, documented and committed on its 
   on each side of a double bed (one by a single bed, on its open side); a hallway 4 m or longer
   gets a two-way pair at its two ends. Bought as their own product kind; an estimate until the
   catalogue has one.
-- *Stage 2* — **Water** (წყალმომარება): cold water (blue) and hot water (red) as two point kinds
+- **Water** (წყალმომარება): cold water (blue) and hot water (red) as two point kinds
   on the technical step; the automatic placement puts them at every fixture — kitchen sink 🔵🔴,
   dishwasher 🔵, WC 🔵, basin 🔵🔴, bidet 🔵🔴, shower 🔵🔴, bath 🔵🔴, washing machine 🔵, boiler
   🔵 in + 🔴 out (hot on the left, cold on the right). Each is a plumbing point in the budget.
   The sewer point stands for the plumbing shaft: WC, the kitchen's sink end and the washer are
-  drawn to it, with a warning past about 2 m.
+  drawn to it (the layout's anchors already pulled them), with a warning past 2 m
+  (`far_from_shaft`). How it is placed: [technical-and-fittings.md](technical-and-fittings.md).
 - *Stage 4* — **Ceilings**: a gypsum ceiling lowers the room 10 cm (3D and every height that
   hangs from the ceiling), a stretch (barisol) one 3 cm; the LED cove: 12 cm drop, a 15 cm niche,
   the strip 5 cm back from the edge.
@@ -102,6 +103,8 @@ studio (stage 3), the AI's room check (stage 5) and the plan PDF (stage 5).
   to stand along a kitchen run (metres along its wall, and world points) — shared by the run's
   sockets (`electrical.ts`) and its water, waste, gas and hood (`autoTechnical.ts`), so they agree.
   A run under 2.1 m has no dishwasher.
+- `WATER_NEEDS` (what each fixture is fed and at what height), `KITCHEN_SINK_WATER`,
+  `DISHWASHER_WATER`, the pair's spacing, `SHAFT_FIXTURES` and `SHAFT_MAX_DISTANCE_M`.
 - `minDoorWidthM(type)`, `backWallOf`, `alongWall`.
 
 ## The checks (`lib/design/ruleChecks.ts`)
@@ -122,7 +125,9 @@ stood in front of radiators without the strips and none with them.
 
 `tests/unit/design/rules.test.ts` (the zones of a run, each check, the strips), `electrical.test.ts` (the
 heights and the kitchen's and bedroom's fittings), `radiators.test.ts` (the product under the
-sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room and wall).
+sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room and wall; water at
+every fixture, hot on the left, a WC beside a basin, the boiler's pair, nothing twice),
+`technical.test.ts` (the shaft warning).
 
 ## Known gaps
 
@@ -133,4 +138,6 @@ sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room 
 - The calculator's board has no furniture, so it has no two-way switches by beds (a long
   hallway's pair it does have).
 - A microwave on its own is not a piece, so it gets no socket.
-- Stages 2–5 above.
+- A bidet has no piece in the app, so it gets no water.
+- The water points are drawn on the board and the PDF, not in 3D.
+- Stages 3–5 above.

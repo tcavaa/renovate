@@ -70,6 +70,7 @@ export const TECHNICAL_RATES: Record<
   { materialGel: number; labour: TechnicalLabourKey; labourUnits: number; section: 'plumbing' | 'heating' | 'climate' | 'electrical'; pipes?: boolean; covered?: boolean }
 > = {
   water_supply: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
+  water_hot: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
   sewer: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
   floor_drain: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },
   gas: { materialGel: 32.5, labour: 'plumbing_install', labourUnits: 1, section: 'plumbing', pipes: true },

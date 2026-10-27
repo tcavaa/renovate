@@ -87,10 +87,10 @@ describe('anchors and suggestions', () => {
     expect(anchorsFor('bed_double', anchors.bath)).toEqual([]);
   });
 
-  it('flags a toilet far from the sewer, a radiator on an interior wall and a bathroom without an extractor', () => {
+  it('flags a toilet far from the shaft (the sewer), a radiator on an interior wall and a bathroom without an extractor', () => {
     const suggestions = technicalSuggestions(plan, [item('t', 'bath', 'toilet', 2.2, 1.7), item('k', 'bath', 'sink', 0.6, 0.4)]);
     const codes = suggestions.map((s) => s.code);
-    expect(codes).toContain('far_from_sewer');
+    expect(codes).toContain('far_from_shaft');
     expect(codes).toContain('no_extractor');
     expect(codes).not.toContain('far_from_water');
     // The radiator sits on the top wall, which has no exterior window: not an exterior wall.

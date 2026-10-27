@@ -4,11 +4,12 @@
  * radiator looks like the same radiator wherever it is offered.
  */
 
-import { AirVent, Cable, CircleDot, Cylinder, Droplets, Fan, Flame, Heater, Lamp, LampCeiling, LampWallUp, Lightbulb, Plug, PlugZap, Thermometer, ToggleLeft, ToggleRight, Tv, Waves, Wifi, Zap, type LucideIcon } from 'lucide-react';
+import { AirVent, Cable, CircleDot, Cylinder, Droplet, Droplets, Fan, Flame, Heater, Lamp, LampCeiling, LampWallUp, Lightbulb, Plug, PlugZap, Thermometer, ToggleLeft, ToggleRight, Tv, Waves, Wifi, Zap, type LucideIcon } from 'lucide-react';
 import type { ElectricalKind, TechnicalKind } from '@/lib/design/types';
 
 export const TECHNICAL_ICON: Record<TechnicalKind, LucideIcon> = {
   water_supply: Droplets,
+  water_hot: Droplet,
   sewer: Waves,
   floor_drain: CircleDot,
   electrical_panel: Zap,
