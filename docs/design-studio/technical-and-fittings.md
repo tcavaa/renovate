@@ -340,7 +340,8 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
 - **The boiler's ventilated cabinet** (`lib/design/boilerCabinet.ts`, the design rules): the
   boiler is built into a cabinet with louvres, its service access kept — the boiler's size and
   10 cm all round, no deeper than 60 cm (`boilerCabinetSize`), made by the kitchen maker's joiner
-  in one of the `boiler-cabinet` materials and priced per m² of façade, its front and two sides
+  in one of the `boiler-cabinet` materials (migration `0011_boiler_cabinet_materials` writes the
+  three, so a deployment brings them; `pnpm models:seed` keeps them too) and priced per m² of façade, its front and two sides
   (`boilerCabinetFacadeM2`), like a made-to-measure kitchen; admin sets each material's price in
   the product form. `withEquipmentProducts` gives every boiler one (`withBoilerCabinets`: the
   style's material, else the cheapest, measured again when the boiler changes size); the

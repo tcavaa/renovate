@@ -168,7 +168,9 @@ without one before it looks at archetype or style. There are two ways a product 
   [3d-assets.md](3d-assets.md#what-pnpm-modelsseed-does). It also writes the kitchen maker's
   three materials (`scripts/lib/kitchenMaterials.ts`: per m² of façade, in `kitchen-custom`), the
   same joiner's three boiler-cabinet materials (`BOILER_CABINET_MATERIALS`, in `boiler-cabinet`;
-  an existing one's price is admin's) and
+  an existing one's price is admin's — migration `0011_boiler_cabinet_materials` inserts the same
+  three, so a deployment brings them without the seed; `tests/unit/catalog/boilerCabinetMigration.test.ts`
+  keeps the two lists alike) and
   makes their store when the database has none — `seed-design.ts` writes the same store with
   the other partner stores. A material's 3D model (admin's upload, or the seed's) is how a
   kitchen made in it is drawn, never a piece placed on its own

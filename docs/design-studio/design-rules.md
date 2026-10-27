@@ -209,7 +209,6 @@ AI check's problems).
 - A recess in a room's corner (open on one side) is not found as a niche.
 - Circulation (100–150 cm paths) is the existing tight-passage warning (`clearance.ts`), not a
   check of its own; IP44 sockets are not a product attribute, only the splash-zone warning.
-- The boiler's cabinet is not drawn in 3D; its materials need `pnpm models:seed` (and migration
-  `0010_boiler_cabinet`, which a deployment runs) before a boiler gets one.
+- The boiler's cabinet is not drawn in 3D.
 - The catalogue's lamps carry no `specs.cct` yet, so the lamp preference waits for products that
   say; the sub-style is not recorded in `scene.generation`.

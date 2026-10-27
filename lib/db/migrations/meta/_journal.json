@@ -78,6 +78,13 @@
       "when": 1793136513879,
       "tag": "0010_boiler_cabinet",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793137566246,
+      "tag": "0011_boiler_cabinet_materials",
+      "breakpoints": true
     }
   ]
 }
