@@ -83,7 +83,7 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
             {OPENING_TOOLS.map((id) => {
               const Icon = TOOL_ICON[id];
               return (
-                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(tool === id ? 'openings' : id)} title={toolHint(t, id, false)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(tool === id ? 'openings' : id)} title={toolHint(t, id, false)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
                   <Icon className="h-3.5 w-3.5" />
                   {toolLabel(t, id)}
                 </button>
@@ -96,7 +96,7 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
             {(['room', 'wall', 'divider'] as const).map((id) => {
               const Icon = id === 'wall' ? Minus : id === 'room' ? Square : Ellipsis;
               return (
-                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-[8px] px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+                <button key={id} type="button" role="radio" aria-checked={tool === id} onClick={() => onTool(id)} title={toolLabel(t, id)} className={cn('flex h-8 items-center gap-1 whitespace-nowrap rounded-full px-1.5 text-xs font-semibold', tool === id ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
                   <Icon className="h-3.5 w-3.5" />
                   {toolLabel(t, id)}
                 </button>
@@ -110,7 +110,7 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
           // leave the row room for them.
           <div className="flex shrink-0 items-center gap-0.5" role="radiogroup" aria-label={t.build.thickness}>
             {WALL_THICKNESS_OPTIONS_M.map((m) => (
-              <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} aria-label={fill(t.build.thicknessCm, { n: Math.round(m * 100) })} onClick={() => onThickness(m)} className={cn('h-8 min-w-8 rounded-[8px] px-1.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
+              <button key={m} type="button" role="radio" aria-checked={Math.abs(thicknessM - m) < 1e-6} aria-label={fill(t.build.thicknessCm, { n: Math.round(m * 100) })} onClick={() => onThickness(m)} className={cn('h-8 min-w-8 rounded-full px-1.5 text-xs font-semibold tabular-nums', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'border border-line text-ink-soft hover:border-ink')}>
                 {Math.round(m * 100)}
               </button>
             ))}
@@ -124,14 +124,14 @@ export function BuildTray({ tool, onTool, thicknessM, onThickness, locked, onUnl
         already show.
       */}
       {locked ? (
-        <button type="button" onClick={onUnlock} className="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-dark">
+        <button type="button" onClick={onUnlock} className="flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-3 text-xs font-semibold text-white hover:bg-brand-dark">
           <LockOpen className="h-3.5 w-3.5" />
           {t.build.unlockStructure}
         </button>
       ) : (
         // Unlocked: an icon, its state and what a click does on hover, so the row keeps its room
         // for the tools — and a click locks the walls again, as the top bar's lock does.
-        <button type="button" onClick={onLock} title={`${t.build.structureUnlocked} · ${t.build.lockStructure}`} aria-label={t.build.lockStructure} className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-success/10 text-success transition-colors hover:bg-success/20">
+        <button type="button" onClick={onLock} title={`${t.build.structureUnlocked} · ${t.build.lockStructure}`} aria-label={t.build.lockStructure} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-success/10 text-success transition-colors hover:bg-success/20">
           <LockOpen className="h-4 w-4" />
         </button>
       )}
@@ -182,7 +182,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
           { id: 'power', label: t.build.secElectrical, icon: Cable },
           { id: 'light', label: t.build.secLighting, icon: Lightbulb },
         ] as const).map(({ id, label, icon: Icon }) => (
-          <button key={id} type="button" role="tab" aria-selected={family === id} onClick={() => setFamily(id)} className={cn('flex h-7 w-[94px] items-center gap-1.5 rounded-[7px] px-1.5 text-[10px] font-semibold transition-colors', family === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+          <button key={id} type="button" role="tab" aria-selected={family === id} onClick={() => setFamily(id)} className={cn('flex h-7 w-[94px] items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold transition-colors', family === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{label}</span>
           </button>
@@ -218,7 +218,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
                     onArm(!active);
                   }}
                   title={`${electricalLabel(t, k)} · ${fill(t.build.standardHeightHint, { n: Math.round(ELECTRICAL_KINDS[k].defaultElevationM * 100) })}`}
-                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span className="max-w-full truncate px-1">{electricalLabel(t, k)}</span>
@@ -228,11 +228,11 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
             })}
           </ScrollRow>
           <div className="flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onSuggest} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={onSuggest} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
               <Sparkles className="h-3.5 w-3.5" />
               {t.build.suggestWiring}
             </button>
-            <button type="button" onClick={onClear} title={t.build.clearWiring} aria-label={t.build.clearWiring} className="grid h-8 w-8 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-danger hover:text-danger">
+            <button type="button" onClick={onClear} title={t.build.clearWiring} aria-label={t.build.clearWiring} className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink-soft hover:border-danger hover:text-danger">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -277,7 +277,7 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
                     onArm(!active);
                   }}
                   title={technicalLabel(t, k)}
-                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink')}
+                  className={cn('relative flex h-[38px] w-[58px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-[8px] border text-[9px] font-semibold leading-tight transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
                 >
                   <span className="grid h-4 w-4 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
                     <Icon className="h-2.5 w-2.5" />
@@ -289,15 +289,15 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
             })}
           </ScrollRow>
           <div className="flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
               <Sparkles className="h-3.5 w-3.5" />
               {t.build.autoTechnical}
             </button>
-            <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink hover:text-ink">
+            <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink-soft hover:border-ink hover:text-ink">
               <Flame className="h-3.5 w-3.5" />
             </button>
             {stepHref && (
-              <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
+              <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
                 {t.build.worksTitle}
                 <ArrowUpRight className="h-3 w-3" />
               </Link>
@@ -419,7 +419,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
       {/* What is being finished: down the left, so the shelf keeps the tray's whole width. */}
       <div className="flex shrink-0 flex-col gap-0.5 border-r border-line pr-2" role="tablist" aria-label={t.design.finishesTitle}>
         {SURFACE_TABS.map(({ id, icon: Icon }) => (
-          <button key={id} type="button" role="tab" aria-selected={surface === id} onClick={() => onSurface(id)} className={cn('flex h-7 w-[94px] items-center gap-1.5 rounded-[7px] px-1.5 text-[10px] font-semibold transition-colors', surface === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
+          <button key={id} type="button" role="tab" aria-selected={surface === id} onClick={() => onSurface(id)} className={cn('flex h-7 w-[94px] items-center gap-1.5 rounded-full px-2 text-[10px] font-semibold transition-colors', surface === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}>
             <Icon className={cn('h-3.5 w-3.5 shrink-0', id === 'cornice' && 'rotate-180')} />
             <span className="truncate">{finishSurfaceLabel(t, id)}</span>
           </button>
@@ -433,7 +433,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             {chips.map((c) => {
               const Icon = c.icon;
               return (
-                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 whitespace-nowrap rounded-[7px] px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[10px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
                   <Icon className="h-3 w-3 shrink-0" />
                   {c.label}
                 </button>
@@ -441,7 +441,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
             })}
           </div>
           {canClear && onClear && (
-            <button type="button" onClick={onClear} title={t.build.clearPainted} aria-label={t.build.clearPainted} className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] border border-line bg-white text-ink-soft hover:border-danger hover:text-danger">
+            <button type="button" onClick={onClear} title={t.build.clearPainted} aria-label={t.build.clearPainted} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line bg-bg-surface text-ink-soft hover:border-danger hover:text-danger">
               <Trash2 className="h-3 w-3" />
             </button>
           )}
@@ -481,7 +481,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
           {locked && <PlanBadge plan={locked} />}
           {/* Every finish as a page — search, filters, details — for when the shelf is not enough. */}
           {onOpenCatalog && (
-            <button type="button" onClick={onOpenCatalog} title={t.design.finishCatalogOpenHint} className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
+            <button type="button" onClick={onOpenCatalog} title={t.design.finishCatalogOpenHint} className="flex h-7 shrink-0 items-center gap-1 rounded-full bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
               <LayoutGrid className="h-3.5 w-3.5" />
               {t.design.catalogOpen}
             </button>
@@ -518,7 +518,7 @@ export function FinishesTray({ surface, onSurface, scope, onScope, hasWall, room
 /** One swatch: the texture (or the product's photo, or its plain colour), and its price. */
 function SwatchTile({ label, price, textureUrl, colorHex, active, onClick }: { label: string; price?: string; textureUrl?: string | null; colorHex?: string | null; active: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} title={price ? `${label} · ${price}` : label} aria-pressed={active} className={cn('flex w-[52px] shrink-0 flex-col overflow-hidden rounded-[8px] border bg-white text-left transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+    <button type="button" onClick={onClick} title={price ? `${label} · ${price}` : label} aria-pressed={active} className={cn('flex w-[52px] shrink-0 flex-col overflow-hidden rounded-[8px] border bg-bg-surface text-left transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
       <span className="relative block aspect-square w-full bg-bg-base">
         {textureUrl ? (
           <Image src={textureUrl} alt={label} fill sizes="52px" className="pointer-events-none object-cover" />
@@ -581,7 +581,7 @@ export function BudgetTray({ cost }: { cost: DesignCost }) {
       <div className="flex shrink-0 flex-col items-end justify-between gap-1 border-l border-line pl-2.5">
         <span className="text-[9px] uppercase tracking-wide text-ink-muted">{t.build.budgetTotal}</span>
         <span className="font-serif text-xl font-semibold leading-none tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
-        <Link href={designStepHref(projectId, 7)} className="flex h-7 items-center gap-1 rounded-[8px] bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+        <Link href={designStepHref(projectId, 7)} className="flex h-7 items-center gap-1 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
           {t.build.budgetTitle}
           <ArrowUpRight className="h-3 w-3" />
         </Link>

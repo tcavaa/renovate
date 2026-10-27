@@ -9,7 +9,7 @@ import { formatGEL } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { Worker } from '@/lib/db/schema';
 
-/** Initials or photo as a square mark, the way products get their plate. */
+/** Initials or photo as a soft rounded mark (an arch on the profile page), the way products get their plate. */
 export function WorkerMark({ worker, size = 'md' }: { worker: Pick<Worker, 'nameKa' | 'nameEn' | 'nameRu' | 'avatarUrl'>; size?: 'md' | 'lg' }) {
   const locale = useLocale();
   const name = localizedName(locale, worker);
@@ -19,9 +19,9 @@ export function WorkerMark({ worker, size = 'md' }: { worker: Pick<Worker, 'name
     .filter(Boolean)
     .slice(0, 2)
     .join('');
-  const box = size === 'lg' ? 'h-24 w-24 text-3xl' : 'h-14 w-14 text-lg';
+  const box = size === 'lg' ? 'arch h-28 w-24 text-3xl shadow-card' : 'h-14 w-14 rounded-2xl text-lg';
   return (
-    <span className={`relative grid ${box} shrink-0 place-items-center overflow-hidden bg-ink font-serif font-semibold text-white`}>
+    <span className={`relative grid ${box} shrink-0 place-items-center overflow-hidden bg-olive font-serif font-semibold text-sand-light`}>
       {worker.avatarUrl ? <Image src={worker.avatarUrl} alt={name} fill sizes="96px" className="object-cover" /> : initials}
     </span>
   );
@@ -53,7 +53,7 @@ export function WorkerCard({ worker }: { worker: Worker }) {
         : t.workers.priceByAgreement;
 
   return (
-    <Link href={`/workers/${worker.id}`} className="group flex h-full flex-col border border-line bg-bg-surface transition-colors hover:border-ink">
+    <Link href={`/workers/${worker.id}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card transition-[border-color,box-shadow] hover:border-ink/25 hover:shadow-cardHover">
       <div className="flex items-start gap-4 p-5">
         <WorkerMark worker={worker} />
         <div className="min-w-0 flex-1">
@@ -61,26 +61,26 @@ export function WorkerCard({ worker }: { worker: Worker }) {
             <h3 className="truncate font-serif text-lg font-semibold text-ink">{name}</h3>
             {worker.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-success" aria-label={t.workers.verified} />}
           </div>
-          <p className="truncate text-sm text-ink-muted">{locale === 'ka' ? worker.specialty : workerSpecialtyLabel(t, worker.specialtySlug)}</p>
+          <p className="mt-0.5 inline-flex max-w-full rounded-full bg-sand/70 px-2.5 py-0.5 text-xs text-ink-soft"><span className="truncate">{locale === 'ka' ? worker.specialty : workerSpecialtyLabel(t, worker.specialtySlug)}</span></p>
           <div className="mt-1.5 flex items-center gap-2 text-xs text-ink-muted">
             <Stars rating={rating} />
             <span className="font-semibold tabular-nums text-ink">{rating.toFixed(1)}</span>
             <span className="tabular-nums">({worker.reviewCount})</span>
           </div>
         </div>
-        <ArrowUpRight className="mt-1 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-ink" />
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sand/60 text-ink-muted transition-colors group-hover:bg-brand group-hover:text-white"><ArrowUpRight className="h-4 w-4" /></span>
       </div>
       {bio && <p className="line-clamp-2 px-5 text-sm leading-relaxed text-ink-soft">{bio}</p>}
       <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 px-5 pb-4 pt-4 text-xs text-ink-muted">
         {worker.city && (
           <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3.5 w-3.5" />
+            <MapPin className="h-3.5 w-3.5 text-wood" />
             {worker.city}
           </span>
         )}
         {worker.experienceYears != null && <span>{fill(t.workers.experience, { n: worker.experienceYears })}</span>}
       </div>
-      <div className="flex items-baseline justify-between border-t border-line px-5 py-3">
+      <div className="flex items-baseline justify-between bg-sand-light px-5 py-3">
         <span className="eyebrow">{t.workers.priceLabel}</span>
         <span className="font-serif text-lg font-semibold tabular-nums text-ink">{price}</span>
       </div>

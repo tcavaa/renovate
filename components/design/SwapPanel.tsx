@@ -84,7 +84,7 @@ function AngleRow({ degrees, onChange, label }: { degrees: number; onChange: (de
             if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
           }}
           aria-label={label}
-          className="h-7 w-14 rounded-[6px] border border-line bg-white px-1.5 text-right text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+          className="h-7 w-14 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
         />
         °
       </span>
@@ -119,7 +119,7 @@ export function SwapPanel({
 
   if (!item) {
     return (
-      <div className="grid h-full place-items-center rounded-lg border border-dashed border-line bg-bg-surface p-8 text-center">
+      <div className="grid h-full place-items-center rounded-2xl border border-dashed border-line bg-bg-surface p-8 text-center">
         <p className="max-w-[200px] text-sm text-ink-muted">{t.design.noSelection}</p>
       </div>
     );
@@ -237,11 +237,11 @@ export function SwapPanel({
                     type="button"
                     onClick={() => onSwap(product)}
                     className={cn(
-                      'flex w-full items-center gap-3 border p-2 text-left transition-colors',
-                      active ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40'
+                      'flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors',
+                      active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40'
                     )}
                   >
-                    <span className="relative h-11 w-11 shrink-0 overflow-hidden bg-bg-base">
+                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-bg-base">
                       {product.imageUrl ? (
                         <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" />
                       ) : (
@@ -352,12 +352,12 @@ function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLengt
           value={cm}
           onChange={(e) => apply(Number(e.target.value))}
           aria-label={`${t.build.kitchenLength} (${t.units.cm})`}
-          className="h-8 w-16 rounded-[6px] border border-line bg-white px-1.5 text-right text-xs tabular-nums"
+          className="h-8 w-16 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
         />
         <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
       </div>
       {onToWall && (
-        <button type="button" onClick={() => setBlocked(!onToWall())} className="h-8 w-full rounded-[8px] border border-line bg-white text-xs font-medium text-ink hover:border-ink">
+        <button type="button" onClick={() => setBlocked(!onToWall())} className="h-8 w-full rounded-full border border-line bg-bg-surface text-xs font-medium text-ink hover:border-ink">
           {t.build.kitchenToWall}
         </button>
       )}
@@ -391,7 +391,7 @@ function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem
             const active = item.kitchenMaterial?.productId === product.id;
             const drawn = !!product.model3dUrl && (!product.model3dKind || product.model3dKind === item.slot);
             return (
-              <button key={product.id} type="button" onClick={() => !active && onPick(product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+              <button key={product.id} type="button" onClick={() => !active && onPick(product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
                 <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-[6px] bg-bg-base">
                   {product.imageUrl ? (
                     <Image src={product.imageUrl} alt="" fill sizes="36px" className="object-cover" />
@@ -404,7 +404,7 @@ function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem
                   <span className="flex items-center gap-1.5 truncate tabular-nums text-ink-muted">
                     {formatGEL(product.pricePerUnit)} / {t.units.m2}
                     {drawn && (
-                      <span title={t.build.kitchenMaterialModel} className="rounded-[4px] border border-ink/15 px-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-ink">
+                      <span title={t.build.kitchenMaterialModel} className="rounded-full border border-ink/15 px-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-ink">
                         3D
                       </span>
                     )}

@@ -33,9 +33,11 @@ export function ContactForm() {
 
   if (submitted) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-success/30 bg-success/5 p-8 text-center">
-        <CheckCircle2 className="h-10 w-10 text-success" />
-        <h3 className="font-serif text-xl font-semibold">
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-olive-soft p-10 text-center">
+        <span className="grid h-14 w-14 place-items-center rounded-full bg-olive text-sand-light">
+          <CheckCircle2 className="h-7 w-7" />
+        </span>
+        <h3 className="mt-2 font-serif text-2xl font-semibold">
           {ka.pages.contact.successTitle}
         </h3>
         <p className="text-sm text-ink-muted">{ka.pages.contact.successBody}</p>

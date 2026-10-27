@@ -164,7 +164,7 @@ function CheckMark({ n, done, active, small }: { n: number; done: boolean; activ
       className={cn(
         'grid shrink-0 place-items-center rounded-full font-semibold tabular-nums',
         small ? 'h-5 w-5 text-[10px]' : 'h-6 w-6 text-[11px]',
-        done ? (active ? 'bg-success text-white' : 'bg-success/15 text-success') : active ? 'bg-white/20 text-white' : 'bg-white text-ink-muted ring-1 ring-line'
+        done ? (active ? 'bg-olive-light text-white' : 'bg-olive-soft text-olive') : active ? 'bg-white/20 text-white' : 'bg-bg-surface text-ink-muted ring-1 ring-line'
       )}
     >
       {done ? <Check className={small ? 'h-3 w-3' : 'h-3.5 w-3.5'} /> : n}
@@ -182,7 +182,7 @@ export function TechnicalChecksCard({ onOpen }: { onOpen: (check: TechnicalCheck
   const status = useCheckStatus();
   const done = checks.length - unchecked.length;
   return (
-    <section className="rounded-[16px] border border-line bg-white p-3" aria-label={t.build.checksPanelTitle}>
+    <section className="rounded-[16px] border border-line bg-bg-surface p-3" aria-label={t.build.checksPanelTitle}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -191,7 +191,7 @@ export function TechnicalChecksCard({ onOpen }: { onOpen: (check: TechnicalCheck
           </p>
           <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{fill(t.build.checksPanelHint, { n: checks.length })}</p>
         </div>
-        <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums', unchecked.length === 0 ? 'bg-success/15 text-success' : 'bg-sand text-ink')}>
+        <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums', unchecked.length === 0 ? 'bg-olive-soft text-olive' : 'bg-sand text-ink')}>
           {done} / {checks.length}
         </span>
       </div>
@@ -209,7 +209,7 @@ export function TechnicalChecksCard({ onOpen }: { onOpen: (check: TechnicalCheck
           </li>
         ))}
       </ul>
-      <button type="button" onClick={() => onOpen(unchecked[0] ?? checks[0])} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-[10px] bg-ink text-xs font-semibold text-white transition-colors hover:bg-brand">
+      <button type="button" onClick={() => onOpen(unchecked[0] ?? checks[0])} className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-full bg-ink text-xs font-semibold text-white transition-colors hover:bg-brand">
         {unchecked.length === 0 ? t.build.checksReview : t.build.checksOpen}
       </button>
     </section>
@@ -244,7 +244,7 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent overlayClassName="bg-ink/25 backdrop-blur-[2px]" className="flex h-[min(680px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-[920px] flex-col gap-0 overflow-hidden rounded-[18px] border-line/70 bg-bg-base p-0 shadow-float sm:rounded-[18px]">
-        <div className="shrink-0 border-b border-line bg-white px-5 py-4 pr-14">
+        <div className="shrink-0 border-b border-line bg-bg-surface px-5 py-4 pr-14">
           <p className="eyebrow">{fill(t.build.checkStep, { n: index + 1, total: checks.length })}</p>
           <DialogTitle className="mt-1 text-lg leading-tight">{t.build.checksTitle}</DialogTitle>
           <DialogDescription className="mt-1 text-xs leading-snug">{t.build.checksLead}</DialogDescription>
@@ -261,7 +261,7 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
                   type="button"
                   onClick={() => onAt(check)}
                   aria-current={active ? 'step' : undefined}
-                  className={cn('flex w-full items-start gap-2.5 rounded-[12px] px-2.5 py-2 text-left transition-colors', active ? 'bg-ink text-white shadow-card' : 'text-ink-soft hover:bg-white hover:text-ink')}
+                  className={cn('flex w-full items-start gap-2.5 rounded-[12px] px-2.5 py-2 text-left transition-colors', active ? 'bg-ink text-white shadow-card' : 'text-ink-soft hover:bg-bg-surface hover:text-ink')}
                 >
                   <CheckMark n={i + 1} done={!unchecked.includes(check)} active={active} />
                   <span className="min-w-0">
@@ -283,7 +283,7 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
               ))}
             </div>
             <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-ink text-white">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-olive text-sand-light">
                 <Icon className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -301,13 +301,13 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
           </section>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-white px-5 py-3">
-          <button type="button" onClick={() => index > 0 && onAt(checks[index - 1])} disabled={index === 0} className="flex h-10 items-center gap-1.5 rounded-[10px] border border-line px-3 text-sm font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:pointer-events-none disabled:opacity-40">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-bg-surface px-5 py-3">
+          <button type="button" onClick={() => index > 0 && onAt(checks[index - 1])} disabled={index === 0} className="flex h-10 items-center gap-1.5 rounded-full border border-line px-3 text-sm font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:pointer-events-none disabled:opacity-40">
             <ChevronLeft className="h-4 w-4" />
             {t.build.checkBack}
           </button>
           <span className="hidden text-xs tabular-nums text-ink-muted sm:inline">{fill(t.build.checksProgress, { n: checks.length - unchecked.length, total: checks.length })}</span>
-          <button type="button" onClick={next} className="flex h-10 items-center gap-1.5 rounded-[10px] bg-ink pl-4 pr-3 text-sm font-medium text-white shadow-float transition-colors hover:bg-brand">
+          <button type="button" onClick={next} className="flex h-10 items-center gap-1.5 rounded-full bg-ink pl-4 pr-3 text-sm font-medium text-white shadow-float transition-colors hover:bg-brand">
             {following ? t.build.checkNext : finish.label}
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -334,7 +334,7 @@ function AutoCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) 
             setPlaced(suggestTechnical());
             onTouch();
           }}
-          className="flex h-10 items-center gap-2 rounded-[10px] bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
+          className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
         >
           <Sparkles className="h-4 w-4" />
           {t.build.autoTechnical}
@@ -345,7 +345,7 @@ function AutoCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) 
           </p>
         )}
       </div>
-      <div className="rounded-[14px] border border-line bg-white p-3">
+      <div className="rounded-[14px] border border-line bg-bg-surface p-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.checkPlacedTitle}</p>
         {counts.length === 0 ? (
           <p className="mt-2 text-xs text-ink-muted">{t.build.checkAutoEmpty}</p>
@@ -388,7 +388,7 @@ function RadiatorsCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => voi
             setHung(suggestRadiators(products));
             onTouch();
           }}
-          className="flex h-10 items-center gap-2 rounded-[10px] bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
+          className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
         >
           <Flame className="h-4 w-4" />
           {t.build.suggestRadiators}
@@ -401,7 +401,7 @@ function RadiatorsCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => voi
           const sections = here.reduce((sum, p) => sum + radiatorSections(plan, p), 0);
           const wanted = sectionsForRoom(plan, room, here[0]?.radiator?.wattsPerSection);
           return (
-            <li key={room.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-line bg-white px-3 py-2">
+            <li key={room.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-line bg-bg-surface px-3 py-2">
               <span className="min-w-0">
                 <span className="block truncate text-xs font-semibold text-ink">{room.name}</span>
                 <span className="block truncate text-[11px] text-ink-muted">
@@ -440,7 +440,7 @@ function WorksCheck({ onTouch }: { onTouch: () => void }) {
         const list = worksForStage(stage);
         const on = list.filter((w) => works.includes(w.key)).length;
         return (
-          <details key={stage.homeState} open={on > 0} className="group rounded-[12px] border border-line bg-white">
+          <details key={stage.homeState} open={on > 0} className="group rounded-[12px] border border-line bg-bg-surface">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-semibold text-ink">{homeStateLabel(t, stage.homeState)}</span>
@@ -489,7 +489,7 @@ function ChoicesCheck({ onTouch }: { onTouch: () => void }) {
   const { plan, works } = useTechnicalChecks();
   const phases = new Set(phasesForWorks(works));
   return (
-    <div className="rounded-[14px] border border-line bg-white p-4">
+    <div className="rounded-[14px] border border-line bg-bg-surface p-4">
       <WorkChoicesPicker
         value={plan?.technical?.choices}
         onChange={(choices) => {
@@ -513,7 +513,7 @@ function ExistingCheck({ onTouch }: { onTouch: () => void }) {
     onTouch();
   };
   return (
-    <div className="rounded-[14px] border border-line bg-white p-3">
+    <div className="rounded-[14px] border border-line bg-bg-surface p-3">
       <div className="flex justify-end gap-2 text-[11px]">
         <button type="button" onClick={() => set([...EXISTING_KEYS])} className="font-medium text-ink-soft hover:text-ink">
           {t.build.stageAll}

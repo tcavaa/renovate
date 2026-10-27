@@ -21,7 +21,7 @@ export function ProductPageLink({ slug, size = 'action', className }: { slug: st
       onClick={(e) => e.stopPropagation()}
       className={cn(
         'no-print shrink-0 transition-colors',
-        size === 'action' ? 'grid h-8 w-8 place-items-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink' : 'grid h-5 w-5 place-items-center text-ink-faint hover:text-ink',
+        size === 'action' ? 'grid h-8 w-8 place-items-center rounded-full border border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink' : 'grid h-5 w-5 place-items-center text-ink-faint hover:text-ink',
         className
       )}
     >

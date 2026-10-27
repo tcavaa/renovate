@@ -78,7 +78,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
   const tree = category ? await loadCategoryTree() : null;
   const trail = tree && category ? pathOf(tree, category.id).filter((c) => c.isVisible) : [];
   const categoryName = category ? pickLocalizedName(locale, category.nameKa, category.nameEn, category.nameRu) : null;
-  const imageUrl = product.imageUrl || `https://placehold.co/1200x900/E9E2D8/6F6A63/png?text=${encodeURIComponent(name.split(' ')[0])}`;
+  const imageUrl = product.imageUrl || `https://placehold.co/1200x900/E9E1D5/6F6A63/png?text=${encodeURIComponent(name.split(' ')[0])}`;
   const gallery = Array.isArray(product.images) ? (product.images as string[]).filter((u) => typeof u === 'string' && u && u !== product.imageUrl) : [];
   const specs = (product.specs ?? {}) as Record<string, unknown>;
   const specEntries = Object.entries(specs).filter(([, v]) => typeof v === 'string' || typeof v === 'number');
@@ -100,7 +100,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
   return (
     <div className="container py-8 md:py-12">
       <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-        <Link href="/catalog" className="hover:text-ink">
+        <Link href="/catalog" className="rounded-full transition-colors hover:text-ink">
           {t.nav.catalog}
         </Link>
         {trail.map((c) => (
@@ -117,21 +117,21 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-12">
         <div className="space-y-3">
-          <div className="relative aspect-[4/3] w-full overflow-hidden border border-line bg-sand-light">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-sand-light shadow-card">
             <Image src={imageUrl} alt={name} fill priority sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />
-            {product.isFeatured && <span className="absolute left-4 top-4 bg-ink px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">{t.calculator.bestSeller}</span>}
+            {product.isFeatured && <span className="absolute left-5 top-5 rounded-full bg-brand px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white shadow-card">{t.calculator.bestSeller}</span>}
           </div>
           {gallery.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
               {gallery.slice(0, 4).map((src) => (
-                <div key={src} className="relative aspect-square overflow-hidden border border-line bg-sand-light">
+                <div key={src} className="relative aspect-square overflow-hidden rounded-xl bg-sand-light">
                   <Image src={src} alt="" fill sizes="20vw" className="object-cover" />
                 </div>
               ))}
             </div>
           )}
           {description && (
-            <div className="border-t border-line pt-6">
+            <div className="pt-6">
               <p className="eyebrow">{t.catalog.viewDetails}</p>
               <p className="mt-3 max-w-2xl text-base leading-relaxed text-ink-soft">{description}</p>
             </div>
@@ -140,17 +140,17 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <div className="flex flex-wrap items-center gap-2">
-            {categoryName && <span className="eyebrow">{categoryName}</span>}
+            {categoryName && <span className="paper-label">{categoryName}</span>}
             {product.model3dUrl && (
-              <span className="inline-flex items-center gap-1 border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink">
+              <span className="inline-flex items-center gap-1 rounded-full bg-sand px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink">
                 <Box className="h-3 w-3" /> {t.catalog.in3d}
               </span>
             )}
           </div>
-          <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-4xl">{name}</h1>
-          {product.brand && <p className="mt-2 text-sm text-ink-muted">{product.brand}</p>}
+          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-4xl">{name}</h1>
+          {product.brand && <p className="mt-2 text-sm text-wood-dark">{product.brand}</p>}
 
-          <div className="mt-6 flex items-baseline gap-2 border-y border-line py-5">
+          <div className="mt-6 flex items-baseline gap-2 rounded-2xl bg-sand-light px-5 py-5">
             <span className="font-serif text-4xl font-semibold tabular-nums text-ink">{formatGEL(Number(product.pricePerUnit))}</span>
             <span className="text-sm text-ink-muted">/ {unitLabel(t, product.unit)}</span>
           </div>
@@ -163,12 +163,12 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
           )}
 
           {store && (
-            <div className="mt-8 border border-line bg-bg-surface">
+            <div className="mt-8 overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
               <div className="flex items-center gap-3 border-b border-line p-4">
                 {store.logoUrl ? (
-                  <Image src={store.logoUrl} alt={localizedName(locale, store)} width={40} height={40} className="border border-line" />
+                  <Image src={store.logoUrl} alt={localizedName(locale, store)} width={40} height={40} className="rounded-xl border border-line" />
                 ) : (
-                  <span className="grid h-10 w-10 place-items-center border border-line font-serif text-base font-semibold">{localizedName(locale, store).slice(0, 1)}</span>
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-sand font-serif text-base font-semibold text-ink">{localizedName(locale, store).slice(0, 1)}</span>
                 )}
                 <div className="min-w-0">
                   <p className="eyebrow">{t.catalog.soldBy}</p>
@@ -192,7 +192,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
           {(specEntries.length > 0 || hasDims || styleTags.length > 0 || product.sku) && (
             <div className="mt-8">
               <p className="eyebrow">{t.catalog.specs}</p>
-              <dl className="mt-3 border-t border-line text-sm">
+              <dl className="mt-3 overflow-hidden rounded-2xl border border-line bg-bg-surface px-4 text-sm">
                 {hasDims && <Spec label={t.catalog.dimensions} value={`${dims.map((d) => (d != null ? d : '—')).join(' × ')} cm`} />}
                 {styleTags.length > 0 && <Spec label={t.catalog.styles} value={styleTags.map((s) => styleLabel(t, s)).join(', ')} />}
                 {product.sku && <Spec label={t.catalog.sku} value={product.sku} />}
@@ -206,11 +206,11 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
       </div>
 
       {related.length > 0 && (
-        <section className="mt-16 border-t border-line pt-10">
-          <div className="mb-6 flex items-end justify-between">
+        <section className="mt-16 rounded-3xl bg-sand-light px-5 py-8 md:px-8 md:py-10">
+          <div className="mb-6 flex items-end justify-between gap-4">
             <h2 className="font-serif text-2xl font-semibold text-ink">{t.catalog.moreFrom}</h2>
             {category && (
-              <Link href={`/catalog?category=${encodeURIComponent(category.slug)}`} className="bracket-link text-sm font-medium text-ink-soft hover:text-ink">
+              <Link href={`/catalog?category=${encodeURIComponent(category.slug)}`} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
                 {categoryName}
               </Link>
             )}
@@ -225,7 +225,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 function Row({ icon, label, href, external }: { icon: React.ReactNode; label: string; href?: string; external?: boolean }) {
   const inner = (
     <>
-      <span className="text-ink-faint">{icon}</span>
+      <span className="text-wood">{icon}</span>
       <span className="min-w-0 truncate">{label}</span>
     </>
   );
@@ -244,7 +244,7 @@ function Row({ icon, label, href, external }: { icon: React.ReactNode; label: st
 
 function Spec({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 border-b border-line py-2.5">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 border-b border-line py-2.5 last:border-b-0">
       <dt className="text-ink-muted">{label}</dt>
       <dd className="text-right font-medium text-ink">{value}</dd>
     </div>

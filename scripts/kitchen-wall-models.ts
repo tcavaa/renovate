@@ -182,9 +182,9 @@ async function makeVariant(variant: WallVariant): Promise<KitchenManifestModel> 
     title: variant.title,
     source: 'procedural' as KitchenManifestModel['source'],
     sourceUrl: '',
-    author: 'RenovateGE',
+    author: 'PLAYCE',
     license: 'own',
-    credit: { title: variant.title, author: 'RenovateGE', license: 'own', url: '', text: `${variant.title} — made from boxes by scripts/kitchen-wall-models.ts` } as KitchenManifestModel['credit'],
+    credit: { title: variant.title, author: 'PLAYCE', license: 'own', url: '', text: `${variant.title} — made from boxes by scripts/kitchen-wall-models.ts` } as KitchenManifestModel['credit'],
     imageUrl: `/uploads/furniture/kitchen-${variant.slug}.webp`,
   };
 }

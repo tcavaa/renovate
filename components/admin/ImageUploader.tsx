@@ -56,7 +56,7 @@ export function ImageUploader({
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-4">
-        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base">
           {value ? (
             <Image
               src={value}
@@ -126,7 +126,7 @@ export function ImageUploader({
       />
 
       {error && (
-        <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+        <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}

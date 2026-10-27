@@ -1,13 +1,14 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Design tokens.
+ * Design tokens — the PLAYCE palette ("Play with your place").
  *
- * Warm paper background, near-black ink, one terracotta accent used sparingly, and a sand
- * neutral for surfaces that sit between the two. Corners are sharp: the whole radius scale
- * collapses to 0–4 px so `rounded-2xl` in an old component reads as a crisp edge, not a pill.
- * Shadows are soft and layered, and `glass` is the translucent panel used over imagery and
- * the 3D canvas. Headings use the serif; display type uses the sans at heavy weight.
+ * Sand paper, stone, wood, terracotta, olive and charcoal, taken from the brand board: a warm
+ * sand page, charcoal ink, terracotta (`brand`) as the one loud colour, olive for the dark
+ * bands and the quiet second action, wood (`accent`) for warmth. Corners are soft — cards,
+ * panels and pictures are gently rounded and buttons are pills, like the brand's app icons and
+ * arches. Shadows are low and warm. Headings use the serif; display type is the airy,
+ * wide-tracked sans of the wordmark.
  */
 const config: Config = {
   darkMode: ['class'],
@@ -24,33 +25,41 @@ const config: Config = {
     },
     extend: {
       colors: {
+        /** Terracotta — the brand's one loud colour: primary actions, links, what is picked. */
         brand: {
-          DEFAULT: '#E85D26',
-          dark: '#C44D1A',
-          50: '#FDF1EC',
-          100: '#FBE0D2',
-          200: '#F6BFA3',
-          300: '#F19E73',
-          400: '#ED7E4D',
-          500: '#E85D26',
-          600: '#C44D1A',
-          700: '#9A3C14',
-          800: '#702B0F',
-          900: '#471B09',
+          DEFAULT: '#B5462B',
+          dark: '#963820',
+          50: '#FAF0EB',
+          100: '#F4DED4',
+          200: '#E9BBA9',
+          300: '#DA937B',
+          400: '#C76B51',
+          500: '#B5462B',
+          600: '#963820',
+          700: '#762C19',
+          800: '#552013',
+          900: '#35140C',
         },
-        accent: { DEFAULT: '#F5A623', dark: '#D48D11' },
-        slate: { deep: '#2C3E50' },
-        bg: { base: '#F5F2ED', surface: '#FFFFFF', deep: '#141311' },
-        sand: { DEFAULT: '#E9E2D8', dark: '#D6CCBE', light: '#F3EEE7' },
-        ink: { DEFAULT: '#161513', muted: '#6F6A63', soft: '#3A3733', faint: '#A39D94' },
-        line: '#E3DCD2',
-        success: '#22C55E',
-        warning: '#F59E0B',
-        danger: '#EF4444',
+        /** Wood — warmth beside the terracotta. */
+        accent: { DEFAULT: '#A8784E', dark: '#8A6039' },
+        olive: { DEFAULT: '#34402F', dark: '#252E21', light: '#5D6B52', soft: '#E7E9E1' },
+        stone: { DEFAULT: '#CDC5B9', dark: '#A99F92', light: '#E3DDD3' },
+        wood: { DEFAULT: '#A8784E', dark: '#7E5734', light: '#CBA680' },
+        charcoal: '#1E1F23',
+        /** The second solid colour of the buttons (`variant="secondary"`) — olive now. */
+        slate: { deep: '#34402F' },
+        bg: { base: '#F3EEE6', surface: '#FFFDF9', deep: '#2C3627' },
+        sand: { DEFAULT: '#E9E1D5', dark: '#D7CCBC', light: '#F1EBE2' },
+        ink: { DEFAULT: '#1E1F23', muted: '#6E675E', soft: '#3B3833', faint: '#A69E93' },
+        line: '#E2D9CC',
+        success: '#3F7D4E',
+        warning: '#C98A2B',
+        danger: '#B42318',
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-serif)', 'Georgia', 'serif'],
+        /** Latin and Cyrillic from the brand faces; Georgian falls through to Noto. */
+        sans: ['var(--font-latin-sans)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-latin-serif)', 'var(--font-serif)', 'Georgia', 'serif'],
       },
       fontSize: {
         'display-xl': ['clamp(3.25rem, 9.5vw, 10rem)', { lineHeight: '0.92', letterSpacing: '-0.035em' }],
@@ -58,22 +67,22 @@ const config: Config = {
         'display-md': ['clamp(2rem, 4vw, 3.5rem)', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
       },
       borderRadius: {
-        DEFAULT: '2px',
-        sm: '0px',
-        md: '2px',
-        lg: '2px',
-        xl: '3px',
-        '2xl': '4px',
-        '3xl': '4px',
+        DEFAULT: '6px',
+        sm: '4px',
+        md: '8px',
+        lg: '12px',
+        xl: '16px',
+        '2xl': '20px',
+        '3xl': '28px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(22, 21, 19, 0.04), 0 6px 20px rgba(22, 21, 19, 0.05)',
-        cardHover: '0 2px 6px rgba(22, 21, 19, 0.06), 0 18px 40px rgba(22, 21, 19, 0.10)',
-        glass: '0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 40px rgba(22, 21, 19, 0.12)',
-        float: '0 24px 60px -20px rgba(22, 21, 19, 0.35)',
+        card: '0 1px 2px rgba(30, 31, 35, 0.04), 0 8px 24px -8px rgba(60, 45, 30, 0.10)',
+        cardHover: '0 2px 6px rgba(30, 31, 35, 0.05), 0 22px 44px -14px rgba(60, 45, 30, 0.22)',
+        glass: '0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 40px rgba(60, 45, 30, 0.12)',
+        float: '0 28px 60px -22px rgba(40, 30, 20, 0.38)',
       },
       backgroundImage: {
-        'radial-warm': 'radial-gradient(1200px 600px at 20% 0%, rgba(232,93,38,0.10), transparent 60%), radial-gradient(900px 500px at 90% 20%, rgba(245,166,35,0.10), transparent 60%)',
+        'radial-warm': 'radial-gradient(1100px 600px at 12% 0%, rgba(181,70,43,0.09), transparent 60%), radial-gradient(900px 520px at 92% 18%, rgba(168,120,78,0.12), transparent 62%)',
       },
       transitionTimingFunction: {
         out: 'cubic-bezier(0.22, 1, 0.36, 1)',

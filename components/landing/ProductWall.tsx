@@ -20,16 +20,22 @@ export interface LandingProduct {
  */
 export function ProductWall({ t, products }: { t: Dictionary; products: LandingProduct[] }) {
   return (
-    <section className="relative overflow-hidden bg-sand-light py-24 md:py-32">
+    <section className="relative overflow-clip bg-sand-light py-24 md:py-32">
       <div className="container">
         <div className="grid gap-8 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-end">
           <div>
-            <p className="eyebrow reveal">{t.landing.eyebrow}</p>
-            <h2 className="reveal mt-4 text-display-md font-bold text-ink">{t.landing.realTitle}</h2>
+            <p className="eyebrow reveal flex items-center gap-3">
+              <span className="h-px w-8 bg-brand" aria-hidden />
+              {t.landing.eyebrow}
+            </p>
+            <h2 className="display reveal mt-5 text-display-md tracking-[0.04em] text-ink">{t.landing.realTitle}</h2>
           </div>
           <div className="reveal md:pb-2">
             <p className="max-w-lg text-lg leading-relaxed text-ink-soft">{t.landing.realBody}</p>
-            <Link href="/catalog" className="group mt-5 inline-flex items-center gap-2 text-sm font-medium text-ink hover:text-brand">
+            <Link
+              href="/catalog"
+              className="group mt-6 inline-flex h-11 items-center gap-2 rounded-full border border-ink/15 px-5 text-sm font-medium text-ink transition-colors hover:border-ink/40 hover:bg-bg-surface"
+            >
               {t.landing.realCta}
               <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             </Link>
@@ -44,9 +50,9 @@ export function ProductWall({ t, products }: { t: Dictionary; products: LandingP
             >
               <Link
                 href={`/catalog/${p.slug}`}
-                className="group block overflow-hidden rounded-2xl border border-line bg-white shadow-card transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-cardHover"
+                className="group block overflow-hidden rounded-3xl border border-line bg-bg-surface shadow-card transition-all duration-500 ease-out hover:-translate-y-1 hover:shadow-cardHover"
               >
-                <div className="relative aspect-square overflow-hidden bg-bg-base">
+                <div className="relative m-2 aspect-square overflow-hidden rounded-2xl bg-bg-base">
                   {p.imageUrl && (
                     <Image
                       src={p.imageUrl}
@@ -56,16 +62,18 @@ export function ProductWall({ t, products }: { t: Dictionary; products: LandingP
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
                   )}
-                  <span className="glass absolute left-3 top-3 px-2.5 py-1 text-xs font-semibold text-ink">{formatGEL(p.price)}</span>
+                  <span className="absolute left-3 top-3 rounded-full bg-bg-surface/90 px-3 py-1 text-xs font-semibold text-ink shadow-card backdrop-blur">{formatGEL(p.price)}</span>
                 </div>
-                <div className="flex items-start justify-between gap-3 p-4">
+                <div className="flex items-start justify-between gap-3 px-4 pb-4 pt-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-ink">{p.name}</p>
                     <p className="mt-0.5 truncate text-xs text-ink-muted">
                       {t.design.soldBy} {p.store ?? p.brand ?? '—'}
                     </p>
                   </div>
-                  <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint transition-colors group-hover:text-brand" />
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sand text-ink-soft transition-colors group-hover:bg-brand group-hover:text-white">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
                 </div>
               </Link>
             </li>

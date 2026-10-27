@@ -81,7 +81,7 @@ export default async function PartnerProjectPage(props: { params: Promise<{ id: 
         <FoldSection title={p.customerTitle} count={bookings.length}>
           <ul className="grid gap-4 md:grid-cols-2">
             {bookings.map((b) => (
-              <li key={b.orderId} className="border border-line bg-bg-surface p-4">
+              <li key={b.orderId} className="rounded-2xl border border-line bg-bg-surface p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-serif text-lg font-semibold text-ink">{b.customerName}</p>
@@ -101,7 +101,7 @@ export default async function PartnerProjectPage(props: { params: Promise<{ id: 
                   <OrderStageBadge stage={orderStage(b)} t={t} />
                 </div>
                 {b.customerNote && (
-                  <div className="mt-3 border-l-2 border-ink pl-3">
+                  <div className="mt-3 border-l-2 border-wood pl-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>
                     <p className="mt-1 text-sm text-ink">{b.customerNote}</p>
                   </div>

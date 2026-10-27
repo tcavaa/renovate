@@ -23,7 +23,7 @@ export default async function PartnerNewProductPage() {
     <div className="space-y-6">
       <div>
         <p className="eyebrow">{ctx.name}</p>
-        <h1 className="mt-2 font-serif text-3xl font-bold">{t.partner.addProduct}</h1>
+        <h1 className="mt-2 font-serif text-3xl font-semibold">{t.partner.addProduct}</h1>
       </div>
       <ProductForm categories={cats} stores={storeRows} kindNames={productKindNames()} partner={{ storeId: ctx.ref.storeId, backHref: '/partner/products' }} />
     </div>

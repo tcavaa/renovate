@@ -40,35 +40,39 @@ export function SummaryCard({
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden bg-ink px-6 py-10 text-white md:px-10 md:py-14">
+      <div className="relative overflow-hidden rounded-3xl bg-olive px-6 py-10 text-white shadow-cardHover [-webkit-print-color-adjust:exact] [print-color-adjust:exact] md:px-10 md:py-14">
         <div className="grain absolute inset-0 opacity-60" />
-        <p className="eyebrow relative text-white/60">{t.summary.grandTotalWithMargin}</p>
+        <div className="arch pointer-events-none absolute -bottom-24 right-6 hidden h-64 w-48 bg-brand/80 md:block" aria-hidden />
+        <div className="arch pointer-events-none absolute -bottom-32 right-48 hidden h-56 w-36 bg-wood/40 lg:block" aria-hidden />
+        <p className="eyebrow relative text-sand/70">{t.summary.grandTotalWithMargin}</p>
         <p className="display relative mt-4 text-[clamp(2.75rem,7vw,6rem)] tabular-nums">{formatGEL(totals.grandTotalWithMargin)}</p>
-        <p className="relative mt-4 text-sm text-white/60">
+        <p className="relative mt-4 text-sm text-sand/70">
           {t.summary.grandTotal} <span className="text-white">{formatGEL(totals.grandTotal)}</span>
           <span className="mx-2">+</span>
           {t.summary.contingency} <span className="text-white">{formatGEL(margin)}</span>
           {original && (
             <>
               <span className="mx-2">·</span>
-              {t.build.originalEstimate} <s className="text-white/80">{formatGEL(original.grandTotalWithMargin)}</s>
+              {t.build.originalEstimate} <s className="text-sand-light/80">{formatGEL(original.grandTotalWithMargin)}</s>
             </>
           )}
         </p>
       </div>
 
-      <div className="grid border-t border-l border-line sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label={t.summary.materials} value={formatGEL(totals.subtotalMaterials)} />
-        <Figure label={t.summary.products} value={formatGEL(totals.subtotalProducts)} />
-        <Figure label={t.summary.furniture} value={formatGEL(totals.subtotalFurniture)} />
-        <Figure label={t.summary.workers} value={formatGEL(totals.subtotalWorkers)} />
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
+          <Figure label={t.summary.materials} value={formatGEL(totals.subtotalMaterials)} />
+          <Figure label={t.summary.products} value={formatGEL(totals.subtotalProducts)} />
+          <Figure label={t.summary.furniture} value={formatGEL(totals.subtotalFurniture)} />
+          <Figure label={t.summary.workers} value={formatGEL(totals.subtotalWorkers)} />
+        </div>
       </div>
 
       {note && <p className="no-print text-xs text-ink-muted">{note}</p>}
 
       {children}
 
-      <div className="border border-line bg-bg-surface p-5 md:p-6">
+      <div className="rounded-2xl border border-line bg-bg-surface p-5 shadow-card md:p-6">
         <div className="space-y-2">
           <MoneyRow label={t.summary.materials} value={totals.subtotalMaterials} />
           <MoneyRow label={t.summary.products} value={totals.subtotalProducts} />
@@ -90,15 +94,15 @@ export function SummaryCard({
               </span>
             </div>
             {onResetEdits && (
-              <button type="button" onClick={onResetEdits} className="no-print text-xs font-medium text-ink-muted underline underline-offset-2 hover:text-ink">
+              <button type="button" onClick={onResetEdits} className="no-print text-xs font-medium text-ink-muted underline decoration-brand/50 underline-offset-2 hover:text-brand">
                 {t.build.resetEdits}
               </button>
             )}
           </div>
         )}
-        <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
-          <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
-          <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.grandTotalWithMargin)}</span>
+        <div className="mt-5 flex items-baseline justify-between gap-3 rounded-xl bg-brand px-4 py-4 text-white [-webkit-print-color-adjust:exact] [print-color-adjust:exact] md:px-5">
+          <span className="font-serif text-lg font-semibold">{t.summary.grandTotalWithMargin}</span>
+          <span className="font-serif text-3xl font-semibold tabular-nums">{formatGEL(totals.grandTotalWithMargin)}</span>
         </div>
         {fee && <div className="mt-4 border-t border-line pt-4">{fee}</div>}
       </div>

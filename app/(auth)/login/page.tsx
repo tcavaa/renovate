@@ -58,7 +58,7 @@ export default function LoginPage() {
       footer={
         <>
           <span>{t.auth.noAccount}</span>
-          <Link href={registerHref} className="bracket-link font-medium text-ink hover:text-brand">
+          <Link href={registerHref} className="bracket-link font-medium text-brand hover:text-brand-dark">
             {t.auth.registerButton}
           </Link>
         </>
@@ -66,25 +66,25 @@ export default function LoginPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <Field id="email" label={t.auth.email}>
-          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" />
+          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 px-4" />
         </Field>
         <Field id="password" label={t.auth.password}>
-          <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-12" />
+          <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 px-4" />
         </Field>
         {(error || socialError) && <Notice tone="error">{error ?? socialError}</Notice>}
         <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-          <Button type="submit" variant="ink" size="lg" className="w-full sm:w-auto sm:min-w-[180px]" disabled={loading}>
+          <Button type="submit" size="lg" className="w-full sm:w-auto sm:min-w-[180px]" disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t.auth.loginButton}
           </Button>
-          <Link href="/forgot-password" className="text-sm text-ink-muted underline-offset-4 hover:text-ink hover:underline">
+          <Link href="/forgot-password" className="text-sm font-medium text-brand underline-offset-4 hover:text-brand-dark hover:underline">
             {t.auth.forgotPassword}
           </Link>
         </div>
         {/* One row per configured social login; a provider with no keys has no button. */}
         {(GOOGLE_ENABLED || FACEBOOK_ENABLED) && (
           <div className="space-y-3 border-t border-line pt-5">
-            <p className="text-center text-xs uppercase tracking-[0.14em] text-ink-faint">{t.auth.orContinueWith}</p>
+            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-ink-faint">{t.auth.orContinueWith}</p>
             {GOOGLE_ENABLED && (
               <Button type="button" variant="outline" size="lg" className="w-full" onClick={() => signIn('google', { callbackUrl })}>
                 {t.auth.googleLogin}

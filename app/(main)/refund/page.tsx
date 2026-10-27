@@ -2,7 +2,7 @@ import { getT } from '@/lib/i18n/server';
 import { LegalPage } from '@/components/legal/LegalPage';
 import { companyDetails, legalSections } from '@/lib/legal';
 
-export const metadata = { title: 'Refund policy — RenovateGE' };
+export const metadata = { title: 'Refund policy' };
 
 /** When a card payment for the platform's own services is returned, and how (docs/payments.md). */
 export default async function RefundPage() {

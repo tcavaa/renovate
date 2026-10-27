@@ -300,7 +300,7 @@ async function makeVariant(variant: KitchenVariant): Promise<KitchenManifestMode
   await copyFile(draft, path.join(OUT_DIR, `${variant.slug}.glb`));
   await rm(draft, { force: true });
 
-  const credit = creditOf(SOURCE, 'the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE');
+  const credit = creditOf(SOURCE, 'the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for PLAYCE');
   const cm = (metres: number) => Math.round(metres * 1000) / 10;
   return {
     slug: variant.slug,

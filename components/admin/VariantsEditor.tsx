@@ -111,7 +111,7 @@ export function VariantsEditor({
   };
 
   return (
-    <div className="space-y-3 border border-line bg-bg-surface p-4">
+    <div className="space-y-3 rounded-2xl border border-line bg-bg-surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="text-sm font-semibold text-ink">{f.variantsTitle}</p>
@@ -153,13 +153,13 @@ export function VariantsEditor({
         // Materials a variant names that the loaded model does not have (another file uploaded since).
         const stray = materials.length > 0 ? variant.slots.filter((s) => !materials.some((m) => m.name === s.material)) : [];
         return (
-          <div key={variant.id} className={cn("space-y-3 border bg-white p-3", previewing ? "border-ink" : "border-line")}>
+          <div key={variant.id} className={cn("space-y-3 rounded-xl border bg-bg-surface p-3", previewing ? "border-olive ring-1 ring-olive/30" : "border-line")}>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="color"
                 value={variant.colorHex}
                 onChange={(e) => update(variant.id, (v) => ({ ...v, colorHex: e.target.value.toUpperCase() }))}
-                className="h-9 w-11 cursor-pointer rounded-md border border-line"
+                className="h-9 w-11 cursor-pointer rounded-lg border border-line"
                 aria-label={f.variantSwatch}
                 title={f.variantSwatch}
               />
@@ -204,9 +204,9 @@ export function VariantsEditor({
                 <div className="flex items-center gap-2">
                   {variant.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- an uploaded photo, shown as it is
-                    <img src={variant.imageUrl} alt="" className="h-10 w-10 border border-line object-cover" />
+                    <img src={variant.imageUrl} alt="" className="h-10 w-10 rounded-lg border border-line object-cover" />
                   ) : (
-                    <span className="h-10 w-10 border border-dashed border-line" />
+                    <span className="h-10 w-10 rounded-lg border border-dashed border-line" />
                   )}
                   <Button type="button" variant="outline" size="sm" onClick={() => photo(variant.id)} disabled={materials.length === 0 || photoFor != null}>
                     {photoFor === variant.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
@@ -267,10 +267,10 @@ function SlotRow({ material, slot, onChange }: { material: ModelMaterial; slot: 
   const [textureOpen, setTextureOpen] = useState(!!(slot?.colorUrl || slot?.normalUrl || slot?.roughnessUrl));
   const set = (change: Partial<VariantSlot>) => onChange({ ...(slot ?? { material: material.name }), ...change });
   return (
-    <li className={cn("border p-2", slot ? "border-ink/40" : "border-line")}>
+    <li className={cn("rounded-xl border p-2", slot ? "border-olive/40 bg-olive-soft/40" : "border-line")}>
       <label className="flex cursor-pointer items-center gap-2 text-xs">
         <input type="checkbox" checked={!!slot} onChange={(e) => onChange(e.target.checked ? { material: material.name, colorHex: material.colorHex, keepTexture: material.textured } : null)} />
-        <span aria-hidden className="h-4 w-4 shrink-0 border border-line" style={{ backgroundColor: material.colorHex }} />
+        <span aria-hidden className="h-4 w-4 shrink-0 rounded-full border border-line" style={{ backgroundColor: material.colorHex }} />
         <span className="min-w-0 flex-1 truncate font-medium text-ink">{material.name}</span>
         <span className="shrink-0 text-ink-muted">
           {fill(f.variantPartCount, { n: material.parts })}
@@ -285,7 +285,7 @@ function SlotRow({ material, slot, onChange }: { material: ModelMaterial; slot: 
                 type="color"
                 value={slot.colorHex ?? "#FFFFFF"}
                 onChange={(e) => set({ colorHex: e.target.value.toUpperCase() })}
-                className="h-8 w-10 cursor-pointer rounded-md border border-line"
+                className="h-8 w-10 cursor-pointer rounded-lg border border-line"
                 aria-label={f.variantColour}
               />
               {f.variantColour}

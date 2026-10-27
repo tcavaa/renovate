@@ -58,7 +58,7 @@ interface SheetProps {
   lines: BudgetLine[];
   /** Absent on a sheet that is only read — a saved project, a printed page. */
   actions?: SheetActions;
-  /** The build-mode corners of the design flow; the calculator's pages are square. */
+  /** The design flow's rounder cards; the calculator's are a little tighter. */
   rounded?: boolean;
 }
 
@@ -114,19 +114,19 @@ function StoreCard({ store, lines, delivery, actions, rounded }: { store: SceneS
   const subtotal = counted(lines);
   const anyIn = lines.some((l) => !l.excluded);
   return (
-    <section className={cn('overflow-hidden border border-line bg-bg-surface', rounded && 'rounded-[16px]')}>
-      <header className="flex items-center gap-4 border-b border-line p-4">
+    <section className={cn('overflow-hidden border border-line bg-bg-surface shadow-card', rounded ? 'rounded-2xl' : 'rounded-xl')}>
+      <header className="flex items-center gap-4 border-b border-line bg-sand-light/60 p-4">
         {store.logoUrl ? (
-          <Image src={store.logoUrl} alt={localizedName(locale, store)} width={40} height={40} className={cn('border border-line', rounded && 'rounded-[8px]')} />
+          <Image src={store.logoUrl} alt={localizedName(locale, store)} width={40} height={40} className="rounded-xl border border-line bg-bg-surface" />
         ) : (
-          <span className={cn('grid h-10 w-10 shrink-0 place-items-center border border-line font-serif text-base font-semibold text-ink', rounded && 'rounded-[8px]')}>{localizedName(locale, store).slice(0, 1)}</span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-olive font-serif text-base font-semibold text-sand-light">{localizedName(locale, store).slice(0, 1)}</span>
         )}
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-serif text-lg font-semibold text-ink">{localizedName(locale, store)}</h3>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
             {store.address && (
               <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
+                <MapPin className="h-3 w-3 text-wood" />
                 {store.address}
               </span>
             )}
@@ -141,7 +141,7 @@ function StoreCard({ store, lines, delivery, actions, rounded }: { store: SceneS
         <div className="shrink-0 text-right">
           <p className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(subtotal)}</p>
           <p className="flex items-center justify-end gap-1 text-[11px] text-ink-muted">
-            <Truck className="h-3 w-3" />
+            <Truck className="h-3 w-3 text-wood" />
             {!anyIn ? '—' : delivery == null || delivery === 0 ? t.design.freeDelivery : formatGEL(delivery)}
           </p>
         </div>
@@ -154,8 +154,8 @@ function StoreCard({ store, lines, delivery, actions, rounded }: { store: SceneS
 function SectionCard({ title, lines, actions, rounded }: { title: string; lines: BudgetLine[]; actions?: SheetActions; rounded: boolean }) {
   const t = useT();
   return (
-    <section className={cn('overflow-hidden border border-line bg-bg-surface', rounded && 'rounded-[16px]')}>
-      <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+    <section className={cn('overflow-hidden border border-line bg-bg-surface shadow-card', rounded ? 'rounded-2xl' : 'rounded-xl')}>
+      <header className="flex items-center justify-between gap-3 border-b border-line bg-sand-light/60 px-4 py-3">
         <h3 className="font-serif text-lg font-semibold text-ink">{title}</h3>
         <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(counted(lines))}</span>
       </header>
@@ -172,8 +172,8 @@ function LinesTable({ lines, actions, allLabel, showItem = false }: { lines: Bud
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="text-[11px] uppercase tracking-[0.12em] text-ink-muted">
-          <th className="px-4 py-2 text-left font-semibold">
+        <tr className="border-b border-line/70 bg-sand/40 text-[11px] uppercase tracking-[0.16em] text-ink-muted">
+          <th className="px-4 py-2 text-left font-medium">
             <span className="flex items-center gap-2">
               {actions && tickable.length > 1 && (
                 <input
@@ -186,15 +186,15 @@ function LinesTable({ lines, actions, allLabel, showItem = false }: { lines: Bud
                   onChange={() => actions.setMany(tickable, allIn)}
                   aria-label={allLabel}
                   title={allLabel}
-                  className="no-print accent-ink"
+                  className="no-print accent-brand"
                 />
               )}
               {t.build.colItem}
             </span>
           </th>
-          <th className="px-2 py-2 text-right font-semibold">{t.build.colQty}</th>
-          <th className="px-2 py-2 text-right font-semibold">{t.build.colUnitPrice}</th>
-          <th className="px-4 py-2 text-right font-semibold">{t.build.colTotal}</th>
+          <th className="px-2 py-2 text-right font-medium">{t.build.colQty}</th>
+          <th className="px-2 py-2 text-right font-medium">{t.build.colUnitPrice}</th>
+          <th className="px-4 py-2 text-right font-medium">{t.build.colTotal}</th>
         </tr>
       </thead>
       <tbody>
@@ -217,21 +217,21 @@ function Row({ line, actions, showItem }: { line: BudgetLine; actions?: SheetAct
   const photo = line.product?.imageUrl || null;
   const slug = line.product?.slug || null;
   return (
-    <tr className={cn('border-t border-line/70', off && 'text-ink-faint')}>
+    <tr className={cn('border-t border-line/60 transition-colors first:border-t-0 hover:bg-sand-light/50', off && 'text-ink-faint')}>
       <td className="px-4 py-2">
         <div className="flex items-start gap-2">
           {actions && line.tick != null && (
-            <input type="checkbox" checked={!off} onChange={() => actions.toggle(line)} aria-label={`${t.build.includeInOrder} — ${name}`} className="no-print mt-0.5 accent-ink" />
+            <input type="checkbox" checked={!off} onChange={() => actions.toggle(line)} aria-label={`${t.build.includeInOrder} — ${name}`} className="no-print mt-0.5 accent-brand" />
           )}
           {photo && (
-            <span className={cn('relative block h-8 w-8 shrink-0 overflow-hidden rounded-[4px] border border-line bg-bg-base', off && 'opacity-50')}>
+            <span className={cn('relative block h-8 w-8 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base', off && 'opacity-50')}>
               <Image src={photo} alt={name} fill sizes="32px" className="object-cover" />
             </span>
           )}
           <div className="min-w-0">
             <p className={cn('flex items-center gap-1 font-medium', off ? 'line-through' : 'text-ink')}>
               {slug ? (
-                <a href={`/catalog/${slug}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                <a href={`/catalog/${slug}`} target="_blank" rel="noopener noreferrer" className="decoration-brand/60 underline-offset-2 hover:text-brand hover:underline">
                   {name}
                 </a>
               ) : (
@@ -241,7 +241,7 @@ function Row({ line, actions, showItem }: { line: BudgetLine; actions?: SheetAct
             </p>
             <p className={cn('text-xs', !off && 'text-ink-muted')}>
               {under}
-              {line.estimated && <span className="ml-1.5 rounded-[4px] bg-sand px-1 py-px text-[10px] uppercase tracking-wide text-ink-muted">{t.build.estimated}</span>}
+              {line.estimated && <span className="ml-1.5 rounded-full bg-sand px-1.5 py-px text-[10px] uppercase tracking-wide text-ink-muted">{t.build.estimated}</span>}
             </p>
           </div>
         </div>
@@ -280,7 +280,7 @@ export function QuantityCell({ line, onChange }: { line: BudgetLine; onChange?: 
         }}
         onBlur={() => setOpen(false)}
         aria-label={t.build.qtyEdit}
-        className="h-8 max-w-[11rem] border border-ink bg-white px-1.5 text-right text-sm tabular-nums text-ink focus:outline-none"
+        className="h-8 max-w-[11rem] rounded-lg border border-ink/40 bg-bg-surface px-1.5 text-right text-sm tabular-nums text-ink focus:border-brand focus:outline-none"
       >
         {quantityOptions(original, line.unit, line.qty).map((option) => (
           <option key={option.value} value={String(option.value)}>
@@ -303,7 +303,7 @@ export function QuantityCell({ line, onChange }: { line: BudgetLine; onChange?: 
         {formatNumber(line.qty)} {unit}
       </span>
       {onChange && (
-        <button type="button" onClick={() => setOpen(true)} aria-label={t.build.qtyEdit} title={t.build.qtyEdit} className="no-print grid h-6 w-6 place-items-center text-ink-faint transition-colors hover:text-ink">
+        <button type="button" onClick={() => setOpen(true)} aria-label={t.build.qtyEdit} title={t.build.qtyEdit} className="no-print grid h-6 w-6 place-items-center rounded-full text-ink-faint transition-colors hover:bg-sand hover:text-ink">
           <Pencil className="h-3 w-3" />
         </button>
       )}

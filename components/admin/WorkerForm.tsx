@@ -114,7 +114,7 @@ export function WorkerForm({ worker }: Props) {
                 onChange={(e) => update('nameKa', e.target.value)}
               />
             </div>
-            <fieldset className="space-y-3 rounded-md border border-line p-4 md:col-span-2">
+            <fieldset className="space-y-3 rounded-2xl border border-line p-4 md:col-span-2">
               <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{ka.admin.forms.translations}</legend>
               <p className="text-xs text-ink-muted">{ka.admin.forms.translationsHint}</p>
               <div className="grid gap-3 md:grid-cols-2">
@@ -279,7 +279,7 @@ export function WorkerForm({ worker }: Props) {
           </div>
 
           {error && (
-            <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}

@@ -20,14 +20,14 @@ export function AskFurnitureDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <div className="mb-2 grid h-12 w-12 place-items-center border border-line bg-bg-base text-ink">
+          <div className="mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-sand text-wood-dark">
             <Sofa className="h-6 w-6" />
           </div>
           <DialogTitle>{t.calculator.furnitureModalTitle}</DialogTitle>
           <DialogDescription>{t.calculator.furnitureModalDesc}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button variant="ink" size="lg" onClick={() => router.push(calculatorStepHref(projectId, 5))}>
+          <Button size="lg" onClick={() => router.push(calculatorStepHref(projectId, 5))}>
             {t.calculator.furnitureModalYes}
           </Button>
           <Button variant="outline" size="lg" onClick={() => router.push(calculatorStepHref(projectId, 6))}>

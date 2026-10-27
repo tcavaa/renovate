@@ -311,7 +311,7 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
         {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         {isEquipmentKind(point.kind) && actions.setEquipmentProduct && <EquipmentFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         <Field label={t.build.note}>
-          <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm" />
+          <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm" />
         </Field>
         <OriginRow origin={point.origin} />
       </Section>
@@ -362,11 +362,11 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
         {edge && alongM != null && (
           <Field label={`${t.build.alongWall} · ${fill(t.build.wallN, { n: edge.index + 1 })} · ${edge.length.toFixed(2)} ${t.units.m}`}>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => slide((alongM - 0.05) / edge.length)} aria-label={t.build.nudgeLeft} title={t.build.nudgeLeft} disabled={!actions.slideElectrical} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink disabled:opacity-40">
+              <button type="button" onClick={() => slide((alongM - 0.05) / edge.length)} aria-label={t.build.nudgeLeft} title={t.build.nudgeLeft} disabled={!actions.slideElectrical} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink-soft hover:border-ink disabled:opacity-40">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <input type="range" min={0.02} max={0.98} step={0.005} value={point.t ?? 0.5} onChange={(e) => slide(Number(e.target.value))} disabled={!actions.slideElectrical} aria-label={t.build.alongWall} className="min-w-0 flex-1 accent-ink" />
-              <button type="button" onClick={() => slide((alongM + 0.05) / edge.length)} aria-label={t.build.nudgeRight} title={t.build.nudgeRight} disabled={!actions.slideElectrical} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink disabled:opacity-40">
+              <button type="button" onClick={() => slide((alongM + 0.05) / edge.length)} aria-label={t.build.nudgeRight} title={t.build.nudgeRight} disabled={!actions.slideElectrical} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink-soft hover:border-ink disabled:opacity-40">
                 <ChevronRight className="h-4 w-4" />
               </button>
               <span className="w-14 shrink-0 text-right text-xs tabular-nums text-ink">{alongM.toFixed(2)} {t.units.m}</span>
@@ -396,10 +396,10 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
               </div>
             </Field>
             {(point.kind === 'light_strip' || point.kind === 'light_furniture') && <NumberField label={`${t.build.stripLength} (${t.units.m})`} value={point.lengthM ?? 1.5} min={0.2} max={20} step={0.1} onCommit={(v) => actions.updateElectrical(point.id, { lengthM: v })} />}
-            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => actions.updateElectrical(point.id, { on: point.on === false })} className="flex h-9 w-full items-center justify-between rounded-[10px] border border-line px-3 text-xs font-semibold text-ink transition-colors hover:border-ink">
+            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => actions.updateElectrical(point.id, { on: point.on === false })} className="flex h-9 w-full items-center justify-between rounded-full border border-line px-3 text-xs font-semibold text-ink transition-colors hover:border-ink">
               <span>{point.on !== false ? t.build.lightOn : t.build.lightOff}</span>
               <span className={cn('relative h-5 w-9 rounded-full transition-colors', point.on !== false ? 'bg-[#F5B400]' : 'bg-line')}>
-                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-bg-surface shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
               </span>
             </button>
           </>
@@ -447,7 +447,7 @@ export function RoomFields({ room, plan, actions, locked, compact, roomPart }: {
   return (
     <>
       <Field label={t.design.roomNameLabel}>
-        <input value={room.name} onChange={(e) => actions.updateRoom(room.id, { name: e.target.value })} maxLength={120} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm" aria-label={t.design.roomNameLabel} />
+        <input value={room.name} onChange={(e) => actions.updateRoom(room.id, { name: e.target.value })} maxLength={120} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm" aria-label={t.design.roomNameLabel} />
       </Field>
       <div className={cn('grid gap-2', compact ? 'grid-cols-2' : 'grid-cols-2')}>
         <Field label={t.design.roomTypeLabel}>
@@ -458,7 +458,7 @@ export function RoomFields({ room, plan, actions, locked, compact, roomPart }: {
               const name = isAutoRoomName(room.name) ? nextRoomName(plan.rooms, type, room.id) : room.name;
               actions.updateRoom(room.id, { type, name });
             }}
-            className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm"
+            className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm"
             aria-label={t.design.roomTypeLabel}
           >
             {(Object.keys(ROOM_TYPES) as RoomType[]).map((type) => (
@@ -499,7 +499,7 @@ function SeparatorField({ separated, onWhole }: { separated: boolean; onWhole: (
     <div className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
       <p className="text-xs font-semibold text-ink">{separated ? t.design.separatedTitle : t.design.partialWallTitle}</p>
       <p className="text-[11px] leading-snug text-ink-muted">{separated ? t.design.separatedHint : t.design.partialWallHint}</p>
-      <button type="button" onClick={() => onWhole(separated)} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line bg-white px-2.5 text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
+      <button type="button" onClick={() => onWhole(separated)} className="flex h-8 items-center gap-1.5 rounded-full border border-line bg-bg-surface px-2.5 text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
         {separated ? <Square className="h-3.5 w-3.5" /> : <SquareSplitHorizontal className="h-3.5 w-3.5" />}
         {separated ? t.design.joinRooms : t.design.divideAlongWall}
       </button>
@@ -525,10 +525,10 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold text-ink">{t.design.studioSplitTitle}</p>
         <div className="flex gap-1">
-          <button type="button" onClick={() => setSplit(turned(room))} title={t.design.studioTurn} aria-label={t.design.studioTurn} className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink">
+          <button type="button" onClick={() => setSplit(turned(room))} title={t.design.studioTurn} aria-label={t.design.studioTurn} className="flex h-7 w-7 items-center justify-center rounded-full border border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink">
             <RotateCw className="h-3.5 w-3.5" />
           </button>
-          <button type="button" onClick={() => setSplit(swapped(room))} title={t.design.studioSwap} aria-label={t.design.studioSwap} className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-line bg-white text-ink-soft hover:border-ink hover:text-ink">
+          <button type="button" onClick={() => setSplit(swapped(room))} title={t.design.studioSwap} aria-label={t.design.studioSwap} className="flex h-7 w-7 items-center justify-center rounded-full border border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink">
             <ArrowLeftRight className="h-3.5 w-3.5" />
           </button>
 
@@ -538,7 +538,7 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
         <div
           key={part.index}
           onClick={() => actions.selectRoomPart?.(room.id, part.index)}
-          className={cn('grid grid-cols-[auto_1fr_6.5rem] items-end gap-2 rounded-[8px] p-1.5 transition-colors', active === part.index ? 'bg-white ring-1 ring-brand/40' : '')}
+          className={cn('grid grid-cols-[auto_1fr_6.5rem] items-end gap-2 rounded-[8px] p-1.5 transition-colors', active === part.index ? 'bg-bg-surface ring-1 ring-brand/40' : '')}
         >
           <span className="mb-2 h-4 w-4 rounded-[4px] border border-line" style={{ backgroundColor: ROOM_TINT_STRONG[part.type] }} aria-hidden />
           <Field label={`${part.index + 1}`}>
@@ -546,7 +546,7 @@ function StudioSplitFields({ room, actions, active }: { room: PlanRoom; actions:
               value={part.type}
               onChange={(e) => setSplit(withPartType(room, part.index, e.target.value as RoomType))}
               onFocus={() => actions.selectRoomPart?.(room.id, part.index)}
-              className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm"
+              className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm"
               aria-label={t.design.roomTypeLabel}
             >
               {types.map((type) => (
@@ -638,7 +638,7 @@ function RadiatorFields({ plan, point, catalog, styleId, locale, actions }: { pl
             {candidates.map((product) => {
               const active = point.product?.productId === product.id;
               return (
-                <button key={product.id} type="button" onClick={() => actions.setRadiatorProduct?.(point.id, active ? null : product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                <button key={product.id} type="button" onClick={() => actions.setRadiatorProduct?.(point.id, active ? null : product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
                   {product.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={product.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base object-contain" />
@@ -693,7 +693,7 @@ function EquipmentFields({ plan, point, catalog, styleId, locale, actions }: { p
               const active = point.product?.productId === product.id;
               const cover = equipmentSpecs(product).coverM2;
               return (
-                <button key={product.id} type="button" onClick={() => !active && actions.setEquipmentProduct?.(point.id, product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-white p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                <button key={product.id} type="button" onClick={() => !active && actions.setEquipmentProduct?.(point.id, product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
                   {product.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={product.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-[6px] bg-bg-base object-contain" />
@@ -727,7 +727,7 @@ export function Section({ title, subtitle, icon, onDelete, className, children }
   const t = useT();
   const close = useContext(InspectorClose);
   return (
-    <div className={cn('space-y-2 rounded-[14px] border border-line bg-white p-3', className)}>
+    <div className={cn('space-y-2 rounded-[14px] border border-line bg-bg-surface p-3', className)}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {icon && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-sand-light text-ink">{icon}</span>}
@@ -739,12 +739,12 @@ export function Section({ title, subtitle, icon, onDelete, className, children }
         {(onDelete || close) && (
           <div className="flex shrink-0 items-center gap-0.5">
             {onDelete && (
-              <button type="button" onClick={onDelete} aria-label={t.build.deleteElement} title={t.build.deleteElement} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-faint hover:bg-danger/10 hover:text-danger">
+              <button type="button" onClick={onDelete} aria-label={t.build.deleteElement} title={t.build.deleteElement} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-danger/10 hover:text-danger">
                 <Trash2 className="h-4 w-4" />
               </button>
             )}
             {close && (
-              <button type="button" onClick={close} aria-label={t.common.close} title={t.common.close} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-muted hover:bg-sand-light hover:text-ink">
+              <button type="button" onClick={close} aria-label={t.common.close} title={t.common.close} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sand-light hover:text-ink">
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -776,7 +776,7 @@ export function Fact({ label, value }: { label: string; value: string }) {
 
 export function Chip({ active, onClick, disabled, title, small, children }: { active?: boolean; onClick: () => void; disabled?: boolean; title?: string; small?: boolean; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} title={title} className={cn('inline-flex items-center gap-1.5 rounded-[8px] font-medium transition-colors disabled:opacity-50', small ? 'h-7 px-2 text-[11px]' : 'h-7 px-2.5 text-xs', active ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={active} title={title} className={cn('inline-flex items-center gap-1.5 rounded-full font-medium transition-colors disabled:opacity-50', small ? 'h-7 px-2 text-[11px]' : 'h-7 px-2.5 text-xs', active ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
       {children}
     </button>
   );
@@ -804,7 +804,7 @@ export function NumberField({ label, value, min, max, step, onCommit, disabled }
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
-        className="h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] tabular-nums disabled:opacity-50"
+        className="h-8 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-[13px] tabular-nums disabled:opacity-50"
       />
     </Field>
   );
@@ -836,7 +836,7 @@ export function MaterialField({ value, options, onChange, disabled }: { value: B
 export function OriginRow({ origin }: { origin: 'existing' | 'user' | 'generated' }) {
   const t = useT();
   const label = origin === 'existing' ? t.build.originExisting : origin === 'user' ? t.build.originUser : t.build.originGenerated;
-  const color = origin === 'existing' ? '#3A3733' : origin === 'user' ? '#E85D26' : '#2E8B85';
+  const color = origin === 'existing' ? '#3A3733' : origin === 'user' ? '#B5462B' : '#2E8B85';
   return (
     <p className="flex items-center gap-1.5 text-[11px] text-ink-muted">
       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
@@ -859,8 +859,8 @@ export function IconAction({ label, onClick, active, danger, disabled, children 
       title={label}
       aria-pressed={active}
       className={cn(
-        'grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border transition-colors disabled:opacity-40',
-        active ? 'border-ink bg-ink text-white' : danger ? 'border-line bg-white text-ink-soft hover:border-danger hover:text-danger' : 'border-line bg-white text-ink-soft hover:border-ink hover:text-ink'
+        'grid h-8 w-8 shrink-0 place-items-center rounded-full border transition-colors disabled:opacity-40',
+        active ? 'border-ink bg-ink text-white' : danger ? 'border-line bg-bg-surface text-ink-soft hover:border-danger hover:text-danger' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink'
       )}
     >
       {children}
@@ -871,7 +871,7 @@ export function IconAction({ label, onClick, active, danger, disabled, children 
 export function LockRow({ locked, onToggle }: { locked: boolean; onToggle: () => void }) {
   const t = useT();
   return (
-    <button type="button" onClick={onToggle} className="flex h-8 items-center gap-1.5 rounded-[8px] border border-line px-2.5 text-xs text-ink-soft hover:border-ink">
+    <button type="button" onClick={onToggle} className="flex h-8 items-center gap-1.5 rounded-full border border-line px-2.5 text-xs text-ink-soft hover:border-ink">
       {locked ? <Lock className="h-3.5 w-3.5" /> : <LockOpen className="h-3.5 w-3.5" />}
       {locked ? t.build.unlock : t.build.lock}
     </button>

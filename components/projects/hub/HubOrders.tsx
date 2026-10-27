@@ -19,7 +19,7 @@ export async function HubOrders({ userId, t, locale }: { userId: number; t: Dict
     <section className="mt-8">
       <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{t.hub.ordersHint}</p>
       {groups.length === 0 ? (
-        <p className="mt-10 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{t.hub.ordersEmpty}</p>
+        <p className="mt-10 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center text-sm text-ink-muted">{t.hub.ordersEmpty}</p>
       ) : (
         <div className="mt-10 space-y-12">
           {groups.map((group) => (

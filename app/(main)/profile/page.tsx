@@ -15,6 +15,7 @@ import { HubRenders } from '@/components/projects/hub/HubRenders';
 import { HubOrders } from '@/components/projects/hub/HubOrders';
 import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/ProjectCardMenu';
 import { Button } from '@/components/ui/button';
+import { LogoMark } from '@/components/layout/Logo';
 import { loadHubProjects, type HubProject } from '@/lib/projects/hub';
 import { getT, getLocale } from '@/lib/i18n/server';
 import { formatM2L, homeStateLabel } from '@/lib/i18n/labels';
@@ -107,15 +108,15 @@ async function ProfileProjects({ userId, t }: { userId: number; t: Dictionary })
     <>
       {/* Each product's hub: its projects, and the way to start a new one. */}
       <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-5">
-        <RoundLink href={CALCULATOR_HUB_HREF} icon={<Calculator className="h-6 w-6" />} label={t.nav.calculator} className="bg-brand group-hover:bg-brand-dark" />
-        <RoundLink href={DESIGN_HUB_HREF} icon={<Box className="h-6 w-6" />} label={t.design.title} className="bg-slate-deep group-hover:bg-ink" />
+        <RoundLink href={CALCULATOR_HUB_HREF} icon={<Calculator className="h-6 w-6" />} label={t.nav.calculator} className="bg-wood group-hover:bg-wood-dark" />
+        <RoundLink href={DESIGN_HUB_HREF} icon={<Box className="h-6 w-6" />} label={t.design.title} className="bg-olive group-hover:bg-olive-dark" />
       </div>
 
       <dl className="mt-10 grid gap-4 sm:grid-cols-3">
         {figures.map((f) => (
-          <div key={f.label} className="rounded-[18px] border border-line bg-bg-surface px-5 py-4">
-            <dt className="text-xs font-medium text-ink-muted">{f.label}</dt>
-            <dd className={f.emphasis ? 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-brand' : 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-ink'}>{f.value}</dd>
+          <div key={f.label} className="rounded-2xl border border-line bg-bg-surface px-5 py-4">
+            <dt className="eyebrow">{f.label}</dt>
+            <dd className={f.emphasis ? 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-brand' : 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-olive'}>{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -125,9 +126,10 @@ async function ProfileProjects({ userId, t }: { userId: number; t: Dictionary })
           {t.hub.byDate}
         </h2>
         {all.length === 0 ? (
-          <div className="mt-5 rounded-[18px] border border-dashed border-line p-12 text-center">
+          <div className="mt-5 flex flex-col items-center rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center">
+            <LogoMark tone="sand" className="mb-5 h-12 w-12" />
             <p className="text-sm text-ink-muted">{t.profile.emptyText}</p>
-            <Button asChild variant="ink" className="mt-5">
+            <Button asChild className="mt-5">
               <Link href={CALCULATOR_HUB_HREF}>{t.profile.emptyCta}</Link>
             </Button>
           </div>

@@ -14,7 +14,7 @@ export function SortSelect({ label, value, options }: { label: string; value: st
           const next = options.find((o) => o.value === e.target.value);
           if (next) router.push(next.href);
         }}
-        className="h-9 border border-line bg-bg-surface px-2 text-sm text-ink focus:border-ink focus:outline-none"
+        className="h-10 cursor-pointer rounded-full border border-line bg-bg-surface pl-4 pr-3 text-sm text-ink transition-colors hover:border-ink/40 focus:border-ink/40 focus:outline-none"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

@@ -149,7 +149,7 @@ export function Combobox({ value, onValueChange, options, placeholder, searchPla
           aria-label={ariaLabel}
           onKeyDown={onTriggerKeyDown}
           className={cn(
-            'flex h-10 w-full items-center justify-between gap-2 rounded-none border border-line bg-bg-surface px-3 py-2 text-left text-sm',
+            'flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-line bg-bg-surface px-3.5 py-2 text-left text-sm',
             'focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 data-[state=open]:border-brand',
             'disabled:cursor-not-allowed disabled:opacity-50',
             className
@@ -174,7 +174,7 @@ export function Combobox({ value, onValueChange, options, placeholder, searchPla
           }}
           className={cn(
             'z-50 flex max-h-[min(26rem,var(--radix-popover-content-available-height))] w-[var(--radix-popover-trigger-width)] min-w-[min(18rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] flex-col',
-            'border border-line bg-bg-surface text-ink shadow-cardHover outline-none',
+            'overflow-hidden rounded-2xl border border-line bg-bg-surface text-ink shadow-float outline-none',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0'
           )}
         >
@@ -197,7 +197,7 @@ export function Combobox({ value, onValueChange, options, placeholder, searchPla
               autoCorrect="off"
               autoCapitalize="none"
               spellCheck={false}
-              className="h-9 w-full border border-line bg-bg-base pl-8 pr-2 text-base text-ink placeholder:text-ink-muted focus:border-ink focus:bg-bg-surface focus:outline-none sm:text-sm"
+              className="h-9 w-full rounded-lg border border-line bg-bg-base pl-8 pr-2 text-base text-ink placeholder:text-ink-muted focus:border-ink focus:bg-bg-surface focus:outline-none sm:text-sm"
             />
           </div>
           <ul ref={list} id={listId} role="listbox" aria-label={ariaLabel} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">

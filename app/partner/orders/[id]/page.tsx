@@ -40,7 +40,7 @@ export default async function PartnerOrderPage(props: { params: Promise<{ id: st
     <div className="space-y-6">
       <div>
         <p className="eyebrow">{ctx.name ?? partnerNameOf(view)}</p>
-        <h1 className="mt-2 font-serif text-3xl font-bold">{fill(t.partner.orderTitle, { id: view.order.id })}</h1>
+        <h1 className="mt-2 font-serif text-3xl font-semibold">{fill(t.partner.orderTitle, { id: view.order.id })}</h1>
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <PartnerOrderView order={orderData(redactForPartner(view))} backHref={partnerHref('/partner/orders', ctx)} projectHref={projectHref} />

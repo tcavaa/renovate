@@ -191,7 +191,7 @@ export default function BudgetPage() {
             <>
               <span className="flex items-center gap-1">
                 {style.swatches.slice(0, 4).map((hex) => (
-                  <span key={hex} className="h-3 w-3 rounded-[3px] border border-line" style={{ backgroundColor: hex }} />
+                  <span key={hex} className="h-3 w-3 rounded-full border border-line" style={{ backgroundColor: hex }} />
                 ))}
               </span>
               <span>{plan.rooms.length} × {t.design.step2}</span>
@@ -327,7 +327,7 @@ export default function BudgetPage() {
               </div>
             </div>
 
-            <Link href={designStepHref(projectId, 8)} className="flex h-12 items-center justify-center gap-2 rounded-[12px] border border-line bg-white text-sm font-medium text-ink hover:border-ink">
+            <Link href={designStepHref(projectId, 8)} className="flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-bg-surface text-sm font-medium text-ink hover:border-ink">
               <HardHat className="h-4 w-4" />
               {t.build.findWorkers}
             </Link>

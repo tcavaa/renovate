@@ -45,7 +45,7 @@ const OUT_DIR = path.join(ROOT, 'public', 'models', 'fixtures');
 const PHOTO_DIR = path.join(ROOT, 'public', 'uploads', 'furniture');
 const TS_OUT = path.join(ROOT, 'lib', 'design3d', 'fixtureManifest.ts');
 const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', 'renovate-fixtures');
-const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
+const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://playce.ge)';
 const TARGET_TRIANGLES = 6_000;
 const MAX_BYTES = 900 * 1024;
 

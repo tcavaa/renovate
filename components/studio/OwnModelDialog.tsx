@@ -251,7 +251,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
   /** The model's price as the dialogue words it: the price and the bank's commission on top. */
   const priceNote = price && !price.free ? (price.credit ? t.design.ownPriceCredit : fill(t.design.ownPrice, { amount: formatGEL(price.charge.amount, true), pct: `${formatNumber(price.charge.bankFeePct)}%` })) : null;
 
-  const field = 'h-9 w-full rounded-[8px] border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none';
+  const field = 'h-9 w-full rounded-[8px] border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none';
 
   return (
     <Dialog
@@ -381,11 +381,11 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
               <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">
                 <div ref={hostRef} className="h-full w-full" />
                 {loading && (
-                  <div className="absolute inset-0 grid place-items-center bg-white/60 text-sm text-ink-muted">
+                  <div className="absolute inset-0 grid place-items-center bg-bg-surface/60 text-sm text-ink-muted">
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
                 )}
-                {loadFailed && <p className="absolute inset-x-3 bottom-3 rounded-[8px] bg-white/95 px-3 py-2 text-xs text-danger">{t.modelUploader.loadError}</p>}
+                {loadFailed && <p className="absolute inset-x-3 bottom-3 rounded-[8px] bg-bg-surface/95 px-3 py-2 text-xs text-danger">{t.modelUploader.loadError}</p>}
                 {!loading && !loadFailed && <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-[11px] text-ink-muted">{t.modelUploader.previewHint}</p>}
               </div>
             )}

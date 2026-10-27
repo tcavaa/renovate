@@ -52,27 +52,27 @@ export function ShelfRoomList({ rows }: { rows: ShelfRoomRow[] }) {
     }
   };
 
-  if (rows.length === 0) return <p className="border border-dashed border-line p-12 text-center text-sm text-ink-muted">{s.empty}</p>;
+  if (rows.length === 0) return <p className="rounded-2xl border border-dashed border-line p-12 text-center text-sm text-ink-muted">{s.empty}</p>;
 
   return (
-    <div className="border border-line bg-bg-surface">
+    <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
       {error && <p className="border-b border-danger/30 bg-danger/5 px-4 py-2 text-sm text-danger">{error}</p>}
       <ul>
         {rows.map((row, i) => (
           <li key={row.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line/70 px-4 py-3 last:border-b-0', !row.isVisible && 'opacity-60')}>
-            <span className="grid h-10 w-10 shrink-0 place-items-center border border-ink bg-ink text-white">{row.icon ? <NodeIcon node={row.icon} className="h-5 w-5" /> : <Package className="h-5 w-5 opacity-50" />}</span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-olive text-sand-light">{row.icon ? <NodeIcon node={row.icon} className="h-5 w-5" /> : <Package className="h-5 w-5 opacity-50" />}</span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Link href={`/admin/categories/rooms/${row.id}`} className="font-semibold text-ink hover:text-brand">
                   {row.name}
                 </Link>
                 {!row.isVisible && (
-                  <span className="inline-flex items-center gap-1 bg-line/60 px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-line/60 px-2 py-0.5 text-[10px] font-semibold text-ink-muted">
                     <EyeOff className="h-3 w-3" /> {s.hiddenBadge}
                   </span>
                 )}
                 {row.roomTypes.map((type) => (
-                  <span key={type} className="border border-line px-1.5 py-0.5 text-[10px] font-semibold text-ink-soft">
+                  <span key={type} className="rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold text-ink-soft">
                     {type}
                   </span>
                 ))}
@@ -80,7 +80,7 @@ export function ShelfRoomList({ rows }: { rows: ShelfRoomRow[] }) {
               <div className="mt-1.5 flex flex-wrap items-center gap-1">
                 {row.categories.length === 0 && <span className="text-xs text-ink-muted">{s.noCategories}</span>}
                 {row.categories.map((c) => (
-                  <Link key={c.id} href={`/admin/categories/${c.id}`} title={c.name} className="inline-flex items-center gap-1 border border-line bg-bg-base px-1.5 py-0.5 text-[11px] text-ink-soft hover:border-ink hover:text-ink">
+                  <Link key={c.id} href={`/admin/categories/${c.id}`} title={c.name} className="inline-flex items-center gap-1 rounded-full border border-line bg-bg-base px-2 py-0.5 text-[11px] text-ink-soft hover:border-ink/40 hover:bg-sand/50 hover:text-ink">
                     {c.icon ? <NodeIcon node={c.icon} className="h-3 w-3" /> : null}
                     {c.name}
                   </Link>

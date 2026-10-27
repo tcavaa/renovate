@@ -29,7 +29,7 @@ export default function CalculatorProjectEntry() {
 
   return (
     <div className="container flex min-h-[50vh] items-center justify-center py-24 text-sm text-ink-muted" role="status" aria-live="polite">
-      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      <Loader2 className="mr-2 h-4 w-4 animate-spin text-brand" />
       {t.hub.opening}
     </div>
   );

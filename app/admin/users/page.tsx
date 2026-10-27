@@ -117,10 +117,10 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
 
       {/* The groups are links: a click is the filtered list. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/admin/users?group=staff"><StatCard label={ka.accounts.groupStaff} value={`${Number(groups?.staff ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
-        <Link href="/admin/users?group=partners"><StatCard label={ka.accounts.groupPartners} value={`${Number(groups?.partners ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
-        <Link href="/admin/users?role=user"><StatCard label={ka.accounts.groupCustomers} value={`${Number(groups?.customers ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
-        <Link href="/admin/users?status=inactive"><StatCard label={ka.accounts.groupDeactivated} value={`${Number(groups?.deactivated ?? 0)}`} className="transition-colors hover:border-ink" /></Link>
+        <Link href="/admin/users?group=staff"><StatCard label={ka.accounts.groupStaff} value={`${Number(groups?.staff ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
+        <Link href="/admin/users?group=partners"><StatCard label={ka.accounts.groupPartners} value={`${Number(groups?.partners ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
+        <Link href="/admin/users?role=user"><StatCard label={ka.accounts.groupCustomers} value={`${Number(groups?.customers ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
+        <Link href="/admin/users?status=inactive"><StatCard label={ka.accounts.groupDeactivated} value={`${Number(groups?.deactivated ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
       </div>
 
       <FilterBar

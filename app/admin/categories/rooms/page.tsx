@@ -37,8 +37,8 @@ export default async function ShelfRoomsPage() {
         }
       />
       <CategoryTabs active="rooms" />
-      <p className="flex items-start gap-2 border border-line bg-bg-surface px-4 py-3 text-sm text-ink-muted">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <p className="flex items-start gap-2 rounded-2xl border border-line bg-sand-light/60 px-4 py-3 text-sm text-ink-muted">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-wood" aria-hidden />
         {s.how}
       </p>
       <ShelfRoomList

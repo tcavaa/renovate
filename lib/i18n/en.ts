@@ -2,8 +2,11 @@ import type { Dictionary } from './ka';
 
 export const en: Dictionary = {
   app: {
-    name: 'RenovateGE',
-    tagline: 'Plan. Calculate. Build.',
+    name: 'PLAYCE',
+    /** The brand line under the wordmark — English in every language, like the name. */
+    tagline: 'Play with your place',
+    /** The motto: what the platform does, in three verbs. */
+    motto: 'Plan. Calculate. Build.',
     description:
       "Georgia's first complete renovation planner and cost calculator",
   },
@@ -434,9 +437,9 @@ export const en: Dictionary = {
     verifySent: 'Verification link sent.',
     verifiedOk: 'Email verified. Thank you!',
     verifiedFail: 'The verification link is invalid or has expired.',
-    mailResetSubject: 'Reset your password — remonti.ge',
+    mailResetSubject: 'Reset your password — PLAYCE',
     mailResetBody: 'Open this link to choose a new password (valid for 1 hour):',
-    mailVerifySubject: 'Verify your email — remonti.ge',
+    mailVerifySubject: 'Verify your email — PLAYCE',
     mailVerifyBody: 'Open this link to verify your email (valid for 24 hours):',
     mailIgnore: 'If you did not request this, you can ignore this message.',
   },
@@ -1222,7 +1225,7 @@ export const en: Dictionary = {
   pages: {
     about: {
       title: 'About us',
-      subtitle: "RenovateGE — Georgia's first complete renovation platform",
+      subtitle: "PLAYCE — Georgia's first complete renovation platform",
       missionTitle: 'Our mission',
       missionBody:
         "Renovation is often complex, expensive and confusing. We build tools that help every household plan a realistic budget, pick trusted materials and workers — without any guesswork.",
@@ -1293,7 +1296,7 @@ export const en: Dictionary = {
         'You can ask at any time to see, correct or delete your data and account — projects and personal information are deleted; payment records are kept for the period the law requires.',
       s7Title: '7. Contact',
       s7Body:
-        'For any privacy question, write to privacy@remonti.ge.',
+        'For any privacy question, write to privacy@playce.ge.',
     },
     terms: {
       title: 'Terms of service',
@@ -1302,7 +1305,7 @@ export const en: Dictionary = {
       lastUpdatedValue: '20 October 2026',
       s1Title: '1. What the platform is',
       s1Body:
-        'RenovateGE is a platform for planning a renovation, working out its cost and designing it in 3D. Our estimates are approximate — real prices may change with the market and a store\'s stock. The platform connects customers with partner stores and brigades, who sell the goods and do the work.',
+        'PLAYCE is a platform for planning a renovation, working out its cost and designing it in 3D. Our estimates are approximate — real prices may change with the market and a store\'s stock. The platform connects customers with partner stores and brigades, who sell the goods and do the work.',
       s2Title: '2. Your account',
       s2Body:
         'By registering you confirm that the information you give is true. You are responsible for keeping your account and password safe.',
@@ -1320,16 +1323,16 @@ export const en: Dictionary = {
         'A fee for a digital service already delivered is not refunded, except for a technical failure or a double or mistaken charge. The rules, time limits and how to ask are in the Refund policy (/refund).',
       s7Title: '7. Liability',
       s7Body:
-        'RenovateGE aims to give accurate information but is not responsible for the quality or real prices of goods and services supplied by third parties (stores, brigades).',
+        'PLAYCE aims to give accurate information but is not responsible for the quality or real prices of goods and services supplied by third parties (stores, brigades).',
       s8Title: '8. Intellectual property',
       s8Body:
-        'All the platform\'s visuals, logos and code belong to RenovateGE. Product photos and 3D models belong to their stores; models you upload belong to you.',
+        'All the platform\'s visuals, logos and code belong to PLAYCE. Product photos and 3D models belong to their stores; models you upload belong to you.',
       s9Title: '9. Changes',
       s9Body:
         'We may change these terms. We will tell you about important changes by e-mail; a service already paid for is governed by the terms of the day it was paid.',
       s10Title: '10. Contact and company details',
       s10Body:
-        'For legal questions write to legal@remonti.ge or info@remonti.ge, phone +995 555 12 34 56. The service is provided by {company}, identification code {companyId}, legal address: {legalAddress}.',
+        'For legal questions write to legal@playce.ge or info@playce.ge, phone +995 555 12 34 56. The service is provided by {company}, identification code {companyId}, legal address: {legalAddress}.',
     },
     refund: {
       title: 'Refund policy',
@@ -1338,7 +1341,7 @@ export const en: Dictionary = {
       lastUpdatedValue: '20 October 2026',
       s1Title: '1. What it covers',
       s1Body:
-        'This policy covers the platform\'s services paid by card on remonti.ge: the Premium and Professional plans, adding a piece of one\'s own and realistic renders. A partner store\'s goods are returned on the store\'s terms and under Georgia\'s consumer protection law.',
+        'This policy covers the platform\'s services paid by card on playce.ge: the Premium and Professional plans, adding a piece of one\'s own and realistic renders. A partner store\'s goods are returned on the store\'s terms and under Georgia\'s consumer protection law.',
       s2Title: '2. Full refunds',
       s2Body:
         'The full amount (including the bank commission) is returned if: you were charged twice or by mistake; the service was not delivered after payment because of a technical failure we could not fix; or you paid for the same service twice.',
@@ -1347,13 +1350,13 @@ export const en: Dictionary = {
         'A digital service starts as soon as it is paid for (the plan activated, the piece added, the render requested), so a service delivered successfully is not refunded — for example if you changed your mind, did not use the whole period of a plan, or did not like the result. Moving up to a higher plan takes the unused part of the current one off the new plan\'s price. You agree to this when you start the payment.',
       s4Title: '4. How to ask',
       s4Body:
-        'Write to info@remonti.ge within 14 days of the payment, giving your account e-mail, the project and the payment receipt number (shown when the payment is confirmed). We review requests within 5 working days and answer by e-mail.',
+        'Write to info@playce.ge within 14 days of the payment, giving your account e-mail, the project and the payment receipt number (shown when the payment is confirmed). We review requests within 5 working days and answer by e-mail.',
       s5Title: '5. How the money is returned',
       s5Body:
         'An approved refund goes back to the card you paid with, through the Flitt payment system. Banks usually show it within 5–10 working days. For a card in another currency the refund uses the exchange rate of the payment day.',
       s6Title: '6. Contact',
       s6Body:
-        'Questions about refunds: info@remonti.ge, +995 555 12 34 56 (Mon — Fri, 10:00 — 19:00). {company}, ID {companyId}, {legalAddress}.',
+        'Questions about refunds: info@playce.ge, +995 555 12 34 56 (Mon — Fri, 10:00 — 19:00). {company}, ID {companyId}, {legalAddress}.',
     },
   },
   status: {
@@ -1481,7 +1484,7 @@ export const en: Dictionary = {
     localhostNote: 'Flitt does not open its payment form on localhost. Locally, open http://renovate.localhost:3000 (any *.localhost address) — the live site is not affected.',
     secureNote: 'Your card details are processed securely by the Flitt payment system — we never store them.',
     ownItemLine: 'Adding a piece of my own',
-    flittDescOwnItem: 'RenovateGE — adding my own 3D model',
+    flittDescOwnItem: 'PLAYCE — adding my own 3D model',
   },
   plans: {
     free: 'Free',
@@ -1545,9 +1548,9 @@ export const en: Dictionary = {
     paidPlanTitle: 'Your plan is active',
     paidPlanDesc: '{plan} is active until {date}.',
     continueAfterPlan: 'Continue',
-    flittDescMonth: 'remonti.ge — {plan} plan · 1 month',
-    flittDescYear: 'remonti.ge — {plan} plan · 1 year',
-    flittDescRender: 'remonti.ge — a realistic render',
+    flittDescMonth: 'PLAYCE — {plan} plan · 1 month',
+    flittDescYear: 'PLAYCE — {plan} plan · 1 year',
+    flittDescRender: 'PLAYCE — a realistic render',
     choosePlanTitle: 'The {plan} plan',
     lockedTitle: '{feature} is in {plan}',
     lockedBadgeTitle: 'In {plan} — click to see the plans',
@@ -2001,7 +2004,7 @@ export const en: Dictionary = {
     product: 'Product',
     company: 'Company',
     address: 'Tbilisi, Georgia',
-    email: 'info@remonti.ge',
+    email: 'info@playce.ge',
     phone: '+995 555 12 34 56',
   },
   currency: {

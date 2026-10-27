@@ -66,32 +66,32 @@ export function CatalogSidebar({
   return (
     <div className="space-y-8 text-sm">
       <nav aria-label={t.catalog.filterByCategory}>
-        <p className="eyebrow mb-2">{t.catalog.filterByCategory}</p>
-        <ul className="border-t border-line">
+        <p className="eyebrow mb-2 px-3">{t.catalog.filterByCategory}</p>
+        <ul className="space-y-0.5">
           <li>
             <CategoryLink href={href({ category: undefined })} active={!state.category} depth={0} icon={null} label={t.catalog.allCategories} count={total} />
           </li>
         </ul>
         {tree.map((group) => (
-          <div key={group.category.id} className="mt-4">
+          <div key={group.category.id} className="mt-5">
             <Link
               href={href({ category: group.category.slug })}
               scroll={false}
               aria-current={state.category === group.category.slug ? 'page' : undefined}
-              className={cn('mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors', state.category === group.category.slug ? 'text-ink' : 'text-ink-faint hover:text-ink')}
+              className={cn('mb-1.5 flex items-center gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors', state.category === group.category.slug ? 'text-brand' : 'text-wood-dark/80 hover:text-ink')}
             >
               <CategoryIcon icon={group.category.icon} className="h-3 w-3" />
               <span className="truncate">{name(group.category)}</span>
               <span className="ml-auto tabular-nums">{group.count}</span>
             </Link>
-            <ul className="border-t border-line">{branch(group.children, 1)}</ul>
+            <ul className="space-y-0.5">{branch(group.children, 1)}</ul>
           </div>
         ))}
       </nav>
 
       <div>
-        <p className="eyebrow mb-2">{t.catalog.store}</p>
-        <ul className="border-t border-line">
+        <p className="eyebrow mb-2 px-3">{t.catalog.store}</p>
+        <ul className="space-y-0.5">
           <FilterLink href={href({ store: undefined })} active={!state.store} label={t.catalog.allStores} />
           {stores.map((s) => (
             <FilterLink key={s.id} href={href({ store: state.store === String(s.id) ? undefined : String(s.id) })} active={state.store === String(s.id)} label={localizedName(locale, s)} />
@@ -100,7 +100,7 @@ export function CatalogSidebar({
       </div>
 
       {state.hasFilters && (
-        <Link href={PATH} className="bracket-link inline-block text-sm font-medium text-ink-soft hover:text-ink">
+        <Link href={PATH} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
           {t.catalog.clearFilters}
         </Link>
       )}
@@ -113,19 +113,19 @@ const INDENT = ['pl-3', 'pl-3', 'pl-7', 'pl-11'];
 
 function CategoryLink({ href, active, onPath = false, depth, icon, label, count }: { href: string; active: boolean; onPath?: boolean; depth: number; icon: string | null; label: string; count: number }) {
   return (
-    <div className="border-b border-line">
+    <div>
       <Link
         href={href}
         scroll={false}
         aria-current={active ? 'page' : undefined}
-        className={cn('relative flex items-center justify-between gap-3 py-2 pr-1 transition-colors', INDENT[depth] ?? INDENT[INDENT.length - 1], active ? 'font-medium text-ink' : onPath ? 'text-ink' : 'text-ink-soft hover:text-ink', depth > 1 && 'py-1.5 text-[13px]')}
+        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pr-3 transition-colors', INDENT[depth] ?? INDENT[INDENT.length - 1], active ? 'bg-sand font-medium text-ink' : onPath ? 'text-ink hover:bg-sand/50' : 'text-ink-soft hover:bg-sand/50 hover:text-ink', depth > 1 && 'py-1.5 text-[13px]')}
       >
-        <span className={cn('absolute inset-y-0 left-0 w-[2px]', active ? 'bg-ink' : 'bg-transparent')} />
+        <span className={cn('absolute left-1 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full', active ? 'bg-brand' : 'bg-transparent')} />
         <span className="flex min-w-0 items-center gap-2">
-          {icon && <CategoryIcon icon={icon} className="h-3.5 w-3.5 shrink-0 text-ink-faint" />}
+          {icon && <CategoryIcon icon={icon} className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-brand' : 'text-wood')} />}
           <span className="truncate">{label}</span>
         </span>
-        <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink' : 'text-ink-faint')}>{count}</span>
+        <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink-soft' : 'text-ink-faint')}>{count}</span>
       </Link>
     </div>
   );
@@ -133,9 +133,9 @@ function CategoryLink({ href, active, onPath = false, depth, icon, label, count 
 
 function FilterLink({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
-    <li className="border-b border-line">
-      <Link href={href} scroll={false} data-active={active || undefined} className={cn('flex items-center gap-2.5 py-2 pl-3 pr-1 transition-colors', active ? 'font-medium text-ink' : 'text-ink-soft hover:text-ink')}>
-        <span className={cn('grid h-3.5 w-3.5 shrink-0 place-items-center border', active ? 'border-ink bg-ink' : 'border-line')}>{active && <span className="h-1.5 w-1.5 bg-white" />}</span>
+    <li>
+      <Link href={href} scroll={false} data-active={active || undefined} className={cn('flex items-center gap-2.5 rounded-full py-2 pl-3 pr-3 transition-colors', active ? 'bg-sand font-medium text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}>
+        <span className={cn('grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border', active ? 'border-brand bg-brand' : 'border-stone bg-bg-surface')}>{active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}</span>
         <span className="truncate">{label}</span>
       </Link>
     </li>

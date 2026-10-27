@@ -34,9 +34,9 @@ export async function notifyPartnerNewOrder(args: {
     log.info('order created for a partner without e-mail', { orderId: args.orderId, partner: args.partnerName });
     return;
   }
-  const subject = args.kind === 'store' ? `ახალი შეკვეთა #${args.orderId} — რემონტი.ge` : `ახალი დაკვეთა #${args.orderId} — რემონტი.ge`;
+  const subject = args.kind === 'store' ? `ახალი შეკვეთა #${args.orderId} — PLAYCE` : `ახალი დაკვეთა #${args.orderId} — PLAYCE`;
   const text = [
-    `${args.partnerName}, თქვენ ახალი ${args.kind === 'store' ? 'შეკვეთა' : 'დაკვეთა'} გაქვთ რემონტი.ge-დან.`,
+    `${args.partnerName}, თქვენ ახალი ${args.kind === 'store' ? 'შეკვეთა' : 'დაკვეთა'} გაქვთ PLAYCE-დან.`,
     '',
     `მომხმარებელი: ${args.customer.name}`,
     `ტელეფონი: ${args.customer.phone}`,
@@ -79,7 +79,7 @@ export async function notifyCustomerCheckout(args: {
     .filter((line): line is string => line != null)
     .join('\n');
   try {
-    await sendMail({ to: args.customer.email, subject: `შეკვეთა #${args.checkoutId} მიღებულია — რემონტი.ge`, text });
+    await sendMail({ to: args.customer.email, subject: `შეკვეთა #${args.checkoutId} მიღებულია — PLAYCE`, text });
   } catch (e) {
     log.error('customer notification failed', { checkoutId: args.checkoutId, err: e });
   }
@@ -105,7 +105,7 @@ export async function notifyCustomerOrderUpdate(args: {
     .filter((line): line is string => line != null)
     .join('\n');
   try {
-    await sendMail({ to: args.email, subject: `შეკვეთა #${args.orderId} განახლდა — რემონტი.ge`, text });
+    await sendMail({ to: args.email, subject: `შეკვეთა #${args.orderId} განახლდა — PLAYCE`, text });
   } catch (e) {
     log.error('customer order update notification failed', { orderId: args.orderId, err: e });
   }

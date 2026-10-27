@@ -70,7 +70,7 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
     const style = STYLES[verdict.styleId];
     const confidence = Math.round(profileConfidence(verdict.profile, verdict.styleId) * 100);
     return (
-      <div className={cn('rounded-[20px] border border-line bg-white p-6', className)}>
+      <div className={cn('rounded-[20px] border border-line bg-bg-surface p-6', className)}>
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex gap-1">
             {style.swatches.map((hex) => (
@@ -82,12 +82,12 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
               <Sparkles className="h-3.5 w-3.5 text-brand" />
               {t.build.quizResult}
             </p>
-            <p className="mt-1 font-serif text-3xl font-bold text-ink">{styleLabel(t, verdict.styleId)}</p>
+            <p className="mt-1 font-serif text-3xl font-semibold text-ink">{styleLabel(t, verdict.styleId)}</p>
             <p className="mt-1 text-sm text-ink-muted">
               {fill(t.build.quizConfidence, { n: confidence, style: styleLabel(t, verdict.styleId) })} · {t.styleBlurbs[verdict.styleId]}
             </p>
           </div>
-          <button type="button" onClick={retake} className="flex h-10 items-center gap-2 rounded-[12px] border border-line px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
+          <button type="button" onClick={retake} className="flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
             <RotateCcw className="h-4 w-4" />
             {t.build.quizRetake}
           </button>
@@ -98,7 +98,7 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
   }
 
   return (
-    <div className={cn('rounded-[20px] border border-line bg-white p-6', className)}>
+    <div className={cn('rounded-[20px] border border-line bg-bg-surface p-6', className)}>
       <div className="flex items-center justify-between gap-4">
         <p className="eyebrow">{fill(t.build.quizQuestionN, { n: index + 1 })}</p>
         <div className="flex gap-1">

@@ -31,7 +31,7 @@ export function LanguageSwitcher({ variant = 'desktop', tone = 'light' }: { vari
             )}
           >
             {MARKS[l]}
-            {active && <span className={cn('absolute inset-x-0 -bottom-px h-px', dark ? 'bg-white' : 'bg-ink')} />}
+            {active && <span className={cn('absolute inset-x-0 -bottom-px h-px', dark ? 'bg-white' : 'bg-brand')} />}
           </button>
         );
       })}

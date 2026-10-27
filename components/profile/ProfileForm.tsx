@@ -75,9 +75,9 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
     <form onSubmit={submit} className="mt-8 max-w-2xl space-y-6">
       <p className="text-sm leading-relaxed text-ink-muted">{p.accountLead}</p>
 
-      <section className="space-y-4 rounded-[18px] border border-line bg-bg-surface p-5 md:p-6">
+      <section className="space-y-4 rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
         <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-ink">
-          <UserRound className="h-5 w-5 text-ink-muted" aria-hidden />
+          <UserRound className="h-5 w-5 text-wood" aria-hidden />
           {p.contactSection}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -97,10 +97,10 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-[18px] border border-line bg-bg-surface p-5 md:p-6">
+      <section className="space-y-4 rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
         <div className="flex items-start justify-between gap-3">
           <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-ink">
-            <MapPin className="h-5 w-5 text-ink-muted" aria-hidden />
+            <MapPin className="h-5 w-5 text-wood" aria-hidden />
             {p.addressSection}
           </h2>
           {addressGiven && (
@@ -110,7 +110,7 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
                 setForm({ ...form, city: '', line: '', postalCode: '' });
                 setSaved(false);
               }}
-              className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-danger"
+              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-danger/5 hover:text-danger"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {p.clearAddress}
@@ -134,9 +134,9 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
         </div>
       </section>
 
-      {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</p>}
       <div className="flex items-center gap-4">
-        <Button type="submit" variant="ink" size="lg" disabled={saving}>
+        <Button type="submit" size="lg" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? p.saving : t.common.save}
         </Button>

@@ -35,7 +35,7 @@ export async function HubRenders({ userId, t }: { userId: number; t: Dictionary 
     <section className="mt-8">
       <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{t.profile.rendersHint}</p>
       {renders.length === 0 ? (
-        <p className="mt-10 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
+        <p className="mt-10 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
       ) : (
         <div className="mt-10 space-y-12">
           {[...groups.values()].map((group) => (
@@ -60,9 +60,9 @@ export async function HubRenders({ userId, t }: { userId: number; t: Dictionary 
                   return (
                     <li key={r.id}>
                       <article>
-                        <Link href={`/profile/projects/${r.projectId}`} tabIndex={-1} aria-hidden className="relative block aspect-[5/4] overflow-hidden rounded-[18px] border border-line bg-bg-surface transition-shadow hover:shadow-cardHover">
+                        <Link href={`/profile/projects/${r.projectId}`} tabIndex={-1} aria-hidden className="relative block aspect-[5/4] overflow-hidden rounded-2xl border border-line bg-bg-surface transition-[box-shadow,border-color] hover:border-stone hover:shadow-cardHover">
                           <Image src={shown} alt="" fill unoptimized sizes="(min-width: 1280px) 30vw, (min-width: 640px) 45vw, 100vw" className="object-cover" />
-                          <span className={cn('absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]', ready ? 'bg-success text-white' : r.status === 'failed' ? 'bg-danger text-white' : 'bg-ink/80 text-white')}>
+                          <span className={cn('absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]', ready ? 'bg-success text-white' : r.status === 'failed' ? 'bg-danger text-white' : 'bg-olive/85 text-sand-light')}>
                             {waiting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
                             {statusLabel[r.status] ?? r.status}
                           </span>

@@ -60,7 +60,7 @@ export function PlanGrantCard({ userId, plan, paidUntil, staff }: { userId: numb
       <CardContent className="flex flex-wrap items-end gap-3">
         <div className="space-y-2">
           <Label htmlFor="grant-plan">{p.adminGrantPlan}</Label>
-          <select id="grant-plan" value={grant} onChange={(e) => setGrant(e.target.value as 'premium' | 'professional')} className="h-10 border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none">
+          <select id="grant-plan" value={grant} onChange={(e) => setGrant(e.target.value as 'premium' | 'professional')} className="h-10 rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none">
             <option value="premium">{p.premium}</option>
             <option value="professional">{p.professional}</option>
           </select>

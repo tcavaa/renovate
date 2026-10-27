@@ -252,8 +252,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
         }}
         onClick={() => !busy && gate('planUpload') && inputRef.current?.click()}
         className={cn(
-          'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 border border-dashed p-8 text-center transition-colors',
-          dragging ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/50'
+          'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-8 text-center transition-colors',
+          dragging ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/50'
         )}
       >
         <input
@@ -287,14 +287,14 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
           </>
         ) : previewUrl ? (
           <>
-            <div className="relative h-40 w-full max-w-sm overflow-hidden rounded-md border border-line bg-white">
+            <div className="relative h-40 w-full max-w-sm overflow-hidden rounded-xl border border-line bg-bg-surface">
               <Image src={previewUrl} alt={t.design.planPreview} fill unoptimized className="object-contain" />
             </div>
             <p className="text-xs text-ink-muted">{t.design.uploadReplace}</p>
           </>
         ) : (
           <>
-            <span className="grid h-12 w-12 place-items-center border border-line bg-bg-surface text-ink">
+            <span className="grid h-12 w-12 place-items-center rounded-full border border-line bg-bg-surface text-wood">
               <Upload className="h-6 w-6" />
             </span>
             {locked && <PlanBadge plan={locked} />}
@@ -330,7 +330,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       )}
 
       {phase === 'scale' && readNotice === 'fallback' && (
-        <p className="mt-4 rounded-lg border border-line bg-bg-base px-4 py-3 text-sm text-ink-muted">
+        <p className="mt-4 rounded-xl border border-line bg-bg-base px-4 py-3 text-sm text-ink-muted">
           {t.design.aiReadFallback}
         </p>
       )}
@@ -338,7 +338,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       {phase === 'failed' && (
         <div
           role="alert"
-          className="mt-4 flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm"
+          className="mt-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm"
         >
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div>
@@ -351,7 +351,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       {phase === 'scale' && parse && (
         <Card className="mt-4 border-ink/30">
           <CardContent className="space-y-4 pt-6">
-            <div className="flex items-center gap-2 text-sm font-semibold text-success">
+            <div className="flex items-center gap-2 text-sm font-semibold text-olive">
               <Sparkles className="h-4 w-4" />
               {parse.regions.length} {t.design.detectedRooms}
             </div>
@@ -405,7 +405,7 @@ function SamplePlanDrawing({ plan }: { plan: FloorPlan }) {
   const w = Math.max(...xs) - minX + 0.3;
   const h = Math.max(...zs) - minZ + 0.3;
   return (
-    <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="h-40 w-full max-w-sm rounded-md border border-line bg-white" role="img" aria-label={plan.rooms.map((r) => r.name).join(', ')}>
+    <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="h-40 w-full max-w-sm rounded-xl border border-line bg-bg-surface" role="img" aria-label={plan.rooms.map((r) => r.name).join(', ')}>
       {plan.rooms.map((room) => {
         const cx = room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
         const cz = room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length;

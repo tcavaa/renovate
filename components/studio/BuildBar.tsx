@@ -28,10 +28,10 @@ const CATEGORIES: Array<{ id: StudioCategory; icon: LucideIcon; key: keyof Dicti
 export function CategoryRail({ category, trayOpen, onCategory, badge, className }: { category: StudioCategory; trayOpen: boolean; onCategory: (category: StudioCategory) => void; /** A small figure under a category (the budget total). */ badge?: Partial<Record<StudioCategory, string>>; className?: string }) {
   const t = useT();
   return (
-    // `bg-white/[0.92]`, not `bg-white/92`: 92 is off Tailwind's opacity scale, so that class was
+    // `bg-bg-surface/[0.92]`, not `bg-bg-surface/92`: 92 is off Tailwind's opacity scale, so that class was
     // never generated and the rail had no background at all — by day the light scene showed
     // through its blur, at night the dark one did, and its grey labels vanished into it.
-    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-[16px] border border-white/70 bg-white/[0.92] p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
+    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-[16px] border border-white/70 bg-bg-surface/[0.92] p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
       {CATEGORIES.map(({ id, icon: Icon, key }) => {
         const active = category === id && trayOpen;
         return (
@@ -62,5 +62,5 @@ export function CategoryRail({ category, trayOpen, onCategory, badge, className 
  * on whatever happened to be behind it, and it could not be read.
  */
 export function Tray({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('w-full max-w-[880px] rounded-[14px] border border-line/70 bg-white/[0.97] px-2.5 py-2 shadow-float backdrop-blur-xl animate-fade-in', className)} data-tour="tray">{children}</div>;
+  return <div className={cn('w-full max-w-[880px] rounded-[14px] border border-line/70 bg-bg-surface/[0.97] px-2.5 py-2 shadow-float backdrop-blur-xl animate-fade-in', className)} data-tour="tray">{children}</div>;
 }

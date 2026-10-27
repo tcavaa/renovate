@@ -39,7 +39,7 @@ export function RoomItemsPanel({ items, rooms, focusRoomId, selectedItemId, onSe
           {roomItems.map((item) => {
             const name = item.product ? localizedName(locale, item.product) : archetypeLabel(item.kind, locale);
             return (
-              <div key={item.id} className={cn('flex items-center gap-2 rounded-[10px] border p-1.5 transition-colors', item.id === selectedItemId ? 'border-brand bg-brand/5' : 'border-line bg-white hover:border-ink')}>
+              <div key={item.id} className={cn('flex items-center gap-2 rounded-[10px] border p-1.5 transition-colors', item.id === selectedItemId ? 'border-brand bg-brand/5' : 'border-line bg-bg-surface hover:border-ink')}>
                 <button type="button" onClick={() => onSelect(item.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                   <span className="relative block h-9 w-9 shrink-0 overflow-hidden rounded-[7px] bg-bg-base">
                     {item.product?.imageUrl ? (
@@ -55,7 +55,7 @@ export function RoomItemsPanel({ items, rooms, focusRoomId, selectedItemId, onSe
                     </span>
                   </span>
                 </button>
-                <button type="button" onClick={() => onRemove(item.id)} disabled={item.locked} title={t.design.removeItem} aria-label={t.design.removeItem} className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] text-ink-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30">
+                <button type="button" onClick={() => onRemove(item.id)} disabled={item.locked} title={t.design.removeItem} aria-label={t.design.removeItem} className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-danger/10 hover:text-danger disabled:opacity-30">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>

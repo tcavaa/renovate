@@ -100,7 +100,7 @@ export function ProjectViewer({
   }, [plan, title, subtitle, t, items, electrical, has3d, locale, v.pdfError]);
 
   if (!plan || plan.rooms.length === 0) {
-    return <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{v.noPlan}</p>;
+    return <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{v.noPlan}</p>;
   }
 
   const tabs: Array<{ id: View; label: string; disabled?: boolean }> = [
@@ -110,10 +110,10 @@ export function ProjectViewer({
   ];
 
   return (
-    <section className="border border-line bg-bg-surface">
+    <section className="rounded-2xl border border-line bg-bg-surface">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex border border-line p-0.5" role="tablist" aria-label={v.viewerTitle}>
+          <div className="flex rounded-full bg-sand/60 p-1" role="tablist" aria-label={v.viewerTitle}>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -123,14 +123,14 @@ export function ProjectViewer({
                 disabled={tab.disabled}
                 title={tab.disabled ? v.no3d : tab.label}
                 onClick={() => setView(tab.id)}
-                className={cn('flex h-8 items-center gap-1.5 px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40', view === tab.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
+                className={cn('flex h-8 items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40', view === tab.id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-bg-surface/70 hover:text-ink')}
               >
                 {tab.id === 'walk' && <Eye className="h-3.5 w-3.5" />}
                 {tab.label}
               </button>
             ))}
           </div>
-          <span className="inline-flex items-center gap-1 border border-line px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+          <span className="inline-flex items-center gap-1 rounded-full bg-olive-soft px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-olive">
             <Eye className="h-3 w-3" />
             {v.viewOnly}
           </span>
@@ -143,12 +143,12 @@ export function ProjectViewer({
             </>
           )}
           {floorPlanUrl && (
-            <a href={floorPlanUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 border border-line px-3 text-sm text-ink-soft hover:border-ink hover:text-ink">
+            <a href={floorPlanUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-full border border-ink/15 px-3.5 text-sm text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
               <FileImage className="h-4 w-4" />
               {v.originalPlan}
             </a>
           )}
-          <button type="button" onClick={exportPdf} disabled={exporting} className="inline-flex h-8 items-center gap-1.5 border border-ink bg-ink px-3 text-sm font-medium text-white hover:bg-brand disabled:opacity-60">
+          <button type="button" onClick={exportPdf} disabled={exporting} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-ink px-3.5 text-sm font-medium text-white transition-colors hover:bg-brand disabled:opacity-60">
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {t.build.exportPlanPdf}
           </button>
@@ -188,7 +188,7 @@ export function ProjectViewer({
           <>
             <Viewer3D sceneKey={`viewer:${title}:${subtitle}`} plan={plan} scene={scene!} electrical={electrical} wallMode={wallMode} viewMode={view === 'walk' ? 'walk' : 'orbit'} daylightHour={DAYLIGHT_HOURS[daylight]} readOnly frameKey={frameKey} onApi={setViewerApi} className="h-full w-full" />
             {view === '3d' && (
-              <div className="absolute bottom-3 right-3 flex flex-col border border-line bg-white/90 p-1 backdrop-blur">
+              <div className="absolute bottom-3 right-3 flex flex-col rounded-full border border-line bg-bg-surface/90 p-1 shadow-card backdrop-blur">
                 <IconAction label={t.design.zoomIn} onClick={() => viewerApi?.zoom(0.8)} disabled={!viewerApi}>
                   <Plus className="h-4 w-4" />
                 </IconAction>
@@ -200,7 +200,7 @@ export function ProjectViewer({
                 </IconAction>
               </div>
             )}
-            {view === 'walk' && <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 bg-ink/80 px-3 py-1.5 text-xs text-white">{t.design.walkHint}</p>}
+            {view === 'walk' && <p className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink/80 px-4 py-1.5 text-xs text-white">{t.design.walkHint}</p>}
           </>
         )}
       </div>
@@ -214,7 +214,7 @@ export function ProjectViewer({
 
 function IconAction({ label, onClick, disabled, children }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
   return (
-    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="grid h-8 w-8 place-items-center text-ink-soft transition-colors hover:text-ink disabled:opacity-40">
+    <button type="button" title={label} aria-label={label} onClick={onClick} disabled={disabled} className="grid h-8 w-8 place-items-center rounded-full text-ink-soft transition-colors hover:bg-sand/60 hover:text-ink disabled:opacity-40">
       {children}
     </button>
   );

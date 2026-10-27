@@ -18,7 +18,7 @@ export interface OtherJourney {
   label: 'openIn3d' | 'createIn3d' | 'openInCalculator' | 'calculateCosts';
 }
 
-const ITEM = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-ink hover:bg-bg-base focus:bg-bg-base focus:outline-none';
+const ITEM = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-sand/50 focus:bg-sand/50 focus:outline-none';
 
 /**
  * A project card's "…": open it, rename it, open (or start) its other half — or, on the profile,
@@ -150,7 +150,7 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
       </button>
 
       {open && (
-        <div ref={menuRef} id={menuId} role="menu" aria-label={t.hub.menuLabel} onKeyDown={moveFocus} className="absolute right-0 top-full z-30 mt-1.5 w-60 overflow-hidden rounded-[12px] border border-line bg-bg-surface py-1 shadow-cardHover">
+        <div ref={menuRef} id={menuId} role="menu" aria-label={t.hub.menuLabel} onKeyDown={moveFocus} className="absolute right-0 top-full z-30 mt-1.5 w-60 overflow-hidden rounded-2xl border border-line bg-bg-surface p-1.5 shadow-float">
           <Link href={openHref} role="menuitem" tabIndex={-1} className={ITEM} onClick={() => setOpen(false)}>
             <ArrowUpRight className="h-4 w-4 text-ink-muted" aria-hidden />
             {t.hub.open}
@@ -176,7 +176,7 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
           )}
           {canDelete && (
             <>
-              <div role="separator" className="my-1 border-t border-line" />
+              <div role="separator" className="-mx-1.5 my-1.5 border-t border-line" />
               <button type="button" role="menuitem" tabIndex={-1} className={cn(ITEM, 'text-danger hover:text-danger')} onClick={startDelete}>
                 <Trash2 className="h-4 w-4" aria-hidden />
                 {t.hub.delete}
@@ -210,7 +210,7 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
               <Button type="button" variant="outline" onClick={() => setRenaming(false)} disabled={busy}>
                 {t.common.cancel}
               </Button>
-              <Button type="submit" variant="ink" disabled={busy || !draft.trim()}>
+              <Button type="submit" disabled={busy || !draft.trim()}>
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t.hub.renameSave}
               </Button>

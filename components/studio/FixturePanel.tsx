@@ -61,7 +61,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
   const estimate = ELECTRICAL_MATERIAL_GEL[point.kind];
   const presets = heightPresets(info.defaultElevationM);
   const slide = (tt: number) => onSlide(Math.max(0.02, Math.min(0.98, tt)));
-  const select = 'h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] text-ink focus:border-ink focus:outline-none';
+  const select = 'h-8 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -93,7 +93,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
             </div>
             {product ? (
               <p className="shrink-0 text-right">
-                <span className="block font-serif text-sm font-bold tabular-nums text-brand-dark">{formatGEL(product.totalPrice)}</span>
+                <span className="block font-serif text-sm font-semibold tabular-nums text-brand-dark">{formatGEL(product.totalPrice)}</span>
                 {product.qty !== 1 && <span className="block text-[10px] tabular-nums text-ink-muted">{product.qty} × {formatGEL(product.pricePerUnit)}</span>}
               </p>
             ) : (
@@ -124,7 +124,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
             <NumberField label={`${t.build.elevation} (${t.units.m})`} value={point.elevationM} min={0} max={room?.heightM ?? 3} step={0.05} onCommit={(v) => onUpdate({ elevationM: v })} />
             <div className="flex flex-wrap gap-1">
               {presets.map((h) => (
-                <button key={h} type="button" onClick={() => onUpdate({ elevationM: h })} aria-pressed={Math.abs(point.elevationM - h) < 0.011} className={cn('h-7 rounded-[7px] px-2 text-[11px] font-medium tabular-nums transition-colors', Math.abs(point.elevationM - h) < 0.011 ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                <button key={h} type="button" onClick={() => onUpdate({ elevationM: h })} aria-pressed={Math.abs(point.elevationM - h) < 0.011} className={cn('h-7 rounded-full px-2 text-[11px] font-medium tabular-nums transition-colors', Math.abs(point.elevationM - h) < 0.011 ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
                   {Math.round(h * 100)} {t.units.cm}
                 </button>
               ))}
@@ -139,11 +139,11 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
               {t.build.alongWall} · {fill(t.build.wallN, { n: edge.index + 1 })}
             </span>
             <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => slide((alongM - 0.05) / edge.length)} aria-label={t.build.nudgeLeft} title={t.build.nudgeLeft} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink">
+              <button type="button" onClick={() => slide((alongM - 0.05) / edge.length)} aria-label={t.build.nudgeLeft} title={t.build.nudgeLeft} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink-soft hover:border-ink">
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <input type="range" min={0.02} max={0.98} step={0.005} value={point.t ?? 0.5} onChange={(e) => slide(Number(e.target.value))} aria-label={t.build.alongWall} className="min-w-0 flex-1 accent-ink" />
-              <button type="button" onClick={() => slide((alongM + 0.05) / edge.length)} aria-label={t.build.nudgeRight} title={t.build.nudgeRight} className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-line text-ink-soft hover:border-ink">
+              <button type="button" onClick={() => slide((alongM + 0.05) / edge.length)} aria-label={t.build.nudgeRight} title={t.build.nudgeRight} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink-soft hover:border-ink">
                 <ChevronRight className="h-4 w-4" />
               </button>
               <span className="w-14 shrink-0 text-right text-xs tabular-nums text-ink">
@@ -160,7 +160,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
               <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.outlets}</span>
               <div className="flex gap-1">
                 {[1, 2, 3, 4].map((n) => (
-                  <button key={n} type="button" onClick={() => onUpdate({ count: n })} aria-pressed={(point.count ?? 1) === n} className={cn('h-8 w-8 rounded-[8px] text-xs font-medium', (point.count ?? 1) === n ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                  <button key={n} type="button" onClick={() => onUpdate({ count: n })} aria-pressed={(point.count ?? 1) === n} className={cn('h-8 w-8 rounded-full text-xs font-medium', (point.count ?? 1) === n ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
                     {n}
                   </button>
                 ))}
@@ -180,9 +180,9 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
             </label>
           )}
           {light && (
-            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => onUpdate({ on: point.on === false })} className="flex h-8 items-center gap-2 rounded-[8px] border border-line px-2.5 text-[11px] font-semibold text-ink transition-colors hover:border-ink">
+            <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => onUpdate({ on: point.on === false })} className="flex h-8 items-center gap-2 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink transition-colors hover:border-ink">
               <span className={cn('relative h-5 w-9 rounded-full transition-colors', point.on !== false ? 'bg-[#F5B400]' : 'bg-line')}>
-                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
+                <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-bg-surface shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
               </span>
               {point.on !== false ? t.build.lightOn : t.build.lightOff}
             </button>
@@ -215,7 +215,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
               const active = candidate.id === product?.productId;
               return (
                 <li key={candidate.id}>
-                  <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
+                  <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
                     <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] bg-bg-base">
                       {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#DDD8CF' }} />}
                     </span>

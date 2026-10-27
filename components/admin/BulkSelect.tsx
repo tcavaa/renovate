@@ -97,7 +97,7 @@ export function BulkBar({ endpoint, actions = ['show', 'hide', 'delete'], noun }
 
   if (count === 0 && !notice) return null;
   return (
-    <div className={cn('sticky top-2 z-20 flex flex-wrap items-center gap-2 border px-3 py-2 text-sm', count > 0 ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface')}>
+    <div className={cn('sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm', count > 0 ? 'border-olive bg-olive text-white shadow-float' : 'border-line bg-bg-surface')}>
       {count > 0 ? (
         <>
           <span className="font-medium">
@@ -123,7 +123,7 @@ export function BulkBar({ endpoint, actions = ['show', 'hide', 'delete'], noun }
               {b.delete}
             </Button>
           )}
-          <button type="button" onClick={clear} aria-label={b.clear} title={b.clear} className="grid h-8 w-8 place-items-center text-white/80 hover:text-white">
+          <button type="button" onClick={clear} aria-label={b.clear} title={b.clear} className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </>

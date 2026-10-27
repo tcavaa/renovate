@@ -109,7 +109,7 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
           icon={calculator ? <Box className="h-6 w-6" /> : <Calculator className="h-6 w-6" />}
           label={calculator ? t.hub.tileFromDesign : t.hub.tileFromCalc}
           title={calculator ? t.hub.tileFromDesignDesc : t.hub.tileFromCalcDesc}
-          className="bg-slate-deep group-hover:bg-ink"
+          className={calculator ? 'bg-olive group-hover:bg-olive-dark' : 'bg-wood group-hover:bg-wood-dark'}
           onClick={() => setPicking(true)}
         />
       </div>
@@ -149,7 +149,7 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
               <Button type="button" variant="outline" onClick={() => setNaming(false)} disabled={creating}>
                 {t.common.cancel}
               </Button>
-              <Button type="submit" variant="ink" disabled={creating || !name.trim()}>
+              <Button type="submit" disabled={creating || !name.trim()}>
                 {creating && <Loader2 className="h-4 w-4 animate-spin" />}
                 {creating ? t.hub.creating : t.hub.create}
               </Button>
@@ -165,13 +165,13 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
             <DialogDescription>{calculator ? t.hub.pickFromDesignLead : t.hub.pickFromCalcLead}</DialogDescription>
           </DialogHeader>
           {picks.length === 0 ? (
-            <p className="border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.hub.pickEmpty}</p>
+            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted">{t.hub.pickEmpty}</p>
           ) : (
-            <ul className="max-h-[60vh] overflow-y-auto border-t border-line">
+            <ul className="-mx-2 max-h-[60vh] space-y-1 overflow-y-auto">
               {picks.map((pick) => (
-                <li key={pick.id} className="border-b border-line">
-                  <Link href={pick.href} className="group flex items-center gap-4 px-1 py-3 hover:bg-bg-base focus-visible:bg-bg-base focus-visible:outline-none">
-                    <span className="block h-12 w-16 shrink-0 overflow-hidden border border-line">{pick.thumbnail}</span>
+                <li key={pick.id}>
+                  <Link href={pick.href} className="group flex items-center gap-4 rounded-xl px-2 py-2 transition-colors hover:bg-sand/50 focus-visible:bg-sand/50 focus-visible:outline-none">
+                    <span className="block h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-line">{pick.thumbnail}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium text-ink group-hover:text-brand">{pick.name}</span>
                       <span className="block text-xs text-ink-muted">{pick.date}</span>

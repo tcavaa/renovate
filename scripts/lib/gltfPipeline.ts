@@ -17,7 +17,7 @@ import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer
 import sharp from 'sharp';
 import { dracoOptions } from '../../lib/uploads/glbOptimize';
 
-export const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
+export const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://playce.ge)';
 export const OBJAVERSE = 'https://huggingface.co/datasets/allenai/objaverse/resolve/main';
 /** What a material may not be called: the studio makes these glow when a light is on (`LIT_MATERIAL` in lib/design3d/buildStructure.ts). */
 export const LIT_WORDS = /light|lamp|glow|bulb|emiss|led|tube|shade/gi;
@@ -129,7 +129,7 @@ export function fetchSource(cacheDir: string, source: ModelSource): Promise<stri
   return fetchCached(cacheDir, 'objaverse', `${source.uid}.glb`, `${OBJAVERSE}/${source.path}`);
 }
 
-export function creditOf(source: ModelSource, changes = 'resized, re-oriented and simplified for RenovateGE'): ModelCredit {
+export function creditOf(source: ModelSource, changes = 'resized, re-oriented and simplified for PLAYCE'): ModelCredit {
   if (source.type === 'polyhaven') {
     const url = `https://polyhaven.com/a/${source.id}`;
     const title = source.id.replace(/_/g, ' ');

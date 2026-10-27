@@ -640,7 +640,7 @@ export default function StudioPage() {
       <>
         <DesignSteps current={5} />
         <div className="container py-20 text-center">
-          <h1 className="font-serif text-2xl font-bold">{t.design.needPlanTitle}</h1>
+          <h1 className="font-serif text-2xl font-semibold">{t.design.needPlanTitle}</h1>
           <p className="mt-2 text-ink-muted">{t.design.needPlanDesc}</p>
           <Button asChild className="mt-6">
             <Link href={designStepHref(projectId, 1)}>{t.design.addPlan}</Link>
@@ -1108,27 +1108,27 @@ export default function StudioPage() {
 
         {/* ---- the catalogue modal, folded to a chip while a piece from it is placed (the finishes' chip has the spot in its category) ---- */}
         {catalogBrowser === 'minimized' && !(finishCatalog === 'minimized' && category === 'finishes') && (
-          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-[12px] bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur" data-tour="catalog-chip">
+          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur" data-tour="catalog-chip">
             <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold">{t.design.catalogMinimized}</span>
             {catalogLast && <span className="max-w-[180px] truncate text-[11px] text-white/70">· {localizedName(locale, catalogLast)}</span>}
-            <button type="button" onClick={() => setCatalogBrowser('open')} className="ml-1 h-6 rounded-[8px] bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
+            <button type="button" onClick={() => setCatalogBrowser('open')} className="ml-1 h-6 rounded-full bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
               {t.design.catalogReopen}
             </button>
-            <button type="button" onClick={() => setCatalogBrowser('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-[8px] transition-colors hover:bg-white/15">
+            <button type="button" onClick={() => setCatalogBrowser('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-full transition-colors hover:bg-white/15">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
         {finishCatalog === 'minimized' && category === 'finishes' && (
-          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-[12px] bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur">
+          <div className="pointer-events-auto absolute left-1/2 top-20 z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-ink/90 py-1 pl-2.5 pr-1 text-white shadow-glass backdrop-blur">
             <PaintBucket className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="text-[11px] font-semibold">{t.design.catalogMinimized}</span>
             {finishCatalogLast && <span className="max-w-[180px] truncate text-[11px] text-white/70">· {localizedName(locale, finishCatalogLast)}</span>}
-            <button type="button" onClick={() => setFinishCatalog('open')} className="ml-1 h-6 rounded-[8px] bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
+            <button type="button" onClick={() => setFinishCatalog('open')} className="ml-1 h-6 rounded-full bg-white/15 px-2 text-[11px] font-semibold transition-colors hover:bg-brand">
               {t.design.catalogReopen}
             </button>
-            <button type="button" onClick={() => setFinishCatalog('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-[8px] transition-colors hover:bg-white/15">
+            <button type="button" onClick={() => setFinishCatalog('closed')} aria-label={t.common.close} title={t.common.close} className="grid h-6 w-6 place-items-center rounded-full transition-colors hover:bg-white/15">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1137,7 +1137,7 @@ export default function StudioPage() {
         {/* ---- left: the categories, the rooms beside them ---- */}
         <div data-board-edge="left" className="pointer-events-auto absolute left-4 top-20 z-20 hidden items-start gap-2 md:flex">
           <CategoryRail category={category} trayOpen={trayShown} onCategory={pickCategory} badge={cost ? { budget: formatGEL(cost.grandTotal) } : undefined} />
-          <div className="flex w-[188px] flex-col gap-1 rounded-[14px] bg-white/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
+          <div className="flex w-[188px] flex-col gap-1 rounded-[14px] bg-bg-surface/85 p-2 shadow-glass backdrop-blur-xl" data-tour="rooms">
             <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.roomsInPlan}</p>
             <RoomRow label={t.design.wholeFlat} count={items.length} active={focusRoomId === null} onClick={() => store.setFocusRoom(null)} />
             {plan.rooms.map((room) => (
@@ -1147,7 +1147,7 @@ export default function StudioPage() {
         </div>
 
         {refused && (
-          <p role="alert" className="absolute left-4 top-[calc(5rem+2px)] z-30 rounded-[10px] border border-danger/40 bg-white/95 px-3 py-2 text-xs text-danger md:left-[20.5rem]">
+          <p role="alert" className="absolute left-4 top-[calc(5rem+2px)] z-30 rounded-[10px] border border-danger/40 bg-bg-surface/95 px-3 py-2 text-xs text-danger md:left-[20.5rem]">
             {refused}
           </p>
         )}
@@ -1275,10 +1275,10 @@ export default function StudioPage() {
                 folded or not.
               */}
               <div className="pointer-events-none absolute bottom-full left-0 right-0 mb-1.5 hidden flex-col items-center gap-1 md:flex">
-                {transientHint && <p className="max-w-full truncate rounded-[9px] bg-ink/80 px-2.5 py-1 text-[11px] text-white backdrop-blur">{transientHint}</p>}
+                {transientHint && <p className="max-w-full truncate rounded-full bg-ink/80 px-2.5 py-1 text-[11px] text-white backdrop-blur">{transientHint}</p>}
                 {boardHint && <p className="max-w-full rounded-[9px] bg-ink/80 px-2.5 py-1 text-center text-[11px] leading-snug text-white backdrop-blur">{boardHint}</p>}
                 {visibleItems.some((i) => tightSpots.has(i.id)) && view !== '2d' && (
-                  <p className="flex max-w-full items-center gap-1.5 rounded-[9px] bg-warning/90 px-2.5 py-0.5 text-[10px] font-medium text-ink">
+                  <p className="flex max-w-full items-center gap-1.5 rounded-full bg-warning/90 px-2.5 py-0.5 text-[10px] font-medium text-ink">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     <span className="truncate">{t.design.tightPassageHint}</span>
                   </p>
@@ -1492,10 +1492,10 @@ function RoomRow({ label, count, active, onClick }: { label: string; count: numb
     <button
       type="button"
       onClick={onClick}
-      className={cn('flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-xs transition-colors', active ? 'bg-ink text-white' : 'hover:bg-white')}
+      className={cn('flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-xs transition-colors', active ? 'bg-ink text-white' : 'hover:bg-bg-surface')}
     >
       <span className="truncate">{label}</span>
-      <span className={cn('shrink-0 rounded-[6px] px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-white/15' : 'bg-bg-base text-ink-muted')}>{count}</span>
+      <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', active ? 'bg-white/15' : 'bg-bg-base text-ink-muted')}>{count}</span>
     </button>
   );
 }

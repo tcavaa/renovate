@@ -36,7 +36,7 @@ interface Props {
   teams: Array<{ id: number; name: string }>;
 }
 
-const SELECT = 'h-10 w-full border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:bg-bg-base';
+const SELECT = 'h-10 w-full rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:bg-bg-base';
 
 /**
  * Admin's account form, for a new account and an existing one. The role is chosen from cards
@@ -140,7 +140,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
             {a.created}
           </p>
           <p className="text-sm text-ink-muted">{a.createdHint}</p>
-          <dl className="grid gap-2 border border-line bg-bg-base p-4 font-mono text-sm sm:grid-cols-[auto_1fr]">
+          <dl className="grid gap-2 rounded-xl border border-line bg-bg-base p-4 font-mono text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-ink-muted">{a.email}</dt>
             <dd className="break-all text-ink">{created.email}</dd>
             <dt className="text-ink-muted">{a.password}</dt>
@@ -192,7 +192,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
                   aria-checked={selected}
                   disabled={isSelf}
                   onClick={() => update('role', role)}
-                  className={cn('border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60', selected ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink hover:border-ink')}
+                  className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60', selected ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink hover:border-ink/40 hover:bg-sand/40')}
                 >
                   <span className="block text-sm font-semibold">{roleLabel(t, role)}</span>
                   <span className={cn('mt-1 block text-xs leading-snug', selected ? 'text-white/80' : 'text-ink-muted')}>{(a.roleHints as Record<string, string>)[role]}</span>

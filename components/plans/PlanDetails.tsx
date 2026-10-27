@@ -22,10 +22,10 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
 
   return (
     <div className="mt-8 space-y-6">
-      <section className="rounded-[20px] border border-line bg-bg-surface p-6 md:p-8">
+      <section className="rounded-3xl border border-line bg-bg-surface p-6 shadow-card md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink-muted">{p.planCurrent}</p>
+            <p className="eyebrow">{p.planCurrent}</p>
             <h2 className="mt-1 font-serif text-3xl font-semibold">{planName(state.plan)}</h2>
             <p className="mt-2 text-sm text-ink-muted">
               {state.staff ? p.staffNote : sub ? fill(p.activeUntil, { date: formatDateTime(sub.paidUntil, false) }) : p.planFreeDesc}
@@ -39,8 +39,8 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="flex items-start gap-3 rounded-[14px] border border-line bg-bg-base p-4">
-            <FolderOpen className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" />
+          <div className="flex items-start gap-3 rounded-2xl border border-line bg-bg-base p-4">
+            <FolderOpen className="mt-0.5 h-5 w-5 shrink-0 text-wood" />
             <div className="text-sm">
               <p className="font-semibold text-ink">{p.usageProjects}</p>
               <p className="mt-0.5 text-ink-muted">
@@ -52,8 +52,8 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-3 rounded-[14px] border border-line bg-bg-base p-4">
-            <Camera className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted" />
+          <div className="flex items-start gap-3 rounded-2xl border border-line bg-bg-base p-4">
+            <Camera className="mt-0.5 h-5 w-5 shrink-0 text-wood" />
             <div className="text-sm">
               <p className="font-semibold text-ink">{p.usageRenders}</p>
               <p className="mt-0.5 text-ink-muted">
@@ -79,7 +79,7 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
       </section>
 
       {history.length > 0 && (
-        <section className="rounded-[20px] border border-line bg-bg-surface p-6">
+        <section className="rounded-3xl border border-line bg-bg-surface p-6 shadow-card">
           <h3 className="font-serif text-lg font-semibold">{p.historyTitle}</h3>
           <ul className="mt-3 divide-y divide-line text-sm">
             {history.map((row) => (

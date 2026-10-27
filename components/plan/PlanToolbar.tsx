@@ -186,7 +186,7 @@ export function PlanToolTiles({ tools, tool, onTool, vertical, edge, className, 
   const drawFirst: EditorTool = tools.includes('room') ? 'room' : 'wall';
   if (tiles.length < 2) return null;
   return (
-    <div className={cn('flex gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
+    <div className={cn('flex gap-1 rounded-[14px] bg-bg-surface/85 p-1.5 shadow-glass backdrop-blur-xl', vertical ? 'flex-col' : 'flex-wrap', className)} style={style} data-board-edge={edge} role="toolbar" aria-label={t.build.layers}>
       {tiles.map((id) => {
         const draw = id === 'wall' && shapes;
         const opens = id === openingTile;
@@ -238,7 +238,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
       {(shapes && drawing) || (drawing && tool !== 'divider') ? (
         <div className="flex flex-wrap items-center justify-center gap-1.5">
           {shapes && drawing && (
-            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.wallShape}>
+            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-full bg-bg-surface/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.wallShape}>
               {/* Between `lg` and `xl` the captions give way: a full-screen board lines these groups up along its bottom, and the buttons say enough. */}
               <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.wallShape}</span>
               {shapeIds.map((id) => {
@@ -251,7 +251,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
                     aria-checked={tool === id}
                     onClick={() => onTool(id)}
                     title={toolLabel(t, id)}
-                    className={cn('flex h-7 items-center gap-1 rounded-[8px] px-2 text-[11px] font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {toolLabel(t, id)}
@@ -261,7 +261,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
             </div>
           )}
           {drawing && tool !== 'divider' && (
-            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.thickness}>
+            <div className="flex items-center gap-0.5 whitespace-nowrap rounded-full bg-bg-surface/85 p-1 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.thickness}>
               <span className="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted lg:max-xl:hidden">{t.build.thickness}</span>
               {WALL_THICKNESS_OPTIONS_M.map((m) => (
                 <button
@@ -270,7 +270,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
                   role="radio"
                   aria-checked={Math.abs(thicknessM - m) < 1e-6}
                   onClick={() => onThickness(m)}
-                  className={cn('h-7 rounded-[8px] px-2 text-[11px] font-semibold tabular-nums transition-colors', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                  className={cn('h-7 rounded-full px-2 text-[11px] font-semibold tabular-nums transition-colors', Math.abs(thicknessM - m) < 1e-6 ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
                 >
                   {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
                 </button>
@@ -281,7 +281,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
       ) : null}
 
       {kindPicker && tool === 'technical' && (
-        <div className="flex max-w-[560px] flex-wrap items-center gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.toolTechnical}>
+        <div className="flex max-w-[560px] flex-wrap items-center gap-1 rounded-[14px] bg-bg-surface/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.toolTechnical}>
           {TECHNICAL_KIND_LIST.map((kind) => {
             const Icon = TECHNICAL_ICON[kind];
             return (
@@ -291,7 +291,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
                 role="radio"
                 aria-checked={technicalKind === kind}
                 onClick={() => onTechnicalKind(kind)}
-                className={cn('flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-xs font-medium transition-colors', technicalKind === kind ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                className={cn('flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors', technicalKind === kind ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
               >
                 <span className="grid h-5 w-5 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[kind] }}>
                   <Icon className="h-3 w-3" />
@@ -304,7 +304,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
       )}
 
       {kindPicker && tool === 'electrical' && (
-        <div className="flex max-w-[620px] flex-wrap items-center gap-1 rounded-[14px] bg-white/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.toolElectrical}>
+        <div className="flex max-w-[620px] flex-wrap items-center gap-1 rounded-[14px] bg-bg-surface/85 p-1.5 shadow-glass backdrop-blur-xl" role="radiogroup" aria-label={t.build.toolElectrical}>
           {ELECTRICAL_KIND_LIST.map((kind) => {
             const Icon = ELECTRICAL_ICON[kind];
             return (
@@ -314,7 +314,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
                 role="radio"
                 aria-checked={electricalKind === kind}
                 onClick={() => onElectricalKind(kind)}
-                className={cn('flex h-9 items-center gap-1.5 rounded-[10px] px-2.5 text-xs font-medium transition-colors', electricalKind === kind ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+                className={cn('flex h-9 items-center gap-1.5 rounded-full px-2.5 text-xs font-medium transition-colors', electricalKind === kind ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {electricalLabel(t, kind)}
@@ -336,7 +336,7 @@ export function PlanToolOptions({ tools, tool, onTool, thicknessM, onThickness, 
 export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: readonly OpeningTool[]; tool: EditorTool; onTool: (tool: EditorTool) => void; className?: string }) {
   const t = useT();
   return (
-    <div className={cn('flex items-center gap-0.5 whitespace-nowrap rounded-[12px] bg-white/85 p-1 shadow-glass backdrop-blur-xl', className)} role="radiogroup" aria-label={t.build.toolOpenings}>
+    <div className={cn('flex items-center gap-0.5 whitespace-nowrap rounded-full bg-bg-surface/85 p-1 shadow-glass backdrop-blur-xl', className)} role="radiogroup" aria-label={t.build.toolOpenings}>
       {kinds.map((id) => {
         const Icon = TOOL_ICON[id];
         return (
@@ -347,7 +347,7 @@ export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: r
             aria-checked={tool === id}
             onClick={() => onTool(tool === id ? 'openings' : id)}
             title={toolHint(t, id, false)}
-            className={cn('flex h-8 items-center gap-1.5 rounded-[8px] px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
+            className={cn('flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition-colors', tool === id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light')}
           >
             <Icon className="h-3.5 w-3.5" />
             {toolLabel(t, id)}
@@ -368,19 +368,19 @@ export function PlanViewControls({ layers, onLayers, layerKeys, onFit, onZoom, v
     <div className={cn('flex items-center gap-2', vertical && 'flex-col', className)} style={style} data-board-edge={edge}>
       <LayersMenu layers={layers} onLayers={onLayers} keys={layerKeys} compact={vertical} up={vertical} />
       {(onFit || onZoom) && (
-        <div className={cn('flex items-center gap-0.5 rounded-[14px] bg-white/85 p-1 shadow-glass backdrop-blur-xl', vertical && 'flex-col')}>
+        <div className={cn('flex items-center gap-0.5 rounded-full bg-bg-surface/85 p-1 shadow-glass backdrop-blur-xl', vertical && 'flex-col')}>
           {onZoom && (
-            <button type="button" title={t.design.zoomIn} aria-label={t.design.zoomIn} onClick={() => onZoom(1.25)} className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-soft hover:bg-sand-light hover:text-ink">
+            <button type="button" title={t.design.zoomIn} aria-label={t.design.zoomIn} onClick={() => onZoom(1.25)} className="grid h-9 w-9 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
               <Plus className="h-4 w-4" />
             </button>
           )}
           {onZoom && (
-            <button type="button" title={t.design.zoomOut} aria-label={t.design.zoomOut} onClick={() => onZoom(0.8)} className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-soft hover:bg-sand-light hover:text-ink">
+            <button type="button" title={t.design.zoomOut} aria-label={t.design.zoomOut} onClick={() => onZoom(0.8)} className="grid h-9 w-9 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
               <Minus className="h-4 w-4" />
             </button>
           )}
           {onFit && (
-            <button type="button" title={t.build.fitView} aria-label={t.build.fitView} onClick={onFit} className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-soft hover:bg-sand-light hover:text-ink">
+            <button type="button" title={t.build.fitView} aria-label={t.build.fitView} onClick={onFit} className="grid h-9 w-9 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
               <Maximize2 className="h-4 w-4" />
             </button>
           )}
@@ -414,11 +414,11 @@ export function LayersMenu({ layers, onLayers, keys, className, compact, up }: {
   const shown = keys ?? (['walls', 'openings', 'structure', 'technical', 'electrical', 'furniture', 'zones', 'dimensions', 'origins'] as Array<keyof EditorLayers>);
   return (
     <details className={cn('group relative', className)}>
-      <summary title={compact ? t.build.layers : undefined} aria-label={compact ? t.build.layers : undefined} className={cn('flex h-11 cursor-pointer list-none items-center gap-2 rounded-[14px] bg-white/85 text-xs font-semibold text-ink-soft shadow-glass backdrop-blur-xl hover:text-ink [&::-webkit-details-marker]:hidden', compact ? 'w-11 justify-center' : 'px-3')}>
+      <summary title={compact ? t.build.layers : undefined} aria-label={compact ? t.build.layers : undefined} className={cn('flex h-11 cursor-pointer list-none items-center gap-2 rounded-full bg-bg-surface/85 text-xs font-semibold text-ink-soft shadow-glass backdrop-blur-xl hover:text-ink [&::-webkit-details-marker]:hidden', compact ? 'w-11 justify-center' : 'px-3')}>
         <Layers className="h-4 w-4" />
         {!compact && t.build.layers}
       </summary>
-      <div className={cn('absolute right-0 z-30 w-56 rounded-[14px] border border-line bg-white p-2 shadow-cardHover', up ? 'bottom-full mb-2' : 'mt-2')}>
+      <div className={cn('absolute right-0 z-30 w-56 overflow-hidden rounded-2xl border border-line bg-bg-surface p-2 shadow-float', up ? 'bottom-full mb-2' : 'mt-2')}>
         {shown.map((key) => (
           <label key={key} className="flex cursor-pointer items-center gap-2 rounded-[8px] px-2 py-1.5 text-xs hover:bg-sand-light">
             <input type="checkbox" checked={layers[key]} onChange={(e) => onLayers({ ...layers, [key]: e.target.checked })} className="accent-ink" />

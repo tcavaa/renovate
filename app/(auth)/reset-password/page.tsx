@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     <AuthForm
       title={t.auth.resetTitle}
       footer={
-        <Link href="/login" className="bracket-link font-medium text-ink hover:text-brand">
+        <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
           {state === 'done' ? t.auth.loginButton : t.auth.backToLogin}
         </Link>
       }
@@ -54,13 +54,13 @@ export default function ResetPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <Field id="password" label={t.auth.newPassword}>
-            <Input id="password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-12" />
+            <Input id="password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 px-4" />
           </Field>
           <Field id="confirm" label={t.auth.confirmPassword}>
-            <Input id="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className="h-12" />
+            <Input id="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} className="h-12 px-4" />
           </Field>
           {error && <Notice tone="error">{error}</Notice>}
-          <Button type="submit" variant="ink" size="lg" className="w-full" disabled={state === 'sending'}>
+          <Button type="submit" size="lg" className="w-full" disabled={state === 'sending'}>
             {state === 'sending' && <Loader2 className="h-4 w-4 animate-spin" />}
             {t.auth.resetButton}
           </Button>

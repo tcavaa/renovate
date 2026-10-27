@@ -97,7 +97,7 @@ export const PRODUCT_I18N: Record<string, { en: string; ru: string }> = {
 
 /** Store names, keyed by the Georgian name the seeds use as the unique key. */
 export const STORE_I18N: Record<string, { en: string; ru: string }> = {
-  'რემონტი.ge ოფიციალური მაღაზია': { en: 'remonti.ge official store', ru: 'Официальный магазин remonti.ge' },
+  'PLAYCE ოფიციალური მაღაზია': { en: 'PLAYCE official store', ru: 'Официальный магазин PLAYCE' },
   'ქართული ავეჯი': { en: 'Georgian Furniture', ru: 'Грузинская мебель' },
   'Nordic Home Tbilisi': { en: 'Nordic Home Tbilisi', ru: 'Nordic Home Тбилиси' },
   'LOFT 42': { en: 'LOFT 42', ru: 'LOFT 42' },

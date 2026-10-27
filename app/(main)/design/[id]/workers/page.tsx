@@ -140,11 +140,11 @@ export default function TeamsStepPage() {
         <StageBrief step={8} className="mt-6" />
 
         {/* The trades the estimate calls for: what the brigade is being asked to do. */}
-        <section className="mt-8 border border-line bg-bg-surface p-5">
+        <section className="mt-8 rounded-2xl border border-line bg-bg-surface p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="eyebrow flex items-center gap-1.5">
-                <HardHat className="h-3.5 w-3.5" />
+                <HardHat className="h-3.5 w-3.5 text-wood" />
                 {t.build.tradeNeeded}
               </p>
               <h2 className="mt-1 font-serif text-xl font-semibold text-ink">{fill(t.teams.membersSubtitle, { n: slugs.length })}</h2>
@@ -159,7 +159,7 @@ export default function TeamsStepPage() {
             {slugs.map((slug) => {
               const need = trades.find((n) => n.slug === slug);
               return (
-                <li key={slug} className="border border-line bg-white p-3">
+                <li key={slug} className="rounded-xl border border-line bg-bg-base/60 p-3">
                   <p className="flex items-baseline justify-between gap-2">
                     <span className="truncate font-medium text-ink">{workerSpecialtyLabel(t, slug)}</span>
                     {need && <span className="shrink-0 font-serif text-sm font-semibold tabular-nums text-ink">{formatGEL(need.total)}</span>}
@@ -177,7 +177,7 @@ export default function TeamsStepPage() {
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
             <div>
               <p className="eyebrow flex items-center gap-1.5">
-                <UsersRound className="h-3.5 w-3.5" />
+                <UsersRound className="h-3.5 w-3.5 text-wood" />
                 {t.teams.forProject}
               </p>
               <h2 className="mt-1 font-serif text-2xl font-semibold text-ink">{t.teams.title}</h2>
@@ -200,7 +200,7 @@ export default function TeamsStepPage() {
                 const booking = bookingOf(team.id);
                 const live = booking && booking.status !== 'cancelled';
                 return (
-                  <article key={team.id} className={cn('flex flex-col border bg-bg-surface p-5', live ? 'border-ink' : 'border-line')}>
+                  <article key={team.id} className={cn('flex flex-col rounded-2xl border bg-bg-surface p-5', live ? 'border-brand ring-1 ring-brand/30' : 'border-line')}>
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="font-serif text-lg font-semibold leading-tight text-ink">
                         <Link href={`/teams/${team.slug}`} className="hover:text-brand">
@@ -209,7 +209,7 @@ export default function TeamsStepPage() {
                       </h3>
                       <span
                         title={team.available ? undefined : fill(t.teams.busyHint, { n: team.openJobs })}
-                        className={cn('shrink-0 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', team.available ? 'border-success/50 text-success' : 'border-line text-ink-muted')}
+                        className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', team.available ? 'border-olive/30 bg-olive-soft text-olive' : 'border-line text-ink-muted')}
                       >
                         {team.available ? t.teams.available : t.teams.busy}
                       </span>
@@ -219,7 +219,7 @@ export default function TeamsStepPage() {
                     </p>
                     <ul className="mt-3 flex flex-wrap gap-1.5">
                       {team.trades.map((slug) => (
-                        <li key={slug} className={cn('border px-2 py-0.5 text-[11px]', slugs.includes(slug as TradeSlug) ? 'border-success/50 bg-success/10 text-success' : 'border-line text-ink-soft')}>
+                        <li key={slug} className={cn('rounded-full border px-2 py-0.5 text-[11px]', slugs.includes(slug as TradeSlug) ? 'border-olive/30 bg-olive-soft text-olive' : 'border-line text-ink-soft')}>
                           {workerSpecialtyLabel(t, slug)}
                         </li>
                       ))}

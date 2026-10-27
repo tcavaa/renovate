@@ -2,7 +2,7 @@ import { getT } from '@/lib/i18n/server';
 import { LegalPage } from '@/components/legal/LegalPage';
 import { companyDetails, legalSections } from '@/lib/legal';
 
-export const metadata = { title: 'Privacy — RenovateGE' };
+export const metadata = { title: 'Privacy' };
 
 export default async function PrivacyPage() {
   const ka = await getT();

@@ -29,7 +29,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
   }, [open]);
 
   if (status === 'loading') {
-    return <div className={cn('h-8 animate-pulse bg-line/50', variant === 'desktop' ? 'w-24' : 'w-full')} />;
+    return <div className={cn('h-8 animate-pulse rounded-full bg-line/50', variant === 'desktop' ? 'w-24' : 'w-full')} />;
   }
 
   const link = 'text-[13px] font-medium text-ink-soft transition-colors hover:text-ink';
@@ -38,10 +38,10 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
     if (variant === 'mobile') {
       return (
         <div className="grid grid-cols-2 gap-2">
-          <Link href="/login" className="flex h-11 items-center justify-center border border-line text-sm font-medium hover:border-ink">
+          <Link href="/login" className="flex h-11 items-center justify-center rounded-full border border-line text-sm font-medium hover:border-ink">
             {t.nav.login}
           </Link>
-          <Link href="/register" className="flex h-11 items-center justify-center border border-ink bg-ink text-sm font-medium text-white">
+          <Link href="/register" className="flex h-11 items-center justify-center rounded-full bg-ink text-sm font-medium text-white hover:bg-brand">
             {t.nav.register}
           </Link>
         </div>
@@ -52,7 +52,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
         <Link href="/login" className={link}>
           {t.nav.login}
         </Link>
-        <Link href="/register" className={cn(link, 'border border-line px-3 py-1.5 hover:border-ink')}>
+        <Link href="/register" className={cn(link, 'rounded-full bg-ink px-4 py-1.5 text-white hover:bg-brand hover:text-white')}>
           {t.nav.register}
         </Link>
       </div>
@@ -82,7 +82,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
 
   if (variant === 'mobile') {
     return (
-      <div className="border border-line">
+      <div className="overflow-hidden rounded-2xl border border-line">
         <div className="flex items-center gap-3 border-b border-line px-3 py-3">
           <Mark initials={initials} />
           <div className="min-w-0 flex-1">
@@ -113,7 +113,7 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-3 w-60 border border-line bg-bg-surface shadow-cardHover animate-fade-in" role="menu">
+        <div className="absolute right-0 top-full z-50 mt-3 w-60 overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-float animate-fade-in" role="menu">
           <div className="flex items-start justify-between gap-2 border-b border-line px-4 py-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{name}</p>
@@ -138,17 +138,17 @@ export function UserMenu({ variant = 'desktop' }: { variant?: 'desktop' | 'mobil
 }
 
 function Mark({ initials }: { initials: string }) {
-  return <span className="grid h-7 w-7 shrink-0 place-items-center bg-ink text-[11px] font-semibold text-white">{initials}</span>;
+  return <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-olive text-[11px] font-semibold text-sand-light">{initials}</span>;
 }
 
 /** Whose account this is, for everybody but a customer: admin, an agent, a store, a brigade. */
 function RoleTag({ label }: { label: string }) {
-  return <span className="shrink-0 border border-line px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{label}</span>;
+  return <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{label}</span>;
 }
 
 function MenuLink({ href, icon: Icon, label, onClick }: { href: string; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void }) {
   return (
-    <Link href={href} onClick={onClick} className="flex items-center gap-3 border-b border-line px-4 py-2.5 text-sm text-ink-soft transition-colors hover:bg-bg-base hover:text-ink">
+    <Link href={href} onClick={onClick} className="flex items-center gap-3 border-b border-line px-4 py-2.5 text-sm text-ink-soft transition-colors hover:bg-sand/50 hover:text-ink">
       <Icon className="h-4 w-4 text-ink-faint" />
       {label}
     </Link>
@@ -157,7 +157,7 @@ function MenuLink({ href, icon: Icon, label, onClick }: { href: string; icon: Re
 
 function SignOut({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-ink-soft transition-colors hover:bg-bg-base hover:text-danger">
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-ink-soft transition-colors hover:bg-sand/50 hover:text-danger">
       <LogOut className="h-4 w-4 text-ink-faint" />
       {label}
     </button>

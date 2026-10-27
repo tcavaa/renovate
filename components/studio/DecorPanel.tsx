@@ -130,7 +130,7 @@ export function DecorPanel({
                   type="button"
                   onClick={() => onMaterial(slot, null)}
                   aria-pressed={!current?.product}
-                  className={cn('grid aspect-square place-items-center rounded-[8px] border text-[10px] text-ink-muted', !current?.product ? 'border-ink ring-1 ring-ink' : 'border-line hover:border-ink')}
+                  className={cn('grid aspect-square place-items-center rounded-[8px] border text-[10px] text-ink-muted', !current?.product ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink')}
                 >
                   {t.decor.none}
                 </button>
@@ -144,7 +144,7 @@ export function DecorPanel({
                     title={`${localizedName(locale, product)} · ${formatGEL(product.pricePerUnit)} / ${unitLabel(t, product.unit)}`}
                     onClick={() => onMaterial(slot, product)}
                     aria-pressed={chosen}
-                    className={cn('relative aspect-square overflow-hidden rounded-[8px] border bg-bg-base', chosen ? 'border-ink ring-1 ring-ink' : 'border-line hover:border-ink')}
+                    className={cn('relative aspect-square overflow-hidden rounded-[8px] border bg-bg-base', chosen ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink')}
                   >
                     {product.imageUrl ? (
                       <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="56px" className="object-cover" />
@@ -172,7 +172,7 @@ export function DecorPanel({
                   type="button"
                   title={t.decor.colourOwn}
                   onClick={() => onColor(slot, null)}
-                  className={cn('h-5 w-5 rounded-full border bg-[linear-gradient(135deg,#fff_45%,#d33_47%,#d33_53%,#fff_55%)]', !current?.colorHex ? 'border-ink ring-1 ring-ink' : 'border-line')}
+                  className={cn('h-5 w-5 rounded-full border bg-[linear-gradient(135deg,#fff_45%,#d33_47%,#d33_53%,#fff_55%)]', !current?.colorHex ? 'border-brand ring-1 ring-brand' : 'border-line')}
                 />
                 {TINTS.map((hex) => (
                   <button
@@ -180,7 +180,7 @@ export function DecorPanel({
                     type="button"
                     title={hex}
                     onClick={() => onColor(slot, hex)}
-                    className={cn('h-5 w-5 rounded-full border', current?.colorHex?.toLowerCase() === hex.toLowerCase() ? 'border-ink ring-1 ring-ink' : 'border-line')}
+                    className={cn('h-5 w-5 rounded-full border', current?.colorHex?.toLowerCase() === hex.toLowerCase() ? 'border-brand ring-1 ring-brand' : 'border-line')}
                     style={{ background: hex }}
                   />
                 ))}
@@ -190,7 +190,7 @@ export function DecorPanel({
         );
       })}
 
-      <div className="rounded-[10px] border border-line bg-white p-3">
+      <div className="rounded-[10px] border border-line bg-bg-surface p-3">
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.materials}</p>
         <ul className="space-y-0.5">
           {purchases.map((line) => (
@@ -208,7 +208,7 @@ export function DecorPanel({
         </p>
       </div>
 
-      <button type="button" onClick={onRemove} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-danger/30 text-[13px] font-medium text-danger hover:bg-danger/5">
+      <button type="button" onClick={onRemove} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-danger/30 text-[13px] font-medium text-danger hover:bg-danger/5">
         <Trash2 className="h-4 w-4" />
         {t.decor.remove}
       </button>

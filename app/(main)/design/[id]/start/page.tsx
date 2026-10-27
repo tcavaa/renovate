@@ -134,7 +134,7 @@ export default function DesignStartPage() {
                 >
                   <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
                   <span className="min-w-0">
-                    <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className={cn('block font-serif text-sm font-semibold tabular-nums', active ? 'text-white/60' : 'text-wood')}>{String(i + 1).padStart(2, '0')}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
                     <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
@@ -147,7 +147,7 @@ export default function DesignStartPage() {
             <div className="rounded-[16px] border border-line bg-bg-surface p-5 md:p-6">
               <PlanUploadCard showSample showContinue={false} onPlan={(p, imageUrl) => setUploaded({ plan: p, imageUrl })} onReset={() => setUploaded(null)} />
               {uploaded && (
-                <p className="mt-4 flex items-center gap-2 text-sm font-medium text-success">
+                <p className="mt-4 flex items-center gap-2 text-sm font-medium text-olive">
                   <Check className="h-4 w-4" />
                   {fill(t.design.planReady, { n: uploaded.plan.rooms.length })}
                 </p>
@@ -159,7 +159,7 @@ export default function DesignStartPage() {
             ((plan?.rooms.length ?? 0) > 0 ? (
               // This project's own drawing, come back to: it is what the next step opens on.
               <div className="rounded-[16px] border border-line bg-bg-surface p-6 text-sm">
-                <p className="flex items-center gap-2 font-medium text-success">
+                <p className="flex items-center gap-2 font-medium text-olive">
                   <Check className="h-4 w-4" />
                   {fill(t.calculator.planAlreadyUploaded, { n: plan?.rooms.length ?? 0 })}
                 </p>
@@ -258,14 +258,14 @@ function ModeCard({ active, onClick, icon, label, description, coversLabel, cove
           <span className="mt-1.5 block space-y-1">
             {covers.map((line) => (
               <span key={line} className="flex items-start gap-2">
-                <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-white/60' : 'text-success')} />
+                <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-white/60' : 'text-olive-light')} />
                 <span className={cn('text-[13px] leading-snug', active ? 'text-white/70' : 'text-ink-soft')}>{line}</span>
               </span>
             ))}
           </span>
         </span>
       </span>
-      <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-white bg-white text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
+      <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-white bg-bg-surface text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
         <Check className="h-3 w-3" />
       </span>
     </button>
@@ -292,12 +292,12 @@ function HomeStateCover({ state }: { state: HomeState }) {
   const t = useT();
   const copy = t.homeStateCover[state];
   const rows: Array<{ label: string; value: string; icon: React.ReactNode }> = [
-    { label: t.design.modeCoverDone, value: copy.done, icon: <Check className="h-3.5 w-3.5 text-success" /> },
+    { label: t.design.modeCoverDone, value: copy.done, icon: <Check className="h-3.5 w-3.5 text-olive-light" /> },
     { label: t.design.modeCoverTodo, value: copy.todo, icon: <Receipt className="h-3.5 w-3.5 text-brand" /> },
     { label: t.design.modeCoverPoints, value: copy.points, icon: <Plug className="h-3.5 w-3.5 text-ink-muted" /> },
   ];
   return (
-    <div className="rounded-[16px] border border-line bg-white">
+    <div className="rounded-[16px] border border-line bg-bg-surface">
       <p className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">{t.design.modeCoverTitle}</p>
       <dl className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-3">
         {rows.map((row) => (

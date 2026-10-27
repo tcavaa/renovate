@@ -52,7 +52,7 @@ export function RoomRow({ title, rooms, board, activeRoomId, onSelect, status }:
               type="button"
               onClick={() => onSelect(r.id)}
               aria-pressed={on}
-              className={cn('flex shrink-0 items-center gap-3 border py-2 pl-2 pr-4 text-left transition-colors', on ? 'border-ink bg-bg-surface' : 'border-line bg-bg-surface/60 hover:border-ink/40')}
+              className={cn('flex shrink-0 items-center gap-3 rounded-2xl border py-2 pl-2 pr-4 text-left transition-colors', on ? 'border-ink/30 bg-sand shadow-card' : 'border-line bg-bg-surface/60 hover:border-ink/30 hover:bg-sand/50')}
             >
               <RoomGlyph outlines={flat} roomId={r.id} active={on} />
               <span>

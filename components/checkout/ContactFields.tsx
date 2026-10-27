@@ -131,7 +131,7 @@ export function ContactFields({
       <h3 id="co-contact" className="text-sm font-semibold text-ink">
         {address ? c.titleDelivery : c.title}
       </h3>
-      <div className="divide-y divide-line border border-line bg-bg-surface text-sm">
+      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-bg-surface text-sm">
         {ask.phone ? (
           <div className="space-y-1.5 p-3">
             <Label htmlFor="co-phone">{t.market.phone}</Label>
@@ -180,15 +180,15 @@ export function ContactFields({
 /** A line the account already holds: what it is, and the way to give another one for this order. */
 function Stored({ icon, label, text, change, onChange }: { icon: React.ReactNode; label: string; text: string; change: string; onChange: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5">
-      <span className="text-ink-muted" aria-hidden>
+    <div className="flex items-center gap-3 px-4 py-2.5">
+      <span className="text-wood" aria-hidden>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-xs text-ink-muted">{label}</span>
         <span className="block truncate font-medium text-ink">{text}</span>
       </span>
-      <button type="button" onClick={onChange} className="shrink-0 text-xs font-semibold text-ink underline-offset-2 hover:text-brand hover:underline">
+      <button type="button" onClick={onChange} className="shrink-0 rounded-full border border-ink/15 px-3 py-1 text-xs font-semibold text-ink transition-colors hover:border-ink/40 hover:text-brand">
         {change}
       </button>
     </div>

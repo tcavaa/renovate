@@ -39,11 +39,11 @@ export function StepNav({
     </>
   );
   return (
-    <div className={cn('no-print border-t border-line bg-bg-base/90 backdrop-blur-md', sticky && 'sticky bottom-0 z-30', className)}>
+    <div className={cn('no-print border-t border-line/70 bg-sand-light/85 shadow-[0_-12px_32px_-24px_rgba(60,45,30,0.35)] backdrop-blur-xl', sticky && 'sticky bottom-0 z-30', className)}>
       <div className="container flex min-h-[72px] flex-wrap items-center justify-between gap-3 py-3">
         <div className="flex items-center gap-4">
           {back ? (
-            <Link href={back.href} className="group inline-flex items-center gap-2 text-sm font-medium text-ink-soft transition-colors hover:text-ink">
+            <Link href={back.href} className="group -ml-3 inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium text-ink-soft transition-colors hover:bg-sand hover:text-ink">
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
               {back.label}
             </Link>
@@ -54,11 +54,11 @@ export function StepNav({
         {children && <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1 sm:px-6">{children}</div>}
         {next &&
           (next.href && !next.disabled ? (
-            <Button asChild variant="ink" size="lg" className="group min-w-[200px] px-6">
+            <Button asChild size="lg" className="group min-w-[200px] px-6 shadow-card">
               <Link href={next.href}>{nextInner}</Link>
             </Button>
           ) : (
-            <Button type="button" variant="ink" size="lg" className="group min-w-[200px] px-6" onClick={next.onClick} disabled={next.disabled || next.loading}>
+            <Button type="button" size="lg" className="group min-w-[200px] px-6 shadow-card" onClick={next.onClick} disabled={next.disabled || next.loading}>
               {nextInner}
             </Button>
           ))}

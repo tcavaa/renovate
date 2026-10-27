@@ -15,10 +15,10 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
   const { team, members, trades } = row;
   const missing = needed.filter((slug) => !trades.includes(slug));
   return (
-    <article className="flex flex-col border border-line bg-bg-surface p-5 transition-colors hover:border-ink">
+    <article className="flex flex-col rounded-2xl border border-line bg-bg-surface p-5 shadow-card transition-[border-color,box-shadow] hover:border-ink/25 hover:shadow-cardHover">
       <div className="flex items-start gap-4">
-        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden border border-line bg-white">
-          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={48} height={48} className="h-full w-full object-cover" /> : <UsersRound className="h-6 w-6 text-ink-muted" />}
+        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-sand">
+          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={48} height={48} className="h-full w-full object-cover" /> : <UsersRound className="h-6 w-6 text-wood-dark" />}
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-1.5 font-serif text-lg font-semibold leading-tight text-ink">
@@ -35,7 +35,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Star className="h-3 w-3 fill-warning text-warning" />
+              <Star className="h-3 w-3 fill-accent text-accent" />
               {Number(team.rating ?? 5).toFixed(1)}
             </span>
             <span>{members.length} {t.teams.membersCount}</span>
@@ -45,7 +45,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
         {trades.map((slug) => (
-          <li key={slug} className={cn('border px-2 py-0.5 text-[11px]', needed.includes(slug) ? 'border-success/50 bg-success/10 text-success' : 'border-line text-ink-soft')}>
+          <li key={slug} className={cn('rounded-full px-2.5 py-1 text-[11px]', needed.includes(slug) ? 'bg-olive-soft font-medium text-olive' : 'bg-sand/70 text-ink-soft')}>
             {workerSpecialtyLabel(t, slug)}
           </li>
         ))}
@@ -62,7 +62,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
 
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
         <span className="text-xs text-ink-muted">{team.completedJobs ? `${team.completedJobs} ${t.teams.jobsDone}` : (team.leadName ?? '')}</span>
-        <Link href={`/teams/${team.slug}`} className="text-sm font-medium text-brand hover:underline">
+        <Link href={`/teams/${team.slug}`} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink transition-colors hover:border-brand hover:bg-brand hover:text-white">
           {t.teams.open} →
         </Link>
       </div>

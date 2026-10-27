@@ -73,7 +73,7 @@ const schema = z
 
     /** `log` writes mail to the log instead of sending it — the development default. */
     MAIL_DRIVER: z.enum(['log', 'smtp']).default('log'),
-    MAIL_FROM: z.string().default('რემონტი.ge <no-reply@remonti.ge>'),
+    MAIL_FROM: z.string().default('PLAYCE <no-reply@playce.ge>'),
     SMTP_HOST: optionalString,
     SMTP_PORT: z.coerce.number().int().positive().optional(),
     SMTP_USER: optionalString,

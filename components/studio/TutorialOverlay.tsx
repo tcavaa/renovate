@@ -120,14 +120,14 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
         <Shade style={{ inset: 0 }} soft />
       )}
 
-      <div className="absolute w-[min(92vw,400px)] rounded-[20px] border border-white/60 bg-white p-5 shadow-float transition-all duration-300" style={card}>
+      <div className="absolute w-[min(92vw,400px)] rounded-[20px] border border-white/60 bg-bg-surface p-5 shadow-float transition-all duration-300" style={card}>
         <div className="flex items-center justify-between">
           <div className="flex gap-1">
             {STEPS.map((_, i) => (
               <span key={i} className={cn('h-1.5 w-5 rounded-full', i < index ? 'bg-ink' : i === index ? 'bg-brand' : 'bg-line')} />
             ))}
           </div>
-          <button type="button" onClick={finish} aria-label={t.build.tutorialSkip} className="grid h-8 w-8 place-items-center rounded-[8px] text-ink-muted hover:bg-sand-light hover:text-ink">
+          <button type="button" onClick={finish} aria-label={t.build.tutorialSkip} className="grid h-8 w-8 place-items-center rounded-full text-ink-muted hover:bg-sand-light hover:text-ink">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -152,7 +152,7 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
               </button>
             )}
           </div>
-          <button type="button" onClick={() => (last ? finish() : setIndex(index + 1))} className="flex h-9 items-center gap-2 rounded-[10px] bg-ink px-4 text-sm font-semibold text-white hover:bg-brand">
+          <button type="button" onClick={() => (last ? finish() : setIndex(index + 1))} className="flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-brand">
             {last ? t.build.tutorialDone : index === 0 ? t.build.tutorialStart : t.build.tutorialNext}
             {last ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
           </button>

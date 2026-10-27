@@ -30,7 +30,7 @@ import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
 type ItemEdit = { qty: number; unitPrice: number; removed: boolean; note: string | null };
 type NewItem = { key: number; nameKa: string; qty: number; unitPrice: number; unit: string };
 
-const INPUT = 'h-8 w-full border border-line bg-white px-2 text-right text-sm tabular-nums text-ink focus:border-ink focus:outline-none disabled:bg-bg-base disabled:text-ink-muted';
+const INPUT = 'h-8 w-full rounded-lg border border-line bg-white px-2 text-right text-sm tabular-nums text-ink focus:border-ink focus:outline-none disabled:bg-bg-base disabled:text-ink-muted';
 
 export function OrderEditor({ order, backHref }: { order: OrderData; backHref: string }) {
   const t = useT();
@@ -91,7 +91,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
   return (
     <div className="space-y-6">
       {review && (
-        <section className="flex flex-wrap items-center justify-between gap-4 border border-warning/60 bg-warning/5 p-5">
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-warning/60 bg-warning/5 p-5">
           <div className="max-w-2xl">
             <p className="font-serif text-lg font-semibold text-ink">{r.awaitingTitle}</p>
             <p className="mt-1 text-sm text-ink-soft">{r.awaitingHint}</p>
@@ -117,7 +117,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
         {/* customer */}
-        <section className="border border-line bg-bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.customer}</p>
           <p className="mt-2 font-serif text-xl font-semibold text-ink">{order.customerName}</p>
           <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
@@ -141,7 +141,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
             </p>
           )}
           {order.customerNote && (
-            <div className="mt-4 border-l-2 border-ink pl-3">
+            <div className="mt-4 border-l-2 border-wood pl-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>
               <p className="mt-1 text-sm text-ink">{order.customerNote}</p>
             </div>
@@ -167,7 +167,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         </section>
 
         {/* money and status */}
-        <section className="border border-line bg-bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.total}</p>
           <p className="mt-2 font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal + delivery)}</p>
           <dl className="mt-4 space-y-1.5 text-sm">
@@ -199,7 +199,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
           </div>
           {/* A store's order still with the platform is sent on by the button above, not from a list. */}
           {!review && (
-            <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="mt-2 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none" aria-label={t.partner.statusLabel}>
+            <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="mt-2 h-9 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none" aria-label={t.partner.statusLabel}>
               {ORDER_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {orderStatusLabel(t, s)}
@@ -211,12 +211,12 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
       </div>
 
       {/* items */}
-      <section className="border border-line bg-bg-surface">
+      <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
         <header className="flex items-center justify-between border-b border-line px-5 py-3">
           <p className="eyebrow">
             {t.partner.items} <span className="ml-2 normal-case tracking-normal text-ink-muted">{fill(r.keptCount, { n: kept, total: order.items.length + added.length })}</span>
           </p>
-          <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+          <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 px-3 py-1 text-xs font-medium text-ink transition-colors hover:border-ink/40 hover:text-brand">
             <Plus className="h-3.5 w-3.5" />
             {t.partner.addItem}
           </button>
@@ -224,7 +224,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                 <th className="w-10 px-3 py-2" aria-label={r.keep} />
                 <th className="px-2 py-2">{t.partner.item}</th>
                 <th className="px-2 py-2 text-right">{t.partner.qty}</th>
@@ -245,8 +245,8 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
                       <p className={cn('font-medium text-ink', e.removed && 'text-ink-muted line-through')}>{localizedName(locale, item)}</p>
                       <p className="text-xs text-ink-muted">
                         {[item.roomName, item.categorySlug?.includes(':') ? null : item.categorySlug].filter(Boolean).join(' · ')}
-                        {diff.kind === 'removed' && <span className="ml-2 border border-danger/40 px-1 text-[10px] uppercase tracking-wide text-danger">{r.removedByManager}</span>}
-                        {diff.kind === 'added' && <span className="ml-2 border border-success/40 px-1 text-[10px] uppercase tracking-wide text-success">{r.addedByManager}</span>}
+                        {diff.kind === 'removed' && <span className="ml-2 rounded-full bg-danger/10 px-2 text-[10px] uppercase tracking-wide text-danger">{r.removedByManager}</span>}
+                        {diff.kind === 'added' && <span className="ml-2 rounded-full bg-success/10 px-2 text-[10px] uppercase tracking-wide text-success">{r.addedByManager}</span>}
                         {diff.kind === 'changed' && diff.qtyFrom != null && <span className="ml-2 text-warning">{fill(r.qtyWas, { qty: formatNumber(diff.qtyFrom) })}</span>}
                         {diff.kind === 'changed' && diff.priceFrom != null && <span className="ml-2 text-warning">{fill(r.priceWas, { price: formatGEL(diff.priceFrom) })}</span>}
                       </p>
@@ -256,7 +256,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
                           value={e.note ?? ''}
                           onChange={(ev) => setItem(item, { note: ev.target.value || null })}
                           placeholder={t.partner.itemNote}
-                          className="mt-1.5 h-7 w-full max-w-md border border-line bg-white px-2 text-xs text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                          className="mt-1.5 h-7 w-full max-w-md rounded-lg border border-line bg-white px-2 text-xs text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
                         />
                       )}
                     </td>
@@ -276,17 +276,17 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
               {added.map((a, index) => (
                 <tr key={a.key} className="border-b border-line/70 bg-success/5 align-top last:border-b-0">
                   <td className="px-3 py-2.5">
-                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-7 w-7 place-items-center border border-line text-ink-faint hover:border-danger hover:text-danger">
+                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-7 w-7 place-items-center rounded-full border border-line text-ink-faint hover:border-danger hover:text-danger">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </td>
                   <td className="px-2 py-2.5">
-                    <input type="text" autoFocus value={a.nameKa} placeholder={t.partner.newItemName} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, nameKa: ev.target.value } : x)))} className="h-8 w-full max-w-md border border-line bg-white px-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
+                    <input type="text" autoFocus value={a.nameKa} placeholder={t.partner.newItemName} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, nameKa: ev.target.value } : x)))} className="h-8 w-full max-w-md rounded-lg border border-line bg-white px-2 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
                   </td>
                   <td className="px-2 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <input type="number" min={0} step={1} value={a.qty} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, qty: Math.max(0, Number(ev.target.value) || 0) } : x)))} className={cn(INPUT, 'w-20')} />
-                      <select value={a.unit} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, unit: ev.target.value } : x)))} className="h-8 border border-line bg-white px-1 text-xs text-ink focus:border-ink focus:outline-none">
+                      <select value={a.unit} onChange={(ev) => setAdded((list) => list.map((x, i) => (i === index ? { ...x, unit: ev.target.value } : x)))} className="h-8 rounded-lg border border-line bg-white px-1 text-xs text-ink focus:border-ink focus:outline-none">
                         {['piece', 'm2', 'linear_m', 'pack', 'set', 'unit'].map((u) => (
                           <option key={u} value={u}>
                             {unitLabel(t, u)}
@@ -322,7 +322,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
       </section>
 
       {/* message to the customer */}
-      <section className="border border-line bg-bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-bg-surface p-5">
         <label className="block">
           <span className="eyebrow">{t.partner.messageLabel}</span>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={t.partner.messagePlaceholder} rows={3} className="mt-2" />
@@ -336,7 +336,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         none of it is written anywhere until it is written here. Neither the customer nor the
         partner ever sees it — the API strips it for both.
       */}
-      <section className="border border-warning/40 bg-warning/5 p-5">
+      <section className="rounded-2xl border border-warning/40 bg-warning/5 p-5">
         <label className="block">
           <span className="eyebrow">{t.admin.ordersPage.staffNote}</span>
           <Textarea value={staffNote} onChange={(e) => setStaffNote(e.target.value)} placeholder={t.admin.ordersPage.staffNotePlaceholder} rows={3} className="mt-2 bg-white" />
@@ -345,7 +345,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
       </section>
 
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/90 py-3 backdrop-blur-md">
-        <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-ink">
+        <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-brand">
           ← {t.admin.ordersPage.backToAll}
         </Link>
         <div className="flex flex-wrap items-center gap-3">

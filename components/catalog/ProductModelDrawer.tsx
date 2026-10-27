@@ -55,22 +55,22 @@ export function ProductModelDrawer({ modelUrl, name, price }: { modelUrl: string
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out" />
-        <DialogPrimitive.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l border-line bg-bg-surface shadow-cardHover data-[state=open]:animate-in data-[state=closed]:animate-out">
-          <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+        <DialogPrimitive.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col overflow-hidden border-l border-line bg-bg-surface shadow-float sm:rounded-l-3xl data-[state=open]:animate-in data-[state=closed]:animate-out">
+          <header className="flex items-start justify-between gap-4 px-6 py-5">
             <div className="min-w-0">
               <p className="eyebrow">{t.catalog.view3dTitle}</p>
               <DialogPrimitive.Title className="mt-1 truncate font-serif text-xl font-semibold text-ink">{name}</DialogPrimitive.Title>
               <DialogPrimitive.Description className="mt-1 text-xs text-ink-muted">{t.catalog.view3dHint}</DialogPrimitive.Description>
             </div>
-            <DialogPrimitive.Close className="grid h-9 w-9 shrink-0 place-items-center text-ink-muted transition-colors hover:bg-bg-base hover:text-ink" aria-label={t.common.close}>
+            <DialogPrimitive.Close className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-sand/60 hover:text-ink" aria-label={t.common.close}>
               <X className="h-4 w-4" />
             </DialogPrimitive.Close>
           </header>
-          <div className="relative min-h-0 flex-1 bg-sand-light">
+          <div className="relative mx-4 min-h-0 flex-1 overflow-hidden rounded-2xl bg-sand-light">
             <div ref={setHost} className="absolute inset-0" />
             {state === 'loading' && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center">
-                <span className="flex items-center gap-2 bg-white/80 px-3 py-2 text-sm text-ink-muted">
+                <span className="flex items-center gap-2 rounded-full bg-bg-surface/85 px-4 py-2 text-sm text-ink-muted shadow-card backdrop-blur">
                   <Loader2 className="h-4 w-4 animate-spin text-brand" />
                   {t.catalog.view3dLoading}
                 </span>
@@ -78,11 +78,11 @@ export function ProductModelDrawer({ modelUrl, name, price }: { modelUrl: string
             )}
             {state === 'failed' && (
               <div className="absolute inset-0 grid place-items-center">
-                <span className="border border-danger/40 bg-white px-3 py-2 text-sm text-danger">{t.catalog.view3dFailed}</span>
+                <span className="rounded-full border border-danger/40 bg-bg-surface px-4 py-2 text-sm text-danger">{t.catalog.view3dFailed}</span>
               </div>
             )}
           </div>
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-6 py-4">
+          <footer className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
             <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(price)}</span>
             <Button asChild variant="outline">
               <Link href="/design">

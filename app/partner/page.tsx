@@ -44,7 +44,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
       <div className="space-y-8">
         <div>
           <p className="eyebrow">{t.partner.title}</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold">{t.partner.adminPreview}</h1>
+          <h1 className="mt-2 font-serif text-3xl font-semibold">{t.partner.adminPreview}</h1>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           <PreviewList title={t.partner.storeAccount} items={storeRows.map((s) => ({ href: `/partner?store=${s.id}`, label: s.name }))} />
@@ -83,30 +83,32 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">{t.partner.title}</p>
-          <h1 className="mt-2 font-serif text-3xl font-bold">{ctx.name}</h1>
+          <h1 className="mt-2 font-serif text-3xl font-semibold">{ctx.name}</h1>
         </div>
         <p className="text-sm text-ink-muted">
           {t.partner.commissionRateLabel}: <span className="font-semibold text-ink">{formatNumber(pct)}%</span>
         </p>
       </div>
 
-      <div className="grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label={t.partner.newOrders} value={String(stats.unread)} emphasis />
-        <Figure label={t.partner.openOrders} value={String(stats.open)} />
-        <Figure label={t.partner.monthSales} value={formatGEL(stats.monthGoods)} />
-        <Figure label={t.partner.monthNet} value={formatGEL(Math.max(0, stats.monthGoods - stats.monthCommission))} />
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
+          <Figure label={t.partner.newOrders} value={String(stats.unread)} emphasis />
+          <Figure label={t.partner.openOrders} value={String(stats.open)} />
+          <Figure label={t.partner.monthSales} value={formatGEL(stats.monthGoods)} />
+          <Figure label={t.partner.monthNet} value={formatGEL(Math.max(0, stats.monthGoods - stats.monthCommission))} />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* Sales by month: bars, no chart library — the height is the share of the best month. */}
-        <section className="border border-line bg-bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{s.salesByMonth}</p>
           <p className="mt-1 text-xs text-ink-muted">{s.salesByMonthHint}</p>
           <div className="mt-5 grid h-44 grid-cols-6 items-end gap-3">
             {months.map((m) => (
               <div key={m.month} className="flex h-full flex-col justify-end text-center">
                 <span className="mb-1 text-[11px] tabular-nums text-ink-muted">{m.goods > 0 ? formatGEL(m.goods) : ''}</span>
-                <div className={cn('w-full', m.goods > 0 ? 'bg-ink' : 'bg-line')} style={{ height: `${Math.max(2, Math.round((m.goods / maxMonth) * 100))}%` }} title={`${formatGEL(m.goods)} · ${fill(s.ordersCount, { n: m.orders })}`} />
+                <div className={cn('w-full rounded-t-md', m.goods > 0 ? 'bg-olive' : 'bg-line')} style={{ height: `${Math.max(2, Math.round((m.goods / maxMonth) * 100))}%` }} title={`${formatGEL(m.goods)} · ${fill(s.ordersCount, { n: m.orders })}`} />
                 <span className="mt-1.5 text-[11px] uppercase tracking-wide text-ink-muted">{monthLabel(m.month)}</span>
               </div>
             ))}
@@ -114,7 +116,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
         </section>
 
         <aside className="space-y-4">
-          <div className="border border-line bg-bg-surface p-5">
+          <div className="rounded-2xl border border-line bg-bg-surface p-5">
             <p className="eyebrow">{s.ordersByStage}</p>
             <ul className="mt-3 space-y-1.5 text-sm">
               {ORDER_STAGES.filter((st) => st !== 'review').map((st) => (
@@ -148,8 +150,8 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
 
       {isStore && health && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <section className="border border-line bg-bg-surface">
-            <div className="flex items-center justify-between border-b border-line px-5 py-3">
+          <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+            <div className="flex items-center justify-between border-b border-line bg-sand/40 px-5 py-3">
               <p className="eyebrow">{s.topProducts}</p>
               <Link href={productsHref('sort=revenue')} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink">
                 {t.partner.viewAll}
@@ -162,8 +164,8 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
               <ol className="divide-y divide-line/70">
                 {top.map((p, i) => (
                   <li key={p.productId} className="flex items-center gap-3 px-5 py-2.5">
-                    <span className="w-5 text-right text-xs tabular-nums text-ink-faint">{i + 1}</span>
-                    <span className="relative h-10 w-10 shrink-0 overflow-hidden border border-line bg-bg-base">
+                    <span className="w-5 text-right font-serif text-sm tabular-nums text-wood">{i + 1}</span>
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
                       {p.imageUrl ? <Image src={p.imageUrl} alt="" fill sizes="40px" className="object-cover" /> : <Box className="absolute inset-0 m-auto h-4 w-4 text-ink-muted" />}
                     </span>
                     <span className="min-w-0 flex-1">
@@ -179,7 +181,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
             )}
           </section>
 
-          <section className="border border-line bg-bg-surface p-5">
+          <section className="rounded-2xl border border-line bg-bg-surface p-5">
             <p className="eyebrow">{s.catalogHealth}</p>
             <p className="mt-1 text-xs text-ink-muted">{s.catalogHealthHint}</p>
             <ul className="mt-3 space-y-1 text-sm">
@@ -190,7 +192,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
                 { label: s.productsNo3d, n: health.no3d, query: 'model=none', warn: true },
               ].map((row) => (
                 <li key={row.query}>
-                  <Link href={productsHref(row.query)} className="flex items-center justify-between gap-2 px-1 py-1 hover:bg-bg-base">
+                  <Link href={productsHref(row.query)} className="-mx-1 flex items-center justify-between gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-sand/40">
                     <span className="text-ink-soft">{row.label}</span>
                     <span className={cn('tabular-nums', row.warn && row.n > 0 ? 'font-semibold text-warning' : 'text-ink')}>{row.n}</span>
                   </Link>
@@ -215,15 +217,15 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
             </Link>
           </div>
           {recent.length === 0 ? (
-            <p className="mt-3 border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.partner.noOrders}</p>
+            <p className="mt-3 rounded-2xl border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.partner.noOrders}</p>
           ) : (
-            <ul className="mt-3 border border-line bg-bg-surface">
+            <ul className="mt-3 overflow-hidden rounded-2xl border border-line bg-bg-surface">
               {recent.map((o) => (
                 <li key={o.id} className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0', !o.viewedAt && 'bg-brand/5')}>
                   <div className="min-w-0">
                     <Link href={partnerHref(`/partner/orders/${o.id}`, ctx)} className="flex flex-wrap items-center gap-2 font-serif text-base font-semibold text-ink hover:text-brand">
                       {fill(t.partner.orderTitle, { id: o.id })}
-                      {!o.viewedAt && <span className="bg-brand px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{t.partner.unread}</span>}
+                      {!o.viewedAt && <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{t.partner.unread}</span>}
                       <OrderStageBadge stage={orderStage(o)} t={t} />
                     </Link>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
@@ -244,7 +246,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
         </section>
 
         <aside className="space-y-4">
-          <div className="border border-line bg-bg-surface p-5">
+          <div className="rounded-2xl border border-line bg-bg-surface p-5">
             <p className="eyebrow">{t.partner.allTimeSales}</p>
             <p className="mt-2 font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(stats.allTimeGoods)}</p>
             <dl className="mt-3 space-y-1 text-sm text-ink-muted">
@@ -258,7 +260,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
               </div>
             </dl>
           </div>
-          <div className="border border-line bg-bg-surface p-5">
+          <div className="rounded-2xl border border-line bg-bg-surface p-5">
             <p className="eyebrow">{t.partner.helpTitle}</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">{t.partner.helpText}</p>
           </div>
@@ -270,12 +272,12 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
 
 function PreviewList({ title, items }: { title: string; items: Array<{ href: string; label: string }> }) {
   return (
-    <section className="border border-line bg-bg-surface">
-      <p className="eyebrow border-b border-line px-4 py-3">{title}</p>
+    <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+      <p className="eyebrow border-b border-line bg-sand/40 px-4 py-3">{title}</p>
       <ul className="max-h-[60vh] overflow-y-auto">
         {items.map((i) => (
           <li key={i.href} className="border-b border-line/70 last:border-b-0">
-            <Link href={i.href} className="flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-bg-base">
+            <Link href={i.href} className="flex items-center justify-between px-4 py-2.5 text-sm text-ink transition-colors hover:bg-sand/40">
               {i.label}
               <ArrowRight className="h-3.5 w-3.5 text-ink-faint" />
             </Link>

@@ -9,14 +9,14 @@ import { cn } from '@/lib/utils';
  * two tags always sit in the same place.
  */
 export function ProjectKindTags({ t, kind, className }: { t: Dictionary; kind: { hasCalculator: boolean; hasDesign: boolean }; className?: string }) {
-  const tag = 'inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]';
+  const tag = 'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]';
   return (
     <span className={cn('inline-flex flex-wrap items-center gap-1.5', className)}>
-      <span className={cn(tag, kind.hasCalculator ? 'border-ink text-ink' : 'border-dashed border-line text-ink-faint')}>
+      <span className={cn(tag, kind.hasCalculator ? 'border-wood/40 bg-wood/10 text-wood-dark' : 'border-dashed border-line text-ink-faint')}>
         <Calculator className="h-3 w-3" />
         {t.profile.tagCalculator}
       </span>
-      <span className={cn(tag, kind.hasDesign ? 'border-ink text-ink' : 'border-dashed border-line text-ink-faint')}>
+      <span className={cn(tag, kind.hasDesign ? 'border-olive/30 bg-olive-soft text-olive' : 'border-dashed border-line text-ink-faint')}>
         <Box className="h-3 w-3" />
         {t.profile.tagDesign}
       </span>

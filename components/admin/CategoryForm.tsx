@@ -22,7 +22,7 @@ import { rememberedListHref } from '@/lib/admin/listMemory';
 /** lucide's whole set is large: it loads with this form's icon field, not with the admin. */
 const IconPicker = dynamic(() => import('@/components/admin/IconPicker').then((m) => m.IconPicker), {
   ssr: false,
-  loading: () => <div className="h-10 border border-line bg-bg-surface" />,
+  loading: () => <div className="h-10 rounded-xl border border-line bg-bg-surface" />,
 });
 
 const CALCULATION_TYPE_KEYS = ['per_m2_floor', 'per_m2_wall', 'per_m2_ceiling', 'per_linear_m', 'per_unit', 'per_room', 'fixed'] as const;
@@ -231,7 +231,7 @@ export function CategoryForm({ category, all, initialParentId = null, rooms, roo
                         type="button"
                         aria-pressed={on}
                         onClick={() => update('shelfRoomIds', on ? form.shelfRoomIds.filter((id) => id !== room.id) : [...form.shelfRoomIds, room.id])}
-                        className={cn('inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-xs font-medium transition-colors', on ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
+                        className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors', on ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}
                       >
                         {on && <Check className="h-3.5 w-3.5" />}
                         {room.name}
@@ -277,7 +277,7 @@ export function CategoryForm({ category, all, initialParentId = null, rooms, roo
             </p>
           )}
 
-          {error && <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+          {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -301,7 +301,7 @@ export function CategoryForm({ category, all, initialParentId = null, rooms, roo
 
 function Switch({ checked, onChange, label, hint }: { checked: boolean; onChange: (value: boolean) => void; label: string; hint: string }) {
   return (
-    <label className={cn('flex cursor-pointer gap-3 border p-3 transition-colors', checked ? 'border-ink bg-bg-base' : 'border-line bg-bg-surface hover:border-ink/40')}>
+    <label className={cn('flex cursor-pointer gap-3 rounded-xl border p-3 transition-colors', checked ? 'border-olive/60 bg-olive-soft' : 'border-line bg-bg-surface hover:border-ink/40')}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-ink" />
       <span>
         <span className="block text-sm font-medium text-ink">{label}</span>

@@ -129,7 +129,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
         </Card>
       </div>
 
-      <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">{example}</p>
+      <p className="rounded-r-xl border-l-2 border-wood bg-sand-light/60 py-2 pl-4 pr-3 text-sm text-ink-soft">{example}</p>
 
       {/* Card payments: what an own item and a render cost, and the bank's cut every payment shows. */}
       <Card>
@@ -152,7 +152,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
               <Input id="bank-fee-pct" type="number" step="0.1" min={0} max={20} value={form.bankFeePct} onChange={(e) => update('bankFeePct', e.target.value)} />
             </div>
           </div>
-          <p className="border-l-2 border-ink pl-4 text-sm text-ink-soft">
+          <p className="rounded-r-xl border-l-2 border-wood bg-sand-light/60 py-2 pl-4 pr-3 text-sm text-ink-soft">
             {paymentsExample} <span className="text-ink-muted">({fill(s.bankFeeShown, { pct: `${formatNumber(num(form.bankFeePct))}%` })})</span>
           </p>
         </CardContent>
@@ -165,7 +165,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
           <p className="text-sm text-ink-muted">{t.orderReview.supplierHint}</p>
         </CardHeader>
         <CardContent>
-          <select value={form.materialsStoreId} onChange={(e) => update('materialsStoreId', e.target.value)} aria-label={t.orderReview.supplierTitle} className="h-10 w-full max-w-md border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none">
+          <select value={form.materialsStoreId} onChange={(e) => update('materialsStoreId', e.target.value)} aria-label={t.orderReview.supplierTitle} className="h-10 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none">
             <option value="">{t.orderReview.supplierNone}</option>
             {stores.map((store) => (
               <option key={store.id} value={store.id}>

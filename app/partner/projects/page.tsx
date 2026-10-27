@@ -29,16 +29,16 @@ export default async function PartnerProjectsPage(props: { searchParams: Promise
     <div className="space-y-6">
       <div>
         <p className="eyebrow">{ctx.name}</p>
-        <h1 className="mt-2 font-serif text-3xl font-bold">{p.projectsTitle}</h1>
+        <h1 className="mt-2 font-serif text-3xl font-semibold">{p.projectsTitle}</h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-muted">{p.projectsSubtitle}</p>
       </div>
       {rows.length === 0 ? (
-        <p className="border border-dashed border-line p-12 text-center text-sm text-ink-muted">{p.projectsEmpty}</p>
+        <p className="rounded-2xl border border-dashed border-line p-12 text-center text-sm text-ink-muted">{p.projectsEmpty}</p>
       ) : (
-        <div className="overflow-x-auto border border-line bg-bg-surface">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-bg-surface">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                 <th className="px-4 py-3">{t.partner.project}</th>
                 <th className="px-4 py-3">{p.customer}</th>
                 <th className="px-4 py-3 text-right">{p.area}</th>
@@ -49,7 +49,7 @@ export default async function PartnerProjectsPage(props: { searchParams: Promise
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.orderId} className="border-b border-line/70 last:border-b-0 hover:bg-bg-base/60">
+                <tr key={r.orderId} className="border-b border-line/70 last:border-b-0 hover:bg-sand/25">
                   <td className="px-4 py-3">
                     <Link href={partnerHref(`/partner/projects/${r.projectId}`, ctx)} className="font-medium text-ink hover:text-brand">
                       {r.projectName ?? `#${r.projectId}`}

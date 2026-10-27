@@ -480,7 +480,7 @@ function buildOpeningTrim(
 
   // A translucent slab the size of the opening: the thing you grab to slide a door along
   // its wall. Parked on the hidden layer until the studio enters its openings mode.
-  const slab = own(box(w, h, thickness + 0.16, new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.28, depthWrite: false })));
+  const slab = own(box(w, h, thickness + 0.16, new THREE.MeshBasicMaterial({ color: 0xb5462b, transparent: true, opacity: 0.28, depthWrite: false })));
   slab.name = OPENING_SLAB_NAME;
   slab.renderOrder = 5;
   slab.layers.set(HIDDEN_LAYER);

@@ -192,7 +192,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   const on = point.on !== false;
   const edge = point.wallIndex != null ? roomEdges(room.polygon).find((e) => e.index === point.wallIndex) : null;
   const piece = new THREE.Group();
-  const ghost = options.preview ? new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.55, depthWrite: false }) : null;
+  const ghost = options.preview ? new THREE.MeshBasicMaterial({ color: 0xb5462b, transparent: true, opacity: 0.55, depthWrite: false }) : null;
   const data = () => piece.userData as SceneUserData;
 
   /**

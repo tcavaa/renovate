@@ -201,7 +201,7 @@ export default async function AdminDashboardPage() {
       <AdminCrumbs trail={[]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-bold">{ka.admin.dashboard}</h1>
+          <h1 className="font-serif text-3xl font-semibold">{ka.admin.dashboard}</h1>
           <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -260,7 +260,7 @@ export default async function AdminDashboardPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-4">
           {may('orders') && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="font-serif">{r.queueTitle}</CardTitle>
                 <Link href="/admin/orders?review=pending" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
@@ -271,7 +271,7 @@ export default async function AdminDashboardPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {queue.map((o) => (
-                      <tr key={o.id} className="border-t border-line/40 hover:bg-bg-base/60">
+                      <tr key={o.id} className="border-t border-line/40 hover:bg-sand/25">
                         <td className="px-4 py-2.5">
                           <Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-brand">
                             #{o.id} · {o.storeName ?? '—'}
@@ -303,7 +303,7 @@ export default async function AdminDashboardPage() {
           )}
 
           {may('projects') && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="font-serif">{d.recentProjects}</CardTitle>
                 <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
@@ -314,7 +314,7 @@ export default async function AdminDashboardPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {recent.map((p) => (
-                      <tr key={p.id} className="border-t border-line/40 hover:bg-bg-base/60">
+                      <tr key={p.id} className="border-t border-line/40 hover:bg-sand/25">
                         <td className="px-4 py-2.5">
                           <Link href={`/admin/projects/${p.id}`} className="font-medium hover:text-brand">
                             {p.nameKa ?? `#${p.id}`}
@@ -357,7 +357,7 @@ export default async function AdminDashboardPage() {
               </p>
             ) : (
               attention.map((a) => (
-                <Link key={a.href + a.text} href={a.href} className="flex items-start gap-2 border border-warning/30 bg-warning/5 px-3 py-2 text-sm hover:border-warning/60">
+                <Link key={a.href + a.text} href={a.href} className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm transition-colors hover:border-warning/60">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <span>{a.text}</span>
                 </Link>
@@ -392,15 +392,17 @@ function LinkedStat({
   highlight?: boolean;
 }) {
   return (
-    <Link href={href} className="block transition-shadow hover:shadow-cardHover">
+    <Link href={href} className="block rounded-2xl transition-shadow hover:shadow-cardHover">
       <Card className={highlight ? 'h-full border-warning/60 bg-warning/5' : 'h-full'}>
         <CardContent className="flex items-start justify-between p-5">
           <div>
             <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-            <p className="mt-2 font-serif text-2xl font-bold tabular-nums">{value}</p>
+            <p className="mt-2 font-serif text-2xl font-semibold tabular-nums">{value}</p>
             <p className="mt-1 text-xs text-ink-muted">{hint}</p>
           </div>
-          <Icon className="h-8 w-8 text-brand opacity-30" />
+          <span className={highlight ? 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-warning/15 text-warning' : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-olive-soft text-olive'}>
+            <Icon className="h-5 w-5" />
+          </span>
         </CardContent>
       </Card>
     </Link>

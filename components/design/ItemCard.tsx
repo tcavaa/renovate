@@ -34,13 +34,13 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border border-line bg-bg-surface shadow-cardHover',
+        'overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-cardHover',
         compact ? 'w-72' : 'w-full',
         className
       )}
     >
       <div className={cn('flex gap-2', compact ? 'p-3' : 'p-2')}>
-        <div className={cn('relative shrink-0 overflow-hidden rounded-md bg-bg-base', compact ? 'h-16 w-16' : 'h-11 w-11')}>
+        <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-bg-base', compact ? 'h-16 w-16' : 'h-11 w-11')}>
           {product?.imageUrl ? (
             <Image
               src={product.imageUrl}
@@ -90,7 +90,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
             </p>
           )}
           {product && (
-            <p className={cn('mt-0.5 font-serif font-bold text-brand-dark', compact ? 'text-base' : 'text-sm')}>
+            <p className={cn('mt-0.5 font-serif font-semibold text-brand-dark', compact ? 'text-base' : 'text-sm')}>
               {formatGEL(product.totalPrice)}
               {product.qty !== 1 && (
                 <span className="ml-1 text-xs font-normal text-ink-muted">
@@ -144,7 +144,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
               <p className="truncate text-xs font-semibold text-ink">{localizedName(locale, product.store)}</p>
             </div>
             {product.store.rating != null && (
-              <span className="flex items-center gap-0.5 bg-bg-surface px-1.5 py-0.5 text-[11px] font-medium text-ink">
+              <span className="flex items-center gap-0.5 rounded-full bg-bg-surface px-2 py-0.5 text-[11px] font-medium text-ink">
                 <Star className="h-3 w-3 fill-accent text-accent" />
                 {product.store.rating.toFixed(1)}
               </span>

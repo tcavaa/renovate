@@ -26,7 +26,7 @@ export async function ProjectOrders({ projectId, t, locale }: { projectId: numbe
   return (
     <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>
       {orders.length === 0 ? (
-        <p className="border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
+        <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
       ) : (
         <OrderCards orders={orders} t={t} locale={locale} />
       )}
@@ -57,7 +57,7 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
         const deliveryWas = o.originalDeliveryFee != null && Number(o.originalDeliveryFee) !== delivery ? Number(o.originalDeliveryFee) : null;
         const changed = o.items.some((i) => lineDiff(lineOf(i)).kind !== 'same');
         return (
-          <li key={o.id} className="border border-line bg-bg-surface p-4">
+          <li key={o.id} className="rounded-2xl border border-line bg-bg-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="eyebrow">{partner.kind}</p>
@@ -91,7 +91,7 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
             </div>
             <p className="mt-2 text-xs text-ink-muted">{(r.customerHints as Record<string, string>)[stage]}</p>
             {o.partnerMessage && (
-              <div className="mt-3 border-l-2 border-ink pl-3">
+              <div className="mt-3 border-l-2 border-wood pl-3">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.market.partnerMessage}</p>
                 <p className="mt-1 text-sm text-ink">{o.partnerMessage}</p>
               </div>

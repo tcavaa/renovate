@@ -54,9 +54,9 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAd
         ))}
       </ul>
       {adding ? (
-        <div className="space-y-2 rounded-[14px] border border-ink bg-white p-3">
+        <div className="space-y-2 rounded-[14px] border border-ink/40 bg-bg-surface p-3">
           <Field label={t.rooms.type}>
-            <select value={type} onChange={(e) => setType(e.target.value as RoomType)} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm">
+            <select value={type} onChange={(e) => setType(e.target.value as RoomType)} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm">
               {(Object.keys(ROOM_TYPES) as RoomType[]).map((k) => (
                 <option key={k} value={k}>
                   {roomTypeLabel(t, k)}
@@ -66,24 +66,24 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAd
           </Field>
           <div className="grid grid-cols-2 gap-2">
             <Field label={t.rooms.width}>
-              <input type="number" inputMode="decimal" step={0.01} min={0.8} value={width} onChange={(e) => setWidth(e.target.value)} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm tabular-nums" />
+              <input type="number" inputMode="decimal" step={0.01} min={0.8} value={width} onChange={(e) => setWidth(e.target.value)} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm tabular-nums" />
             </Field>
             <Field label={t.rooms.length}>
-              <input type="number" inputMode="decimal" step={0.01} min={0.8} value={depth} onChange={(e) => setDepth(e.target.value)} className="h-9 w-full rounded-[8px] border border-line bg-white px-2 text-sm tabular-nums" />
+              <input type="number" inputMode="decimal" step={0.01} min={0.8} value={depth} onChange={(e) => setDepth(e.target.value)} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm tabular-nums" />
             </Field>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={add} className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-ink text-xs font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={add} className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-ink text-xs font-semibold text-white hover:bg-brand">
               <Plus className="h-4 w-4" />
               {t.rooms.add}
             </button>
-            <button type="button" onClick={() => setAdding(false)} className="h-9 rounded-[10px] border border-line px-3 text-xs text-ink-soft hover:border-ink">
+            <button type="button" onClick={() => setAdding(false)} className="h-9 rounded-full border border-line px-3 text-xs text-ink-soft hover:border-ink">
               {t.common.cancel}
             </button>
           </div>
         </div>
       ) : (
-        <button type="button" onClick={() => setAdding(true)} disabled={locked} className="flex h-10 w-full items-center justify-center gap-2 rounded-[12px] border border-dashed border-line text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-50">
+        <button type="button" onClick={() => setAdding(true)} disabled={locked} className="flex h-10 w-full items-center justify-center gap-2 rounded-full border border-dashed border-line text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink disabled:opacity-50">
           <Plus className="h-4 w-4" />
           {t.build.addRoomBySize}
         </button>
@@ -95,7 +95,7 @@ export function RoomsPanel({ plan, selectedId, onSelect, actions, roomPart, onAd
 function RoomCard({ room, plan, active, onSelect, actions, locked, roomPart }: { room: PlanRoom; plan: FloorPlan; active: boolean; onSelect: () => void; actions: Pick<InspectorActions, 'updateRoom' | 'resizeRoom' | 'removeRoom' | 'selectRoomPart' | 'setRoomWhole'>; locked?: boolean; roomPart?: RoomPartPick }) {
   const t = useT();
   return (
-    <li id={`plan-room-${room.id}`} className={cn('rounded-[14px] border bg-white transition-colors', active ? 'border-ink' : 'border-line hover:border-ink/40')}>
+    <li id={`plan-room-${room.id}`} className={cn('rounded-[14px] border bg-bg-surface transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink/40')}>
       <button type="button" onClick={onSelect} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
         <span className="h-8 w-8 shrink-0 rounded-[8px]" style={{ backgroundColor: ROOM_TINT_STRONG[room.type] }} />
         <span className="min-w-0 flex-1">
@@ -119,7 +119,7 @@ function RoomCard({ room, plan, active, onSelect, actions, locked, roomPart }: {
                 actions.removeRoom(room.id);
               }
             }}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-ink-faint hover:bg-danger/10 hover:text-danger"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-danger/10 hover:text-danger"
           >
             <Trash2 className="h-4 w-4" />
           </span>

@@ -96,11 +96,11 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
     }
   };
 
-  if (rows.length === 0) return <p className="border border-dashed border-line p-12 text-center text-sm text-ink-muted">{filtered ? t.admin.filters.noResults : c.empty}</p>;
+  if (rows.length === 0) return <p className="rounded-2xl border border-dashed border-line p-12 text-center text-sm text-ink-muted">{filtered ? t.admin.filters.noResults : c.empty}</p>;
 
   return (
-    <div className="border border-line bg-bg-surface">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
+    <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-sand/50 px-4 py-2">
         <p className="text-xs text-ink-muted">{c.orderHint}</p>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(new Set(rows.filter((r) => r.hasChildren).map((r) => r.id)))}>
@@ -117,16 +117,16 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
           const siblings = siblingsOf(row);
           const index = siblings.findIndex((s) => s.id === row.id);
           return (
-            <li key={row.id} className={cn('flex items-center gap-3 border-b border-line/70 py-2 pr-3 last:border-b-0', !row.match && 'opacity-60', row.depth === 1 && 'bg-bg-base/60')}>
+            <li key={row.id} className={cn('flex items-center gap-3 border-b border-line/70 py-2 pr-3 last:border-b-0', !row.match && 'opacity-60', row.depth === 1 && 'bg-sand-light/60')}>
               <div className={cn('flex min-w-0 flex-1 items-center gap-2', DEPTH_INDENT[row.depth] ?? DEPTH_INDENT[DEPTH_INDENT.length - 1])}>
                 {row.hasChildren ? (
-                  <button type="button" onClick={() => toggle(row.id)} aria-expanded={open.has(row.id)} aria-label={open.has(row.id) ? c.collapse : c.expand} className="grid h-6 w-6 shrink-0 place-items-center text-ink-muted hover:text-ink">
+                  <button type="button" onClick={() => toggle(row.id)} aria-expanded={open.has(row.id)} aria-label={open.has(row.id) ? c.collapse : c.expand} className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-sand/60 hover:text-ink">
                     {open.has(row.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </button>
                 ) : (
                   <span className="h-6 w-6 shrink-0" />
                 )}
-                <span className={cn('grid h-8 w-8 shrink-0 place-items-center border', row.depth === 1 ? 'border-ink bg-ink text-white' : 'border-line text-ink-soft')}>{row.icon ? <NodeIcon node={row.icon} className="h-4 w-4" /> : <Package className="h-4 w-4 opacity-40" />}</span>
+                <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-lg border', row.depth === 1 ? 'border-olive bg-olive text-sand-light' : 'border-line text-ink-soft')}>{row.icon ? <NodeIcon node={row.icon} className="h-4 w-4" /> : <Package className="h-4 w-4 opacity-40" />}</span>
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                     <Link href={`/admin/categories/${row.id}`} className={cn('truncate hover:text-brand', row.depth === 1 ? 'font-semibold text-ink' : 'font-medium text-ink')}>
@@ -141,7 +141,7 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
                       {row.inCalculator && <Badge tone="ink">{c.badgeCalculator}</Badge>}
                       {row.kindLabel && <Badge tone="line">{fill(c.badgeKind, { kind: row.kindLabel })}</Badge>}
                       {row.rooms.slice(0, 4).map((r) => (
-                        <Link key={r.id} href={`/admin/categories/rooms/${r.id}`} className="border border-brand/30 bg-brand/5 px-1.5 py-0.5 text-[10px] font-semibold text-brand hover:border-brand">
+                        <Link key={r.id} href={`/admin/categories/rooms/${r.id}`} className="rounded-full border border-brand/30 bg-brand/5 px-2 py-0.5 text-[10px] font-semibold text-brand hover:border-brand">
                           {r.name}
                         </Link>
                       ))}
@@ -190,5 +190,5 @@ export function CategoryTree({ rows, filtered }: { rows: CategoryTreeRow[]; /** 
 const DEPTH_INDENT = ['pl-2', 'pl-2', 'pl-9', 'pl-16'];
 
 function Badge({ tone, children }: { tone: 'ink' | 'line' | 'muted'; children: React.ReactNode }) {
-  return <span className={cn('px-1.5 py-0.5 text-[10px] font-semibold', tone === 'ink' ? 'bg-ink text-white' : tone === 'line' ? 'border border-line text-ink-soft' : 'bg-line/60 text-ink-muted')}>{children}</span>;
+  return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', tone === 'ink' ? 'bg-olive text-sand-light' : tone === 'line' ? 'border border-line text-ink-soft' : 'bg-line/60 text-ink-muted')}>{children}</span>;
 }

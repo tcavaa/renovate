@@ -33,13 +33,13 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-4">
           {team.logoUrl && (
-            <span className="relative h-14 w-14 shrink-0 overflow-hidden border border-line bg-bg-base">
+            <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base">
               <Image src={team.logoUrl} alt="" fill sizes="56px" className="object-cover" />
             </span>
           )}
           <div>
             <p className="eyebrow">{p.title}</p>
-            <h1 className="mt-2 font-serif text-3xl font-bold">{localizedName(locale, team)}</h1>
+            <h1 className="mt-2 font-serif text-3xl font-semibold">{localizedName(locale, team)}</h1>
             <p className="mt-1 max-w-2xl text-sm text-ink-muted">{p.subtitle}</p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
         )}
       </div>
 
-      <dl className="grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Fact label={t.workers.rating} value={`${formatNumber(Number(team.rating ?? 0))} / 5`} hint={`${team.reviewCount ?? 0} ${t.workers.reviews.toLowerCase()}`} />
         <Fact label={p.load} value={fill(p.loadValue, { open: openJobs, capacity })} hint={busy ? p.busy : p.available} warn={busy} />
         <Fact label={t.partner.commissionRateLabel} value={`${formatNumber(pct)}%`} hint={p.standingHint} />
@@ -86,8 +86,8 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
         />
       )}
 
-      <section className="border border-line bg-bg-surface">
-        <header className="border-b border-line px-5 py-3">
+      <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+        <header className="border-b border-line bg-sand/40 px-5 py-3">
           <p className="eyebrow">
             {p.crewTitle} · {members.length}
           </p>
@@ -137,7 +137,7 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
 
 function Fact({ label, value, hint, warn }: { label: string; value: string; hint?: string; warn?: boolean }) {
   return (
-    <div className="border-b border-r border-line px-4 py-4">
+    <div className="rounded-2xl border border-line bg-bg-surface px-4 py-4">
       <dt className="eyebrow">{label}</dt>
       <dd className={cn('mt-1 font-serif text-xl font-semibold', warn ? 'text-warning' : 'text-ink')}>{value}</dd>
       {hint && <dd className="mt-1 text-xs text-ink-muted">{hint}</dd>}

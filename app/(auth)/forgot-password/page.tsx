@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
       title={t.auth.forgotTitle}
       subtitle={t.auth.forgotDesc}
       footer={
-        <Link href="/login" className="bracket-link font-medium text-ink hover:text-brand">
+        <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
           {t.auth.backToLogin}
         </Link>
       }
@@ -48,10 +48,10 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <Field id="email" label={t.auth.email}>
-            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12" />
+            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 px-4" />
           </Field>
           {error && <Notice tone="error">{error}</Notice>}
-          <Button type="submit" variant="ink" size="lg" className="w-full" disabled={state === 'sending'}>
+          <Button type="submit" size="lg" className="w-full" disabled={state === 'sending'}>
             {state === 'sending' && <Loader2 className="h-4 w-4 animate-spin" />}
             {t.auth.sendResetLink}
           </Button>

@@ -711,11 +711,11 @@ function SceneContent({
     // somewhere it fits — the same colour a refused drop uses, so it reads as one rule.
     const room = selected ? plan.rooms.find((r) => r.id === selected.roomId) : undefined;
     const fits = !selected || !room || isPlacementValid(room, selected, scene.items, plan.rooms);
-    applyOutline(outlines.active, selected ?? null, fits ? 0xe85d26 : 0xef4444);
+    applyOutline(outlines.active, selected ?? null, fits ? 0xb5462b : 0xef4444);
     applyOutline(
       outlines.hover,
       hoveredId && hoveredId !== selectedItemId ? itemsById.get(hoveredId) : null,
-      0xf5a623
+      0xa8784e
     );
     invalidate();
   }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items, invalidate]);
@@ -888,7 +888,7 @@ function SceneContent({
 
   /** The tile or strip under the pointer, lit up while painting. */
   const paintGlow = useMemo(() => {
-    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide }));
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0xb5462b, transparent: true, opacity: 0.38, depthWrite: false, side: THREE.DoubleSide }));
     mesh.visible = false;
     mesh.renderOrder = 7;
     mesh.userData.key = '';
@@ -1303,7 +1303,7 @@ function SceneContent({
         // A translucent slab the wall's size, shown where the wall would land.
         const length = wallLength(wall);
         const height = wallHeightFor(plan, wall);
-        const ghost = new THREE.Mesh(new THREE.BoxGeometry(length, height, wall.thicknessM), new THREE.MeshBasicMaterial({ color: 0xe85d26, transparent: true, opacity: 0.35, depthWrite: false }));
+        const ghost = new THREE.Mesh(new THREE.BoxGeometry(length, height, wall.thicknessM), new THREE.MeshBasicMaterial({ color: 0xb5462b, transparent: true, opacity: 0.35, depthWrite: false }));
         ghost.position.set((wall.a.x + wall.b.x) / 2, height / 2, (wall.a.z + wall.b.z) / 2);
         ghost.rotation.y = -Math.atan2(wall.b.z - wall.a.z, wall.b.x - wall.a.x);
         ghost.visible = false;

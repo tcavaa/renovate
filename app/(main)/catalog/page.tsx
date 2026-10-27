@@ -128,18 +128,27 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
 
   return (
     <div className="container py-10 md:py-14">
-      <header className="border-b border-line pb-8">
-        <p className="eyebrow">{t.nav.catalog}</p>
-        <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
-          {activeCategory ? pickLocalizedName(locale, activeCategory.nameKa, activeCategory.nameEn, activeCategory.nameRu) : t.catalog.title}
-        </h1>
-        <p className="mt-3 max-w-xl text-base text-ink-muted">{t.catalog.subtitle}</p>
+      <header className="relative overflow-hidden rounded-3xl bg-sand-light px-6 py-8 md:px-10 md:py-10">
+        <div className="relative z-10 max-w-2xl">
+          <p className="paper-label">{t.nav.catalog}</p>
+          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+            {activeCategory ? pickLocalizedName(locale, activeCategory.nameKa, activeCategory.nameEn, activeCategory.nameRu) : t.catalog.title}
+          </h1>
+          <p className="mt-3 max-w-xl text-base text-ink-muted">{t.catalog.subtitle}</p>
+        </div>
+        {/* A quiet brand corner: an arch of stone with a terracotta sun and a wood plinth. */}
+        <span className="pointer-events-none absolute bottom-0 right-12 hidden h-[78%] w-28 lg:block" aria-hidden>
+          <span className="arch absolute inset-x-0 bottom-0 top-0 bg-stone" />
+          <span className="absolute left-1/2 top-[22%] h-9 w-9 -translate-x-1/2 rounded-full bg-brand" />
+          <span className="absolute -left-10 bottom-0 h-[34%] w-14 rounded-t-xl bg-wood" />
+          <span className="absolute -right-6 bottom-0 h-[22%] w-10 rounded-t-xl bg-olive" />
+        </span>
       </header>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         {/* The sidebar renders once; on small screens a checkbox toggles it (no JS). */}
         <input type="checkbox" id="catalog-filters" className="peer sr-only" />
-        <label htmlFor="catalog-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start border border-line bg-bg-surface px-4 text-sm font-medium lg:hidden">
+        <label htmlFor="catalog-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full border border-ink/15 bg-bg-surface px-4 text-sm font-medium transition-colors hover:border-ink/40 lg:hidden">
           <SlidersHorizontal className="h-4 w-4" />
           {t.catalog.filters}
         </label>
@@ -148,24 +157,24 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-5 border-b border-line pb-4">
+          <div className="mb-6">
             <div className="flex flex-wrap items-center gap-3">
               <form action="/catalog" method="get" className="relative">
                 {hidden(['q'])}
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-                <input type="search" name="q" defaultValue={params.q} placeholder={t.catalog.searchPlaceholder} aria-label={t.catalog.search} className="h-10 w-56 border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input type="search" name="q" defaultValue={params.q} placeholder={t.catalog.searchPlaceholder} aria-label={t.catalog.search} className="h-10 w-56 rounded-full border border-line bg-bg-surface pl-9 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-ink/40 focus:outline-none" />
               </form>
               <StyleFilter label={t.catalog.style} allLabel={t.catalog.allStyles} options={STYLE_IDS.map((id) => ({ id, label: styleLabel(t, id) }))} selected={styles} raw={params.raw} />
-              <form action="/catalog" method="get" className="flex h-10 items-stretch border border-line bg-bg-surface">
+              <form action="/catalog" method="get" className="flex h-10 items-stretch overflow-hidden rounded-full border border-line bg-bg-surface">
                 {hidden(['min', 'max'])}
-                <span className="eyebrow flex items-center pl-3 pr-2">{t.catalog.price}</span>
+                <span className="eyebrow flex items-center pl-4 pr-2">{t.catalog.price}</span>
                 <input type="number" name="min" min={0} step={1} defaultValue={params.get('min')} placeholder={t.catalog.priceFrom} aria-label={t.catalog.priceFrom} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
                 <input type="number" name="max" min={0} step={1} defaultValue={params.get('max')} placeholder={t.catalog.priceTo} aria-label={t.catalog.priceTo} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
-                <button type="submit" className="border-l border-line px-3 text-xs font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink hover:text-white">
+                <button type="submit" className="border-l border-line px-4 text-xs font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink hover:text-white">
                   {t.catalog.apply}
                 </button>
               </form>
-              <div className="ml-auto flex items-center gap-4">
+              <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
                 <p className="text-sm text-ink-muted">{fill(t.catalog.results, { n: total })}</p>
                 <SortSelect label={t.catalog.sort} value={params.sort} options={SORTS.map((s) => ({ value: s, label: sortLabels[s], href: hrefWith('/catalog', params.raw, { sort: s === 'featured' ? undefined : s, page: undefined }) }))} />
               </div>
@@ -173,9 +182,9 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
             {chips.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {chips.map((chip) => (
-                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1 border border-line bg-bg-surface px-2 py-1 text-xs text-ink hover:border-ink">
+                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1 text-xs text-ink transition-colors hover:bg-sand-dark">
                     {chip.label}
-                    <X className="h-3 w-3 text-ink-faint" />
+                    <X className="h-3 w-3 text-ink-muted" />
                   </Link>
                 ))}
               </div>
@@ -185,13 +194,13 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
           <ProductGrid products={items} emptyText={t.catalog.noProducts} hrefFor={(p) => `/catalog/${p.slug}`} storeNames={storeNames} columns={items.length > 0 && !activeCategory ? 4 : 3} />
 
           {pageCount > 1 && (
-            <div className="mt-10 flex items-center justify-between border-t border-line pt-4 text-sm">
+            <div className="mt-10 flex items-center justify-between gap-2 border-t border-line pt-4 text-sm">
               <PagerLink href={pageHref(params.page - 1)} disabled={params.page <= 1}>
                 <ChevronLeft className="h-4 w-4" /> {t.catalog.prevPage}
               </PagerLink>
-              <div className="flex items-center gap-1">
+              <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
                 {pageWindow(params.page, pageCount).map((p) => (
-                  <Link key={p} href={pageHref(p)} className={cn('grid h-9 w-9 place-items-center border text-sm tabular-nums transition-colors', p === params.page ? 'border-ink bg-ink text-white' : 'border-line hover:border-ink')}>
+                  <Link key={p} href={pageHref(p)} className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm tabular-nums transition-colors sm:h-9 sm:w-9', p === params.page ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
                     {p}
                   </Link>
                 ))}
@@ -208,10 +217,10 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
 }
 
 function PagerLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const className = 'inline-flex h-9 items-center gap-1 px-2 font-medium';
+  const className = 'inline-flex h-9 shrink-0 items-center gap-1 rounded-full px-2 font-medium transition-colors sm:px-3';
   if (disabled) return <span className={cn(className, 'text-ink-faint')}>{children}</span>;
   return (
-    <Link href={href} className={cn(className, 'text-ink-soft hover:text-ink')}>
+    <Link href={href} className={cn(className, 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
       {children}
     </Link>
   );

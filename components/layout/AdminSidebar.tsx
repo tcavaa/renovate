@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { canAdmin, type AdminSection } from '@/lib/auth/roles';
 import { listHref, useListMemory } from '@/lib/admin/listMemory';
+import { Logo } from '@/components/layout/Logo';
 
 /**
  * The admin's navigation: the sections the role has (`canAdmin`), each with the count of what
@@ -48,15 +49,18 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
 
   return (
     <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col self-start border-r border-line bg-bg-surface">
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto px-4 pb-5 pt-6">
+        <div className="mb-5 flex items-center px-2">
+          <Logo />
+        </div>
         <Link
           href="/"
-          className="mb-6 flex items-center gap-2 text-sm text-ink-muted hover:text-brand"
+          className="mb-5 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-ink/40 hover:text-ink"
         >
-          <Home className="h-4 w-4" />
+          <Home className="h-3.5 w-3.5" />
           {ka.admin.sidebarBack}
         </Link>
-        <nav className="space-y-1">
+        <nav className="space-y-0.5">
           {items.map((item) => {
             const active = item.exact
               ? pathname === item.href
@@ -68,13 +72,14 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
                 key={item.href}
                 href={listHref(memory, item.href)}
                 className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  active ? 'bg-brand/10 text-brand-dark' : 'text-ink hover:bg-bg-base'
+                  'flex items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors',
+                  active ? 'bg-sand text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink'
                 )}
               >
-                <Icon className="h-4 w-4" />
+                <Icon className={cn('h-4 w-4', active ? 'text-brand' : 'text-wood')} />
                 <span className="flex-1">{item.label}</span>
-                {badge > 0 && <span className="min-w-5 bg-warning px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-white">{badge}</span>}
+                {active && badge === 0 && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />}
+                {badge > 0 && <span className="min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-white">{badge}</span>}
               </Link>
             );
           })}
@@ -84,8 +89,8 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
       <div className="space-y-3 border-t border-line p-4">
         <LanguageSwitcher variant="mobile" />
         {user && (
-          <div className="flex items-center gap-2 border-t border-line pt-3">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-xs font-bold text-white">
+          <div className="flex items-center gap-2.5 rounded-2xl bg-sand-light px-2.5 py-2">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-olive text-xs font-semibold text-sand-light">
               {initials}
             </span>
             <div className="min-w-0">
@@ -99,7 +104,7 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: '/' })}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/5"
+          className="flex w-full items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/5"
         >
           <LogOut className="h-4 w-4" />
           {ka.nav.logout}

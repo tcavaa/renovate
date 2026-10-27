@@ -92,22 +92,31 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
 
   return (
     <div className="container py-10 md:py-14">
-      <header className="border-b border-line pb-8">
-        <p className="eyebrow">{t.nav.workers}</p>
-        <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{specialty ? workerSpecialtyLabel(t, specialty) : t.workers.title}</h1>
-        <p className="mt-3 max-w-xl text-base text-ink-muted">{t.workers.subtitle}</p>
+      <header className="relative overflow-hidden rounded-3xl bg-sand-light px-6 py-8 md:px-10 md:py-10">
+        <div className="relative z-10 max-w-2xl">
+          <p className="paper-label">{t.nav.workers}</p>
+          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{specialty ? workerSpecialtyLabel(t, specialty) : t.workers.title}</h1>
+          <p className="mt-3 max-w-xl text-base text-ink-muted">{t.workers.subtitle}</p>
+        </div>
+        {/* A quiet brand corner: a wood arch with a terracotta sun. */}
+        <span className="pointer-events-none absolute bottom-0 right-12 hidden h-[78%] w-28 lg:block" aria-hidden>
+          <span className="arch absolute inset-0 bg-wood-light" />
+          <span className="absolute left-1/2 top-[22%] h-9 w-9 -translate-x-1/2 rounded-full bg-brand" />
+          <span className="absolute -left-10 bottom-0 h-[30%] w-14 rounded-t-xl bg-olive" />
+          <span className="absolute -right-6 bottom-0 h-[20%] w-10 rounded-t-xl bg-stone" />
+        </span>
       </header>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         <input type="checkbox" id="worker-filters" className="peer sr-only" />
-        <label htmlFor="worker-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start border border-line bg-bg-surface px-4 text-sm font-medium lg:hidden">
+        <label htmlFor="worker-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full border border-ink/15 bg-bg-surface px-4 text-sm font-medium transition-colors hover:border-ink/40 lg:hidden">
           <SlidersHorizontal className="h-4 w-4" />
           {t.common.filter}
         </label>
         <aside className="hidden min-w-0 space-y-8 text-sm peer-checked:block lg:block lg:sticky lg:top-24 lg:self-start">
           <nav aria-label={t.workers.specialty}>
-            <p className="eyebrow mb-2">{t.workers.specialty}</p>
-            <ul className="border-t border-line">
+            <p className="eyebrow mb-2 px-3">{t.workers.specialty}</p>
+            <ul className="space-y-0.5">
               <SideLink href={href({ specialty: undefined })} active={!specialty} label={t.common.all} count={total} current />
               {specialties.map((s) => (
                 <SideLink key={s.slug} href={href({ specialty: s.slug })} active={specialty === s.slug} label={workerSpecialtyLabel(t, s.slug)} count={s.n} current />
@@ -116,8 +125,8 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
           </nav>
           {cities.length > 0 && (
             <div>
-              <p className="eyebrow mb-2">{t.workers.city}</p>
-              <ul className="border-t border-line">
+              <p className="eyebrow mb-2 px-3">{t.workers.city}</p>
+              <ul className="space-y-0.5">
                 <SideLink href={href({ city: undefined })} active={!city} label={t.workers.allCities} />
                 {cities.map((c) => (
                   <SideLink key={c.city} href={href({ city: city === c.city ? undefined : c.city })} active={city === c.city} label={c.city} count={c.n} />
@@ -126,24 +135,24 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
             </div>
           )}
           {params.hasFilters && (
-            <Link href={PATH} className="bracket-link inline-block text-sm font-medium text-ink-soft hover:text-ink">
+            <Link href={PATH} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
               {t.catalog.clearFilters}
             </Link>
           )}
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-5 border-b border-line pb-4">
+          <div className="mb-6">
             <div className="flex flex-wrap items-center gap-3">
               <form action={PATH} method="get" className="relative">
                 {hidden}
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-                <input type="search" name="q" defaultValue={params.q} placeholder={t.workers.searchPlaceholder} aria-label={t.common.search} className="h-10 w-56 border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input type="search" name="q" defaultValue={params.q} placeholder={t.workers.searchPlaceholder} aria-label={t.common.search} className="h-10 w-56 rounded-full border border-line bg-bg-surface pl-9 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-ink/40 focus:outline-none" />
               </form>
               <Link
                 href={href({ verified: verified ? undefined : '1' })}
                 scroll={false}
-                className={cn('inline-flex h-10 items-center gap-2 border px-3 text-sm transition-colors', verified ? 'border-ink text-ink' : 'border-line text-ink-soft hover:border-ink')}
+                className={cn('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm transition-colors', verified ? 'border-sand-dark bg-sand text-ink' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40')}
               >
                 <BadgeCheck className={cn('h-4 w-4', verified ? 'text-success' : 'text-ink-faint')} />
                 {t.workers.verifiedOnly}
@@ -156,9 +165,9 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
             {chips.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {chips.map((chip) => (
-                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1 border border-line bg-bg-surface px-2 py-1 text-xs text-ink hover:border-ink">
+                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1 text-xs text-ink transition-colors hover:bg-sand-dark">
                     {chip.label}
-                    <X className="h-3 w-3 text-ink-faint" />
+                    <X className="h-3 w-3 text-ink-muted" />
                   </Link>
                 ))}
               </div>
@@ -174,7 +183,7 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
               </Pager>
               <div className="flex items-center gap-1">
                 {pageWindow(params.page, pageCount).map((p) => (
-                  <Link key={p} href={hrefWith(PATH, params.raw, { page: p > 1 ? p : undefined })} className={cn('grid h-9 w-9 place-items-center border text-sm tabular-nums', p === params.page ? 'border-ink bg-ink text-white' : 'border-line hover:border-ink')}>
+                  <Link key={p} href={hrefWith(PATH, params.raw, { page: p > 1 ? p : undefined })} className={cn('grid h-9 w-9 place-items-center rounded-full text-sm tabular-nums transition-colors', p === params.page ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
                     {p}
                   </Link>
                 ))}
@@ -193,26 +202,26 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
 /** Sidebar row. Only specialty rows (`current`) carry aria-current — the e2e test counts exactly one. */
 function SideLink({ href, active, label, count, current }: { href: string; active: boolean; label: string; count?: number; current?: boolean }) {
   return (
-    <li className="border-b border-line">
+    <li>
       <Link
         href={href}
         scroll={false}
         aria-current={current && active ? 'page' : undefined}
-        className={cn('relative flex items-center justify-between gap-3 py-2 pl-3 pr-1 transition-colors', active ? 'font-medium text-ink' : 'text-ink-soft hover:text-ink')}
+        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pl-4 pr-3 transition-colors', active ? 'bg-sand font-medium text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}
       >
-        <span className={cn('absolute inset-y-0 left-0 w-[2px]', active ? 'bg-ink' : 'bg-transparent')} />
+        <span className={cn('absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full', active ? 'bg-brand' : 'bg-transparent')} />
         <span className="truncate">{label}</span>
-        {count !== undefined && <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink' : 'text-ink-faint')}>{count}</span>}
+        {count !== undefined && <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink-soft' : 'text-ink-faint')}>{count}</span>}
       </Link>
     </li>
   );
 }
 
 function Pager({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const className = 'inline-flex h-9 items-center gap-1 px-2 font-medium';
+  const className = 'inline-flex h-9 items-center gap-1 rounded-full px-3 font-medium transition-colors';
   if (disabled) return <span className={cn(className, 'text-ink-faint')}>{children}</span>;
   return (
-    <Link href={href} className={cn(className, 'text-ink-soft hover:text-ink')}>
+    <Link href={href} className={cn(className, 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
       {children}
     </Link>
   );

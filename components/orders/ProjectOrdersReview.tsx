@@ -55,10 +55,10 @@ export async function ProjectOrdersReview({ projectId, t, locale }: { projectId:
   return (
     <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>
       {orders.length === 0 ? (
-        <p className="border border-dashed border-line p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
+        <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
       ) : (
         <div className="space-y-3">
-          {waiting > 0 && <p className="border border-warning/50 bg-warning/5 px-4 py-2.5 text-sm text-ink-soft">{t.orderReview.projectOrdersHint}</p>}
+          {waiting > 0 && <p className="rounded-xl border border-warning/50 bg-warning/5 px-4 py-2.5 text-sm text-ink-soft">{t.orderReview.projectOrdersHint}</p>}
           <ul className="grid gap-4 xl:grid-cols-2">
             {orders.map((o) => (
               <OrderReviewCard key={o.id} order={o} />

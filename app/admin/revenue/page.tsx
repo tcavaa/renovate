@@ -55,7 +55,7 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
 
       {/* The period: the usual ones as one control, any two days beside them — the filter bar's look. */}
       <RememberList />
-      <div className="flex flex-wrap items-center gap-3 border border-line bg-bg-surface p-2.5">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-bg-surface p-2.5">
         <SegmentedLinks
           label={r.title}
           items={(['today', '7d', '30d', 'month', 'year'] as ReportPeriod[]).map((p) => ({ href: `/admin/revenue?period=${p}`, label: r.periods[PERIOD_KEY[p]], active: period === p }))}
@@ -64,25 +64,27 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
           <input type="hidden" name="period" value="custom" />
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.from}
-            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 border border-line bg-bg-base px-2 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
+            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 rounded-full border border-line bg-bg-base px-3 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
           </label>
           <span className="text-ink-faint">–</span>
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.to}
-            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 border border-line bg-bg-base px-2 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
+            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 rounded-full border border-line bg-bg-base px-3 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
           </label>
-          <button type="submit" className={cn('h-8 px-3 text-xs font-semibold transition-colors', period === 'custom' ? 'bg-ink text-white hover:bg-brand' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}>
+          <button type="submit" className={cn('h-8 rounded-full px-4 text-xs font-semibold transition-colors', period === 'custom' ? 'bg-ink text-white hover:bg-brand' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}>
             {r.apply}
           </button>
         </form>
       </div>
 
       {/* headline */}
-      <div className="grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
-        <Figure label={r.revenue} value={formatGEL(report.revenue)} emphasis />
-        <Figure label={r.fees} value={formatGEL(report.fees.total)} />
-        <Figure label={r.commissions} value={formatGEL(report.commissions.total)} />
-        <Figure label={r.gmv} value={formatGEL(report.gmv.total)} />
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
+          <Figure label={r.revenue} value={formatGEL(report.revenue)} emphasis />
+          <Figure label={r.fees} value={formatGEL(report.fees.total)} />
+          <Figure label={r.commissions} value={formatGEL(report.commissions.total)} />
+          <Figure label={r.gmv} value={formatGEL(report.gmv.total)} />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -119,15 +121,15 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
       </div>
 
       {/* daily chart */}
-      <section className="border border-line bg-bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow">{r.daily}</p>
           <p className="flex items-center gap-4 text-xs text-ink-muted">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 bg-ink" /> {r.legendFees}
+              <span className="h-2.5 w-2.5 rounded-full bg-olive" /> {r.legendFees}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 bg-brand" /> {r.legendCommissions}
+              <span className="h-2.5 w-2.5 rounded-full bg-brand" /> {r.legendCommissions}
             </span>
           </p>
         </div>
@@ -168,8 +170,8 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
             cells: [localizedName(locale, p), p.storeNameKa ?? '—', formatNumber(p.qty), String(p.orders), formatGEL(p.total)],
           }))}
         />
-        <section className="border border-line bg-bg-surface">
-          <p className="eyebrow border-b border-line px-4 py-3">{r.statuses}</p>
+        <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+          <p className="eyebrow border-b border-line bg-sand/40 px-4 py-3">{r.statuses}</p>
           <ul>
             {ORDER_STATUSES.map((s) => (
               <li key={s} className="flex items-center justify-between border-b border-line/70 px-4 py-2.5 text-sm last:border-b-0">
@@ -188,7 +190,7 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
 
 function Breakdown({ title, total, rows, foot, share }: { title: string; total: number; rows: Array<{ label: string; value: number; hint?: string }>; foot?: string; share: (part: number, whole: number) => string }) {
   return (
-    <section className="border border-line bg-bg-surface p-5">
+    <section className="rounded-2xl border border-line bg-bg-surface p-5">
       <div className="flex items-baseline justify-between">
         <p className="eyebrow">{title}</p>
         <p className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(total)}</p>
@@ -205,8 +207,8 @@ function Breakdown({ title, total, rows, foot, share }: { title: string; total: 
                 {formatGEL(row.value)} <span className="text-xs text-ink-muted">{share(row.value, total)}</span>
               </span>
             </div>
-            <div className="mt-1 h-1 bg-line/60">
-              <div className="h-1 bg-ink" style={{ width: total > 0 ? `${Math.min(100, (row.value / total) * 100)}%` : 0 }} />
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-line/60">
+              <div className="h-1 rounded-full bg-olive" style={{ width: total > 0 ? `${Math.min(100, (row.value / total) * 100)}%` : 0 }} />
             </div>
           </li>
         ))}
@@ -218,7 +220,7 @@ function Breakdown({ title, total, rows, foot, share }: { title: string; total: 
 
 function RankTable({ title, head, rows, empty }: { title: string; head: string[]; rows: Array<{ key: string; href?: string; cells: string[] }>; empty: string }) {
   return (
-    <section className="border border-line bg-bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
       <p className="eyebrow border-b border-line px-4 py-3">{title}</p>
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-ink-muted">{empty}</p>
@@ -226,7 +228,7 @@ function RankTable({ title, head, rows, empty }: { title: string; head: string[]
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                 {head.map((h, i) => (
                   <th key={h} className={cn('px-4 py-2', i > 0 && 'text-right')}>
                     {h}
@@ -236,7 +238,7 @@ function RankTable({ title, head, rows, empty }: { title: string; head: string[]
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-b border-line/70 last:border-b-0 hover:bg-bg-base/60">
+                <tr key={row.key} className="border-b border-line/70 last:border-b-0 hover:bg-sand/25">
                   {row.cells.map((c, i) => (
                     <td key={i} className={cn('px-4 py-2.5', i === 0 ? 'font-medium text-ink' : 'text-right tabular-nums', i === row.cells.length - 1 && 'font-semibold')}>
                       {i === 0 && row.href ? (

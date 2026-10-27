@@ -32,13 +32,13 @@ export function AdminCrumbs({ trail, className }: { trail: Crumb[]; className?: 
           href={hrefOf(parent)!}
           title={fill(t.admin.backTo, { label: parent.label })}
           aria-label={fill(t.admin.backTo, { label: parent.label })}
-          className="group inline-flex h-8 shrink-0 items-center gap-1.5 border border-line bg-bg-surface pl-2 pr-2.5 text-xs font-medium text-ink-soft transition-colors hover:border-ink hover:text-ink"
+          className="group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-line bg-bg-surface pl-2.5 pr-3.5 text-xs font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-sand/40 hover:text-ink"
         >
           <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
           {t.admin.actions.back}
         </Link>
       )}
-      <ol className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-ink-muted">
+      <ol className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-full bg-sand/50 px-3 py-1.5 text-xs text-ink-muted">
         {crumbs.map((crumb, i) => {
           const last = i === crumbs.length - 1;
           const href = hrefOf(crumb);

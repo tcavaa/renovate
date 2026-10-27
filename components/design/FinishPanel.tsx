@@ -56,7 +56,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
     <div className="flex h-full flex-col gap-3 overflow-hidden">
       <label className="block">
         <span className="eyebrow">{t.design.chooseRoom}</span>
-        <select value={roomId ?? ''} onChange={(e) => onRoom(e.target.value || null)} className="mt-1 h-9 w-full border border-line bg-white px-2 text-sm text-ink focus:border-ink focus:outline-none">
+        <select value={roomId ?? ''} onChange={(e) => onRoom(e.target.value || null)} className="mt-1 h-9 w-full rounded-xl border border-line bg-bg-surface px-2 text-sm text-ink focus:border-ink focus:outline-none">
           <option value="">{t.design.finishForAllRooms}</option>
           {rooms.map((r) => (
             <option key={r.id} value={r.id}>
@@ -79,7 +79,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
               <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
                 <span className={cn(clicked && 'text-brand')}>{surfaceLabel(s)}</span>
                 {originOf(s) === 'calculator' && (
-                  <span className="bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+                  <span className="rounded-full bg-olive-soft px-2 py-0.5 text-[10px] font-medium text-olive">
                     {t.design.finishOriginCalculator}
                   </span>
                 )}
@@ -115,10 +115,10 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
         {!room && (
           <section>
             <h4 className="mb-2 text-sm font-semibold">{t.design.step2}</h4>
-            <ul className="divide-y divide-line/70 border border-line bg-white">
+            <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line bg-bg-surface">
               {rooms.map((r) => (
                 <li key={r.id}>
-                  <button type="button" onClick={() => onRoom(r.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-bg-base">
+                  <button type="button" onClick={() => onRoom(r.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-sand/50">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-ink">{r.name}</span>
                       <span className="block truncate text-[11px] text-ink-muted">
@@ -133,7 +133,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
                       {SURFACES.map((s) => {
                         const finish = finishes.find((f) => f.roomId === r.id && f.surface === s);
                         return (
-                          <span key={s} className="relative block h-7 w-7 overflow-hidden border border-line bg-bg-base" style={{ backgroundColor: finish?.colorHex }}>
+                          <span key={s} className="relative block h-7 w-7 overflow-hidden rounded-md border border-line bg-bg-base" style={{ backgroundColor: finish?.colorHex }}>
                             {finish?.textureUrl && <Image src={finish.textureUrl} alt="" fill sizes="28px" className="object-cover" />}
                           </span>
                         );
@@ -171,7 +171,7 @@ function Swatch({
       title={label}
       aria-pressed={active}
       className={cn(
-        'flex w-full flex-col items-stretch overflow-hidden rounded-md border text-left transition-colors',
+        'flex w-full flex-col items-stretch overflow-hidden rounded-xl border text-left transition-colors',
         active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-brand/40'
       )}
     >

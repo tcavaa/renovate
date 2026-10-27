@@ -49,7 +49,7 @@ export function WorkChoicesPicker({
       {rows.map((row) => (
         <div key={row.label} className="flex flex-wrap items-center gap-2">
           <span className={cn('text-ink-muted', compact ? 'w-full text-[11px]' : 'w-40 text-sm')}>{row.label}</span>
-          <div className="inline-flex border border-line" role="radiogroup" aria-label={row.label}>
+          <div className="inline-flex rounded-full bg-sand/60 p-1" role="radiogroup" aria-label={row.label}>
             {row.options.map((option) => (
               <button
                 key={option.label}
@@ -57,7 +57,7 @@ export function WorkChoicesPicker({
                 role="radio"
                 aria-checked={option.active}
                 onClick={option.pick}
-                className={cn('px-3 font-medium transition-colors', compact ? 'py-1 text-xs' : 'py-1.5 text-sm', option.active ? 'bg-ink text-white' : 'bg-white text-ink-soft hover:bg-sand-light')}
+                className={cn('rounded-full px-3 font-medium transition-colors', compact ? 'py-1 text-xs' : 'py-1.5 text-sm', option.active ? 'bg-ink text-white shadow-card' : 'text-ink-soft hover:bg-bg-surface/70 hover:text-ink')}
               >
                 {option.label}
               </button>

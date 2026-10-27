@@ -17,7 +17,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out',
+      'fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out',
       className
     )}
     {...props}
@@ -39,11 +39,11 @@ const DialogContent = React.forwardRef<
 >(({ className, overlayClassName, backdrop, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay className={overlayClassName} />
-    {backdrop && <div className={cn('fixed inset-0 z-50 bg-black/40 backdrop-blur-sm', overlayClassName)} aria-hidden />}
+    {backdrop && <div className={cn('fixed inset-0 z-50 bg-charcoal/40 backdrop-blur-sm', overlayClassName)} aria-hidden />}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-line bg-bg-surface p-6 shadow-cardHover sm:rounded-none',
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-line bg-bg-surface p-6 shadow-float sm:rounded-3xl',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         className
       )}

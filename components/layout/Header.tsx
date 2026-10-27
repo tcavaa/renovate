@@ -9,15 +9,17 @@ import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { WORKERS_DIRECTORY } from '@/lib/features';
+import { Logo } from '@/components/layout/Logo';
 
 export const HEADER_HEIGHT_CLASS = 'h-[72px]';
 
 /**
  * Site header.
  *
- * Sits over the landing hero as pure typography and turns into a frosted bar as soon as the
- * page scrolls; on every other page it starts frosted. The navigation is centred, the
- * primary action is a single dark pill — the chrome stays quiet so the imagery can speak.
+ * Sits over the landing hero as pure typography and turns into a frosted sand bar as soon as
+ * the page scrolls; on every other page it starts frosted. The PLAYCE lockup on the left, the
+ * navigation centred as soft pills (the open one on a sand pill with a terracotta dot), the
+ * account on the right — the chrome stays quiet so the imagery can speak.
  */
 export function Header() {
   const pathname = usePathname();
@@ -52,19 +54,18 @@ export function Header() {
       data-site-nav
       className={cn(
         'sticky top-0 z-50 w-full transition-[background-color,border-color,box-shadow] duration-500',
-        frosted ? 'border-b border-line/70 bg-bg-base/80 shadow-[0_1px_0_rgba(255,255,255,0.5)_inset] backdrop-blur-xl' : 'border-b border-transparent bg-transparent'
+        frosted ? 'border-b border-line/70 bg-bg-base/85 backdrop-blur-xl' : 'border-b border-transparent bg-transparent'
       )}
     >
       {/* Three columns, the navigation in the middle one: centred by the grid rather than by the
           space around it, it stays put when the account menu's placeholder gives way to the menu
           (a different width) — that shift was most of the site's layout shift. */}
       <div className={cn('container grid grid-cols-[1fr_auto_1fr] items-center gap-4', HEADER_HEIGHT_CLASS)}>
-        <Link href="/" className="col-start-1 flex items-center gap-2.5 justify-self-start" aria-label={t.app.name}>
-          <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-[11px] font-bold text-white">რ</span>
-          <span className="font-serif text-lg font-bold tracking-tight">{t.app.name}</span>
+        <Link href="/" className="col-start-1 flex items-center justify-self-start" aria-label={t.app.name}>
+          <Logo tagline={t.app.tagline} taglineClassName="hidden sm:block" />
         </Link>
 
-        <nav className="col-start-2 hidden items-center gap-1 lg:flex" aria-label="Primary">
+        <nav className="col-start-2 hidden items-center gap-0.5 rounded-full border border-line/80 bg-bg-surface/60 p-1 lg:flex" aria-label="Primary">
           {links.map((link) => {
             const active = pathname?.startsWith(link.href);
             return (
@@ -72,12 +73,12 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative px-4 py-2 text-sm font-medium transition-colors',
-                  active ? 'text-ink' : 'text-ink-muted hover:text-ink'
+                  'relative flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+                  active ? 'bg-sand text-ink' : 'text-ink-muted hover:bg-sand/50 hover:text-ink'
                 )}
               >
+                {active && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />}
                 {link.label}
-                {active && <span className="absolute inset-x-4 -bottom-0.5 h-px bg-ink" />}
               </Link>
             );
           })}
@@ -95,7 +96,7 @@ export function Header() {
             aria-label="menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="grid h-10 w-10 place-items-center border border-line bg-bg-surface/70"
+            className="grid h-10 w-10 place-items-center rounded-full border border-line bg-bg-surface/70"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -106,12 +107,16 @@ export function Header() {
         <div className="border-t border-line/70 bg-bg-base/95 backdrop-blur-xl lg:hidden">
           <nav className="container flex flex-col gap-1 py-4">
             {links.map((link) => (
-              <Link key={link.href} href={link.href} className="px-3 py-3 font-serif text-2xl font-semibold hover:bg-bg-surface">
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn('rounded-2xl px-4 py-3 font-serif text-2xl font-semibold hover:bg-bg-surface', pathname?.startsWith(link.href) && 'bg-sand')}
+              >
                 {link.label}
               </Link>
             ))}
             <div className="mt-3 space-y-3 border-t border-line pt-4">
-              <Link href="/design" className="flex h-12 items-center justify-center gap-2 bg-ink text-sm font-medium text-white">
+              <Link href="/design" className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand text-sm font-medium text-white hover:bg-brand-dark">
                 {t.landing.heroCta} <ArrowUpRight className="h-4 w-4" />
               </Link>
               <UserMenu variant="mobile" />

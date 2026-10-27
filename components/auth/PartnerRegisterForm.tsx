@@ -68,12 +68,12 @@ export function PartnerRegisterForm({ kind }: { kind: 'store' | 'worker' }) {
       className="max-w-xl"
       footer={
         <>
-          <Link href="/register" className="bracket-link font-medium text-ink hover:text-brand">
+          <Link href="/register" className="bracket-link font-medium text-brand hover:text-brand-dark">
             {t.auth.registerAsUser}
           </Link>
           <span>
             {t.auth.haveAccount}{' '}
-            <Link href="/login" className="bracket-link font-medium text-ink hover:text-brand">
+            <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
               {t.auth.loginButton}
             </Link>
           </span>
@@ -84,14 +84,14 @@ export function PartnerRegisterForm({ kind }: { kind: 'store' | 'worker' }) {
         <fieldset className="space-y-4">
           <legend className="eyebrow mb-1">{t.auth.accountSection}</legend>
           <Field id="p-name" label={kind === 'worker' ? t.auth.workerName : t.auth.name}>
-            <Input id="p-name" required minLength={2} value={account.name} onChange={(e) => setAccount((a) => ({ ...a, name: e.target.value }))} className="h-12" />
+            <Input id="p-name" required minLength={2} value={account.name} onChange={(e) => setAccount((a) => ({ ...a, name: e.target.value }))} className="h-12 px-4" />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="p-email" label={t.auth.email}>
-              <Input id="p-email" type="email" autoComplete="email" required value={account.email} onChange={(e) => setAccount((a) => ({ ...a, email: e.target.value }))} className="h-12" />
+              <Input id="p-email" type="email" autoComplete="email" required value={account.email} onChange={(e) => setAccount((a) => ({ ...a, email: e.target.value }))} className="h-12 px-4" />
             </Field>
             <Field id="p-password" label={t.auth.password}>
-              <Input id="p-password" type="password" autoComplete="new-password" required minLength={8} value={account.password} onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} className="h-12" />
+              <Input id="p-password" type="password" autoComplete="new-password" required minLength={8} value={account.password} onChange={(e) => setAccount((a) => ({ ...a, password: e.target.value }))} className="h-12 px-4" />
             </Field>
           </div>
         </fieldset>
@@ -100,20 +100,20 @@ export function PartnerRegisterForm({ kind }: { kind: 'store' | 'worker' }) {
           <fieldset className="space-y-4 border-t border-line pt-6">
             <legend className="eyebrow mb-1">{t.auth.storeSection}</legend>
             <Field id="s-name" label={t.auth.storeName}>
-              <Input id="s-name" required minLength={2} value={store.storeName} onChange={(e) => setStore((s) => ({ ...s, storeName: e.target.value }))} className="h-12" />
+              <Input id="s-name" required minLength={2} value={store.storeName} onChange={(e) => setStore((s) => ({ ...s, storeName: e.target.value }))} className="h-12 px-4" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field id="s-phone" label={t.admin.forms.phone}>
-                <Input id="s-phone" placeholder="+995…" value={store.phone} onChange={(e) => setStore((s) => ({ ...s, phone: e.target.value }))} className="h-12" />
+                <Input id="s-phone" placeholder="+995…" value={store.phone} onChange={(e) => setStore((s) => ({ ...s, phone: e.target.value }))} className="h-12 px-4" />
               </Field>
               <Field id="s-city" label={t.admin.forms.city}>
-                <Input id="s-city" value={store.city} onChange={(e) => setStore((s) => ({ ...s, city: e.target.value }))} className="h-12" />
+                <Input id="s-city" value={store.city} onChange={(e) => setStore((s) => ({ ...s, city: e.target.value }))} className="h-12 px-4" />
               </Field>
               <Field id="s-address" label={t.admin.forms.address}>
-                <Input id="s-address" value={store.address} onChange={(e) => setStore((s) => ({ ...s, address: e.target.value }))} className="h-12" />
+                <Input id="s-address" value={store.address} onChange={(e) => setStore((s) => ({ ...s, address: e.target.value }))} className="h-12 px-4" />
               </Field>
               <Field id="s-website" label={t.admin.forms.website}>
-                <Input id="s-website" type="url" placeholder="https://" value={store.websiteUrl} onChange={(e) => setStore((s) => ({ ...s, websiteUrl: e.target.value }))} className="h-12" />
+                <Input id="s-website" type="url" placeholder="https://" value={store.websiteUrl} onChange={(e) => setStore((s) => ({ ...s, websiteUrl: e.target.value }))} className="h-12 px-4" />
               </Field>
             </div>
             <Field id="s-description" label={t.admin.forms.description}>
@@ -129,7 +129,7 @@ export function PartnerRegisterForm({ kind }: { kind: 'store' | 'worker' }) {
         )}
 
         {error && <Notice tone="error">{error}</Notice>}
-        <Button type="submit" variant="ink" size="lg" className="w-full" disabled={loading}>
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {t.auth.registerButton}
         </Button>

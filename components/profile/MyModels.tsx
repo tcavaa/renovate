@@ -76,21 +76,21 @@ export function MyModels({ models, heading = true }: { models: OwnModelRow[]; he
         </p>
       )}
       {models.length === 0 ? (
-        <p className={cn('mt-6 border border-dashed border-line p-8 text-center text-sm text-ink-muted', !heading && 'rounded-[18px] p-12')}>{t.profile.noModels}</p>
+        <p className={cn('mt-6 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted', !heading && 'p-12')}>{t.profile.noModels}</p>
       ) : (
-        <ul className={cn('mt-4 divide-y divide-line', heading ? 'border-y border-line' : 'rounded-[18px] border border-line bg-bg-surface px-4')}>
+        <ul className={cn('mt-4 divide-y divide-line', heading ? 'border-y border-line' : 'rounded-2xl border border-line bg-bg-surface px-4')}>
           {models.map((m) => {
             const pending = m.status !== 'ready';
             return (
               <li key={m.id} className="flex items-center gap-4 py-3">
-                <span className="relative block h-14 w-14 shrink-0 overflow-hidden border border-line bg-bg-base">
+                <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base">
                   {m.imageUrl ? <Image src={m.imageUrl} alt="" fill sizes="56px" unoptimized className="object-cover" /> : <Box className="absolute inset-0 m-auto h-5 w-5 text-ink-faint" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-ink">{m.name}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">
                     {m.kind ? archetypeLabel(m.kind, locale) : '—'}
-                    <span className={cn('ml-2 rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold', pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{pending ? t.profile.modelPending : t.profile.modelReady}</span>
+                    <span className={cn('ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold', pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{pending ? t.profile.modelPending : t.profile.modelReady}</span>
                   </p>
                 </div>
                 {asking === m.id ? (
@@ -105,7 +105,7 @@ export function MyModels({ models, heading = true }: { models: OwnModelRow[]; he
                     </Button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setAsking(m.id)} aria-label={t.profile.deleteModel} title={t.profile.deleteModel} className="grid h-9 w-9 shrink-0 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
+                  <button type="button" onClick={() => setAsking(m.id)} aria-label={t.profile.deleteModel} title={t.profile.deleteModel} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 )}

@@ -103,7 +103,7 @@ export default function FurnitureStepPage() {
             {catLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-9 animate-pulse bg-line/50" />
+                  <div key={i} className="h-9 animate-pulse rounded-full bg-line/50" />
                 ))}
               </div>
             ) : (
@@ -118,7 +118,7 @@ export default function FurnitureStepPage() {
 
           <section className="space-y-10">
             <div>
-              <div className="mb-4 flex items-baseline justify-between border-b border-line pb-3">
+              <div className="mb-4 flex items-baseline justify-between border-b border-line/70 pb-3">
                 <h2 className="font-serif text-xl font-semibold text-ink">{current ? pickLocalizedName(locale, current.nameKa, current.nameEn, current.nameRu) : '…'}</h2>
                 {activeRoom && (
                   <p className="text-sm text-ink-muted">
@@ -128,10 +128,10 @@ export default function FurnitureStepPage() {
               </div>
               {loading ? (
                 <div className="flex items-center justify-center py-24">
-                  <Loader2 className="h-6 w-6 animate-spin text-ink-muted" />
+                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
                 </div>
               ) : products.length === 0 ? (
-                <div className="border border-dashed border-line p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
+                <div className="rounded-2xl border border-dashed border-stone bg-sand-light/50 p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {products.map((p) => {
@@ -144,19 +144,19 @@ export default function FurnitureStepPage() {
             </div>
 
             {activeRoomId && (
-              <div className="border border-line bg-bg-surface">
-                <div className="flex items-baseline justify-between border-b border-line px-4 py-3">
+              <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
+                <div className="flex items-baseline justify-between border-b border-line bg-sand-light/60 px-4 py-3">
                   <p className="eyebrow">
                     {t.furniture.addedItems} · <span className="text-ink">{activeRoom?.nameKa}</span>
                   </p>
-                  <span className="text-xs tabular-nums text-ink-muted">{roomItems.length}</span>
+                  <span className="grid min-w-5 place-items-center rounded-full bg-olive px-1.5 py-0.5 text-[10px] tabular-nums text-sand-light">{roomItems.length}</span>
                 </div>
                 {roomItems.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-ink-muted">{t.furniture.noFurniture}</p>
                 ) : (
                   <ul>
                     {roomItems.map((item, idx) => (
-                      <li key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0">
+                      <li key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3 border-b border-line/70 px-4 py-3 transition-colors last:border-b-0 hover:bg-sand-light/50">
                         <p className="line-clamp-1 text-sm font-medium text-ink">{localizedName(locale, item)}</p>
                         <div className="flex items-center gap-3">
                           <span className="font-semibold tabular-nums">{formatGEL(item.totalPrice)}</span>
@@ -164,7 +164,7 @@ export default function FurnitureStepPage() {
                             type="button"
                             onClick={() => removeFurniture(activeRoomId, item.productId)}
                             aria-label={t.rooms.remove}
-                            className="grid h-8 w-8 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger"
+                            className="grid h-8 w-8 place-items-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -186,8 +186,8 @@ export default function FurnitureStepPage() {
       </StepNav>
 
       {added && (
-        <p role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-[10px] bg-ink px-4 py-2 text-sm text-white shadow-cardHover">
-          <Check className="h-4 w-4 text-success" />
+        <p role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-olive px-4 py-2 text-sm text-sand-light shadow-float">
+          <Check className="h-4 w-4 text-sand" />
           {fill(t.furniture.addedToRoom, { room: added.room })}
         </p>
       )}

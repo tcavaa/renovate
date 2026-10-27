@@ -1,4 +1,4 @@
-# CLAUDE.md — RenovationRoom (რემონტი.ge / RenovateGE)
+# CLAUDE.md — RenovationRoom (PLAYCE)
 
 Entry point for AI sessions. It gives the overview, the commands and the rules that apply
 everywhere, and an index of the topic documents under `docs/` that hold the detail. **Read the
@@ -22,7 +22,10 @@ only), and a project can have both halves.
 The differentiator: every object in the 3D scene is a real SKU with a price and a shop. The
 platform earns from subscriptions (Free, Premium, Professional — the plan decides what a person
 may do) and a commission on every partner order. UI copy is Georgian first,
-with English and Russian. Tagline: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
+with English and Russian. The brand is **PLAYCE** — "Play with your place" (the name and the
+tagline stay English in every language); the motto is გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate.
+Build.). It was რემონტი.ge / RenovateGE until 27 Oct 2026 — the look and the palette are in
+[docs/ui-design-system.md](docs/ui-design-system.md).
 
 ## Production is not public yet
 

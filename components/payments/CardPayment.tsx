@@ -221,7 +221,7 @@ export function CardPayment({
         {header}
 
         {/* The bill: the price, the bank's commission on top, what the card is charged. */}
-        <div className="rounded-[12px] border border-line p-4 text-sm">
+        <div className="rounded-2xl border border-line bg-sand-light/70 p-4 text-sm">
           <div className="flex items-baseline justify-between gap-3">
             <span className="min-w-0 text-ink-soft">{itemLabel}</span>
             <span className="shrink-0 tabular-nums text-ink">{offer ? formatGEL(offer.price, true) : charge ? formatGEL(charge.amount, true) : '—'}</span>
@@ -244,16 +244,16 @@ export function CardPayment({
         </div>
 
         {testMode && stage === 'form' && (
-          <p className="rounded-[10px] border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">
+          <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">
             <span className="mr-1.5 rounded-full bg-warning/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-warning">{p.testBadge}</span>
             {p.testNote}
           </p>
         )}
 
-        {blockedHost() && stage !== 'approved' && <p className="rounded-[10px] border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">{p.localhostNote}</p>}
+        {blockedHost() && stage !== 'approved' && <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">{p.localhostNote}</p>}
 
         <p className="flex items-start gap-2 text-xs text-ink-muted">
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-olive" aria-hidden />
           {p.secureNote}
         </p>
 
@@ -295,7 +295,7 @@ export function CardPayment({
             )}
             {stage === 'verifying' && (
               <div className="absolute inset-0 grid place-items-center">
-                <p className="flex items-center gap-2 rounded-full bg-bg-surface px-4 py-2 text-sm font-medium text-ink shadow-sm">
+                <p className="flex items-center gap-2 rounded-full bg-bg-surface px-4 py-2 text-sm font-medium text-ink shadow-card">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {p.verifying}
                 </p>
@@ -305,7 +305,7 @@ export function CardPayment({
         )}
 
         {stage === 'approved' && (
-          <p className="flex items-center gap-2 rounded-[12px] border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-ink">
+          <p className="flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-ink">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
             {p.paidTitle}
           </p>
@@ -313,7 +313,7 @@ export function CardPayment({
 
         {(stage === 'declined' || stage === 'error' || stage === 'pending') && (
           <div className="space-y-3">
-            <p role="alert" className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p role="alert" className="rounded-xl border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">
               {stage === 'declined' ? fill(p.declined, { reason: error ? ` — ${error}` : '' }) : stage === 'pending' ? p.stillProcessing : error}
             </p>
             <Button type="button" variant="outline" className="w-full" onClick={stage === 'pending' ? verify : retry}>

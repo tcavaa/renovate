@@ -512,10 +512,10 @@ export function ProductForm({
                 )
               }
               className={
-                "flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors " +
+                "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors " +
                 (active
-                  ? "border-brand bg-brand/10 text-brand-dark"
-                  : "border-line bg-bg-surface text-ink-muted hover:border-brand/40")
+                  ? "border-olive/60 bg-olive-soft text-olive"
+                  : "border-line bg-bg-surface text-ink-muted hover:border-ink/40 hover:bg-sand/40")
               }
             >
               <span
@@ -537,7 +537,7 @@ export function ProductForm({
           type="color"
           value={form.colorHex || DEFAULT_COLOR}
           onChange={(e) => update("colorHex", e.target.value)}
-          className="h-10 w-14 cursor-pointer rounded-md border border-line bg-bg-surface"
+          className="h-10 w-14 cursor-pointer rounded-xl border border-line bg-bg-surface"
           aria-label={ka.admin.forms.colorHex}
         />
         <Input
@@ -563,7 +563,7 @@ export function ProductForm({
                 onChange={(e) => changeName(e.target.value)}
               />
             </div>
-            <fieldset className="space-y-3 rounded-md border border-line p-4 md:col-span-2">
+            <fieldset className="space-y-3 rounded-2xl border border-line p-4 md:col-span-2">
               <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 {ka.admin.forms.translations}
               </legend>
@@ -731,7 +731,7 @@ export function ProductForm({
             </div>
           </div>
 
-          <section className="space-y-4 rounded-lg border border-line bg-bg-base/40 p-4">
+          <section className="space-y-4 rounded-2xl border border-line bg-sand-light/50 p-4">
             <div>
               <h2 className="font-serif text-lg font-semibold">
                 {kind === "finish"
@@ -787,7 +787,7 @@ export function ProductForm({
                 <div className="grid gap-4 md:grid-cols-[auto_1fr]">
                   {/* The texture as the studio lays it: two metres by two, at the repeat size given. */}
                   <div
-                    className="relative shrink-0 overflow-hidden rounded-md border border-line bg-bg-base"
+                    className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base"
                     style={{
                       width: PREVIEW_PX,
                       height: PREVIEW_PX,
@@ -800,7 +800,7 @@ export function ProductForm({
                         : {}),
                     }}
                   >
-                    <span className="absolute bottom-1 left-1 rounded-sm bg-white/90 px-1 text-[10px] font-semibold text-ink">
+                    <span className="absolute bottom-1.5 left-1.5 rounded-full bg-bg-surface/90 px-1.5 text-[10px] font-semibold text-ink">
                       {ka.design.finishPreviewSize}
                     </span>
                   </div>
@@ -824,10 +824,10 @@ export function ProductForm({
                                 )
                               }
                               className={
-                                "rounded-md border px-3 py-1.5 text-sm transition-colors " +
+                                "rounded-full border px-3 py-1.5 text-sm transition-colors " +
                                 (active
-                                  ? "border-brand bg-brand/10 text-brand-dark"
-                                  : "border-line bg-bg-surface text-ink-muted hover:border-brand/40")
+                                  ? "border-olive/60 bg-olive-soft text-olive"
+                                  : "border-line bg-bg-surface text-ink-muted hover:border-ink/40 hover:bg-sand/40")
                               }
                             >
                               {surface === "floor"
@@ -1082,7 +1082,7 @@ export function ProductForm({
           </div>
 
           {error && (
-            <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}

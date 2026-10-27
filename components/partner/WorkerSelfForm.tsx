@@ -57,7 +57,7 @@ export function WorkerSelfForm({ worker }: { worker: Worker }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-6 border border-line bg-bg-surface p-5 md:p-6">
+    <form onSubmit={submit} className="space-y-6 rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
       <div>
         <p className="eyebrow">{t.partner.editProfile}</p>
       </div>
@@ -99,7 +99,7 @@ export function WorkerSelfForm({ worker }: { worker: Worker }) {
         </div>
       </div>
 
-      {error && <p className="border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="flex items-center justify-end gap-3">
         {state === 'saved' && (

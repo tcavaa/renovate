@@ -43,7 +43,7 @@ export function RevenueChart({ days, locale }: { days: Array<{ day: string; fees
           return (
             <g key={d.day}>
               <title>{`${label(d.day)} — ${formatGEL(d.fees)} + ${formatGEL(d.commissions)}`}</title>
-              {feeH > 0 && <rect x={x} y={baseY - feeH} width={bar} height={feeH} className="fill-ink" />}
+              {feeH > 0 && <rect x={x} y={baseY - feeH} width={bar} height={feeH} className="fill-olive" />}
               {comH > 0 && <rect x={x} y={baseY - feeH - comH} width={bar} height={comH} className="fill-brand" />}
               {feeH === 0 && comH === 0 && <rect x={x} y={baseY - 1} width={bar} height={1} className="fill-line" />}
               {i % labelEvery === 0 && (

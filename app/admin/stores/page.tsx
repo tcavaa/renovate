@@ -131,7 +131,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
             <Tr key={s.id}>
               <td className="px-4 py-2.5">
                 <Link href={`/admin/stores/${s.id}`} className="flex items-center gap-3">
-                  <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md border border-line bg-bg-base">
+                  <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
                     {s.logoUrl && <Image src={s.logoUrl} alt="" fill sizes="36px" className="object-cover" />}
                   </span>
                   <span className="min-w-0">

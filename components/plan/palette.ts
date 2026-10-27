@@ -30,7 +30,7 @@ export const ROOM_TINT_STRONG: Record<RoomType, string> = {
 /** Structure by who put it there. */
 export const ORIGIN_COLOR: Record<ElementOrigin, string> = {
   existing: '#3A3733',
-  user: '#E85D26',
+  user: '#B5462B',
   generated: '#2E8B85',
 };
 
@@ -57,13 +57,13 @@ export const ELECTRICAL_COLOR = {
 };
 
 export const EDITOR = {
-  paper: '#FBFAF7',
-  gridMinor: '#EEEAE2',
-  gridMajor: '#DDD6CB',
+  paper: '#FBF8F2',
+  gridMinor: '#EEE8DE',
+  gridMajor: '#DDD4C6',
   /** Every room's floor, a studio's two parts alike; its type is on its label. */
   roomFill: '#FFFFFF',
-  roomHover: '#F4F2EE',
-  roomSelected: '#FCEBE2',
+  roomHover: '#F5F1EA',
+  roomSelected: '#F7E7E0',
   wall: '#141414',
   wallLocked: '#2B2B2B',
   /**
@@ -73,14 +73,14 @@ export const EDITOR = {
   wallToBuild: '#A29C93',
   /** A room separator (`Wall.separator`): the dashed line where one room opens onto the next. */
   separator: '#141414',
-  selected: '#E85D26',
-  hover: '#F5A623',
+  selected: '#B5462B',
+  hover: '#A8784E',
   guide: '#2FA7A0',
   door: '#D92D20',
   window: '#5B8FB9',
   /** A balcony's railing (`Opening.kind === 'railing'`): the wall's gap with a railing in it. */
   railing: '#3F7D5A',
-  label: '#161513',
+  label: '#1E1F23',
   labelMuted: '#6F6A63',
   dimension: '#3A3733',
   column: '#4A4A4A',

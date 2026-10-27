@@ -67,7 +67,7 @@ export function TeamSelfForm({ team }: { team: TeamSelfValue }) {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5 border border-line bg-bg-surface p-5">
+    <form onSubmit={submit} className="space-y-5 rounded-2xl border border-line bg-bg-surface p-5">
       <p className="eyebrow">{p.companyTitle}</p>
       <div className="grid gap-4 md:grid-cols-3">
         <Field label={p.nameKa} id="team-name-ka">

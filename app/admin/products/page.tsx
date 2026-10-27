@@ -165,7 +165,7 @@ export default async function AdminProductsPage(props: { searchParams: Promise<S
                 </td>
                 <td className="px-4 py-2.5">
                   <Link href={`/admin/products/${r.id}`} className="flex items-center gap-3">
-                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-line bg-bg-base">
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
                       {r.imageUrl ? (
                         <Image src={r.imageUrl} alt="" fill sizes="40px" className="object-cover" />
                       ) : (

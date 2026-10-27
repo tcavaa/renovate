@@ -21,7 +21,7 @@ export function SceneLoading({ done, total, leaving = false }: { /** Files in so
       role="status"
       aria-live="polite"
     >
-      <div className="w-[min(88vw,340px)] rounded-[20px] border border-line bg-white p-5 shadow-cardHover">
+      <div className="w-[min(88vw,340px)] rounded-[20px] border border-line bg-bg-surface p-5 shadow-cardHover">
         <div className="flex items-center gap-3">
           <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand" />
           <p className="text-sm font-medium text-ink">{t.build.sceneLoading}</p>

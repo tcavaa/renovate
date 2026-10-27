@@ -23,7 +23,7 @@
         "license": "CC-BY 4.0",
         "url": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
-        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
+        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for PLAYCE"
       },
       "imageUrl": "/uploads/furniture/kitchen-run-ldsp.webp"
     },
@@ -48,7 +48,7 @@
         "license": "CC-BY 4.0",
         "url": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
-        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
+        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for PLAYCE"
       },
       "imageUrl": "/uploads/furniture/kitchen-run-mdf.webp"
     },
@@ -73,7 +73,7 @@
         "license": "CC-BY 4.0",
         "url": "https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17",
         "via": "Objaverse (huggingface.co/datasets/allenai/objaverse)",
-        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for RenovateGE"
+        "text": "“kitchen.ciete.warszawa” by corbaanton (https://sketchfab.com/3d-models/ff403d410a0b4d9b97845482cbc77a17), CC BY 4.0; the tap and the parts inside the sink unit removed, re-coloured and re-textured, resized and simplified for PLAYCE"
       },
       "imageUrl": "/uploads/furniture/kitchen-run-veneer.webp"
     },
@@ -90,11 +90,11 @@
       "title": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles",
       "source": "procedural",
       "sourceUrl": "",
-      "author": "RenovateGE",
+      "author": "PLAYCE",
       "license": "own",
       "credit": {
         "title": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles",
-        "author": "RenovateGE",
+        "author": "PLAYCE",
         "license": "own",
         "url": "",
         "text": "Wall cabinets, laminated chipboard (LDSP), grey oak, silver handles — made from boxes by scripts/kitchen-wall-models.ts"
@@ -114,11 +114,11 @@
       "title": "Wall cabinets, painted MDF, matt cashmere, black handles",
       "source": "procedural",
       "sourceUrl": "",
-      "author": "RenovateGE",
+      "author": "PLAYCE",
       "license": "own",
       "credit": {
         "title": "Wall cabinets, painted MDF, matt cashmere, black handles",
-        "author": "RenovateGE",
+        "author": "PLAYCE",
         "license": "own",
         "url": "",
         "text": "Wall cabinets, painted MDF, matt cashmere, black handles — made from boxes by scripts/kitchen-wall-models.ts"
@@ -138,11 +138,11 @@
       "title": "Wall cabinets, natural oak veneer, brass handles",
       "source": "procedural",
       "sourceUrl": "",
-      "author": "RenovateGE",
+      "author": "PLAYCE",
       "license": "own",
       "credit": {
         "title": "Wall cabinets, natural oak veneer, brass handles",
-        "author": "RenovateGE",
+        "author": "PLAYCE",
         "license": "own",
         "url": "",
         "text": "Wall cabinets, natural oak veneer, brass handles — made from boxes by scripts/kitchen-wall-models.ts"

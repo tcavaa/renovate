@@ -53,8 +53,8 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (name
       title={name}
       onClick={() => choose(name)}
       className={cn(
-        'flex min-w-0 flex-col items-center gap-1.5 border px-1 py-2.5 text-[10px] leading-none transition-colors',
-        selectedKey === iconLookupKey(name) ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-muted hover:border-ink hover:text-ink'
+        'flex min-w-0 flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[10px] leading-none transition-colors',
+        selectedKey === iconLookupKey(name) ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-muted hover:border-ink/40 hover:bg-sand/40 hover:text-ink'
       )}
     >
       <CategoryIcon icon={name} className="h-5 w-5" strokeWidth={1.75} />
@@ -71,9 +71,9 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (name
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-10 min-w-0 flex-1 items-center gap-3 border border-line bg-bg-surface px-3 text-left text-sm transition-colors hover:border-ink focus-visible:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          className="flex h-10 min-w-0 flex-1 items-center gap-3 rounded-xl border border-line bg-bg-surface px-3 text-left text-sm transition-colors hover:border-ink/40 focus-visible:border-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
         >
-          <span className="grid h-7 w-7 shrink-0 place-items-center border border-line text-ink">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-sand/60 text-ink">
             <CategoryIcon icon={value} className="h-4 w-4" fallback={<ImageOff className="h-4 w-4 text-ink-muted" aria-hidden />} />
           </span>
           <span className={cn('min-w-0 flex-1 truncate', value ? 'font-mono text-xs text-ink' : 'text-ink-muted')}>{value || p.choose}</span>
@@ -99,7 +99,7 @@ export function IconPicker({ value, onChange }: { value: string; onChange: (name
           </div>
 
           <div className="h-[min(62vh,640px)] space-y-5 overflow-y-auto pr-1">
-            {searching && suggested.length === 0 && others.length === 0 && <p className="border border-dashed border-line p-8 text-center text-sm text-ink-muted">{p.empty}</p>}
+            {searching && suggested.length === 0 && others.length === 0 && <p className="rounded-2xl border border-dashed border-line p-8 text-center text-sm text-ink-muted">{p.empty}</p>}
 
             {suggested.length > 0 && (
               <section className="space-y-3">

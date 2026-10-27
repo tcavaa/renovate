@@ -141,7 +141,7 @@ export function PhotoDialog({
           />
         )}
         {shot && !paying && (
-          <div className="relative aspect-[16/10] w-full overflow-hidden border border-line bg-sand-light">
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-line bg-sand-light">
             <Image src={shot.dataUrl} alt="" fill unoptimized className="object-cover" />
           </div>
         )}

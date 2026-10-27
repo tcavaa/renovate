@@ -7,18 +7,23 @@ html {
 }
 
 html, body {
-  background-color: #F5F2ED;
-  color: #161513;
-  font-family: var(--font-sans);
+  background-color: #F3EEE6;
+  color: #1E1F23;
+  font-family: var(--font-latin-sans), var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 h1, h2, h3, h4 {
-  font-family: var(--font-serif);
-  letter-spacing: -0.01em;
+  font-family: var(--font-latin-serif), var(--font-serif), Georgia, serif;
+  letter-spacing: -0.005em;
   text-wrap: balance;
+}
+
+/* Cormorant draws old-style figures by default; prices and counts want lining ones. */
+h1, h2, h3, h4, .font-serif {
+  font-feature-settings: 'lnum' 1;
 }
 
 p {
@@ -26,19 +31,19 @@ p {
 }
 
 * {
-  border-color: #E3DCD2;
+  border-color: #E2D9CC;
 }
 
 ::selection {
-  background-color: rgba(232, 93, 38, 0.18);
-  color: #161513;
+  background-color: rgba(181, 70, 43, 0.2);
+  color: #1E1F23;
 }
 
 /* Subtle scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #E3DCD2; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #C44D1A; }
+::-webkit-scrollbar-thumb { background: #D7CCBC; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #A8784E; background-clip: padding-box; }
 
 /* A row that scrolls without a scrollbar. Not inside a layer: it has to beat the global
    ::-webkit-scrollbar rules above. `ScrollRow` (components/ui/scroll-row.tsx) is what uses
@@ -93,15 +98,23 @@ p {
   .glass-dark {
     @apply border border-white/10 bg-ink/70 text-white shadow-float backdrop-blur-xl;
   }
-  /* Editorial uppercase display type — the sans at its heaviest weight, tracked tight. */
+  /* Display type in the wordmark's voice — the geometric sans, uppercase, light and airy. */
   .display {
-    @apply font-sans font-bold uppercase;
-    letter-spacing: -0.035em;
-    line-height: 0.92;
+    @apply font-sans font-normal uppercase;
+    letter-spacing: 0.04em;
+    line-height: 0.98;
   }
-  /* Small caps label used above headings. */
+  /* Small caps label used above headings, spaced like the wordmark's tagline. */
   .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-muted;
+    @apply text-[11px] font-medium uppercase tracking-[0.2em] text-ink-muted;
+  }
+  /* A paper label — the brand board's torn-paper tags: cream, square, a serif in capitals. */
+  .paper-label {
+    @apply inline-block bg-bg-surface px-3 py-1.5 font-serif text-sm font-semibold uppercase tracking-[0.2em] text-ink shadow-card;
+  }
+  /* An arch — the brand's window shape — for pictures and colour blocks. */
+  .arch {
+    border-radius: 999px 999px 0 0;
   }
   /* Bracketed inline link, e.g. ( Learn more ) */
   .bracket-link::before { content: '( '; }
@@ -110,12 +123,12 @@ p {
   .bracket-link:hover::before, .bracket-link:hover::after { @apply text-brand; }
   /* The one button that is allowed depth: a hard offset shadow that the button sinks into. */
   .btn-3d {
-    @apply inline-flex items-center justify-center gap-2 border-2 border-ink bg-brand px-6 font-semibold text-white transition-[transform,box-shadow] duration-150;
-    box-shadow: 5px 5px 0 0 #161513;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink bg-brand px-6 font-semibold text-white transition-[transform,box-shadow] duration-150;
+    box-shadow: 4px 4px 0 0 #1E1F23;
   }
-  .btn-3d:hover { transform: translate(2px, 2px); box-shadow: 3px 3px 0 0 #161513; }
-  .btn-3d:active { transform: translate(5px, 5px); box-shadow: 0 0 0 0 #161513; }
-  .btn-3d:disabled { opacity: 0.5; transform: none; box-shadow: 5px 5px 0 0 #161513; pointer-events: none; }
+  .btn-3d:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #1E1F23; }
+  .btn-3d:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 #1E1F23; }
+  .btn-3d:disabled { opacity: 0.5; transform: none; box-shadow: 4px 4px 0 0 #1E1F23; pointer-events: none; }
   /* Fine paper grain over large flat areas. */
   .grain::after {
     content: '';

@@ -142,7 +142,7 @@ export default function ExistingHousePage() {
               </>
             }
             actions={
-              <button type="button" onClick={suggestOpenings} title={t.build.autoOpeningsHint} className="flex h-10 items-center gap-2 rounded-[12px] border border-line bg-white px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
+              <button type="button" onClick={suggestOpenings} title={t.build.autoOpeningsHint} className="flex h-10 items-center gap-2 rounded-full border border-line bg-bg-surface px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
                 <Wand2 className="h-4 w-4" />
                 {t.build.autoOpenings}
               </button>

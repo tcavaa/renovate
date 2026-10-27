@@ -40,7 +40,7 @@ export function PartnerApproval({ kind, id, status }: { kind: 'store' | 'worker'
   const variant: Record<ApprovalStatus, 'warning' | 'success' | 'danger'> = { pending: 'warning', approved: 'success', rejected: 'danger' };
 
   return (
-    <div className={status === 'pending' ? 'border border-warning/50 bg-warning/5 p-4' : 'flex items-center gap-3'}>
+    <div className={status === 'pending' ? 'rounded-2xl border border-warning/50 bg-warning/5 p-4' : 'flex items-center gap-3'}>
       <div className="flex flex-wrap items-center gap-3">
         <span className="eyebrow">{t.admin.approvalTitle}</span>
         <Badge variant={variant[status]}>{label[status]}</Badge>

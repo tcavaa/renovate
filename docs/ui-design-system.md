@@ -15,8 +15,11 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 
 | File | Responsibility |
 |---|---|
-| `tailwind.config.ts` | tokens: `brand`, `accent`, `ink` (+ `ink-muted`, `ink-soft`, `ink-faint`), `bg-base`, `bg-surface`, `bg-deep`, `sand`, `slate-deep`, `line`, `success` / `warning` / `danger`; shadows `card`, `cardHover`, `glass`, `float`; the collapsed radius scale |
-| `app/globals.css` | shared utilities: `.glass`, `.glass-dark`, `.grain`, `.display`, `.eyebrow`, `.bracket-link`, `.btn-3d`, the scroll-driven `.reveal*` / `.seq*` / `.parallax`, `.studio-bar` container rules, `.site-shell:has([data-flow-workspace])`, `.scrollbar-none` |
+| `tailwind.config.ts` | the PLAYCE tokens: `brand` (terracotta), `accent` / `wood`, `olive`, `stone`, `sand`, `charcoal`, `ink` (+ `ink-muted`, `ink-soft`, `ink-faint`), `bg-base`, `bg-surface`, `bg-deep`, `slate-deep` (olive), `line`, `success` / `warning` / `danger`; shadows `card`, `cardHover`, `glass`, `float`; the soft radius scale |
+| `app/layout.tsx` | the fonts: Jost and Cormorant Garamond (Latin, Cyrillic) first, Noto Sans / Serif Georgian under them |
+| `app/icon.svg`, `app/apple-icon.png` | the favicon and the touch icon: the chevron on a terracotta tile |
+| `components/layout/Logo.tsx` | `Logo` (tile + wordmark + tagline), `Wordmark` (PLΛYCE), `LogoMark` (the app icon), `Chevron` |
+| `app/globals.css` | shared utilities: `.glass`, `.glass-dark`, `.grain`, `.display`, `.eyebrow`, `.paper-label`, `.arch`, `.bracket-link`, `.btn-3d`, the scroll-driven `.reveal*` / `.seq*` / `.parallax`, `.studio-bar` container rules, `.site-shell:has([data-flow-workspace])`, `.scrollbar-none` |
 | `components/ui/*` | primitives (button with the `ink` variant, card, dialog, input, select, `combobox` — a select with a search, …), `scroll-row.tsx`, `money-row.tsx`, `stat-card.tsx`, `button-3d.tsx` |
 | `components/flow/*` | `StepStrip`, `StepHeader`, `StepNav`, `SideList`, `EmptyStep`, `StageBrief`, `FlowGuard`, `FlowWorkspace` (`FlowBar`, `FlowPanel`), `HingeDialog` |
 | `components/layout/*` | `Header` (`HEADER_HEIGHT_CLASS`), `Footer`, `AdminSidebar`, `LanguageSwitcher`, `UserMenu`, `NotFoundContent` |
@@ -27,20 +30,44 @@ Related: [architecture.md](architecture.md) (i18n: every string in the dictionar
 
 - Tailwind theme tokens only; headings use `font-serif`; money through `formatGEL()`, areas
   through `formatM2()` (`lib/utils.ts`).
-- Corners are sharp outside the build mode; the build-mode surfaces (the step flows and the
-  studio) are the deliberate rounded exception.
+- Corners are soft everywhere: buttons, chips and segmented controls are pills, cards and panels
+  `rounded-2xl`, inputs `rounded-xl`, dialogues `rounded-3xl`.
 - Keys are matched on `event.code`, never `event.key` (a Georgian layout types წ for W).
 - Every user-facing string goes through `lib/i18n` ([architecture.md](architecture.md#i18n)).
 
 ## Design system
 
-Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.css`.
-- **Surfaces**: warm paper `bg-base` (#F5F2ED), white cards, `sand` for in-between panels,
-  `bg-deep` for the one dark band. `.glass` / `.glass-dark` are the frosted panels used over
-  imagery and the 3D canvas; `.grain` adds paper texture to large flat areas.
-- **Type**: `.display` (heavy uppercase sans, tight tracking) with the `text-display-*`
-  clamp scale for hero and section titles; the serif for ordinary headings; `.eyebrow` for
-  the small-caps label above them; `.bracket-link` for secondary "( link )" actions.
+The brand is **PLAYCE** — "Play with your place" (until 27 Oct 2026 the site was რემონტი.ge /
+RenovateGE). Its look comes from the brand board: sand paper, stone, wood, terracotta, olive and
+charcoal; soft rounded shapes, arches, pill buttons, paper labels; airy wide-tracked capitals and
+an elegant serif. Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.css`.
+- **Name and lines**: `t.app.name` is PLAYCE and `t.app.tagline` "Play with your place" in every
+  language (a wordplay, kept English like the name); `t.app.motto` is the localized "Plan.
+  Calculate. Build." (გეგმე. გამოთვალე. გააკეთე.).
+- **The marks** (`components/layout/Logo.tsx`): the brand's A is an open chevron with no crossbar.
+  `Wordmark` writes PLΛYCE in the sans with the chevron drawn in (it takes a text size and colour);
+  `LogoMark` is the app icon — the chevron on a rounded tile in `sand`, `terracotta`, `olive` or
+  `ink`; `Logo` is the two with the tagline under them (`inverted` on dark grounds). The header,
+  the footer, the auth panel and the admin sidebar use `Logo`; the footer closes on a huge faint
+  `Wordmark`.
+- **Palette**: `brand` is terracotta (#B5462B) — the one loud colour: the main action, links, what
+  is picked. `olive` (#34402F) is the dark ground (`bg-deep`, the footer, the stats band, the auth
+  panel) and the quiet second action (`Button variant="secondary"`); `wood` / `accent` (#A8784E)
+  and `stone` are warm secondary accents; `sand` the in-between panels and the selected pill;
+  `ink` is charcoal (#1E1F23). Pages are sand paper `bg-base` (#F3EEE6) with warm-white cards
+  `bg-surface` (#FFFDF9). The six swatches in a row (sand, stone, wood, terracotta, olive,
+  charcoal) edge the footer.
+- **Type**: `font-sans` is Jost (the wordmark's geometric sans) and `font-serif` Cormorant
+  Garamond, each for Latin and Cyrillic; Georgian falls through to Noto Sans / Serif Georgian.
+  Headings are the serif (lining figures are switched on for it in `globals.css`). `.display` is
+  the sans in light, wide-tracked capitals with the `text-display-*` clamp scale; `.eyebrow` the
+  small spaced label above a heading; `.bracket-link` for secondary "( link )" actions.
+- **Motifs**: `.arch` (an arch-topped picture or colour block — the hero's chair, the auth
+  panel), `.paper-label` (a cream paper tag with serif capitals — the tagline torn into words),
+  colour blocks in terracotta and olive behind pictures, catalogue photos (white grounds)
+  multiplied onto them. Used on the public pages and empty states, not inside the tools.
+- **Surfaces**: `.glass` / `.glass-dark` are the frosted panels used over imagery and the 3D
+  canvas; `.grain` adds paper texture to large flat areas.
 - **Motion without JavaScript**: `.reveal`, `.reveal-scale`, `.reveal-stagger` and
   `.parallax` are CSS scroll-driven animations (`animation-timeline: view()`), guarded by
   `@supports` and reduced-motion — content is fully visible where they are unsupported. The
@@ -58,10 +85,13 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   inside `overflow-hidden`**: that makes the box a scroll container and `view()` measures
   against it instead of the page, so every step finishes instantly. Clip with
   `overflow-clip`, which does not create a scroller.
-- **Landing** (`components/landing/*`): the product wall and the floating price chips are real
-  catalogue rows and the product and store counts are database counts; the hero's three
-  pictures and the phase and style counts in the stats band are fixed. (The hero's `.parallax`
-  images sit inside `overflow-hidden` wrappers — the same `view()` trap as `.seq` below.)
+- **Landing** (`components/landing/*`): the hero is laid out like the brand board — the three
+  words in display capitals on the left, a moodboard on the right (a stone arch with a catalogue
+  chair, terracotta and olive blocks, a travertine table, a plant in a terracotta pot, the tagline
+  as paper labels, the app icon and the motto on the rotating badge); its pictures are fixed files
+  in `public/uploads/furniture/`. The product wall and the floating price chips are real
+  catalogue rows and the product and store counts are database counts; the phase and style
+  counts in the stats band are fixed.
 - **Studio** (`app/(main)/design/[id]/studio/page.tsx`): full-bleed canvas, everything else floats
   — see [design-studio/studio.md](design-studio/studio.md). `ViewSwitch` (2D / 3D / walk) and `ZoomControls`
   drive the viewer through the `ViewerApi` it hands back via `onApi`. **Keys are matched on
@@ -78,8 +108,11 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   frosted white bars and big icon tiles with labels; the plan itself reads like an
   architect's drawing — black walls, white floors, red doors, blue windows — and the board's
   colours, the room-type swatches, origin colours (existing ink / changed terracotta / generated
-  teal) and technical-system colours live in `components/plan/palette.ts`. The editorial site outside the flow keeps sharp corners.
-- **Admin pages** keep the editorial look (hairline borders, square corners): each opens with
+  teal) and technical-system colours live in `components/plan/palette.ts`. What is picked is
+  terracotta and what is hovered wood, on the board and in 3D (`Viewer3D`, `lib/design3d/outline.ts`);
+  the board's paper is a warm `#FBF8F2`, the same value `PlanWorkspace` and `FlowWorkspace` paint
+  behind it — change the three together.
+- **Admin pages** are the same palette at a denser scale (rounded panels, pill filters): each opens with
   breadcrumbs and a back button (`AdminCrumbs`), and a list's filters are one framed bar — search
   and sort on top, a row of filter buttons that turn ink-dark with their own × when set, their
   choices in a panel under them (`FilterBar`); a list's views are one segmented control
@@ -91,16 +124,18 @@ Tokens live in `tailwind.config.ts`; the few shared utilities in `app/globals.cs
   key), a `hint` at the row's end and a `selectedLabel` for the closed box. Short lists stay
   `Select`. Its strings are `common.typeToSearch` and `common.noMatches`
   ([catalog.md](catalog.md#managing-the-catalogue) has the product form's use).
-- **Header**: transparent over the landing hero, frosted once scrolled or on any other page.
+- **Header**: the `Logo` lockup, the navigation centred in a pill track (the open page on a sand
+  pill with a terracotta dot), the account on the right; transparent over the landing hero, frosted
+  sand once scrolled or on any other page.
   The landing hero uses `-mt-[72px]` to sit under it; `HEADER_HEIGHT_CLASS` is the height.
-- **Corners are sharp outside the build mode.** The Tailwind radius scale is collapsed to
-  0–4 px, so `rounded-2xl` in an older component renders as a crisp edge; do not reach for
-  `rounded-full` on buttons, chips or panels — it is reserved for things that are genuinely
-  circles (avatars, colour dots, the rotating badge). Cards are flat: hairline `border-line`,
-  no shadow. The primary button is `variant="ink"` (near-black, terracotta on hover); the
-  Button's *default* variant is still `bg-brand`, and `.btn-3d` / `button-3d.tsx` is the one
-  button allowed depth. The
-  design flow and the studio are the deliberate exception (see "Build-mode surfaces").
+- **Corners are soft.** The radius scale is 4–28 px (`rounded` 6, `-lg` 12, `-xl` 16, `-2xl` 20,
+  `-3xl` 28). `Button` is a pill (`rounded-full`): its default variant is terracotta, `ink` is
+  charcoal turning terracotta on hover, `secondary` olive, `outline` a hairline pill; chips,
+  badges, filter buttons and segmented controls are pills too. Cards are `rounded-2xl` with a
+  hairline `border-line`, flat or with the low warm `shadow-card`; inputs and selects
+  `rounded-xl`; dialogues and popovers `rounded-2xl`–`3xl` with `shadow-float`. Tables sit in a
+  rounded bordered wrapper with a sand header row. `.btn-3d` / `button-3d.tsx` is the one button
+  allowed a hard offset shadow.
 - **Step flows** (`components/flow/*`): both journeys — calculator and studio — are built from
   the same parts. `StepStrip` is the numbered index under the header (`StepIndicator` and
   `DesignSteps` are thin wrappers that supply labels and hrefs); `StepHeader` is the

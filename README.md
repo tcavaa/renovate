@@ -1,8 +1,8 @@
-# რემონტი.ge — RenovateGE
+# PLAYCE — Play with your place
 
 Georgian-language home renovation planner & cost estimator. Plan your renovation, calculate materials, browse partner catalog, choose furniture and book workers — all in Georgian.
 
-> **Tagline**: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
+> **Tagline**: Play with your place · **Motto**: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
 
 ---
 
@@ -273,4 +273,4 @@ Everything — the pieces, the limits, what is left before real customers — is
 
 ## License
 
-Private / proprietary. © RenovateGE.
+Private / proprietary. © PLAYCE.

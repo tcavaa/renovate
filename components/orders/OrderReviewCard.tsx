@@ -68,7 +68,7 @@ export function OrderReviewCard({ order }: { order: ReviewOrder }) {
   const kind = order.partnerType === 'store' ? t.admin.ordersPage.kindStore : order.partnerType === 'team' ? r.kindTeam : t.admin.ordersPage.kindWorker;
 
   return (
-    <li className={cn('border bg-bg-surface', review ? 'border-warning/60' : 'border-line')}>
+    <li className={cn('overflow-hidden rounded-2xl border bg-bg-surface', review ? 'border-warning/60' : 'border-line')}>
       <header className="flex flex-wrap items-start justify-between gap-2 border-b border-line px-4 py-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2">
@@ -103,7 +103,7 @@ export function OrderReviewCard({ order }: { order: ReviewOrder }) {
                 </span>
               </span>
               {review ? (
-                <input type="number" min={0} step={line.unit === 'piece' || line.unit === 'unit' ? 1 : 0.1} value={e.qty} disabled={e.removed} onChange={(ev) => set(line, { qty: Math.max(0, Number(ev.target.value) || 0) })} className="h-8 w-20 border border-line bg-white px-2 text-right text-sm tabular-nums focus:border-ink focus:outline-none disabled:bg-bg-base" aria-label={t.partner.qty} />
+                <input type="number" min={0} step={line.unit === 'piece' || line.unit === 'unit' ? 1 : 0.1} value={e.qty} disabled={e.removed} onChange={(ev) => set(line, { qty: Math.max(0, Number(ev.target.value) || 0) })} className="h-8 w-20 rounded-lg border border-line bg-white px-2 text-right text-sm tabular-nums focus:border-ink focus:outline-none disabled:bg-bg-base" aria-label={t.partner.qty} />
               ) : (
                 <span className="shrink-0 text-xs tabular-nums text-ink-muted">
                   {formatNumber(e.qty)} {unitLabel(t, line.unit)}
@@ -121,7 +121,7 @@ export function OrderReviewCard({ order }: { order: ReviewOrder }) {
           <label className="flex items-center gap-2 text-ink-muted">
             {r.deliveryFee}
             {review ? (
-              <input type="number" min={0} step={1} value={delivery} onChange={(e) => setDelivery(Math.max(0, Number(e.target.value) || 0))} className="h-8 w-24 border border-line bg-white px-2 text-right tabular-nums text-ink focus:border-ink focus:outline-none" />
+              <input type="number" min={0} step={1} value={delivery} onChange={(e) => setDelivery(Math.max(0, Number(e.target.value) || 0))} className="h-8 w-24 rounded-lg border border-line bg-white px-2 text-right tabular-nums text-ink focus:border-ink focus:outline-none" />
             ) : (
               <span className="tabular-nums text-ink">{formatGEL(order.deliveryFee)}</span>
             )}

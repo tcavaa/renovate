@@ -20,7 +20,7 @@ import { rememberedListHref } from '@/lib/admin/listMemory';
 /** lucide's whole set is large: it loads with this form's icon field, not with the admin. */
 const IconPicker = dynamic(() => import('@/components/admin/IconPicker').then((m) => m.IconPicker), {
   ssr: false,
-  loading: () => <div className="h-10 border border-line bg-bg-surface" />,
+  loading: () => <div className="h-10 rounded-xl border border-line bg-bg-surface" />,
 });
 
 /** A category as the room's picker lists it. */
@@ -163,7 +163,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
               <Label>{t.admin.forms.icon}</Label>
               <IconPicker value={form.icon ?? ''} onChange={(icon) => update('icon', icon)} />
             </div>
-            <label className={cn('flex cursor-pointer gap-3 self-end border p-3 transition-colors', form.isVisible ? 'border-ink bg-bg-base' : 'border-line bg-bg-surface')}>
+            <label className={cn('flex cursor-pointer gap-3 self-end rounded-xl border p-3 transition-colors', form.isVisible ? 'border-olive/60 bg-olive-soft' : 'border-line bg-bg-surface')}>
               <input type="checkbox" checked={form.isVisible} onChange={(e) => update('isVisible', e.target.checked)} className="mt-0.5 h-4 w-4 accent-ink" />
               <span>
                 <span className="block text-sm font-medium text-ink">{s.visibleLabel}</span>
@@ -183,7 +183,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
                     type="button"
                     aria-pressed={on}
                     onClick={() => update('roomTypes', on ? form.roomTypes.filter((x) => x !== type) : [...form.roomTypes, type])}
-                    className={cn('inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-xs font-medium transition-colors', on ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
+                    className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors', on ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}
                   >
                     {on && <Check className="h-3.5 w-3.5" />}
                     {roomTypeLabel(t, type)}
@@ -197,14 +197,14 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
           <section className="space-y-2">
             <Label>{s.categories}</Label>
             <p className="text-xs text-ink-muted">{s.categoriesHint}</p>
-            <ul className="border border-line">
+            <ul className="overflow-hidden rounded-xl border border-line">
               {form.categoryIds.length === 0 && <li className="px-3 py-4 text-center text-sm text-ink-muted">{s.noCategories}</li>}
               {form.categoryIds.map((id, i) => {
                 const c = tree.byId.get(id);
                 if (!c) return null;
                 return (
                   <li key={id} className="flex items-center gap-2 border-b border-line/70 px-3 py-2 last:border-b-0">
-                    <span className="grid h-7 w-7 shrink-0 place-items-center border border-line text-ink-soft">{c.icon ? <NodeIcon node={c.icon} className="h-4 w-4" /> : <Package className="h-4 w-4 opacity-40" />}</span>
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line text-ink-soft">{c.icon ? <NodeIcon node={c.icon} className="h-4 w-4" /> : <Package className="h-4 w-4 opacity-40" />}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-ink">{name(c)}</span>
                       {path(id) && <span className="block truncate text-[11px] text-ink-muted">{path(id)}</span>}
@@ -232,7 +232,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
                   if (id) update('categoryIds', [...form.categoryIds, id]);
                 }}
                 aria-label={s.addCategory}
-                className="h-10 w-full max-w-md border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none"
+                className="h-10 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none"
               >
                 <option value="">{s.addCategory}</option>
                 {addable.map(({ row, depth }) => (
@@ -246,7 +246,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
             </div>
           </section>
 
-          {error && <p className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+          {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
 
           <div className="flex justify-between">
             <div>

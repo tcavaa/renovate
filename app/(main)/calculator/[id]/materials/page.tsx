@@ -62,16 +62,18 @@ export default function MaterialsPage() {
         />
 
         {totals && (
-          <div className="mt-8 grid border-t border-l border-line sm:grid-cols-2 lg:grid-cols-4">
-            <Figure label={t.calculator.summaryFloor} value={formatM2L(t, totals.totalFloorM2)} />
-            <Figure label={t.calculator.summaryWalls} value={formatM2L(t, totals.totalWallM2)} />
-            <Figure label={t.calculator.summaryWetRooms} value={formatM2L(t, totals.totalWetRoomM2)} />
-            <Figure label={t.calculator.summaryRooms} value={String(rooms.length)} />
+          <div className="mt-8 overflow-hidden rounded-2xl border border-line">
+            <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
+              <Figure label={t.calculator.summaryFloor} value={formatM2L(t, totals.totalFloorM2)} />
+              <Figure label={t.calculator.summaryWalls} value={formatM2L(t, totals.totalWallM2)} />
+              <Figure label={t.calculator.summaryWetRooms} value={formatM2L(t, totals.totalWetRoomM2)} />
+              <Figure label={t.calculator.summaryRooms} value={String(rooms.length)} />
+            </div>
           </div>
         )}
 
         {(phases.includes(FLOOR_PHASE) || phases.includes(CEILING_PHASE)) && (
-          <section className="mt-10 border-t border-line pt-6">
+          <section className="mt-10 rounded-2xl border border-line bg-sand-light/60 p-5 md:p-6">
             <h2 className="eyebrow mb-4">{t.calculator.choicesTitle}</h2>
             <WorkChoicesPicker value={choices} onChange={setChoices} floor={phases.includes(FLOOR_PHASE)} ceiling={phases.includes(CEILING_PHASE)} />
           </section>

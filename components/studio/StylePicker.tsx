@@ -55,14 +55,14 @@ export function StylePicker({ styles, onChange, own }: { styles: StyleId[]; onCh
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title={t.design.styleTitle}
-        className={cn('flex h-7 max-w-[128px] items-center gap-1 rounded-[8px] px-2 text-[10px] font-semibold transition-colors', styles.length > 0 ? 'bg-ink/10 text-ink hover:bg-ink/15' : 'border border-line bg-white text-ink-soft hover:border-ink')}
+        className={cn('flex h-7 max-w-[128px] items-center gap-1 rounded-full px-2 text-[10px] font-semibold transition-colors', styles.length > 0 ? 'bg-ink/10 text-ink hover:bg-ink/15' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}
       >
         {single === own && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand" aria-hidden />}
         <span className="truncate">{summary}</span>
         <ChevronUp className={cn('h-3 w-3 shrink-0 text-ink-faint transition-transform', !open && 'rotate-180')} />
       </button>
       {open && (
-        <div role="group" aria-label={t.design.styleTitle} className="absolute bottom-full right-0 z-50 mb-2 flex w-[172px] flex-col gap-0.5 rounded-[12px] border border-line bg-white p-1.5 shadow-float animate-fade-in">
+        <div role="group" aria-label={t.design.styleTitle} className="absolute bottom-full right-0 z-50 mb-2 flex w-[172px] flex-col gap-0.5 overflow-hidden rounded-2xl border border-line bg-bg-surface p-1.5 shadow-float animate-fade-in">
           {STYLE_IDS.map((id) => {
             const active = styles.includes(id);
             const mine = id === own;
@@ -73,15 +73,15 @@ export function StylePicker({ styles, onChange, own }: { styles: StyleId[]; onCh
                 aria-pressed={active}
                 title={mine ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
                 onClick={() => toggle(id)}
-                className={cn('flex h-7 items-center gap-1.5 rounded-[7px] px-2 text-left text-[11px] font-semibold transition-colors', active && mine ? 'bg-brand text-white' : active ? 'bg-ink text-white' : mine ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
+                className={cn('flex h-7 items-center gap-1.5 rounded-xl px-2 text-left text-[11px] font-semibold transition-colors', active && mine ? 'bg-brand text-white' : active ? 'bg-ink text-white' : mine ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
               >
-                {mine && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-white' : 'bg-brand')} aria-hidden />}
+                {mine && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
                 <span className="flex-1 truncate">{styleLabel(t, id)}</span>
                 {active && <Check className="h-3 w-3 shrink-0" />}
               </button>
             );
           })}
-          <button type="button" onClick={() => onChange([])} disabled={styles.length === 0} className="mt-0.5 h-7 rounded-[7px] px-2 text-left text-[11px] text-ink-muted hover:bg-sand-light hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent">
+          <button type="button" onClick={() => onChange([])} disabled={styles.length === 0} className="mt-0.5 h-7 rounded-xl px-2 text-left text-[11px] text-ink-muted hover:bg-sand-light hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent">
             {t.design.stylesAll}
           </button>
         </div>

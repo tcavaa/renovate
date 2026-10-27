@@ -26,7 +26,7 @@ export function HubShell({ label, account, items, crumb, title, children }: { la
           {account ? (
             <AccountHead account={account} />
           ) : (
-            <p className="mb-3 hidden px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted lg:block">{label}</p>
+            <p className="eyebrow mb-3 hidden px-4 lg:block">{label}</p>
           )}
           <ul className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1">
             {items.map((item) => (
@@ -34,9 +34,9 @@ export function HubShell({ label, account, items, crumb, title, children }: { la
                 <Link
                   href={item.href}
                   aria-current={item.active ? 'page' : undefined}
-                  className={cn('flex items-center gap-3 whitespace-nowrap rounded-[12px] px-3 py-2.5 text-[15px] font-medium transition-colors', item.active ? 'bg-sand text-ink' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}
+                  className={cn('flex items-center gap-3 whitespace-nowrap rounded-full px-4 py-2.5 text-[15px] font-medium transition-colors', item.active ? 'bg-sand text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}
                 >
-                  <item.icon className="h-5 w-5 shrink-0" aria-hidden />
+                  <item.icon className={cn('h-5 w-5 shrink-0', item.active ? 'text-brand' : 'text-ink-muted')} aria-hidden />
                   {item.label}
                 </Link>
               </li>
@@ -46,7 +46,7 @@ export function HubShell({ label, account, items, crumb, title, children }: { la
       </nav>
 
       <div className="min-w-0 flex-1">
-        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-serif text-3xl font-bold leading-tight tracking-tight md:text-[2.5rem]">
+        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-serif text-3xl font-semibold leading-tight tracking-tight md:text-[2.5rem]">
           <Link href={crumb.href} className="text-ink-faint transition-colors hover:text-ink-muted">
             {crumb.label}
           </Link>
@@ -63,7 +63,7 @@ export function HubShell({ label, account, items, crumb, title, children }: { la
 function AccountHead({ account }: { account: { name: string; email: string | null; href?: string } }) {
   const inner = (
     <>
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-sm font-semibold uppercase text-white" aria-hidden>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-olive text-sm font-semibold uppercase text-sand-light" aria-hidden>
         {account.name.trim().charAt(0) || '·'}
       </span>
       <span className="min-w-0">
@@ -73,11 +73,11 @@ function AccountHead({ account }: { account: { name: string; email: string | nul
     </>
   );
   return account.href ? (
-    <Link href={account.href} className="mb-5 flex items-center gap-3 rounded-[12px] px-3 py-1.5 transition-colors hover:bg-sand/60">
+    <Link href={account.href} className="mb-5 flex items-center gap-3 rounded-full py-1.5 pl-1.5 pr-4 transition-colors hover:bg-sand/50">
       {inner}
     </Link>
   ) : (
-    <div className="mb-5 flex items-center gap-3 px-3">{inner}</div>
+    <div className="mb-5 flex items-center gap-3 pl-1.5 pr-4">{inner}</div>
   );
 }
 
@@ -111,4 +111,4 @@ export function ProjectThumbnail({ project, prefer, small = false }: { project: 
 }
 
 /** The frame a card's picture stands in: rounded, white, lifting on hover. */
-export const CARD_FRAME = 'block aspect-[5/4] overflow-hidden rounded-[18px] border border-line bg-bg-surface transition-shadow hover:shadow-cardHover';
+export const CARD_FRAME = 'block aspect-[5/4] overflow-hidden rounded-2xl border border-line bg-bg-surface transition-[box-shadow,border-color] hover:border-stone hover:shadow-cardHover';

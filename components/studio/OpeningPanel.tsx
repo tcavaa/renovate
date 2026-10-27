@@ -46,7 +46,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
   const estimate = openingEstimate(opening);
   const kindLabel = opening.kind === 'window' ? t.design.window : opening.kind === 'archway' ? t.build.archway : opening.exterior ? t.build.lineEntranceDoor : t.design.door;
   const Icon = opening.kind === 'window' ? AppWindow : DoorOpen;
-  const select = 'h-8 w-full rounded-[8px] border border-line bg-white px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
+  const select = 'h-8 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -74,7 +74,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
               <p className="truncate text-[10px] text-ink-muted">{kindLabel}{product?.store ? ` · ${localizedName(locale, product.store)}` : ''}</p>
             </div>
             {product ? (
-              <p className="shrink-0 font-serif text-sm font-bold tabular-nums text-brand-dark">{formatGEL(product.pricePerUnit)}</p>
+              <p className="shrink-0 font-serif text-sm font-semibold tabular-nums text-brand-dark">{formatGEL(product.pricePerUnit)}</p>
             ) : estimate ? (
               <p className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-ink-muted">
                 <Sparkles className="h-3 w-3" />
@@ -170,7 +170,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
                 const active = candidate.id === product?.productId;
                 return (
                   <li key={candidate.id}>
-                    <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-ink bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
+                    <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
                       <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] bg-bg-base">
                         {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#DDD8CF' }} />}
                       </span>

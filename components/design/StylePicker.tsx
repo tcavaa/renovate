@@ -29,8 +29,8 @@ export function StylePicker({ value, onChange }: { value: StyleId; onChange: (st
             aria-pressed={active}
             onClick={() => onChange(id)}
             className={cn(
-              'group relative flex flex-col overflow-hidden border bg-bg-surface text-left transition-colors',
-              active ? 'border-ink ring-1 ring-ink' : 'border-line hover:border-ink/40'
+              'group relative flex flex-col overflow-hidden rounded-2xl border bg-bg-surface text-left transition-colors',
+              active ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink/40'
             )}
           >
             <div className="relative aspect-[4/5] w-full overflow-hidden">
@@ -55,18 +55,18 @@ export function StylePicker({ value, onChange }: { value: StyleId; onChange: (st
                   }}
                 />
               </div>
-              <span className="absolute left-3 top-3 bg-white/85 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ink backdrop-blur">{String(i + 1).padStart(2, '0')}</span>
+              <span className="absolute left-3 top-3 rounded-full bg-bg-surface/85 px-2 py-0.5 font-serif text-xs font-semibold tabular-nums text-wood backdrop-blur">{String(i + 1).padStart(2, '0')}</span>
               <span
                 className={cn(
-                  'absolute right-3 top-3 grid h-6 w-6 place-items-center border transition-colors',
-                  active ? 'border-ink bg-ink text-white' : 'border-white/70 bg-white/60 text-transparent backdrop-blur group-hover:text-ink/40'
+                  'absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full border transition-colors',
+                  active ? 'border-brand bg-brand text-white' : 'border-white/70 bg-bg-surface/60 text-transparent backdrop-blur group-hover:text-ink/40'
                 )}
               >
                 <Check className="h-3.5 w-3.5" />
               </span>
               <div className="absolute bottom-3 left-3 flex gap-1">
                 {style.swatches.map((hex) => (
-                  <span key={hex} className="h-4 w-4 border border-white/70" style={{ backgroundColor: hex }} />
+                  <span key={hex} className="h-4 w-4 rounded-full border border-white/70" style={{ backgroundColor: hex }} />
                 ))}
               </div>
             </div>

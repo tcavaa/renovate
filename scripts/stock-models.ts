@@ -59,7 +59,7 @@ const CACHE_DIR = path.join(
 );
 const KENNEY_ZIP_URL =
   'https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip';
-const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://remonti.ge)';
+const USER_AGENT = 'RenovationRoom-asset-fetch/1.0 (+https://playce.ge)';
 
 const TARGET_TRIANGLES = 24_000;
 /** Above this the maps are re-encoded at 512 px; a flat holds forty of these at once. */

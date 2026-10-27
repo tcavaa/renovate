@@ -71,7 +71,7 @@ export function OrderTimeline({ orderId, events, canComment = true }: { orderId:
   };
 
   return (
-    <section className="border border-line bg-bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
       <header className="border-b border-line px-5 py-3">
         <p className="eyebrow">{r.timelineTitle}</p>
         <p className="mt-1 text-xs text-ink-muted">{r.timelineHint}</p>
@@ -85,7 +85,7 @@ export function OrderTimeline({ orderId, events, canComment = true }: { orderId:
             const isComment = e.kind === 'comment';
             return (
               <li key={e.id} className={cn('flex gap-3 px-5 py-3', isComment && 'bg-bg-base/60')}>
-                <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isComment ? 'text-brand' : 'text-ink-faint')} />
+                <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isComment ? 'text-wood' : 'text-ink-faint')} />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-ink-muted">
                     <span className="font-semibold text-ink">{e.actorName ?? '—'}</span>

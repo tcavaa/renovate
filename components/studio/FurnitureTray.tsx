@@ -219,7 +219,7 @@ export function FurnitureTray({
                 active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft hover:bg-sand-light hover:text-ink'
               )}
             >
-              {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-white' : 'bg-brand')} aria-hidden />}
+              {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
               <span className="truncate">{styleLabel(t, id)}</span>
             </button>
           );
@@ -236,14 +236,14 @@ export function FurnitureTray({
               put while its categories scroll behind it; a chip for each category opened
               onto its subcategories follows it, each a step back. */}
           {openRoom != null && (
-            <button type="button" onClick={leaveRoom} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-[8px] bg-ink pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={leaveRoom} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-full bg-ink pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
               <ChevronLeft className="h-3.5 w-3.5" />
               <ShelfIcon node={roomDef(openRoom)?.icon} className="h-3.5 w-3.5" />
               <span className="max-w-[110px] truncate">{roomName(openRoom)}</span>
             </button>
           )}
           {crumbs.map((id, i) => (
-            <button key={id} type="button" onClick={() => setCategory(crumbs[i - 1] ?? null)} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-[8px] bg-ink/80 pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
+            <button key={id} type="button" onClick={() => setCategory(crumbs[i - 1] ?? null)} title={t.design.shelfBack} className="flex h-7 shrink-0 items-center gap-0.5 rounded-full bg-ink/80 pl-1 pr-2 text-[10px] font-semibold text-white hover:bg-brand">
               <ChevronLeft className="h-3.5 w-3.5" />
               <ShelfIcon node={categoryDef(id)?.icon} className="h-3.5 w-3.5" />
               <span className="max-w-[96px] truncate">{categoryName(id)}</span>
@@ -252,7 +252,7 @@ export function FurnitureTray({
           <ScrollRow className="min-w-0 flex-1" contentClassName="items-center gap-0.5" role="radiogroup" ariaLabel={openRoom != null ? roomName(openRoom) : t.design.shelfRooms}>
             {openRoom != null ? (
               <>
-                <button type="button" role="radio" aria-checked={picked == null} onClick={() => setCategory(levelParent)} title={t.design.allKinds} className={cn('h-7 shrink-0 rounded-[8px] px-2 text-[10px] font-semibold', picked == null ? 'bg-ink/10 text-ink' : 'text-ink-soft hover:bg-sand-light')}>
+                <button type="button" role="radio" aria-checked={picked == null} onClick={() => setCategory(levelParent)} title={t.design.allKinds} className={cn('h-7 shrink-0 rounded-full px-2 text-[10px] font-semibold', picked == null ? 'bg-ink/10 text-ink' : 'text-ink-soft hover:bg-sand-light')}>
                   {t.design.allKinds}
                 </button>
                 {options.map((o) => {
@@ -267,7 +267,7 @@ export function FurnitureTray({
                       onClick={() => setCategory(o.opens ? o.id : active ? levelParent : o.id)}
                       title={`${categoryName(o.id)} · ${o.count}`}
                       aria-label={categoryName(o.id)}
-                      className={cn('relative grid h-7 w-7 shrink-0 place-items-center rounded-[8px]', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
+                      className={cn('relative grid h-7 w-7 shrink-0 place-items-center rounded-full', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink')}
                     >
                       <ShelfIcon node={categoryDef(o.id)?.icon} className="h-4 w-4" />
                       {o.opens && <span className="absolute bottom-0.5 right-0.5 h-1 w-1 rounded-full bg-current opacity-60" aria-hidden />}
@@ -277,7 +277,7 @@ export function FurnitureTray({
               </>
             ) : (
               <>
-                <button type="button" role="radio" aria-checked className="h-7 shrink-0 rounded-[8px] bg-ink/10 px-2 text-[10px] font-semibold text-ink" title={t.design.shelfAllRooms}>
+                <button type="button" role="radio" aria-checked className="h-7 shrink-0 rounded-full bg-ink/10 px-2 text-[10px] font-semibold text-ink" title={t.design.shelfAllRooms}>
                   {t.design.shelfAllRooms}
                 </button>
                 {/* The tray is 880 px whatever the window, so the rooms are icons like the
@@ -294,7 +294,7 @@ export function FurnitureTray({
                     }}
                     title={`${roomName(r.id)} · ${r.count}`}
                     aria-label={roomName(r.id)}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-ink-soft hover:bg-sand-light hover:text-ink"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink"
                   >
                     <ShelfIcon node={roomDef(r.id)?.icon} className="h-4 w-4" />
                   </button>
@@ -341,14 +341,14 @@ export function FurnitureTray({
 
           {/* A piece of the person's own: their model, or a photo waiting to become one. */}
           {onAddOwn && (
-            <button type="button" onClick={onAddOwn} title={t.design.ownAdd} aria-label={t.design.ownAdd} data-tour="own-add" className="relative grid h-7 w-7 shrink-0 place-items-center rounded-[8px] border border-dashed border-ink/40 text-ink transition-colors hover:border-ink hover:bg-sand-light">
+            <button type="button" onClick={onAddOwn} title={t.design.ownAdd} aria-label={t.design.ownAdd} data-tour="own-add" className="relative grid h-7 w-7 shrink-0 place-items-center rounded-full border border-dashed border-ink/40 text-ink transition-colors hover:border-ink hover:bg-sand-light">
               <Plus className="h-3.5 w-3.5" />
               {locks?.own && <PlanBadge plan={locks.own} iconOnly className="absolute -right-1.5 -top-1.5 px-1" />}
             </button>
           )}
           {/* The whole catalogue as a page — search, filters, details — for when the shelf is not enough. */}
           {onOpenCatalog && (
-            <button type="button" onClick={onOpenCatalog} title={t.design.catalogOpenHint} data-tour="catalog" className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
+            <button type="button" onClick={onOpenCatalog} title={t.design.catalogOpenHint} data-tour="catalog" className="flex h-7 shrink-0 items-center gap-1 rounded-full bg-ink px-2 text-[10px] font-semibold text-white transition-colors hover:bg-brand">
               <LayoutGrid className="h-3.5 w-3.5" />
               {t.design.catalogOpen}
               {locks?.catalog && <PlanBadge plan={locks.catalog} iconOnly tone="dark" className="px-1" />}
@@ -372,11 +372,11 @@ export function FurnitureTray({
                 }}
                 placeholder={t.design.searchFurniture}
                 aria-label={t.design.searchFurniture}
-                className="h-7 w-32 rounded-[8px] border border-line bg-white pl-7 pr-2 text-xs text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+                className="h-7 w-32 rounded-[8px] border border-line bg-bg-surface pl-7 pr-2 text-xs text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
               />
             </div>
           ) : (
-            <button type="button" onClick={openSearch} title={t.design.searchFurniture} aria-label={t.design.searchFurniture} className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-ink-soft hover:bg-sand-light hover:text-ink">
+            <button type="button" onClick={openSearch} title={t.design.searchFurniture} aria-label={t.design.searchFurniture} className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
               <Search className="h-3.5 w-3.5" />
             </button>
           )}
@@ -407,7 +407,7 @@ export function FurnitureTray({
                 onDragEnd={() => onDragProduct?.(null)}
                 onClick={() => pick(p)}
                 title={`${name} · ${(p.store ? localizedName(locale, p.store) : null) ?? p.brand ?? archetypeLabel(p.model3dKind!, locale)} · ${t.design.dragToPlace}`}
-                className={cn('group flex w-[52px] shrink-0 flex-col overflow-hidden rounded-[8px] border bg-white text-left transition-colors', flash ? (flash.ok ? 'border-success' : 'border-danger') : 'border-line hover:border-ink')}
+                className={cn('group flex w-[52px] shrink-0 flex-col overflow-hidden rounded-[8px] border bg-bg-surface text-left transition-colors', flash ? (flash.ok ? 'border-success' : 'border-danger') : 'border-line hover:border-ink')}
               >
                 <span className="relative block aspect-square w-full bg-bg-base">
                   {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="52px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}

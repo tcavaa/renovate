@@ -28,40 +28,40 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
 
   return (
     <div className="container py-10 md:py-14">
-      <Link href="/teams" className="bracket-link text-sm">
-        ( {t.teams.backToAll} )
+      <Link href="/teams" className="bracket-link text-sm text-ink-soft transition-colors hover:text-ink">
+        {t.teams.backToAll}
       </Link>
 
-      <header className="mt-4 flex flex-wrap items-start gap-6 border-b border-line pb-8">
-        <span className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden border border-line bg-white">
-          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={80} height={80} className="h-full w-full object-cover" /> : <UsersRound className="h-9 w-9 text-ink-muted" />}
+      <header className="mt-4 flex flex-wrap items-start gap-6 rounded-3xl bg-sand-light p-6 md:p-8">
+        <span className="arch grid h-24 w-20 shrink-0 place-items-center overflow-hidden bg-olive shadow-card">
+          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={80} height={96} className="h-full w-full object-cover" /> : <UsersRound className="h-9 w-9 text-sand-light" />}
         </span>
         <div className="min-w-0 flex-1">
           <p className="eyebrow">{t.teams.eyebrow}</p>
-          <h1 className="mt-1 flex items-center gap-2 font-serif text-3xl font-bold text-ink">
+          <h1 className="mt-1 flex items-center gap-2 font-serif text-3xl font-semibold text-ink md:text-4xl">
             {name}
             {team.isVerified && <BadgeCheck className="h-6 w-6 text-success" aria-label={t.workers.verified} />}
           </h1>
-          <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
             {team.city && (
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1">
+                <MapPin className="h-3.5 w-3.5 text-wood" />
                 {team.city}
               </span>
             )}
-            <span className="flex items-center gap-1">
-              <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+            <span className="flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1">
+              <Star className="h-3.5 w-3.5 fill-accent text-accent" />
               {Number(team.rating ?? 5).toFixed(1)} · {team.reviewCount ?? 0}
             </span>
             {team.completedJobs ? (
-              <span className="flex items-center gap-1">
-                <Briefcase className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1">
+                <Briefcase className="h-3.5 w-3.5 text-wood" />
                 {team.completedJobs} {t.teams.jobsDone}
               </span>
             ) : null}
             {team.phone && (
-              <a href={`tel:${team.phone}`} className="flex items-center gap-1 hover:text-ink">
-                <Phone className="h-3.5 w-3.5" />
+              <a href={`tel:${team.phone}`} className="flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1 transition-colors hover:text-ink">
+                <Phone className="h-3.5 w-3.5 text-wood" />
                 {team.phone}
               </a>
             )}
@@ -79,8 +79,8 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
             <p className="mt-1 text-sm text-ink-muted">{fill(t.teams.membersSubtitle, { n: members.length })}</p>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {members.map((m) => (
-                <li key={m.workerId} className="flex items-center gap-3 border border-line bg-bg-surface p-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-white text-xs font-semibold text-ink">
+                <li key={m.workerId} className="flex items-center gap-3 rounded-2xl border border-line bg-bg-surface p-3 shadow-card">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-sand text-xs font-semibold text-ink">
                     {m.avatarUrl ? <Image src={m.avatarUrl} alt="" width={40} height={40} className="h-full w-full object-cover" /> : m.nameKa.slice(0, 1)}
                   </span>
                   <span className="min-w-0">
@@ -93,7 +93,7 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
                       ) : (
                         <span className="truncate">{localizedName(locale, m)}</span>
                       )}
-                      {m.isLead && <span className="shrink-0 border border-ink px-1 text-[10px] uppercase tracking-wide">{t.teams.lead}</span>}
+                      {m.isLead && <span className="shrink-0 rounded-full bg-olive px-2 py-0.5 text-[10px] uppercase tracking-wide text-sand-light">{t.teams.lead}</span>}
                     </span>
                     <span className="block truncate text-xs text-ink-muted">{workerSpecialtyLabel(t, m.specialtySlug)}</span>
                   </span>
@@ -105,11 +105,11 @@ export default async function TeamPage({ params }: { params: Promise<{ slug: str
         </div>
 
         <aside className="space-y-4">
-          <div className="border border-line bg-bg-surface p-5">
+          <div className="rounded-2xl border border-line bg-bg-surface p-5 shadow-card">
             <p className="eyebrow">{t.teams.coversTitle}</p>
             <ul className="mt-3 flex flex-wrap gap-1.5">
               {trades.map((s) => (
-                <li key={s} className="border border-line px-2 py-1 text-xs text-ink-soft">
+                <li key={s} className="rounded-full bg-sand/70 px-3 py-1 text-xs text-ink-soft">
                   {workerSpecialtyLabel(t, s)}
                 </li>
               ))}

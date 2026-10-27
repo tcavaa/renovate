@@ -89,7 +89,7 @@ export function RoomFinishCards({
           type="button"
           onClick={() => onCopy(surface)}
           title={fill(t.calculator.sameInRoomsLikeHint, { rooms: rooms.map((r) => r.nameKa || roomTypeLabel(t, r.type)).join(', ') })}
-          className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-ink underline-offset-2 hover:underline"
+          className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-xs font-medium text-ink decoration-brand/60 underline-offset-2 hover:text-brand hover:underline"
         >
           <CopyPlus className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{fill(t.calculator.sameInRoomsLike, { n: rooms.length })}</span>
@@ -101,11 +101,11 @@ export function RoomFinishCards({
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
       {/* The floor: one product, or two sharing it. */}
-      <div className={cn('min-w-0 self-start border bg-bg-surface', target.surface === 'floor' ? 'border-ink' : 'border-line')}>
+      <div className={cn('min-w-0 self-start overflow-hidden rounded-2xl border bg-bg-surface transition-shadow', target.surface === 'floor' ? 'border-ink/40 shadow-card' : 'border-line')}>
         <div className="flex min-h-[44px] items-center justify-between gap-2 px-3 py-2">
           <p className="eyebrow">{t.calculator.summaryFloor}</p>
           {first && !second && !adding && (
-            <button type="button" onClick={() => onTarget({ surface: 'floor', slot: 1 })} className="inline-flex items-center gap-1 text-xs font-medium text-ink underline-offset-2 hover:underline">
+            <button type="button" onClick={() => onTarget({ surface: 'floor', slot: 1 })} className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-ink transition-colors hover:bg-sand">
               <Plus className="h-3.5 w-3.5" />
               {t.calculator.floorSecond}
             </button>
@@ -145,7 +145,7 @@ export function RoomFinishCards({
               onChange={(e) => onShare(Number(e.target.value) / 100)}
               aria-label={t.calculator.floorShareLabel}
               aria-valuetext={`${share}% / ${100 - share}%`}
-              className="mt-1.5 w-full accent-ink"
+              className="mt-1.5 w-full accent-brand"
             />
           </div>
         )}
@@ -153,10 +153,10 @@ export function RoomFinishCards({
       </div>
 
       {/* The walls: one product for the whole room, or wall by wall. */}
-      <div className={cn('min-w-0 self-start border bg-bg-surface', target.surface === 'wall' ? 'border-ink' : 'border-line')}>
+      <div className={cn('min-w-0 self-start overflow-hidden rounded-2xl border bg-bg-surface transition-shadow', target.surface === 'wall' ? 'border-ink/40 shadow-card' : 'border-line')}>
         <div className="flex min-h-[44px] items-center justify-between gap-2 px-3 py-2">
           <p className="eyebrow">{t.calculator.summaryWalls}</p>
-          <div role="radiogroup" aria-label={t.calculator.summaryWalls} className="inline-flex shrink-0 border border-line text-xs">
+          <div role="radiogroup" aria-label={t.calculator.summaryWalls} className="inline-flex shrink-0 rounded-full bg-sand/60 p-0.5 text-xs">
             {([false, true] as const).map((mode) => (
               <button
                 key={String(mode)}
@@ -164,7 +164,7 @@ export function RoomFinishCards({
                 role="radio"
                 aria-checked={oneByOne === mode}
                 onClick={() => onOneByOne(mode)}
-                className={cn('px-2.5 py-1 transition-colors', oneByOne === mode ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
+                className={cn('rounded-full px-2.5 py-1 transition-colors', oneByOne === mode ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
               >
                 {mode ? t.calculator.wallsPerWall : t.calculator.wallsWhole}
               </button>
@@ -178,8 +178,8 @@ export function RoomFinishCards({
               const pick = finishes.byWall?.[i] ?? null;
               const selected = isTarget({ surface: 'wall', wall: i });
               return (
-                <li key={i} className={cn('relative flex items-center border-t border-line', selected && 'bg-bg-base')}>
-                  <span className={cn('absolute inset-y-0 left-0 w-[2px]', selected ? 'bg-ink' : 'bg-transparent')} />
+                <li key={i} className={cn('relative flex items-center border-t border-line/70 transition-colors', selected ? 'bg-sand/70' : 'hover:bg-sand-light/60')}>
+                  <span className={cn('absolute inset-y-1.5 left-0 w-[3px] rounded-r-full', selected ? 'bg-brand' : 'bg-transparent')} />
                   <button type="button" onClick={() => onTarget({ surface: 'wall', wall: i })} aria-pressed={selected} className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-3 pr-2 text-left">
                     <WallGlyph outline={outline} index={i} active={selected} />
                     <span className="w-[76px] shrink-0 leading-tight">
@@ -210,8 +210,8 @@ function PickRow({ pick, empty, selected, onSelect, onClear }: { pick: SelectedP
   const t = useT();
   const locale = useLocale();
   return (
-    <li className={cn('relative flex items-center border-t border-line', selected && 'bg-bg-base')}>
-      <span className={cn('absolute inset-y-0 left-0 w-[2px]', selected ? 'bg-ink' : 'bg-transparent')} />
+    <li className={cn('relative flex items-center border-t border-line/70 transition-colors', selected ? 'bg-sand/70' : 'hover:bg-sand-light/60')}>
+      <span className={cn('absolute inset-y-1.5 left-0 w-[3px] rounded-r-full', selected ? 'bg-brand' : 'bg-transparent')} />
       <button type="button" onClick={onSelect} aria-pressed={selected} className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3 pr-2 text-left">
         <Swatch pick={pick} size={32} />
         <span className="min-w-0 flex-1">
@@ -231,7 +231,7 @@ function PickRow({ pick, empty, selected, onSelect, onClear }: { pick: SelectedP
 function ClearButton({ onClick }: { onClick: () => void }) {
   const t = useT();
   return (
-    <button type="button" onClick={onClick} aria-label={t.calculator.removeChoice} title={t.calculator.removeChoice} className="mr-1.5 grid h-7 w-7 shrink-0 place-items-center text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
+    <button type="button" onClick={onClick} aria-label={t.calculator.removeChoice} title={t.calculator.removeChoice} className="mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
       <X className="h-3.5 w-3.5" />
     </button>
   );
@@ -240,7 +240,7 @@ function ClearButton({ onClick }: { onClick: () => void }) {
 /** A product's look: its photo, else its colour; an empty dashed square when nothing is chosen. */
 function Swatch({ pick, size }: { pick: SelectedProduct | null; size: number }) {
   return (
-    <span className={cn('relative block shrink-0 overflow-hidden border bg-bg-base', pick ? 'border-line' : 'border-dashed border-ink-faint')} style={{ width: size, height: size }}>
+    <span className={cn('relative block shrink-0 overflow-hidden rounded-lg border bg-bg-base', pick ? 'border-line' : 'border-dashed border-ink-faint')} style={{ width: size, height: size }}>
       {pick?.imageUrl ? <Image src={pick.imageUrl} alt="" fill sizes={`${size}px`} className="object-cover" /> : pick?.colorHex ? <span className="block h-full w-full" style={{ backgroundColor: pick.colorHex }} /> : null}
     </span>
   );

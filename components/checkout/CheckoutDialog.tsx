@@ -212,7 +212,7 @@ export function CheckoutDialog({
             {result.orders.length > 0 && <p className="mt-3 text-sm text-ink-muted">{fill(t.market.thankYouStores, { n: result.orders.length })}</p>}
             {result.unassigned > 0 && <p className="mt-2 text-xs text-warning">{fill(t.market.noPartnerItems, { n: result.unassigned })}</p>}
             <div className="mx-auto mt-6 h-1 w-40 overflow-hidden rounded-full bg-line">
-              <div className="h-full w-full origin-left animate-countdown bg-ink" style={{ animationDuration: `${THANK_YOU_MS}ms` }} />
+              <div className="h-full w-full origin-left animate-countdown bg-brand" style={{ animationDuration: `${THANK_YOU_MS}ms` }} />
             </div>
             <p className="mt-2 text-xs text-ink-muted">{t.market.redirectingToOrders}</p>
             <Button
@@ -236,13 +236,13 @@ export function CheckoutDialog({
             </DialogHeader>
 
             {/* What it comes to: building materials, their reserve, the furniture, and the total. */}
-            <div className="border border-line text-sm">
+            <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface text-sm">
               <Row label={t.market.rowMaterials} amount={figure(materialsTotal)} hint={loaded ? rowHint(materialCount, false) : null}>
                 {materials?.storeId == null && materials != null && <span className="text-warning">{t.orderReview.materialsNoSupplier}</span>}
               </Row>
               {(!loaded || reserve > 0) && <Row label={t.market.rowReserve} amount={figure(reserve)} hint={t.market.rowReserveHint} />}
               <Row label={t.market.rowFurniture} amount={formatGEL(furnitureTotal)} hint={rowHint(furnitureLines.length, true)} />
-              <div className="flex items-baseline justify-between gap-3 border-t-2 border-ink px-4 py-3">
+              <div className="flex items-baseline justify-between gap-3 border-t border-line bg-sand/50 px-4 py-3">
                 <span className="font-semibold text-ink">{t.market.total}</span>
                 <span className="font-serif text-xl font-semibold tabular-nums text-ink">{loaded ? formatGEL(total) : '…'}</span>
               </div>
@@ -250,17 +250,17 @@ export function CheckoutDialog({
             <p className="text-xs text-ink-muted">{t.market.deliveryNote}</p>
 
             {nothingNew ? (
-              <p className="border border-line bg-bg-base px-3 py-2 text-sm text-ink-muted">{t.market.nothingToOrder}</p>
+              <p className="rounded-xl border border-line bg-sand-light px-4 py-2.5 text-sm text-ink-muted">{t.market.nothingToOrder}</p>
             ) : (
               skipped > 0 && <p className="text-xs text-ink-muted">{fill(t.market.alreadyOrderedLines, { n: skipped })}</p>
             )}
 
-            <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+            <button type="button" onClick={() => setFull((f) => !f)} className="inline-flex items-center gap-1.5 rounded-full text-xs font-medium text-ink hover:text-brand">
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', full && 'rotate-180')} />
               {full ? t.market.hideFull : t.market.showFull}
             </button>
             {full && (
-              <div className="max-h-56 overflow-y-auto border border-line text-xs">
+              <div className="max-h-56 overflow-y-auto rounded-xl border border-line text-xs">
                 <FullGroup title={t.market.rowMaterials}>
                   {(materials?.storeId != null ? materials.lines : []).map((line) => (
                     <FullLine key={line.categorySlug ?? line.nameKa} name={localizedName(locale, line)} qty={line.qty} total={line.total} />
@@ -281,9 +281,9 @@ export function CheckoutDialog({
               </div>
             )}
 
-            {ready ? <ContactFields account={account} value={value} onChange={setForm} /> : <div className="h-24 animate-pulse border border-line bg-bg-base" aria-busy />}
-            {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
-            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || nothingNew || !ready}>
+            {ready ? <ContactFields account={account} value={value} onChange={setForm} /> : <div className="h-24 animate-pulse rounded-xl border border-line bg-sand-light" aria-busy />}
+            {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</p>}
+            <Button type="submit" size="lg" className="w-full" disabled={submitting || nothingNew || !ready}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? t.market.submitting : t.market.submit}
             </Button>
@@ -317,7 +317,7 @@ function FullGroup({ title, children }: { title: string; children: React.ReactNo
   const items = Array.isArray(children) ? children.flat().filter(Boolean) : children ? [children] : [];
   return (
     <div>
-      <p className="border-b border-line bg-bg-base px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{title}</p>
+      <p className="border-b border-line bg-sand/50 px-3 py-1.5 font-semibold uppercase tracking-[0.12em] text-ink-muted">{title}</p>
       <ul className="divide-y divide-line/70">{items.length > 0 ? items : <li className="px-3 py-2 text-ink-muted">—</li>}</ul>
     </div>
   );

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ChevronRight, FolderOpen, Images, Package, Shapes } from 'lucide-react';
 import { auth } from '@/auth';
 import { Button } from '@/components/ui/button';
+import { LogoMark } from '@/components/layout/Logo';
 import { dateLocaleFor } from '@/components/projects/ProjectDetail';
 import { HubTiles, type HubPick } from '@/components/projects/hub/HubTiles';
 import { HubDate } from '@/components/projects/hub/HubDate';
@@ -59,7 +60,7 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
         <ChevronRight className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
         <span className="text-ink">{t.hub.breadcrumb}</span>
       </p>
-      <h1 className="mt-4 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{calculator ? t.hub.calculatorTitle : t.hub.designTitle}</h1>
+      <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{calculator ? t.hub.calculatorTitle : t.hub.designTitle}</h1>
       <p className="mt-4 text-base leading-relaxed text-ink-muted">{calculator ? t.hub.calculatorLead : t.hub.designLead}</p>
     </header>
   );
@@ -69,13 +70,16 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
     return (
       <div className="container max-w-6xl py-10 md:py-14">
         {intro}
-        <section className="mt-10 flex flex-col gap-6 border border-line bg-bg-surface p-6 md:flex-row md:items-center md:justify-between md:p-8">
-          <div className="max-w-xl">
+        <section className="mt-10 flex flex-col gap-6 rounded-2xl border border-line bg-bg-surface p-6 shadow-card md:flex-row md:items-center md:justify-between md:p-8">
+          <div className="flex max-w-xl items-start gap-5">
+            <LogoMark tone="olive" className="hidden h-12 w-12 sm:grid" />
+            <div>
             <h2 className="font-serif text-2xl font-semibold text-ink">{t.hub.guestTitle}</h2>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">{t.hub.guestText}</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="ink" size="lg">
+            <Button asChild size="lg">
               <Link href={`/login?callbackUrl=${back}`}>{t.hub.guestSignIn}</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
@@ -134,7 +138,10 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
               {t.hub.byDate}
             </h2>
             {listed.length === 0 ? (
-              <p className="mt-5 rounded-[18px] border border-dashed border-line p-12 text-center text-sm text-ink-muted">{calculator ? t.hub.emptyCalculator : t.hub.emptyDesign}</p>
+              <div className="mt-5 flex flex-col items-center rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center">
+                <LogoMark tone="sand" className="mb-4 h-12 w-12" />
+                <p className="text-sm text-ink-muted">{calculator ? t.hub.emptyCalculator : t.hub.emptyDesign}</p>
+              </div>
             ) : (
               <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
                 {listed.map((p) => (
@@ -229,7 +236,7 @@ function HubGuide({ t, journey }: { t: Dictionary; journey: HubJourney }) {
         <ol className="mt-5 border-t border-line">
           {steps.map((text, i) => (
             <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-line py-3 text-sm leading-relaxed">
-              <span className="font-semibold tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+              <span className="font-serif text-base font-semibold tabular-nums text-wood">{String(i + 1).padStart(2, '0')}</span>
               <GuideLine text={text} />
             </li>
           ))}
@@ -240,7 +247,7 @@ function HubGuide({ t, journey }: { t: Dictionary; journey: HubJourney }) {
         <ul className="mt-5 border-t border-line">
           {tips.map((text, i) => (
             <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-line py-3 text-sm leading-relaxed text-ink-soft">
-              <span className="text-brand" aria-hidden>
+              <span className="text-wood" aria-hidden>
                 —
               </span>
               <span>{text}</span>

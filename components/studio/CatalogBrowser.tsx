@@ -186,12 +186,12 @@ export function CatalogBrowser({
               onChange={(e) => patch({ query: e.target.value })}
               placeholder={t.design.searchFurniture}
               aria-label={t.design.searchFurniture}
-              className="h-9 w-full rounded-[10px] border border-line bg-white pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-9 w-full rounded-[10px] border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
             <span className="hidden sm:inline">{t.design.catalogSort}</span>
-            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as CatalogSort })} className="h-9 rounded-[10px] border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none">
+            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as CatalogSort })} className="h-9 rounded-[10px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
               {sortOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -212,7 +212,7 @@ export function CatalogBrowser({
               <span className="tabular-nums opacity-70">{browse.ownCount}</span>
             </button>
             {onAddOwn && (
-              <button type="button" onClick={onAddOwn} className="mt-1 flex h-8 w-full items-center gap-2 rounded-[8px] border border-dashed border-ink/30 px-2 text-left text-xs font-semibold text-ink hover:border-ink hover:bg-white">
+              <button type="button" onClick={onAddOwn} className="mt-1 flex h-8 w-full items-center gap-2 rounded-full border border-dashed border-ink/30 px-2 text-left text-xs font-semibold text-ink hover:border-ink hover:bg-bg-surface">
                 <Plus className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{t.design.ownAdd}</span>
               </button>
@@ -267,9 +267,9 @@ export function CatalogBrowser({
                     aria-pressed={active}
                     title={own ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
                     onClick={() => patch({ styles: toggle(state.styles, id) })}
-                    className={cn('flex h-7 items-center gap-1 rounded-[8px] px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
+                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
                   >
-                    {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-white' : 'bg-brand')} aria-hidden />}
+                    {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
                     {styleLabel(t, id)}
                   </button>
                 );
@@ -315,7 +315,7 @@ export function CatalogBrowser({
                 onChange={(e) => patch({ priceMin: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.floor(browse.price.min)) : t.design.catalogPriceFrom}
                 aria-label={t.design.catalogPriceFrom}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-white px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
               <span className="text-ink-faint">–</span>
               <input
@@ -326,14 +326,14 @@ export function CatalogBrowser({
                 onChange={(e) => patch({ priceMax: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.ceil(browse.price.max)) : t.design.catalogPriceTo}
                 aria-label={t.design.catalogPriceTo}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-white px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
             </div>
 
             {browse.stores.length > 0 && (
               <>
                 <p className={sectionTitle}>{t.design.catalogStore}</p>
-                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none">
+                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
                   <option value="">{t.design.catalogAllStores}</option>
                   {browse.stores.map(({ store, count }) => (
                     <option key={store.id} value={store.id}>
@@ -345,7 +345,7 @@ export function CatalogBrowser({
             )}
 
             {hasCatalogFilters(state) && (
-              <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort, selectedId: state.selectedId })} className="mt-4 flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] border border-line bg-white text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink">
+              <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort, selectedId: state.selectedId })} className="mt-4 flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-line bg-bg-surface text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink">
                 <X className="h-3.5 w-3.5" />
                 {t.design.catalogClear}
               </button>
@@ -358,7 +358,7 @@ export function CatalogBrowser({
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{t.design.catalogNoResults}</p>
                 {hasCatalogFilters(state) && (
-                  <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort })} className="h-8 rounded-[8px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort })} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
                     {t.design.catalogClear}
                   </button>
                 )}
@@ -385,7 +385,7 @@ export function CatalogBrowser({
                           patch({ selectedId: p.id });
                         }
                       }}
-                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-white text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-ink ring-1 ring-ink' : refused === p.id ? 'border-danger' : 'border-line hover:border-ink/60')}
+                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-1 ring-brand' : refused === p.id ? 'border-danger' : 'border-line hover:border-ink/60')}
                     >
                       <span className="relative block aspect-square w-full bg-bg-base">
                         {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
@@ -404,7 +404,7 @@ export function CatalogBrowser({
                               e.stopPropagation();
                               place(p);
                             }}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-ink text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <MousePointerClick className="h-3.5 w-3.5" />
                           </button>
@@ -448,7 +448,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
       <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{archetypeLabel(p.model3dKind!, locale)}</p>
       <h3 className="mt-0.5 font-serif text-base font-semibold leading-snug text-ink">{name}</h3>
       <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</p>
-      {p.own && <p className={cn('mt-1 inline-block rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold', p.pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{p.pending ? t.design.ownPending : t.design.ownBadge}</p>}
+      {p.own && <p className={cn('mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold', p.pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{p.pending ? t.design.ownPending : t.design.ownBadge}</p>}
       {p.pending && <p className="mt-2 text-xs leading-relaxed text-ink-muted">{t.design.ownPendingHint}</p>}
 
       <dl className="mt-3 space-y-1.5 text-xs">
@@ -478,7 +478,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
             <dt className="shrink-0 text-ink-muted">{t.design.styleTitle}</dt>
             <dd className="flex flex-wrap justify-end gap-1">
               {styles.map((id) => (
-                <span key={id} className={cn('rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
+                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
                   {styleLabel(t, id)}
                 </span>
               ))}
@@ -504,7 +504,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
 
       <div className="mt-auto pt-4">
         <p className="mb-1.5 truncate text-[11px] text-ink-muted">{fill(t.design.catalogPlaceInto, { room: roomLabel })}</p>
-        <button type="button" disabled={!canPlace || !!p.pending} onClick={onPlace} className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!canPlace || !!p.pending} onClick={onPlace} className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
           <MousePointerClick className="h-4 w-4" />
           {placeLabel}
         </button>

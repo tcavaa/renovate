@@ -29,7 +29,7 @@ export default async function PartnerLayout({ children }: { children: React.Reac
       <PartnerSidebar partnerName={ctx?.name ?? null} partnerType={ctx?.type ?? null} unread={stats?.unread ?? 0} />
       <main className="min-w-0 flex-1 overflow-x-auto p-6 md:p-8">
         {ctx && !ctx.type && !ctx.isAdmin ? (
-          <div className="mx-auto mt-16 max-w-md border border-line bg-bg-surface p-8 text-center">
+          <div className="mx-auto mt-16 max-w-md rounded-2xl border border-line bg-bg-surface p-8 text-center shadow-card">
             <h1 className="font-serif text-xl font-semibold">{t.partner.notLinkedTitle}</h1>
             <p className="mt-2 text-sm text-ink-muted">{t.partner.notLinkedDesc}</p>
           </div>
@@ -37,13 +37,13 @@ export default async function PartnerLayout({ children }: { children: React.Reac
           <>
             {/* A self-registered partner sees where their application stands. */}
             {ctx?.approvalStatus === 'pending' && (
-              <div className="mb-6 border border-warning/50 bg-warning/5 px-5 py-4">
+              <div className="mb-6 rounded-2xl border border-warning/50 bg-warning/5 px-5 py-4">
                 <p className="font-serif text-base font-semibold text-ink">{t.partner.pendingTitle}</p>
                 <p className="mt-1 text-sm text-ink-muted">{t.partner.pendingDesc}</p>
               </div>
             )}
             {ctx?.approvalStatus === 'rejected' && (
-              <div className="mb-6 border border-danger/40 bg-danger/5 px-5 py-4">
+              <div className="mb-6 rounded-2xl border border-danger/40 bg-danger/5 px-5 py-4">
                 <p className="font-serif text-base font-semibold text-ink">{t.partner.rejectedTitle}</p>
                 <p className="mt-1 text-sm text-ink-muted">{t.partner.rejectedDesc}</p>
               </div>

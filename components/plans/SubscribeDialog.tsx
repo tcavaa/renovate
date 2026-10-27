@@ -59,7 +59,7 @@ export function SubscribeDialog({
       <DialogContent className={cn('max-h-[calc(100dvh-2rem)] overflow-y-auto', paying ? 'max-w-[56rem]' : 'max-w-md')} backdrop={paying} onInteractOutside={paying ? keepOpenOutside : undefined}>
         {done ? (
           <div className="py-4 text-center">
-            <div className="mx-auto grid h-16 w-16 animate-scale-in place-items-center rounded-full bg-success/15 text-success">
+            <div className="mx-auto grid h-16 w-16 animate-scale-in place-items-center rounded-full bg-olive text-sand-light">
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <DialogHeader className="mt-4 space-y-2">

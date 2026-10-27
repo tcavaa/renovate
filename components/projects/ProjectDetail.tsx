@@ -88,7 +88,7 @@ export function ProjectDetail({
     <div className="py-4 md:py-8">
       {crumbs ??
         (backHref && (
-          <Link href={backHref} className="inline-flex items-center gap-2 text-sm text-ink-muted transition-colors hover:text-ink">
+          <Link href={backHref} className="inline-flex items-center gap-2 rounded-full text-sm text-ink-muted transition-colors hover:text-brand">
             <ArrowLeft className="h-4 w-4" />
             {backLabel}
           </Link>
@@ -98,15 +98,16 @@ export function ProjectDetail({
       <header className="mt-4 border-b border-line pb-8">
         <div className="flex flex-wrap items-center gap-2">
           <ProjectKindTags t={t} kind={kind} />
-          <span className={cn('border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/50 text-success' : 'border-line text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
+          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/40 bg-success/10 text-success' : 'border-line bg-sand/50 text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
         </div>
-        <h1 className="mt-3 max-w-4xl font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+        <h1 className="mt-3 max-w-4xl font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
           {project.nameKa ?? t.profile.fallbackName} <span className="text-ink-faint">#{project.id}</span>
         </h1>
         {actions && <div className="mt-6 flex flex-wrap items-center gap-2">{actions}</div>}
       </header>
 
-      <dl className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-bg-surface">
+      <dl className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label} className="border-b border-r border-line px-4 py-3">
             <dt className="eyebrow">{f.label}</dt>
@@ -114,15 +115,17 @@ export function ProjectDetail({
           </div>
         ))}
       </dl>
+      </div>
 
       {(sheets.calculatorPending || sheets.designPending) && (
-        <div className="mt-6 space-y-1 border border-dashed border-line bg-bg-surface px-4 py-3 text-sm text-ink-muted">
+        <div className="mt-6 space-y-1 rounded-2xl border border-dashed border-stone bg-sand-light/60 px-5 py-3.5 text-sm text-ink-muted">
           {sheets.calculatorPending && <p>{t.profile.calculatorPendingNote}</p>}
           {sheets.designPending && <p>{t.profile.designPendingNote}</p>}
         </div>
       )}
 
-      <div className="mt-6 grid border-l border-t border-line sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-bg-surface">
+      <div className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
         {calculator ? (
           <>
             <Figure label={t.summary.materials} value={formatGEL(calculator.subtotalMaterials + calculator.subtotalProducts)} />
@@ -134,6 +137,7 @@ export function ProjectDetail({
           design && <Figure label={t.profile.designBudgetTotal} value={formatGEL(design.grandTotal + design.contingency)} emphasis />
         )}
       </div>
+      </div>
 
       {viewer && <div className="mt-8">{viewer}</div>}
 
@@ -143,26 +147,26 @@ export function ProjectDetail({
         <div className="grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
           {rooms.length > 0 || plan ? (
-            <div className="border border-line bg-white p-4">
+            <div className="overflow-hidden rounded-2xl border border-line bg-white p-4">
               <PlanDrawing plan={plan} rooms={rooms} className="aspect-[4/3] w-full" />
             </div>
           ) : (
-            <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
+            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
           )}
         </div>
 
         <div>
           {rooms.length === 0 ? (
-            <p className="border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
+            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
           ) : (
-            <ul className="border border-line bg-bg-surface">
+            <ul className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
               {rooms.map((r, i) => (
                 <li key={r.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
-                  <span className="text-xs tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="font-serif text-sm font-semibold tabular-nums text-wood">{String(i + 1).padStart(2, '0')}</span>
                   <div className="min-w-0">
                     <p className="truncate font-serif text-base font-semibold text-ink">
                       {r.nameKa}
-                      {r.isWetRoom && <span className="ml-2 border border-line px-1 py-px text-[10px] font-medium uppercase tracking-wide text-ink-muted">{t.rooms.wet}</span>}
+                      {r.isWetRoom && <span className="ml-2 rounded-full bg-olive-soft px-2 py-px font-sans text-[10px] font-medium uppercase tracking-wide text-olive">{t.rooms.wet}</span>}
                     </p>
                     <p className="mt-0.5 text-xs text-ink-muted">
                       {roomTypeLabel(t, r.type)}
@@ -213,7 +217,7 @@ export function ProjectDetail({
         <Section title={t.summary.breakdown} className="pt-8">
           <div className="grid gap-6 lg:grid-cols-2">
             {calculator && (
-              <div className="border border-line bg-bg-surface p-5 md:p-6">
+              <div className="rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
                 <p className="eyebrow mb-3">{t.profile.sheetCalculator}</p>
                 <div className="space-y-2">
                   <MoneyRow label={t.summary.materials} value={calculator.subtotalMaterials + calculator.subtotalProducts} />
@@ -232,7 +236,7 @@ export function ProjectDetail({
               </div>
             )}
             {design && (
-              <div className="border border-line bg-bg-surface p-5 md:p-6">
+              <div className="rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
                 <p className="eyebrow mb-3">{t.profile.sheetDesign}</p>
                 {design.originalGrandTotal != null && <EditsRows t={t} original={design.originalGrandTotal} edited={design.grandTotal} flush />}
                 {design.contingency > 0 && (

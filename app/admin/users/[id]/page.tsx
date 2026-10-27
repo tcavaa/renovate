@@ -95,7 +95,7 @@ export default async function AdminUserDetailPage(
 
       <Card>
         <CardContent className="flex flex-wrap items-center gap-5 p-5">
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-brand text-xl font-bold text-white">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-olive font-serif text-xl font-semibold text-sand-light">
             {initials}
           </div>
           <div className="flex-1 space-y-1">
@@ -155,14 +155,14 @@ export default async function AdminUserDetailPage(
 
       <PlanGrantCard userId={user.id} plan={plan.plan} paidUntil={plan.subscription?.paidUntil ?? null} staff={plan.staff} />
 
-      <Card>
+      <Card className="overflow-hidden">
         <CardHeader>
           <CardTitle className="font-serif">{ka.admin.projects}</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
+              <tr className="border-b border-line bg-sand/50 text-left text-[11px] uppercase tracking-[0.08em] text-ink-muted">
                 <th className="px-4 py-3">{ka.admin.table.id}</th>
                 <th className="px-4 py-3">{ka.admin.table.name}</th>
                 <th className="px-4 py-3">{ka.admin.table.state}</th>
@@ -177,7 +177,7 @@ export default async function AdminUserDetailPage(
               {userProjects.map((p) => (
                 <tr
                   key={p.id}
-                  className="group border-b border-line/40 transition-colors last:border-0 hover:bg-bg-base"
+                  className="group border-b border-line/40 transition-colors last:border-0 hover:bg-sand/25"
                 >
                   <td className="px-4 py-3">
                     <Link

@@ -164,12 +164,12 @@ export function FinishCatalog({
               onChange={(e) => patch({ query: e.target.value })}
               placeholder={t.design.finishSearch}
               aria-label={t.design.finishSearch}
-              className="h-9 w-full rounded-[10px] border border-line bg-white pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-9 w-full rounded-[10px] border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
             <span className="hidden sm:inline">{t.design.catalogSort}</span>
-            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as FinishSort })} className="h-9 rounded-[10px] border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none">
+            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as FinishSort })} className="h-9 rounded-[10px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
               {sortOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -236,9 +236,9 @@ export function FinishCatalog({
                     aria-pressed={active}
                     title={own ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
                     onClick={() => patch({ styles: toggle(state.styles, id) })}
-                    className={cn('flex h-7 items-center gap-1 rounded-[8px] px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
+                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
                   >
-                    {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-white' : 'bg-brand')} aria-hidden />}
+                    {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
                     {styleLabel(t, id)}
                   </button>
                 );
@@ -284,7 +284,7 @@ export function FinishCatalog({
                 onChange={(e) => patch({ priceMin: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.floor(browse.price.min)) : t.design.catalogPriceFrom}
                 aria-label={t.design.catalogPriceFrom}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-white px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
               <span className="text-ink-faint">–</span>
               <input
@@ -295,14 +295,14 @@ export function FinishCatalog({
                 onChange={(e) => patch({ priceMax: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.ceil(browse.price.max)) : t.design.catalogPriceTo}
                 aria-label={t.design.catalogPriceTo}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-white px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
             </div>
 
             {browse.stores.length > 0 && (
               <>
                 <p className={sectionTitle}>{t.design.catalogStore}</p>
-                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-white px-2 text-xs text-ink focus:border-ink focus:outline-none">
+                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
                   <option value="">{t.design.catalogAllStores}</option>
                   {browse.stores.map(({ store, count }) => (
                     <option key={store.id} value={store.id}>
@@ -314,7 +314,7 @@ export function FinishCatalog({
             )}
 
             {hasFinishFilters(state) && (
-              <button type="button" onClick={clearFilters} className="mt-4 flex h-8 w-full items-center justify-center gap-1.5 rounded-[8px] border border-line bg-white text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink">
+              <button type="button" onClick={clearFilters} className="mt-4 flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-line bg-bg-surface text-xs font-semibold text-ink-soft hover:border-ink hover:text-ink">
                 <X className="h-3.5 w-3.5" />
                 {t.design.catalogClear}
               </button>
@@ -327,7 +327,7 @@ export function FinishCatalog({
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{browse.total === 0 ? t.design.noAlternatives : t.design.catalogNoResults}</p>
                 {hasFinishFilters(state) && (
-                  <button type="button" onClick={clearFilters} className="h-8 rounded-[8px] bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  <button type="button" onClick={clearFilters} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
                     {t.design.catalogClear}
                   </button>
                 )}
@@ -355,18 +355,18 @@ export function FinishCatalog({
                           patch({ selectedId: p.id });
                         }
                       }}
-                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-white text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-ink ring-1 ring-ink' : onIt ? 'border-brand' : 'border-line hover:border-ink/60')}
+                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-1 ring-brand' : onIt ? 'border-brand' : 'border-line hover:border-ink/60')}
                     >
                       <span className="relative block aspect-square w-full bg-bg-base">
                         {picture ? <Image src={picture} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
                         {onIt && (
-                          <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-[6px] bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                          <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">
                             <Check className="h-3 w-3" />
                             {painting ? t.design.finishInBrush : t.design.finishNow}
                           </span>
                         )}
                         {!trim && isWetFinish(p) && (
-                          <span title={t.design.finishWetBadge} className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white/90 text-ink-soft">
+                          <span title={t.design.finishWetBadge} className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-bg-surface/90 text-ink-soft">
                             <Droplets className="h-3 w-3" />
                           </span>
                         )}
@@ -384,7 +384,7 @@ export function FinishCatalog({
                               e.stopPropagation();
                               onPick(p);
                             }}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-[7px] bg-ink text-white transition-colors hover:bg-brand"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-brand"
                           >
                             <PickIcon className="h-3.5 w-3.5" />
                           </button>
@@ -408,13 +408,13 @@ export function FinishCatalog({
             </div>
 
             {/* Where it goes — the tray's brush sizes — and the button. */}
-            <div className="sticky bottom-0 mt-auto border-t border-line/60 bg-white p-4 pt-3">
+            <div className="sticky bottom-0 mt-auto border-t border-line/60 bg-bg-surface p-4 pt-3">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.applyTo}</p>
               <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.build.applyTo}>
                 {chips.map((c) => {
                   const Icon = c.icon;
                   return (
-                    <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 rounded-[7px] px-2 text-[11px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-white text-ink-soft hover:border-ink')}>
+                    <button key={c.id} type="button" role="radio" aria-checked={scope === c.id} disabled={c.disabled} title={c.title ?? c.label} onClick={() => onScope(c.id)} className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium disabled:opacity-40', scope === c.id ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
                       <Icon className="h-3 w-3 shrink-0" />
                       {c.label}
                     </button>
@@ -425,7 +425,7 @@ export function FinishCatalog({
                 {room?.name ?? t.design.finishForAllRooms}
                 {areaLabel && !painting ? ` · ${areaLabel}` : ''}
               </p>
-              <button type="button" disabled={!selected} onClick={() => selected && onPick(selected)} className="mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" disabled={!selected} onClick={() => selected && onPick(selected)} className="mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
                 <PickIcon className="h-4 w-4" />
                 {pickLabel}
               </button>
@@ -471,7 +471,7 @@ function FinishDetails({ product: p, surface, styleId }: { product: CatalogProdu
       ) : (
         // The texture repeated at its real size: a mosaic reads as a mosaic, a slab as a slab.
         <div className="relative aspect-square w-full overflow-hidden rounded-[12px] border border-line bg-bg-base" style={{ backgroundImage: `url("${p.textureUrl}")`, backgroundSize: `${tilePx}px ${tilePx}px`, backgroundRepeat: 'repeat' }} role="img" aria-label={name}>
-          <span className="absolute bottom-1.5 left-1.5 rounded-[6px] bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ink">{t.design.finishPreviewSize}</span>
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-bg-surface/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ink">{t.design.finishPreviewSize}</span>
         </div>
       )}
       <h3 className="mt-3 font-serif text-base font-semibold leading-snug text-ink">{name}</h3>
@@ -498,7 +498,7 @@ function FinishDetails({ product: p, surface, styleId }: { product: CatalogProdu
             t.design.styleTitle,
             <span className="flex flex-wrap justify-end gap-1">
               {styles.map((id) => (
-                <span key={id} className={cn('rounded-[6px] px-1.5 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
+                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
                   {styleLabel(t, id)}
                 </span>
               ))}

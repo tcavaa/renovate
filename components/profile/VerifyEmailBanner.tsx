@@ -21,7 +21,7 @@ export function VerifyEmailBanner({
 
   if (verifiedFlag === '1') {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-success/40 bg-success/5 px-4 py-3 text-sm">
+      <div className="flex items-center gap-3 rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm">
         <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
         {t.auth.verifiedOk}
       </div>
@@ -29,7 +29,7 @@ export function VerifyEmailBanner({
   }
   if (verifiedFlag === '0' && !needsVerification) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-danger/40 bg-danger/5 px-4 py-3 text-sm">
+      <div className="flex items-center gap-3 rounded-2xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm">
         <XCircle className="h-5 w-5 shrink-0 text-danger" />
         {t.auth.verifiedFail}
       </div>
@@ -48,7 +48,7 @@ export function VerifyEmailBanner({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
       <MailWarning className="h-5 w-5 shrink-0 text-warning" />
       <span className="flex-1">{verifiedFlag === '0' ? t.auth.verifiedFail : t.auth.verifyBanner}</span>
       {state === 'sent' ? (

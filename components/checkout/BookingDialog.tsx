@@ -147,7 +147,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
                 <DialogDescription>{project ? t.teams.chooseHint : t.market.bookDesc}</DialogDescription>
               </DialogHeader>
               {project ? (
-                <div className="border border-line bg-bg-base px-3 py-2.5">
+                <div className="rounded-xl border border-line bg-sand-light px-4 py-3">
                   <p className="text-sm font-medium text-ink">{t.teams.thisProject}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">{fill(t.teams.thisProjectLines, { n: project.lines, total: formatGEL(project.total) })}</p>
                 </div>
@@ -155,7 +155,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
               <label className="block space-y-1.5">
                 <span className="text-sm font-medium text-ink">{t.market.attachProject}</span>
                 {status === 'authenticated' ? (
-                  <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)} className="h-10 w-full border border-line bg-white px-3 text-sm text-ink focus:border-ink focus:outline-none">
+                  <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)} className="h-10 w-full rounded-xl border border-line bg-bg-surface px-3.5 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40">
                     <option value="">{t.market.noProject}</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -165,18 +165,18 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
                     ))}
                   </select>
                 ) : (
-                  <p className="border border-dashed border-line px-3 py-2 text-xs text-ink-muted">{t.market.loginToAttach}</p>
+                  <p className="rounded-xl border border-dashed border-stone px-4 py-2.5 text-xs text-ink-muted">{t.market.loginToAttach}</p>
                 )}
                 {selected && selected.totalWorkersCost && <span className="block text-xs text-ink-muted">{t.summary.workers}: {formatGEL(Number(selected.totalWorkersCost))}</span>}
               </label>
               )}
               {signedIn && !ready ? (
-                <div className="h-24 animate-pulse border border-line bg-bg-base" aria-busy />
+                <div className="h-24 animate-pulse rounded-xl border border-line bg-sand-light" aria-busy />
               ) : (
                 <ContactFields account={contact} value={value} onChange={setForm} noteLabel={t.market.bookNote} notePlaceholder={t.market.bookNotePlaceholder} />
               )}
-              {error && <p className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
-              <Button type="submit" variant="ink" size="lg" className="w-full" disabled={submitting || (signedIn && !ready)}>
+              {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</p>}
+              <Button type="submit" size="lg" className="w-full" disabled={submitting || (signedIn && !ready)}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {submitting ? t.market.submitting : t.market.bookSubmit}
               </Button>

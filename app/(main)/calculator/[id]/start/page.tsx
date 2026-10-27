@@ -119,13 +119,13 @@ export default function CalculatorStep1Page() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setMode(o.id)}
-                  className={cn('group flex items-start gap-4 rounded-[16px] border p-5 text-left transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
+                  className={cn('group flex items-start gap-4 rounded-2xl border p-5 text-left transition-[background-color,border-color,box-shadow]', active ? 'border-olive bg-olive text-white shadow-cardHover' : 'border-line bg-bg-surface hover:border-ink/20 hover:bg-sand-light hover:shadow-card')}
                 >
-                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
+                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-full', active ? 'bg-brand text-white' : 'bg-sand text-wood-dark')}>{o.icon}</span>
                   <span className="min-w-0">
-                    <span className={cn('block text-xs font-semibold tabular-nums', active ? 'text-white/60' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className={cn('block font-serif text-base font-semibold leading-none tabular-nums', active ? 'text-sand/80' : 'text-wood')}>{String(i + 1).padStart(2, '0')}</span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
-                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{o.desc}</span>
+                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-sand-light/80' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
                 </button>
               );
@@ -133,8 +133,8 @@ export default function CalculatorStep1Page() {
           </div>
 
           {planOnFile && !replacingPlan && plan && (
-            <div className="grid items-center gap-5 rounded-[16px] border border-line bg-bg-surface p-5 sm:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="rounded-[12px] border border-line bg-white p-2">
+            <div className="grid items-center gap-5 rounded-2xl border border-line bg-bg-surface p-5 shadow-card sm:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="overflow-hidden rounded-xl border border-line bg-white p-2">
                 {floorPlanUrl ? (
                   <Image src={floorPlanUrl} alt="" width={440} height={330} unoptimized className="h-auto max-h-44 w-full object-contain" />
                 ) : (
@@ -162,7 +162,7 @@ export default function CalculatorStep1Page() {
           )}
 
           {mode === 'upload' && (!planOnFile || replacingPlan) && (
-            <div className="rounded-[16px] border border-line bg-bg-surface p-5">
+            <div className="rounded-2xl border border-line bg-bg-surface p-5 shadow-card">
               <p className="text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
               <div className="mt-4">
                 {/* No button of its own: the plan waits here, and the one continue below takes it. */}

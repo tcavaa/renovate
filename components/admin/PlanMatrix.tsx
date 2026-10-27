@@ -58,12 +58,12 @@ export function PlanMatrix({
     </label>
   );
 
-  const cell = 'border-b border-line px-3 py-2.5 align-middle';
+  const cell = 'border-b border-line/70 px-3 py-2.5 align-middle';
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-2xl border border-line">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
-          <tr className="text-left">
+          <tr className="bg-sand/50 text-left">
             <th className={cn(cell, 'w-[32%] font-medium text-ink-muted')} />
             {PLAN_IDS.map((plan) => (
               <th key={plan} className={cn(cell, 'font-semibold text-ink')}>

@@ -26,7 +26,7 @@ export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, locke
   const t = useT();
   const furthest = Math.max(current, reached);
   return (
-    <nav aria-label="steps" className="border-b border-line bg-bg-base">
+    <nav aria-label="steps" className="border-b border-line/70 bg-bg-base">
       <div className="container flex items-stretch gap-2">
       <ol className="grid flex-1 auto-cols-fr grid-flow-col">
         {steps.map((step) => {
@@ -39,11 +39,11 @@ export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, locke
               <span className="flex min-w-0 items-center gap-2">
                 <span
                   className={cn(
-                    'grid h-5 w-5 shrink-0 place-items-center text-[10px] font-semibold tabular-nums',
-                    status === 'done' && 'bg-ink text-white',
-                    status === 'current' && 'bg-brand text-white',
+                    'grid h-6 w-6 shrink-0 place-items-center rounded-full font-serif text-[13px] font-semibold leading-none tabular-nums',
+                    status === 'done' && 'bg-olive text-sand-light',
+                    status === 'current' && 'bg-brand text-white shadow-card',
                     status === 'locked' && 'bg-sand text-ink-faint',
-                    status === 'upcoming' && 'border border-line text-ink-faint'
+                    status === 'upcoming' && 'border border-stone text-ink-faint'
                   )}
                 >
                   {status === 'done' ? <Check className="h-3 w-3" /> : status === 'locked' ? <Lock className="h-2.5 w-2.5" /> : String(step.num).padStart(2, '0')}
@@ -51,7 +51,7 @@ export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, locke
                 <span
                   className={cn(
                     'hidden truncate text-xs font-medium sm:inline',
-                    status === 'current' ? 'text-ink' : status === 'done' ? 'text-ink-soft' : 'text-ink-faint'
+                    status === 'current' ? 'text-ink' : status === 'done' ? 'text-olive' : 'text-ink-faint'
                   )}
                 >
                   {step.label}
@@ -60,16 +60,17 @@ export function StepStrip({ steps, current, reached = 0, lockedBefore = 0, locke
               <span
                 aria-hidden
                 className={cn(
-                  'absolute inset-x-0 bottom-0 h-[2px] transition-colors',
-                  status === 'current' ? 'bg-ink' : 'bg-transparent'
+                  'absolute inset-x-3 bottom-0 h-[2px] rounded-full transition-colors sm:inset-x-4',
+                  status === 'current' ? 'bg-brand' : 'bg-transparent'
                 )}
               />
             </>
           );
           const cell = cn(
             'relative flex h-12 min-w-0 items-center justify-center overflow-hidden px-2 sm:justify-start sm:px-4',
-            'border-l border-line first:border-l-0',
-            reachable && status !== 'current' && 'transition-colors hover:bg-white'
+            'border-l border-line/70 first:border-l-0',
+            status === 'current' && 'bg-sand-light',
+            reachable && status !== 'current' && 'transition-colors hover:bg-sand/50'
           );
           return (
             <li key={step.num} aria-current={status === 'current' ? 'step' : undefined} className="min-w-0">
@@ -102,12 +103,12 @@ function OpenedProjectChip() {
     <Link
       href={`/profile/projects/${project.id}`}
       title={t.profile.workspaceBarBack}
-      className="flex min-w-0 max-w-[26%] shrink-0 items-center gap-2 self-center border border-line bg-white px-2.5 py-1.5 text-xs text-ink-soft transition-colors hover:border-ink hover:text-ink"
+      className="flex min-w-0 max-w-[26%] shrink-0 items-center gap-2 self-center rounded-full border border-line bg-bg-surface py-1 pl-3 pr-1 text-xs text-ink-soft transition-colors hover:border-ink/40 hover:text-ink"
     >
-      <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+      <FolderOpen className="h-3.5 w-3.5 shrink-0 text-wood" />
       <span className="hidden shrink-0 text-ink-muted 2xl:inline">{t.profile.workspaceBar}</span>
       <span className="hidden truncate font-semibold text-ink md:inline">{project.name || `#${project.id}`}</span>
-      <span className="shrink-0 bg-sand px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{status}</span>
+      <span className="shrink-0 rounded-full bg-sand px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-ink-muted">{status}</span>
     </Link>
   );
 }

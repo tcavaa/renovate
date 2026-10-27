@@ -32,7 +32,7 @@ export function FoldSection({
         </h2>
         <span className="flex shrink-0 items-center gap-4">
           {aside && <span className="text-sm text-ink-muted">{aside}</span>}
-          <span className={cn('grid h-8 w-8 place-items-center border transition-colors', open ? 'border-ink bg-ink text-white' : 'border-line text-ink group-hover:border-ink')} aria-hidden>
+          <span className={cn('grid h-8 w-8 place-items-center rounded-full border transition-colors', open ? 'border-ink bg-ink text-white' : 'border-ink/15 text-ink group-hover:border-ink/40 group-hover:bg-bg-surface')} aria-hidden>
             {open ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           </span>
         </span>

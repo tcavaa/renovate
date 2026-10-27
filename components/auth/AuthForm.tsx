@@ -13,7 +13,7 @@ export function AuthForm({ title, subtitle, children, footer, className }: { tit
   return (
     <div className={cn('w-full max-w-md', className)}>
       <p className="eyebrow">{t.auth.eyebrow}</p>
-      <h1 className="mt-3 font-serif text-3xl font-bold leading-[1.05] tracking-tight text-ink md:text-4xl">{title}</h1>
+      <h1 className="mt-3 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-4xl">{title}</h1>
       {subtitle && <p className="mt-3 text-sm leading-relaxed text-ink-muted">{subtitle}</p>}
       <div className="mt-8 border-t border-line pt-8">{children}</div>
       {footer && <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5 text-sm text-ink-muted">{footer}</div>}
@@ -35,7 +35,7 @@ export function Field({ id, label, children }: { id: string; label: string; chil
 
 export function Notice({ tone, children }: { tone: 'error' | 'success'; children: React.ReactNode }) {
   return (
-    <p role={tone === 'error' ? 'alert' : 'status'} className={cn('border px-3 py-2.5 text-sm', tone === 'error' ? 'border-danger/40 bg-danger/5 text-danger' : 'border-success/40 bg-success/5 text-ink')}>
+    <p role={tone === 'error' ? 'alert' : 'status'} className={cn('rounded-xl border px-4 py-3 text-sm', tone === 'error' ? 'border-danger/40 bg-danger/5 text-danger' : 'border-success/40 bg-success/5 text-ink')}>
       {children}
     </p>
   );

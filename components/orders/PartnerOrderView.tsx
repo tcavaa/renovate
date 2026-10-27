@@ -45,7 +45,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
   return (
     <div className="space-y-6">
       {next.length > 0 && (
-        <section className="flex flex-wrap items-center justify-between gap-4 border border-ink bg-bg-surface p-5">
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-olive/25 bg-olive-soft p-5">
           <div>
             <p className="eyebrow">{r.nextStep}</p>
             <p className="mt-1 max-w-2xl text-sm text-ink">{order.status === 'new' ? t.teams.acceptHint : (r.customerHints as Record<string, string>)[order.stage]}</p>
@@ -65,7 +65,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
       )}
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="border border-line bg-bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.customer}</p>
           <p className="mt-2 font-serif text-xl font-semibold text-ink">{order.customerName}</p>
           <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
@@ -89,7 +89,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
             </p>
           )}
           {order.customerNote && (
-            <div className="mt-4 border-l-2 border-ink pl-3">
+            <div className="mt-4 border-l-2 border-wood pl-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>
               <p className="mt-1 text-sm text-ink">{order.customerNote}</p>
             </div>
@@ -111,14 +111,14 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
             )}
           </dl>
           {projectHref && (
-            <Link href={projectHref} className="mt-4 inline-flex items-center gap-1.5 border border-ink bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-brand">
+            <Link href={projectHref} className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand">
               {t.projectView.openProject}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           )}
         </section>
 
-        <section className="border border-line bg-bg-surface p-5">
+        <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.total}</p>
           <p className="mt-2 font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(order.subtotal)}</p>
           <dl className="mt-4 space-y-1.5 text-sm">
@@ -144,7 +144,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
         </section>
       </div>
 
-      <section className="border border-line bg-bg-surface">
+      <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
           <p className="eyebrow">{t.partner.items}</p>
           <p className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
@@ -155,7 +155,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
                 <th className="px-4 py-2">{t.partner.item}</th>
                 <th className="px-2 py-2 text-right">{t.partner.qty}</th>
                 <th className="px-2 py-2 text-right">{t.partner.unitPrice}</th>
@@ -197,7 +197,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
         </div>
       </section>
 
-      <section className="border border-line bg-bg-surface p-5">
+      <section className="rounded-2xl border border-line bg-bg-surface p-5">
         <label className="block">
           <span className="eyebrow">{t.partner.messageLabel}</span>
           <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder={t.partner.messagePlaceholder} rows={3} className="mt-2" disabled={closed} />
@@ -206,7 +206,7 @@ export function PartnerOrderView({ order, backHref, projectHref }: { order: Orde
       </section>
 
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/90 py-3 backdrop-blur-md">
-        <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-ink">
+        <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-brand">
           ← {t.partner.orders}
         </Link>
         <div className="flex items-center gap-3">

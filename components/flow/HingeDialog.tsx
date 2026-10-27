@@ -60,20 +60,20 @@ export function HingeDialog({
           <DialogTitle className="font-serif text-xl">{kind === 'design' ? p.confirmTitleDesign : p.confirmTitleCalculator}</DialogTitle>
           <DialogDescription className="leading-relaxed">{kind === 'design' ? p.confirmBodyDesign : p.confirmBodyCalculator}</DialogDescription>
         </DialogHeader>
-        <ul className="space-y-2 rounded-[12px] border border-line bg-bg-base p-4 text-sm text-ink">
+        <ul className="space-y-2 rounded-2xl border border-line bg-sand-light p-4 text-sm text-ink">
           {checks.map((line) => (
             <li key={line} className="flex items-start gap-2">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-olive" aria-hidden />
               {line}
             </li>
           ))}
         </ul>
         <p className="flex items-start gap-2 text-xs text-ink-muted">
-          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-wood" aria-hidden />
           {p.lockNote}
         </p>
         {error && (
-          <p role="alert" className="border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">
+          <p role="alert" className="rounded-xl border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">
             {error}
           </p>
         )}
