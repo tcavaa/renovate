@@ -61,6 +61,7 @@ import { ViewerGuard } from './ViewerGuard';
 import { cn } from '@/lib/utils';
 import { Headlamp, WalkControls } from './WalkControls';
 import { SceneLoading } from './SceneLoading';
+import { underCeiling } from '@/lib/design/rules';
 
 export type ViewMode = 'orbit' | 'walk';
 /**
@@ -1051,8 +1052,8 @@ function SceneContent({
           clearPreview();
           return false;
         }
-        const placed = placeElectrical(room, kind, spot.position, 'preview');
-        const ghost = buildFitting(room, placed, materials, { preview: true });
+        const placed = placeElectrical(underCeiling(room, plan), kind, spot.position, 'preview');
+        const ghost = buildFitting(underCeiling(room, plan), placed, materials, { preview: true });
         clearPreview();
         if (!ghost) return false;
         ghost.renderOrder = 6;

@@ -45,6 +45,7 @@ import { buildsPartitions } from '@/lib/design/partitions';
 import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { RuleWarnings } from '@/components/studio/RuleWarnings';
+import { underCeiling } from '@/lib/design/rules';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
@@ -1227,7 +1228,7 @@ export default function StudioPage() {
                 <DecorPanel
                   key={selectedElement.id}
                   piece={decor.find((d) => d.id === selectedElement.id)!}
-                  room={plan.rooms.find((r) => r.id === decor.find((d) => d.id === selectedElement.id)!.roomId)!}
+                  room={underCeiling(plan.rooms.find((r) => r.id === decor.find((d) => d.id === selectedElement.id)!.roomId)!, plan)}
                   catalog={products}
                   onMaterial={(slot, product) => gate('catalog') && store.setDecorMaterial(selectedElement.id, slot, product)}
                   onColor={(slot, colorHex) => gate('catalog') && store.setDecorColor(selectedElement.id, slot, colorHex)}

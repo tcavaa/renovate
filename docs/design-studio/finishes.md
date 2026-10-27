@@ -212,7 +212,8 @@ Where the style's products are laid:
   calculator boards, the project page's viewer and every PDF. With the layer on, the style's own
   is still the room's paper (`drawBaseFinishes` skips `isStyleFinish`), so a generated flat is
   not tinted room by room; ceilings stay the style's colour (the ceiling is the engine's phase
-  12, not a product).
+  12, not a product). A renovation that does the ceiling hangs it lower than the slab — 10 cm for
+  plasterboard, 3 cm for a stretch ceiling ([design-rules.md](design-rules.md#ceilings-libdesignceilingts)).
 
 **No wall wears the style's `featureWall` by
 itself** (removed 26 September 2026): it drew industrial's brick on the longest clear wall of

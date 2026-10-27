@@ -303,9 +303,9 @@ describe('the room tidied after generating and after the check', () => {
     const lamp = piece('lamp', 'pendant', 'pendant', 2.5, 2, 0, 0.5, 0.5, 0.6, { elevationM: 2.1 });
     const point = { id: 'p1', roomId: 'b', kind: 'light_ceiling', position: { x: 2.5, z: 2 }, elevationM: 2.7 } as never;
     const out = underCeilingDecor([lamp], [point], [cove], plan1(r));
-    // The panel's underside is 2.7 − 0.16 − 0.07 = 2.47 m.
-    expect(out.items[0].elevationM + out.items[0].size.height).toBeLessThanOrEqual(2.47 + 1e-6);
-    expect((out.electrical[0] as { elevationM: number }).elevationM).toBeCloseTo(2.465, 3);
+    // The panel's underside is 2.7 − 0.12 (the cove's drop) − 0.07 = 2.51 m.
+    expect(out.items[0].elevationM + out.items[0].size.height).toBeLessThanOrEqual(2.51 + 1e-6);
+    expect((out.electrical[0] as { elevationM: number }).elevationM).toBeCloseTo(2.505, 3);
   });
 
   it('never lets a tall piece stand across a window, a low one may', async () => {

@@ -28,6 +28,7 @@ import { ledColor } from '@/lib/design/decor/materials';
 import type { DecorMaterial, DecorPiece, FloorPlan, PlanRoom } from '@/lib/design/types';
 import { loadStarted } from './loadProgress';
 import type { WallCut } from './buildScene';
+import { underCeiling } from '@/lib/design/rules';
 
 // ---------------------------------------------------------------------------
 // Materials
@@ -519,7 +520,8 @@ export function buildDecorPiece(piece: DecorPiece, room: PlanRoom): THREE.Object
 export function buildDecor(plan: FloorPlan, decor: DecorPiece[] | undefined, rooms: Set<string> | null): THREE.Group {
   const root = new THREE.Group();
   root.name = 'decor';
-  const byId = new Map(plan.rooms.map((r) => [r.id, r]));
+  // Each room as it is under its ceiling: floor-to-ceiling decor stops at a new ceiling, a cove hangs from it.
+  const byId = new Map(plan.rooms.map((r) => [r.id, underCeiling(r, plan)]));
   for (const piece of decor ?? []) {
     if (rooms && !rooms.has(piece.roomId)) continue;
     const room = byId.get(piece.roomId);

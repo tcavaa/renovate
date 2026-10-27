@@ -93,6 +93,8 @@ import type {
   Vec2,
   Wall,
 } from '@/lib/design/types';
+import { underCeiling } from '@/lib/design/rules';
+import { withCeiling } from '@/lib/design/ceiling';
 
 /**
  * The eight steps of the journey: upload · draw the existing house · technical setup ·
@@ -1024,7 +1026,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!s.plan) return null;
             const room = roomId ? s.plan.rooms.find((r) => r.id === roomId) : s.plan.rooms.find((r) => pointInPolygon(position, r.polygon));
             // An air conditioner hangs from the ceiling down, so its height is the room's.
-            const point: TechnicalPoint = { id, kind, roomId: room?.id ?? null, position, elevationM: technicalElevation(kind, room), origin: 'user' };
+            const point: TechnicalPoint = { id, kind, roomId: room?.id ?? null, position, elevationM: technicalElevation(kind, room && underCeiling(room, s.plan)), origin: 'user' };
             // The rest of the setup — the works, what the flat already has, the choices — stays.
             return { plan: { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), point] } } };
           });
@@ -1046,7 +1048,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
                     // in the same breath — otherwise a socket turned into an air
                     // conditioner stayed at 45 cm off the floor.
                     if (patch.kind && patch.kind !== p.kind && patch.elevationM === undefined) {
-                      next.elevationM = technicalElevation(patch.kind, plan.rooms.find((r) => r.id === p.roomId));
+                      const at = plan.rooms.find((r) => r.id === p.roomId);
+                      next.elevationM = technicalElevation(patch.kind, at && underCeiling(at, plan));
                     }
                     // A boiler made an air conditioner is not bought as the boiler any more:
                     // the product goes, and the new kind takes the catalogue's (`ensureEquipmentProducts`).
@@ -1161,7 +1164,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => {
             const room = s.plan?.rooms.find((r) => r.id === roomId);
             if (!room) return null;
-            const point = withFixtureProduct(placeElectrical(room, kind, position, id), fixtureCandidates(kind, catalog, s.styleId)[0] ?? null);
+            const point = withFixtureProduct(placeElectrical(underCeiling(room, s.plan), kind, position, id), fixtureCandidates(kind, catalog, s.styleId)[0] ?? null);
             // Two plates may not occupy the same piece of wall — one ends up buried inside
             // the other, and the budget quietly pays for both.
             if (fittingClashes(room, point, s.electrical)) return null;
@@ -1202,7 +1205,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const point = s.electrical.find((p) => p.id === id);
             const room = point ? s.plan?.rooms.find((r) => r.id === point.roomId) : null;
             if (!point || !room) return null;
-            const placed = placeElectrical(room, point.kind, position, id);
+            const placed = placeElectrical(underCeiling(room, s.plan), point.kind, position, id);
             const moved = { ...point, position: placed.position, wallIndex: placed.wallIndex, t: placed.t, origin: 'user' as const };
             // Dragging one onto another is refused the same way placing one there is; the
             // viewer puts it back where it came from.
@@ -1852,8 +1855,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
       };
     };
-  if (!storageName) return create<DesignStore>()(creator);
-  return create<DesignStore>()(
+  if (!storageName) return keepCeiling(create<DesignStore>()(creator));
+  return keepCeiling(create<DesignStore>()(
     persist(creator, {
       name: storageName,
       // Written once per burst of changes, and a full localStorage never breaks the page (`lib/flow/storage`).
@@ -1906,7 +1909,24 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         at: s.at,
       }),
     })
-  ) as unknown as DesignStoreBound;
+  )) as unknown as DesignStoreBound;
+}
+
+/**
+ * Keeps the flat's new ceiling in step with what decides it — the mode, the home state, the works
+ * and the ceiling's material, all read off the plan and the state — whatever action changed them:
+ * the drop is written on the plan and what hangs from the ceiling is hung again (`withCeiling`).
+ * Once it is up to date `withCeiling` hands the same objects back, so this settles at once.
+ */
+function keepCeiling<T extends { getState: () => DesignStore; setState: (partial: Partial<DesignStore>) => void; subscribe: (listener: (state: DesignStore, previous: DesignStore) => void) => () => void }>(store: T): T {
+  const sync = (s: DesignStore) => {
+    const next = withCeiling(s, s.mode, s.homeState);
+    if (next.plan !== s.plan) store.setState(next);
+  };
+  store.subscribe((s, previous) => {
+    if (s.plan !== previous.plan || s.mode !== previous.mode || s.homeState !== previous.homeState) sync(s);
+  });
+  return store;
 }
 
 /** The Design Studio's board — the eight-step journey's plan, scene, versions and history — one per project. */

@@ -21,7 +21,7 @@ import { technicalAnchors } from './technical';
 import { defaultTrim, hasTrims } from './trims';
 import { columnFootprints } from './walls';
 import { radiatorKeepouts } from './ruleChecks';
-import { entranceSightBands, type Quad } from './rules';
+import { entranceSightBands, underCeiling, type Quad } from './rules';
 import { isBaseFinish } from './zones';
 import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
 
@@ -67,10 +67,12 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // What is seen coming in through the front door: the kitchen keeps out of it where it can.
   const entranceSight: Record<string, Quad[]> = {};
   for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
-  const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight });
+  // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
+  const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
+  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight });
   // A slot no partner product can fill is dropped rather than shown as a stand-in. The AI
   // designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-  let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng, picks: proposalPicks(proposal) }));
+  let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal) }));
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls

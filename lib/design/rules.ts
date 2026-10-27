@@ -122,6 +122,35 @@ export const SHAFT_MAX_DISTANCE_M = 2;
 export const SHAFT_FIXTURES: SlotKind[] = ['toilet', 'washer', 'kitchen_run'];
 
 // ---------------------------------------------------------------------------
+// Ceilings
+// ---------------------------------------------------------------------------
+
+/** A suspended plasterboard (gypsum) ceiling costs about 10 cm of height; a stretch one 2–3 cm. */
+export const GYPSUM_CEILING_DROP_M = 0.1;
+export const STRETCH_CEILING_DROP_M = 0.03;
+/** An LED cove: the lowered edge 10–15 cm under the ceiling, 10–20 cm off the wall, the strip 5 cm back from the edge. */
+export const COVE_DROP_M = 0.12;
+export const COVE_GAP_M = 0.15;
+export const COVE_STRIP_BACK_M = 0.05;
+/** Curtains hang from just under the ceiling, to make the room look taller. */
+export const CURTAIN_UNDER_CEILING_M = 0.03;
+
+/** Rooms no new ceiling is hung in. */
+const NO_FALSE_CEILING: Array<PlanRoom['type']> = ['balcony'];
+
+/** The height from the floor to the ceiling one sees: the slab's, less the new ceiling's drop. */
+export function ceilingHeightM(room: Pick<PlanRoom, 'heightM' | 'type'>, plan?: { technical?: { ceilingDropM?: number } } | null): number {
+  const drop = NO_FALSE_CEILING.includes(room.type) ? 0 : plan?.technical?.ceilingDropM ?? 0;
+  return Math.round((room.heightM - drop) * 1000) / 1000;
+}
+
+/** The room as it is under its ceiling — its `heightM` the ceiling's — for code that measures up to the ceiling (the decor). */
+export function underCeiling<R extends Pick<PlanRoom, 'heightM' | 'type'>>(room: R, plan?: { technical?: { ceilingDropM?: number } } | null): R {
+  const height = ceilingHeightM(room, plan);
+  return height === room.heightM ? room : { ...room, heightM: height };
+}
+
+// ---------------------------------------------------------------------------
 // Doors and passages
 // ---------------------------------------------------------------------------
 

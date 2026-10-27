@@ -31,7 +31,7 @@ import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
 import { technicalElevation } from '@/lib/design/technical';
-import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M } from '@/lib/design/rules';
+import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, underCeiling } from '@/lib/design/rules';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -157,7 +157,7 @@ export function buildElectrical(plan: FloorPlan, points: ElectricalPoint[], mate
     if (options.rooms && !options.rooms.has(point.roomId)) continue;
     const room = plan.rooms.find((r) => r.id === point.roomId);
     if (!room) continue;
-    const piece = buildFitting(room, point, materials, options);
+    const piece = buildFitting(underCeiling(room, plan), point, materials, options);
     if (!piece) continue;
     piece.name = `electrical-${point.id}`;
     tag(piece, { pickKind: 'electrical', roomId: room.id, electricalId: point.id } satisfies SceneUserData);
@@ -436,7 +436,7 @@ export function buildEquipment(plan: FloorPlan, rooms?: Set<string> | null): THR
     tag(piece, data);
     if (spot) {
       // At its point along the wall, off the windows and doors, never past the wall's end.
-      const bottom = point.elevationM ?? technicalElevation(point.kind, room);
+      const bottom = point.elevationM ?? technicalElevation(point.kind, underCeiling(room, plan));
       const along = clearOfOpenings(spot.room.openings, spot.edge, spot.s, dims?.width ?? 0.4, bottom, dims?.height ?? 0);
       const at = pointOnEdge(spot.edge, along / spot.edge.length);
       piece.position.set(at.x + spot.edge.inward.x * EQUIPMENT_WALL_GAP_M, bottom, at.z + spot.edge.inward.z * EQUIPMENT_WALL_GAP_M);
@@ -487,7 +487,7 @@ export function lightsFrom(plan: FloorPlan, points: ElectricalPoint[], rooms?: S
     const room = plan.rooms.find((r) => r.id === point.roomId);
     if (!room) continue;
     const primary = point.kind === 'light_ceiling';
-    const y = info.placement === 'ceiling' ? Math.max(1.6, room.heightM - 0.25) : point.elevationM;
+    const y = info.placement === 'ceiling' ? Math.max(1.6, ceilingHeightM(room, plan) - 0.25) : point.elevationM;
     out.push({
       id: point.id,
       position: [point.position.x, y, point.position.z],

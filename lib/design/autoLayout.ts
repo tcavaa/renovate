@@ -43,6 +43,7 @@ import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
 import {
   BED_SIDE_FREE_M,
+  CURTAIN_UNDER_CEILING_M,
   DINING_SEAT_M,
   FACING_COUNTERS_M,
   SHALLOW_WARDROBE_DEPTH_M,
@@ -1174,7 +1175,8 @@ function placeAtWindow(
     size: {
       width: opening.widthM + 0.45,
       depth: archetype.size.depth,
-      height: Math.min(room.heightM - 0.1, opening.sillM + opening.heightM + 0.35),
+      // From just under the ceiling to the floor: it makes the room look taller.
+      height: room.heightM - CURTAIN_UNDER_CEILING_M,
     },
     elevationM: 0,
   };

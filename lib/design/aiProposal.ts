@@ -19,6 +19,7 @@ import type { AiReview } from './aiReview';
 import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
 import type { DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleId, SurfaceFinish, Vec2 } from './types';
 import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorIntent } from './decor/resolve';
+import { underCeiling } from './rules';
 
 export interface AiRoomProposal {
   roomId: string;
@@ -86,7 +87,7 @@ export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | und
   if (!proposal) return [];
   return plan.rooms.flatMap((room) => {
     const asked = proposal.rooms.find((r) => r.roomId === room.id);
-    return asked ? resolveRoomDecor(asked.decor, room, items, catalog) : [];
+    return asked ? resolveRoomDecor(asked.decor, underCeiling(room, plan), items, catalog) : [];
   });
 }
 
@@ -266,7 +267,7 @@ export function underCeilingDecor(items: PlacedItem[], electrical: ElectricalPoi
   for (const piece of decor) {
     if (piece.family !== 'light' || piece.wallIndex != null) continue;
     const room = plan.rooms.find((r) => r.id === piece.roomId);
-    const panel = room ? fitLight(piece, room, paramsOf(piece)).panel : null;
+    const panel = room ? fitLight(piece, underCeiling(room, plan), paramsOf(piece)).panel : null;
     if (panel) panels.set(piece.roomId, { ...panel, underside: panel.y - 0.07 });
   }
   if (panels.size === 0) return { items, electrical };
@@ -302,7 +303,7 @@ export function underCeilingDecor(items: PlacedItem[], electrical: ElectricalPoi
  */
 export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], review: AiReview, plan: FloorPlan, catalog: CatalogProduct[]): { items: PlacedItem[]; decor: DecorPiece[] } {
   const byId = new Map(catalog.map((p) => [p.id, p]));
-  const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
+  const rooms = new Map(plan.rooms.map((r) => [r.id, underCeiling(r, plan)]));
   let out = [...items];
   let pieces = [...decor];
   const changed = new Set<string>();
@@ -415,7 +416,7 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
  */
 export function withoutArtOverDecor(items: PlacedItem[], decor: DecorPiece[], plan: FloorPlan): PlacedItem[] {
   if (decor.length === 0) return items;
-  const rooms = new Map(plan.rooms.map((r) => [r.id, r]));
+  const rooms = new Map(plan.rooms.map((r) => [r.id, underCeiling(r, plan)]));
   return items.filter((item) => {
     if ((item.slot !== 'artwork' && item.slot !== 'mirror') || item.elevationM < 0.05) return true;
     const room = rooms.get(item.roomId);

@@ -205,6 +205,13 @@ export interface TechnicalSetup {
    * they are asked is here, going on from the step opens them one by one first.
    */
   checked?: string[];
+  /**
+   * How far the new ceiling hangs under the slab, metres: a plasterboard one 10 cm, a stretch one
+   * 3 cm, none when the ceiling is not being done (`lib/design/ceiling.ts`, kept by the store from
+   * the mode, the home state, the works and the choice). Every height that hangs from the ceiling
+   * reads `ceilingHeightM`.
+   */
+  ceilingDropM?: number;
 }
 
 export interface PlanRoom {

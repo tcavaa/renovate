@@ -130,6 +130,7 @@ export const technicalSetupSchema = z.object({
   existing: z.array(z.string().max(24)).max(24).optional(),
   choices: z.object({ floor: z.enum(['laminate', 'parquet']), ceiling: z.enum(['gypsum', 'barisol']) }).partial().optional(),
   checked: z.array(z.string().max(24)).max(12).optional(),
+  ceilingDropM: z.number().min(0).max(0.5).optional(),
 });
 
 export const planRoomSchema = z.object({

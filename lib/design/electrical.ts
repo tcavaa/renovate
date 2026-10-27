@@ -39,6 +39,7 @@ import {
   TV_SOCKET_M,
   TWO_WAY_CORRIDOR_M,
   WALL_UNIT_BOTTOM_M,
+  underCeiling,
   kitchenRunZones,
 } from './rules';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
@@ -186,8 +187,10 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
   for (const room of plan.rooms) {
     if (skip.has(room.id)) continue;
     if (wallEdges(room).length === 0) continue;
-    standardFor(b, room);
-    furnitureFor(b, room, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? []);
+    // Ceiling lights at the ceiling one sees — a new one hangs lower than the slab.
+    const ceiled = underCeiling(room, plan);
+    standardFor(b, ceiled);
+    furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? []);
   }
 
   return [...kept, ...b.points];
@@ -207,7 +210,7 @@ export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] 
   const { kept, skip } = wiredByHand(existing);
   for (const room of plan.rooms) {
     if (skip.has(room.id) || wallEdges(room).length === 0) continue;
-    standardFor(b, room);
+    standardFor(b, underCeiling(room, plan));
   }
   return [...kept, ...b.points];
 }

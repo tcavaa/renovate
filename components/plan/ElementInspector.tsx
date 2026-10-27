@@ -39,6 +39,7 @@ import type { StyleId } from '@/lib/design/types';
 import { electricalLabel, technicalLabel } from './PlanToolbar';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 import { ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
+import { underCeiling } from '@/lib/design/rules';
 
 export const MATERIALS: BuildMaterial[] = ['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass'];
 const MATERIAL_KEY: Record<BuildMaterial, keyof Dictionary['build']> = {
@@ -305,8 +306,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
         */}
         <p className="-mt-1 text-[11px] text-ink-muted">
           {point.kind === 'ac_unit'
-            ? fill(t.build.acHeightHint, { gap: Math.round(AC_CEILING_GAP_M * 100), n: Math.round(technicalElevation('ac_unit', room) * 100) })
-            : fill(t.build.standardHeightHint, { n: Math.round(technicalElevation(point.kind, room) * 100) })}
+            ? fill(t.build.acHeightHint, { gap: Math.round(AC_CEILING_GAP_M * 100), n: Math.round(technicalElevation('ac_unit', room && underCeiling(room, plan)) * 100) })
+            : fill(t.build.standardHeightHint, { n: Math.round(technicalElevation(point.kind, room && underCeiling(room, plan)) * 100) })}
         </p>
         {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         {isEquipmentKind(point.kind) && actions.setEquipmentProduct && <EquipmentFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}

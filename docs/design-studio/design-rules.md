@@ -21,7 +21,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 | 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
 | 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
 | 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | **built** |
-| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | planned |
+| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | ceilings and cove **built**; the WC box and the boiler cabinet next |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
 
 ## The decisions (owner, 28 Oct 2026)
@@ -61,9 +61,9 @@ The brief is built in five stages, each tested, documented and committed on its 
   The sewer point stands for the plumbing shaft: WC, the kitchen's sink end and the washer are
   drawn to it (the layout's anchors already pulled them), with a warning past 2 m
   (`far_from_shaft`). How it is placed: [technical-and-fittings.md](technical-and-fittings.md).
-- *Stage 4* — **Ceilings**: a gypsum ceiling lowers the room 10 cm (3D and every height that
+- **Ceilings**: a gypsum ceiling lowers the room 10 cm (3D and every height that
   hangs from the ceiling), a stretch (barisol) one 3 cm; the LED cove: 12 cm drop, a 15 cm niche,
-  the strip 5 cm back from the edge.
+  the strip 5 cm back from the edge. Curtains hang from just under the ceiling.
 - *Stage 4* — **Wall-hung WC**: a gypsum box 20 cm deep behind it, half height (~1 m, its top a
   shelf) by default or to the ceiling (a choice on its card), finished in waterproof paint or
   tiled — the design's choice — priced as gypsum work.
@@ -114,6 +114,31 @@ studio (stage 3), the AI's room check (stage 5) and the plan PDF (stage 5).
   `roomNiches`.
 - `backWallOf`, `alongWall`.
 
+## Ceilings (`lib/design/ceiling.ts`)
+
+- **When.** A full renovation whose works — the ticked ones, else the home state's — include the
+  ceiling (phase 12): 10 cm for plasterboard, 3 cm for a stretch ceiling (`choices.ceiling`), none
+  for a design-only project or works without the ceiling (`ceilingDropFor`). A balcony gets none.
+- **Where it is kept.** On the plan, `plan.technical.ceilingDropM` (saved, validated by
+  `technicalSetupSchema`), so one number is read everywhere: `ceilingHeightM(room, plan)`, and
+  `underCeiling(room, plan)` — the room with the ceiling's height as its `heightM` — for code that
+  measures to the ceiling from a room alone. The store keeps it in step (`keepCeiling` in
+  `store/designStore.ts`: a subscription that runs `withCeiling` when the plan, the mode or the
+  home state changes — the works and the choice are on the plan), and `withCeiling` hangs again
+  what hung from the old ceiling: ceiling lights at the new height, a pendant from it, a curtain
+  run from 3 cm under it, an air conditioner still at its usual height. Walls, paint and the
+  estimate's wall areas stay the slab's (`room.heightM` is the structure).
+- **Who reads it.** The 3D ceiling plane (`buildScene`), the fittings and the night lights
+  (`buildStructure`), new ceiling lights (`suggestElectrical`, `standardElectrical`,
+  `placeElectrical` given the room under its ceiling), an air conditioner's height
+  (`technicalElevation` — the technical points, the inspector, the 3D), the generation's layout and
+  matching (pendants, curtains: `generateScene` lays out the rooms under their ceilings), and the
+  decor — floor-to-ceiling decor stops at the new ceiling and a cove hangs from it (`buildDecor`,
+  the budget's `decorPurchases`, the decor card, `proposalDecor`, `underCeilingDecor`, the check's
+  moves).
+- **The cove** (`fitLight`): its panel's edge `COVE_GAP_M` (15 cm) off the walls and `COVE_DROP_M`
+  (12 cm) under the ceiling, the strip `COVE_STRIP_BACK_M` (5 cm) back from the edge.
+
 ## The checks (`lib/design/ruleChecks.ts`)
 
 - `ruleViolations(plan, items, electrical?)`, each `{ code, roomId, itemId?, pointId?, openingId?,
@@ -147,7 +172,9 @@ sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room 
 every fixture, hot on the left, a WC beside a basin, the boiler's pair, nothing twice),
 `technical.test.ts` (the shaft warning); in `rules.test.ts` also the niche finder, the wardrobe in
 a niche, the WC out of the door's sight over seeds, the kitchen out of the entrance's, the dining
-seats and door widths, and every size check.
+seats and door widths, and every size check; `ceiling.test.ts` (when a ceiling drops and how
+far, a balcony, what is hung again, the cove's sizes); `designStore.test.ts` (the store keeps the
+drop as the home state, the mode, the choice and the works change).
 
 ## Known gaps
 

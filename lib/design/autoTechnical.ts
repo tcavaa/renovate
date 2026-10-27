@@ -24,7 +24,7 @@ import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, studioParts } from './studio';
 import { outsideEdges } from './radiators';
-import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, type WaterNeed } from './rules';
+import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
@@ -84,7 +84,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     if (has(kind, room.id)) return;
     const position = spotFor(plan, room, kind, items, notOn, [...existing, ...points], prefer);
     if (!position) return;
-    add(room, kind, position, technicalElevation(kind, room));
+    add(room, kind, position, technicalElevation(kind, underCeiling(room, plan)));
   };
   // A cold (and a hot) point on the wall at `s` along `edge`: hot on the left, cold on the right
   // as one faces the wall, 15 cm apart. One of the kind already within reach, at about that

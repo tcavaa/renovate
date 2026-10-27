@@ -56,6 +56,7 @@ import type {
   TechnicalPoint,
 } from './types';
 import { archetypeLabel } from './catalog';
+import { underCeiling } from './rules';
 
 export interface PriceOptions {
   /** Only used in `full` mode; ignored for design-only projects. */
@@ -373,7 +374,7 @@ export function priceScene(
   // materials, each measured from the pieces' geometry (`decorPurchases`) at the catalogue's price
   // per m², metre or piece: one line per material across the flat — its workshop is sent one order.
   // An LED line is lighting; the rest is finishing.
-  for (const purchase of decorPurchases(scene.decor, plan.rooms)) {
+  for (const purchase of decorPurchases(scene.decor, plan.rooms.map((r) => underCeiling(r, plan)))) {
     const tick = tickFor.decor(purchase.product.productId);
     raw.push({
       section: purchase.product.categorySlug === 'decor-led' ? 'lighting' : 'finishes',

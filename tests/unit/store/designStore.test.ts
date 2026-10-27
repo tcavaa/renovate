@@ -523,3 +523,25 @@ describe('undo stays whole', () => {
     expect(store().plan!.rooms[1]).not.toBe(remembered[1]);
   });
 });
+
+describe('the new ceiling', () => {
+  it('drops the ceiling for a renovation that does it, and hangs the ceiling light and a pendant from it', () => {
+    const light = { id: 'l', roomId: room().id, kind: 'light_ceiling' as const, position: { x: 2, z: 1.5 }, elevationM: 2.8, wallIndex: null, t: null, on: true, origin: 'generated' as const };
+    useDesignStore.setState({ electrical: [light], items: [{ ...placed('p', 2, 1.5, 0.5, 0.5, 'pendant', 'pendant'), elevationM: 2.25, size: { width: 0.5, depth: 0.5, height: 0.55 } }] });
+    // Design only: no ceiling work.
+    expect(useDesignStore.getState().plan!.technical?.ceilingDropM ?? 0).toBe(0);
+    useDesignStore.getState().setHomeState('white_frame');
+    useDesignStore.getState().setMode('full');
+    expect(useDesignStore.getState().plan!.technical?.ceilingDropM).toBe(0.1);
+    expect(useDesignStore.getState().electrical[0].elevationM).toBeCloseTo(2.7, 6);
+    expect(item('p')!.elevationM + item('p')!.size.height).toBeCloseTo(2.7, 6);
+    // A stretch ceiling: 3 cm.
+    useDesignStore.getState().setWorkChoices({ ceiling: 'barisol' });
+    expect(useDesignStore.getState().plan!.technical?.ceilingDropM).toBe(0.03);
+    expect(useDesignStore.getState().electrical[0].elevationM).toBeCloseTo(2.77, 6);
+    // Works without the ceiling: the slab again.
+    useDesignStore.getState().setWorks(['painting']);
+    expect(useDesignStore.getState().plan!.technical?.ceilingDropM).toBe(0);
+    expect(useDesignStore.getState().electrical[0].elevationM).toBeCloseTo(2.8, 6);
+  });
+});

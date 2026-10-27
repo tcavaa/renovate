@@ -13,6 +13,7 @@
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { DecorParams, DecorPiece, Opening, PlanRoom } from '@/lib/design/types';
 import { DECOR_FAMILIES } from './families';
+import { COVE_DROP_M, COVE_GAP_M, COVE_STRIP_BACK_M } from '@/lib/design/rules';
 
 const mm = (v: number | undefined, fallback: number) => (Number.isFinite(v) && (v as number) > 0 ? (v as number) / 1000 : fallback / 1000);
 
@@ -321,21 +322,25 @@ export function fitLight(piece: Pick<DecorPiece, 'params' | 'wallIndex' | 'span'
     if (room.polygon.length !== 4) return { runs: [], panel: null, ledM: 0, panelM2: 0 };
     const xs = room.polygon.map((p) => p.x);
     const zs = room.polygon.map((p) => p.z);
-    const inset = 0.4;
-    const drop = 0.16;
+    // The design rules' cove: the panel's edge 15 cm off the walls (10–20) and 12 cm under the
+    // ceiling (10–15), the strip on it 5 cm back from the edge so it stays hidden and the light
+    // spreads up the gap. `room.heightM` is the ceiling one sees (`underCeiling`).
+    const inset = COVE_GAP_M;
+    const drop = COVE_DROP_M;
     const minX = Math.min(...xs) + inset;
     const maxX = Math.max(...xs) - inset;
     const minZ = Math.min(...zs) + inset;
     const maxZ = Math.max(...zs) - inset;
     if (maxX - minX < 0.8 || maxZ - minZ < 0.8) return { runs: [], panel: null, ledM: 0, panelM2: 0 };
     const y = room.heightM - drop;
+    const back = COVE_STRIP_BACK_M;
     const runs = [
-      { a: { x: minX, z: minZ }, b: { x: maxX, z: minZ }, y, outward: { x: 0, z: -1 } },
-      { a: { x: maxX, z: minZ }, b: { x: maxX, z: maxZ }, y, outward: { x: 1, z: 0 } },
-      { a: { x: maxX, z: maxZ }, b: { x: minX, z: maxZ }, y, outward: { x: 0, z: 1 } },
-      { a: { x: minX, z: maxZ }, b: { x: minX, z: minZ }, y, outward: { x: -1, z: 0 } },
+      { a: { x: minX + back, z: minZ + back }, b: { x: maxX - back, z: minZ + back }, y, outward: { x: 0, z: -1 } },
+      { a: { x: maxX - back, z: minZ + back }, b: { x: maxX - back, z: maxZ - back }, y, outward: { x: 1, z: 0 } },
+      { a: { x: maxX - back, z: maxZ - back }, b: { x: minX + back, z: maxZ - back }, y, outward: { x: 0, z: 1 } },
+      { a: { x: minX + back, z: maxZ - back }, b: { x: minX + back, z: minZ + back }, y, outward: { x: -1, z: 0 } },
     ];
-    const ledM = 2 * (maxX - minX + maxZ - minZ);
+    const ledM = 2 * (maxX - minX + maxZ - minZ - 4 * back);
     return { runs, panel: { minX, maxX, minZ, maxZ, y, drop }, ledM, panelM2: (maxX - minX) * (maxZ - minZ) + ledM * drop };
   }
   const wall = decorWall(piece, room);

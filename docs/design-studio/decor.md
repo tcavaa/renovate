@@ -85,8 +85,9 @@ The reference library's rules, as code:
   for a floating slab (with a halo light behind), seams at the material's real size balanced
   across the field (slabs, flat panels, large cladding), upholstered channels or flutes as rounded
   modules, a tile field's border band, an edge trim. Slots by family (face, trim, border, led).
-- **light** — a cove (a lowered ceiling panel inset 0.4 m from every wall, the light round its
-  top; rectangular rooms only) or a line set into the wall. Slots: led, body (the cove's
+- **light** — a cove (a lowered ceiling panel 15 cm in from every wall and 12 cm under the
+  ceiling, the strip on it 5 cm back from its edge — the design rules' `COVE_*`; rectangular rooms
+  only; measured from a new ceiling when one is hung) or a line set into the wall. Slots: led, body (the cove's
   plasterboard).
 
 ## What it costs (`quantities.ts`)
@@ -251,7 +252,7 @@ the project opens furnished afterwards.
    the piece stands at a door or a window (a desk under a window), the decor takes the nearest clear
    stretch of that wall beside it, and goes when there is none 30 cm wide: slats followed a desk onto
    the window over it. Under
-   a cove's floating panel (16 cm down, 40 cm in from the walls) the hanging lamps and ceiling
+   a cove's floating panel (12 cm down, 15 cm in from the walls) the hanging lamps and ceiling
    points are hung from the panel (`underCeilingDecor`), not through it.
    `scene.generation` records the run.
 4. **The designer checks the flat it furnished** (`runReviewStage`, in the second invocation's own

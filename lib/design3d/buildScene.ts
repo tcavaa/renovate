@@ -51,6 +51,7 @@ import { clearGlazing } from './glass';
 import { box, tag } from './primitives';
 import { releaseMaterial } from './gpuRelease';
 import { WALL_STUB_M, type WallPartKind } from './wallMode';
+import { ceilingHeightM } from '@/lib/design/rules';
 
 export interface SceneUserData {
   pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor';
@@ -216,7 +217,8 @@ function buildRoomShell(
   if (options.showCeiling) {
     const ceilingMaterial = materials.metreSurface(style.surfaces.ceiling, finishOverrides(ceilingFinish));
     const ceiling = own(new THREE.Mesh(polygonGeometry(room.polygon, 'down'), ceilingMaterial));
-    ceiling.position.y = room.heightM;
+    // Under the new ceiling when one is hung (plasterboard 10 cm down, a stretch one 3 cm).
+    ceiling.position.y = ceilingHeightM(room, plan);
     tag(ceiling, { pickKind: 'surface', roomId: room.id, surface: 'ceiling' } satisfies SceneUserData);
     group.add(ceiling);
   }
