@@ -16,6 +16,7 @@ import { radiatorRoom } from './radiators';
 import { COOKER_HOOD_ELEVATION_M, HOOD_ROOM_TYPES, TECHNICAL_KINDS } from './technical';
 import type { FloorPlan, Opening, PlanRoom, StyleId, TechnicalKind, TechnicalPoint } from './types';
 import type { RoomType } from '@/lib/calculator/types';
+import { withBoilerCabinets } from './boilerCabinet';
 
 /** The technical kinds that are a product. */
 export const EQUIPMENT_KINDS = ['electrical_panel', 'boiler', 'ac_unit', 'extractor', 'floor_drain'] as const satisfies readonly TechnicalKind[];
@@ -167,6 +168,11 @@ export function equipmentSignature(plan: FloorPlan | null): string {
 export function withEquipmentProducts(plan: FloorPlan, catalog: CatalogProduct[], styleId: StyleId): FloorPlan {
   const points = plan.technical?.points ?? [];
   if (catalog.length === 0 || !points.some((p) => isEquipmentKind(p.kind))) return plan;
+  // The boiler's ventilated cabinet comes with its product (`lib/design/boilerCabinet`).
+  return withBoilerCabinets(equipmentProducts(plan, points, catalog, styleId), catalog, styleId);
+}
+
+function equipmentProducts(plan: FloorPlan, points: TechnicalPoint[], catalog: CatalogProduct[], styleId: StyleId): FloorPlan {
   const kindOf = new Map(catalog.map((p) => [p.id, p.model3dKind]));
   let changed = false;
   const next = points.map((point) => {

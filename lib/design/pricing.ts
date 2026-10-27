@@ -109,7 +109,7 @@ const DEFAULT_SURFACE_LABELS: SurfaceLabels = {
  * surface does): the kind of opening, the radiator, the equipment, the kind of fitting — the
  * four sockets as one, since one socket product serves them all — or a kitchen made to measure.
  */
-export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_wall' | 'kitchen_island' | 'decor' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
+export type ProductLabelKey = 'door' | 'entrance_door' | 'window' | 'radiator' | EquipmentProductKind | 'kitchen_run' | 'kitchen_wall' | 'kitchen_island' | 'decor' | 'boiler_cabinet' | 'socket' | Exclude<ElectricalPoint['kind'], `socket${string}`>;
 export type ProductLabels = Record<ProductLabelKey, string>;
 
 const DEFAULT_PRODUCT_LABELS: ProductLabels = {
@@ -137,6 +137,7 @@ const DEFAULT_PRODUCT_LABELS: ProductLabels = {
   kitchen_island: 'სამზარეულოს კუნძული — ინდივიდუალური დამზადება',
   kitchen_wall: 'სამზარეულოს ზედა კარადები — ინდივიდუალური დამზადება',
   decor: 'კედლის დეკორი — დამზადება ზომაზე',
+  boiler_cabinet: 'ქვაბის ვენტილირებადი კარადა — დამზადება ზომაზე',
 };
 
 const fittingLabelKey = (kind: ElectricalPoint['kind']): ProductLabelKey => (kind.startsWith('socket') ? 'socket' : (kind as ProductLabelKey));
@@ -709,11 +710,19 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
   // The equipment — panel, boiler, air conditioner, hood or fan, drain — one piece per point,
   // the same product across points folded into one row (`lib/design/equipment`).
   const equipmentBought = new Map<number, { product: SceneProduct; label: EquipmentProductKind | null; section: BudgetSection; qty: number; rooms: Set<string> }>();
+  // A boiler's ventilated cabinet, the joiner's, by the m² of its façade (`lib/design/boilerCabinet`).
+  const cabinetsBought = new Map<number, { product: SceneProduct; qty: number; rooms: Set<string> }>();
   for (const point of plan.technical?.points ?? []) {
     const rate = TECHNICAL_RATES[point.kind];
     const on = rate.section === 'electrical' || rate.section === 'climate' ? electricalOn : rate.section === 'heating' ? heatingOn : plumbingOn;
     if (!(on || point.origin === 'user')) continue;
     if (have.has(rate.section === 'heating' ? 'heating' : rate.section === 'climate' ? 'climate' : rate.section === 'electrical' ? 'electrical' : 'plumbing')) continue;
+    if (point.cabinet) {
+      const bought = cabinetsBought.get(point.cabinet.productId) ?? { product: point.cabinet, qty: 0, rooms: new Set<string>() };
+      bought.qty = round2(bought.qty + point.cabinet.qty);
+      if (point.roomId) bought.rooms.add(point.roomId);
+      cabinetsBought.set(point.cabinet.productId, bought);
+    }
     const phaseOwns = owned(rate.labour);
     // A heating pipe is the heating phase's pipework, which it counts per radiator.
     if (rate.covered && phaseOwns) continue;
@@ -746,6 +755,10 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
   for (const [id, bought] of equipmentBought) {
     const total = round2(bought.qty * bought.product.pricePerUnit);
     lines.push({ section: bought.section, bucket: 'technical', key: `product-${id}`, tick: tickFor.equipment(id), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((r) => roomName.get(r) ?? r).join(', ') || undefined, qty: bought.qty, unit: 'piece', unitPrice: bought.product.pricePerUnit, total, estimated: false, product: lineProduct(bought.product, bought.qty, total), item: bought.label ? labels[bought.label] : undefined });
+  }
+  for (const [id, bought] of cabinetsBought) {
+    const total = round2(bought.qty * bought.product.pricePerUnit);
+    lines.push({ section: 'heating', bucket: 'technical', key: `product-${id}`, tick: tickFor.cabinet(id), name: localizedName(bought.product, locale), roomName: [...bought.rooms].map((r) => roomName.get(r) ?? r).join(', ') || undefined, qty: bought.qty, unit: 'm2', unitPrice: bought.product.pricePerUnit, total, estimated: false, product: lineProduct(bought.product, bought.qty, total), item: labels.boiler_cabinet });
   }
   for (const [kind, entry] of techByKind) {
     const rate = TECHNICAL_RATES[kind as TechnicalPoint['kind']];

@@ -95,6 +95,7 @@ import type {
 } from '@/lib/design/types';
 import { WC_BOX_HALF_M, underCeiling } from '@/lib/design/rules';
 import { withCeiling } from '@/lib/design/ceiling';
+import { withBoilerCabinet } from '@/lib/design/boilerCabinet';
 
 /**
  * The eight steps of the journey: upload · draw the existing house · technical setup ·
@@ -335,6 +336,8 @@ export interface DesignActions {
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
   /** The real product a panel, a boiler, an air conditioner, a hood or fan, a floor drain is (null: back to the estimate). */
   setEquipmentProduct: (id: string, product: CatalogProduct | null) => void;
+  /** A boiler's ventilated cabinet in another of the joiner's materials, or none (`lib/design/boilerCabinet`). */
+  setBoilerCabinet: (id: string, material: CatalogProduct | null) => void;
   /**
    * Gives every equipment point without a product — or with one of another kind than its room
    * calls for now, an extractor moved into the kitchen — the catalogue's best (`withEquipmentProducts`).
@@ -1095,6 +1098,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!s.plan?.technical) return null;
             const plan = s.plan;
             return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id ? withEquipmentProduct(p, product) : p)) } } };
+          }),
+        setBoilerCabinet: (id, material) =>
+          commit((s) => {
+            if (!s.plan?.technical) return null;
+            const plan = s.plan;
+            return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id && p.kind === 'boiler' ? withBoilerCabinet(p, material) : p)) } } };
           }),
         ensureEquipmentProducts: (catalog) => {
           const { plan, styleId } = get();

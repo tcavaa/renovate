@@ -133,3 +133,57 @@ export const KITCHEN_MATERIALS: KitchenMaterialSpec[] = [
     imageUrl: '/uploads/furniture/kitchen-wall-veneer.webp',
   },
 ];
+
+/**
+ * The same joiner's materials for a gas boiler's ventilated cabinet (`lib/design/boilerCabinet`):
+ * products of the `boiler-cabinet` category, priced per m² of the cabinet's façade (its front with
+ * the louvres and its two sides, measured, made and fitted). Admin sets the price in the product
+ * form, as for the kitchen; `models:seed` writes them and leaves an existing one's price alone.
+ */
+export interface BoilerCabinetMaterialSpec {
+  slug: string;
+  nameKa: string;
+  nameEn: string;
+  nameRu: string;
+  descriptionKa: string;
+  priceGelPerM2: number;
+  styles: StyleId[];
+  colorHex: string;
+  imageUrl: string;
+}
+
+export const BOILER_CABINET_MATERIALS: BoilerCabinetMaterialSpec[] = [
+  {
+    slug: 'boiler-cabinet-ldsp',
+    nameKa: 'ქვაბის კარადა — ლამინირებული ლდსპ, ჟალუზიანი კარით',
+    nameEn: 'Boiler cabinet — laminated chipboard, louvred door',
+    nameRu: 'Шкаф для котла — ЛДСП, дверца с жалюзи',
+    descriptionKa: 'ქვაბის ვენტილირებადი კარადა ზომაზე: კორპუსი — ლამინირებული ლდსპ (18 მმ), კარი ჟალუზით, მომსახურებისთვის მოსახსნელი. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 380,
+    styles: ['scandinavian', 'industrial'],
+    colorHex: '#B4AAA3',
+    imageUrl: '/uploads/products/kitchen-material-ldsp-grey-oak.webp',
+  },
+  {
+    slug: 'boiler-cabinet-mdf',
+    nameKa: 'ქვაბის კარადა — შეღებილი MDF, ჟალუზიანი კარით',
+    nameEn: 'Boiler cabinet — painted MDF, louvred door',
+    nameRu: 'Шкаф для котла — крашеный МДФ, дверца с жалюзи',
+    descriptionKa: 'ქვაბის ვენტილირებადი კარადა ზომაზე: ფასადი — შეღებილი MDF (19 მმ, მატი), ჟალუზით; კორპუსი — ლამინირებული ლდსპ. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 520,
+    styles: ['modern', 'scandinavian'],
+    colorHex: '#DCD5C8',
+    imageUrl: '/uploads/products/kitchen-material-mdf.webp',
+  },
+  {
+    slug: 'boiler-cabinet-veneer',
+    nameKa: 'ქვაბის კარადა — მუხის შპონი, ჟალუზიანი კარით',
+    nameEn: 'Boiler cabinet — oak veneer, louvred door',
+    nameRu: 'Шкаф для котла — шпон дуба, дверца с жалюзи',
+    descriptionKa: 'ქვაბის ვენტილირებადი კარადა ზომაზე: ფასადი — მუხის ნატურალური შპონი, ჟალუზით; კორპუსი — ლამინირებული ლდსპ. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 720,
+    styles: ['vintage', 'modern', 'industrial'],
+    colorHex: '#B8875A',
+    imageUrl: '/uploads/products/kitchen-material-veneer.webp',
+  },
+];

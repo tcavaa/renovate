@@ -181,6 +181,12 @@ export interface TechnicalPoint {
   product?: SceneProduct | null;
   radiator?: { wattsPerSection: number; sectionWidthM: number; heightM: number; depthM: number };
   sections?: number | null;
+  /**
+   * A boiler's ventilated cabinet, made to measure in one of the joiner's materials and bought by
+   * its façade (`lib/design/boilerCabinet`): absent until the catalogue gives it one, null when the
+   * person took it off.
+   */
+  cabinet?: SceneProduct | null;
   /** A piece of equipment: its product's size, what the 3D view draws its model at (absent: the model's own). */
   sizeM?: { width: number; depth: number; height: number } | null;
   origin: ElementOrigin;

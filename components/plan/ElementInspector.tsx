@@ -40,6 +40,7 @@ import { electricalLabel, technicalLabel } from './PlanToolbar';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 import { ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
 import { underCeiling } from '@/lib/design/rules';
+import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize } from '@/lib/design/boilerCabinet';
 
 export const MATERIALS: BuildMaterial[] = ['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass'];
 const MATERIAL_KEY: Record<BuildMaterial, keyof Dictionary['build']> = {
@@ -92,6 +93,8 @@ export interface InspectorActions {
   setRadiatorProduct?: (id: string, product: CatalogProduct | null) => void;
   /** The catalogue product a panel, a boiler, an air conditioner, a hood or fan, a drain is (null: back to the estimate). */
   setEquipmentProduct?: (id: string, product: CatalogProduct | null) => void;
+  /** A boiler's ventilated cabinet: another material, or none. */
+  setBoilerCabinet?: (id: string, material: CatalogProduct | null) => void;
 }
 
 export function ElementInspector({ plan, electrical, finishes = [], selection, actions, locked, className, roomExtras, catalog = [], styleId = 'scandinavian', roomPart, wallBuilding = false }: { plan: FloorPlan; electrical: ElectricalPoint[]; finishes?: SurfaceFinish[]; selection: ElementSelection; actions: InspectorActions; locked?: boolean; className?: string; /** Rendered under the room fields (the finishes, say). */ roomExtras?: (room: PlanRoom) => React.ReactNode; /** The design catalogue, for what a radiator can be bought as. */ catalog?: CatalogProduct[]; styleId?: StyleId; /** The half of a studio picked out on the board. */ roomPart?: RoomPartPick; /** The estimate builds the partition walls (a black frame): a wall can be marked as already standing (`Wall.built`). */ wallBuilding?: boolean }) {
@@ -714,7 +717,43 @@ function EquipmentFields({ plan, point, catalog, styleId, locale, actions }: { p
           </div>
         </Field>
       )}
+      {point.kind === 'boiler' && <BoilerCabinetFields point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
     </div>
+  );
+}
+
+/**
+ * A boiler's ventilated cabinet (`lib/design/boilerCabinet`): the joiner's materials, priced per m²
+ * of façade, or none; and why it is there — on a balcony or in a kitchen or bathroom the boiler is
+ * built into one, with its service access kept.
+ */
+function BoilerCabinetFields({ point, catalog, styleId, locale, actions }: { point: TechnicalPoint; catalog: CatalogProduct[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru'; actions: InspectorActions }) {
+  const t = useT();
+  const materials = boilerCabinetCandidates(catalog, styleId);
+  const size = boilerCabinetSize(point);
+  const m2 = boilerCabinetFacadeM2(point);
+  return (
+    <Field label={t.build.boilerCabinet}>
+      <p className="mb-1 text-[11px] leading-snug text-ink-muted">
+        {fill(t.build.boilerCabinetHint, { w: Math.round(size.width * 100), h: Math.round(size.height * 100), d: Math.round(size.depth * 100), m2: formatM2(m2) })}
+      </p>
+      {actions.setBoilerCabinet && (
+        <div className="flex flex-col gap-1">
+          {materials.map((product) => {
+            const active = point.cabinet?.productId === product.id;
+            return (
+              <button key={product.id} type="button" onClick={() => !active && actions.setBoilerCabinet?.(point.id, product)} aria-pressed={active} className={cn('flex items-center justify-between gap-2 rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+                <span className="line-clamp-2 font-medium leading-snug text-ink">{localizedName(locale, product)}</span>
+                <span className="shrink-0 tabular-nums text-ink-muted">{formatGEL(product.pricePerUnit * m2)}</span>
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => point.cabinet !== null && actions.setBoilerCabinet?.(point.id, null)} aria-pressed={point.cabinet === null} className={cn('rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] text-ink-muted transition-colors', point.cabinet === null ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
+            {t.build.boilerCabinetNone}
+          </button>
+        </div>
+      )}
+    </Field>
   );
 }
 

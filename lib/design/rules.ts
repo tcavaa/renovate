@@ -75,6 +75,11 @@ export const RADIATOR_BESIDE_WINDOW_M = 0.15;
  * even without one when nothing better exists (the person moves it).
  */
 export const BOILER_ROOMS: Array<PlanRoom['type']> = ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'];
+/** Its ventilated cabinet: the boiler's size and 10 cm all round, no deeper than 60 cm. */
+export const BOILER_CABINET_CLEARANCE_M = 0.1;
+export const BOILER_CABINET_MAX_DEPTH_M = 0.6;
+/** A boiler's size when its product does not say: a wall-hung combi. */
+export const BOILER_DEFAULT_SIZE_M = { width: 0.42, depth: 0.34, height: 0.72 } as const;
 
 // ---------------------------------------------------------------------------
 // Water (წყალმომარაგება): cold in blue, hot in red, a point per pipe at every fixture

@@ -287,6 +287,9 @@ drawn; the wall cabinets are bought as their own line (`kitchen_wall_custom` as 
   `kitchen-custom` category — "სამზარეულოს ავეჯი — ინდივიდუალური დამზადება", seeded with three
   materials (laminated chipboard 650, painted MDF 850, oak veneer 1 150 ₾ per m² of façade, all
   in: carcases, fronts, the worktop's share and the fitting — `scripts/lib/kitchenMaterials.ts`).
+  A boiler's ventilated cabinet is priced the same way — the joiner's material at `façade × price`
+  (`boilerCabinetFacadeM2`: its front and sides), key `product-<id>`, tick `cabinet:<product id>`,
+  section heating, `item` "ქვაბის ვენტილირებადი კარადა" ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts)).
   The line is that product at `façade × price`, not an estimate: key `product-<id>`, tick
   `kitchen:<item id>`, bucket and section furniture, `item` "სამზარეულოს ავეჯი — ინდივიდუალური
   დამზადება" (or the island's), so it is the maker's basket and the maker's order. **Only a

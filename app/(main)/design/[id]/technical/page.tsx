@@ -302,6 +302,7 @@ export default function TechnicalPage() {
                   removeRoom: actions.removeRoom,
                   setRadiatorProduct: actions.setRadiatorProduct,
                   setEquipmentProduct: actions.setEquipmentProduct,
+                  setBoilerCabinet: actions.setBoilerCabinet,
                 }}
                 catalog={products}
                 styleId={styleId}

@@ -35,7 +35,7 @@ import type { RadiatorManifestModel } from './radiator-models';
 import type { EquipmentManifestModel } from './equipment-models';
 import type { KitchenManifestModel } from './kitchen-models';
 import { TRIM_PRODUCTS } from './lib/trimProducts';
-import { KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
+import { BOILER_CABINET_MATERIALS, KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
 import { STORE_I18N } from './lib/translations';
 
 interface Manifest {
@@ -449,6 +449,38 @@ async function main() {
     } else await db.insert(products).values(row);
     upserted++;
     console.log(`  ✓ ${material.slug.padEnd(38)} kitchen        ${existing.length ? 'price as admin has it' : `${material.priceGelPerM2} ₾/მ² ფასადი`}${model ? `  · ${model.url}` : ''}`);
+  }
+
+  // The same joiner's boiler cabinets (`lib/design/boilerCabinet`): per m² of façade, no model.
+  await ensureCategory('boiler-cabinet');
+  for (const material of BOILER_CABINET_MATERIALS) {
+    const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, material.slug)).limit(1);
+    keepSlugs.push(material.slug);
+    const row = {
+      categoryId: categoryBySlug('boiler-cabinet')!,
+      storeId: storeBySlug.get(KITCHEN_STORE.slug) ?? null,
+      nameKa: material.nameKa,
+      nameEn: material.nameEn,
+      nameRu: material.nameRu,
+      descriptionKa: material.descriptionKa,
+      slug: material.slug,
+      sku: `BC-${material.slug.replace(/^boiler-cabinet-/, '').toUpperCase()}`,
+      pricePerUnit: String(material.priceGelPerM2),
+      unit: 'm2' as const,
+      brand: null,
+      imageUrl: material.imageUrl,
+      styleTags: material.styles,
+      colorHex: material.colorHex,
+      isActive: true,
+      isFeatured: false,
+    };
+    // The price is admin's once the material exists.
+    if (existing.length) {
+      const { pricePerUnit: _admins, ...kept } = row;
+      await db.update(products).set(kept).where(eq(products.id, existing[0].id));
+    } else await db.insert(products).values(row);
+    upserted++;
+    console.log(`  ✓ ${material.slug.padEnd(38)} boiler cabinet ${existing.length ? 'price as admin has it' : `${material.priceGelPerM2} ₾/მ² ფასადი`}`);
   }
 
   // Everything else the studio could have placed goes. The studio must never draw a product

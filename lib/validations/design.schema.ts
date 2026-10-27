@@ -119,6 +119,8 @@ export const technicalPointSchema = z.object({
   product: sceneProductSchema.nullable().optional(),
   radiator: z.object({ wattsPerSection: z.number().min(20).max(1000), sectionWidthM: z.number().min(0.02).max(0.5), heightM: z.number().min(0.1).max(2.5), depthM: z.number().min(0.02).max(0.5) }).optional(),
   sections: z.number().int().min(1).max(60).nullable().optional(),
+  // A boiler's ventilated cabinet: the joiner's material, bought by the façade.
+  cabinet: sceneProductSchema.nullable().optional(),
   // A piece of equipment: its product's size, for the 3D view.
   sizeM: z.object({ width: z.number().min(0.01).max(5), depth: z.number().min(0.001).max(5), height: z.number().min(0.001).max(5) }).nullable().optional(),
   origin: elementOriginSchema,

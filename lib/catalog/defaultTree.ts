@@ -159,6 +159,8 @@ const TREE: Spec[] = [
       // piece placed in a room, so not furniture to the seeds, and beside the kitchen furniture
       // rather than under it, which the calculator's tab lists whole.
       add('kitchen-custom', 'სამზარეულო — ავეჯის დამზადება', 'Kitchen — made to measure', 'Кухня — изготовление на заказ', 'ruler', { isFurniture: false }),
+      // The joiner's materials for the boiler's ventilated cabinet, per m² of façade (`lib/design/boilerCabinet`).
+      add('boiler-cabinet', 'ქვაბის კარადა — დამზადება', 'Boiler cabinet — made to measure', 'Шкаф для котла — на заказ', 'ruler', { isFurniture: false }),
     ],
   }),
   old('decor', 'დეკორი', 'Decor', 'Декор', 'flower-2', {

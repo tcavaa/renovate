@@ -21,7 +21,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 | 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
 | 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
 | 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | **built** |
-| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | ceilings, cove and the WC box **built**; the boiler cabinet next |
+| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | **built** |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
 
 ## The decisions (owner, 28 Oct 2026)
@@ -35,10 +35,10 @@ The brief is built in five stages, each tested, documented and committed on its 
   it. The layout keeps furniture out of a strip in front of every radiator
   (`RADIATOR_KEEP_CLEAR_M`). Curtains stay floor-length, hung from just under the ceiling.
 - **Boiler**: on an outside wall, in a utility (storage) room with an outside wall, else the
-  balcony, else the kitchen, else the bathroom. *Stage 4*: a ventilated cabinet around it — a
-  joinery line priced by material per m² of façade, the materials catalogue products the admin
-  edits (like the made-to-measure kitchen), its size the boiler's plus 10 cm round; service access
-  kept in front.
+  balcony, else the kitchen, else the bathroom; a ventilated cabinet around it — a joinery line
+  priced by material per m² of façade, the materials catalogue products the admin edits (like the
+  made-to-measure kitchen), its size the boiler's plus 10 cm round; service access kept in front
+  ([technical-and-fittings.md](technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts)).
 - **Kitchen sockets**: the run is one piece, so the app assumes a standard order
   (`kitchenRunZones`): the sink at the end nearer the water (or the drain), the dishwasher beside
   it, the hob and the oven under it towards the middle, the hood over the hob. Worktop sockets at
@@ -177,7 +177,9 @@ seats and door widths, and every size check; `ceiling.test.ts` (when a ceiling d
 far, a balcony, what is hung again, the cove's sizes); `designStore.test.ts` (the store keeps the
 drop as the home state, the mode, the choice and the works change; a box's height follows its
 card); `wcBox.test.ts` (the box's place, size, materials and quantities, the whole wall, the WC
-in front of it and followed by it, not the AI's).
+in front of it and followed by it, not the AI's); `boilerCabinet.test.ts` (size, façade, the
+material chosen, taken off, the budget line); `tests/integration/save-routes.test.ts` (a forged
+cabinet price repriced by the server's façade).
 
 ## Known gaps
 
@@ -198,4 +200,6 @@ in front of it and followed by it, not the AI's).
 - Circulation (100–150 cm paths) is the existing tight-passage warning (`clearance.ts`), not a
   check of its own; IP44 sockets are not a product attribute, only the splash-zone warning.
 - The warnings are not yet on the plan PDF nor given to the AI's room check (stage 5).
-- Stages 4–5 above.
+- The boiler's cabinet is not drawn in 3D; its materials need `pnpm models:seed` (and migration
+  `0010_boiler_cabinet`, which a deployment runs) before a boiler gets one.
+- Stage 5 above.

@@ -908,6 +908,7 @@ export default function StudioPage() {
     removeZone: store.removeFinishZone,
     setRadiatorProduct: store.setRadiatorProduct,
     setEquipmentProduct: store.setEquipmentProduct,
+    setBoilerCabinet: store.setBoilerCabinet,
   };
 
   /**

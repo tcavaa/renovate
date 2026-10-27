@@ -166,7 +166,9 @@ without one before it looks at archetype or style. There are two ways a product 
   manifest-managed product with a `model3dKind` — a product whose `model3dUrl` is not under
   `/models/` (an upload) and a person's own product are left alone. Details in
   [3d-assets.md](3d-assets.md#what-pnpm-modelsseed-does). It also writes the kitchen maker's
-  three materials (`scripts/lib/kitchenMaterials.ts`: per m² of façade, in `kitchen-custom`) and
+  three materials (`scripts/lib/kitchenMaterials.ts`: per m² of façade, in `kitchen-custom`), the
+  same joiner's three boiler-cabinet materials (`BOILER_CABINET_MATERIALS`, in `boiler-cabinet`;
+  an existing one's price is admin's) and
   makes their store when the database has none — `seed-design.ts` writes the same store with
   the other partner stores. A material's 3D model (admin's upload, or the seed's) is how a
   kitchen made in it is drawn, never a piece placed on its own

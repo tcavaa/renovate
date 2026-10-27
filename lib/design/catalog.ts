@@ -683,6 +683,13 @@ export function isKitchenMaterial(product: { categorySlug?: string | null; unit?
   return product.categorySlug === KITCHEN_MATERIAL_CATEGORY && product.unit === 'm2';
 }
 
+/** The joiner's materials for a boiler's ventilated cabinet, per m² of façade (`lib/design/boilerCabinet`). */
+export const BOILER_CABINET_CATEGORY = 'boiler-cabinet';
+
+export function isBoilerCabinetMaterial(product: { categorySlug?: string | null; unit?: string | null }): boolean {
+  return product.categorySlug === BOILER_CABINET_CATEGORY && product.unit === 'm2';
+}
+
 /** The categories the central-heating radiators are sold in, by the section. */
 export const RADIATOR_CATEGORY_SLUGS = ['radiators'];
 /** The categories the skirting boards and cornices are sold in, by the running metre. */
@@ -697,6 +704,7 @@ export const DESIGN_CATEGORY_SLUGS = Array.from(
     ...OPENING_CATEGORY_SLUGS,
     ...RADIATOR_CATEGORY_SLUGS,
     ...TRIM_CATEGORY_SLUGS,
+    BOILER_CABINET_CATEGORY,
   ])
 );
 

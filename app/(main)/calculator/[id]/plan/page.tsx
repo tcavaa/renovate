@@ -238,6 +238,7 @@ export default function CalculatorPlanPage() {
                     removeRoom: actions.removeRoom,
                     setRadiatorProduct: actions.setRadiatorProduct,
                     setEquipmentProduct: actions.setEquipmentProduct,
+                    setBoilerCabinet: actions.setBoilerCabinet,
                   }}
                   catalog={catalog}
                   styleId={styleId}

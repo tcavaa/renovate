@@ -4,8 +4,9 @@ import { products, stores } from '@/lib/db/schema';
 import { fixtureQuantity } from '@/lib/design/electrical';
 import { isEquipmentKind } from '@/lib/design/equipment';
 import { radiatorSections } from '@/lib/design/radiators';
-import type { ElectricalPoint, FloorPlan, SceneProduct, SceneStore } from '@/lib/design/types';
+import type { ElectricalPoint, FloorPlan, SceneProduct, SceneStore, TechnicalPoint } from '@/lib/design/types';
 import { productVariants, sceneVariant, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
+import { boilerCabinetFacadeM2 } from '@/lib/design/boilerCabinet';
 
 /**
  * Current catalogue prices, by product id, for repricing a client-submitted basket.
@@ -153,7 +154,7 @@ export function planProductIds(plan: FloorPlan | null, electrical: ElectricalPoi
   if (!plan) return electrical.flatMap((p) => (p.product ? [p.product.productId] : []));
   return [
     ...plan.rooms.flatMap((r) => r.openings.map((o) => o.product?.productId)),
-    ...(plan.technical?.points ?? []).map((p) => p.product?.productId),
+    ...(plan.technical?.points ?? []).flatMap((p) => [p.product?.productId, p.cabinet?.productId]),
     ...electrical.map((p) => p.product?.productId),
   ].filter((id): id is number => typeof id === 'number');
 }
@@ -174,12 +175,19 @@ export function repricePlan<P extends FloorPlan | null, E extends ElectricalPoin
     if (!product) unknown.push(holder.product.productId);
     return product ? { ...holder, product } : holder;
   };
+  // A boiler's cabinet: the joiner's material at the catalogue's price, by the façade the server measures.
+  const cabinetRepriced = (point: TechnicalPoint): TechnicalPoint => {
+    if (!point.cabinet) return point;
+    const cabinet = repriceSnapshot(point.cabinet, known, boilerCabinetFacadeM2(point));
+    if (!cabinet) unknown.push(point.cabinet.productId);
+    return cabinet ? { ...point, cabinet } : point;
+  };
   const next = (
     plan
       ? {
           ...plan,
           rooms: plan.rooms.map((room) => ({ ...room, openings: room.openings.map((opening) => repriced(opening, 1)) })),
-          ...(plan.technical ? { technical: { ...plan.technical, points: plan.technical.points.map((point) => (point.kind === 'radiator' ? repriced(point, radiatorSections(plan, point)) : isEquipmentKind(point.kind) ? repriced(point, 1) : point)) } } : {}),
+          ...(plan.technical ? { technical: { ...plan.technical, points: plan.technical.points.map((point) => cabinetRepriced(point.kind === 'radiator' ? repriced(point, radiatorSections(plan, point)) : isEquipmentKind(point.kind) ? repriced(point, 1) : point)) } } : {}),
         }
       : plan
   ) as P;

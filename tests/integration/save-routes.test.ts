@@ -95,6 +95,7 @@ vi.mock('@/lib/api/productPrices', async (importOriginal) => {
         [10, { pricePerUnit: 1450, nameKa: 'კონდიციონერი', unit: 'piece', coveragePerUnit: null, model3dKind: 'ac_unit' }],
         [11, { pricePerUnit: 850, nameKa: 'შეღებილი MDF', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
         [12, { pricePerUnit: 4200, nameKa: 'სამზარეულო ცალობით', unit: 'piece', coveragePerUnit: null, model3dKind: null }],
+        [13, { pricePerUnit: 520, nameKa: 'ქვაბის კარადა — MDF', unit: 'm2', coveragePerUnit: null, model3dKind: null }],
       ]),
   };
 });
@@ -659,6 +660,19 @@ describe('POST /api/design/projects (the design)', () => {
     const { cost } = (await res.json()).data;
     expect(cost.lines.find((l: { key: string }) => l.key === 'product-10')).toMatchObject({ qty: 1, total: 1450, estimated: false });
     expect(cost.lines.find((l: { key: string }) => l.key === 'product-11')).toMatchObject({ qty: 2.7, total: 2295, estimated: false });
+  });
+
+  it('reprices a boiler’s cabinet at the catalogue’s price by the façade the server measures', async () => {
+    signedIn();
+    const POST = await load();
+    // A forged price and quantity: the server's are 520 ₾/m² over 0.62 × 0.92 + 2 × 0.44 × 0.92 = 1.38 m².
+    const boiler = { id: 'b1', kind: 'boiler', roomId: 'living', position: { x: 0.1, z: 2 }, elevationM: 1.6, origin: 'user', cabinet: { ...snapshot(13, 1), unit: 'm2', qty: 0.1, totalPrice: 0.1 } };
+    const res = await POST(post('http://localhost/api/design/projects', { projectId: 42, plan: { ...plan, technical: { points: [boiler] } }, scene: { ...fittedScene, electrical: [] } }), ctx);
+    expect(res.status).toBe(200);
+    const set = lastUpdate() as { plan: { technical: { points: Array<{ cabinet: Record<string, number> }> } } };
+    expect(set.plan.technical.points[0].cabinet).toMatchObject({ pricePerUnit: 520, qty: 1.38, totalPrice: 717.6 });
+    const { cost } = (await res.json()).data;
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-13')).toMatchObject({ qty: 1.38, unit: 'm2', total: 717.6, estimated: false });
   });
 
   it('drops a kitchen “material” the catalogue does not sell by the m² — the kitchen is the estimate again', async () => {

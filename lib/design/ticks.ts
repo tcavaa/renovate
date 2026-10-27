@@ -29,6 +29,8 @@ export const tickFor = {
   radiator: (productId: number): string => `radiator:${productId}`,
   /** The equipment of the technical points — a panel, a boiler, an air conditioner, a hood, a fan, a drain — folded per product. */
   equipment: (productId: number): string => `equipment:${productId}`,
+  /** A boiler's ventilated cabinet, in the joiner's material, folded per material. */
+  cabinet: (productId: number): string => `cabinet:${productId}`,
   /** A made-to-measure kitchen: one placed run or island, in the kitchen maker's material or at the joiner's estimate. */
   kitchen: (itemId: string): string => `kitchen:${itemId}`,
   /** A custom decor material (`lib/design/decor`), folded per product across the flat. */

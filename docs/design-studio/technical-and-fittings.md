@@ -333,6 +333,16 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
   over the glass).
 - **A whole-flat pick** of equipment in the calculator goes on every point it is bought for
   (`dressBoard`'s `{ equipment }` target).
+- **The boiler's ventilated cabinet** (`lib/design/boilerCabinet.ts`, the design rules): the
+  boiler is built into a cabinet with louvres, its service access kept — the boiler's size and
+  10 cm all round, no deeper than 60 cm (`boilerCabinetSize`), made by the kitchen maker's joiner
+  in one of the `boiler-cabinet` materials and priced per m² of façade, its front and two sides
+  (`boilerCabinetFacadeM2`), like a made-to-measure kitchen; admin sets each material's price in
+  the product form. `withEquipmentProducts` gives every boiler one (`withBoilerCabinets`: the
+  style's material, else the cheapest, measured again when the boiler changes size); the
+  boiler's card lists the materials with what the cabinet comes to and "კარადის გარეშე"
+  (`setBoilerCabinet`; `cabinet: null` stays off). A line of its own in the budget, the joiner's
+  order; the save route reprices it by the façade it measures (`repricePlan`). Not drawn in 3D.
 
 ## Doors and windows are editable (`lib/design/openings.ts`)
 
