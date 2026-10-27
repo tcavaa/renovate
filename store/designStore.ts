@@ -1073,7 +1073,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => {
             if (!s.plan) return null;
             let n = 0;
-            const added = suggestRadiators(s.plan, () => `${uid('t')}${n++}`);
+            const added = suggestRadiators(s.plan, () => `${uid('t')}${n++}`, catalog);
             if (added.length === 0) return null;
             hung = added.length;
             const plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...added] } };
@@ -1133,7 +1133,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const nextId = () => `${uid('t')}${n++}`;
             const points = suggestTechnicalIn(s.plan, s.items, nextId).points;
             let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(plan, nextId);
+            const radiators = suggestRadiators(plan, nextId, catalog);
             plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
             plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;

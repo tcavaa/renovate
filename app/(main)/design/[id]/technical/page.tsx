@@ -19,6 +19,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
 import { effectivePhases, technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck } from '@/lib/design/technical';
+import { ruleViolations } from '@/lib/design/ruleChecks';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
 import { archetypeLabel } from '@/lib/design/catalog';
@@ -98,7 +99,8 @@ export default function TechnicalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, equipmentKey]);
 
-  const suggestions = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
+  // The step's own hints, then what the design rules say (a blocked radiator, a narrow door…).
+  const suggestions = useMemo(() => (plan ? [...technicalSuggestions(plan, items), ...ruleViolations(plan, items)] : []), [plan, items]);
 
   // `?check=` has done its work once the modal is open on it: a reload must not open it again.
   useEffect(() => {
@@ -132,7 +134,7 @@ export default function TechnicalPage() {
   const suggestionText = (s: (typeof suggestions)[number]) => {
     const room = plan.rooms.find((r) => r.id === s.roomId)?.name ?? '';
     const item = s.itemId ? archetypeLabel(items.find((i) => i.id === s.itemId)?.kind ?? '', locale) : '';
-    const n = s.distanceM ?? 0;
+    const n = ('valueM' in s ? s.valueM : undefined) ?? ('distanceM' in s ? s.distanceM : undefined) ?? 0;
     switch (s.code) {
       case 'far_from_sewer':
         return fill(t.build.sgFarFromSewer, { room, item, n });
@@ -144,6 +146,14 @@ export default function TechnicalPage() {
         return fill(t.build.sgNoExtractor, { room });
       case 'no_drain':
         return fill(t.build.sgNoDrain, { room });
+      case 'radiator_blocked':
+        return fill(t.build.sgRadiatorBlocked, { room, item });
+      case 'radiator_under_sill':
+        return fill(t.build.sgRadiatorUnderSill, { room, n: Math.round(n * 100) });
+      case 'boiler_not_exterior':
+        return fill(t.build.sgBoilerNotExterior, { room });
+      case 'door_too_narrow':
+        return fill(t.build.sgDoorTooNarrow, { room, n: Math.round(n * 100), min: Math.round((s.limitM ?? 0) * 100) });
     }
   };
 

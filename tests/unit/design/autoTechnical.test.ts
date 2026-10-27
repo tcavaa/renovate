@@ -18,8 +18,9 @@ describe('placing the technical points by the rules', () => {
     const plan = planOf([room('bath', 'bathroom', 0, 0, 2, 2.5), room('kit', 'kitchen', 3, 0, 3, 3), room('hall', 'hallway', 7, 0, 2, 4), room('bed', 'bedroom', 10, 0, 4, 3.5)]);
     const { points } = suggestTechnical(plan, [], ids);
 
-    expect(kindsIn(points, 'bath')).toEqual(['boiler', 'extractor', 'floor_drain', 'sewer', 'water_supply']);
-    expect(kindsIn(points, 'kit')).toEqual(['extractor', 'gas', 'sewer', 'water_supply']);
+    // No utility room and no balcony: the boiler goes to the kitchen, before the bathroom.
+    expect(kindsIn(points, 'bath')).toEqual(['extractor', 'floor_drain', 'sewer', 'water_supply']);
+    expect(kindsIn(points, 'kit')).toEqual(['boiler', 'extractor', 'gas', 'sewer', 'water_supply']);
     expect(kindsIn(points, 'hall')).toEqual(['electrical_panel']);
     expect(kindsIn(points, 'bed')).toEqual(['ac_unit']);
     // One boiler and one panel for the flat, not one per room that could take them.
@@ -59,14 +60,44 @@ describe('placing the technical points by the rules', () => {
     // No run to go over: the long wall without the window, not the window's middle.
     expect(bare.position.z).toBeGreaterThan(2.8);
 
-    // The run along the east wall (x = 4): the hood comes to the wall behind it, at its middle.
+    // The run along the east wall (x = 4), z 0.4–2.8: the sink is taken to be at its first end
+    // (no water marked yet, no fridge) and the hob 1.8 m along — the water comes to the sink,
+    // the gas and the hood to the hob, on the wall behind the run.
     const run: PlacedItem = { id: 'k1', slot: 'kitchen_run', kind: 'kitchen_run', roomId: 'kit', position: P(3.69, 1.6), rotation: -Math.PI / 2, size: { width: 2.4, depth: 0.62, height: 0.92 }, elevationM: 0, product: null, origin: 'style' };
-    const hood = suggestTechnical(planOf([kitchen]), [run], ids).points.find((p) => p.kind === 'extractor')!;
+    const placed = suggestTechnical(planOf([kitchen]), [run], ids).points;
+    const hood = placed.find((p) => p.kind === 'extractor')!;
     expect(hood.position.x).toBeGreaterThan(3.85);
-    expect(hood.position.z).toBeCloseTo(1.6, 1);
+    expect(hood.position.z).toBeCloseTo(2.2, 1);
+    expect(placed.find((p) => p.kind === 'gas')!.position.z).toBeCloseTo(2.2, 1);
+    expect(placed.find((p) => p.kind === 'water_supply')!.position.z).toBeCloseTo(0.7, 1);
 
     // A bathroom's fan still goes on the outside wall with the window, where the duct goes.
     const bath = { ...room('bath', 'bathroom', 0, 0, 3, 2), openings: [{ id: 'w2', kind: 'window' as const, wallIndex: 0, t: 0.5, widthM: 0.6, heightM: 0.6, sillM: 1.5, roomId: 'bath', exterior: true }] };
     expect(suggestTechnical(planOf([bath]), [], ids).points.find((p) => p.kind === 'extractor')!.position.z).toBeLessThan(0.2);
+  });
+
+  it('hangs the boiler on an outside wall: a utility room first, then the balcony, then the kitchen', () => {
+    // A strip of rooms side by side: each shares its side walls, so only the top and bottom are outside.
+    const strip = (types: Array<PlanRoom['type']>) => planOf(types.map((type, i) => room(`r${i}`, type, i * 3.12, 0, 3, 3)));
+    const boilerIn = (plan: FloorPlan) => suggestTechnical(plan, [], ids).points.find((p) => p.kind === 'boiler')!;
+
+    const withUtility = strip(['kitchen', 'balcony', 'storage', 'bathroom']);
+    expect(boilerIn(withUtility).roomId).toBe('r2');
+    const withBalcony = strip(['kitchen', 'balcony', 'bathroom']);
+    expect(boilerIn(withBalcony).roomId).toBe('r1');
+    const neither = strip(['bathroom', 'kitchen']);
+    expect(boilerIn(neither).roomId).toBe('r1');
+
+    // On an outside wall — the top (z = 0) or the bottom (z = 3), never the shared sides.
+    for (const plan of [withUtility, withBalcony, neither]) {
+      const z = boilerIn(plan).position.z;
+      expect(z < 0.2 || z > 2.8).toBe(true);
+    }
+  });
+
+  it('skips a utility room with no outside wall', () => {
+    // The storage room is boxed in on every side: kitchen to the left, bathroom to the right, hall above and below.
+    const plan = planOf([room('k', 'kitchen', 0, 1.12, 2, 2), room('s', 'storage', 2.12, 1.12, 1.5, 2), room('b', 'bathroom', 3.74, 1.12, 2, 2), room('h1', 'hallway', 0, 0, 6, 1), room('h2', 'hallway', 0, 3.24, 6, 1)]);
+    expect(suggestTechnical(plan, [], ids).points.find((p) => p.kind === 'boiler')!.roomId).toBe('k');
   });
 });

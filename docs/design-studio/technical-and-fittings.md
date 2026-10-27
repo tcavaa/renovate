@@ -20,6 +20,8 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | File | Responsibility |
 |---|---|
 | `lib/design/technical.ts` | `TECHNICAL_KINDS`, `technicalElevation`, `WORK_ITEMS` / `WORK_STAGES` / `normalizeWorks`, `effectivePhases`, the step's checks (`TECHNICAL_CHECKS`, `technicalChecks`, `uncheckedTechnical`, `technicalCheckFrom`), `technicalAnchors`, `technicalSuggestions` |
+| `lib/design/rules.ts` | the design rules' numbers (heights, gaps, door widths, the boiler's rooms) and `kitchenRunZones` — [design-rules.md](design-rules.md) |
+| `lib/design/ruleChecks.ts` | `ruleViolations` (a blocked radiator, one up to its sill, a boiler on an inside wall, a narrow door) and `radiatorKeepouts` |
 | `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's automatic-placement check and the studio's technical tray; `origin: 'user'`) |
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
@@ -53,7 +55,14 @@ is the hint list on step 3 (a toilet, shower or bath far from the sewer; a sink,
 or washer more than 2.2 m from the water; a bathroom with no floor drain or sewer; a radiator on
 an interior wall; no extractor in a bathroom or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
-panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. Nothing is fixed to a
+panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. **The boiler** goes on
+an outside wall (`outsideEdges`), where its flue can leave, in the first room of `BOILER_ROOMS`
+the flat has: a utility (storage) room with an outside wall, else the balcony, else the kitchen,
+else the bathroom. **A kitchen run's** water and waste go to the end its sink is taken to be at,
+its gas and its hood to the hob (`kitchenRunZones`, [design-rules.md](design-rules.md#the-rules-module-libdesignrulests)).
+The step's hints also list what the design rules find (`ruleViolations`: furniture in front of
+a radiator, a radiator reaching within 10 cm of its sill, a boiler on an inside wall, a door
+narrower than 80 cm — 70 cm into a bathroom or toilet). Nothing is fixed to a
 room separator's open edge — not these points, not a socket or switch (`wallSpotNear`,
 `suggestElectrical`), not a radiator (`radiatorWallSpot`, `suggestRadiators`), not a door or a
 window (`nearestWall`, `addOpening`): they all go by `wallEdges`
@@ -83,15 +92,25 @@ letters the board used to write. The board, the studio's 2D view and every plan 
 alike.
 
 Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wall +
-position, height, outlets, on/off, a lighting `category`), in two parts with the usual heights.
+position, height, outlets, on/off, a lighting `category`), in two parts, at the heights of the
+design rules (`lib/design/rules.ts`, [design-rules.md](design-rules.md)).
 **The standard fittings** (`standardElectrical`, decided by the room alone): one main light per
-room, a 105 cm switch by the handle side of every door, general 45 cm sockets on the long walls
-of the rooms people live in, off the walls the switches are on. **The furniture's**
-(`suggestElectrical` = the standard ones + these): 60 cm bedside sockets and lights (the reading
-lamp centred over that side's nightstand, none past the wall's end when the bed stands against the
-side wall — one used to hang in the corner), 115 cm
-sockets over a 90 cm worktop and the kitchen's under-cabinet light, 170 cm high sockets, the
-television and data points. The calculator's board places the standard ones — it has no
+room, a 105 cm switch on the handle side of every door, 20 cm from the opening (about 15 cm from
+the frame), general 45 cm sockets on the long walls of the rooms people live in, off the walls
+the switches are on; a hallway 4 m or longer is switched from both ends — the door switches
+nearest its two ends become a **two-way** pair (`switch_two_way`), or a two-way switch is added on
+the wall at the far end. **The furniture's** (`suggestElectrical` = the standard ones + these):
+bedside double sockets 10 cm over that side's nightstand within 45–75 cm, 35 cm with none
+(`bedsideSocketHeight`), and the reading lamps (centred over the nightstand, none past the wall's
+end when the bed stands against the side wall); in a bedroom a 90 cm two-way switch by each side
+of a double bed (the open side of a single one), the door's switch joining the pair; the
+kitchen by `kitchenRunZones` — three double sockets at 105 cm over the 90 cm worktop (the prep
+zone, the coffee zone past the hob, one more in the longer), 30 cm sockets behind the dishwasher,
+the oven and the hob's ignition, the hood's at 215 cm over the hob, one at 170 cm in the wall
+cabinets for the under-cabinet light, the light itself, and the fridge's at 40 cm; a desk's
+sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV.
+A two-way switch is bought as its own product kind (`switch_two_way`) — an estimate until the
+catalogue has one — and drawn with the switch's models. The calculator's board places the standard ones — it has no
 furniture — so a design of the same flat has exactly the calculator's fittings plus what its
 furniture brings ([../calculator.md](../calculator.md)). **A room the person has wired by hand is
 kept whole** (`wiredByHand`): every point in a room holding one that is not `'generated'` —
@@ -237,7 +256,13 @@ step's radiators check shows the demand per room and hangs radiators at a click 
 as the room's sections call for — `ceil(sections / 14)`, at least one — under its widest
 windows and never more than it has windows, on the longest outside wall when it has none;
 rooms that already have one, unheated rooms (balcony, storage, closet) and rooms under 3.5 m²
-are skipped). They are marked `origin: 'user'` because the person asked for them, so a
+are skipped). **Hung by the rules** ([design-rules.md](design-rules.md)): the bottom 12 cm off the
+floor, the back 4 cm off the wall (`RADIATOR_FLOOR_GAP_M`, `RADIATOR_WALL_GAP_M`), the top at least
+10 cm under the sill — each radiator takes the first product of the candidates that fits under its
+window (`radiatorProductFor`, `radiatorHeadroomM`), and a window too low for any radiator (a
+floor-length one) has its radiator beside it on the same wall (`besideWindow`). The layout keeps
+furniture off a strip 30 cm deep in front of every radiator (`radiatorKeepouts`, passed to
+`layoutPlan` as obstacles by `generateScene`); curtains may hang there. They are marked `origin: 'user'` because the person asked for them, so a
 finished home still costs them. The budget buys the sections and charges `radiator_mount` per
 radiator — on the radiator's own line, or inside the heating phase (2) when that phase runs.
 

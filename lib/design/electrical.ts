@@ -8,18 +8,41 @@
  * that is already standing; every point is then a thing the person can drag, re-height or
  * delete, and the tray offers the rest (indirect strips, wall lights, furniture lighting).
  *
- * Heights follow common practice and are always editable:
+ * Heights follow the design rules (`lib/design/rules.ts`, the owner's brief) and are always
+ * editable:
  *
- *   sockets 45 cm · bedside 60 cm (50–70) · kitchen worktop 90 cm, its sockets 115 cm
- *   (110–120) · high sockets 170 cm · switches 105 cm · TV 110 cm
+ *   sockets 45 cm · bedside 35 cm, or 10 cm over a nightstand (45–75) · kitchen worktop 90 cm,
+ *   its sockets 105 cm (100–110), the appliances' 30 cm, the hood's 215 cm, the fridge's 40 cm ·
+ *   high sockets 170 cm · switches 105 cm (two-way by a bed and along a long hallway) · TV 110 cm
  *
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
-import { isPassage, openingSpanUp, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { isPassage, openingSpanUp, pointOnEdge, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
-import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
+import {
+  APPLIANCE_SOCKET_M,
+  BEDSIDE_LOW_SOCKET_M,
+  BEDSIDE_SWITCH_M,
+  CABINET_LIGHT_SOCKET_M,
+  DESK_SOCKET_ABOVE_M,
+  FRIDGE_SOCKET_M,
+  HIGH_SOCKET_M,
+  HOOD_SOCKET_M,
+  KITCHEN_SOCKET_M,
+  NIGHTSTAND_SOCKET_ABOVE_M,
+  NIGHTSTAND_SOCKET_RANGE_M,
+  SOCKET_M,
+  SWITCH_FROM_OPENING_M,
+  SWITCH_M,
+  TV_SOCKET_M,
+  TWO_WAY_CORRIDOR_M,
+  kitchenRunZones,
+} from './rules';
+import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+
+export { KITCHEN_SOCKET_M, KITCHEN_WORKTOP_M, HIGH_SOCKET_M, SOCKET_M, SWITCH_M, TV_SOCKET_M } from './rules';
 
 export interface ElectricalKindInfo {
   /** On a wall, on the ceiling, or anywhere on the plan (a strip under a bed). */
@@ -31,20 +54,13 @@ export interface ElectricalKindInfo {
   count?: number;
 }
 
-export const KITCHEN_WORKTOP_M = 0.9;
-export const BEDSIDE_SOCKET_M = 0.6;
-export const SOCKET_M = 0.45;
-export const HIGH_SOCKET_M = 1.7;
-export const KITCHEN_SOCKET_M = 1.15;
-export const SWITCH_M = 1.05;
-export const TV_SOCKET_M = 1.1;
-
 export const ELECTRICAL_KINDS: Record<ElectricalKind, ElectricalKindInfo> = {
   socket: { placement: 'wall', defaultElevationM: SOCKET_M, light: false, count: 1 },
   socket_double: { placement: 'wall', defaultElevationM: SOCKET_M, light: false, count: 2 },
   socket_high: { placement: 'wall', defaultElevationM: HIGH_SOCKET_M, light: false, count: 1 },
   socket_kitchen: { placement: 'wall', defaultElevationM: KITCHEN_SOCKET_M, light: false, count: 2 },
   switch: { placement: 'wall', defaultElevationM: SWITCH_M, light: false },
+  switch_two_way: { placement: 'wall', defaultElevationM: SWITCH_M, light: false },
   tv: { placement: 'wall', defaultElevationM: TV_SOCKET_M, light: false },
   internet: { placement: 'wall', defaultElevationM: SOCKET_M, light: false },
   light_ceiling: { placement: 'ceiling', defaultElevationM: 0, light: true, category: 'primary' },
@@ -59,6 +75,11 @@ export const LIGHT_CATEGORIES: LightCategory[] = ['primary', 'secondary', 'furni
 
 export function isLight(kind: ElectricalKind): boolean {
   return ELECTRICAL_KINDS[kind].light;
+}
+
+/** A switch, one-way or two-way (pass-through). */
+export function isSwitch(kind: ElectricalKind): boolean {
+  return kind === 'switch' || kind === 'switch_two_way';
 }
 
 /** The wall spot nearest to a world point: the edge, how far along it, and the point itself. */
@@ -165,7 +186,7 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     if (skip.has(room.id)) continue;
     if (wallEdges(room).length === 0) continue;
     standardFor(b, room);
-    furnitureFor(b, room, items.filter((i) => i.roomId === room.id));
+    furnitureFor(b, room, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? []);
   }
 
   return [...kept, ...b.points];
@@ -200,16 +221,18 @@ function standardFor(b: Builder, room: PlanRoom): void {
   const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
   const before = b.points.length;
 
-  // Every room: a main light and a switch on the handle side of each door.
+  // Every room: a main light and a switch on the handle side of each door, 20 cm from the opening.
   make(b, room, 'light_ceiling', centre);
   for (const door of room.openings.filter(isPassage)) {
     const edge = edges.find((e) => e.index === door.wallIndex);
     if (!edge) continue;
     const side = door.hinge === 'right' ? -1 : 1;
-    const t = door.t + (side * (door.widthM / 2 + 0.2)) / edge.length;
-    if (t <= 0.02 || t >= 0.98) makeOnWall(b, room, 'switch', edge, door.t - (side * (door.widthM / 2 + 0.2)) / edge.length);
+    const offset = (door.widthM / 2 + SWITCH_FROM_OPENING_M) / edge.length;
+    const t = door.t + side * offset;
+    if (t <= 0.02 || t >= 0.98) makeOnWall(b, room, 'switch', edge, door.t - side * offset);
     else makeOnWall(b, room, 'switch', edge, t);
   }
+  if (room.type === 'hallway') twoWayCorridor(b, room, edges, before);
 
   // The rooms people live in: a general socket on each long free wall, at 45 cm.
   if (['living_room', 'bedroom', 'office', 'hallway', 'kitchen', 'studio'].includes(room.type)) {
@@ -220,22 +243,76 @@ function standardFor(b: Builder, room: PlanRoom): void {
   }
 }
 
+/**
+ * A hallway 4 m or longer is switched from both ends: the light goes on at one end and off at
+ * the other. The door switches furthest apart along the hallway become a two-way pair when
+ * they are near its two ends; otherwise a two-way switch is added on the wall at the far end.
+ */
+function twoWayCorridor(b: Builder, room: PlanRoom, edges: PlanEdge[], from: number): void {
+  const bounds = polygonBounds(room.polygon);
+  const alongX = bounds.maxX - bounds.minX >= bounds.maxZ - bounds.minZ;
+  const length = alongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ;
+  if (length < TWO_WAY_CORRIDOR_M) return;
+  const at = (p: Vec2) => (alongX ? p.x - bounds.minX : p.z - bounds.minZ);
+  const switches = b.points.slice(from).filter((p) => p.roomId === room.id && p.kind === 'switch').sort((p, q) => at(p.position) - at(q.position));
+  if (switches.length === 0) return;
+  const first = switches[0];
+  const last = switches[switches.length - 1];
+  const nearEnd = (d: number) => d <= length * 0.25;
+  if (switches.length >= 2 && nearEnd(at(first.position)) && nearEnd(length - at(last.position))) {
+    first.kind = 'switch_two_way';
+    last.kind = 'switch_two_way';
+    return;
+  }
+  // The end the switches are not at: a switch on the wall closing it, else on a side wall near it.
+  const farLow = at(first.position) > length - at(last.position);
+  const target = alongX
+    ? { x: farLow ? bounds.minX + 0.3 : bounds.maxX - 0.3, z: (bounds.minZ + bounds.maxZ) / 2 }
+    : { x: (bounds.minX + bounds.maxX) / 2, z: farLow ? bounds.minZ + 0.3 : bounds.maxZ - 0.3 };
+  const spot = edges
+    .map((edge) => ({ edge, hit: closestOnSegment(target, edge.a, edge.b) }))
+    .sort((p, q) => p.hit.distance - q.hit.distance);
+  for (const { edge, hit } of spot) {
+    const added = makeOnWall(b, room, 'switch_two_way', edge, hit.t);
+    if (!added) continue;
+    (farLow ? last : first).kind = 'switch_two_way';
+    return;
+  }
+}
+
+/** A bedside socket's height: 10 cm over that side's nightstand, within 45–75 cm; 35 cm with none. */
+export function bedsideSocketHeight(stand: PlacedItem | undefined): number {
+  if (!stand) return BEDSIDE_LOW_SOCKET_M;
+  const top = stand.elevationM + stand.size.height;
+  return Math.round(Math.max(NIGHTSTAND_SOCKET_RANGE_M.min, Math.min(NIGHTSTAND_SOCKET_RANGE_M.max, top + NIGHTSTAND_SOCKET_ABOVE_M)) * 100) / 100;
+}
+
 /** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the basin. */
-function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[]): void {
+function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical: TechnicalPoint[]): void {
   const beds = here.filter((i) => i.slot === 'bed');
   for (const bed of beds) {
     const wall = backWall(room, bed);
     if (!wall) continue;
+    const double = bed.size.width >= 1.2;
+    const sides: Array<{ side: number; t: number; stand: PlacedItem | undefined }> = [];
     for (const side of [-1, 1]) {
       const t = alongBack(bed, wall, side * (bed.size.width / 2 + 0.25));
       // Off the wall's end there is no bedside: a bed pushed against the side wall has none there.
       if (t * wall.edge.length < 0.15 || (1 - t) * wall.edge.length < 0.15) continue;
-      makeOnWall(b, room, 'socket_double', wall.edge, t, { elevationM: BEDSIDE_SOCKET_M });
-      // The reading lamp over that side's nightstand when there is one, else beside the bed.
       const stand = here.find((i) => i.slot === 'nightstand' && Math.sign(along(wall.edge, i.position) - along(wall.edge, bed.position)) === Math.sign((t - wall.t) || side));
+      sides.push({ side, t, stand });
+      makeOnWall(b, room, 'socket_double', wall.edge, t, { elevationM: bedsideSocketHeight(stand) });
+      // The reading lamp over that side's nightstand when there is one, else beside the bed.
       const lampT = stand ? along(wall.edge, stand.position) / wall.edge.length : t;
       makeOnWall(b, room, 'light_wall', wall.edge, lampT, { elevationM: 1.45, category: 'bedside' });
     }
+    // Two-way switching: the light goes on at the door and off from the bed — from both sides
+    // of a double bed, from the open side of a single one. The door's switches join the pair.
+    if (room.type !== 'bedroom' || sides.length === 0) continue;
+    const reach = double ? sides : [sides.sort((p, q) => Math.abs(q.t - 0.5) - Math.abs(p.t - 0.5)).at(-1)!];
+    let added = 0;
+    for (const { t } of reach) if (makeOnWall(b, room, 'switch_two_way', wall.edge, t, { elevationM: BEDSIDE_SWITCH_M })) added += 1;
+    if (added > 0) for (const p of b.points) if (p.roomId === room.id && p.kind === 'switch') p.kind = 'switch_two_way';
   }
 
   const tv = here.find((i) => i.slot === 'tv_unit');
@@ -259,24 +336,43 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[]): void {
   if (desk) {
     const wall = backWall(room, desk);
     if (wall) {
-      makeOnWall(b, room, 'socket_double', wall.edge, alongBack(desk, wall, 0.25), { elevationM: 0.75 });
-      makeOnWall(b, room, 'internet', wall.edge, alongBack(desk, wall, -0.25), { elevationM: 0.75 });
+      // Just above the desktop, where a charger reaches.
+      const height = Math.round((desk.elevationM + desk.size.height + DESK_SOCKET_ABOVE_M) * 100) / 100;
+      makeOnWall(b, room, 'socket_double', wall.edge, alongBack(desk, wall, 0.25), { elevationM: height });
+      makeOnWall(b, room, 'internet', wall.edge, alongBack(desk, wall, -0.25), { elevationM: height });
     }
   }
 
   const run = here.find((i) => i.slot === 'kitchen_run');
-  if (run) {
-    const wall = backWall(room, run);
-    if (wall) {
-      const spread = run.size.width / 2 - 0.35;
-      for (const lateral of [-spread, 0, spread]) makeOnWall(b, room, 'socket_kitchen', wall.edge, alongBack(run, wall, lateral), { elevationM: KITCHEN_SOCKET_M });
-      makeOnWall(b, room, 'light_furniture', wall.edge, wall.t, { elevationM: 1.5, lengthM: Math.min(run.size.width, wall.edge.length - 0.2), category: 'furniture' });
+  const zones = run ? kitchenRunZones(room, run, technical, here) : null;
+  if (run && zones) {
+    const { edge } = zones;
+    const at = (s: number) => s / edge.length;
+    // The worktop: two or three double sockets at 105 cm — the prep zone between sink and hob,
+    // the coffee/kettle zone past the hob, and one more in the longer of the two.
+    const stretches = [...zones.worktop];
+    const worktop = stretches.map(([p, q]) => (p + q) / 2);
+    const longest = stretches.sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0];
+    if (longest && longest[1] - longest[0] >= 0.9) {
+      const [p, q] = longest;
+      worktop.splice(worktop.indexOf((p + q) / 2), 1, p + (q - p) / 3, p + (2 * (q - p)) / 3);
     }
+    for (const s of worktop) makeOnWall(b, room, 'socket_kitchen', edge, at(s), { elevationM: KITCHEN_SOCKET_M });
+    // In the base units, behind the appliances: the dishwasher by the sink, the oven and the
+    // gas hob's ignition under the hob.
+    if (zones.dishwasherS !== null) makeOnWall(b, room, 'socket', edge, at(zones.dishwasherS), { elevationM: APPLIANCE_SOCKET_M });
+    makeOnWall(b, room, 'socket', edge, at(zones.hobS - 0.12), { elevationM: APPLIANCE_SOCKET_M });
+    makeOnWall(b, room, 'socket', edge, at(zones.hobS + 0.12), { elevationM: APPLIANCE_SOCKET_M });
+    // The hood's, high over the hob; the under-cabinet light's, in the wall cabinets at the far end.
+    makeOnWall(b, room, 'socket_high', edge, at(zones.hobS), { elevationM: HOOD_SOCKET_M });
+    makeOnWall(b, room, 'socket_high', edge, at(zones.farEndS - Math.sign(zones.farEndS - zones.sinkS) * 0.3), { elevationM: CABINET_LIGHT_SOCKET_M });
+    const wallT = along(edge, run.position) / edge.length;
+    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: 1.5, lengthM: Math.min(run.size.width, edge.length - 0.2), category: 'furniture' });
   }
   const fridge = here.find((i) => i.slot === 'fridge');
   if (fridge) {
     const wall = backWall(room, fridge);
-    if (wall) makeOnWall(b, room, 'socket', wall.edge, wall.t, { elevationM: 0.3 });
+    if (wall) makeOnWall(b, room, 'socket', wall.edge, wall.t, { elevationM: FRIDGE_SOCKET_M });
   }
 
   const sink = here.find((i) => i.slot === 'sink');
@@ -400,7 +496,7 @@ export interface ElectricalCounts {
 export function electricalCounts(points: ElectricalPoint[]): ElectricalCounts {
   const counts: ElectricalCounts = { outlets: 0, switches: 0, lightPoints: 0, stripM: 0, dataPoints: 0 };
   for (const p of points) {
-    if (p.kind === 'switch') counts.switches += 1;
+    if (isSwitch(p.kind)) counts.switches += 1;
     else if (p.kind === 'tv' || p.kind === 'internet') counts.dataPoints += 1;
     else if (p.kind === 'light_strip') counts.stripM += p.lengthM ?? 1.5;
     else if (isLight(p.kind)) counts.lightPoints += 1;
@@ -427,6 +523,7 @@ export const FIXTURE_PRODUCT_KIND: Record<ElectricalKind, string> = {
   socket_high: 'socket',
   socket_kitchen: 'socket',
   switch: 'switch',
+  switch_two_way: 'switch_two_way',
   tv: 'socket_tv',
   internet: 'socket_data',
   light_ceiling: 'light_ceiling',
@@ -453,7 +550,7 @@ export function fixtureCandidates(kind: ElectricalKind, catalog: CatalogProduct[
 /** How many of the product one point needs: a double socket is two plates; a strip is bought by the metre. */
 export function fixtureQuantity(point: ElectricalPoint): number {
   if (point.kind === 'light_strip' || point.kind === 'light_furniture') return Math.round((point.lengthM ?? 1.5) * 10) / 10;
-  if (point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet' || ELECTRICAL_KINDS[point.kind].light) return 1;
+  if (isSwitch(point.kind) || point.kind === 'tv' || point.kind === 'internet' || ELECTRICAL_KINDS[point.kind].light) return 1;
   return Math.max(1, point.count ?? 1);
 }
 

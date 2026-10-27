@@ -1,0 +1,190 @@
+/**
+ * The interior design and building rules the app follows, in one place: the owner's brief
+ * (technical rules, layout rules, practical sizes — docs/design-studio/design-rules.md) as
+ * named numbers, each with the range it came from, and where a kitchen run's sink, hob and
+ * appliances are taken to stand.
+ *
+ * The fittings (`electrical.ts`), the technical points (`autoTechnical.ts`, `technical.ts`),
+ * the radiators (`radiators.ts`) and the checks (`ruleChecks.ts`) read their numbers from here,
+ * so a rule is changed once. A leaf module — plan geometry and types only — so any of them can
+ * import it.
+ */
+
+import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
+import type { PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from './types';
+
+// ---------------------------------------------------------------------------
+// Sockets and switches
+// ---------------------------------------------------------------------------
+
+/** A general socket: 30–45 cm. */
+export const SOCKET_M = 0.45;
+/** Beside a bed with no nightstand on that side: 30–45 cm. */
+export const BEDSIDE_LOW_SOCKET_M = 0.35;
+/** Beside a nightstand: just above its top, kept within 45–75 cm. */
+export const NIGHTSTAND_SOCKET_ABOVE_M = 0.1;
+export const NIGHTSTAND_SOCKET_RANGE_M = { min: 0.45, max: 0.75 } as const;
+/** The worktop: 90 cm. Its sockets 10–20 cm above it, 100–110 cm — at 90 they would be hidden behind the counter. */
+export const KITCHEN_WORKTOP_M = 0.9;
+export const KITCHEN_SOCKET_M = 1.05;
+/** Behind an appliance in the base units (dishwasher, oven, the hob's ignition). */
+export const APPLIANCE_SOCKET_M = 0.3;
+/** The fridge's: low, 30–50 cm. */
+export const FRIDGE_SOCKET_M = 0.4;
+/** The cooker hood's: high, 200–230 cm. */
+export const HOOD_SOCKET_M = 2.15;
+/** The under-cabinet LED's driver, inside the wall cabinets. */
+export const CABINET_LIGHT_SOCKET_M = 1.7;
+/** High sockets either side of a TV wall (a sound bar, a lamp on a shelf). */
+export const HIGH_SOCKET_M = 1.7;
+/** The TV's: 100–120 cm, behind the set. */
+export const TV_SOCKET_M = 1.1;
+/** A desk's: just above the desktop. */
+export const DESK_SOCKET_ABOVE_M = 0.1;
+/** Switches: 90–110 cm. */
+export const SWITCH_M = 1.05;
+/** A switch by the bed, part of a two-way pair with the door's. */
+export const BEDSIDE_SWITCH_M = 0.9;
+/**
+ * From the edge of the opening to the switch's centre, on the handle side: the frame takes
+ * about 5 cm, which leaves the 15–20 cm from the frame the brief asks for.
+ */
+export const SWITCH_FROM_OPENING_M = 0.2;
+/** A hallway this long or longer is switched from both ends (two-way). */
+export const TWO_WAY_CORRIDOR_M = 4;
+
+// ---------------------------------------------------------------------------
+// Heating
+// ---------------------------------------------------------------------------
+
+/** A radiator's bottom: 10–12 cm off the floor. */
+export const RADIATOR_FLOOR_GAP_M = 0.12;
+/** Its top: about 10 cm below the window's sill. */
+export const RADIATOR_SILL_GAP_M = 0.1;
+/** Its back: 3–5 cm off the wall. */
+export const RADIATOR_WALL_GAP_M = 0.04;
+/** How far in front of a radiator furniture is kept away (beyond the radiator's own depth). */
+export const RADIATOR_KEEP_CLEAR_M = 0.3;
+/** Room left at each end of a radiator when it is hung beside a window rather than under it. */
+export const RADIATOR_BESIDE_WINDOW_M = 0.15;
+
+/**
+ * Where automatic placement hangs the flat's one boiler, in this order — always on an outside
+ * wall, where its flue can leave: a utility (storage) room, else the balcony, else the kitchen,
+ * else the bathroom. A storage room counts only with an outside wall; the others are taken
+ * even without one when nothing better exists (the person moves it).
+ */
+export const BOILER_ROOMS: Array<PlanRoom['type']> = ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'];
+
+// ---------------------------------------------------------------------------
+// Doors and passages
+// ---------------------------------------------------------------------------
+
+/** A room's door: 80–90 cm; a bathroom's or toilet's at least 70 cm. */
+export const ROOM_DOOR_MIN_M = 0.8;
+export const WET_DOOR_MIN_M = 0.7;
+export const WET_ROOM_TYPES: Array<PlanRoom['type']> = ['bathroom', 'toilet'];
+
+/** The narrowest a door into a room of this type should be. */
+export function minDoorWidthM(type: PlanRoom['type']): number {
+  return WET_ROOM_TYPES.includes(type) ? WET_DOOR_MIN_M : ROOM_DOOR_MIN_M;
+}
+
+// ---------------------------------------------------------------------------
+// The kitchen run
+// ---------------------------------------------------------------------------
+
+/** The units of a run, 60 cm each. */
+const UNIT_M = 0.6;
+
+/** Where, along a kitchen run, its parts are taken to stand. */
+export interface KitchenRunZones {
+  /** The wall the run stands against. */
+  edge: PlanEdge;
+  /** Metres along that wall (from `edge.a`) of each part's centre; the dishwasher's is null when the run is too short for one. */
+  sinkS: number;
+  dishwasherS: number | null;
+  hobS: number;
+  /** The worktop's free stretches, as [from, to] along the wall: the prep zone between sink and hob, then the coffee zone past the hob. */
+  worktop: Array<[number, number]>;
+  /** The run's far end from the sink, along the wall. */
+  farEndS: number;
+  /** World points of the sink and the hob. */
+  sink: Vec2;
+  hob: Vec2;
+}
+
+/**
+ * A kitchen run is one piece: the app does not know where its sink, hob and appliances are.
+ * It takes the order a kitchen is usually built in — the sink at one end with the dishwasher
+ * beside it, a prep zone, the hob (with the oven under it) towards the middle, the rest of the
+ * worktop past it for the kettle and the coffee machine. The sink's end is the one nearer the
+ * water or the drain; with neither marked, the one nearer the fridge (fridge → sink → prep →
+ * hob is the work flow); with no fridge either, the wall's first end.
+ *
+ * `points` are the room's technical points. Null when the run stands against no wall.
+ */
+export function kitchenRunZones(room: PlanRoom, run: PlacedItem, points: TechnicalPoint[] = [], items: PlacedItem[] = []): KitchenRunZones | null {
+  const edge = backWallOf(room, run);
+  if (!edge) return null;
+  const centreS = alongWall(edge, run.position);
+  const width = Math.min(run.size.width, edge.length);
+  const low = Math.max(0, centreS - width / 2);
+  const high = Math.min(edge.length, centreS + width / 2);
+  const span = high - low;
+
+  const ends = [low, high].map((s) => ({ s, at: pointOnEdge(edge, s / edge.length) }));
+  const pipes = points.filter((p) => p.roomId === room.id && (p.kind === 'water_supply' || p.kind === 'sewer')).map((p) => p.position);
+  const fridge = items.find((i) => i.roomId === room.id && i.slot === 'fridge');
+  const lure = pipes.length > 0 ? pipes : fridge ? [fridge.position] : [];
+  const distance = (at: Vec2) => (lure.length === 0 ? 0 : Math.min(...lure.map((p) => Math.hypot(p.x - at.x, p.z - at.z))));
+  const sinkAtLow = lure.length === 0 || distance(ends[0].at) <= distance(ends[1].at);
+  const sign = sinkAtLow ? 1 : -1;
+  const from = sinkAtLow ? low : high;
+  const s = (u: number) => from + sign * Math.max(0, Math.min(span, u));
+
+  const sinkU = Math.min(UNIT_M / 2, span / 2);
+  const hasDishwasher = span >= 3.5 * UNIT_M;
+  const dishwasherU = hasDishwasher ? 1.5 * UNIT_M : null;
+  const afterSinkU = hasDishwasher ? 2 * UNIT_M : UNIT_M;
+  // The hob towards the middle, with at least a unit's prep space after the sink's units.
+  const hobU = Math.max(UNIT_M / 2, Math.min(span - UNIT_M / 2, Math.max(span / 2, afterSinkU + UNIT_M / 2 + UNIT_M / 2)));
+  const prep: [number, number] = [Math.min(afterSinkU, hobU - UNIT_M / 2), hobU - UNIT_M / 2];
+  const coffee: [number, number] = [hobU + UNIT_M / 2, span];
+  const worktop = [prep, coffee]
+    .filter(([a, b]) => b - a >= 0.25)
+    .map(([a, b]): [number, number] => {
+      const p = s(a);
+      const q = s(b);
+      return [Math.min(p, q), Math.max(p, q)];
+    });
+
+  return {
+    edge,
+    sinkS: s(sinkU),
+    dishwasherS: dishwasherU === null ? null : s(dishwasherU),
+    hobS: s(hobU),
+    worktop,
+    farEndS: s(span),
+    sink: pointOnEdge(edge, s(sinkU) / edge.length),
+    hob: pointOnEdge(edge, s(hobU) / edge.length),
+  };
+}
+
+/** Metres along an edge (from `edge.a`) of the foot of a point on it. */
+export function alongWall(edge: PlanEdge, point: Vec2): number {
+  return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
+}
+
+/** The wall an item stands against: the wall edge nearest the middle of its back, within 45 cm. */
+export function backWallOf(room: PlanRoom, item: PlacedItem): PlanEdge | null {
+  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
+  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
+  let best: { edge: PlanEdge; distance: number } | null = null;
+  for (const edge of wallEdges(room)) {
+    const s = Math.max(0, Math.min(edge.length, alongWall(edge, back)));
+    const distance = Math.hypot(back.x - (edge.a.x + edge.dir.x * s), back.z - (edge.a.z + edge.dir.z * s));
+    if (distance <= 0.45 && (!best || distance < best.distance)) best = { edge, distance };
+  }
+  return best?.edge ?? null;
+}

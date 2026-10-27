@@ -146,7 +146,7 @@ const LIGHT_KINDS: ElectricalKind[] = ['light_ceiling', 'light_wall', 'light_spo
  * wiring still places them, and a placed one can still be re-kinded from its card — but as
  * four extra tiles they only made the shelf harder to read.
  */
-const POWER_KINDS: ElectricalKind[] = ['socket', 'switch', 'tv', 'internet'];
+const POWER_KINDS: ElectricalKind[] = ['socket', 'switch', 'switch_two_way', 'tv', 'internet'];
 
 export const ELECTRICAL_DRAG_TYPE = 'application/x-renovate-electrical';
 

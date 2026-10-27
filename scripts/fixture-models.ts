@@ -112,7 +112,7 @@ const FIXTURES: FixtureEntry[] = [
   },
   {
     slug: 'switch',
-    kinds: ['switch'],
+    kinds: ['switch', 'switch_two_way'],
     mount: 'wall',
     source: { type: 'polypizza', id: '8sR1PkyAg-F', url: `${PP}/f502ad13-cde0-411b-8d8a-18fb4f58c0e6.glb`, title: 'Light switch', author: 'Poly by Google', license: 'CC-BY 3.0' },
     sizeCm: { width: 8, height: 8 },
@@ -120,7 +120,7 @@ const FIXTURES: FixtureEntry[] = [
   },
   {
     slug: 'switch-classic',
-    kinds: ['switch'],
+    kinds: ['switch', 'switch_two_way'],
     mount: 'wall',
     source: { type: 'polypizza', id: '59BtMbyUMe2', url: `${PP}/f6f92b54-1179-4ec7-aa94-f40964380f72.glb`, title: 'Light switch', author: 'jeremy', license: 'CC-BY 3.0' },
     sizeCm: { width: 8, height: 8 },

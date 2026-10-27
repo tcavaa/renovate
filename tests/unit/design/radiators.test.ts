@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_SECTIONS, MIN_SECTIONS, isHeatedRoom, outsideEdges, radiatorCandidates, radiatorSections, radiatorsNeeded, roomHeatDemandW, sectionsForRoom, suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
+import { MAX_SECTIONS, MIN_SECTIONS, isHeatedRoom, radiatorHeadroomM, radiatorProductFor, outsideEdges, radiatorCandidates, radiatorSections, radiatorsNeeded, roomHeatDemandW, sectionsForRoom, suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { addWalls, rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { FloorPlan, TechnicalPoint, Wall } from '@/lib/design/types';
@@ -9,8 +9,8 @@ const blank: FloorPlan = { rooms: [], metresPerPixel: null, bounds: { width: 0, 
 const fromRects = (...rects: Array<{ x: number; z: number; width: number; depth: number }>): FloorPlan =>
   rebuildRooms(blank, rects.reduce((all, rect, i) => addWalls(all, wallsForRectangle(rect, T, 'user', `r${i}`)), [] as Wall[]));
 
-const radiator = (id: number, price: number, watts: number, styles: string[]): CatalogProduct =>
-  ({ id, nameKa: `r${id}`, slug: `r${id}`, brand: null, categorySlug: 'radiators', pricePerUnit: price, unit: 'piece', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: 'radiator', model3dUrl: `/models/radiators/r${id}.glb`, widthCm: 8, depthCm: 10, heightCm: 60, styleTags: styles, tags: [], isFeatured: false, specs: { wattsPerSection: watts, sectionWidthCm: 8 }, coveragePerUnit: null, store: null }) as unknown as CatalogProduct;
+const radiator = (id: number, price: number, watts: number, styles: string[], heightCm = 60): CatalogProduct =>
+  ({ id, nameKa: `r${id}`, slug: `r${id}`, brand: null, categorySlug: 'radiators', pricePerUnit: price, unit: 'piece', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: 'radiator', model3dUrl: `/models/radiators/r${id}.glb`, widthCm: 8, depthCm: 10, heightCm, styleTags: styles, tags: [], isFeatured: false, specs: { wattsPerSection: watts, sectionWidthCm: 8 }, coveragePerUnit: null, store: null }) as unknown as CatalogProduct;
 
 describe('heat demand', () => {
   it('counts about 100 W a square metre, and a fifth more when the room has two outside walls', () => {
@@ -69,6 +69,36 @@ describe('radiators on the plan', () => {
     // A room that already has one is left alone.
     const withOne: FloorPlan = { ...plan, technical: { points: added } };
     expect(suggestRadiators(withOne, () => 'x')).toHaveLength(0);
+  });
+
+  it('hangs it 12 cm off the floor and takes the radiator that fits under the sill with 10 cm to spare', () => {
+    const plan = planWithWindow();
+    let n = 0;
+    const [point] = suggestRadiators(plan, () => `t${n++}`);
+    expect(point.elevationM).toBe(0.12);
+    // Sill 90 cm: 90 − 12 − 10 leaves 68 cm.
+    expect(radiatorHeadroomM(plan, point)).toBeCloseTo(0.68, 2);
+    // The cheapest is too tall (76 cm); the next that fits is taken.
+    const tall = radiator(1, 10, 170, [], 76);
+    const fits = radiator(2, 20, 170, [], 66);
+    expect(radiatorProductFor(plan, point, [tall, fits])?.id).toBe(2);
+    const withPoint: FloorPlan = { ...plan, technical: { points: [point] } };
+    const dressed = withRadiatorProducts(withPoint, [tall, fits], 'modern');
+    expect(dressed.technical!.points[0].product?.productId).toBe(2);
+    // Under no window, the first of the list.
+    expect(radiatorProductFor(plan, { ...point, position: { x: 3.9, z: 1.5 } }, [tall, fits])?.id).toBe(1);
+  });
+
+  it('hangs it beside a floor-length window, not under it', () => {
+    const base = planWithWindow();
+    const room = base.rooms[0];
+    const plan: FloorPlan = { ...base, rooms: [{ ...room, openings: [{ ...room.openings[0], sillM: 0.1, heightM: 2.2, widthM: 1.2 }] }] };
+    let n = 0;
+    const [point] = suggestRadiators(plan, () => `t${n++}`, [radiator(1, 10, 170, [], 58)]);
+    expect(point).toBeDefined();
+    // On the same wall (z = 0), clear of the window (x 1.4–2.6).
+    expect(point.position.z).toBeCloseTo(0.08, 2);
+    expect(Math.abs(point.position.x - 2)).toBeGreaterThan(0.6 + 0.15 + 0.4 - 0.01);
   });
 
   it('shares a room’s sections between its radiators, and keeps them within the sensible range', () => {

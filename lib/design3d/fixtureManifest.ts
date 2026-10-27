@@ -61,7 +61,8 @@ export const FIXTURE_MODELS: FixtureModel[] = [
   {
     "slug": "switch",
     "kinds": [
-      "switch"
+      "switch",
+      "switch_two_way"
     ],
     "mount": "wall",
     "url": "/models/fixtures/switch.glb",
@@ -74,7 +75,8 @@ export const FIXTURE_MODELS: FixtureModel[] = [
   {
     "slug": "switch-classic",
     "kinds": [
-      "switch"
+      "switch",
+      "switch_two_way"
     ],
     "mount": "wall",
     "url": "/models/fixtures/switch-classic.glb",

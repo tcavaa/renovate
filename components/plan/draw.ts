@@ -571,7 +571,7 @@ export function drawElectrical(ctx: CanvasRenderingContext2D, t: Transform, poin
   const ring = state.selected ? EDITOR.selected : state.hovered ? EDITOR.hover : null;
   const on = point.on !== false;
   const isData = point.kind === 'tv' || point.kind === 'internet';
-  const color = info.light ? (on ? ELECTRICAL_COLOR.lightOn : ELECTRICAL_COLOR.lightOff) : point.kind === 'switch' ? ELECTRICAL_COLOR.switch : isData ? ELECTRICAL_COLOR.data : ELECTRICAL_COLOR.socket;
+  const color = info.light ? (on ? ELECTRICAL_COLOR.lightOn : ELECTRICAL_COLOR.lightOff) : point.kind === 'switch' || point.kind === 'switch_two_way' ? ELECTRICAL_COLOR.switch : isData ? ELECTRICAL_COLOR.data : ELECTRICAL_COLOR.socket;
   const r = point.kind === 'light_ceiling' ? 10 : 9;
   // A strip or a furniture light runs along its length, under the disc that marks its middle.
   if (point.kind === 'light_strip' || point.kind === 'light_furniture') {
@@ -611,7 +611,7 @@ export function drawElectrical(ctx: CanvasRenderingContext2D, t: Transform, poin
   ctx.font = '700 8px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const glyph = info.light ? '' : point.kind === 'switch' ? '/' : point.kind === 'tv' ? 'TV' : point.kind === 'internet' ? 'NET' : point.count && point.count > 1 ? '••' : '•';
+  const glyph = info.light ? '' : point.kind === 'switch' ? '/' : point.kind === 'switch_two_way' ? '⇅' : point.kind === 'tv' ? 'TV' : point.kind === 'internet' ? 'NET' : point.count && point.count > 1 ? '••' : '•';
   ctx.fillText(glyph, s.x, s.y + 0.5);
 }
 

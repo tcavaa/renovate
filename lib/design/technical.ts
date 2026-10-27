@@ -15,6 +15,7 @@ import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges, wallEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
+import { RADIATOR_FLOOR_GAP_M } from './rules';
 import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
@@ -34,10 +35,10 @@ export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
   floor_drain: { placement: 'floor', defaultElevationM: 0, rooms: ['bathroom', 'toilet'], attracts: ['shower', 'bathtub', 'washer'] },
   electrical_panel: { placement: 'wall', defaultElevationM: 1.4, rooms: ['hallway'], attracts: [] },
   gas: { placement: 'wall', defaultElevationM: 1.0, rooms: ['kitchen', 'studio'], attracts: ['kitchen_run'] },
-  radiator: { placement: 'wall', defaultElevationM: 0.15, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway', 'studio'], attracts: [] },
+  radiator: { placement: 'wall', defaultElevationM: RADIATOR_FLOOR_GAP_M, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway', 'studio'], attracts: [] },
   ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office', 'studio'], attracts: [] },
   extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: [] },
-  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['kitchen', 'bathroom', 'balcony', 'studio'], attracts: [] },
+  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'], attracts: [] },
   heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway', 'studio'], attracts: [] },
 };
 

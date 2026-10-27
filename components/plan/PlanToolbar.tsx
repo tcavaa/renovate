@@ -38,6 +38,7 @@ export const ELECTRICAL_LABEL_KEY: Record<ElectricalKind, keyof Dictionary['buil
   socket_high: 'ekSocketHigh',
   socket_kitchen: 'ekSocketKitchen',
   switch: 'ekSwitch',
+  switch_two_way: 'ekSwitchTwoWay',
   tv: 'ekTv',
   internet: 'ekInternet',
   light_ceiling: 'ekLightCeiling',

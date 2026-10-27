@@ -20,6 +20,7 @@ import { generatedFinish, isStyleFinish } from './surfaces';
 import { technicalAnchors } from './technical';
 import { defaultTrim, hasTrims } from './trims';
 import { columnFootprints } from './walls';
+import { radiatorKeepouts } from './ruleChecks';
 import { isBaseFinish } from './zones';
 import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
 
@@ -59,7 +60,10 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // Every generation draws from its own seed: the same plan gives another layout, other products
   // and other floors and walls each time.
   const rng = seededRng(input.seed);
-  const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles: Object.fromEntries(plan.rooms.map((r) => [r.id, columnFootprints(plan, r.id)])), rng });
+  // Columns are in the way, and so is the floor in front of a radiator: nothing is stood there.
+  const radiators = radiatorKeepouts(plan);
+  const obstacles = Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? [])]]));
+  const placed = layoutPlan(plan.rooms, { anchors: technicalAnchors(plan), obstacles, rng });
   // A slot no partner product can fill is dropped rather than shown as a stand-in. The AI
   // designer's product picks go in where they fit their slot (`MatchOptions.picks`).
   let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: plan.rooms, rng, picks: proposalPicks(proposal) }));

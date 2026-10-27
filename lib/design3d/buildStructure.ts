@@ -31,6 +31,7 @@ import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
 import { technicalElevation } from '@/lib/design/technical';
+import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M } from '@/lib/design/rules';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -261,7 +262,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
     return piece;
   }
   // Sockets, switches, TV and data points: one plate per outlet, side by side; a wall lamp is one.
-  const single = point.kind === 'switch' || point.kind === 'tv' || point.kind === 'internet' || point.kind === 'light_wall';
+  const single = point.kind === 'switch' || point.kind === 'switch_two_way' || point.kind === 'tv' || point.kind === 'internet' || point.kind === 'light_wall';
   const count = single ? 1 : Math.max(1, point.count ?? 1);
   const holder = new THREE.Group();
   piece.add(holder);
@@ -325,7 +326,6 @@ function litModel(model: THREE.Object3D, colorHex: string): void {
 // ---------------------------------------------------------------------------
 
 /** How far a radiator hangs off the plaster, and how far a wall's end it keeps from a corner. */
-const RADIATOR_WALL_GAP_M = 0.03;
 const RADIATOR_END_MARGIN_M = 0.1;
 
 /**
@@ -357,7 +357,7 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
     const at = pointOnEdge(spot.edge, along / spot.edge.length);
     const piece = new THREE.Group();
     piece.name = `radiator-${point.id}`;
-    piece.position.set(at.x + spot.edge.inward.x * RADIATOR_WALL_GAP_M, point.elevationM ?? 0.12, at.z + spot.edge.inward.z * RADIATOR_WALL_GAP_M);
+    piece.position.set(at.x + spot.edge.inward.x * RADIATOR_WALL_GAP_M, point.elevationM ?? RADIATOR_FLOOR_GAP_M, at.z + spot.edge.inward.z * RADIATOR_WALL_GAP_M);
     piece.rotation.y = spot.edge.facing;
     const data = { pickKind: 'technical', roomId: spot.room.id, technicalId: point.id } satisfies SceneUserData;
     tag(piece, data);

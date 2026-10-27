@@ -71,7 +71,8 @@
     {
       "slug": "switch",
       "kinds": [
-        "switch"
+        "switch",
+        "switch_two_way"
       ],
       "mount": "wall",
       "url": "/models/fixtures/switch.glb",
@@ -99,7 +100,8 @@
     {
       "slug": "switch-classic",
       "kinds": [
-        "switch"
+        "switch",
+        "switch_two_way"
       ],
       "mount": "wall",
       "url": "/models/fixtures/switch-classic.glb",

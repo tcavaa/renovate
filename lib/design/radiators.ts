@@ -23,7 +23,8 @@
 import { pointOnEdge, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { planEdgeWalls, edgeWallKey } from './wallPieces';
-import type { FloorPlan, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+import { RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M } from './rules';
+import type { FloorPlan, Opening, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 
 export const RADIATOR_PRODUCT_KIND = 'radiator';
@@ -143,9 +144,37 @@ export function withRadiatorProduct(plan: FloorPlan, point: TechnicalPoint, prod
   return { ...next, product: toSceneProduct(product, radiatorSections(plan, next)) };
 }
 
+/** The window a radiator hangs under: one on its wall whose width spans the radiator's spot. */
+export function windowOver(plan: FloorPlan, point: TechnicalPoint): Opening | null {
+  const spot = radiatorWallSpot(plan, point);
+  if (!spot) return null;
+  return spot.room.openings.find((o) => o.kind === 'window' && o.wallIndex === spot.edge.index && Math.abs(o.t * spot.edge.length - spot.s) <= o.widthM / 2 + 0.05) ?? null;
+}
+
 /**
- * Every radiator without a product takes the catalogue's best for the style, and every one
- * with a product is priced again for the sections it has now (a room that grew, a second
+ * The tallest a radiator may be where it hangs: its top at least 10 cm under the sill of the
+ * window over it, its bottom 10–12 cm off the floor (`lib/design/rules`). Null under no window.
+ */
+export function radiatorHeadroomM(plan: FloorPlan, point: TechnicalPoint): number | null {
+  const window = windowOver(plan, point);
+  if (!window) return null;
+  return Math.round((window.sillM - (point.elevationM ?? RADIATOR_FLOOR_GAP_M) - RADIATOR_SILL_GAP_M) * 100) / 100;
+}
+
+/**
+ * The radiator product for one point: the first of the candidates (the style's, then the
+ * cheapest) that fits under the window over it; under no window, or under one too low for any,
+ * the first.
+ */
+export function radiatorProductFor(plan: FloorPlan, point: TechnicalPoint, candidates: CatalogProduct[]): CatalogProduct | null {
+  const headroom = radiatorHeadroomM(plan, point);
+  if (headroom === null) return candidates[0] ?? null;
+  return candidates.find((p) => (p.heightCm ?? 60) / 100 <= headroom + 1e-6) ?? candidates[0] ?? null;
+}
+
+/**
+ * Every radiator without a product takes the catalogue's best for the style that fits under
+ * its window, and every one with a product is priced again for the sections it has now (a room that grew, a second
  * radiator added beside it). The same plan object comes back when nothing changed.
  */
 export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[], styleId: StyleId): FloorPlan {
@@ -157,7 +186,7 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
   const withProducts = points.map((point) => {
     if (point.kind !== 'radiator' || point.product || candidates.length === 0) return point;
     changed = true;
-    return withRadiatorProduct(plan, point, candidates[0]);
+    return withRadiatorProduct(plan, point, radiatorProductFor(plan, point, candidates));
   });
   const staged: FloorPlan = { ...plan, technical: { ...plan.technical, points: withProducts } };
   const priced = withProducts.map((point) => {
@@ -180,7 +209,10 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
  * all — while one that was asked for has to be in the budget even in a finished home, where
  * only what the person added is new work.
  */
-export function suggestRadiators(plan: FloorPlan, nextId: () => string): TechnicalPoint[] {
+export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = []): TechnicalPoint[] {
+  // The lowest radiator there is: a window whose sill leaves less room than this has its radiator beside it.
+  const heights = catalog.filter((p) => p.model3dKind === RADIATOR_PRODUCT_KIND && p.heightCm).map((p) => p.heightCm! / 100);
+  const lowest = heights.length > 0 ? Math.min(...heights) : LOWEST_RADIATOR_M;
   const existing = radiatorPoints(plan);
   const out: TechnicalPoint[] = [];
   for (const room of plan.rooms) {
@@ -193,11 +225,18 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string): Technic
     const spots: Array<{ edge: PlanEdge; t: number }> = [];
     for (const window of windows.slice(0, Math.max(1, wanted))) {
       const edge = edges.find((e) => e.index === window.wallIndex);
-      if (edge) spots.push({ edge, t: window.t });
+      if (!edge) continue;
+      if (window.sillM - RADIATOR_FLOOR_GAP_M - RADIATOR_SILL_GAP_M >= lowest - 1e-6) spots.push({ edge, t: window.t });
+      else {
+        // A floor-length window (a balcony door's glass): the radiator goes beside it on the same wall.
+        const beside = besideWindow(room, edge, window);
+        if (beside !== null) spots.push({ edge, t: beside });
+      }
     }
     if (spots.length === 0) {
       const outside = outsideEdges(plan, room);
-      const pool = (outside.length > 0 ? outside : edges).filter((e) => !room.openings.some((o) => o.wallIndex === e.index && o.kind !== 'window'));
+      const tooLow = (o: Opening) => o.kind === 'window' && o.sillM - RADIATOR_FLOOR_GAP_M - RADIATOR_SILL_GAP_M < lowest - 1e-6;
+      const pool = (outside.length > 0 ? outside : edges).filter((e) => !room.openings.some((o) => o.wallIndex === e.index && (o.kind !== 'window' || tooLow(o))));
       const edge = [...(pool.length > 0 ? pool : edges)].sort((a, b) => b.length - a.length)[0];
       if (edge) spots.push({ edge, t: 0.5 });
     }
@@ -208,12 +247,32 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string): Technic
         kind: 'radiator',
         roomId: room.id,
         position: { x: round2(at.x + spot.edge.inward.x * 0.08), z: round2(at.z + spot.edge.inward.z * 0.08) },
-        elevationM: 0.12,
+        elevationM: RADIATOR_FLOOR_GAP_M,
         origin: 'user',
       });
     }
   }
   return out;
+}
+
+/** A radiator's length when it is placed before its sections are counted: a middling one. */
+const BESIDE_RADIATOR_M = 0.8;
+/** The lowest radiator when the catalogue is not to hand. */
+const LOWEST_RADIATOR_M = 0.5;
+
+/**
+ * Where on a window's wall a radiator goes beside it rather than under it: the side with more
+ * clear wall, its near end 15 cm from the window and clear of every other opening — or null
+ * when neither side has the room.
+ */
+function besideWindow(room: PlanRoom, edge: PlanEdge, window: Opening): number | null {
+  const centre = window.t * edge.length;
+  const reach = window.widthM / 2 + RADIATOR_BESIDE_WINDOW_M + BESIDE_RADIATOR_M / 2;
+  const sides = [centre - reach, centre + reach]
+    .filter((s) => s - BESIDE_RADIATOR_M / 2 >= 0.1 && s + BESIDE_RADIATOR_M / 2 <= edge.length - 0.1)
+    .filter((s) => !room.openings.some((o) => o !== window && o.wallIndex === edge.index && Math.abs(o.t * edge.length - s) < o.widthM / 2 + BESIDE_RADIATOR_M / 2 + 0.05))
+    .sort((a, b) => Math.min(b, edge.length - b) - Math.min(a, edge.length - a));
+  return sides.length > 0 ? sides[0] / edge.length : null;
 }
 
 /** Where a radiator hangs: the wall of its room nearest to its point, and the spot along it. */

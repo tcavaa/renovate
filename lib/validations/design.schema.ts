@@ -225,7 +225,7 @@ export const surfaceFinishSchema = z.object({
   laidFor: z.string().max(32).nullable().optional(),
 });
 
-export const electricalKindSchema = z.enum(['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'tv', 'internet', 'light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture']);
+export const electricalKindSchema = z.enum(['socket', 'socket_double', 'socket_high', 'socket_kitchen', 'switch', 'switch_two_way', 'tv', 'internet', 'light_ceiling', 'light_wall', 'light_spot', 'light_strip', 'light_furniture']);
 export const lightCategorySchema = z.enum(['primary', 'secondary', 'furniture', 'bedside', 'indirect', 'decorative']);
 
 export const electricalPointSchema = z.object({

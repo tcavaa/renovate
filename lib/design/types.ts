@@ -495,6 +495,8 @@ export type ElectricalKind =
   | 'socket_high'
   | 'socket_kitchen'
   | 'switch'
+  /** A two-way (pass-through) switch: one of a pair switching the same light from two places. */
+  | 'switch_two_way'
   | 'tv'
   | 'internet'
   | 'light_ceiling'

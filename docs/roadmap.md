@@ -42,6 +42,10 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
+- **The interior design rules brief, stages 2–5** — stage 1 (sockets, switches, radiators, the
+  boiler, the first warnings) is built; next: hot and cold water per fixture, the layout rules
+  and sizes with warnings in the studio, ceilings, the WC's gypsum box and the boiler's cabinet,
+  light colour and the styles' guides — [design-studio/design-rules.md](design-studio/design-rules.md#status).
 - **AI generation, what is left** — phase 1 and the wall decor are built
   ([design-studio/decor.md](design-studio/decor.md#the-ai-designer)); next: the rules module and
   metrics, layout intent per piece (phase 2), an evaluation set, a retry with violations —

@@ -6,8 +6,9 @@ validated structured answer, product picks the matcher takes where they fit (`Ma
 floors and walls per room, decor intents resolved against the engine's layout, the per-design cap
 (`MAX_AI_GENERATIONS`) and the generation record are in, and the generation runs on the server
 as a job that finishes with the page closed — the proposal laid out by `generateScene`, the
-function the store's `generate` runs (`lib/api/designJob.ts`). **Not built:** the rules module
-(`lib/design/rules.ts`) and its scoring, layout constraints per piece (phase 2), the evaluation set,
+function the store's `generate` runs (`lib/api/designJob.ts`). The rules module has started from the owner's
+brief ([design-rules.md](design-rules.md): `lib/design/rules.ts` holds the numbers,
+`ruleChecks.ts` the first warnings). **Not built:** the rules' scoring of a whole layout, layout constraints per piece (phase 2), the evaluation set,
 the retry with violations, explanations in the studio beyond the decor card's note.
 
 This is the plan for letting a model furnish and

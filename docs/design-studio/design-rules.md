@@ -1,0 +1,136 @@
+# Interior design rules (the brief, and how the app follows it)
+
+The owner's "Interior Design Rules Brief" (technical rules, layout rules, practical sizes and the
+four styles) turned into what the app does. `lib/design/rules.ts` holds every number of the brief
+in one place; the engine, the fittings, the technical points, the AI designer and the warnings all
+read them from there. Read this before changing a height, a clearance, a placement rule or the
+rule warnings.
+
+Related: [technical-and-fittings.md](technical-and-fittings.md) (sockets, switches, radiators,
+the boiler, water) · [layout-and-matching.md](layout-and-matching.md) (the layout engine) ·
+[decor.md](decor.md) (the AI designer and its room check) · [finishes.md](finishes.md) (ceilings)
+· [ai-layout-plan.md](ai-layout-plan.md) (the rules module was its phase 0) ·
+[../budget.md](../budget.md).
+
+## Status
+
+The brief is built in five stages, each tested, documented and committed on its own:
+
+| Stage | What | State |
+|---|---|---|
+| 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
+| 2 | hot and cold water: two point kinds, a pair at every fixture | planned |
+| 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | planned |
+| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | planned |
+| 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
+
+## The decisions (owner, 28 Oct 2026)
+
+**Part 1 — technical**
+
+- **Radiators**: bottom 12 cm off the floor (`RADIATOR_FLOOR_GAP_M`), 4 cm off the wall
+  (`RADIATOR_WALL_GAP_M`), their top at least 10 cm under the sill (`RADIATOR_SILL_GAP_M`). Each
+  radiator takes the tallest radiator product that fits under its window; a window too low for any
+  (a floor-length window) gets its radiator on the nearest stretch of the same outside wall beside
+  it. The layout keeps furniture out of a strip in front of every radiator
+  (`RADIATOR_KEEP_CLEAR_M`). Curtains stay floor-length, hung from just under the ceiling.
+- **Boiler**: on an outside wall, in a utility (storage) room with an outside wall, else the
+  balcony, else the kitchen, else the bathroom. *Stage 4*: a ventilated cabinet around it — a
+  joinery line priced by material per m² of façade, the materials catalogue products the admin
+  edits (like the made-to-measure kitchen), its size the boiler's plus 10 cm round; service access
+  kept in front.
+- **Kitchen sockets**: the run is one piece, so the app assumes a standard order
+  (`kitchenRunZones`): the sink at the end nearer the water (or the drain), the dishwasher beside
+  it, the hob and the oven under it towards the middle, the hood over the hob. Worktop sockets at
+  105 cm (`KITCHEN_SOCKET_M`, 100–110): three doubles — the prep zone between sink and hob, the
+  coffee/kettle zone past the hob, one extra — kept off the sink and the hob. Low (30 cm) sockets
+  behind the dishwasher, the oven and the hob's ignition; the hood's at 215 cm over the hob; one
+  in the wall cabinets for the under-cabinet LED; the fridge's at 40 cm. An island's sockets are
+  not placed (no wall to put them on — roadmap).
+- **Other sockets**: general 45 cm. Bedside: with a nightstand on that side, 10 cm over its top
+  within 45–75 cm; without one, 35 cm. TV 110 cm. Desk: 10 cm over the desktop.
+- **Switches**: 105 cm, 20 cm from the opening's edge (about 15 cm from the frame) on the
+  handle side. **Two-way** (`switch_two_way`): in a bedroom the door's switch and one by the bed
+  on each side of a double bed (one by a single bed, on its open side); a hallway 4 m or longer
+  gets a two-way pair at its two ends. Bought as their own product kind; an estimate until the
+  catalogue has one.
+- *Stage 2* — **Water** (წყალმომარება): cold water (blue) and hot water (red) as two point kinds
+  on the technical step; the automatic placement puts them at every fixture — kitchen sink 🔵🔴,
+  dishwasher 🔵, WC 🔵, basin 🔵🔴, bidet 🔵🔴, shower 🔵🔴, bath 🔵🔴, washing machine 🔵, boiler
+  🔵 in + 🔴 out (hot on the left, cold on the right). Each is a plumbing point in the budget.
+  The sewer point stands for the plumbing shaft: WC, the kitchen's sink end and the washer are
+  drawn to it, with a warning past about 2 m.
+- *Stage 4* — **Ceilings**: a gypsum ceiling lowers the room 10 cm (3D and every height that
+  hangs from the ceiling), a stretch (barisol) one 3 cm; the LED cove: 12 cm drop, a 15 cm niche,
+  the strip 5 cm back from the edge.
+- *Stage 4* — **Wall-hung WC**: a gypsum box 20 cm deep behind it, half height (~1 m, its top a
+  shelf) by default or to the ceiling (a choice on its card), finished in waterproof paint or
+  tiled — the design's choice — priced as gypsum work.
+
+**Part 2 — layout** (*stage 3*)
+
+- The WC never faces the door when any other spot fits; in a room too small for that it may, with
+  a warning.
+- The bed out of the door's line of sight, and a wardrobe in a niche (60 cm deep, or a shallow
+  35–40 cm one) — preferred, never forced, no warning.
+- The kitchen run prefers a wall out of the entrance door's sight; a warning when the only wall
+  that works faces it.
+
+**Part 3 — sizes** (*stage 3*): the layout places by them and a check flags a room breaking
+them — paths 100 cm, door swings that collide, doors 80 cm (70 cm for a bathroom or toilet; new
+doors take these widths), the kitchen triangle, 120 cm between facing counters, wall units 55 cm
+over the worktop, 60–70 cm beside a bed, wardrobes 60 (or 35–40) cm deep, sofa to TV 2.5–3.5 m,
+coffee table 42 cm from the sofa, TV centre 105 cm, dining 75 cm high with 60 cm a person, a
+shower at least 80×80, the WC's centre 40 cm from a side wall, the basin's top 85 cm, bathroom
+sockets IP44 and out of the splash zones. *Stage 5*: light at 2700–3000 K in living rooms and
+bedrooms, 3500–4000 K in kitchens and offices (the 3D glow, and lamps with a colour temperature
+preferred where it matches).
+
+**Part 4 — styles** (*stage 5*): the app's four styles are the brief's four. Each gets the brief's
+guide (palette, materials, lighting, furniture, kitchen, walls, and its sub-styles); the AI
+designer follows it, the matcher favours products whose colours and materials fit, and the style
+test's answers choose a sub-style as the flat's direction.
+
+**Where the warnings show**: the technical step's hints (technical ones), a per-room list in the
+studio (stage 3), the AI's room check (stage 5) and the plan PDF (stage 5).
+
+## The rules module (`lib/design/rules.ts`)
+
+- The brief's numbers as named constants, each with the range it came from. A leaf module (plan
+  geometry and types only), so the fittings, the technical points and the radiators all import it.
+- `kitchenRunZones(room, run, points, items)`: where the sink, dishwasher, hob and oven are taken
+  to stand along a kitchen run (metres along its wall, and world points) — shared by the run's
+  sockets (`electrical.ts`) and its water, waste, gas and hood (`autoTechnical.ts`), so they agree.
+  A run under 2.1 m has no dishwasher.
+- `minDoorWidthM(type)`, `backWallOf`, `alongWall`.
+
+## The checks (`lib/design/ruleChecks.ts`)
+
+- `ruleViolations(plan, items)`, each `{ code, roomId, itemId?, pointId?, openingId?, valueM?,
+  limitM? }`: `radiator_blocked` (a piece standing in the strip in front of a radiator, lower than
+  its top; a curtain or a rug does not count), `radiator_under_sill` (a radiator's top within
+  10 cm of its window's sill), `boiler_not_exterior` (its nearest wall is not an outside one),
+  `door_too_narrow` (an interior door's two halves — found as two rooms' doors at the same spot —
+  measured once, against the more lenient room). The technical step lists them with its hints.
+- `radiatorKeepouts(plan)`: the strips (the radiator's length plus 5 cm each end, its depth plus
+  30 cm) as boxes per room, which `generateScene` adds to the layout engine's obstacles.
+
+On the sample flat (`samplePlan`), laid out with the engine's seeded generation, three pieces
+stood in front of radiators without the strips and none with them.
+
+## Tests
+
+`tests/unit/design/rules.test.ts` (the zones of a run, each check, the strips), `electrical.test.ts` (the
+heights and the kitchen's and bedroom's fittings), `radiators.test.ts` (the product under the
+sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room and wall).
+
+## Known gaps
+
+- An island gets no sockets (sockets go on walls only).
+- No two-way switch product is in the catalogue yet: two-way switches are estimates
+  (`ELECTRICAL_MATERIAL_GEL`, 18 ₾) until the admin adds one (product kind `switch_two_way`).
+- A door's other half is found by position (two rooms' doors within 60 cm), not by the twin ids.
+- The calculator's board has no furniture, so it has no two-way switches by beds (a long
+  hallway's pair it does have).
+- A microwave on its own is not a piece, so it gets no socket.
+- Stages 2–5 above.

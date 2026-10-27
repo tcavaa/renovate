@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BEDSIDE_SOCKET_M, electricalCounts, fittingClashes, fittingFootprintM, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, standardElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
+import { bedsideSocketHeight, electricalCounts, fittingClashes, fittingFootprintM, KITCHEN_SOCKET_M, placeElectrical, reprojectElectrical, standardElectrical, suggestElectrical, SWITCH_M } from '@/lib/design/electrical';
 import { addOpening } from '@/lib/design/openings';
+import { APPLIANCE_SOCKET_M, BEDSIDE_LOW_SOCKET_M, BEDSIDE_SWITCH_M, FRIDGE_SOCKET_M, HOOD_SOCKET_M } from '@/lib/design/rules';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 
@@ -22,13 +23,13 @@ function plan(): FloorPlan {
 }
 
 describe('suggestElectrical', () => {
-  it('puts two double sockets and two bedside lights beside the bed at bedside height', () => {
+  it('puts two double sockets and two bedside lights beside the bed, low with no nightstand', () => {
     const points = suggestElectrical(plan(), [bed]);
     const bedroom = points.filter((p) => p.roomId === 'bed');
     const sockets = bedroom.filter((p) => p.kind === 'socket_double');
     expect(sockets).toHaveLength(2);
     for (const s of sockets) {
-      expect(s.elevationM).toBe(BEDSIDE_SOCKET_M);
+      expect(s.elevationM).toBe(BEDSIDE_LOW_SOCKET_M);
       expect(s.wallIndex).toBe(0);
       expect(s.position.z).toBeLessThan(0.05);
     }
@@ -37,9 +38,34 @@ describe('suggestElectrical', () => {
     expect(xs[1]).toBeCloseTo(2 + 0.8 + 0.25, 1);
     expect(bedroom.filter((p) => p.kind === 'light_wall' && p.category === 'bedside')).toHaveLength(2);
     expect(bedroom.filter((p) => p.kind === 'light_ceiling')).toHaveLength(1);
-    const sw = bedroom.find((p) => p.kind === 'switch')!;
-    expect(sw.elevationM).toBe(SWITCH_M);
-    expect(sw.wallIndex).toBe(2);
+    // Two-way: the door's switch and one by each side of the double bed.
+    expect(bedroom.some((p) => p.kind === 'switch')).toBe(false);
+    const door = bedroom.find((p) => p.kind === 'switch_two_way' && p.wallIndex === 2)!;
+    expect(door.elevationM).toBe(SWITCH_M);
+    const bedside = bedroom.filter((p) => p.kind === 'switch_two_way' && p.wallIndex === 0);
+    expect(bedside).toHaveLength(2);
+    expect(bedside.every((p) => p.elevationM === BEDSIDE_SWITCH_M)).toBe(true);
+  });
+
+  it('puts a bedside socket 10 cm over its nightstand, within 45–75 cm', () => {
+    const stand = (height: number): PlacedItem => ({ id: 'n', roomId: 'bed', slot: 'nightstand', kind: 'nightstand', position: P(0.9, 0.2), elevationM: 0, rotation: 0, size: { width: 0.45, depth: 0.4, height }, product: null });
+    expect(bedsideSocketHeight(undefined)).toBe(0.35);
+    expect(bedsideSocketHeight(stand(0.55))).toBe(0.65);
+    expect(bedsideSocketHeight(stand(0.3))).toBe(0.45);
+    expect(bedsideSocketHeight(stand(0.8))).toBe(0.75);
+    const points = suggestElectrical(plan(), [bed, stand(0.55)]).filter((p) => p.roomId === 'bed' && p.kind === 'socket_double');
+    expect(points.map((p) => p.elevationM).sort()).toEqual([0.35, 0.65]);
+  });
+
+  it('switches a hallway 4 m long from both ends', () => {
+    let rooms = [rect('hall', 0, 0, 5, 1.4, 'hallway'), rect('a', 0, 1.52, 2, 3, 'bedroom'), rect('b', 3, 1.52, 2, 3, 'bedroom')];
+    rooms = addOpening(rooms, 'hall', 'door', 2, 0.1).rooms; // into a, near the hall's left end
+    const hallPlan: FloorPlan = { rooms, metresPerPixel: null, bounds: { width: 5, depth: 4.6 }, source: 'manual', wallThicknessM: 0.12 };
+    const hall = standardElectrical(hallPlan).filter((p) => p.roomId === 'hall');
+    const twoWay = hall.filter((p) => p.kind === 'switch_two_way');
+    expect(twoWay).toHaveLength(2);
+    const xs = twoWay.map((p) => p.position.x).sort((a, b) => a - b);
+    expect(xs[1] - xs[0]).toBeGreaterThan(3);
   });
 
   it('wires the television wall and the kitchen worktop', () => {
@@ -53,7 +79,31 @@ describe('suggestElectrical', () => {
     const worktop = kitchen.filter((p) => p.kind === 'socket_kitchen');
     expect(worktop).toHaveLength(3);
     expect(worktop.every((p) => p.elevationM === KITCHEN_SOCKET_M)).toBe(true);
+    expect(KITCHEN_SOCKET_M).toBe(1.05);
     expect(kitchen.some((p) => p.kind === 'light_furniture')).toBe(true);
+    // The dishwasher's, the oven's and the hob's ignition in the base units; the hood's high; the LED's in the wall cabinets.
+    expect(kitchen.filter((p) => p.kind === 'socket' && p.elevationM === APPLIANCE_SOCKET_M)).toHaveLength(3);
+    expect(kitchen.filter((p) => p.kind === 'socket_high' && p.elevationM === HOOD_SOCKET_M)).toHaveLength(1);
+    expect(kitchen.filter((p) => p.kind === 'socket_high')).toHaveLength(2);
+  });
+
+  it('keeps the worktop sockets off the sink, the hob and each other', () => {
+    const points = suggestElectrical(plan(), [run]).filter((p) => p.roomId === 'kitchen');
+    // No water marked and no fridge: the sink is at the wall's first end (x = 5.32..), the hob 1.8 m along.
+    const sinkX = 5.32 + 0.3;
+    const hobX = 5.32 + 1.8;
+    const worktop = points.filter((p) => p.kind === 'socket_kitchen').map((p) => p.position.x).sort((a, b) => a - b);
+    for (const x of worktop) {
+      expect(Math.abs(x - sinkX)).toBeGreaterThan(0.45);
+      expect(Math.abs(x - hobX)).toBeGreaterThan(0.3);
+    }
+    for (let i = 1; i < worktop.length; i++) expect(worktop[i] - worktop[i - 1]).toBeGreaterThan(0.2);
+  });
+
+  it('puts the fridge’s socket low', () => {
+    const fridge: PlacedItem = { id: 'f', roomId: 'kitchen', slot: 'fridge', kind: 'fridge', position: P(8.35, 5.5), elevationM: 0, rotation: -Math.PI / 2, size: { width: 0.6, depth: 0.65, height: 1.9 }, product: null };
+    const points = suggestElectrical(plan(), [fridge]).filter((p) => p.roomId === 'kitchen' && p.kind === 'socket' && p.elevationM === FRIDGE_SOCKET_M);
+    expect(points).toHaveLength(1);
   });
 
   it('keeps the points a person placed and does not refill their room', () => {
@@ -107,8 +157,9 @@ describe('placing and counting', () => {
   it('counts outlets, switches, lights and strip metres', () => {
     const points = suggestElectrical(plan(), [bed, tv, run]);
     const counts = electricalCounts([...points, { id: 'strip', roomId: 'bed', kind: 'light_strip', position: P(2, 2), elevationM: 0.3, lengthM: 4.2, on: true, origin: 'user' }]);
-    // One door in the flat — the bedroom's, twinned into the living room — so two switches.
-    expect(counts.switches).toBe(2);
+    // One door in the flat — the bedroom's, twinned into the living room — so two switches, and
+    // the bedroom's two-way pair adds one by each side of the bed.
+    expect(counts.switches).toBe(4);
     expect(counts.lightPoints).toBeGreaterThanOrEqual(5);
     expect(counts.stripM).toBe(4.2);
     expect(counts.dataPoints).toBe(2);

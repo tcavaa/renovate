@@ -118,6 +118,7 @@ const DEFAULT_PRODUCT_LABELS: ProductLabels = {
   radiator: 'რადიატორი',
   socket: 'როზეტი',
   switch: 'ჩამრთველი',
+  switch_two_way: 'გამავალი ჩამრთველი',
   tv: 'ტელევიზორი',
   internet: 'ინტერნეტი',
   light_ceiling: 'ჭერის განათება',

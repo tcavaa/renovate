@@ -7,7 +7,10 @@
  * is priced as though it needed no plumbing at all. So this places the ones that follow from
  * the plan: a bathroom needs water, a drain and an extractor, a kitchen needs water, waste
  * and gas, the panel goes by the front door, a living room and a bedroom get an air
- * conditioner, and one boiler serves the flat.
+ * conditioner, and one boiler serves the flat — on an outside wall, where its flue can leave, in
+ * a utility room, else on the balcony, else in the kitchen or the bathroom (`BOILER_ROOMS`). A
+ * kitchen's pipes come to the end of the run the sink is taken to be at, its gas and its hood to
+ * the hob (`kitchenRunZones`).
  *
  * It places what the rules can decide and **nothing else**. A point that would be a guess —
  * a second boiler, gas in a flat with no kitchen run, a drain in a room the plan does not
@@ -20,6 +23,8 @@
 import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, studioParts } from './studio';
+import { outsideEdges } from './radiators';
+import { BOILER_ROOMS, kitchenRunZones } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
@@ -42,7 +47,6 @@ const BY_ROOM: Partial<Record<PlanRoom['type'], TechnicalKind[]>> = {
 /** One per flat, in the first room of this list that the flat has. */
 const ONE_PER_FLAT: Array<{ kind: TechnicalKind; rooms: Array<PlanRoom['type']> }> = [
   { kind: 'electrical_panel', rooms: ['hallway', 'living_room', 'studio', 'kitchen'] },
-  { kind: 'boiler', rooms: ['bathroom', 'kitchen', 'studio', 'balcony'] },
 ];
 
 export interface AutoTechnicalResult {
@@ -62,9 +66,9 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   const has = (kind: TechnicalKind, roomId?: string) =>
     [...existing, ...points].some((p) => p.kind === kind && (roomId === undefined || p.roomId === roomId));
 
-  const place = (room: PlanRoom, kind: TechnicalKind, notOn: Array<[Vec2, Vec2]> = []) => {
+  const place = (room: PlanRoom, kind: TechnicalKind, notOn: Array<[Vec2, Vec2]> = [], prefer: PlanEdge[] = []) => {
     if (has(kind, room.id)) return;
-    const position = spotFor(plan, room, kind, items, notOn);
+    const position = spotFor(plan, room, kind, items, notOn, [...existing, ...points], prefer);
     if (!position) return;
     points.push({ id: nextId(), kind, roomId: room.id, position, elevationM: technicalElevation(kind, room), origin: 'user' });
     counts[kind] = (counts[kind] ?? 0) + 1;
@@ -92,7 +96,31 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     if (room) place(room, kind);
   }
 
+  if (!has('boiler')) {
+    const spot = boilerRoom(plan);
+    if (spot) place(spot.room, 'boiler', [], spot.outside);
+  }
+
   return { points, counts };
+}
+
+/**
+ * The room the flat's boiler goes in, and its outside walls: the first type of `BOILER_ROOMS`
+ * the flat has — a utility (storage) room only with an outside wall, the others preferring one
+ * that has (the biggest when several do).
+ */
+function boilerRoom(plan: FloorPlan): { room: PlanRoom; outside: PlanEdge[] } | null {
+  for (const type of BOILER_ROOMS) {
+    const rooms = plan.rooms
+      .filter((r) => r.type === type && r.areaM2 >= MIN_ROOM_M2)
+      .map((room) => ({ room, outside: outsideEdges(plan, room) }))
+      .sort((a, b) => Number(b.outside.length > 0) - Number(a.outside.length > 0) || b.room.areaM2 - a.room.areaM2);
+    const best = rooms[0];
+    if (!best) continue;
+    if (type === 'storage' && best.outside.length === 0) continue;
+    return best;
+  }
+  return null;
 }
 
 /**
@@ -100,7 +128,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
  * otherwise on the wall a fitter would choose — the longest one with no door in it, so the
  * pipe or the duct has a clear run.
  */
-function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = []): Vec2 | null {
+function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = [], placed: TechnicalPoint[] = [], prefer: PlanEdge[] = []): Vec2 | null {
   const info = TECHNICAL_KINDS[kind];
   // A studio's dividing line is not a wall: nothing is fixed to it.
   // Nor is a room separator (`wallEdges`).
@@ -114,6 +142,16 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
     .filter((i) => i.roomId === room.id && (info.attracts.includes(i.kind) || (hood && i.kind === 'kitchen_run')))
     .sort((a, b) => b.size.width * b.size.depth - a.size.width * a.size.depth)[0];
 
+  if (served && served.slot === 'kitchen_run') {
+    // A kitchen run is one piece: its water and waste go to the sink's end, its gas and its hood
+    // to the hob (`kitchenRunZones` — the same order the run's sockets are placed by).
+    const zones = kitchenRunZones(room, served, placed, items);
+    if (zones) {
+      const s = kind === 'water_supply' || kind === 'sewer' ? zones.sinkS : zones.hobS;
+      return offInto(zones.edge, s / zones.edge.length);
+    }
+  }
+
   if (served) {
     // Waste and drains sit under the fixture; everything else comes to the wall behind it.
     if (info.placement !== 'wall') return round(served.position);
@@ -122,7 +160,9 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
   }
 
   if (info.placement === 'floor') return round(centroid(room.polygon));
-  const edge = bestWall(room, edges, kind);
+  // An outside wall when the kind wants one (the boiler's flue) and the room has one.
+  const outside = edges.filter((e) => prefer.some((p) => p.index === e.index));
+  const edge = bestWall(room, outside.length > 0 ? outside : edges, kind);
   return edge ? offInto(edge, 0.5) : null;
 }
 
