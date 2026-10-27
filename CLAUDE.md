@@ -41,6 +41,13 @@ database. So `pnpm dev` on this machine, every script (`db:migrate`, the seeds, 
 and every test project made locally change what renovatege.vercel.app shows. Never run
 `db:push` or a destructive seed without meaning it for production. Vitest needs no database.
 
+**Production's products are the team's.** They are curated in admin (styles assigned, products
+deleted, names and prices changed): no deployment seeds the catalogue (`scripts/vercel-build.mjs`
+runs migrations only), and `models:seed`, `textures:stock` and `db:seed` refuse a database that is
+not on this machine without `--production` (`scripts/lib/productionGuard.ts`) — they would bring
+deleted products back and overwrite the team's edits. Products a release needs come in a migration
+that inserts them and skips existing ones (`ON CONFLICT ("slug") DO NOTHING`).
+
 ## Stack
 
 Next.js 16 App Router (Turbopack) · React 19 · TypeScript strict · PostgreSQL (Supabase) +
@@ -77,7 +84,7 @@ pnpm db:generate        # drizzle-kit generate after a schema change → commit 
 pnpm db:migrate         # apply pending migrations (production deployments run it themselves)
 pnpm db:push            # local experiments only (interactive; hangs in a non-interactive shell)
 pnpm db:studio
-pnpm db:seed            # categories, stores, products, workers, admin
+pnpm db:seed            # categories, stores, products, workers, admin (local only; --production to force)
 pnpm db:seed:design     # partner stores + design categories (no furniture — see models:seed)
 pnpm db:seed:rates      # local tidy-up: writes the default rate book in (never needed in production)
 pnpm db:seed:workers    # worker profiles, portfolios, reviews; recomputes their ratings
@@ -98,8 +105,8 @@ pnpm models:kitchen-walls   # the made-to-measure wall cabinets per material (ma
 pnpm models:photos      # product photos rendered from those models (Playwright's Chromium)
 pnpm models:colors [--force]   # read each model's colours into the manifests
 pnpm models:compress [--dry-run]   # WebP textures + Draco geometry where it pays (every models:* runs it last)
-pnpm models:seed        # the catalogue made to match the model manifests
-pnpm textures:stock     # floor/wall finish textures → surface products
+pnpm models:seed        # the catalogue made to match the model manifests (local only; --production to force)
+pnpm textures:stock     # floor/wall finish textures → surface products (local only; --production to force)
 pnpm textures:colors [--force]   # each finish's colours read off its texture (the colour filter)
 pnpm textures:webp [--dry-run]   # every JPEG/PNG finish texture in public/textures as WebP (normal maps at 90)
 pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products and /furniture as WebP (uploads convert on arrival)

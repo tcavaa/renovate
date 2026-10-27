@@ -127,11 +127,13 @@ weight, and what every browser downloads.
 
 ## What `pnpm models:seed` does
 
-**Run by hand only** — production deployments stopped running it on 27 Oct 2026, because the
-products table is now the truth and admin edits it: the seed put back every manifest product
-admin had deleted and overwrote the names, prices, stores and categories admin had changed. Run
-it when a pipeline has written new models into a manifest, knowing it does both of those again
-for every manifest product (`RUN_MODELS_SEED=1` runs it on one deployment). The app itself never
+**Run by hand only, and against production only with `--production`** — deployments never run it
+(the switch they had, `RUN_MODELS_SEED`, is gone), because the products table is the truth and the
+team edits it in admin: the seed puts back every manifest product the team deleted and overwrites
+the names, prices, stores, styles and categories it changed. Without `--production` it refuses
+any database not on this machine (`productionRefusal`, `scripts/lib/productionGuard.ts`). Run it
+when a pipeline has written new models into a manifest, knowing it does both of those again for
+every manifest product; products a release needs are better a migration that inserts them. The app itself never
 reads the JSON manifests; the generated `lib/design3d/*Manifest.ts` (fittings, doors, windows,
 radiators, equipment, the railing) are code it does read.
 

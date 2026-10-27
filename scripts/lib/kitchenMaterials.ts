@@ -12,7 +12,8 @@
  * public/textures (a flat colour for the painted MDF), with the fronts' gaps and handles drawn over.
  *
  * `seed-design.ts` writes the store with the rest; `models:seed` makes it when it is missing —
- * a deploy runs that script alone — and writes the materials.
+ * `models:seed` is the only one run for a new model — and writes the materials. Production gets
+ * them through migrations instead (`0011_boiler_cabinet_materials`): no deployment seeds.
  */
 
 import type { StyleId } from '../../lib/design/types';

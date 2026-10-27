@@ -38,6 +38,7 @@ import { colorsOfImage } from '../lib/uploads/textureColors';
 import { encodeTextureWebp, textureKind } from '../lib/uploads/textureOptimize';
 import { PHOTO_WEBP_QUALITY } from '../lib/uploads/imageOptimize';
 import { humanizeSlug } from './lib/translations';
+import { productionRefusal } from './lib/productionGuard';
 import { PAINT_BASE_TEXTURE, PAINT_COLORS, type PaintName } from '../lib/design/styles';
 import type { StyleId } from '../lib/design/types';
 
@@ -167,6 +168,13 @@ const LIBRARY: TextureEntry[] = [
 // ---------------------------------------------------------------------------
 
 async function main() {
+  // Production's finishes are the team's (admin): this re-activates them, resets their styles and
+  // tags, and makes the deleted ones again — only on this machine's database, or with --production.
+  const refusal = productionRefusal('textures:stock', process.env.DATABASE_URL, process.argv);
+  if (refusal) {
+    console.error(refusal);
+    process.exit(1);
+  }
   const args = process.argv.slice(2);
   const only = args.find((a) => a.startsWith('--only='))?.slice('--only='.length).split(',').filter(Boolean);
   const entries = only ? LIBRARY.filter((e) => only.includes(e.slug)) : LIBRARY;

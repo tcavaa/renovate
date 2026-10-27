@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { CATEGORY_RU, PRODUCT_I18N, STORE_I18N, WORKER_I18N } from './lib/translations';
 import { defaultPlacement } from './lib/categoryTree';
+import { productionRefusal } from './lib/productionGuard';
 import { db, pool } from '../lib/db';
 import {
   categories,
@@ -181,6 +182,13 @@ const seedWorkers: Array<{
 ];
 
 async function seed() {
+  // Production's catalogue is the team's (admin): this writes the starting products, the stores and
+  // the admin back — only on this machine's database, or with --production.
+  const refusal = productionRefusal('db:seed', process.env.DATABASE_URL, process.argv);
+  if (refusal) {
+    console.error(refusal);
+    process.exit(1);
+  }
   console.log('🌱 Seeding PLAYCE database...');
 
   console.log('— inserting categories');

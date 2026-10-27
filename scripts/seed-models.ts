@@ -11,8 +11,11 @@
  * The renovation calculator's own catalogue — tiles, paint, doors, sanitary ware — is not
  * touched; those products have no `model3dKind` and were never furniture.
  *
- * Re-running is safe: products are matched by slug and updated in place, so a price or store
- * edited in admin survives a re-seed unless the manifest says otherwise.
+ * Products are matched by slug and updated in place — but a name, store, style or category the
+ * manifest says something else about goes back to the manifest's, and a product the team deleted
+ * comes back. So it refuses any database but one on this machine unless told `--production`
+ * (`productionRefusal`): production's catalogue is the team's, kept in admin, and no deployment
+ * runs this.
  *
  * Categories are a tree admin keeps (`lib/catalog/tree.ts`): a product goes to the category
  * that takes its 3D kind ("Corner sofas"), else to its archetype's; one admin has filed
@@ -35,6 +38,7 @@ import type { RadiatorManifestModel } from './radiator-models';
 import type { EquipmentManifestModel } from './equipment-models';
 import type { KitchenManifestModel } from './kitchen-models';
 import { TRIM_PRODUCTS } from './lib/trimProducts';
+import { productionRefusal } from './lib/productionGuard';
 import { BOILER_CABINET_MATERIALS, KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
 import { STORE_I18N } from './lib/translations';
 
@@ -51,6 +55,11 @@ const SLUG_PREFIX = 'model-';
 const roundCm = <T extends number | null | undefined>(value: T): T => (typeof value === 'number' ? (Math.round(value) as T) : value);
 
 async function main() {
+  const refusal = productionRefusal('models:seed', process.env.DATABASE_URL, process.argv);
+  if (refusal) {
+    console.error(refusal);
+    process.exit(1);
+  }
   // Two manifests, one catalogue: the partner drop and the CC0 stock that fills its gaps.
   const manifestPaths = [
     path.join(process.cwd(), 'public', 'models', 'manifest.json'),
@@ -90,9 +99,8 @@ async function main() {
   };
 
   /**
-   * The category, made when it is missing. A deploy run with RUN_MODELS_SEED=1 runs this script alone
-   * (bundled), so it cannot count on `db:seed:design` having been run for the categories the
-   * newer products live in.
+   * The category, made when it is missing. This script may run on its own, so it cannot count on
+   * `db:seed:design` having been run for the categories the newer products live in.
    */
   const ensureCategory = async (slug: string): Promise<number> => {
     const known = categoryBySlug(slug);
