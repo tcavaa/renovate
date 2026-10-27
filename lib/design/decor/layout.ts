@@ -363,6 +363,8 @@ export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'>): number
       return (params.standoffMm && params.standoffMm > 0 ? params.standoffMm / 1000 : 0) + (params.backing === false ? 0 : 0.012) + mm(params.depthMm, 22);
     case 'niche':
       return Math.min(0.45, Math.max(0.12, mm(params.depthMm, 300)));
+    case 'box':
+      return Math.min(0.4, Math.max(0.1, mm(params.depthMm, 200)));
     case 'slab':
       return mm(params.standoffMm, 40) + mm(params.thicknessMm, 20);
     case 'panel':

@@ -36,7 +36,7 @@ const LED_OPTIONS: Partial<Record<DecorFamily, Array<NonNullable<DecorParams['le
 };
 
 export function familyLabel(t: Dictionary, family: DecorFamily): string {
-  const map: Record<DecorFamily, string> = { slats: t.decor.fSlats, moulding: t.decor.fMoulding, niche: t.decor.fNiche, slab: t.decor.fSlab, light: t.decor.fLight, panel: t.decor.fPanel, cladding: t.decor.fCladding, mural: t.decor.fMural, tile: t.decor.fTile };
+  const map: Record<DecorFamily, string> = { slats: t.decor.fSlats, moulding: t.decor.fMoulding, niche: t.decor.fNiche, slab: t.decor.fSlab, light: t.decor.fLight, panel: t.decor.fPanel, cladding: t.decor.fCladding, mural: t.decor.fMural, tile: t.decor.fTile, box: t.decor.fBox };
   return map[family];
 }
 
@@ -113,6 +113,21 @@ export function DecorPanel({
               </Chip>
             ))}
           </div>
+        </div>
+      )}
+
+      {piece.family === 'box' && (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.boxHeight}</p>
+          <div className="flex flex-wrap gap-1">
+            <Chip small active={!params.full} onClick={() => onParams({ full: false })}>
+              {t.decor.boxHalf}
+            </Chip>
+            <Chip small active={!!params.full} onClick={() => onParams({ full: true })}>
+              {t.decor.boxFull}
+            </Chip>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-soft">{t.decor.boxFinish}</p>
         </div>
       )}
 

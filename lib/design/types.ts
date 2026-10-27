@@ -558,7 +558,7 @@ export interface ElectricalPoint {
  * panels, brick or concrete cladding, murals and tiled fields. None of them is a model: each is
  * fitted to its wall by code and bought by the material it uses.
  */
-export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'panel' | 'cladding' | 'mural' | 'tile';
+export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'panel' | 'cladding' | 'mural' | 'tile' | 'box';
 
 /** The parts of a piece that wear a material of their own (`DECOR_FAMILIES` says which a family has). */
 export type DecorSlot = 'face' | 'backing' | 'led' | 'profile' | 'body' | 'shelf' | 'surround' | 'border' | 'trim';
@@ -608,6 +608,8 @@ export interface DecorParams {
   border?: boolean;
   /** Light: round the ceiling (a cove), or a line set into the wall. */
   path?: 'cove' | 'line';
+  /** Box (a wall-hung WC's gypsum box): to the ceiling, or half height with a shelf on top. */
+  full?: boolean;
 }
 
 /**
@@ -630,7 +632,7 @@ export interface DecorPiece {
   note?: string | null;
   origin?: 'ai' | 'studio';
   /** What it was centred on (the bed, the kitchen run…): it follows that piece to its wall (`reanchorDecor`). */
-  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | null;
+  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | 'wc' | null;
 }
 
 /** How the flat was generated: by the rule engine or by the AI designer — kept so a flat can be explained. */

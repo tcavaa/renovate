@@ -177,7 +177,8 @@ function floorPiecesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]):
  */
 export function reanchorDecor(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[]): DecorPiece[] {
   return decor.flatMap((piece) => {
-    const slot = piece.anchor ? ANCHOR_SLOT[piece.anchor as DecorAnchor] : undefined;
+    // A WC's box follows its WC.
+    const slot = piece.anchor === 'wc' ? 'toilet' : piece.anchor ? ANCHOR_SLOT[piece.anchor as DecorAnchor] : undefined;
     const room = rooms.find((r) => r.id === piece.roomId);
     if (!slot || !room || piece.wallIndex == null) return [piece];
     const anchorPiece = items.find((i) => i.roomId === room.id && i.slot === slot && !!i.product);

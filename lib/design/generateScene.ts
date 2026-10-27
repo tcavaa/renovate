@@ -24,6 +24,7 @@ import { radiatorKeepouts } from './ruleChecks';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
 import { isBaseFinish } from './zones';
 import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
+import { wcBoxes } from './decor/wcBox';
 
 export interface GenerateSceneInput {
   plan: FloorPlan;
@@ -95,7 +96,9 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
   // The designer's wall decor, measured against where the engine put the bed, the sofa, the TV
   // unit (`proposalDecor`). An engine generation has none.
-  const decor = proposalDecor(laid, proposal, items, catalog);
+  // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
+  const designed = proposalDecor(laid, proposal, items, catalog);
+  const decor = [...designed, ...wcBoxes(laid.rooms, items, catalog, designed)];
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
   // hanging lamps and ceiling points under a lowered ceiling hung from it.
   items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);

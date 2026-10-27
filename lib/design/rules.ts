@@ -198,6 +198,14 @@ export const SHALLOW_WARDROBE_DEPTH_M = 0.38;
 export const SHOWER_MIN_M = 0.8;
 /** A WC's centre from a side wall (or anything beside it): 40 cm. */
 export const WC_SIDE_M = 0.4;
+/**
+ * A wall-hung WC's concealed cistern is boxed in plasterboard about 20 cm deep: half height (the
+ * frame 82–98 cm, the box's top a shelf at 1 m) or to the ceiling, tiled or painted. It is as wide
+ * as the WC's 80 cm, or the whole wall when what is left beside it would be a sliver.
+ */
+export const WC_BOX_DEPTH_M = 0.2;
+export const WC_BOX_HALF_M = 1.0;
+export const WC_BOX_WIDTH_M = 0.8;
 /** A basin's top: 85 cm (the check allows a few centimetres either way). */
 export const BASIN_TOP_M = 0.85;
 export const BASIN_TOP_TOLERANCE_M = 0.07;

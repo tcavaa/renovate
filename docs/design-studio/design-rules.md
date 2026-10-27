@@ -21,7 +21,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 | 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
 | 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
 | 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | **built** |
-| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | ceilings and cove **built**; the WC box and the boiler cabinet next |
+| 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | ceilings, cove and the WC box **built**; the boiler cabinet next |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
 
 ## The decisions (owner, 28 Oct 2026)
@@ -64,9 +64,10 @@ The brief is built in five stages, each tested, documented and committed on its 
 - **Ceilings**: a gypsum ceiling lowers the room 10 cm (3D and every height that
   hangs from the ceiling), a stretch (barisol) one 3 cm; the LED cove: 12 cm drop, a 15 cm niche,
   the strip 5 cm back from the edge. Curtains hang from just under the ceiling.
-- *Stage 4* — **Wall-hung WC**: a gypsum box 20 cm deep behind it, half height (~1 m, its top a
+- **Wall-hung WC**: a gypsum box 20 cm deep behind it, half height (~1 m, its top a
   shelf) by default or to the ceiling (a choice on its card), finished in waterproof paint or
-  tiled — the design's choice — priced as gypsum work.
+  tiled — the design's choice — priced by its plasterboard and its tiles, like the rest of the
+  decor ([decor.md](decor.md), the `box` family).
 
 **Part 2 — layout** (how the engine does it: [layout-and-matching.md](layout-and-matching.md#the-design-rules-in-the-layout-libdesignrulests))
 
@@ -174,7 +175,9 @@ every fixture, hot on the left, a WC beside a basin, the boiler's pair, nothing 
 a niche, the WC out of the door's sight over seeds, the kitchen out of the entrance's, the dining
 seats and door widths, and every size check; `ceiling.test.ts` (when a ceiling drops and how
 far, a balcony, what is hung again, the cove's sizes); `designStore.test.ts` (the store keeps the
-drop as the home state, the mode, the choice and the works change).
+drop as the home state, the mode, the choice and the works change; a box's height follows its
+card); `wcBox.test.ts` (the box's place, size, materials and quantities, the whole wall, the WC
+in front of it and followed by it, not the AI's).
 
 ## Known gaps
 
@@ -186,6 +189,8 @@ drop as the home state, the mode, the choice and the works change).
   hallway's pair it does have).
 - A microwave on its own is not a piece, so it gets no socket.
 - A bidet has no piece in the app, so it gets no water.
+- A WC added in the studio after generating gets no box (only `generateScene` adds them); every
+  WC is taken to be wall-hung.
 - The water points are drawn on the board and the PDF, not in 3D.
 - The engine stands a sofa only against a wall: a room too wide for the sofa–TV range gets its
   warning rather than a sofa floated 3 m from the TV wall.

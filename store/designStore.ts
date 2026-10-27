@@ -93,7 +93,7 @@ import type {
   Vec2,
   Wall,
 } from '@/lib/design/types';
-import { underCeiling } from '@/lib/design/rules';
+import { WC_BOX_HALF_M, underCeiling } from '@/lib/design/rules';
 import { withCeiling } from '@/lib/design/ceiling';
 
 /**
@@ -1246,7 +1246,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         setDecorParams: (id, patch) =>
           commit((s) => {
             if (!s.decor.some((d) => d.id === id)) return null;
-            return { decor: s.decor.map((d) => (d.id === id ? { ...d, params: { ...d.params, ...patch }, origin: 'studio' as const } : d)) };
+            // A WC's box to the ceiling runs as high as the room lets it; half height, to its shelf.
+            const height = (d: DecorPiece) => (d.family === 'box' && patch.full !== undefined ? { height: { from: 0, to: patch.full ? 20 : WC_BOX_HALF_M } } : {});
+            return { decor: s.decor.map((d) => (d.id === id ? { ...d, params: { ...d.params, ...patch }, ...height(d), origin: 'studio' as const } : d)) };
           }),
         removeDecor: (id) =>
           commit((s) => ({ decor: s.decor.filter((d) => d.id !== id), selectedElement: s.selectedElement?.kind === 'decor' && s.selectedElement.id === id ? null : s.selectedElement })),

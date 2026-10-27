@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
-import { decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf, type DecorWall, type Rect } from '@/lib/design/decor/layout';
+import { decorDepth, decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf, type DecorWall, type Rect } from '@/lib/design/decor/layout';
 import { hasLed } from '@/lib/design/decor/families';
 import { ledColor } from '@/lib/design/decor/materials';
 import type { DecorMaterial, DecorPiece, FloorPlan, PlanRoom } from '@/lib/design/types';
@@ -371,6 +371,15 @@ function buildNiche(piece: DecorPiece, wall: DecorWall): THREE.Group {
   return g;
 }
 
+/** A WC's installation box: a block of plasterboard on the wall, tiled when it has a face, else painted. */
+function buildBox(piece: DecorPiece, wall: DecorWall): THREE.Group {
+  const g = new THREE.Group();
+  const depth = decorDepth(piece);
+  const material = piece.materials.face?.product ? decorMaterial(piece.materials.face, '#E8E4DE', 0.4) : decorMaterial(piece.materials.body, '#F2EEE7', 0.9);
+  g.add(mesh(metreBox(wall.width, wall.height, depth), material, (wall.x0 + wall.x1) / 2, wall.y0 + wall.height / 2, depth / 2));
+  return g;
+}
+
 function buildField(piece: DecorPiece, wall: DecorWall): THREE.Group {
   const g = new THREE.Group();
   const params = paramsOf(piece);
@@ -504,7 +513,7 @@ export function buildDecorPiece(piece: DecorPiece, room: PlanRoom): THREE.Object
     const wall = decorWall(piece, room);
     if (!wall) return null;
     const content =
-      piece.family === 'slats' ? buildSlats(piece, wall) : piece.family === 'moulding' ? buildMoulding(piece, wall, room) : piece.family === 'niche' ? buildNiche(piece, wall) : buildField(piece, wall);
+      piece.family === 'slats' ? buildSlats(piece, wall) : piece.family === 'moulding' ? buildMoulding(piece, wall, room) : piece.family === 'niche' ? buildNiche(piece, wall) : piece.family === 'box' ? buildBox(piece, wall) : buildField(piece, wall);
     built = onEdge(wall.edge, content);
     built.userData.wallCut = cutFor(wall.edge);
   }

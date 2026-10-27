@@ -89,6 +89,15 @@ The reference library's rules, as code:
   ceiling, the strip on it 5 cm back from its edge — the design rules' `COVE_*`; rectangular rooms
   only; measured from a new ceiling when one is hung) or a line set into the wall. Slots: led, body (the cove's
   plasterboard).
+- **box** — a wall-hung WC's installation box (`lib/design/decor/wcBox.ts`): plasterboard 20 cm
+  deep on the wall behind the WC, 80 cm wide (the whole wall when a sliver under 30 cm would be
+  left beside it), half height (1 m, its top a shelf) or to the ceiling (`params.full`, the card's
+  "სიმაღლე"; the store sets the band with it). Slots: body (gypsum), face (tile or stone,
+  optional — without it the box is painted, the body's colour). Measured as its front, its two
+  sides and, half height, its top. **Not the AI's**: `AI_DECOR_FAMILIES` leaves it out of the
+  prompt, the schema and the validation; `generateScene` puts one behind every WC (`wcBoxes`,
+  anchor `wc`, so it follows its WC — `reanchorDecor`), and the WC stands in front of it
+  (`clearOfDecor`, `STANDS_OUT`). A WC added in the studio afterwards gets none.
 
 ## What it costs (`quantities.ts`)
 

@@ -545,3 +545,14 @@ describe('the new ceiling', () => {
     expect(useDesignStore.getState().electrical[0].elevationM).toBeCloseTo(2.8, 6);
   });
 });
+
+describe('a WC’s box', () => {
+  it('runs to the ceiling or back to its shelf as the card says', () => {
+    const box = { id: 'x', roomId: room().id, family: 'box' as const, wallIndex: 0, span: { from: 1, to: 1.8 }, height: { from: 0, to: 1 }, params: { depthMm: 200, full: false }, materials: {}, anchor: 'wc' as const };
+    useDesignStore.setState({ decor: [box] });
+    useDesignStore.getState().setDecorParams('x', { full: true });
+    expect(useDesignStore.getState().decor[0].height.to).toBe(20);
+    useDesignStore.getState().setDecorParams('x', { full: false });
+    expect(useDesignStore.getState().decor[0].height.to).toBe(1);
+  });
+});

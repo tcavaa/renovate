@@ -21,7 +21,10 @@ export interface DecorFamilySpec {
   params: DecorParams;
 }
 
-export const DECOR_FAMILY_LIST: DecorFamily[] = ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile'];
+export const DECOR_FAMILY_LIST: DecorFamily[] = ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box'];
+
+/** The families the AI designer composes with: not the WC's box, which the generation builds behind every WC itself (`wcBoxes`). */
+export const AI_DECOR_FAMILIES: DecorFamily[] = DECOR_FAMILY_LIST.filter((f) => f !== 'box');
 
 export const DECOR_FAMILIES: Record<DecorFamily, DecorFamilySpec> = {
   slats: {
@@ -59,6 +62,11 @@ export const DECOR_FAMILIES: Record<DecorFamily, DecorFamilySpec> = {
   tile: {
     slots: { face: { kinds: ['tile', 'stone'] }, border: { kinds: ['tile'], optional: true }, trim: { kinds: ['trim'], optional: true } },
     params: { moduleWidthMm: 300, moduleHeightMm: 300, jointMm: 3, thicknessMm: 10, border: false },
+  },
+  // A wall-hung WC's installation box: plasterboard, tiled (face) or painted (the body's colour).
+  box: {
+    slots: { body: { kinds: ['gypsum'] }, face: { kinds: ['tile', 'stone'], optional: true } },
+    params: { depthMm: 200, full: false },
   },
 };
 

@@ -7,7 +7,7 @@
 
 import type { DecorPiece, DecorSlot, PlanRoom, SceneProduct } from '@/lib/design/types';
 import { hasLed } from './families';
-import { decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf } from './layout';
+import { decorDepth, decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf } from './layout';
 import { isDecorUnit, type DecorUnit } from './materials';
 
 /** What one slot of a piece uses, in each of the units a material may be sold by. */
@@ -48,6 +48,16 @@ export function decorUses(piece: DecorPiece, room: PlanRoom): DecorUse[] {
       const profileMm = piece.materials.profile?.specs?.profileMm;
       const fit = fitMoulding(params, wall, room.openings, profileMm);
       record('profile', 0, fit.profileM, fit.frames.length);
+      break;
+    }
+    case 'box': {
+      // Its front, its sides and (half height) its top, which is a shelf: the plasterboard, and
+      // the tiles over it when it is tiled rather than painted.
+      const depth = decorDepth(piece);
+      const full = wall.y1 >= wall.roomHeight - 0.01;
+      const m2 = wall.width * wall.height + 2 * depth * wall.height + (full ? 0 : wall.width * depth);
+      record('body', m2);
+      if (piece.materials.face?.product) record('face', m2);
       break;
     }
     case 'niche': {

@@ -20,7 +20,7 @@ import { styleAffinity } from './styles';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
 import { wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
-import { DECOR_FAMILIES, DECOR_FAMILY_LIST, decorSlots, slotTakes } from './decor/families';
+import { AI_DECOR_FAMILIES, DECOR_FAMILIES, decorSlots, slotTakes } from './decor/families';
 import { DECOR_ANCHORS, type DecorIntent } from './decor/resolve';
 import { decorMaterialKind, decorSpecs, isDecorMaterial } from './decor/materials';
 import type { DecorFamily, DecorParams, DecorSlot, FloorPlan, PlanRoom, StyleId, StyleProfile } from './types';
@@ -251,7 +251,7 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
 // The prompt and the answer's shape
 // ---------------------------------------------------------------------------
 
-const SLOT_KINDS = DECOR_FAMILY_LIST.map((f) => `${f}: ${decorSlots(f).map((s) => `${s} (${DECOR_FAMILIES[f].slots[s]!.kinds.join('/')}${DECOR_FAMILIES[f].slots[s]!.optional ? ', optional' : ''})`).join(', ')}`).join('\n');
+const SLOT_KINDS = AI_DECOR_FAMILIES.map((f) => `${f}: ${decorSlots(f).map((s) => `${s} (${DECOR_FAMILIES[f].slots[s]!.kinds.join('/')}${DECOR_FAMILIES[f].slots[s]!.optional ? ', optional' : ''})`).join(', ')}`).join('\n');
 
 const SYSTEM_PROMPT = `You are the interior designer of a Georgian home renovation platform. After a person takes the style test, you furnish and finish their whole flat at once — coherently, like one designer's work — and add custom wall decor that is built to measure (slatted panels, stone slabs, mouldings, niches, light lines, upholstered or relief panels, cladding, murals, tiled fields).
 
@@ -340,7 +340,7 @@ export const DESIGN_SCHEMA = {
               additionalProperties: false,
               required: ['family', 'referenceId', 'concept', 'anchor', 'wallIndex', 'widthM', 'heightFromM', 'heightToM', 'params', 'materials', 'note'],
               properties: {
-                family: { type: 'string', enum: DECOR_FAMILY_LIST },
+                family: { type: 'string', enum: AI_DECOR_FAMILIES },
                 referenceId: { type: 'string', description: '"" when none' },
                 concept: { type: 'string' },
                 anchor: { type: 'string', enum: [...DECOR_ANCHORS] },
@@ -430,7 +430,7 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
     const wall = room.wall && offer.walls.get(room.roomId)?.has(room.wall) ? room.wall : null;
     const decor: DecorIntent[] = [];
     for (const d of (room.decor ?? []).slice(0, 3)) {
-      if (!d || !DECOR_FAMILY_LIST.includes(d.family as DecorFamily) || !(DECOR_ANCHORS as readonly string[]).includes(d.anchor)) continue;
+      if (!d || !AI_DECOR_FAMILIES.includes(d.family as DecorFamily) || !(DECOR_ANCHORS as readonly string[]).includes(d.anchor)) continue;
       const family = d.family as DecorFamily;
       const materials = (d.materials ?? [])
         .filter((m) => {

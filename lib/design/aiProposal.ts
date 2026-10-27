@@ -105,7 +105,7 @@ export const MAX_AI_GENERATIONS = 5;
 const PLACED_OFF: Record<string, string> = { nightstand: 'bed', coffee_table: 'sofa', office_chair: 'desk' };
 
 /** Families of decor furniture in front of has to stand clear of (`clearOfDecor`). */
-const STANDS_OUT = new Set(['slats', 'slab', 'panel', 'cladding', 'mural', 'tile', 'niche', 'moulding']);
+const STANDS_OUT = new Set(['slats', 'slab', 'panel', 'cladding', 'mural', 'tile', 'niche', 'moulding', 'box']);
 
 /** A floor piece that stands against a wall in the engine's layout (not a rug, curtains or a free-standing table). */
 function wallPiece(item: PlacedItem): boolean {
