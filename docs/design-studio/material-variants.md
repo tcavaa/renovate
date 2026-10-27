@@ -21,7 +21,9 @@ lines) · [../subscriptions.md](../subscriptions.md) (the catalogue lock) ·
 | `lib/design3d/buildScene.ts` | `buildPlacedItem` applies `item.product.variant` once the GLB is in; `itemKey` includes `variantSignature`, so a change of look rebuilds the piece; `releaseVariantMaterials` |
 | `components/design/SwapPanel.tsx` → `VariantSwatches` | the swatches on the item card; `ItemCard.tsx` shows the variant's name under the product's |
 | `store/designStore.ts` → `setItemVariant` | one undoable step (`commit`) |
-| `components/admin/VariantsEditor.tsx` | the form's editor; `ModelUploader.tsx` reports the model's materials (`onMaterials`), shows a look (`look`) and takes a photo of it (`controlRef.photo`) |
+| `lib/uploads/glbLooks.ts` | pure: a GLB's materials as they look, read from the file (`readGlbLooks`: factors, and the colour, normal and metallic-roughness textures as the embedded bytes), paired with another file's (`matchLooks`: by name, else by order), `factorsDiffer`, `sameImage` |
+| `lib/uploads/variantFromModel.ts` | browser: a variant read off a second model of the same product — compared with the main model, the differing parts' textures uploaded |
+| `components/admin/VariantsEditor.tsx` | the form's editor (and its "variant from another model" button); `ModelUploader.tsx` reports the model's materials (`onMaterials`), shows a look (`look`) and takes a photo of it (`controlRef.photo`) |
 | `lib/api/productPrices.ts` → `repriceItemSnapshot` | the save route rebuilds a placed piece's variant from the catalogue |
 | `lib/plans/sceneGuard.ts` | a variant chosen is a `catalog` change on the server, as a kitchen's material is |
 
@@ -54,6 +56,23 @@ a texture of its own. "Show on the model" puts the variant on the turntable as i
 "photo from the model" photographs the turntable in that look (the same snapshot as the product
 photo) and uploads it as the variant's photo. A variant naming a material the model no longer has
 (another GLB uploaded since) says so: it changes nothing in the studio.
+
+**A variant from another model.** A store often sends the same piece twice — the sofa in two
+fabrics, as two GLBs. "ვარიანტი სხვა მოდელიდან" (variant from another model) takes the second
+file without uploading it: it is read in the browser (`readGlbLooks`, nothing decoded — the
+textures are the JPEG, PNG or WebP bytes embedded in the file), its materials are paired with the
+main model's (fetched again from its URL) by name — or, when the export renamed every material
+and both have as many, by their order in the file, which the form says — and every part that looks
+different (another factor, or a texture that is not the same picture: the same bytes, or alike
+drawn 16 px wide, since the main model's textures went through the upload recipe) becomes a slot:
+its colour texture, normal map and metallic-roughness map (three reads roughness from its green
+channel) uploaded to `textures/`, the base colour factor as the slot's colour (glTF multiplies the
+texture by it, as a slot's colour does), its roughness, its texture repeat; a part with no texture
+is a plain colour. A picture two parts share goes up once. The variant is named after the file,
+its swatch is the first texture's colour, and it is shown on the turntable at once; the form names
+the main model's parts the second has not got, and the ones whose texture could not be taken (an
+image beside the file, Basis/KTX2, over 8 MB). Nothing different: no variant. The two files must
+be the same model — the textures are laid on the main model's UVs.
 
 Material names come straight from the GLB — often cryptic ("04 - VRay Material", "asdas") in the
 library — which is why each is shown with its colour and the variant can be previewed.
@@ -99,6 +118,7 @@ still names.
 ## Tests
 
 `tests/unit/design/variants.test.ts` (reading, pricing, names, files, the schema),
+`tests/unit/uploads/glbLooks.test.ts` (reading a GLB's looks from a GLB built in the test, pairing by name and by order, what counts as changed),
 `tests/unit/design3d/variantMaterials.test.ts` (which parts change, the originals untouched,
 shared copies, grain kept or dropped, multi-material meshes), `repriceItemSnapshot` in
 `tests/unit/api/helpers.test.ts`, the lock in `tests/unit/plans/sceneGuard.test.ts`, the order's
@@ -108,7 +128,9 @@ Checked on 27 Oct 2026 in the browser on a side dev server: the library chesterf
 a white and a cognac leather (the cognac at 3,900 ₾) through the form, both previewed and
 photographed on the turntable, and in TEST project #348 the piece switched black → cognac → white
 on its card, the 3D, the card's price and photo following, the saved row holding the catalogue's
-variant.
+variant. The same day a third (teal leather) was read off a copy of the sofa's GLB with its leather
+recoloured: one part changed (the wood was recognised as the same), two textures uploaded, the
+turntable and then the studio showing the teal leather on the model's own UVs.
 
 ## Known gaps
 

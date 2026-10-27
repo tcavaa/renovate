@@ -1011,6 +1011,7 @@ export function ProductForm({
                   <VariantsEditor
                     variants={variants}
                     onChange={setVariants}
+                    modelUrl={form.model3dUrl}
                     materials={modelMaterials}
                     basePrice={Number(form.pricePerUnit) || 0}
                     previewId={previewVariantId}

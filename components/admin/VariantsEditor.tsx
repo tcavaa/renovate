@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Camera, ChevronDown, Eye, EyeOff, Loader2, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Box, Camera, ChevronDown, Eye, EyeOff, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import {
   type ProductVariant,
   type VariantSlot,
 } from "@/lib/design/variants";
+import { ModelVariantError, variantFromModel } from "@/lib/uploads/variantFromModel";
 
 /**
  * A 3D product's material variants in the product form (`lib/design/variants.ts`): one model,
@@ -24,10 +25,15 @@ import {
  * from the materials the turntable read off the GLB, each given a colour (over its own texture,
  * keeping the grain, or plain), how glossy it is, and if wanted a texture of its own. The variant
  * being edited is shown on the turntable above (`previewId`), and its photo can be taken off it.
+ *
+ * A variant can also be read off a second model of the same product ("from another model"): the
+ * store sent the sofa twice, in two fabrics; that file is only read in the browser, the parts that
+ * look different become the variant and their textures are uploaded (`lib/uploads/variantFromModel`).
  */
 export function VariantsEditor({
   variants,
   onChange,
+  modelUrl,
   materials,
   basePrice,
   previewId,
@@ -36,6 +42,8 @@ export function VariantsEditor({
 }: {
   variants: ProductVariant[];
   onChange: (variants: ProductVariant[]) => void;
+  /** The product's own model, which a second model is compared with. */
+  modelUrl: string;
   /** The model's materials, read by the turntable; empty while no model is loaded. */
   materials: ModelMaterial[];
   basePrice: number;
@@ -47,6 +55,36 @@ export function VariantsEditor({
   const t = useT();
   const f = t.admin.forms;
   const [photoFor, setPhotoFor] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState<"reading" | "uploading" | null>(null);
+  const [notes, setNotes] = useState<{ kind: "ok" | "warn" | "error"; text: string }[]>([]);
+
+  /** A variant read off a second model of the same product; that file is not uploaded. */
+  const fromModel = async (file: File) => {
+    if (fileRef.current) fileRef.current.value = "";
+    setNotes([]);
+    setReading("reading");
+    try {
+      const result = await variantFromModel(modelUrl, file, setReading);
+      const next: { kind: "ok" | "warn" | "error"; text: string }[] = [];
+      if (!result.variant) next.push({ kind: "warn", text: f.variantFromModelSame });
+      else {
+        onChange([...variants, result.variant]);
+        onPreview(result.variant.id);
+        next.push({ kind: "ok", text: fill(f.variantFromModelDone, { n: result.variant.slots.length }) });
+      }
+      if (result.by === "order") next.push({ kind: "warn", text: f.variantFromModelByOrder });
+      if (result.unmatched.length > 0) next.push({ kind: "warn", text: fill(f.variantFromModelUnmatched, { names: result.unmatched.join(", ") }) });
+      if (result.skipped.length > 0) next.push({ kind: "warn", text: fill(f.variantFromModelSkipped, { names: result.skipped.join(", ") }) });
+      setNotes(next);
+    } catch (e) {
+      console.error(e);
+      const code = e instanceof ModelVariantError ? e.code : null;
+      setNotes([{ kind: "error", text: code === "NOT_GLB" ? f.variantFromModelNotGlb : code === "NO_SHARED_MATERIALS" ? f.variantFromModelNoMatch : f.variantFromModelFailed }]);
+    } finally {
+      setReading(null);
+    }
+  };
 
   const update = (id: string, change: (v: ProductVariant) => ProductVariant) =>
     onChange(variants.map((v) => (v.id === id ? change(v) : v)));
@@ -79,11 +117,33 @@ export function VariantsEditor({
           <p className="text-sm font-semibold text-ink">{f.variantsTitle}</p>
           <p className="max-w-xl text-xs text-ink-muted">{f.variantsHint}</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={add} disabled={variants.length >= MAX_VARIANTS}>
-          <Plus className="h-4 w-4" />
-          {f.variantAdd}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={variants.length >= MAX_VARIANTS || reading != null || !modelUrl} title={f.variantFromModelHint}>
+            {reading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Box className="h-4 w-4" />}
+            {reading === "reading" ? f.variantFromModelReading : reading === "uploading" ? f.variantFromModelUploading : f.variantFromModel}
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={add} disabled={variants.length >= MAX_VARIANTS}>
+            <Plus className="h-4 w-4" />
+            {f.variantAdd}
+          </Button>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".glb,model/gltf-binary"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) fromModel(file);
+          }}
+        />
       </div>
+      <p className="text-[11px] text-ink-muted">{f.variantFromModelHint}</p>
+      {notes.map((note, i) => (
+        <p key={i} className={cn("text-xs", note.kind === "ok" ? "text-success" : note.kind === "warn" ? "text-warning" : "text-danger")}>
+          {note.text}
+        </p>
+      ))}
       {materials.length === 0 && variants.length > 0 && <p className="text-xs text-warning">{f.variantsNoModel}</p>}
 
       {variants.map((variant) => {
