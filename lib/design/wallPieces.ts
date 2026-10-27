@@ -87,6 +87,12 @@ export function planEdgeWalls(plan: FloorPlan): Map<string, EdgeWall> {
       const last = previous.pieces[previous.pieces.length - 1];
       const first = current.pieces[0];
       const corner = current.edge.a;
+      // Where the neighbour behind the shared one of the two walls runs on past the corner,
+      // its full wall is the corner: both end square there. Mitred, the open wall's corner
+      // triangle stood inside the neighbour's wall with a face on its outer face — a balcony
+      // against a longer room, whose railing side left that triangle's face on the facade,
+      // the two flickering in turn as the camera moved.
+      if (cornerFilledByNeighbour(last, previous.edge, first, current.edge, corner, edgesOf)) continue;
       const meet = lineIntersection(
         offset(corner, previous.edge.inward, -last.depth),
         previous.edge.dir,
@@ -161,6 +167,23 @@ function stretches(room: PlanRoom, edge: PlanEdge, thickness: number, rooms: Pla
   // Even a sliver of an edge is a wall: its neighbours mitre against it.
   if (pieces.length === 0) pieces.push({ from: 0, to: edge.length, farFrom: 0, farTo: edge.length, depth: thickness, neighbour: null });
   return pieces;
+}
+
+/**
+ * True when exactly one of the two pieces meeting at `corner` is shared and the neighbour's
+ * edge behind it carries on past the corner for at least the other piece's depth — so the
+ * neighbour's own (full) wall stands where the mitre would put the two pieces' corner.
+ */
+function cornerFilledByNeighbour(last: WallPiece, previousEdge: PlanEdge, first: WallPiece, currentEdge: PlanEdge, corner: Vec2, edgesOf: Map<string, PlanEdge[]>): boolean {
+  if (!last.neighbour === !first.neighbour) return false;
+  // The shared piece, which way along its edge leads away from it at the corner, and the open piece's depth.
+  const [shared, away, openDepth] = last.neighbour
+    ? [last, previousEdge.dir, first.depth]
+    : [first, { x: -currentEdge.dir.x, z: -currentEdge.dir.z }, last.depth];
+  const facing = edgesOf.get(shared.neighbour!.roomId)?.find((e) => e.index === shared.neighbour!.wallIndex);
+  if (!facing) return false;
+  const past = along(facing, offset(corner, away, openDepth));
+  return past > MIN_PIECE_M && past < facing.length - MIN_PIECE_M;
 }
 
 function along(edge: PlanEdge, point: Vec2): number {

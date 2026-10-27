@@ -165,9 +165,12 @@ export function buildWallGeometry(spec: WallMeshSpec): THREE.BufferGeometry {
     for (const h of holes) {
       const slot = slotAt((h.left + h.right) / 2, (h.bottom + h.top) / 2);
       const original = spec.holes.find((o) => o.bottom === h.bottom && o.top === h.top && o.left <= h.left + 1e-6 && o.right >= h.right - 1e-6);
-      // A jamb only where the hole really ends — not where a piece boundary cut it in two.
-      if (!original || Math.abs(original.left - h.left) < 1e-6) quad(slot, [at(h.left, h.bottom, 0), at(h.left, h.bottom, piece.depth), at(h.left, h.top, piece.depth), at(h.left, h.top, 0)], forward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);
-      if (!original || Math.abs(original.right - h.right) < 1e-6) quad(slot, [at(h.right, h.bottom, 0), at(h.right, h.bottom, piece.depth), at(h.right, h.top, piece.depth), at(h.right, h.top, 0)], backward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);
+      // A jamb only where the hole really ends — not where a piece boundary cut it in two —
+      // and only with wall beside it: a gap that starts at the piece's very end (a railing
+      // against a square-ended wall) has nothing there to close, and the face would lie on
+      // whatever wall stands across the end.
+      if ((!original || Math.abs(original.left - h.left) < 1e-6) && h.left > lo + 1e-6) quad(slot, [at(h.left, h.bottom, 0), at(h.left, h.bottom, piece.depth), at(h.left, h.top, piece.depth), at(h.left, h.top, 0)], forward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);
+      if ((!original || Math.abs(original.right - h.right) < 1e-6) && h.right < hi - 1e-6) quad(slot, [at(h.right, h.bottom, 0), at(h.right, h.bottom, piece.depth), at(h.right, h.top, piece.depth), at(h.right, h.top, 0)], backward, [[0, h.bottom], [piece.depth, h.bottom], [piece.depth, h.top], [0, h.top]]);
       if (h.top < height - 1e-4) quad(slot, [at(h.left, h.top, 0), at(h.right, h.top, 0), at(h.right, h.top, piece.depth), at(h.left, h.top, piece.depth)], [0, -1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);
       if (h.bottom > 1e-4) quad(slot, [at(h.left, h.bottom, 0), at(h.right, h.bottom, 0), at(h.right, h.bottom, piece.depth), at(h.left, h.bottom, piece.depth)], [0, 1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);
       else if (original?.floor) quad(WALL_SLOT_CAP, [at(h.left, 0, 0), at(h.right, 0, 0), at(h.right, 0, piece.depth), at(h.left, 0, piece.depth)], [0, 1, 0], [[h.left, 0], [h.right, 0], [h.right, piece.depth], [h.left, piece.depth]]);

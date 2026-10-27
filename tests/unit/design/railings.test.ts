@@ -291,6 +291,48 @@ describe('a railing’s gap in 3D', () => {
     expect(inCorner(0)).toBe(true);
     expect(inCorner(-Infinity)).toBe(false);
   });
+
+  it('ends a balcony’s walls square against a longer room, with no face left on its facade', () => {
+    // The balcony is narrower than the room: the room's facade runs on past both its sides.
+    const rooms = [rect('living', 0, 0, 6, 3, 'living_room'), rect('balcony', 1, 3.12, 3, 1.2, 'balcony')];
+    const balcony = rooms[1];
+    const walls = planEdgeWalls({ rooms, walls: [], metresPerPixel: null, bounds: { width: 6, depth: 4.32 }, source: 'manual', wallThicknessM: 0.12 });
+    const back = walls.get(edgeWallKey(balcony.id, edgeAt(balcony, 'z', 3.12).index))!;
+    const side = walls.get(edgeWallKey(balcony.id, edgeAt(balcony, 'x', 1).index))!;
+    expect(back.pieces).toHaveLength(1);
+    expect(back.pieces[0].neighbour?.roomId).toBe('living');
+    // No mitre into the room's wall at either end of the back, nor at the side's end against it.
+    expect(back.pieces[0].farFrom).toBeCloseTo(back.pieces[0].from, 6);
+    expect(back.pieces[0].farTo).toBeCloseTo(back.pieces[0].to, 6);
+    const sideStartsAtBack = Math.abs(side.edge.a.z - 3.12) < 1e-6;
+    const sideEnd = sideStartsAtBack ? side.pieces[0] : side.pieces[side.pieces.length - 1];
+    if (sideStartsAtBack) expect(sideEnd.farFrom).toBeCloseTo(sideEnd.from, 6);
+    else expect(sideEnd.farTo).toBeCloseTo(sideEnd.to, 6);
+    // The room's facade beside the balcony is still mitred at the flat's outer corner.
+    const facade = walls.get(edgeWallKey('living', edgeAt(rooms[0], 'z', 3).index))!;
+    expect(facade.pieces.map((p) => p.depth)).toEqual([0.12, 0.06, 0.12]);
+
+    // The side as a railing: nothing of it is drawn on the facade's plane (z = 3.12), where its
+    // corner face used to lie on the room's brick.
+    const geometry = buildWallGeometry({ edge: side.edge, height: 2.8, pieces: side.pieces, holes: [{ left: 0, right: side.edge.length, bottom: 0, top: 2.8, floor: true }] });
+    const position = geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i += 3) {
+      const zs = [0, 1, 2].map((k) => position.getZ(i + k));
+      const ys = [0, 1, 2].map((k) => position.getY(i + k));
+      const onFacade = zs.every((z) => Math.abs(z - 3.12) < 1e-6) && Math.max(...ys) > 0.01;
+      expect(onFacade).toBe(false);
+    }
+  });
+
+  it('keeps a balcony flush with the flat’s corner mitred into one corner block', () => {
+    const rooms = [rect('living', 0, 0, 4, 3, 'living_room'), rect('balcony', 0, 3.12, 3, 1.2, 'balcony')];
+    const balcony = rooms[1];
+    const walls = planEdgeWalls({ rooms, walls: [], metresPerPixel: null, bounds: { width: 4, depth: 4.32 }, source: 'manual', wallThicknessM: 0.12 });
+    const side = walls.get(edgeWallKey(balcony.id, edgeAt(balcony, 'x', 0).index))!;
+    const piece = Math.abs(side.edge.a.z - 3.12) < 1e-6 ? side.pieces[0] : side.pieces[side.pieces.length - 1];
+    const mitred = Math.abs(side.edge.a.z - 3.12) < 1e-6 ? piece.farFrom < piece.from - 1e-3 : piece.farTo > piece.to + 1e-3;
+    expect(mitred).toBe(true);
+  });
 });
 
 describe('a window onto a balcony through a thick outer wall', () => {

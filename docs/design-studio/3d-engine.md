@@ -100,7 +100,13 @@ Each of these cost real debugging time. Don't undo them.
     shared for four of its six metres used to be half-depth for all six), and the top and
     the cut ends get their own neutral material instead of the room's paper. Where the
     geometry is ambiguous the piece is built full depth and allowed to overlap: a gap is
-    what the eye catches, an overlap inside a wall is invisible. The old note still holds
+    what the eye catches, an overlap inside a wall is invisible — but a *face* inside another
+    wall is not: where one of two walls meeting at a corner is shared and the neighbour's edge
+    behind it runs on past the corner (a balcony narrower than its room, a short room beside a
+    long one), the neighbour's full wall is the corner, so both end square there
+    (`cornerFilledByNeighbour`). Mitred, the open wall's corner triangle stood inside the
+    neighbour's facade, and once that wall was a railing the face closing the triangle lay on
+    the facade's brick and the two flickered as the camera moved. The old note still holds
     for *why* a shared wall is half as deep —
     **each half's far face wears the neighbour's finish.** Each room builds its own walls
     outwards from its inner face, and two rooms either side of one wall sit a thickness apart —
@@ -285,7 +291,9 @@ from whichever of its two sides is longer, since at a mitred corner what is left
 A gap given as running past the edge's end (`left: -Infinity` / `right: Infinity`) takes the
 corner's triangle and the piece's end face with it: `buildScene` asks for that only when the next
 side's railing runs into the same corner, so two railings meet with no post of wall between them
-while a railing against a standing wall leaves that wall's mitred end whole. `WallHole.floor`
+while a railing against a standing wall leaves that wall's mitred end whole. A hole's side face
+(its jamb) is drawn only where some wall is left beside it — a railing that starts at a
+square-ended piece's very end has nothing there to close. `WallHole.floor`
 closes the gap's floor across the wall's depth (the slab running out under the railing). Tested
 in `tests/unit/design/railings.test.ts`.
 
