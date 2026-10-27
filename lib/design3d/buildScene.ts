@@ -21,6 +21,8 @@
 
 import * as THREE from 'three';
 import { loadFixture, loadModel } from './modelLoader';
+import { createVariantMaterials } from './variantMaterials';
+import { variantSignature } from '@/lib/design/variants';
 import { isOpenEdge, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallForEdge } from '@/lib/design/walls';
 import { primaryHalf } from '@/lib/design/openings';
@@ -734,7 +736,15 @@ export function syncPlacedItems(
 /** What a wrapper was built from. If any of this changes the wrapper has to be rebuilt. */
 function itemKey(item: PlacedItem): string {
   const s = item.size;
-  return `${item.product?.productId ?? ''}|${drawnModelUrl(item) ?? ''}|${s.width}|${s.depth}|${s.height}`;
+  return `${item.product?.productId ?? ''}|${drawnModelUrl(item) ?? ''}|${s.width}|${s.depth}|${s.height}|${variantSignature(item.product?.variant)}`;
+}
+
+/** The placed pieces' material variants (`lib/design/variants.ts`): one copy of a material per look, however many pieces wear it. */
+const itemVariants = createVariantMaterials();
+
+/** The variants' materials let go of the renderer that is going away (`gpuRelease.ts`). */
+export function releaseVariantMaterials(): void {
+  itemVariants.release();
 }
 
 /**
@@ -783,6 +793,9 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
       wrapper.remove(pending);
       disposeOwnedGeometry(pending);
       fitToItem(model, item);
+      // A piece in one of its product's material variants: those parts of the model in its look.
+      // A made-to-measure kitchen drawn as its material's model is that model as it is.
+      if (item.product?.variant && drawnModelUrl(item) === item.product.model3dUrl) itemVariants.apply(model, item.product.variant);
       finishModel(model);
       wrapper.add(model);
       // The wrapper's own roomId may have moved on while the model was loading.

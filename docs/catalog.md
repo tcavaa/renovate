@@ -31,7 +31,7 @@ the portal) · [calculator.md](calculator.md) (the catalogue step) ·
 | `lib/design/colors.ts` | colour families for the shelves' filters (`productColors`, `productColorFamilies`, `colorTally`, `colorsOfPixels`) |
 | `lib/uploads/textureColors.ts`, `lib/uploads/textureOptimize.ts`, `lib/uploads/imageOptimize.ts`, `app/api/upload/route.ts` | an image upload (sent to storage by the browser, claimed by the route — [uploads.md](uploads.md)), stored as WebP — a photo within 1600 px at quality 85, a texture (`folder: textures`) within 2048 px, which comes back with the colours read off it (`colorsOfImage`) ([3d-assets.md](3d-assets.md#photos-are-webp)) |
 | `lib/api/productPrices.ts` | current catalogue prices for repricing saved snapshots |
-| `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview |
+| `components/admin/ProductForm.tsx`, `ModelUploader.tsx`, `ImageUploader.tsx`, `VariantsEditor.tsx` | the product form (admin and the partner portal), GLB upload with a turntable preview, a model's material variants |
 | `components/ui/combobox.tsx`, `lib/optionSearch.ts`, `lib/i18n/kindNames.ts` | the form's searchable selects (category, store, 3D kind): the combobox, its pure search (`searchOptions`), and the fittings', openings' and equipment's names in all three languages, read on the server for the kind search |
 | `lib/slug.ts` | `latinSlug` (a Latin slug from a Georgian or Russian name), `freeSlug` (the first free `-2`, `-3`, …), `likePrefix` |
 | `app/api/upload/model/route.ts`, `lib/uploads/glb.ts`, `glbOptimize*.ts` | GLB upload (straight to storage, then claimed — [uploads.md](uploads.md)), inspection (`sniffModel`, `inspectGlb`) and optimization (in the browser, then the route — [3d-assets.md](3d-assets.md#uploads-are-optimized)) |
@@ -156,6 +156,11 @@ without one before it looks at archetype or style. There are two ways a product 
   its size and converted), counts triangles and textures, and can render a PNG of the model
   to use as the product photo when there is none. Saving a URL sets `model3dStatus = 'ready'`
   (the design catalogue only exposes ready models); clearing it sets `'none'`.
+- **Material variants** under the turntable (`components/admin/VariantsEditor.tsx`): one model,
+  several looks — a sofa in black and in white leather — each changing named materials of the
+  GLB, with its own swatch and optionally its own price and photo, kept in `specs.variants`;
+  the studio offers them on the item card
+  ([design-studio/material-variants.md](design-studio/material-variants.md)).
 - **`pnpm models:seed`** (by hand; deployments no longer run it) writes one product per entry of the model manifests (the partner
   drop, CC0 stock, fixtures, radiators, the technical points' equipment) and deletes every other
   manifest-managed product with a `model3dKind` — a product whose `model3dUrl` is not under

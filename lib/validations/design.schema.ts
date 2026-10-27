@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { homeStateEnum, roomSplitSchema, roomTypeEnum } from './room.schema';
+import { sceneVariantSchema } from './variant.schema';
 
 const vec2 = z.object({ x: z.number(), z: z.number() });
 
@@ -41,6 +42,8 @@ const sceneProductSchema = z.object({
   store: sceneStoreSchema.nullable(),
   // A finish: what it is sold by — the catalogue's unit and price and a paint's coverage (`SceneProduct.sale`).
   sale: z.object({ unit: z.string().max(16), pricePerUnit: z.number().min(0), coveragePerUnit: z.number().positive().nullable() }).nullable().optional(),
+  // A placed piece's material variant (`SceneProduct.variant`); the save rebuilds it from the catalogue.
+  variant: sceneVariantSchema.nullable().optional(),
 });
 
 const openingSchema = z.object({

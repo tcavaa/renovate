@@ -124,7 +124,9 @@ build time): the browser `PUT`s there and the studio fetches models from there.
 A staged file nobody claimed, a used or expired row, and a plan nobody refers to are swept every
 day by `/api/cron/cleanup` (rows and staged files a day old, plans a day old and unreferenced).
 A file a deleted row let go of is removed with the row (`removeUnusedUploads`,
-[catalog.md](catalog.md#deleting-leaves-no-files-behind)).
+[catalog.md](catalog.md#deleting-leaves-no-files-behind)) — a product's material variants' photos
+and textures too, and an edit's dropped ones; a file another product's `specs` still names stays
+([design-studio/material-variants.md](design-studio/material-variants.md#files)).
 
 ## Tests
 

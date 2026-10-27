@@ -98,6 +98,8 @@ function itemsChange(before: DesignScene, after: DesignScene, changed: Set<strin
       continue;
     }
     if (!allow.catalog && item.kitchenMaterialChosen && (prev.kitchenMaterial?.productId ?? null) !== (item.kitchenMaterial?.productId ?? null)) return 'catalog';
+    // A material variant chosen is a catalogue choice, as a kitchen's material is (`lib/design/variants`).
+    if (!allow.catalog && (prev.product?.variant?.id ?? null) !== (item.product?.variant?.id ?? null)) return 'catalog';
     if (!allow.moveFurniture && !changed.has(prev.roomId) && !changed.has(item.roomId) && moved(prev, item)) return 'moveFurniture';
   }
   if (!allow.catalog) {

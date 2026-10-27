@@ -55,6 +55,9 @@ at runtime yet; the last one was seen on the sample plan.
   decor without a key); a labour line for fitting it; coves in L-shaped rooms; sockets and
   radiators on a decorated wall ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
 
+- **Material variants, what is left**: the generation never picks one, the public catalogue and
+  product page do not show them, no SKU or stock per variant —
+  [design-studio/material-variants.md](design-studio/material-variants.md#known-gaps).
 - **3D performance, what is left**: every paint click rebuilds every room's shell; switching
   2D ↔ 3D rebuilds the view; the 1.75 pixel ratio still costs on weak GPUs; textures are not
   GPU-compressed — about 400 MB of GPU memory for a
@@ -159,4 +162,5 @@ design studio: [overview](design-studio/overview.md#known-gaps),
 [3d-engine](design-studio/3d-engine.md#known-gaps),
 [finishes](design-studio/finishes.md#known-gaps),
 [technical-and-fittings](design-studio/technical-and-fittings.md#known-gaps),
-[decor](design-studio/decor.md#known-gaps).
+[decor](design-studio/decor.md#known-gaps),
+[material variants](design-studio/material-variants.md#known-gaps).

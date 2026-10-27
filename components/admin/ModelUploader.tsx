@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Box, Camera, Loader2, Ruler, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { DRACO_DECODER_PATH } from '@/lib/design3d/draco';
 import { optimizePhotoForUpload } from '@/lib/uploads/browserImage';
 import { UPLOAD_KINDS } from '@/lib/uploads/kinds';
 import { DirectUploadError, claimWith, sendToStorage } from '@/lib/uploads/direct';
+import type { VariantLook } from '@/lib/design3d/variantMaterials';
 
 /**
  * Upload a furniture GLB for the studio and see it before saving.
@@ -45,9 +46,30 @@ export interface ModelMeasurement {
   normalised: boolean;
 }
 
+/** One material of the model as the product form's variants pick it (`lib/design/variants.ts`). */
+export interface ModelMaterial {
+  name: string;
+  /** Its base colour. */
+  colorHex: string;
+  /** It has a colour map (a fabric, a veneer) rather than a plain colour. */
+  textured: boolean;
+  /** How many parts of the model wear it. */
+  parts: number;
+}
+
+/** What the form can ask of the turntable: a product photo of the model as it shows now (a variant on it, say). */
+export interface ModelUploaderControl {
+  photo: () => Promise<string | null>;
+}
+
 interface Props {
   value: string;
   onChange: (url: string) => void;
+  /** The model's materials, once it is loaded (`[]` while there is none). */
+  onMaterials?: (materials: ModelMaterial[]) => void;
+  /** A material variant to show the model in; null: as the file has it. */
+  look?: VariantLook | null;
+  controlRef?: MutableRefObject<ModelUploaderControl | null>;
   /** Called after every successful load (`auto: true`) and when admin presses "apply". */
   onMeasured?: (m: ModelMeasurement, opts: { auto: boolean }) => void;
   /** A PNG rendered from the preview, already uploaded; the caller decides whether to use it. */
@@ -61,6 +83,8 @@ const HEAVY_TRIANGLES = 400_000;
 export type PreviewHandle = {
   dispose: () => void;
   snapshot: () => Promise<Blob | null>;
+  materials: ModelMaterial[];
+  setLook: (look: VariantLook | null) => void;
 };
 
 /**
@@ -79,7 +103,7 @@ export async function optimizeModelForUpload(file: File): Promise<File> {
   }
 }
 
-export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperText }: Props) {
+export function ModelUploader({ value, onChange, onMaterials, look = null, controlRef, onMeasured, onSnapshot, helperText }: Props) {
   const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -87,8 +111,12 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
   // The latest callback, read from the async load without re-mounting the preview when the
   // parent re-renders with a new function identity.
   const onMeasuredRef = useRef(onMeasured);
+  const onMaterialsRef = useRef(onMaterials);
+  const lookRef = useRef(look);
   useEffect(() => {
     onMeasuredRef.current = onMeasured;
+    onMaterialsRef.current = onMaterials;
+    lookRef.current = look;
   });
 
   const [progress, setProgress] = useState<number | null>(null);
@@ -126,6 +154,8 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
           return;
         }
         previewRef.current = handle;
+        handle.setLook(lookRef.current);
+        onMaterialsRef.current?.(handle.materials);
         setResult({ url: previewUrl, measured: measurement, error: false });
         // A normalised file has no size of its own; only an explicit "apply" uses it.
         if (!measurement.normalised) onMeasuredRef.current?.(measurement, { auto: true });
@@ -138,8 +168,14 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
       cancelled = true;
       previewRef.current?.dispose();
       previewRef.current = null;
+      onMaterialsRef.current?.([]);
     };
   }, [previewUrl]);
+
+  // The variant being edited, on the turntable as it changes.
+  useEffect(() => {
+    previewRef.current?.setLook(look);
+  }, [look]);
 
   const upload = async (picked: File) => {
     setError(null);
@@ -173,17 +209,40 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
     }
   };
 
+  /** The turntable as a product photo, uploaded: its URL. */
+  const takePhoto = async (): Promise<string> => {
+    if (!previewRef.current) throw new Error('no preview');
+    const blob = await previewRef.current.snapshot();
+    if (!blob) throw new Error('no snapshot');
+    const photo = await optimizePhotoForUpload(new File([blob], 'model.png', { type: 'image/png' }));
+    const upload = await sendToStorage('image', photo);
+    const data = await claimWith<{ url: string }>('/api/upload', { upload, folder: 'products' });
+    return data.url;
+  };
+  const takePhotoRef = useRef(takePhoto);
+  useEffect(() => {
+    takePhotoRef.current = takePhoto;
+  });
+  useEffect(() => {
+    if (!controlRef) return;
+    controlRef.current = {
+      photo: () =>
+        takePhotoRef.current().catch((e) => {
+          console.error(e);
+          return null;
+        }),
+    };
+    return () => {
+      controlRef.current = null;
+    };
+  }, [controlRef]);
+
   const snapshot = async () => {
     if (!previewRef.current || !onSnapshot) return;
     setSnapshotting(true);
     setNotice(null);
     try {
-      const blob = await previewRef.current.snapshot();
-      if (!blob) throw new Error('no snapshot');
-      const photo = await optimizePhotoForUpload(new File([blob], 'model.png', { type: 'image/png' }));
-      const upload = await sendToStorage('image', photo);
-      const data = await claimWith<{ url: string }>('/api/upload', { upload, folder: 'products' });
-      onSnapshot(data.url);
+      onSnapshot(await takePhoto());
       setNotice(t.modelUploader.snapshotDone);
     } catch (e) {
       console.error(e);
@@ -303,12 +362,13 @@ export function ModelUploader({ value, onChange, onMeasured, onSnapshot, helperT
 
 /** The turntable with its grid and front arrow, and the model measured — shared with the studio's own-model dialog. */
 export async function mountPreview(host: HTMLElement, url: string): Promise<{ handle: PreviewHandle; measurement: ModelMeasurement }> {
-  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }, { DRACOLoader }] = await Promise.all([
+  const [THREE, { GLTFLoader }, { OrbitControls }, { MeshoptDecoder }, { DRACOLoader }, { createVariantMaterials }] = await Promise.all([
     import('three'),
     import('three/examples/jsm/loaders/GLTFLoader.js'),
     import('three/examples/jsm/controls/OrbitControls.js'),
     import('three/examples/jsm/libs/meshopt_decoder.module.js'),
     import('three/examples/jsm/loaders/DRACOLoader.js'),
+    import('@/lib/design3d/variantMaterials'),
   ]);
 
   const loader = new GLTFLoader();
@@ -323,9 +383,23 @@ export async function mountPreview(host: HTMLElement, url: string): Promise<{ ha
   let triangles = 0;
   let meshes = 0;
   const textures = new Set<string>();
+  // The model's materials by name, for the variants (`ModelMaterial`).
+  const materialsByName = new Map<string, ModelMaterial>();
   model.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       meshes++;
+      for (const m of Array.isArray(child.material) ? child.material : [child.material]) {
+        if (!m.name) continue;
+        const known = materialsByName.get(m.name);
+        if (known) known.parts++;
+        else {
+          const colour = (m as { color?: InstanceType<typeof THREE.Color> }).color;
+          const map = (m as { map?: { image?: CanvasImageSource } | null }).map;
+          // A textured part is shown by its texture's own colour: its base colour is mostly white.
+          const shown = (map?.image && averageColour(map.image)) || (colour ? `#${colour.getHexString().toUpperCase()}` : '#CCCCCC');
+          materialsByName.set(m.name, { name: m.name, colorHex: shown, textured: !!map, parts: 1 });
+        }
+      }
       const geo = child.geometry as InstanceType<typeof THREE.BufferGeometry>;
       if (!geo.attributes.normal) geo.computeVertexNormals();
       triangles += Math.floor((geo.index ? geo.index.count : geo.attributes.position?.count ?? 0) / 3);
@@ -408,6 +482,7 @@ export async function mountPreview(host: HTMLElement, url: string): Promise<{ ha
     }
   });
   scene.add(model);
+  const variants = createVariantMaterials();
 
   let frame = 0;
   let disposed = false;
@@ -430,8 +505,15 @@ export async function mountPreview(host: HTMLElement, url: string): Promise<{ ha
   observer.observe(host);
 
   const handle: PreviewHandle = {
+    materials: [...materialsByName.values()],
+    setLook(look) {
+      variants.apply(model, look);
+    },
     dispose() {
       disposed = true;
+      // The file's own materials back on first, so the loop below frees them.
+      variants.apply(model, null);
+      variants.dispose();
       cancelAnimationFrame(frame);
       observer.disconnect();
       controls.dispose();
@@ -473,4 +555,21 @@ export async function mountPreview(host: HTMLElement, url: string): Promise<{ ha
     },
   };
   return { handle, measurement };
+}
+
+/** A picture's average colour as `#RRGGBB`, or null when it cannot be read. */
+function averageColour(image: CanvasImageSource): string | null {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 8;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(image, 0, 0, 8, 8);
+    const d = ctx.getImageData(0, 0, 8, 8).data;
+    const sum = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) for (let c = 0; c < 3; c++) sum[c] += d[i + c];
+    return `#${sum.map((s) => Math.round(s / 64).toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+  } catch {
+    return null;
+  }
 }

@@ -1,11 +1,11 @@
-import { eq, or } from 'drizzle-orm';
+import { eq, or, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { products, stores, teams, workerWorks, workers } from '@/lib/db/schema';
 import { log } from '@/lib/log';
 import { storage } from './index';
 import { isRuntimeUploadKey } from './uploadKeys';
 
-export { droppedUrls, productFileUrls } from './uploadKeys';
+export { droppedUrls, droppedVariantUrls, productFileUrls } from './uploadKeys';
 
 /**
  * Files nobody points at any more, removed when the row that pointed at them goes.
@@ -41,7 +41,8 @@ export async function removeUnusedUploads(urls: Array<string | null | undefined>
 
 async function stillUsed(url: string): Promise<boolean> {
   const hits = await Promise.all([
-    db.select({ id: products.id }).from(products).where(or(eq(products.imageUrl, url), eq(products.model3dUrl, url), eq(products.textureUrl, url))).limit(1),
+    // …or a material variant's photo or texture, which live in `specs`.
+    db.select({ id: products.id }).from(products).where(or(eq(products.imageUrl, url), eq(products.model3dUrl, url), eq(products.textureUrl, url), sql`position(${url} in ${products.specs}::text) > 0`)).limit(1),
     db.select({ id: stores.id }).from(stores).where(eq(stores.logoUrl, url)).limit(1),
     db.select({ id: teams.id }).from(teams).where(eq(teams.logoUrl, url)).limit(1),
     db.select({ id: workers.id }).from(workers).where(eq(workers.avatarUrl, url)).limit(1),

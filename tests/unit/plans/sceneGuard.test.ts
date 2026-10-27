@@ -64,6 +64,13 @@ describe('the studio locks on the server', () => {
     expect(check({}, swapped)).toBe('catalog');
   });
 
+  it('refuses a material variant chosen on a plan without the catalogue', () => {
+    const dressed = (variant: string | null) => item('a', 1, { product: { productId: 1, price: 100, ...(variant ? { variant: { id: variant } } : {}) } as never });
+    expect(check({ items: [dressed('black'), scene().items[1]] })).toBe('catalog');
+    expect(check({ items: [dressed('black'), scene().items[1]] }, plan(), { ...FREE, catalog: true })).toBeNull();
+    expect(check({ items: [dressed(null), scene().items[1]] })).toBeNull();
+  });
+
   it('refuses a piece moved, turned or mirrored without moving furniture', () => {
     expect(check({ items: [item('a', 1, { position: { x: 2, z: 1 } }), scene().items[1]] })).toBe('moveFurniture');
     expect(check({ items: [item('a', 1, { rotation: Math.PI / 2 }), scene().items[1]] })).toBe('moveFurniture');

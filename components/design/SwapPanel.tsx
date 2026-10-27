@@ -16,6 +16,7 @@ import { ProductPageLink } from '@/components/design/ProductPageLink';
 import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { KITCHEN_LENGTH_M, kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
+import { productVariants, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatM2, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -40,6 +41,8 @@ interface SwapPanelProps {
   /** A copy beside it. */
   onDuplicate?: () => void;
   onLock?: (locked: boolean) => void;
+  /** The piece in one of its product's material variants, or its own look (`null`) — `lib/design/variants`. */
+  onVariant?: (product: CatalogProduct, variantId: string | null) => void;
   /** A made-to-measure kitchen: the kitchen maker's material it is made in, priced per m² of façade. */
   onKitchenMaterial?: (product: CatalogProduct) => void;
   /** A made-to-measure kitchen's length, metres; false when it would not fit at that length. */
@@ -101,6 +104,7 @@ export function SwapPanel({
   onMirror,
   onDuplicate,
   onLock,
+  onVariant,
   onKitchenMaterial,
   onKitchenLength,
   onKitchenToWall,
@@ -126,6 +130,8 @@ export function SwapPanel({
   const madeToMeasure = !!onKitchenMaterial;
   const alternatives = madeToMeasure ? [] : candidatesFor(item.kind, catalog, styleId);
   const currentId = item.product?.productId;
+  const catalogProduct = currentId != null ? catalog.find((p) => p.id === currentId) : undefined;
+  const variants = catalogProduct && !madeToMeasure ? productVariants(catalogProduct.specs) : [];
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -185,6 +191,9 @@ export function SwapPanel({
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
         {onKitchenLength && !item.locked && <KitchenLength item={item} onLength={onKitchenLength} onToWall={onKitchenToWall} />}
+        {onVariant && catalogProduct && variants.length > 0 && (
+          <VariantSwatches item={item} product={catalogProduct} variants={variants} locked={!!swapLock} onPick={(variantId) => onVariant(catalogProduct, variantId)} />
+        )}
         {onKitchenMaterial && <KitchenMaterials item={item} catalog={catalog} styleId={styleId} onPick={onKitchenMaterial} />}
         {rotateBlocked && (
           <p role="alert" className="text-[11px] text-danger">
@@ -258,6 +267,52 @@ export function SwapPanel({
       </section>
       )}
     </div>
+  );
+}
+
+/**
+ * The product's material variants as swatches (`lib/design/variants.ts`): its own look first,
+ * then each variant admin gave it, with the price where a variant costs differently. Picking one
+ * re-colours the model in 3D and reprices the piece; on a plan without the catalogue the swatches
+ * wear its lock and the page opens the upgrade dialogue instead.
+ */
+function VariantSwatches({ item, product, variants, locked, onPick }: { item: PlacedItem; product: CatalogProduct; variants: ProductVariant[]; locked: boolean; onPick: (variantId: string | null) => void }) {
+  const t = useT();
+  const locale = useLocale();
+  const activeId = item.product?.variant?.id ?? null;
+  const options: Array<{ id: string | null; name: string; colorHex: string; price: number }> = [
+    { id: null, name: t.design.variantOriginal, colorHex: product.colorHex ?? '#DDD8CF', price: product.pricePerUnit },
+    ...variants.map((v) => ({ id: v.id, name: localizedName(locale, v), colorHex: v.colorHex, price: variantUnitPrice(product.pricePerUnit, v) })),
+  ];
+  const active = options.find((o) => o.id === activeId) ?? options[0];
+  const pricesDiffer = options.some((o) => o.price !== product.pricePerUnit);
+  return (
+    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <p className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        {t.design.variantTitle}
+        <span className="truncate normal-case tracking-normal text-ink">{active.name}</span>
+      </p>
+      <div role="radiogroup" aria-label={t.design.variantTitle} className="flex flex-wrap gap-1.5">
+        {options.map((option) => {
+          const on = option.id === active.id;
+          return (
+            <button
+              key={option.id ?? 'own'}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              title={pricesDiffer ? `${option.name} · ${formatGEL(option.price)}` : option.name}
+              onClick={() => !on && onPick(option.id)}
+              className={cn('h-8 w-8 rounded-full border transition-shadow', on ? 'border-ink ring-2 ring-ink/30 ring-offset-1' : 'border-line hover:border-ink/60', locked && 'opacity-70')}
+              style={{ backgroundColor: option.colorHex }}
+            >
+              <span className="sr-only">{option.name}</span>
+            </button>
+          );
+        })}
+      </div>
+      {pricesDiffer && <p className="text-[11px] tabular-nums text-ink-muted">{formatGEL(active.price)}</p>}
+    </section>
   );
 }
 

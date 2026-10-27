@@ -196,6 +196,14 @@ describe('grouping a project into partner orders', () => {
       expect(painted.groups.size).toBe(0);
     });
 
+    it('orders a piece in a material variant by both names, at the variant’s price', () => {
+      const sofa = { ...sold(50, 'დივანი Lund', 2600, shop(16), { nameEn: 'Sofa Lund' }), variant: { id: 'black', nameKa: 'შავი ტყავი', nameEn: 'Black leather', colorHex: '#111111', slots: [{ material: 'Leather' }] } };
+      const cost = priceScene(flat(), design({ items: [placed('i1', 'r1', sofa)] }));
+      expect(cost.lines.find((l) => l.tick === tickFor.item('i1'))?.name).toBe('დივანი Lund — შავი ტყავი');
+      const result = costLinesByStore(cost);
+      expect(result.groups.get(16)).toEqual([expect.objectContaining({ productId: 50, nameKa: 'დივანი Lund — შავი ტყავი', nameEn: 'Sofa Lund — Black leather', unitPrice: 2600, total: 2600 })]);
+    });
+
     it('folds into what was ordered before: a thirteenth socket is one socket, not thirteen', () => {
       const result = sceneLinesByStore(plan, scene(), () => 13);
       const again = mergeLines(result, null, { 9: 2, 21: 1 });

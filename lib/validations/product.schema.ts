@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { productVariantsSchema } from './variant.schema';
 
 export const unitEnum = z.enum(['m2', 'linear_m', 'piece', 'liter', 'kg', 'pack', 'set']);
 
@@ -8,7 +9,8 @@ const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a #rrggbb colour');
  * `products.specs`: free-form product data (the calculator's "size: 60×60") plus what the
  * studio reads — a floor or wall finish's surfaces, wetness, texture scale, maps and colours
  * (`lib/design/surfaces.ts`, `lib/design/colors.ts`), a moulding's profile and measurements
- * (`lib/design/trims.ts`). Those keys are checked; any other key may hold plain values.
+ * (`lib/design/trims.ts`), a 3D product's material variants (`lib/design/variants.ts`). Those
+ * keys are checked; any other key may hold plain values.
  */
 export const productSpecsSchema = z
   .object({
@@ -21,6 +23,7 @@ export const productSpecsSchema = z
     profile: z.enum(['flat', 'rounded', 'stepped', 'ogee', 'cove']).optional(),
     heightCm: z.number().positive().max(100).optional(),
     depthCm: z.number().positive().max(100).optional(),
+    variants: productVariantsSchema.optional(),
   })
   .catchall(z.union([z.string().max(2000), z.number(), z.boolean(), z.null(), z.array(z.string().max(500)).max(20)]));
 

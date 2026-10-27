@@ -15,7 +15,7 @@ import { auth } from '@/auth';
 import { API_ERRORS, crossSiteWrite, fail, handle, ok, parseId, requireAdmin } from '@/lib/api/route';
 import { RATE_RULES, clientIp, rateLimit, rateLimited } from '@/lib/api/rateLimit';
 import { safeCallbackUrl } from '@/lib/auth/safeCallbackUrl';
-import { repriceFinishSnapshot, repriceSnapshot, type KnownPrice } from '@/lib/api/productPrices';
+import { repriceFinishSnapshot, repriceItemSnapshot, repriceSnapshot, type KnownPrice } from '@/lib/api/productPrices';
 
 const request = (ip: string, url = 'http://localhost/api/x') => new Request(url, { headers: { 'x-forwarded-for': ip } });
 
@@ -140,6 +140,33 @@ describe('safeCallbackUrl', () => {
       expect(safeCallbackUrl(bad)).toBe('/');
     }
     expect(safeCallbackUrl(undefined, '/home')).toBe('/home');
+  });
+});
+
+describe('repriceItemSnapshot', () => {
+  const black = { id: 'black', nameKa: 'შავი', colorHex: '#111111', imageUrl: '/uploads/black.webp', pricePerUnit: 130, slots: [{ material: 'Leather', colorHex: '#111111' }] };
+  const known = new Map<number, KnownPrice>([[1, { pricePerUnit: 100, nameKa: 'sofa', unit: 'piece', coveragePerUnit: null, model3dKind: 'sofa', assets: { imageUrl: '/uploads/sofa.webp', textureUrl: null, model3dUrl: '/models/sofa.glb' }, variants: [black] }]]);
+  const base = { productId: 1, nameKa: 'sofa', slug: 'sofa', brand: null, unit: 'piece', qty: 1, pricePerUnit: 1, totalPrice: 1, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: null, store: null };
+
+  it('prices a piece in its variant at the catalogue’s price and look, whatever the client sent', () => {
+    const forged = { ...base, variant: { id: 'black', nameKa: 'x', colorHex: '#FFFFFF', slots: [{ material: 'Leather', colorUrl: 'https://evil.example/x.png' }] } };
+    const out = repriceItemSnapshot(forged, known, 2)!;
+    expect(out).toMatchObject({ pricePerUnit: 130, qty: 2, totalPrice: 260, imageUrl: '/uploads/black.webp', model3dUrl: '/models/sofa.glb' });
+    expect(out.variant).toMatchObject({ id: 'black', nameKa: 'შავი', colorHex: '#111111', slots: [{ material: 'Leather', colorHex: '#111111' }] });
+    expect(JSON.stringify(out)).not.toContain('evil.example');
+  });
+
+  it('drops a variant the product no longer has, at the product’s own price', () => {
+    const out = repriceItemSnapshot({ ...base, variant: { id: 'gone', nameKa: 'x', colorHex: '#000000', slots: [] } }, known)!;
+    expect(out).toMatchObject({ pricePerUnit: 100, imageUrl: '/uploads/sofa.webp' });
+    expect(out).not.toHaveProperty('variant');
+    expect(repriceItemSnapshot({ ...base, productId: 9 }, known)).toBeNull();
+  });
+
+  it('keeps a variant off every other kind of snapshot', () => {
+    const sent = { productId: 1, qty: 1, pricePerUnit: 1, totalPrice: 1, unit: 'piece', variant: { id: 'black' } };
+    expect(repriceSnapshot(sent, known)).not.toHaveProperty('variant');
+    expect(repriceFinishSnapshot(sent, known, 1)).not.toHaveProperty('variant');
   });
 });
 

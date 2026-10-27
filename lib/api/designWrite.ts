@@ -10,7 +10,7 @@ import { finishQuantity } from '@/lib/design/finishQuantity';
 import { isTrimSurface } from '@/lib/design/trims';
 import type { DesignScene, DesignVersion, FloorPlan } from '@/lib/design/types';
 import type { HomeState } from '@/lib/calculator/types';
-import { loadProductPrices, planProductIds, repriceFinishSnapshot, repricePlan, repriceSnapshot } from '@/lib/api/productPrices';
+import { loadProductPrices, planProductIds, repriceFinishSnapshot, repriceItemSnapshot, repricePlan, repriceSnapshot } from '@/lib/api/productPrices';
 import { loadRateBook } from '@/lib/api/rateBook';
 import { calculatorPickIds, refusedSceneChange } from '@/lib/plans/sceneGuard';
 import { featureAccess, type PlanAccount } from '@/lib/plans/server';
@@ -89,7 +89,8 @@ export async function designWriteColumns(existing: Project, input: DesignWriteIn
       scene.items.push(withMaterial);
       continue;
     }
-    const product = repriceSnapshot(item.product, known, quantityFor(item));
+    // In its material variant, if it has one: the catalogue's price and look for it (`lib/design/variants`).
+    const product = repriceItemSnapshot(item.product, known, quantityFor(item));
     if (!product) return { ok: false, error: `Unknown product ${item.product.productId}`, status: 400 };
     scene.items.push({ ...withMaterial, product });
   }

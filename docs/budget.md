@@ -105,7 +105,9 @@ Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …
 
 **A tick belongs to a line, not to a product** (`lib/design/ticks.ts`). Unticking a line
 leaves it in the design — still in the room, still in 3D — and takes it out of the order.
-`scene.excluded` holds one key per *line*: a placed piece is `item:<its id>`, and the lines
+`scene.excluded` holds one key per *line*: a placed piece is `item:<its id>` (named "product — variant"
+and priced at the variant's price when it is in a material variant —
+[design-studio/material-variants.md](design-studio/material-variants.md)), and the lines
 the budget folds per product are that product within its kind (`finish:<id>`,
 `opening:<id>`, `fixture:<id>`, `radiator:<id>`, `equipment:<id>`). The first version kept bare product ids, and
 a flat with the same bed in four bedrooms is four lines of one product: unticking one struck

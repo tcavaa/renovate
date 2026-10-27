@@ -59,6 +59,7 @@ import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnic
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';
 import { kitchenToWall, stretchedKitchen, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
+import { withItemVariant } from '@/lib/design/variants';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
 import { isBaseFinish } from '@/lib/design/zones';
@@ -496,6 +497,8 @@ export interface DesignActions {
   lockItem: (itemId: string, locked: boolean) => void;
   /** The material a made-to-measure kitchen piece is made in, the kitchen maker's product priced per m² of façade (null: back to the estimate). */
   setKitchenMaterial: (itemId: string, product: CatalogProduct | null) => void;
+  /** A piece in one of its product's material variants, or in the product's own look (`null`) — `lib/design/variants`. */
+  setItemVariant: (itemId: string, product: CatalogProduct, variantId: string | null) => void;
   /** A made-to-measure kitchen made `widthM` long along its wall; false when at that length it would not fit (`stretchedKitchen`). */
   setKitchenLength: (itemId: string, widthM: number) => boolean;
   /** A made-to-measure kitchen stretched as far along its wall as the room and its neighbours let it; false when it cannot grow. */
@@ -1694,6 +1697,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         // and an undo after it quietly unlocked the piece).
         lockItem: (itemId, locked) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, locked } : i)) })),
         setKitchenMaterial: (itemId, product) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withKitchenMaterial(i, product, true) : i)) })),
+        setItemVariant: (itemId, product, variantId) => commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? withItemVariant(i, product, variantId) : i)) })),
         // The material is bought again for the new façade by `ensureKitchenMaterials`, which the
         // studio runs whenever a kitchen's length changes (`kitchenMaterialSignature`).
         setKitchenLength: (itemId, widthM) => {

@@ -2,6 +2,7 @@ import type { HomeState, ProjectSummary, Room, SelectedProduct } from '@/lib/cal
 import type { DesignCost, DesignScene, FloorPlan } from '@/lib/design/types';
 import { FREE_DELIVERY_THRESHOLD_GEL, orderedLines, priceScene } from '@/lib/design/pricing';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import { namesWithVariant } from '@/lib/design/variants';
 import { calculationCost, type CalculationInput } from '@/lib/summary/calculatorSheet';
 
 /**
@@ -224,7 +225,8 @@ export function costLinesByStore(cost: Pick<DesignCost, 'lines'>, storeOf: Store
   const result: LinesByStore = { groups: new Map(), unassigned: [] };
   for (const bought of orderedLines(cost)) {
     const storeId = bought.product.store?.id ?? storeOf(bought.product.productId);
-    push(result, storeId, line({ ...bought.product, qty: bought.qty, pricePerUnit: bought.unitPrice }, bought.roomName ?? null));
+    // A piece in a material variant is ordered by both names, so the store knows which look to send.
+    push(result, storeId, line({ ...bought.product, ...namesWithVariant(bought.product), qty: bought.qty, pricePerUnit: bought.unitPrice }, bought.roomName ?? null));
   }
   return result;
 }

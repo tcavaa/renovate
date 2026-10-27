@@ -5,6 +5,7 @@ import { fixtureQuantity } from '@/lib/design/electrical';
 import { isEquipmentKind } from '@/lib/design/equipment';
 import { radiatorSections } from '@/lib/design/radiators';
 import type { ElectricalPoint, FloorPlan, SceneProduct, SceneStore } from '@/lib/design/types';
+import { productVariants, sceneVariant, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
 
 /**
  * Current catalogue prices, by product id, for repricing a client-submitted basket.
@@ -30,6 +31,8 @@ export interface KnownPrice {
    * (S14 in docs/audit-checklist.md), so a repriced snapshot takes these instead.
    */
   assets?: { imageUrl: string | null; textureUrl: string | null; model3dUrl: string | null };
+  /** Its material variants as the catalogue has them (`lib/design/variants.ts`); a placed piece is repriced in its own. */
+  variants?: ProductVariant[];
 }
 
 export async function loadProductPrices(ids: Iterable<number>): Promise<Map<number, KnownPrice>> {
@@ -48,6 +51,7 @@ export async function loadProductPrices(ids: Iterable<number>): Promise<Map<numb
       imageUrl: products.imageUrl,
       textureUrl: products.textureUrl,
       model3dUrl: products.model3dUrl,
+      specs: products.specs,
     })
     .from(products)
     .where(inArray(products.id, unique));
@@ -60,6 +64,7 @@ export async function loadProductPrices(ids: Iterable<number>): Promise<Map<numb
       coveragePerUnit: row.coveragePerUnit != null ? Number(row.coveragePerUnit) : null,
       model3dKind: row.model3dKind ?? null,
       assets: { imageUrl: row.imageUrl ?? null, textureUrl: row.textureUrl ?? null, model3dUrl: row.model3dUrl ?? null },
+      variants: productVariants(row.specs),
     });
   }
   return known;
@@ -79,7 +84,30 @@ export function repriceSnapshot<T extends PricedSnapshot>(
 ): T | null {
   const price = known.get(snapshot.productId);
   if (!price) return null;
-  return withAssets(withPrice(snapshot, price.pricePerUnit, qty), price);
+  return withAssets(withPrice(withoutVariant(snapshot), price.pricePerUnit, qty), price);
+}
+
+/** Only a placed piece has a variant (`repriceItemSnapshot`); one sent on anything else — with files of its own — is dropped. */
+function withoutVariant<T extends object>(snapshot: T): T {
+  if (!('variant' in snapshot)) return snapshot;
+  const { variant: _sent, ...rest } = snapshot as T & { variant?: unknown };
+  return rest as T;
+}
+
+/**
+ * A placed piece's snapshot repriced in its material variant: the catalogue's variant by the id
+ * the snapshot names — its price, its photo, its names and the files of its look, never the
+ * client's — or, when the product has no variant by that id any more, the product's own look at
+ * the product's price. `null` for an unknown product, as `repriceSnapshot`.
+ */
+export function repriceItemSnapshot(snapshot: SceneProduct, known: Map<number, KnownPrice>, qty: number = snapshot.qty): SceneProduct | null {
+  const price = known.get(snapshot.productId);
+  if (!price) return null;
+  const variant = snapshot.variant ? (price.variants ?? []).find((v) => v.id === snapshot.variant!.id) ?? null : null;
+  const { variant: _sent, ...bare } = snapshot;
+  const repriced = withAssets(withPrice(bare, variantUnitPrice(price.pricePerUnit, variant), qty), price);
+  if (!variant) return repriced;
+  return { ...repriced, imageUrl: variant.imageUrl || repriced.imageUrl, variant: sceneVariant(variant) };
 }
 
 /** The catalogue's files on a snapshot, for the URL fields it has (`KnownPrice.assets`). */
@@ -107,7 +135,7 @@ export function repriceFinishSnapshot<T extends PricedSnapshot & { unit: string 
     price.unit === 'm2'
       ? price.pricePerUnit
       : price.pricePerUnit / Math.max(price.coveragePerUnit ?? (price.unit === 'liter' ? 8 : 1), 0.01);
-  return { ...withAssets(withPrice(snapshot, perM2, areaM2), price), unit: 'm2', sale: { unit: price.unit, pricePerUnit: price.pricePerUnit, coveragePerUnit: price.coveragePerUnit } };
+  return { ...withAssets(withPrice(withoutVariant(snapshot), perM2, areaM2), price), unit: 'm2', sale: { unit: price.unit, pricePerUnit: price.pricePerUnit, coveragePerUnit: price.coveragePerUnit } };
 }
 
 function withPrice<T extends PricedSnapshot>(snapshot: T, pricePerUnit: number, qty: number): T {

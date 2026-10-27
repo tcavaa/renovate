@@ -10,6 +10,7 @@
  */
 
 import type { RoomSplit, RoomType, WorkChoices } from '@/lib/calculator/types';
+import type { SceneVariant } from './variants';
 
 export type DesignMode = 'full' | 'design_only';
 
@@ -392,6 +393,12 @@ export interface SceneProduct {
    * calculator buys the same product. Absent on snapshots from before: bought by the m² then.
    */
   sale?: { unit: string; pricePerUnit: number; coveragePerUnit: number | null } | null;
+  /**
+   * A placed piece in one of its product's material variants (`lib/design/variants.ts`): the
+   * look the 3D view gives the model and the name the budget adds. `pricePerUnit` and `imageUrl`
+   * are already the variant's. Absent: the product's own look.
+   */
+  variant?: SceneVariant | null;
 }
 
 export interface SceneStore {

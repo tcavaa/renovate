@@ -37,7 +37,7 @@ export const POST = handle('POST /api/products/bulk', 'Bulk change failed', asyn
   const may = action === 'delete' ? canDeleteProduct : canEditProduct;
 
   const rows = await db
-    .select({ id: products.id, storeId: products.storeId, imageUrl: products.imageUrl, model3dUrl: products.model3dUrl, textureUrl: products.textureUrl, ownerUserId: products.ownerUserId })
+    .select({ id: products.id, storeId: products.storeId, imageUrl: products.imageUrl, model3dUrl: products.model3dUrl, textureUrl: products.textureUrl, specs: products.specs, ownerUserId: products.ownerUserId })
     .from(products)
     .where(inArray(products.id, [...new Set(ids)]));
   // Someone's own furniture is theirs alone, whoever is editing the catalogue.

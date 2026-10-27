@@ -82,6 +82,13 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
           <p className={cn('truncate font-semibold leading-snug text-ink', compact ? 'text-sm' : 'text-[13px]')}>
             {product ? localizedName(locale, product) : '—'}
           </p>
+          {/* The material variant it is in (`lib/design/variants`). */}
+          {product?.variant && (
+            <p className="flex items-center gap-1.5 truncate text-[11px] text-ink-muted">
+              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full border border-line" style={{ backgroundColor: product.variant.colorHex }} />
+              {localizedName(locale, product.variant)}
+            </p>
+          )}
           {product && (
             <p className={cn('mt-0.5 font-serif font-bold text-brand-dark', compact ? 'text-base' : 'text-sm')}>
               {formatGEL(product.totalPrice)}

@@ -108,7 +108,8 @@ allowance back:
 The design save compares the scene it is sent with the one stored (`refusedSceneChange`), on a
 plan without the catalogue or moving furniture, and names what is not allowed: `catalog` — a
 piece added, swapped or removed, a finish laid, painted or taken off, decor added, removed or
-re-materialled, a door's or window's product swapped, a kitchen material the person chose — or
+re-materialled, a door's or window's product swapped, a kitchen material the person chose, a piece
+put in another material variant ([design-studio/material-variants.md](design-studio/material-variants.md)) — or
 `moveFurniture` — a piece moved, turned, mirrored or resized. Refused, nothing is written. What
 happens on every plan by itself passes: anything **before the flat is laid out**
 (`progress.generated === false` — the generation, the empty start, the drawing); **the

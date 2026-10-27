@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +19,12 @@ import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { ImageUploader } from "@/components/admin/ImageUploader";
 import {
   ModelUploader,
+  type ModelMaterial,
   type ModelMeasurement,
+  type ModelUploaderControl,
 } from "@/components/admin/ModelUploader";
+import { VariantsEditor } from "@/components/admin/VariantsEditor";
+import { productVariants, type ProductVariant } from "@/lib/design/variants";
 import { useT, useLocale } from "@/lib/i18n/client";
 import { apiErrorMessage } from "@/lib/i18n/labels";
 import {
@@ -270,6 +274,16 @@ export function ProductForm({
       typeof specs.heightCm === "number" ? String(specs.heightCm) : "",
     trimDepthCm: typeof specs.depthCm === "number" ? String(specs.depthCm) : "",
   });
+  // --- a 3D product's material variants (`lib/design/variants.ts`) ---
+  const [variants, setVariants] = useState<ProductVariant[]>(() =>
+    productVariants(product?.specs),
+  );
+  /** The model's materials, as the turntable read them off the GLB. */
+  const [modelMaterials, setModelMaterials] = useState<ModelMaterial[]>([]);
+  /** The variant shown on the turntable while it is edited. */
+  const [previewVariantId, setPreviewVariantId] = useState<string | null>(null);
+  const modelControl = useRef<ModelUploaderControl | null>(null);
+  const previewLook = variants.find((v) => v.id === previewVariantId) ?? null;
 
   const update = <K extends keyof typeof form>(
     key: K,
@@ -361,6 +375,14 @@ export function ProductForm({
       setError(ka.admin.forms.finishNeedsSurface);
       return;
     }
+    // A variant with no name or no part of the model to change is not one.
+    if (
+      kind === "model" &&
+      variants.some((v) => !v.nameKa.trim() || v.slots.length === 0)
+    ) {
+      setError(ka.admin.forms.variantIncomplete);
+      return;
+    }
     setLoading(true);
     setError(null);
     const {
@@ -403,6 +425,17 @@ export function ProductForm({
         put("profile", profile || null);
         put("heightCm", trimHeightCm ? Number(trimHeightCm) : null);
         put("depthCm", trimDepthCm ? Number(trimDepthCm) : null);
+        return { specs: next };
+      }
+      if (kind === "model") {
+        put(
+          "variants",
+          variants.map((v) => ({
+            ...v,
+            nameKa: v.nameKa.trim(),
+            nameEn: v.nameEn?.trim() || null,
+          })),
+        );
         return { specs: next };
       }
       return {};
@@ -962,6 +995,9 @@ export function ProductForm({
                   <ModelUploader
                     value={form.model3dUrl}
                     onChange={(url) => update("model3dUrl", url)}
+                    onMaterials={setModelMaterials}
+                    look={previewLook}
+                    controlRef={modelControl}
                     onMeasured={applyMeasurement}
                     onSnapshot={(url) =>
                       setForm((f) => (f.imageUrl ? f : { ...f, imageUrl: url }))
@@ -969,6 +1005,19 @@ export function ProductForm({
                     helperText={ka.admin.forms.model3dHelper}
                   />
                 </div>
+
+                {/* Under the turntable, so the variant being edited is seen on the model as it changes. */}
+                {form.model3dUrl && (
+                  <VariantsEditor
+                    variants={variants}
+                    onChange={setVariants}
+                    materials={modelMaterials}
+                    basePrice={Number(form.pricePerUnit) || 0}
+                    previewId={previewVariantId}
+                    onPreview={setPreviewVariantId}
+                    onPhoto={async () => modelControl.current?.photo() ?? null}
+                  />
+                )}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">

@@ -28,7 +28,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/studio/CatalogBrowser.tsx` + `lib/design/catalogBrowser.ts` | the whole catalogue as a modal (search, filters with counts, details, "place") |
 | `components/studio/OwnModelDialog.tsx` | adding a person's own furniture ([../catalog.md](../catalog.md)) |
 | `components/studio/FurnitureDrawer.tsx`, `RoomItemsPanel.tsx` | what is placed, by room, with its total (a made-to-measure kitchen at what it is made for — `itemCostGel`) |
-| `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, a made-to-measure kitchen's material, alternatives); the hover card |
+| `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, its product's material variants — [material-variants.md](material-variants.md) — a made-to-measure kitchen's material, alternatives); the hover card |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx`, `VersionsPanel.tsx` | a fitting's card, a door/window's card, the versions list |
 | `components/studio/DecorPanel.tsx` | a custom wall decor piece's card: its materials per part, colours, light line, cost ([decor.md](decor.md#the-studio-decorpanel)) |
 | `components/studio/StudioTopBar.tsx`, `TutorialOverlay.tsx`, `NavHelp.tsx` | the top bar, the first-visit tour, the controls card |

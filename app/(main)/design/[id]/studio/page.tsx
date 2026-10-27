@@ -1178,6 +1178,7 @@ export default function StudioPage() {
                   onDuplicate={() => gate('catalog') && store.duplicateItem(selected.id)}
                   onLock={(locked) => store.lockItem(selected.id, locked)}
                   onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => gate('catalog') && store.setKitchenMaterial(selected.id, product) : undefined}
+                  onVariant={(product, variantId) => gate('catalog') && store.setItemVariant(selected.id, product, variantId)}
                   onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => gate('catalog') && store.setKitchenLength(selected.id, widthM) : undefined}
                   onKitchenToWall={isCustomKitchenItem(selected) ? () => gate('catalog') && store.stretchKitchenToWall(selected.id) : undefined}
                   swapLock={needs('catalog')}

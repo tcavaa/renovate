@@ -38,6 +38,7 @@ import { isTrimSurface } from './trims';
 import { radiatorSections } from './radiators';
 import { isEquipmentKind, pointProductKind, type EquipmentProductKind } from './equipment';
 import { kitchenMaterialOf, measureKitchens } from './kitchen';
+import { namesWithVariant } from './variants';
 import { finishCoverage, type FinishCoverage } from './zones';
 import { visibleFinishes } from './finishQuantity';
 import { decorPurchases } from './decor/quantities';
@@ -266,7 +267,8 @@ export function priceScene(
       bucket: 'furniture',
       key: `product-${product.productId}`,
       tick,
-      name: localizedName(product, locale),
+      // In a material variant, its name after the product's: "Sofa Lund — black leather".
+      name: localizedName(namesWithVariant(product), locale),
       roomName: roomName.get(item.roomId),
       qty: product.qty,
       unit: product.unit,

@@ -30,6 +30,7 @@ import {
   disposeOwnedGeometry,
   frameFor,
   releaseGhostMaterials,
+  releaseVariantMaterials,
   syncPlacedItems,
   visibleRoomIds,
   type SceneUserData,
@@ -576,6 +577,7 @@ function SceneContent({
       releaseCachedModels();
       releaseGhostMaterials();
       releaseDecorMaterials();
+      releaseVariantMaterials();
     },
     []
   );

@@ -1,3 +1,5 @@
+import { variantFileUrls } from '@/lib/design/variants';
+
 /**
  * Which stored files the app made at runtime — and may therefore delete — as opposed to the
  * seed pictures under `public/uploads/products` and `/furniture`, which are tracked in git.
@@ -11,9 +13,15 @@ export function isRuntimeUploadKey(key: string): boolean {
   return /^\d{13}-[0-9a-f]{6,}\.[a-z0-9]{2,5}$/i.test(name) || /^own-\d+-\d{13}-[0-9a-f]{4,}\.[a-z0-9]{2,5}$/i.test(name);
 }
 
-/** The files a product row points at — what goes with it when it is deleted. */
-export function productFileUrls(row: { imageUrl?: string | null; model3dUrl?: string | null; textureUrl?: string | null }): Array<string | null | undefined> {
-  return [row.imageUrl, row.model3dUrl, row.textureUrl];
+/** The files a product row points at — what goes with it when it is deleted: its columns' and its material variants' (`specs.variants`). */
+export function productFileUrls(row: { imageUrl?: string | null; model3dUrl?: string | null; textureUrl?: string | null; specs?: unknown }): Array<string | null | undefined> {
+  return [row.imageUrl, row.model3dUrl, row.textureUrl, ...variantFileUrls(row.specs)];
+}
+
+/** The variant files an edit let go of: each one the specs named before and do not after. */
+export function droppedVariantUrls(before: unknown, after: unknown): string[] {
+  const kept = new Set(variantFileUrls(after));
+  return variantFileUrls(before).filter((url) => !kept.has(url));
 }
 
 /** The files an edit let go of: each one the row had before and does not have after. */
