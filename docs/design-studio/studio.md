@@ -281,6 +281,13 @@ your mind about the first, not asking for both. Before this the first piece was 
 wherever `placeAdditional` had put it — usually beside the bed, since that is where the free
 floor is — and the person had a sofa they never placed and did not want.
 
+**A duplicate is in the hand too** (`duplicateItem(itemId, { carry })`, the card's button and
+Ctrl+D): the copy starts on the free spot beside the original (`besideCopy`, so a click without
+moving sets it down there), follows the pointer and stays where it is set down — one step of
+history (`finishCarry`); Escape takes it away. It used to be put down beside the original at
+once, which looked like the studio placing furniture by itself. The walk-through, with no
+pointer to carry on, still puts the copy down beside the original. Paste (Ctrl+V) still does.
+
 **A swap that does not fit rides on the pointer too** (`swapProduct(itemId, product, { carry })`).
 `fitSwapped` (`lib/design/manipulate.ts`) says where the new product stands: a piece against
 a wall keeps its *back* on the wall rather than its centre where it was (a deeper sofa with

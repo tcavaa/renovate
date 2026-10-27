@@ -157,6 +157,47 @@ describe('swapping a product', () => {
   });
 });
 
+describe('duplicating a piece', () => {
+  const withSofa = () => useDesignStore.setState({ items: [{ ...placed('sofa', 2, 0.47, 2, 0.9), product: { productId: 1 } as PlacedItem['product'] }] });
+
+  it('puts the copy in the hand, not in the room, until it is set down', () => {
+    withSofa();
+    const copy = useDesignStore.getState().duplicateItem('sofa', { carry: true })!;
+    const state = useDesignStore.getState();
+    expect(state.carryingItemId).toBe(copy);
+    expect(state.selectedItemId).toBe(copy);
+    // On the pointer only: not a step of history, not in what is saved.
+    expect(state.history.past).toHaveLength(0);
+    expect(state.scene().items.map((i) => i.id)).toEqual(['sofa']);
+
+    useDesignStore.getState().placeItem(copy, { x: 2, z: 2.4 }, Math.PI, 'r1');
+    useDesignStore.getState().finishCarry();
+    expect(useDesignStore.getState().carryingItemId).toBeNull();
+    expect(useDesignStore.getState().history.past).toHaveLength(1);
+    expect(item(copy)).toMatchObject({ position: { x: 2, z: 2.4 }, rotation: Math.PI, locked: false, product: { productId: 1 } });
+
+    useDesignStore.getState().undo();
+    expect(item(copy)).toBeUndefined();
+  });
+
+  it('takes the copy away on Escape, the original as it was', () => {
+    withSofa();
+    const copy = useDesignStore.getState().duplicateItem('sofa', { carry: true })!;
+    useDesignStore.getState().cancelCarry();
+    expect(item(copy)).toBeUndefined();
+    expect(useDesignStore.getState().items.map((i) => i.id)).toEqual(['sofa']);
+    expect(useDesignStore.getState().history.past).toHaveLength(0);
+  });
+
+  it('puts it down beside the original where nothing can carry it (the walk-through)', () => {
+    withSofa();
+    const copy = useDesignStore.getState().duplicateItem('sofa')!;
+    expect(useDesignStore.getState().carryingItemId).toBeNull();
+    expect(item(copy)).toBeDefined();
+    expect(useDesignStore.getState().history.past).toHaveLength(1);
+  });
+});
+
 describe('painting the whole room', () => {
   it('paints over a wall of its own, a strip and a square metre', () => {
     const store = useDesignStore.getState();

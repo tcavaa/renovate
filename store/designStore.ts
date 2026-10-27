@@ -505,8 +505,12 @@ export interface DesignActions {
   stretchKitchenToWall: (itemId: string) => boolean;
   /** Gives every made-to-measure piece without a material the style's, and buys the rest again for the façade they have now — no history entry. */
   ensureKitchenMaterials: (catalog: CatalogProduct[]) => void;
-  /** A copy beside the original, where it fits. Returns the new id. */
-  duplicateItem: (itemId: string) => string | null;
+  /**
+   * A copy of the piece. With `carry` (the 3D view and the 2D board) it rides on the pointer
+   * from the free spot beside the original until it is set down (`finishCarry`) or given up
+   * (`cancelCarry`); without, it is put down beside the original. Returns the new id.
+   */
+  duplicateItem: (itemId: string, options?: { carry?: boolean }) => string | null;
   copyItem: (itemId: string) => void;
   /** Pastes the clipboard into the focused room (or the copy's own). Returns the new id. */
   pasteItem: (roomId?: string | null) => string | null;
@@ -1725,13 +1729,24 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (next !== items) set({ items: next });
         },
 
-        duplicateItem: (itemId) => {
-          const { items, plan } = get();
+        duplicateItem: (itemId, options = {}) => {
+          const state = get();
+          const { plan } = state;
+          // A piece still on the pointer goes back first, as a second pick off the shelf does.
+          const items = withoutCarry(state);
           const source = items.find((i) => i.id === itemId);
           const room = source ? plan?.rooms.find((r) => r.id === source.roomId) : null;
           if (!source || !room) return null;
           const copy = besideCopy(room, source, items, plan?.rooms);
-          commit(() => ({ items: [...items, copy], selectedItemId: copy.id }));
+          if (!options.carry) {
+            commit(() => ({ items: [...items, copy], selectedItemId: copy.id, carryingItemId: null, carryRestore: null }));
+            return copy.id;
+          }
+          // In the hand, as a piece off the shelf is (`beginAdd`): the copy follows the pointer and
+          // stays where it is set down. It used to be put down beside the original at once, which
+          // looked like the studio placing furniture by itself. Not a step of history until it is
+          // set down; Escape takes it away.
+          set({ items: [...items, copy], selectedItemId: copy.id, selectedElement: null, carryingItemId: copy.id, carryRestore: null });
           return copy.id;
         },
         copyItem: (itemId) => set((s) => ({ clipboard: s.items.find((i) => i.id === itemId) ?? s.clipboard })),

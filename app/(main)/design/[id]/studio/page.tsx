@@ -557,7 +557,7 @@ export default function StudioPage() {
           if (gate('catalog')) store.pasteItem(focusRoomId);
         } else if (code === 'KeyD' && selectedItemId) {
           event.preventDefault();
-          if (gate('catalog')) store.duplicateItem(selectedItemId);
+          if (gate('catalog')) store.duplicateItem(selectedItemId, { carry: view !== 'walk' });
         }
         return;
       }
@@ -1175,7 +1175,8 @@ export default function StudioPage() {
                   rotateBlocked={rotateBlocked}
                   onRemove={() => gate('catalog') && store.removeItem(selected.id)}
                   onMirror={() => gate('moveFurniture') && store.mirrorItem(selected.id)}
-                  onDuplicate={() => gate('catalog') && store.duplicateItem(selected.id)}
+                  // The copy is in the hand until it is set down, as a piece off the shelf is.
+                  onDuplicate={() => gate('catalog') && store.duplicateItem(selected.id, { carry: view === '3d' })}
                   onLock={(locked) => store.lockItem(selected.id, locked)}
                   onKitchenMaterial={isCustomKitchenItem(selected) ? (product) => gate('catalog') && store.setKitchenMaterial(selected.id, product) : undefined}
                   onVariant={(product, variantId) => gate('catalog') && store.setItemVariant(selected.id, product, variantId)}
