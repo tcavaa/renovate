@@ -44,6 +44,7 @@ import { priceScene } from '@/lib/design/pricing';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
+import { RuleWarnings } from '@/components/studio/RuleWarnings';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
@@ -1283,6 +1284,8 @@ export default function StudioPage() {
                     <span className="truncate">{t.design.tightPassageHint}</span>
                   </p>
                 )}
+                {/* The design rules' warnings for the room in focus (or the flat): a WC facing the door, a bed squeezed, a radiator blocked… */}
+                <RuleWarnings plan={plan} items={items} electrical={electrical} roomId={focusRoom?.id ?? null} onSelectItem={(id) => store.selectItem(id)} />
               </div>
               {trayShown && (
                 <Tray>

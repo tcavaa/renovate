@@ -171,7 +171,11 @@ row from 820 px up, the labels back from 1553 px of viewport. Before this the ba
 **The floating chrome must not eat the canvas.** The trays are nearly opaque (`bg-white/[0.97]`),
 not frosted: small print over a furnished room could not be read. Tiles are 52 px — a price
 and a picture, the name in the tooltip. The hint and the tight-passage warning *float above*
-the tray (`absolute bottom-full`) instead of stacking with it, and the page-level hint only
+the tray (`absolute bottom-full`) instead of stacking with it, and so does **the design rules'
+pill** (`RuleWarnings`, "დიზაინის წესები: n შენიშვნა"): every warning of `ruleViolations` for the
+room in focus or the whole flat, the list opening above it, a warning about a piece selecting that
+piece (the words from `components/design/ruleText.ts`, shared with the technical step; nothing
+shown when the flat follows the rules); and the page-level hint only
 speaks for what no tray can say for itself (a piece on the pointer, the walk-through, a
 fitting armed; the structure lock is the 2D board's hint) — each tray carries its own hint
 for the tool in hand (see Known gaps: the page-level hint does not show while the tray is

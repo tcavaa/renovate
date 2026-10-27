@@ -41,6 +41,21 @@ import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
+import {
+  BED_SIDE_FREE_M,
+  DINING_SEAT_M,
+  FACING_COUNTERS_M,
+  SHALLOW_WARDROBE_DEPTH_M,
+  SOFA_TV_M,
+  WARDROBE_DEPTH_M,
+  WC_SIDE_M,
+  footprintQuad,
+  quadsOverlap,
+  rayToPolygon,
+  roomNiches,
+  roomSightBands,
+  type Quad,
+} from './rules';
 
 /** Axis-aligned box in the ground plane. */
 interface Box {
@@ -68,6 +83,19 @@ export interface LayoutOptions {
   obstacles?: Record<string, Box[]>;
   /** Seeded randomness (`lib/design/random`): another good spot, optional decor or not. None: the same room every time. */
   rng?: Rng;
+  /** Per room, what is seen coming in through the flat's front door (`entranceSightBands`): the kitchen keeps out of it. */
+  entranceSight?: Record<string, Quad[]>;
+}
+
+/**
+ * What the design rules (`lib/design/rules.ts`) ask of a spot, per room: the bands seen straight
+ * through its doorways (no WC in one, a bed rather not) and through the flat's front door (the
+ * kitchen rather not), and what is already standing (an island 120 cm off the run).
+ */
+interface RuleContext {
+  doorBands: Quad[];
+  entranceBands: Quad[];
+  placed: PlacedItem[];
 }
 
 /** Decor a generated room may go without, and how likely each is to be laid out when it fits. */
@@ -110,14 +138,15 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
       layoutArea(
         { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined },
         { ...options, respectDoorSwing: false, obstacles: { ...options.obstacles, [room.id]: obstacles } },
-        `p${part.index}-`
+        `p${part.index}-`,
+        roomSightBands(room).map((b) => b.quad)
       )
     );
   }
-  return layoutArea(room, options, '');
+  return layoutArea(room, options, '', roomSightBands(room).map((b) => b.quad));
 }
 
-function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string): PlacedItem[] {
+function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = []): PlacedItem[] {
   const program = ROOM_PROGRAMS[room.type] ?? [];
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return [];
@@ -152,7 +181,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string): P
       entry.count === 'fill' ? seatCountFor(archetype, placed) : entry.count;
 
     for (let i = 0; i < count; i++) {
-      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng });
+      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed };
+      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
@@ -170,7 +200,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string): P
         product: null,
       });
 
-      if (!archetype.ghost) occupied.push(boxFor(pose));
+      // A WC keeps its 40 cm either side of its centre (`WC_SIDE_M`): nothing placed after it stands there.
+      if (!archetype.ghost) occupied.push(boxFor(archetype.slot === 'toilet' ? { ...pose, size: { ...pose.size, width: Math.max(pose.size.width, 2 * WC_SIDE_M + 0.02) } } : pose));
     }
   }
 
@@ -227,24 +258,30 @@ function resolvePose(
   edges: PlanEdge[],
   placed: PlacedItem[],
   occupied: Box[],
-  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng } = {}
+  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng; rules?: RuleContext } = {}
 ): Pose | null {
   const rule = archetype.placement;
   const rng = options.rng;
+  const rules = options.rules ?? { doorBands: [], entranceBands: [], placed };
   // A room separator is no wall: nothing stands against it, runs along it or hangs on it.
   const walled = edges.filter((e) => !isOpenEdge(room, e.index));
 
   switch (rule.type) {
     case 'wall': {
+      // A wardrobe goes into a niche when the room has one it fits (the brief: use the niches for it).
+      if (archetype.slot === 'wardrobe' && !options.exact) {
+        const inNiche = placeInNiche(archetype, room, occupied);
+        if (inNiche) return inNiche;
+      }
       const beside = rule.beside ? placed.find((p) => p.slot === rule.beside) : undefined;
-      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng, beside);
+      return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng, beside, rules);
     }
     case 'wall-run': {
       const leave = rule.leaveFor ? Object.values(ARCHETYPES).find((a) => a.slot === rule.leaveFor)?.size : undefined;
-      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave);
+      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave, rules.entranceBands);
     }
     case 'center':
-      return placeCentre(archetype, room, occupied);
+      return placeCentre(archetype, room, occupied, rules.placed);
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
     case 'corner':
@@ -275,7 +312,8 @@ function placeAgainstWall(
   exact = false,
   anchors: TechnicalAnchor[] = [],
   rng?: Rng,
-  beside?: PlacedItem
+  beside?: PlacedItem,
+  rules?: RuleContext
 ): Pose | null {
   const doorPoints = openingPoints(room, edges, isPassage);
   const windowPoints = openingPoints(room, edges, (o) => o.kind === 'window');
@@ -289,14 +327,49 @@ function placeAgainstWall(
     : [archetype.size.width];
 
   for (const width of widths) {
-    const found = bestAlongWalls(archetype, { ...archetype.size, width }, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng, beside);
-    if (found) return found;
+    // A WC is placed with 40 cm from its centre to either side (`WC_SIDE_M`): its spot is looked
+    // for as that wide, then it stands at its own size in the middle of it.
+    const wc = archetype.slot === 'toilet';
+    const search = { ...archetype.size, width: wc ? Math.max(width, 2 * WC_SIDE_M) : width };
+    const found = bestAlongWalls(archetype, search, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng, beside, rules);
+    if (found) return wc ? { ...found, size: { ...found.size, width } } : found;
   }
   return null;
 }
 
-/** The width beside a double bed for a nightstand and the step to it. */
-const BEDSIDE_M = 0.55;
+/**
+ * A wardrobe built into a niche: the recess's whole width (less 2 cm each side), 60 cm deep, or a
+ * shallow 38 cm one in a recess under 60 cm (`roomNiches`, the widest first). Null when the room
+ * has no niche it fits.
+ */
+function placeInNiche(archetype: Archetype, room: PlanRoom, occupied: Box[]): Pose | null {
+  for (const niche of roomNiches(room)) {
+    const depth = niche.depthM >= WARDROBE_DEPTH_M ? WARDROBE_DEPTH_M : niche.depthM >= SHALLOW_WARDROBE_DEPTH_M ? SHALLOW_WARDROBE_DEPTH_M : null;
+    if (depth === null) continue;
+    const size = { width: niche.widthM - 0.04, depth, height: archetype.size.height };
+    const anchor = pointOnEdge(niche.back, 0.5);
+    const pose: Pose = {
+      position: { x: anchor.x + niche.back.inward.x * (depth / 2 + 0.02), z: anchor.z + niche.back.inward.z * (depth / 2 + 0.02) },
+      rotation: niche.back.facing,
+      size,
+      elevationM: 0,
+    };
+    if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) continue;
+    if (coversOpening(niche.back, 0.5, size.width, size.height, room.openings.filter((o) => o.wallIndex === niche.back.index))) continue;
+    return pose;
+  }
+  return null;
+}
+
+/** Whether a pose stands in one of these bands (what is seen straight through a doorway). */
+function inSight(pose: Pose, bands: Quad[]): boolean {
+  if (bands.length === 0) return false;
+  const quad = footprintQuad(pose);
+  return bands.some((band) => quadsOverlap(quad, band));
+}
+
+/** The width beside a double bed for a nightstand and the step to it: 60–70 cm free (`BED_SIDE_FREE_M`). */
+const BEDSIDE_M = BED_SIDE_FREE_M;
 
 const NARROWABLE = new Set([
   'wardrobe', 'bookshelf', 'storage_shelf', 'dresser', 'tv_unit', 'console_table', 'shoe_cabinet', 'desk', 'sofa_3seat',
@@ -314,11 +387,12 @@ function bestAlongWalls(
   windowPoints: Vec2[],
   anchors: TechnicalAnchor[] = [],
   rng?: Rng,
-  beside?: PlacedItem
+  beside?: PlacedItem,
+  rules?: RuleContext
 ): Pose | null {
   const { width, depth, height } = size;
   const anchorPoints = anchors.map((a) => a.point);
-  const spots: Array<{ value: Pose; score: number }> = [];
+  const spots: Array<{ value: Pose; score: number; seen?: boolean }> = [];
   const bounds = polygonBounds(room.polygon);
 
   for (const edge of edges) {
@@ -387,13 +461,30 @@ function bestAlongWalls(
       // The fridge at the end of the run: above every preference but the pipes.
       if (ends.includes(t)) score += 40;
 
+      // Seen straight through a doorway: a WC never when anything else fits (below), a bed rather
+      // not — though it is no fault if it is.
+      const seen = inSight(pose, rules?.doorBands ?? []);
+      if (seen && archetype.slot === 'bed') score -= 12;
+      // The sofa 2.5–3.5 m from the screen on the wall it faces.
+      if (archetype.slot === 'sofa') {
+        const ahead = rayToPolygon(centre, { x: Math.sin(edge.facing), z: Math.cos(edge.facing) }, room.polygon);
+        if (ahead != null) {
+          const screen = ahead - 0.05;
+          const off = screen < SOFA_TV_M.min ? SOFA_TV_M.min - screen : screen > SOFA_TV_M.max ? screen - SOFA_TV_M.max : 0;
+          score += off === 0 ? 10 : -off * 16;
+        }
+      }
+
       // A fixture wants its pipe: the toilet by the sewer, the sink by the water. Strong
       // enough to outweigh the wall preferences, which are about looks, not plumbing.
       if (anchorPoints.length > 0) score += Math.max(0, 40 - minDistance(centre, anchorPoints) * 12);
 
-      spots.push({ value: pose, score });
+      spots.push({ value: pose, score, seen });
     }
   }
+
+  // A WC is not what the door opens onto: the spots seen through a doorway go, unless no other fits.
+  if (archetype.slot === 'toilet' && spots.some((s) => !s.seen)) return pickNearBest(spots.filter((s) => !s.seen), SPOT_SPREAD, rng);
 
   // The best spot; generating, any spot close to it — another wall of similar merit, another
   // stretch of the same wall. A fixture by its pipe keeps it: the anchor's pull is far above the spread.
@@ -412,7 +503,28 @@ function placeWallRun(
   clearanceM: number,
   anchors: TechnicalAnchor[] = [],
   rng?: Rng,
-  leave?: Size3
+  leave?: Size3,
+  entranceBands: Quad[] = []
+): Pose | null {
+  // Out of sight of the flat's front door first; only when no wall works out of it, in sight.
+  for (const hidden of entranceBands.length > 0 ? [true, false] : [false]) {
+    const pose = placeWallRunOnce(archetype, room, edges, occupied, prefer, clearanceM, anchors, rng, leave, hidden ? entranceBands : []);
+    if (pose) return pose;
+  }
+  return null;
+}
+
+function placeWallRunOnce(
+  archetype: Archetype,
+  room: PlanRoom,
+  edges: PlanEdge[],
+  occupied: Box[],
+  prefer: 'longest' | 'shortest',
+  clearanceM: number,
+  anchors: TechnicalAnchor[],
+  rng: Rng | undefined,
+  leave: Size3 | undefined,
+  avoid: Quad[]
 ): Pose | null {
   const { depth, height } = archetype.size;
   // The kitchen run goes on the wall the water comes to, when the plan says where that is.
@@ -448,6 +560,7 @@ function placeWallRun(
       };
       if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) return null;
       if (clearance > 0 && overlapsAny(clearanceBox(pose, clearance), occupied)) return null;
+      if (inSight(pose, avoid)) return null;
       return pose;
     };
 
@@ -498,7 +611,9 @@ function besideSpots(edge: PlanEdge, piece: PlacedItem, width: number): number[]
 }
 
 /** Free-standing in the middle, nudged outward until it stops colliding. */
-function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[]): Pose | null {
+function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], placed: PlacedItem[] = []): Pose | null {
+  // An island keeps 120 cm from the run it faces (`FACING_COUNTERS_M`).
+  const runs = archetype.slot === 'kitchen_island' ? placed.filter((p) => p.roomId === room.id && p.slot === 'kitchen_run').map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 })) : [];
   const centroid = polygonCentroid(room.polygon);
   const bounds = polygonBounds(room.polygon);
 
@@ -530,6 +645,7 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[]): Pos
         if (!fitsInRoom(pose, room.polygon)) continue;
         // Free-standing items need space all round, not just their own footprint.
         if (overlapsAny(inflate(boxFor(pose), gap), occupied)) continue;
+        if (runs.length > 0 && overlapsAny(inflate(boxFor(pose), FACING_COUNTERS_M - 0.01), runs)) continue;
         return pose;
       }
     }
@@ -699,14 +815,14 @@ export const DINING_CHAIR_TUCK_M = 0.12;
 
 /**
  * Seat positions around a rectangular table: along both long sides first, then the ends, each
- * chair (`chairDepth` deep) with its seat `DINING_CHAIR_TUCK_M` under the edge. The gap per
- * seat (0.56 m) is the usual elbow-room allowance.
+ * chair (`chairDepth` deep) with its seat `DINING_CHAIR_TUCK_M` under the edge, 60 cm of the
+ * table's width a person (`DINING_SEAT_M`).
  */
 export function seatSlots(table: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, chairDepth = 0.5): Array<{ position: Vec2; rotation: number }> {
   const forward = { x: Math.sin(table.rotation), z: Math.cos(table.rotation) };
   const right = { x: forward.z, z: -forward.x };
 
-  const perSide = Math.max(1, Math.min(4, Math.floor(table.size.width / 0.56)));
+  const perSide = Math.max(1, Math.min(4, Math.floor(table.size.width / DINING_SEAT_M + 1e-6)));
   const out = chairDepth / 2 - DINING_CHAIR_TUCK_M;
   const sideOffset = table.size.depth / 2 + out;
   const endOffset = table.size.width / 2 + out;

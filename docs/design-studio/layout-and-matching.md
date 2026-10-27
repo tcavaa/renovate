@@ -33,6 +33,30 @@ slots + catalogue (useDesignCatalog) + style + budget ──matchProducts──�
 scene ──tightSpots──▶ amber warnings (not a rule)
 ```
 
+## The design rules in the layout (`lib/design/rules.ts`, [design-rules.md](design-rules.md))
+
+- **What is seen through a doorway** (`roomSightBands`: a band as wide as the opening, from it to
+  the far wall). A WC never stands in one when any other spot on its walls fits (its spots in a
+  band are dropped before the draw); a bed in one scores 12 less (no fault, the brief says, only
+  a preference). Studios pass the whole room's bands to both halves.
+- **What is seen through the flat's front door** (`entranceSightBands`: the band from a door on an
+  outside wall, carried on through a doorway straight ahead into the next room; passed by
+  `generateScene` as `LayoutOptions.entranceSight`): the kitchen run is looked for out of it
+  first, and only when no wall works out of it, in it (`placeWallRun` runs twice).
+- **A wardrobe in a niche** (`roomNiches`: a recess 30 cm–1 m deep and 60 cm–3 m wide, its two
+  corners turning out to the room — a recess in a room's corner cannot be told from an L's arm
+  and is not taken): the widest niche it fits, the recess's width less 2 cm a side, 60 cm deep or
+  a shallow 38 cm one in a recess under 60 cm (`placeInNiche`), before any wall.
+- **A WC's 40 cm**: its spot is looked for 80 cm wide and it stands in the middle; that envelope is
+  what it takes from the room, so the basin or the washer placed after it keep their distance.
+- **The sofa 2.5–3.5 m from the screen** on the wall it faces: +10 in range, −16 a metre out of it.
+  A big room with no pair of walls in range still gets its sofa against a wall (the check warns).
+- **An island 120 cm off the run** (`placeCentre` rejects a spot nearer, before shrinking).
+- **Sizes**: 60 cm free beside a double bed (`BEDSIDE_M`), a dining seat per 60 cm of table
+  (`seatSlots`), the dining table 75 cm high, the coffee table 42 cm off the sofa, the TV's middle
+  at 1.05 m, the wall cabinets' bottom 55 cm over the worktop (1.45 m; their middle `heightM`
+  1.81), nothing in front of a radiator (`radiatorKeepouts`).
+
 ## Generating is random
 
 The same plan generated twice gives two flats. `generate` draws a fresh seed (`randomSeed`) and
@@ -180,7 +204,7 @@ own. The matcher re-measures every piece from the product it got, so the room st
   the fridge, which then stood at the run's end under them.
 - **A TV over the TV unit** (`tv`, after the unit in the living room's program; `onlyAbove`, so
   none where the room has no unit): laid out on the unit's wall, centred over it, its middle at
-  1.15 m, as wide as a 65" TV and no wider than the unit — smaller (85 %, 70 %) and slid along the
+  1.05 m (seated eye level, the design rules' `TV_CENTRE_M`), as wide as a 65" TV and no wider than the unit — smaller (85 %, 70 %) and slid along the
   unit when that would cover a window beside it (a unit running past a window had no TV at all).
   Over a unit standing free in the room (its back to no wall — a big room's sofa faces a wall too
   far off for the unit to stand against) the slot is on the unit's top, and only a TV on a stand

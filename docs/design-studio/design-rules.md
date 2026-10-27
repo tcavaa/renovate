@@ -20,7 +20,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 |---|---|---|
 | 1 | `rules.ts` (the numbers and the first checks), sockets and switches, radiators, the boiler's room | **built** |
 | 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
-| 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | planned |
+| 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | **built** |
 | 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | planned |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
 
@@ -68,7 +68,7 @@ The brief is built in five stages, each tested, documented and committed on its 
   shelf) by default or to the ceiling (a choice on its card), finished in waterproof paint or
   tiled — the design's choice — priced as gypsum work.
 
-**Part 2 — layout** (*stage 3*)
+**Part 2 — layout** (how the engine does it: [layout-and-matching.md](layout-and-matching.md#the-design-rules-in-the-layout-libdesignrulests))
 
 - The WC never faces the door when any other spot fits; in a room too small for that it may, with
   a warning.
@@ -77,7 +77,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 - The kitchen run prefers a wall out of the entrance door's sight; a warning when the only wall
   that works faces it.
 
-**Part 3 — sizes** (*stage 3*): the layout places by them and a check flags a room breaking
+**Part 3 — sizes**: the layout places by them and a check flags a room breaking
 them — paths 100 cm, door swings that collide, doors 80 cm (70 cm for a bathroom or toilet; new
 doors take these widths), the kitchen triangle, 120 cm between facing counters, wall units 55 cm
 over the worktop, 60–70 cm beside a bed, wardrobes 60 (or 35–40) cm deep, sofa to TV 2.5–3.5 m,
@@ -105,21 +105,39 @@ studio (stage 3), the AI's room check (stage 5) and the plan PDF (stage 5).
   A run under 2.1 m has no dishwasher.
 - `WATER_NEEDS` (what each fixture is fed and at what height), `KITCHEN_SINK_WATER`,
   `DISHWASHER_WATER`, the pair's spacing, `SHAFT_FIXTURES` and `SHAFT_MAX_DISTANCE_M`.
-- `minDoorWidthM(type)`, `backWallOf`, `alongWall`.
+- `minDoorWidthM(type)` and `doorWidthFor(type, other)`: a new door is 80 cm, 70 cm when either
+  room is a bathroom or toilet, 90 cm to the outside (`addOpening`; `deriveOpenings` too).
+- The layout's numbers (`BED_SIDE_FREE_M`, `SOFA_TV_M`, `COFFEE_TABLE_GAP_M`, `TV_CENTRE_M`,
+  `DINING_SEAT_M`, `FACING_COUNTERS_M`, `WALL_UNIT_BOTTOM_M`, the wardrobe depths, `SHOWER_MIN_M`,
+  `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`) and the geometry they need: `footprintQuad`,
+  `quadsOverlap`, `rayToPolygon`, `doorSightBand` / `roomSightBands` / `entranceSightBands`,
+  `roomNiches`.
+- `backWallOf`, `alongWall`.
 
 ## The checks (`lib/design/ruleChecks.ts`)
 
-- `ruleViolations(plan, items)`, each `{ code, roomId, itemId?, pointId?, openingId?, valueM?,
-  limitM? }`: `radiator_blocked` (a piece standing in the strip in front of a radiator, lower than
+- `ruleViolations(plan, items, electrical?)`, each `{ code, roomId, itemId?, pointId?, openingId?,
+  valueM?, limitM? }` — the building's (`TECHNICAL_RULES`, listed on the technical step) and the
+  furniture's (all of them in the studio's pill, `RuleWarnings`): `radiator_blocked` (a piece standing in the strip in front of a radiator, lower than
   its top; a curtain or a rug does not count), `radiator_under_sill` (a radiator's top within
   10 cm of its window's sill), `boiler_not_exterior` (its nearest wall is not an outside one),
   `door_too_narrow` (an interior door's two halves — found as two rooms' doors at the same spot —
-  measured once, against the more lenient room). The technical step lists them with its hints.
+  measured once, against the more lenient room; a half not twinned yet finds the room behind it
+  through the wall), `door_swing_clash` (two leaves' squares overlap in the room they open into),
+  `door_swing_blocked` (a piece in a leaf's square), `wc_faces_door`, `kitchen_faces_entrance`,
+  `bed_side_tight` (under 60 cm beside a double bed's foot half, to a wall or a piece that is not
+  a nightstand), `sofa_tv_distance` (sofa centre to the TV unit's back, outside 2.5–3.5 m),
+  `counters_too_close` (island to run under 120 cm), `shower_too_small` (under 80 cm),
+  `wc_side_tight` (the WC's centre under 40 cm from a wall or a piece either side),
+  `basin_height` (a bathroom basin's top more than 7 cm off 85 cm), `socket_in_splash` (a socket
+  within 60 cm of a shower or a bath). Worded by `components/design/ruleText.ts`.
 - `radiatorKeepouts(plan)`: the strips (the radiator's length plus 5 cm each end, its depth plus
   30 cm) as boxes per room, which `generateScene` adds to the layout engine's obstacles.
 
 On the sample flat (`samplePlan`), laid out with the engine's seeded generation, three pieces
-stood in front of radiators without the strips and none with them.
+stood in front of radiators without the strips and none with them; over twenty seeds, with the
+technical points placed, the only rule broken is the sofa–TV distance in its 44 m² living room
+(no pair of walls 2.5–3.5 m apart), and every bathroom kept its WC and basin.
 
 ## Tests
 
@@ -127,7 +145,9 @@ stood in front of radiators without the strips and none with them.
 heights and the kitchen's and bedroom's fittings), `radiators.test.ts` (the product under the
 sill, beside a floor-length window), `autoTechnical.test.ts` (the boiler's room and wall; water at
 every fixture, hot on the left, a WC beside a basin, the boiler's pair, nothing twice),
-`technical.test.ts` (the shaft warning).
+`technical.test.ts` (the shaft warning); in `rules.test.ts` also the niche finder, the wardrobe in
+a niche, the WC out of the door's sight over seeds, the kitchen out of the entrance's, the dining
+seats and door widths, and every size check.
 
 ## Known gaps
 
@@ -140,4 +160,10 @@ every fixture, hot on the left, a WC beside a basin, the boiler's pair, nothing 
 - A microwave on its own is not a piece, so it gets no socket.
 - A bidet has no piece in the app, so it gets no water.
 - The water points are drawn on the board and the PDF, not in 3D.
-- Stages 3–5 above.
+- The engine stands a sofa only against a wall: a room too wide for the sofa–TV range gets its
+  warning rather than a sofa floated 3 m from the TV wall.
+- A recess in a room's corner (open on one side) is not found as a niche.
+- Circulation (100–150 cm paths) is the existing tight-passage warning (`clearance.ts`), not a
+  check of its own; IP44 sockets are not a product attribute, only the splash-zone warning.
+- The warnings are not yet on the plan PDF nor given to the AI's room check (stage 5).
+- Stages 4–5 above.

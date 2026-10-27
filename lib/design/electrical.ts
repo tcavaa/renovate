@@ -38,6 +38,7 @@ import {
   SWITCH_M,
   TV_SOCKET_M,
   TWO_WAY_CORRIDOR_M,
+  WALL_UNIT_BOTTOM_M,
   kitchenRunZones,
 } from './rules';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
@@ -367,7 +368,7 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     makeOnWall(b, room, 'socket_high', edge, at(zones.hobS), { elevationM: HOOD_SOCKET_M });
     makeOnWall(b, room, 'socket_high', edge, at(zones.farEndS - Math.sign(zones.farEndS - zones.sinkS) * 0.3), { elevationM: CABINET_LIGHT_SOCKET_M });
     const wallT = along(edge, run.position) / edge.length;
-    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: 1.5, lengthM: Math.min(run.size.width, edge.length - 0.2), category: 'furniture' });
+    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: WALL_UNIT_BOTTOM_M, lengthM: Math.min(run.size.width, edge.length - 0.2), category: 'furniture' });
   }
   const fridge = here.find((i) => i.slot === 'fridge');
   if (fridge) {

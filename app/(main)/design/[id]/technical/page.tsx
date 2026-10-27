@@ -18,8 +18,9 @@ import { useProjectId } from '@/components/projects/ProjectGate';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
-import { effectivePhases, technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck } from '@/lib/design/technical';
-import { ruleViolations } from '@/lib/design/ruleChecks';
+import { effectivePhases, technicalCheckFrom, technicalSuggestions, TECHNICAL_KIND_LIST, type TechnicalCheck, type TechnicalSuggestion } from '@/lib/design/technical';
+import { ruleViolations, TECHNICAL_RULES, type RuleViolation } from '@/lib/design/ruleChecks';
+import { ruleText } from '@/components/design/ruleText';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { designStepHref, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
 import { archetypeLabel } from '@/lib/design/catalog';
@@ -99,8 +100,14 @@ export default function TechnicalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, equipmentKey]);
 
-  // The step's own hints, then what the design rules say (a blocked radiator, a narrow door…).
-  const suggestions = useMemo(() => (plan ? [...technicalSuggestions(plan, items), ...ruleViolations(plan, items)] : []), [plan, items]);
+  // The step's own hints, then what the design rules say about the building (a blocked radiator, a
+  // narrow door…); the furniture's rules are the studio's.
+  const hints = useMemo(() => (plan ? technicalSuggestions(plan, items) : []), [plan, items]);
+  const rules = useMemo(() => (plan ? ruleViolations(plan, items).filter((v) => TECHNICAL_RULES.includes(v.code)) : []), [plan, items]);
+  const suggestions: Array<{ key: string; hint?: TechnicalSuggestion; rule?: RuleViolation }> = [
+    ...hints.map((s) => ({ key: `${s.code}-${s.roomId}-${s.itemId ?? s.pointId ?? ''}`, hint: s })),
+    ...rules.map((v) => ({ key: `${v.code}-${v.roomId}-${v.itemId ?? v.pointId ?? v.openingId ?? ''}`, rule: v })),
+  ];
 
   // `?check=` has done its work once the modal is open on it: a reload must not open it again.
   useEffect(() => {
@@ -131,10 +138,12 @@ export default function TechnicalPage() {
     setTool('technical');
   };
 
-  const suggestionText = (s: (typeof suggestions)[number]) => {
+  const suggestionText = ({ hint, rule }: (typeof suggestions)[number]) => {
+    if (rule) return ruleText(t, locale, plan, items, rule);
+    const s = hint!;
     const room = plan.rooms.find((r) => r.id === s.roomId)?.name ?? '';
     const item = s.itemId ? archetypeLabel(items.find((i) => i.id === s.itemId)?.kind ?? '', locale) : '';
-    const n = ('valueM' in s ? s.valueM : undefined) ?? ('distanceM' in s ? s.distanceM : undefined) ?? 0;
+    const n = s.distanceM ?? 0;
     switch (s.code) {
       case 'far_from_sewer':
         return fill(t.build.sgFarFromSewer, { room, item, n });
@@ -148,14 +157,6 @@ export default function TechnicalPage() {
         return fill(t.build.sgNoExtractor, { room });
       case 'no_drain':
         return fill(t.build.sgNoDrain, { room });
-      case 'radiator_blocked':
-        return fill(t.build.sgRadiatorBlocked, { room, item });
-      case 'radiator_under_sill':
-        return fill(t.build.sgRadiatorUnderSill, { room, n: Math.round(n * 100) });
-      case 'boiler_not_exterior':
-        return fill(t.build.sgBoilerNotExterior, { room });
-      case 'door_too_narrow':
-        return fill(t.build.sgDoorTooNarrow, { room, n: Math.round(n * 100), min: Math.round((s.limitM ?? 0) * 100) });
     }
   };
 
@@ -326,8 +327,8 @@ export default function TechnicalPage() {
                 </p>
               ) : (
                 <ul className="mt-2 space-y-1.5 text-xs text-ink-soft">
-                  {suggestions.map((s, i) => (
-                    <li key={`${s.code}-${s.roomId}-${i}`} className="rounded-[8px] bg-warning/10 px-2 py-1.5">
+                  {suggestions.map((s) => (
+                    <li key={s.key} className="rounded-[8px] bg-warning/10 px-2 py-1.5">
                       {suggestionText(s)}
                     </li>
                   ))}

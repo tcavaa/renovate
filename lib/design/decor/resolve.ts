@@ -7,6 +7,7 @@
  * from the catalogue for every slot. An intent that cannot be realised is dropped, never forced.
  */
 
+import { WALL_UNIT_BOTTOM_M } from '@/lib/design/rules';
 import { roomEdges, wallEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { toSceneProduct } from '@/lib/design/matcher';
@@ -316,10 +317,10 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
   edge ??= longestClearWall(room);
   if (!edge) return null;
 
-  // Its band of height. A backsplash runs from the worktop to the wall cabinets over it (or 1.5 m).
+  // Its band of height. A backsplash runs from the worktop to the wall cabinets over it (or where they would hang, `WALL_UNIT_BOTTOM_M`).
   const cabinets = anchor === 'kitchen' ? items.find((i) => i.roomId === room.id && i.slot === 'kitchen_wall' && wallBehind(i, room)?.index === edge!.index) : undefined;
   const fallback = anchor === 'kitchen' && run
-    ? { from: run.size.height <= 1.1 ? run.size.height : 0.9, to: cabinets ? cabinets.elevationM : 1.5 }
+    ? { from: run.size.height <= 1.1 ? run.size.height : 0.9, to: cabinets ? cabinets.elevationM : WALL_UNIT_BOTTOM_M }
     : defaultHeight(family, anchor, H);
   const hFrom = num(intent.heightFromM);
   const hTo = num(intent.heightToM);

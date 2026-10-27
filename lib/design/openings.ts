@@ -15,6 +15,7 @@
  *
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
+import { doorWidthFor } from './rules';
 import type { RoomType } from '@/lib/calculator/types';
 import { alongEdge, edgesParallel, roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
@@ -560,7 +561,7 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
       })[0];
   if (!chosen || chosen.length < minLength) return { rooms, openingId: null };
 
-  const width = Math.min(options.widthM ?? (kind === 'railing' ? chosen.length : defaults.widthM), chosen.length - margin * 2);
+  let width = Math.min(options.widthM ?? (kind === 'railing' ? chosen.length : defaults.widthM), chosen.length - margin * 2);
   let t = options.t ?? 0.5;
   if (options.t == null && kind !== 'railing') {
     // A free spot along the wall: the centre, or beside what is already there — never on a railing.
@@ -575,6 +576,12 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
   t = projectToEdge(chosen, pointOnEdge(chosen, t), width, margin);
   const point = pointOnEdge(chosen, t);
   const neighbour = neighbourAt(rooms, roomId, chosen, point, thicknessAt(wallThickness, room, chosen));
+  // A new door is as wide as the design rules ask: 80 cm into a room, 70 into a bathroom or a
+  // toilet, 90 for the flat's own front door (`doorWidthFor`).
+  if (kind === 'door' && options.widthM == null) {
+    width = Math.min(doorWidthFor(room.type, neighbour ? neighbour.room.type : null), chosen.length - margin * 2);
+    t = projectToEdge(chosen, point, width, margin);
+  }
 
   if (kind === 'window' && neighbour && !holdsRailings(room) && !holdsRailings(neighbour.room)) return { rooms, openingId: null };
   if (kind === 'railing') {

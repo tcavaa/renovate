@@ -271,7 +271,7 @@ measure in a material drawn for the style — and about a third of the time
 ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#generating-is-random)).
 
 **Wall (hanging) cabinets are a piece of their own** (`kitchen_wall`, hung with their bottom at
-1.5 m — 60 cm over the worktop — 35 cm deep): a shop's, or made to measure in the kitchen maker's
+1.45 m — 55 cm over the worktop, the design rules' 50–60 cm — 35 cm deep): a shop's, or made to measure in the kitchen maker's
 wall-cabinet materials (`kitchen-wall-material-ldsp`, `-mdf`, `-veneer`, 520 / 680 / 920 ₾ per
 m² of front to start — lighter than the base units), placed off the same shelf category and given
 the same length control. Generating lays them over a made-to-measure run in the run's own

@@ -236,7 +236,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Телевизор',
     categorySlug: 'tvs',
     size: { width: 1.45, depth: 0.08, height: 0.82 },
-    placement: { type: 'wall-mounted', heightM: 1.15, above: 'tv_unit', aboveHeightM: 1.15, onlyAbove: true },
+    placement: { type: 'wall-mounted', heightM: 1.05, above: 'tv_unit', aboveHeightM: 1.05, onlyAbove: true },
     priority: 60,
   },
   storage_shelf: {
@@ -271,7 +271,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelEn: 'Dining table',
     labelRu: 'Обеденный стол',
     categorySlug: 'tables',
-    size: { width: 1.6, depth: 0.9, height: 0.76 },
+    size: { width: 1.6, depth: 0.9, height: 0.75 },
     placement: { type: 'center' },
     priority: 95,
     minRoomAreaM2: 9,
@@ -300,7 +300,8 @@ export const ARCHETYPES: Record<string, Archetype> = {
     placement: { type: 'wall-run', prefer: 'longest', clearanceM: 0.95, leaveFor: 'fridge' },
     priority: 100,
   },
-  // Hanging cabinets: over the run, their bottom 60 cm above its worktop (1.5 m), 35 cm deep.
+  // Hanging cabinets: over the run, their bottom 55 cm above its worktop (1.45 m — the design
+  // rules' 50–60 cm, `WALL_UNIT_BOTTOM_M`), 35 cm deep; `heightM` is their middle.
   kitchen_wall: {
     kind: 'kitchen_wall',
     slot: 'kitchen_wall',
@@ -309,7 +310,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Навесные кухонные шкафы',
     categorySlug: 'kitchen-furniture',
     size: { width: 2.4, depth: 0.35, height: 0.72 },
-    placement: { type: 'wall-mounted', heightM: 1.86, above: 'kitchen_run', stretch: true },
+    placement: { type: 'wall-mounted', heightM: 1.81, above: 'kitchen_run', stretch: true },
     priority: 95,
   },
   kitchen_island: {

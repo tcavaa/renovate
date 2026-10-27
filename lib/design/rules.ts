@@ -10,8 +10,8 @@
  * import it.
  */
 
-import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
-import type { PlacedItem, PlanRoom, SlotKind, TechnicalPoint, Vec2 } from './types';
+import { isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import type { Opening, PlacedItem, PlanRoom, SlotKind, TechnicalPoint, Vec2 } from './types';
 
 // ---------------------------------------------------------------------------
 // Sockets and switches
@@ -130,9 +130,201 @@ export const ROOM_DOOR_MIN_M = 0.8;
 export const WET_DOOR_MIN_M = 0.7;
 export const WET_ROOM_TYPES: Array<PlanRoom['type']> = ['bathroom', 'toilet'];
 
-/** The narrowest a door into a room of this type should be. */
+/** The flat's own front door, when the app adds one. */
+export const ENTRANCE_DOOR_M = 0.9;
+
+/** The narrowest a door into a room of this type should be — and the width the app gives a new one. */
 export function minDoorWidthM(type: PlanRoom['type']): number {
   return WET_ROOM_TYPES.includes(type) ? WET_DOOR_MIN_M : ROOM_DOOR_MIN_M;
+}
+
+/** A new door between two rooms: the narrower room's minimum (70 cm into a bathroom, 80 cm otherwise); to the outside, the entrance's. */
+export function doorWidthFor(type: PlanRoom['type'], other: PlanRoom['type'] | null): number {
+  return other === null ? ENTRANCE_DOOR_M : Math.min(minDoorWidthM(type), minDoorWidthM(other));
+}
+
+// ---------------------------------------------------------------------------
+// Layout (the brief's part 2 and 3)
+// ---------------------------------------------------------------------------
+
+/** Free beside a double bed, each side: 60–70 cm. */
+export const BED_SIDE_FREE_M = 0.6;
+/** From the sofa to the screen: 2.5–3.5 m. */
+export const SOFA_TV_M = { min: 2.5, max: 3.5 } as const;
+/** The coffee table's edge from the sofa's front: 40–45 cm. */
+export const COFFEE_TABLE_GAP_M = 0.42;
+/** The TV's centre: seated eye level, 100–110 cm. */
+export const TV_CENTRE_M = 1.05;
+/** Width at a dining table per person. */
+export const DINING_SEAT_M = 0.6;
+/** Between a kitchen run and a counter facing it (an island): 120 cm. */
+export const FACING_COUNTERS_M = 1.2;
+/** Wall cabinets: 50–60 cm over the worktop. */
+export const WALL_UNIT_OVER_WORKTOP_M = 0.55;
+export const WALL_UNIT_BOTTOM_M = 0.9 + WALL_UNIT_OVER_WORKTOP_M;
+/** A wardrobe's depth: 60 cm, or a shallow one 35–40 cm. */
+export const WARDROBE_DEPTH_M = 0.6;
+export const SHALLOW_WARDROBE_DEPTH_M = 0.38;
+/** A shower: at least 80 × 80, preferably 90 × 90. */
+export const SHOWER_MIN_M = 0.8;
+/** A WC's centre from a side wall (or anything beside it): 40 cm. */
+export const WC_SIDE_M = 0.4;
+/** A basin's top: 85 cm (the check allows a few centimetres either way). */
+export const BASIN_TOP_M = 0.85;
+export const BASIN_TOP_TOLERANCE_M = 0.07;
+/** A bathroom's splash zone round a shower or bath, where no socket goes. */
+export const SPLASH_ZONE_M = 0.6;
+
+/** A floor footprint, four corners. */
+export type Quad = [Vec2, Vec2, Vec2, Vec2];
+
+/** A piece's footprint on the floor, turned with it. */
+export function footprintQuad(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Quad {
+  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
+  const right = { x: forward.z, z: -forward.x };
+  const w = item.size.width / 2;
+  const d = item.size.depth / 2;
+  const at = (r: number, f: number): Vec2 => ({ x: item.position.x + right.x * r + forward.x * f, z: item.position.z + right.z * r + forward.z * f });
+  return [at(-w, -d), at(w, -d), at(w, d), at(-w, d)];
+}
+
+/** Whether two convex outlines overlap by more than a centimetre (separating axes). */
+export function quadsOverlap(a: Vec2[], b: Vec2[]): boolean {
+  for (const poly of [a, b]) {
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i];
+      const q = poly[(i + 1) % poly.length];
+      const axis = { x: -(q.z - p.z), z: q.x - p.x };
+      const len = Math.hypot(axis.x, axis.z) || 1;
+      const project = (pts: Vec2[]) => pts.map((v) => (v.x * axis.x + v.z * axis.z) / len);
+      const pa = project(a);
+      const pb = project(b);
+      if (Math.max(...pa) <= Math.min(...pb) + 0.01 || Math.max(...pb) <= Math.min(...pa) + 0.01) return false;
+    }
+  }
+  return true;
+}
+
+/** How far from `from`, along the unit direction `dir`, the ray first meets the outline. */
+export function rayToPolygon(from: Vec2, dir: Vec2, polygon: Vec2[]): number | null {
+  let best: number | null = null;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    const denom = dir.x * ez - dir.z * ex;
+    if (Math.abs(denom) < 1e-9) continue;
+    const t = ((a.x - from.x) * ez - (a.z - from.z) * ex) / denom;
+    const u = ((a.x - from.x) * dir.z - (a.z - from.z) * dir.x) / denom;
+    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && (best == null || t < best)) best = t;
+  }
+  return best;
+}
+
+/**
+ * What one sees straight ahead coming through a doorway: a band as wide as the opening, from the
+ * opening into the room until the far wall. "Not facing the door" means not in it — the WC, ideally
+ * the bed, and the kitchen from the flat's entrance.
+ */
+export interface SightBand {
+  roomId: string;
+  quad: Quad;
+  /** The opening it is seen through. */
+  openingId: string;
+}
+
+export function doorSightBand(room: PlanRoom, opening: Opening): SightBand | null {
+  const edge = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
+  if (!edge) return null;
+  const centre = pointOnEdge(edge, opening.t);
+  const start = { x: centre.x + edge.inward.x * 0.01, z: centre.z + edge.inward.z * 0.01 };
+  const depth = Math.min(8, rayToPolygon(start, edge.inward, room.polygon) ?? 0);
+  if (depth < 0.3) return null;
+  const half = opening.widthM / 2;
+  const side = (s: number, d: number): Vec2 => ({ x: centre.x + edge.dir.x * s + edge.inward.x * d, z: centre.z + edge.dir.z * s + edge.inward.z * d });
+  return { roomId: room.id, openingId: opening.id, quad: [side(-half, 0), side(half, 0), side(half, depth), side(-half, depth)] };
+}
+
+/** The bands seen through every doorway of a room, from inside it. */
+export function roomSightBands(room: PlanRoom): SightBand[] {
+  return room.openings.filter(isPassage).flatMap((o) => doorSightBand(room, o) ?? []);
+}
+
+/**
+ * What one sees coming in through the flat's front door (a door on an outside wall that is not
+ * onto a balcony): the band in the room it opens into and, when that band ends at a doorway
+ * straight ahead, the band carried on through it into the next room.
+ */
+export function entranceSightBands(rooms: PlanRoom[]): SightBand[] {
+  const out: SightBand[] = [];
+  for (const room of rooms) {
+    if (room.type === 'balcony') continue;
+    for (const door of room.openings) {
+      if (door.kind !== 'door' || !door.exterior) continue;
+      const band = doorSightBand(room, door);
+      if (!band) continue;
+      out.push(band);
+      // A doorway on the far wall, inside the band: what is behind it is in sight too.
+      const far = [band.quad[2], band.quad[3]];
+      for (const ahead of room.openings) {
+        if (ahead === door || !isPassage(ahead) || !ahead.connectsToRoomId) continue;
+        const edge = roomEdges(room.polygon).find((e) => e.index === ahead.wallIndex);
+        if (!edge) continue;
+        const at = pointOnEdge(edge, ahead.t);
+        const nearFar = Math.min(...far.map((p) => Math.hypot(p.x - at.x, p.z - at.z)));
+        if (nearFar > door.widthM + ahead.widthM / 2) continue;
+        const next = rooms.find((r) => r.id === ahead.connectsToRoomId);
+        const twin = next?.openings.find((o) => o.connectsToRoomId === room.id && isPassage(o));
+        const onward = next && twin ? doorSightBand(next, twin) : null;
+        if (onward) out.push(onward);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * A room's niches: a stretch of wall set back from the room (the back of a recess) with walls
+ * either side of it coming out to the room — a recess 30 cm to 1 m deep and 60 cm to 3 m wide. A
+ * wardrobe goes into one first.
+ */
+export interface Niche {
+  /** The recess's back wall. */
+  back: PlanEdge;
+  depthM: number;
+  widthM: number;
+}
+
+export function roomNiches(room: PlanRoom): Niche[] {
+  const edges = roomEdges(room.polygon);
+  const n = edges.length;
+  const out: Niche[] = [];
+  if (n < 6) return out;
+  for (let i = 0; i < n; i++) {
+    const back = edges[i];
+    const before = edges[(i - 1 + n) % n];
+    const after = edges[(i + 1) % n];
+    if ([back, before, after].some((e) => isOpenEdge(room, e.index))) continue;
+    const dot = (a: Vec2, b: Vec2) => a.x * b.x + a.z * b.z;
+    // The sides run square to the back, the one before towards it, the one after away — the room
+    // in front of the back wall, the sides facing each other across the recess.
+    const square = Math.abs(dot(before.dir, back.dir)) < 0.1 && Math.abs(dot(after.dir, back.dir)) < 0.1;
+    const into = dot(before.dir, back.inward) < -0.9 && dot(after.dir, back.inward) > 0.9;
+    const facing = dot(before.inward, back.dir) > 0.9 && dot(after.inward, back.dir) < -0.9;
+    if (!square || !into || !facing) continue;
+    // …and where each side meets the room, the room's wall carries on the way the back runs (both
+    // corners turn out): that is what makes it a recess and not the end of a plain room or one
+    // arm of an L. (A recess in a room's corner, open on one side only, cannot be told from the
+    // arm of an L by its outline, so it is not taken for one.)
+    const beyondBefore = edges[(i - 2 + n) % n];
+    const beyondAfter = edges[(i + 2) % n];
+    if (dot(beyondBefore.dir, back.dir) < 0.9 || dot(beyondAfter.dir, back.dir) < 0.9) continue;
+    const depthM = Math.min(before.length, after.length);
+    if (depthM < 0.3 || depthM > 1 || back.length < 0.6 || back.length > 3) continue;
+    out.push({ back, depthM, widthM: back.length });
+  }
+  return out.sort((a, b) => b.widthM - a.widthM);
 }
 
 // ---------------------------------------------------------------------------

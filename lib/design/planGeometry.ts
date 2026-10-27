@@ -8,6 +8,7 @@
  * *left* of each directed edge and the inward normal of edge (dx, dz) is (-dz, dx).
  */
 
+import { doorWidthFor } from './rules';
 import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
 import { DEFAULT_CEILING_M, WET_ROOM_TYPES } from '@/lib/calculator/constants';
 import { effectiveSplit, partAt, roomPartsFor } from './studio';
@@ -568,7 +569,7 @@ export function deriveOpenings(rooms: PlanRoom[], wallThicknessM: number): void 
           a.type === 'hallway' ||
           b.type === 'hallway');
       const kind = shared.length > 2.4 && openPair ? 'archway' : 'door';
-      const width = kind === 'archway' ? Math.min(1.6, shared.length - 0.2) : DOOR_WIDTH_M;
+      const width = kind === 'archway' ? Math.min(1.6, shared.length - 0.2) : doorWidthFor(a.type, b.type);
 
       a.openings.push({
         id: `${a.id}-${b.id}-d`,

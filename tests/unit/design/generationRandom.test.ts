@@ -134,13 +134,13 @@ describe('a generated room’s floor and walls are drawn from the style’s kind
 describe('wall cabinets over the kitchen run', () => {
   const kitchen = rect('k', 'kitchen', 4, 3);
 
-  it('hang over the run, on its wall, their bottom at 1.5 m and as long as it', () => {
+  it('hang over the run, on its wall, their bottom 55 cm over the worktop and as long as it', () => {
     const items = layoutRoom(kitchen);
     const run = items.find((i) => i.slot === 'kitchen_run')!;
     const wall = items.find((i) => i.slot === 'kitchen_wall')!;
     expect(wall).toBeDefined();
     expect(wall.rotation).toBeCloseTo(run.rotation, 6);
-    expect(wall.elevationM).toBeCloseTo(1.5, 2);
+    expect(wall.elevationM).toBeCloseTo(1.45, 2);
     expect(wall.size.width).toBeCloseTo(run.size.width, 2);
     // Its back on the run's wall: the two backs are the same line.
     const back = (i: PlacedItem) => ({ x: i.position.x - Math.sin(i.rotation) * (i.size.depth / 2), z: i.position.z - Math.cos(i.rotation) * (i.size.depth / 2) });
