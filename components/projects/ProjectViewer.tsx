@@ -16,6 +16,7 @@ import { archetypeLabel } from '@/lib/design/catalog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatM2 } from '@/lib/utils';
+import { ruleNotes } from '@/components/design/ruleText';
 
 // Three.js stays out of the server render and out of every page that does not show a flat.
 const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) => m.Viewer3D), { ssr: false, loading: () => <Loading /> });
@@ -91,6 +92,8 @@ export function ProjectViewer({
         electrical,
         furniture: has3d,
         itemLabel: (item) => archetypeLabel(item.kind, locale),
+        notes: ruleNotes(t, locale, plan, items, electrical),
+        notesTitle: t.design.rulesTitle,
       });
     } catch {
       setError(v.pdfError);

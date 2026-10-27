@@ -43,7 +43,14 @@ export interface PlanPdfOptions {
   furniture?: boolean;
   /** What a piece of furniture is called on the sheet (its kind, in the reader's language). */
   itemLabel?: (item: PlacedItem) => string;
+  /** Lines listed under the sheet — the design rules' warnings (`ruleNotes`), with their heading. */
+  notes?: string[];
+  notesTitle?: string;
 }
+
+/** At most this many notes are listed; the rest are counted. */
+const MAX_NOTES = 10;
+const NOTE_LINE_PT = 12;
 
 /** Pixels of the board's own scale that the dimension chains take outside the walls, on each side. */
 const DIMENSIONS_GAP = 24;
@@ -62,6 +69,9 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
   const pageW = landscape ? A4.long : A4.short;
   const pageH = landscape ? A4.short : A4.long;
   const headerPt = 70;
+  // The notes take a strip along the foot of the sheet: a heading and a line each.
+  const notes = options.notes ?? [];
+  const footerPt = notes.length > 0 ? 24 + (Math.min(notes.length, MAX_NOTES) + (notes.length > MAX_NOTES ? 1 : 0)) * NOTE_LINE_PT : 0;
   // The chains of dimensions stand outside the walls: two rows of them below and to the
   // right, one above and to the left, all at print size.
   const dimPad = DIMENSIONS_GAP * SCALE * 3.2;
@@ -77,7 +87,7 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
   // Metres → canvas pixels, the plan centred under the title block with room for the
   // dimensions around it.
   const usableW = (pageW - MARGIN_PT * 2) * SCALE - dimPad * 2;
-  const usableH = (pageH - MARGIN_PT * 2 - headerPt) * SCALE - dimPad * 2;
+  const usableH = (pageH - MARGIN_PT * 2 - headerPt - footerPt) * SCALE - dimPad * 2;
   const scale = Math.min(usableW / Math.max(0.5, maxX - minX), usableH / Math.max(0.5, maxZ - minZ));
   const transform: Transform = {
     scale,
@@ -102,8 +112,47 @@ export async function planPdfBlob(plan: FloorPlan, options: PlanPdfOptions): Pro
     furniture: options.furniture ? { items: options.items ?? [], label: (item) => options.itemLabel?.(item) ?? '' } : undefined,
   });
 
+  if (notes.length > 0) drawNotes(ctx, notes, options.notesTitle ?? '', pageW, pageH, footerPt);
+
   const jpeg = await canvasJpeg(canvas);
   return pdfOfImage(jpeg, canvas.width, canvas.height, pageW, pageH);
+}
+
+/** The notes along the foot of the sheet, each one line, cut with an ellipsis where it runs past the margin. */
+function drawNotes(ctx: CanvasRenderingContext2D, notes: string[], title: string, pageW: number, pageH: number, footerPt: number): void {
+  const x = MARGIN_PT * SCALE;
+  const width = (pageW - MARGIN_PT * 2) * SCALE;
+  let y = (pageH - MARGIN_PT - footerPt + 14) * SCALE;
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.strokeStyle = '#D8D2C8';
+  ctx.lineWidth = Math.max(1, SCALE);
+  ctx.beginPath();
+  ctx.moveTo(x, y - 12 * SCALE);
+  ctx.lineTo(x + width, y - 12 * SCALE);
+  ctx.stroke();
+  ctx.fillStyle = '#1E1F23';
+  ctx.font = `600 ${Math.round(9.5 * SCALE)}px system-ui, sans-serif`;
+  ctx.fillText(title, x, y);
+  ctx.font = `400 ${Math.round(8.5 * SCALE)}px system-ui, sans-serif`;
+  ctx.fillStyle = '#4A463F';
+  const fit = (text: string) => {
+    if (ctx.measureText(text).width <= width) return text;
+    let cut = text;
+    while (cut.length > 1 && ctx.measureText(`${cut}…`).width > width) cut = cut.slice(0, -1);
+    return `${cut}…`;
+  };
+  const shown = notes.slice(0, MAX_NOTES);
+  for (const note of shown) {
+    y += NOTE_LINE_PT * SCALE;
+    ctx.fillText(fit(`• ${note}`), x, y);
+  }
+  if (notes.length > shown.length) {
+    y += NOTE_LINE_PT * SCALE;
+    ctx.fillText(`+ ${notes.length - shown.length}`, x, y);
+  }
+  ctx.restore();
 }
 
 /** Saves the plan to the person's downloads. */

@@ -223,3 +223,20 @@ describe('two fittings may not share the same piece of wall', () => {
     expect(fittingClashes(room, on('b', 0.53, 1.8, big), [on('a', 0.5, 1.8, big)])).not.toBeNull();
   });
 });
+
+describe('a lamp’s colour temperature', () => {
+  const lamp = (id: number, cct: number | null, price = 50): import('@/lib/design/matcher').CatalogProduct =>
+    ({ id, nameKa: `l${id}`, slug: `l${id}`, brand: null, categorySlug: 'lighting', pricePerUnit: price, unit: 'piece', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: 'light_ceiling', model3dUrl: `/models/fixtures/l${id}.glb`, widthCm: 30, depthCm: 30, heightCm: 10, styleTags: [], tags: [], isFeatured: false, specs: cct ? { cct } : null, coveragePerUnit: null, store: null }) as unknown as import('@/lib/design/matcher').CatalogProduct;
+
+  it('prefers a lamp in the room’s range: warm in a bedroom, neutral in a kitchen', async () => {
+    const { fixtureCandidates, withFixtureProducts } = await import('@/lib/design/electrical');
+    const catalog = [lamp(1, 4000, 40), lamp(2, 2700, 60), lamp(3, null, 30)];
+    expect(fixtureCandidates('light_ceiling', catalog, 'modern', 'bedroom').map((p) => p.id)).toEqual([2, 3, 1]);
+    expect(fixtureCandidates('light_ceiling', catalog, 'modern', 'kitchen').map((p) => p.id)).toEqual([1, 3, 2]);
+    // Without a room, the cheapest as before.
+    expect(fixtureCandidates('light_ceiling', catalog, 'modern').map((p) => p.id)).toEqual([3, 1, 2]);
+    const rooms = plan().rooms;
+    const light: ElectricalPoint = { id: 'l', roomId: 'kitchen', kind: 'light_ceiling', position: P(7, 5), elevationM: 2.7, wallIndex: null, t: null, on: true, origin: 'generated' };
+    expect(withFixtureProducts([light], catalog, 'modern', rooms)[0].product?.productId).toBe(1);
+  });
+});

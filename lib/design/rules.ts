@@ -127,6 +127,31 @@ export const SHAFT_MAX_DISTANCE_M = 2;
 export const SHAFT_FIXTURES: SlotKind[] = ['toilet', 'washer', 'kitchen_run'];
 
 // ---------------------------------------------------------------------------
+// Light
+// ---------------------------------------------------------------------------
+
+/** Living areas and bedrooms at 2700–3000 K; the kitchen and the workspace at 3500–4000 K. */
+export const WARM_LIGHT_K = { min: 2700, max: 3000 } as const;
+export const NEUTRAL_LIGHT_K = { min: 3500, max: 4000 } as const;
+
+/** The colour temperature a room is lit at, and the range a lamp for it should be in. */
+export function roomLightK(type: PlanRoom['type']): { k: number; min: number; max: number } {
+  if (type === 'kitchen' || type === 'office') return { k: 3800, ...NEUTRAL_LIGHT_K };
+  // A bathroom is not in the brief; a mirror is lit for the face, a little cooler than a bedroom.
+  if (type === 'bathroom' || type === 'toilet') return { k: 3500, min: 3000, max: 4000 };
+  return { k: 2850, ...WARM_LIGHT_K };
+}
+
+/** A light's colour for its temperature, as the 3D view draws a lamp's glow and its light. */
+export function kelvinHex(k: number): string {
+  if (k <= 2800) return '#FFD3A3';
+  if (k <= 3100) return '#FFDCB4';
+  if (k <= 3600) return '#FFE8CC';
+  if (k <= 4200) return '#FFF1DF';
+  return '#F6F7FF';
+}
+
+// ---------------------------------------------------------------------------
 // Ceilings
 // ---------------------------------------------------------------------------
 

@@ -341,3 +341,37 @@ function nearestWall(edges: PlanEdge[], point: Vec2): { edge: PlanEdge; distance
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * A warning about a piece in plain English, for the AI's check of the flat (`aiReview`'s
+ * PROBLEMS); null for one that is not about a piece the check can move or swap. The person reads
+ * the warnings in their own language (`components/design/ruleText.ts`).
+ */
+export function ruleProblem(v: RuleViolation): string | null {
+  const cm = (m: number | undefined) => Math.round((m ?? 0) * 100);
+  switch (v.code) {
+    case 'radiator_blocked':
+      return 'stands in front of a radiator (keep 30 cm clear in front of it)';
+    case 'door_swing_blocked':
+      return "is in a door's swing";
+    case 'wc_faces_door':
+      return 'is what the door opens onto (the rules: on opening the door one sees the basin, the shower or the bath, not the WC)';
+    case 'kitchen_faces_entrance':
+      return "is in sight straight from the flat's front door (the rules: not facing the entrance)";
+    case 'bed_side_tight':
+      return `leaves only ${cm(v.valueM)} cm beside it (the rules: 60–70 cm each side of a double bed)`;
+    case 'sofa_tv_distance':
+      return `is ${(v.valueM ?? 0).toFixed(1)} m from the TV (the rules: 2.5–3.5 m)`;
+    case 'counters_too_close':
+      return `is ${cm(v.valueM)} cm from the kitchen run (the rules: 120 cm between facing counters)`;
+    case 'shower_too_small':
+      return `is ${cm(v.valueM)} cm across (the rules: at least 80 × 80, better 90 × 90)`;
+    case 'wc_side_tight':
+      return `has ${cm(v.valueM)} cm from its centre to the side (the rules: 40 cm)`;
+    case 'basin_height':
+      return `has its top at ${cm(v.valueM)} cm (the rules: 85 cm)`;
+    default:
+      return null;
+  }
+}
+

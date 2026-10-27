@@ -126,7 +126,11 @@ the oven and the hob's ignition, the hood's at 215 cm over the hob, one at 170 c
 cabinets for the under-cabinet light, the light itself, and the fridge's at 40 cm; a desk's
 sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV.
 A two-way switch is bought as its own product kind (`switch_two_way`) — an estimate until the
-catalogue has one — and drawn with the switch's models. The calculator's board places the standard ones — it has no
+catalogue has one — and drawn with the switch's models. **A lamp's colour temperature**: a lamp
+product whose `specs.cct` is in its room's range (warm 2700–3000 K in living rooms and bedrooms,
+neutral 3500–4000 K in kitchens and offices — `roomLightK`) goes before one of the same style
+outside it, one that does not say between (`fixtureCandidates(kind, catalog, style, roomType)`,
+`withFixtureProducts(…, rooms)`). The calculator's board places the standard ones — it has no
 furniture — so a design of the same flat has exactly the calculator's fittings plus what its
 furniture brings ([../calculator.md](../calculator.md)). **A room the person has wired by hand is
 kept whole** (`wiredByHand`): every point in a room holding one that is not `'generated'` —

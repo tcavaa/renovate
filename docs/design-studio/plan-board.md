@@ -453,7 +453,9 @@ retyped rooms).
 
 ## The plan as a PDF
 
-**The plan leaves as a PDF** (`lib/design/planPdfExport.ts`). The board already knows how to
+**The plan leaves as a PDF** (`lib/design/planPdfExport.ts`) — with the design rules' warnings
+listed along the foot of the sheet (`PlanPdfOptions.notes`, from `ruleNotes`: ten at most, the rest
+counted; the design summary, the calculator's summary and the project page pass them). The board already knows how to
 draw a plan — `components/plan/draw` is plain canvas over plain data — so the page is that
 drawing (`drawPlanSheet` in `components/plan/sheet.ts`, which the project cards draw with too) at 200 dpi on an A4 sheet with a title block, and the PDF around it is written by
 hand. The sheet carries a heading large enough to be read first with a subtitle under it

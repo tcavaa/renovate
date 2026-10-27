@@ -16,6 +16,7 @@ import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { styleAffinity } from './styles';
+import { guideFit } from './styleGuide';
 import { weightedOrder, weightedPick, type Rng } from './random';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
@@ -95,7 +96,8 @@ const STYLE_WEIGHT = [1, 3, 10];
  * placed in another room a third — never zero, so every product with a model can appear.
  */
 export function generationWeight(product: CatalogProduct, styleId: StyleId, level: BudgetLevel, slot: PlacedItem | undefined, usedElsewhere: boolean): number {
-  let weight = STYLE_WEIGHT[styleAffinity(styleId, product.styleTags, product.tags)] ?? 1;
+  // The style's tags first, then how well its colours and materials fit the style's guide (`guideFit`).
+  let weight = (STYLE_WEIGHT[styleAffinity(styleId, product.styleTags, product.tags)] ?? 1) * guideFit(product, styleId);
   const price = product.pricePerUnit;
   const suits = level === 'value' ? 1 / (1 + price / 1500) : level === 'premium' ? Math.min(1, price / 3000) : 1 / (1 + Math.abs(price - 1200) / 1200);
   weight *= 0.5 + suits;

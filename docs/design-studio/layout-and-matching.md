@@ -76,7 +76,9 @@ deterministic, so a person who swaps one product does not have the rest of the f
   always laid out.
 - **Products** (`MatchOptions.rng`, `generationWeight`): each slot's product is drawn from
   **every** candidate of its kind with a model — the style's own ten times as likely as an
-  untagged one (a kindred tag three times), a price that suits the budget level up to half again
+  untagged one (a kindred tag three times), one whose colour is of the style guide's palette a
+  third more and whose name or tags carry one of its materials a quarter more (`guideFit`,
+  `lib/design/styleGuide.ts`), a price that suits the budget level up to half again
   as likely, one much wider than its slot a seventh, one already placed in another room a third.
   None is ever zero: every product with a model can appear in a generated flat (`pnpm
   audit:studio-products` lists, per kind, how many there are and which rooms generate them). A

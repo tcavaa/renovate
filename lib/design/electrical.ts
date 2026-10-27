@@ -39,6 +39,7 @@ import {
   TV_SOCKET_M,
   TWO_WAY_CORRIDOR_M,
   WALL_UNIT_BOTTOM_M,
+  roomLightK,
   underCeiling,
   kitchenRunZones,
 } from './rules';
@@ -544,11 +545,29 @@ export function isFixtureProductKind(kind: string | null | undefined): boolean {
   return !!kind && FIXTURE_PRODUCT_KINDS.includes(kind);
 }
 
-/** The catalogue's products for a kind of point, the style's first, the cheapest next. */
-export function fixtureCandidates(kind: ElectricalKind, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+/**
+ * The catalogue's products for a kind of point, the style's first, the cheapest next. A lamp for a
+ * room goes before one of the same style whose colour temperature (`specs.cct`) is outside the
+ * room's range (`roomLightK`: warm where people live, neutral in a kitchen or an office); a lamp
+ * that does not say comes between.
+ */
+export function fixtureCandidates(kind: ElectricalKind, catalog: CatalogProduct[], styleId: StyleId, roomType?: PlanRoom['type'] | null): CatalogProduct[] {
   const wanted = FIXTURE_PRODUCT_KIND[kind];
   const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 1 : 0);
-  return catalog.filter((p) => !!p.model3dUrl && p.model3dKind === wanted).sort((a, b) => affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
+  const range = roomType && ELECTRICAL_KINDS[kind].light ? roomLightK(roomType) : null;
+  const light = (p: CatalogProduct) => {
+    if (!range) return 0;
+    const cct = lampCct(p);
+    return cct == null ? 0 : cct >= range.min && cct <= range.max ? 1 : -1;
+  };
+  return catalog.filter((p) => !!p.model3dUrl && p.model3dKind === wanted).sort((a, b) => affinity(b) - affinity(a) || light(b) - light(a) || a.pricePerUnit - b.pricePerUnit);
+}
+
+/** A lamp's colour temperature in kelvin, when its specs say (`specs.cct`). */
+export function lampCct(product: Pick<CatalogProduct, 'specs'>): number | null {
+  const specs = product.specs;
+  const cct = specs && typeof specs === 'object' ? (specs as { cct?: unknown }).cct : null;
+  return typeof cct === 'number' && cct > 1000 ? cct : null;
 }
 
 /** How many of the product one point needs: a double socket is two plates; a strip is bought by the metre. */
@@ -573,10 +592,11 @@ export function withFixtureProduct(point: ElectricalPoint, product: CatalogProdu
  * ones that have one (a socket that became a double needs two). A product that is not of
  * the point's kind any more (the kind was changed) is replaced.
  */
-export function withFixtureProducts(points: ElectricalPoint[], catalog: CatalogProduct[], styleId: StyleId): ElectricalPoint[] {
+export function withFixtureProducts(points: ElectricalPoint[], catalog: CatalogProduct[], styleId: StyleId, rooms: readonly PlanRoom[] = []): ElectricalPoint[] {
   if (catalog.length === 0) return points;
+  const typeOf = new Map(rooms.map((r) => [r.id, r.type]));
   return points.map((point) => {
-    const candidates = fixtureCandidates(point.kind, catalog, styleId);
+    const candidates = fixtureCandidates(point.kind, catalog, styleId, typeOf.get(point.roomId));
     const current = point.product ? candidates.find((c) => c.id === point.product?.productId) : undefined;
     const chosen = current ?? candidates[0] ?? null;
     if (!chosen) return point.product ? withFixtureProduct(point, null) : point;

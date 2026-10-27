@@ -23,6 +23,8 @@ import { tightSpotsByItem } from './clearance';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom, StyleId } from './types';
 import { MissingApiKeyError } from './aiPlan';
+import { ruleProblem, ruleViolations } from './ruleChecks';
+import { STYLE_GUIDES } from './styleGuide';
 
 export type AiReviewAction = 'replace' | 'remove' | 'to_wall' | 'move_to_wall' | 'remove_decor' | 'decor_to_wall';
 
@@ -173,6 +175,11 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
       }
     }
   }
+  // What the owner's design rules say about each piece (a WC facing the door, a squeezed bed…).
+  for (const violation of ruleViolations(plan, items)) {
+    const text = violation.itemId ? ruleProblem(violation) : null;
+    if (text && violation.itemId) say(violation.itemId, text);
+  }
   return out;
 }
 
@@ -261,7 +268,7 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
   }
 
   const text = [
-    `Style: ${styleId}. Write every reason and note in ${request.locale === 'ka' ? 'Georgian' : request.locale === 'ru' ? 'Russian' : 'English'}.`,
+    `Style: ${styleId} — ${STYLE_GUIDES[styleId].look}; palette ${STYLE_GUIDES[styleId].palette}; materials ${STYLE_GUIDES[styleId].materials}. Write every reason and note in ${request.locale === 'ka' ? 'Georgian' : request.locale === 'ru' ? 'Russian' : 'English'}.`,
     `\n# The furnished flat${lines.join('\n')}`,
     `\n# Alternative products (id | name | width×depth×height | price | style tags | colour)\n${[...offered.values()].map(productLine).join('\n')}`,
   ].join('\n');
@@ -276,6 +283,7 @@ Walk through every room as a designer would and fix what is wrong:
 - a piece on the wrong wall (a kitchen across a window, a wardrobe blocking a passage) — move it to a better wall;
 - a piece that clashes with the style or the room's other pieces, or a set that does not belong together;
 - a piece the room is better without (a second storage piece blocking a passage, a plant crowding a small bathroom);
+- what breaks the owner's design rules — the PROBLEMS name the rule (a WC the door opens onto, a kitchen facing the entrance, a squeezed bed, the TV too near or too far): move the piece to a better wall or swap it for one that fits;
 - built-in decor in the wrong place: a niche wall behind a bath or a washing machine, a backsplash away from the kitchen run, decor a piece stands in — move it to another wall or take it out.
 
 Actions (one per fix; "target" is the piece's or the decor's id as listed):

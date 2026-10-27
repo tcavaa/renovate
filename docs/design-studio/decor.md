@@ -217,7 +217,14 @@ the project opens furnished afterwards.
    the style's own and the well-priced more likely (`generationWeight`, weighted sampling without
    replacement), any of them possible — and so are the finishes; the decor materials and each
    reference's concepts come in a random order; and the run gets a **direction**, a palette and
-   mood within the style drawn from `DIRECTIONS` (six per style). What the flat's saved design
+   mood within the style drawn from `DIRECTIONS` (six per style). The brief also carries the
+   owner's **style guide** (`lib/design/styleGuide.ts`: the style's look, palette, materials,
+   furniture, kitchen, lighting and walls) and the flat's **sub-style** — the one the style test's
+   answers point to (`subStyleFor`: loft or concrete minimal for industrial, contemporary or
+   mid-century for modern, traditional, French country, farmhouse or bohemian for vintage), drawn
+   when the plate was picked directly — and the system prompt the design rules a designer chooses
+   by (palette of 2–3 colours and an accent, light in three layers at the room's colour
+   temperature, curtains from the ceiling, the sizes of a shower, a basin, a wardrobe). What the flat's saved design
    already uses is drawn far less often (`PREVIOUS_WEIGHT`) and named in the brief, so generating
    again gives a new design. The prompt tells the designer the lists are random and unordered.
    Measured on two flats in one style: 10 of 28 products shared, no finish shared; one flat
@@ -273,7 +280,10 @@ the project opens furnished afterwards.
    in each other or through a wall, a piece standing off the wall it backs onto, one deeper than wide
    where that kind never is (a model turned sideways or the wrong product), a piece hung into what
    stands under it, a mirror not over the basin, a standing floor mirror in a bathroom, a nightstand
-   away from the bed's head, a passage too tight (`tightSpotsByItem`). Each piece is offered five
+   away from the bed's head, a passage too tight (`tightSpotsByItem`), and what the owner's design
+   rules say about a piece (`ruleViolations` worded by `ruleProblem`: a WC the door opens onto, a
+   kitchen facing the entrance, a squeezed bed or WC, the TV too near or too far, a blocked
+   radiator, a small shower, a basin's height). The brief names the style's look, palette and materials. Each piece is offered five
    alternatives of its kind that fit the room, the style's own likelier and — when the piece is in
    trouble — the ones no bigger than it six times likelier. One call (same model and settings as the
    proposal, `REVIEW_SCHEMA`, let go after `REVIEW_DEADLINE_MS` — 200 s) answers per room a note and fixes: `replace` with one of that piece's

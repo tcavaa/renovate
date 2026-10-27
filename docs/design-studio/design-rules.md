@@ -14,7 +14,7 @@ the boiler, water) · [layout-and-matching.md](layout-and-matching.md) (the layo
 
 ## Status
 
-The brief is built in five stages, each tested, documented and committed on its own:
+The brief was built in five stages, each tested, documented and committed on its own:
 
 | Stage | What | State |
 |---|---|---|
@@ -22,7 +22,7 @@ The brief is built in five stages, each tested, documented and committed on its 
 | 2 | hot and cold water: two point kinds, a pair at every fixture; the sewer as the plumbing shaft | **built** |
 | 3 | layout rules: WC not facing the door, bed out of the door's sight, wardrobe in a niche, kitchen out of the entrance's sight, the practical sizes, door widths, warnings in the studio | **built** |
 | 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | **built** |
-| 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | planned |
+| 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | **built** |
 
 ## The decisions (owner, 28 Oct 2026)
 
@@ -84,17 +84,23 @@ doors take these widths), the kitchen triangle, 120 cm between facing counters, 
 over the worktop, 60–70 cm beside a bed, wardrobes 60 (or 35–40) cm deep, sofa to TV 2.5–3.5 m,
 coffee table 42 cm from the sofa, TV centre 105 cm, dining 75 cm high with 60 cm a person, a
 shower at least 80×80, the WC's centre 40 cm from a side wall, the basin's top 85 cm, bathroom
-sockets IP44 and out of the splash zones. *Stage 5*: light at 2700–3000 K in living rooms and
-bedrooms, 3500–4000 K in kitchens and offices (the 3D glow, and lamps with a colour temperature
-preferred where it matches).
+sockets IP44 and out of the splash zones. Light at 2700–3000 K in living rooms and bedrooms,
+3500–4000 K in kitchens and offices (`roomLightK`: the 3D night light and the fittings' glow, and
+lamps whose `specs.cct` is in range preferred — [technical-and-fittings.md](technical-and-fittings.md)).
 
-**Part 4 — styles** (*stage 5*): the app's four styles are the brief's four. Each gets the brief's
-guide (palette, materials, lighting, furniture, kitchen, walls, and its sub-styles); the AI
-designer follows it, the matcher favours products whose colours and materials fit, and the style
-test's answers choose a sub-style as the flat's direction.
+**Part 4 — styles** (`lib/design/styleGuide.ts`): the app's four styles are the brief's four. Each
+has the brief's guide (`STYLE_GUIDES`: look, palette, materials, lighting, furniture, kitchen,
+walls, the colour families of its palette, its material words, and its sub-styles — Scandinavian
+one; industrial urban, loft and concrete minimal; modern contemporary and mid-century; vintage
+traditional, French country, farmhouse and bohemian). The AI designer is given the guide and the
+flat's sub-style (`subStyleFor`: the one the style test's answers point to by each sub-style's
+`cues`, drawn when the plate was picked), the AI's check the style's look; the matcher weights a
+product up for a colour of the palette and a material of the style (`guideFit`).
 
-**Where the warnings show**: the technical step's hints (technical ones), a per-room list in the
-studio (stage 3), the AI's room check (stage 5) and the plan PDF (stage 5).
+**Where the warnings show**: the technical step's hints (the building's, `TECHNICAL_RULES`), the
+studio's pill and list for the room in focus (`RuleWarnings`), the AI's room check (each piece's,
+in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of the plan PDF
+(`ruleNotes`).
 
 ## The rules module (`lib/design/rules.ts`)
 
@@ -179,7 +185,11 @@ drop as the home state, the mode, the choice and the works change; a box's heigh
 card); `wcBox.test.ts` (the box's place, size, materials and quantities, the whole wall, the WC
 in front of it and followed by it, not the AI's); `boilerCabinet.test.ts` (size, façade, the
 material chosen, taken off, the budget line); `tests/integration/save-routes.test.ts` (a forged
-cabinet price repriced by the server's façade).
+cabinet price repriced by the server's façade); `styleGuide.test.ts` (the guides, the sub-style
+from the answers or drawn, the text for the model, `guideFit`); `decor.test.ts` (the guide and
+sub-style in the designer's brief); `nightLights.test.ts` (the light's colour by room);
+`electrical.test.ts` (a lamp in the room's range first); `rules.test.ts` (the PDF's notes, the
+AI check's problems).
 
 ## Known gaps
 
@@ -199,7 +209,7 @@ cabinet price repriced by the server's façade).
 - A recess in a room's corner (open on one side) is not found as a niche.
 - Circulation (100–150 cm paths) is the existing tight-passage warning (`clearance.ts`), not a
   check of its own; IP44 sockets are not a product attribute, only the splash-zone warning.
-- The warnings are not yet on the plan PDF nor given to the AI's room check (stage 5).
 - The boiler's cabinet is not drawn in 3D; its materials need `pnpm models:seed` (and migration
   `0010_boiler_cabinet`, which a deployment runs) before a boiler gets one.
-- Stage 5 above.
+- The catalogue's lamps carry no `specs.cct` yet, so the lamp preference waits for products that
+  say; the sub-style is not recorded in `scene.generation`.

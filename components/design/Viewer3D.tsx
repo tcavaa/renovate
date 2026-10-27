@@ -1785,7 +1785,7 @@ function SceneContent({
             intensity={light.intensity * (light.standIn ? daylight.interiorIntensity : Math.max(0.6, daylight.interiorIntensity))}
             distance={light.distance}
             decay={1.5}
-            color={style.lighting.lamp}
+            color={light.color ?? style.lighting.lamp}
           />
         ))}
 

@@ -31,7 +31,7 @@ import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
 import { technicalElevation } from '@/lib/design/technical';
-import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, underCeiling } from '@/lib/design/rules';
+import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, kelvinHex, roomLightK, underCeiling } from '@/lib/design/rules';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -209,7 +209,7 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
       .then((model) => {
         if (!piece.parent) return;
         if (ghost) ghostModel(model, ghost);
-        else if (info.light && on) litModel(model, materials.style.lighting.lamp);
+        else if (info.light && on) litModel(model, roomLightHex(room));
         prepare?.(model);
         // Several plates of one point are one instanced run (`instancing.ts`).
         const drawn = placements ? instanced(model, placements) : model;
@@ -537,7 +537,7 @@ export function nightLights(plan: FloorPlan, points: ElectricalPoint[], rooms?: 
       const total = lights.reduce((sum, light) => sum + light.intensity, 0);
       const position = [0, 1, 2].map((axis) => lights.reduce((sum, light) => sum + light.position[axis] * light.intensity, 0) / total) as [number, number, number];
       const distance = Math.max(...lights.map((light) => light.distance + Math.hypot(light.position[0] - position[0], light.position[1] - position[1], light.position[2] - position[2])));
-      return { id: room.id, position, intensity: total, distance, standIn: false };
+      return { id: room.id, position, intensity: total, distance, standIn: false, color: roomLightHex(room) };
     });
 }
 
@@ -546,7 +546,12 @@ function standInLamp(room: PlanRoom): NightLight {
   const centre = polygonCentroid(room.polygon);
   const bounds = polygonBounds(room.polygon);
   const span = Math.max(bounds.width, bounds.depth, 2);
-  return { id: room.id, position: [centre.x, Math.max(1.8, room.heightM - 0.35), centre.z], distance: span * 1.6, intensity: 6 + room.areaM2 * 0.9, standIn: true };
+  return { id: room.id, position: [centre.x, Math.max(1.8, room.heightM - 0.35), centre.z], distance: span * 1.6, intensity: 6 + room.areaM2 * 0.9, standIn: true, color: roomLightHex(room) };
+}
+
+/** A room's light colour by the design rules: warm where people live and sleep, neutral where they cook and work (`roomLightK`). */
+export function roomLightHex(room: Pick<PlanRoom, 'type'>): string {
+  return kelvinHex(roomLightK(room.type).k);
 }
 
 /** A flat patch of floor from a plan polygon, facing up; its UVs are the plan's metres. */

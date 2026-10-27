@@ -5,8 +5,8 @@
 
 import { fill } from '@/lib/admin/list';
 import { archetypeLabel } from '@/lib/design/catalog';
-import type { RuleViolation } from '@/lib/design/ruleChecks';
-import type { FloorPlan, PlacedItem } from '@/lib/design/types';
+import { ruleViolations, type RuleViolation } from '@/lib/design/ruleChecks';
+import type { ElectricalPoint, FloorPlan, PlacedItem } from '@/lib/design/types';
 import type { Dictionary, Locale } from '@/lib/i18n';
 
 export function ruleText(t: Dictionary, locale: Locale, plan: FloorPlan, items: PlacedItem[], v: RuleViolation): string {
@@ -47,4 +47,9 @@ export function ruleText(t: Dictionary, locale: Locale, plan: FloorPlan, items: 
     case 'socket_in_splash':
       return fill(t.build.sgSocketInSplash, { room, item });
   }
+}
+
+/** Every warning of the flat, in the person's words — what the plan PDF lists under the sheet. */
+export function ruleNotes(t: Dictionary, locale: Locale, plan: FloorPlan, items: PlacedItem[], electrical: ElectricalPoint[] = []): string[] {
+  return ruleViolations(plan, items, electrical).map((v) => ruleText(t, locale, plan, items, v));
 }

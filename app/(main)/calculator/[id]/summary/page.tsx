@@ -41,6 +41,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { basketLabels, homeStateLabel } from '@/lib/i18n/labels';
 import { formatGEL, formatM2, TIME_ZONE } from '@/lib/utils';
 import type { DesignScene } from '@/lib/design/types';
+import { ruleNotes } from '@/components/design/ruleText';
 
 export default function SummaryPage() {
   const router = useRouter();
@@ -178,6 +179,8 @@ export default function SummaryPage() {
         unitM2: ka.units.m2,
         unitM: ka.units.m,
         electrical: boardElectrical,
+        notes: ruleNotes(ka, 'ka', boardPlan, [], boardElectrical),
+        notesTitle: ka.design.rulesTitle,
       });
     } catch (e) {
       setError((e as Error).message);

@@ -344,4 +344,10 @@ describe('every generation is offered a fresh draw', () => {
     expect(text).toMatch(/Direction for this flat: /);
     expect(text).toMatch(/previous design used products 1001 and decor families slats/);
   });
+
+  it('gives the designer the style’s guide and the sub-style the style test points to', () => {
+    const { text } = buildBrief({ plan, styleId: 'industrial', locale: 'ka', catalog, seed: 3, styleProfile: { answers: { palette: 'brick', atmosphere: 'loft' }, scores: { modern: 0, scandinavian: 0, industrial: 4, vintage: 0 } } });
+    expect(text).toMatch(/Style guide — industrial/);
+    expect(text).toMatch(/This flat's sub-style: Loft/);
+  });
 });

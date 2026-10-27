@@ -26,6 +26,7 @@ import { decorMaterialKind, decorSpecs, isDecorMaterial } from './decor/material
 import type { DecorFamily, DecorParams, DecorSlot, FloorPlan, PlanRoom, StyleId, StyleProfile } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { MissingApiKeyError } from './aiPlan';
+import { styleGuideText, subStyleFor } from './styleGuide';
 
 /** The model: the same one that reads plans. A constant, chosen by evaluation, never a guess in code. */
 export const DESIGN_MODEL = 'claude-opus-5-5';
@@ -236,9 +237,12 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
     : '';
 
   const profile = request.styleProfile ? `Style test answers: ${JSON.stringify(request.styleProfile.answers)}.` : '';
+  // The owner's style guide and the sub-style the answers point to (drawn when there are none).
+  const guide = styleGuideText(styleId, subStyleFor(styleId, request.styleProfile, rng));
   const text = [
     `Style: ${styleId}. ${profile} Furniture budget: ${request.budgetGel ? `${request.budgetGel} GEL for the whole flat` : 'not set (mid-range)'}. Write every note and concept in ${request.locale === 'ka' ? 'Georgian' : request.locale === 'ru' ? 'Russian' : 'English'}.`,
-    `Direction for this flat: ${direction}. Interpret it within the style through the products, the finishes and the decor.${previous}`,
+    guide,
+    `Direction for this flat: ${direction}. Interpret it within the style and its sub-style through the products, the finishes and the decor.${previous}`,
     `\n# The flat${lines.join('\n')}`,
     `\n# Products offered (id | name | W×D×H | price | styles | colour)\n${productList}`,
     `\n# Decor materials (id | kind | name | price per unit | colour | tintable)\n${materialList}`,
@@ -260,6 +264,8 @@ Everything you choose is real and purchasable: you pick products and materials o
 ## Furniture and finishes
 - For each room, choose one product per piece listed under "Pieces the engine lays out", from that piece's ids. Leave a piece out to let the engine choose. The lists are a fresh random draw from the catalogue for every flat and in no order: consider every id, not the first ones, and follow the flat's direction — no two flats should come out alike. Pieces in one room should belong together (materials, colours, scale); keep a palette of at most 3–4 colour families per room, consistent across the flat, and respect the budget (mid-range when none is set).
 - Choose one floor and one wall finish per room from its own lists (0 keeps the style's default). Keep floors continuous through living spaces; calmer walls in bedrooms; wet rooms only from their wet lists.
+- Follow the style guide and the flat's sub-style (given with the flat): its palette, materials, furniture, kitchen, lighting and walls.
+- The owner's design rules: one palette of 2–3 main colours plus one accent, repeating materials across rooms for continuity; light in three layers (ambient, task, accent), warm (2700–3000 K) in living rooms and bedrooms, neutral (3500–4000 K) in kitchens and offices; curtains floor-length from just under the ceiling; a shower at least 80×80 cm (better 90×90), a basin's top at 85 cm, a wardrobe 60 cm deep (35–40 cm when shallow); hidden storage in the entrance, the kitchen and the bedrooms. The engine already keeps the WC out of the door's sight, the bed preferably too, the kitchen out of the entrance's, and the sizes between pieces.
 
 ## Custom wall decor
 - Realise concepts from the decor references for the style. Use 1–2 pieces in living rooms, bedrooms, offices and studios; at most one in a hallway, kitchen or bathroom; none is fine (storage, closets, toilets, balconies usually get none). Never more than 3 in a room, never two on the same stretch of wall.

@@ -219,7 +219,10 @@ Each of these cost real debugging time. Don't undo them.
     its light at zero, so a switch changes an intensity and never the count. A room with no light
     fittings gets none; with no light on anywhere every room in view is lent a lamp under its
     ceiling (`standIn`, dimmed with the evening). The fittings that are on still glow where they
-    hang (`litModel`). On the sample flat (12 lights on in 7 rooms) the night's lighting went from
+    hang (`litModel`). Its colour is the room's (`roomLightHex`, the design rules' `roomLightK`):
+    warm (2850 K) in living rooms and bedrooms, neutral (3800 K) in kitchens and offices, 3500 K in
+    a bathroom — the light and the fittings' glow alike, where both used to be the style's lamp
+    colour. On the sample flat (12 lights on in 7 rooms) the night's lighting went from
     ≈ 2.4 to ≈ 1.0 ms of a 2520 × 1361 render on an M4; the first switch compiles only that lamp's
     own unlit materials (3 programs), later ones nothing.
 26. **The shadow map is drawn when the scene changes, not when the camera moves.**

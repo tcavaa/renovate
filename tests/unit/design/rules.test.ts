@@ -215,3 +215,25 @@ describe('the size checks', () => {
     expect(codes(planOf([apart]), [])).not.toContain('door_swing_clash');
   });
 });
+
+describe('the warnings in words', () => {
+  it('lists the flat’s warnings for the plan PDF, and the pieces’ for the AI’s check', async () => {
+    const { ruleNotes } = await import('@/components/design/ruleText');
+    const { ruleProblem } = await import('@/lib/design/ruleChecks');
+    const { ka } = await import('@/lib/i18n/ka');
+    const room = { ...rect('w', 'toilet', 0, 0, 1.2, 1.8), openings: [{ id: 'd', kind: 'door' as const, wallIndex: 2, t: 0.5, widthM: 0.7, heightM: 2.05, sillM: 0, roomId: 'w', exterior: false }] };
+    const wc: PlacedItem = { id: 't', slot: 'toilet', kind: 'toilet', roomId: 'w', position: P(0.6, 0.34), rotation: 0, elevationM: 0, size: { width: 0.4, depth: 0.68, height: 0.82 }, product: null };
+    const notes = ruleNotes(ka, 'ka', planOf([room]), [wc]);
+    expect(notes.some((n) => n.includes('უნიტაზი'))).toBe(true);
+    const [facing] = ruleViolations(planOf([room]), [wc]).filter((v) => v.code === 'wc_faces_door');
+    expect(ruleProblem(facing)).toMatch(/door opens onto/);
+    expect(ruleProblem({ code: 'door_too_narrow', roomId: 'w' })).toBeNull();
+  });
+
+  it('tells the AI’s check what the rules say about a piece', async () => {
+    const { reviewFindings } = await import('@/lib/design/aiReview');
+    const room = { ...rect('w', 'toilet', 0, 0, 1.2, 1.8), openings: [{ id: 'd', kind: 'door' as const, wallIndex: 2, t: 0.5, widthM: 0.7, heightM: 2.05, sillM: 0, roomId: 'w', exterior: false }] };
+    const wc: PlacedItem = { id: 't', slot: 'toilet', kind: 'toilet', roomId: 'w', position: P(0.6, 0.34), rotation: 0, elevationM: 0, size: { width: 0.4, depth: 0.68, height: 0.82 }, product: { productId: 1, nameKa: 'wc', pricePerUnit: 1, unit: 'piece', qty: 1, totalPrice: 1 } as PlacedItem['product'] };
+    expect(reviewFindings(planOf([room]), [wc]).get('t')?.join(' ')).toMatch(/door opens onto/);
+  });
+});

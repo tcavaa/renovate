@@ -106,3 +106,17 @@ describe('the hanging lamps the fittings read', () => {
     expect(hangingLampsKey(furniture.filter((i) => i.slot !== 'pendant'))).toBe('[]');
   });
 });
+
+describe('the light’s colour by room (the design rules)', () => {
+  it('lights living rooms and bedrooms warm and the kitchen neutral, and the glow follows', async () => {
+    const { kelvinHex, roomLightK } = await import('@/lib/design/rules');
+    expect(roomLightK('bedroom').k).toBeLessThanOrEqual(3000);
+    expect(roomLightK('kitchen').k).toBeGreaterThanOrEqual(3500);
+    const lights = nightLights(plan(), points());
+    const colour = (id: string) => lights.find((l) => l.id === id)?.color;
+    expect(colour('bed')).toBe(kelvinHex(2850));
+    expect(colour('living')).toBe(kelvinHex(2850));
+    expect(colour('kitchen')).toBe(kelvinHex(3800));
+    expect(colour('kitchen')).not.toBe(colour('bed'));
+  });
+});

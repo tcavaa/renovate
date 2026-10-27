@@ -88,7 +88,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // did. Every fitting is bought as a product where the catalogue has one — and so is every door
   // and window.
   const known = input.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
-  const wired = withFixtureProducts(suggestElectrical(plan, items, known), catalog, styleId);
+  const wired = withFixtureProducts(suggestElectrical(plan, items, known), catalog, styleId, plan.rooms);
   const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
   const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
   // A door, a window, a radiator, a socket or a light the calculation chose for the whole flat
