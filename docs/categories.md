@@ -217,7 +217,7 @@ studio rooms' guards), `tests/integration/catalog-delete-routes.test.ts` (deleti
 - Categories move between parents through the form, not by dragging on the tree page.
 - A product sits in one category: a piece that belongs under two branches is listed under one
   (the studio rooms, which may share categories, are the many-to-many part).
-- `models:seed` files manifest products by kind every deploy: one admin moved within its
+- `models:seed` (run by hand, no longer on deploy) files manifest products by kind: one admin moved within its
   archetype's category stays, one moved outside it goes back (as prices in the manifest win).
 - A new 3D kind gets no category or icon by itself: admin makes its subcategory (with the
   kind and an icon) and lists it in the rooms it belongs in; until then its products go to the

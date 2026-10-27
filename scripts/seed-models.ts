@@ -90,7 +90,7 @@ async function main() {
   };
 
   /**
-   * The category, made when it is missing. A deploy (vercel-build) runs this script alone
+   * The category, made when it is missing. A deploy run with RUN_MODELS_SEED=1 runs this script alone
    * (bundled), so it cannot count on `db:seed:design` having been run for the categories the
    * newer products live in.
    */
@@ -442,7 +442,7 @@ async function main() {
       isFeatured: false,
     };
     // The price per m² is admin's once the material exists — the rate a made-to-measure kitchen is
-    // bought at, set in the product form; every deploy runs this script and used to put it back.
+    // bought at, set in the product form; every run of this script used to put it back.
     if (existing.length) {
       const { pricePerUnit: _admins, ...kept } = row;
       await db.update(products).set(kept).where(eq(products.id, existing[0].id));

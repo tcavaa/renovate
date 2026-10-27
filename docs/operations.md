@@ -123,11 +123,16 @@ Locally `.env.local` points at a local Postgres (`DATABASE_URL=postgresql://loca
 - **Migrations** live in `lib/db/migrations` (`pnpm db:generate` after a schema change; never edit a
   generated file; a data change every database needs is a custom migration). A **production
   deployment applies them itself**: `scripts/vercel-build.mjs` (Vercel runs the `vercel-build`
-  script instead of `build`) runs `pnpm db:migrate` through `DATABASE_MIGRATION_URL`, then
-  `pnpm models:seed` — **the catalogue follows the model manifests on every deploy**, as it did — and only then `next build`. A failure stops the deployment and the previous one
-  keeps serving; so a migration must be safe while the old code still runs
-  ([data-model.md](data-model.md#migrations-on-postgres)). `SKIP_DB_MIGRATIONS=1` /
-  `SKIP_MODELS_SEED=1` skip either. By hand: `DATABASE_MIGRATION_URL=… DATABASE_SSL=true
+  script instead of `build`) runs `pnpm db:migrate` through `DATABASE_MIGRATION_URL` and only
+  then `next build`. A failure stops the deployment and the previous one keeps serving; so a
+  migration must be safe while the old code still runs
+  ([data-model.md](data-model.md#migrations-on-postgres)). `SKIP_DB_MIGRATIONS=1` skips it.
+  **A deploy leaves the catalogue alone**: the products table is the truth, as admin left it.
+  It used to run `pnpm models:seed` too, which made the catalogue match the model manifests on
+  every deploy — products admin had deleted came back, and names, prices and stores went back to
+  the manifest's. `RUN_MODELS_SEED=1` on one deployment (or `pnpm models:seed` by hand) still
+  does that, for when a pipeline has written new models
+  ([3d-assets.md](3d-assets.md#what-pnpm-modelsseed-does)). By hand: `DATABASE_MIGRATION_URL=… DATABASE_SSL=true
   DATABASE_SSL_CA=supabase pnpm db:migrate`.
 - **Uploads** go to Supabase Storage directly from the browser and are published by the route
   they are for, after checking — [uploads.md](uploads.md). Run-time files are served from

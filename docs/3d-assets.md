@@ -11,7 +11,7 @@ Related: [catalog.md](catalog.md) (products and the admin form) ·
 [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md) (fittings,
 doors, windows and radiators — their models' framing rules) ·
 [design-studio/finishes.md](design-studio/finishes.md) (finish products and trims) ·
-[operations.md](operations.md) (every production deployment runs `models:seed`) ·
+[operations.md](operations.md) (deployments no longer run `models:seed`) ·
 [uploads.md](uploads.md) (how an uploaded file reaches the routes below).
 
 ## The pipelines
@@ -112,7 +112,7 @@ Every picture is WebP, at quality 85 within 1600 px with a render's transparency
 - **The seed pictures** in `public/uploads/products` and `/furniture` — 327 of them, 89.7 MB of PNG
   and JPEG, now 7.4 MB — by `pnpm photos:webp`, which leaves runtime uploads alone
   (`isRuntimeUploadKey`: a `<timestamp>-<hex>` or `own-<user>-…` name) and points the model
-  manifests' `imageUrl` at the `.webp`, so `models:seed` and the deployment's catalogue sync name them.
+  manifests' `imageUrl` at the `.webp`, so `models:seed` names them.
   Vercel serves them from `public/uploads`; run-time uploads live in Supabase Storage.
   The pipelines that render, fetch or copy a photo write WebP themselves (`scripts/lib/photos.ts`:
   `models:photos`, the fixtures', stock and partner photos, `textures:stock`'s thumbnails), and
@@ -126,6 +126,14 @@ Vercel; `images.unoptimized`) — so this is what keeps pictures light: the uplo
 weight, and what every browser downloads.
 
 ## What `pnpm models:seed` does
+
+**Run by hand only** — production deployments stopped running it on 27 Oct 2026, because the
+products table is now the truth and admin edits it: the seed put back every manifest product
+admin had deleted and overwrote the names, prices, stores and categories admin had changed. Run
+it when a pipeline has written new models into a manifest, knowing it does both of those again
+for every manifest product (`RUN_MODELS_SEED=1` runs it on one deployment). The app itself never
+reads the JSON manifests; the generated `lib/design3d/*Manifest.ts` (fittings, doors, windows,
+radiators, equipment, the railing) are code it does read.
 
 Reads the five manifests — `public/models/manifest.json` (partner), `stock/`, `fixtures/`,
 `radiators/`, `equipment/` — and:
@@ -373,11 +381,31 @@ a whole apartment's worth of **CC0** furniture so every slot has several options
 The library imported from the partner drives: 1,195 textured models and 562 wall/floor finishes
 after the October 2026 cleanup (untextured models, the Kenney pieces and the weaker half of each
 finish family removed; every texture capped at 1024 px), about 0.55 GB since its parts were joined
-(below). Locally its files are
+(below). Admin has since deleted many of them in production: on 27 October 2026 the table held
+988 library models and 161 library finishes, plus twelve wall finishes added that day (below).
+Locally its files are
 in `public/library/` (git-ignored) and its rows point at `/library/…`; in production the files
 are in Supabase Storage under `library/` in the public bucket and the rows point there (copied
 by hand on 14 Oct 2026 — nothing syncs the two). It fills most of Supabase's free 1 GB of
-storage. The catalogue it makes is cached in parts (`lib/api/designCatalog.ts`): Next's data
+storage. **The products table is the truth, not the manifests**: `public/library/models/manifest.json`
+and `public/library/textures/manifest.json` (local, not a seed source) were last made to match it
+on 27 Oct 2026 — entries for deleted products dropped, names, categories, styles, prices, stores,
+files and specs taken from the rows; a file under `library/` is named by its local path, one
+admin uploaded elsewhere (four model photos) by its full storage URL. The same day every
+`library/` file nothing in the database names (any table, saved projects included) was deleted
+from storage and disk — 1,353 files, 253.6 MB: deleted products' models, photos and textures,
+and the models the facing audit had replaced with `.f<yaw>.glb` copies — leaving 2,368 files,
+402.5 MB, the same in both places.
+
+**Twelve wall paints and plasters** (27 Oct 2026, from reference pictures sorted into
+`industrial` / `modern` / `scandi` folders; a picture's styles are the folders it was in) are
+library finishes in `paint`, walls only: five flat colours made as the interior paints are (the
+plaster `acg-Plaster002` tinted to the colour, its normal and roughness maps; by the litre,
+8 m² a litre) and seven photos — concrete-effect plasters, microcements, a terracotta Venetian
+plaster — cropped square, their shading evened out and made seamless (each axis blended with its
+copy shifted by half), by the m². Slugs `lib-tex-paint-*`, `lib-tex-concrete-plaster-*`,
+`lib-tex-microcement-*`, `lib-tex-venetian-plaster-terracotta`; the textures manifest names each
+one's source picture. The catalogue it makes is cached in parts (`lib/api/designCatalog.ts`): Next's data
 cache refuses an entry over 2 MB. The parts expire once a day (admin edits clear them at once,
 each deployment starts its own) and are rebuilt by one shared load: every rebuild reads 2–3 MB
 of rows, which counts against Supabase's monthly egress.

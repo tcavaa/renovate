@@ -156,7 +156,7 @@ without one before it looks at archetype or style. There are two ways a product 
   its size and converted), counts triangles and textures, and can render a PNG of the model
   to use as the product photo when there is none. Saving a URL sets `model3dStatus = 'ready'`
   (the design catalogue only exposes ready models); clearing it sets `'none'`.
-- **`pnpm models:seed`** writes one product per entry of the model manifests (the partner
+- **`pnpm models:seed`** (by hand; deployments no longer run it) writes one product per entry of the model manifests (the partner
   drop, CC0 stock, fixtures, radiators, the technical points' equipment) and deletes every other
   manifest-managed product with a `model3dKind` — a product whose `model3dUrl` is not under
   `/models/` (an upload) and a person's own product are left alone. Details in

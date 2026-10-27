@@ -255,7 +255,7 @@ There are two kinds of kitchen, and an item says which it is (`PlacedItem.custom
   `stretchedKitchen` / `kitchenToWall` — refused where it would leave the room or stand on another
   piece) and its **material**. **The rate per m² is the material's price** — each kitchen maker's
   product is sold by the m² of façade and admin sets that price in the product form like any
-  other; `models:seed` (which every deploy runs) writes a material's price only when it creates
+  other; `models:seed` (run by hand) writes a material's price only when it creates
   it, and leaves admin's alone after. The joiner's fallback rates below apply only when the
   catalogue has no material at all.
 
