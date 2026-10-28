@@ -103,6 +103,20 @@ describe('placing the technical points by the rules', () => {
     }
   });
 
+  it('hangs a balcony\'s boiler on the flat\'s wall beside its door when its outside walls are railings', () => {
+    // A living room above a balcony of railings on three sides: the door between them on the balcony's top wall.
+    const living = room('liv', 'living_room', 0, 0, 4, 3);
+    const bare = room('bal', 'balcony', 0, 3.12, 4, 1.5);
+    const opening = (id: string, kind: 'door' | 'railing', wallIndex: number, t: number, widthM: number) => ({ id, kind, wallIndex, t, widthM, heightM: kind === 'door' ? 2.05 : 1, sillM: 0, roomId: 'bal', exterior: kind === 'railing' });
+    const edgeLength = [4, 1.5, 4, 1.5];
+    const balcony: PlanRoom = { ...bare, openings: [opening('d', 'door', 0, 0.3, 0.9), ...[1, 2, 3].map((i) => opening(`rail${i}`, 'railing', i, 0.5, edgeLength[i] - 0.1))] };
+    const boiler = suggestTechnical(planOf([living, balcony]), [], ids).points.find((p) => p.kind === 'boiler')!;
+    expect(boiler.roomId).toBe('bal');
+    // On the top wall (z 3.12), not on a railing, and clear of the door (x 0.75–1.65).
+    expect(boiler.position.z).toBeLessThan(3.3);
+    expect(boiler.position.x - 0.25).toBeGreaterThan(1.65 + 0.1);
+  });
+
   it('skips a utility room with no outside wall', () => {
     // The storage room is boxed in on every side: kitchen to the left, bathroom to the right, hall above and below.
     const plan = planOf([room('k', 'kitchen', 0, 1.12, 2, 2), room('s', 'storage', 2.12, 1.12, 1.5, 2), room('b', 'bathroom', 3.74, 1.12, 2, 2), room('h1', 'hallway', 0, 0, 6, 1), room('h2', 'hallway', 0, 3.24, 6, 1)]);

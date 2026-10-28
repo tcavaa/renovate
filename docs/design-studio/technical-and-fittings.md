@@ -60,7 +60,11 @@ or toilet). `suggestTechnical`
 panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. **The boiler** goes on
 an outside wall (`outsideEdges`), where its flue can leave, in the first room of `BOILER_ROOMS`
 the flat has: a utility (storage) room with an outside wall, else the balcony, else the kitchen,
-else the bathroom. **A kitchen run's** water and waste go to the end its sink is taken to be at,
+else the bathroom. It, and any point with no fixture to go by, is put in the middle of the widest
+stretch of its wall clear of doors, windows and railings (10 cm round each, 50 cm at least —
+`CLEAR_WALL_M`); a wall with no such stretch only when no wall has one, and never a railing. A
+balcony whose outside walls are railings gets its boiler on the flat's wall beside its door — it
+used to be hung in the middle of the railing. **A kitchen run's** water and waste go to the end its sink is taken to be at,
 its gas and its hood to the hob (`kitchenRunZones`, [design-rules.md](design-rules.md#the-rules-module-libdesignrulests)).
 The step's hints also list what the design rules find (`ruleViolations`: furniture in front of
 a radiator, a radiator reaching within 10 cm of its sill, a boiler on an inside wall, a door

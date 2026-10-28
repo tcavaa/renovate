@@ -24,8 +24,12 @@ import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
+import { freeSpans } from './decor/layout';
 import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
+
+/** The least stretch of wall, clear of openings, a point with no fixture to go by is put on: a boiler's width and some. */
+const CLEAR_WALL_M = 0.5;
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
 const OFF_WALL_M = 0.08;
@@ -222,10 +226,24 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
   }
 
   if (info.placement === 'floor') return round(centroid(room.polygon));
+  // On a stretch of wall clear of its doors, windows and railings — a balcony's outside walls are
+  // often railing their whole length, and its boiler was hung on the railing. A wall with no such
+  // stretch only when no wall has one, and never one with a railing in it.
+  const clear = new Map(edges.map((e) => [e.index, widestClear(room, e)]));
+  const usable = edges.filter((e) => clear.get(e.index));
+  const walls = usable.length > 0 ? usable : edges.filter((e) => !room.openings.some((o) => o.kind === 'railing' && o.wallIndex === e.index));
   // An outside wall when the kind wants one (the boiler's flue) and the room has one.
-  const outside = edges.filter((e) => prefer.some((p) => p.index === e.index));
-  const edge = bestWall(room, outside.length > 0 ? outside : edges, kind);
-  return edge ? offInto(edge, 0.5) : null;
+  const outside = walls.filter((e) => prefer.some((p) => p.index === e.index));
+  const edge = bestWall(room, outside.length > 0 ? outside : walls, kind);
+  if (!edge) return null;
+  const span = clear.get(edge.index);
+  return offInto(edge, span ? (span[0] + span[1]) / 2 / edge.length : 0.5);
+}
+
+/** The widest stretch of a wall clear of its openings (10 cm round each), if one is `CLEAR_WALL_M` or more. */
+function widestClear(room: PlanRoom, edge: PlanEdge): [number, number] | null {
+  const spans = freeSpans(edge, room.openings, 0, edge.length, 0.1).filter(([a, b]) => b - a >= CLEAR_WALL_M);
+  return spans.sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0] ?? null;
 }
 
 /**
