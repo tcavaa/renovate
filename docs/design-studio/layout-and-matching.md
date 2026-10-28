@@ -16,7 +16,7 @@ as products).
 | File | Responsibility |
 |---|---|
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
-| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md)), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
+| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md)), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
 | `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
@@ -39,6 +39,13 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   the far wall). A WC never stands in one when any other spot on its walls fits (its spots in a
   band are dropped before the draw); a bed in one scores 12 less (no fault, the brief says, only
   a preference). Studios pass the whole room's bands to both halves.
+- **A studio is furnished half by half** (`layoutRoom`): the kitchen's program in the kitchen half,
+  the living room's in the other, each half a room of its own for the engine (`partRoom` in
+  `lib/design/studio.ts`, which `autoTechnical` uses too) — the room's doors and windows moved onto
+  the half's own edges (each to the half its middle is in), and the line between the halves and
+  whatever lies on the room's own separators marked open (`PlanRoom.open`), so nothing stands
+  against the line, runs along it or hangs on it. The halves were once handed no openings and the
+  line as a wall: a gallery of prints hung on the line in mid-air, and the TV across a window.
 - **What is seen through the flat's front door** (`entranceSightBands`: the band from a door on an
   outside wall, carried on through a doorway straight ahead into the next room; passed by
   `generateScene` as `LayoutOptions.entranceSight`): the kitchen run is looked for out of it
@@ -163,7 +170,8 @@ own. The matcher re-measures every piece from the product it got, so the room st
   bed's (on the wall), 4 cm off the bed's side (`beside`); the coffee table 42 cm of clear floor off
   the sofa's front (`gapM`); the desk chair 18 cm under the desk (`gapM` −0.18); the TV unit against
   the wall the sofa faces when that leaves 1.5–4.2 m of floor between them (`toWall`), else 3 m off
-  as before. The engine places them so with the archetypes' sizes (`relativeSpots`), the matcher
+  as before — a spot whose wall is clear of windows up to 1.5 m (`TV_TOP_M`, `blocksWindow`) first,
+  since the TV hangs over it; one under a window only when no other fits. The engine places them so with the archetypes' sizes (`relativeSpots`), the matcher
   again with the products' (`settledPosition`, from the anchor as matched). The nightstand rule used
   to be "5 cm behind the bed's centre, 1.06 m to the side": every nightstand stood by the middle of
   the bed. A piece still to be matched that follows this one (the nightstands of a bed being matched)
@@ -319,7 +327,8 @@ and only standing basins; a floor mirror standing; the desk chair under the desk
 double bed and one product for both nightstands; a small kitchen on one wall; a TV on or over its
 unit), `tests/unit/design/clearance.test.ts` (a piece 6 cm off its wall is no passage),
 `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
-parts), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
+parts), `tests/unit/design/studioLayout.test.ts` (project 26's studio: `partRoom`'s open line and
+moved openings; over 30 seeds nothing hung on the line, the TV clear of the windows), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
 `tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/design/generationRandom.test.ts` (the same seed the same flat, seeds apart different

@@ -17,6 +17,7 @@ import { ROOM_PROGRAMS, resolveVariant } from './catalog';
 import { candidatesFor, generationWeight, type CatalogProduct } from './matcher';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import { styleAffinity } from './styles';
+import { isWetRoom } from './surfaces';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
 import { wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
@@ -275,7 +276,7 @@ Everything you choose is real and purchasable: you pick products and materials o
 ${SLOT_KINDS}
   For each slot give a material id of a kind it takes (leave an optional slot out to go without it), and colorHex only for a tintable material (paint, lacquer, dyed fabric) — a hex colour that suits the palette; \"\" otherwise.
 - params (\"auto\", 0 or -1 for the default; yes/no for switches): slats slatWidthMm 20–45, gapMm 10–25, depthMm 10–30, backing yes/no (no = a see-through screen); led none|bottom|top|halo|inside where the family has a led slot (halo behind a stood-off slab, inside a niche, bottom/top along slats or panels) — keep light out of eyes over a bed's pillows; moulding dadoMm 900–1100, bayWidthMm 600–1000, upper/lower/rail yes/no; niche shape arch|rect, count 1–3, nicheWidthMm 500–1000, nicheHeightMm 1200–2200, shelves 0–4, mantel yes only for a pair of niches either side of a decorative mantel on a wall of at least 3.2 m; panel style upholstered|fluted|flat, moduleWidthMm (upholstered channels 120–300, flutes 40–80); slab moduleWidthMm/moduleHeightMm the slab size (seams fall there); tile border yes/no; light path cove|line.
-- Follow each reference's composition rule and room constraint: centre a feature on its focal piece, keep sockets, doors, windows and circulation clear, wet-zone materials in bathrooms (tile, stone, niches; no timber, wallpaper or fabric in a shower), nothing projecting over a bed's pillows.
+- Follow each reference's composition rule and room constraint: centre a feature on its focal piece, keep sockets, doors, windows and circulation clear, wet-zone materials in bathrooms (stone, niches; no timber, wallpaper or fabric in a shower) — a bathroom's and a toilet's walls are already tiled as their wall finish, so never a tiled field (tile) there, nothing projecting over a bed's pillows.
 - Each decor piece: referenceId (the reference you realised, or \"\"), concept (a short title in the person's language), note (one sentence on why, in the person's language).
 
 ## Notes
@@ -427,6 +428,7 @@ const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v
  */
 export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, offer: Offer, model: string): AiProposal {
   const roomIds = new Set(plan.rooms.map((r) => r.id));
+  const wet = new Set(plan.rooms.filter((r) => isWetRoom(r.type)).map((r) => r.id));
   const rooms: AiRoomProposal[] = [];
   for (const room of raw.rooms ?? []) {
     if (!room || !roomIds.has(room.roomId)) continue;
@@ -437,6 +439,8 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
     const decor: DecorIntent[] = [];
     for (const d of (room.decor ?? []).slice(0, 3)) {
       if (!d || !AI_DECOR_FAMILIES.includes(d.family as DecorFamily) || !(DECOR_ANCHORS as readonly string[]).includes(d.anchor)) continue;
+      // A bathroom's and a toilet's walls are tiled as their finish: a tiled field on them is the work twice.
+      if (d.family === 'tile' && wet.has(room.roomId)) continue;
       const family = d.family as DecorFamily;
       const materials = (d.materials ?? [])
         .filter((m) => {

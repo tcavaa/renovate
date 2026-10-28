@@ -22,7 +22,7 @@
 
 import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
-import { dividerSegments, studioParts } from './studio';
+import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
 import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
@@ -135,7 +135,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     const parts = studioParts(room);
     if (parts) {
       for (const part of parts) {
-        const area: PlanRoom = { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined };
+        const area = partRoom(room, part);
         for (const kind of BY_ROOM[part.type] ?? []) place(area, kind, dividerSegments(room));
         water(area, dividerSegments(room));
       }

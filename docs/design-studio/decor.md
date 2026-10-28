@@ -233,7 +233,9 @@ the project opens furnished afterwards.
    server-side refusal fallback, the system prompt cached, structured output against
    `DESIGN_SCHEMA`, let go after `DESIGN_DEADLINE_MS` — 240 s) answers per room: furniture picks,
    floor, wall, up to three decor intents, a note — in the person's language. `validateProposal`
-   keeps only what was offered. The flat is then laid out by **`generateScene`**
+   keeps only what was offered — and no tiled field (`tile`) in a bathroom or a toilet: their walls
+   are tiled as their wall finish already, so a field over them was the tiling twice (the prompt
+   says so too). The flat is then laid out by **`generateScene`**
    (`lib/design/generateScene.ts`) — the function the browser's store runs for `generate`, from the
    same seed (the job's), so the server's flat is the one the browser would have laid out — and
    written as a design save made on the server (`designWriteColumns`: every product repriced, the

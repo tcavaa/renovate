@@ -305,6 +305,18 @@ describe('checking the designer\'s answer', () => {
     expect(d.materials?.map((m) => m.productId)).toEqual([OAK.id]);
   });
 
+  it('drops a tiled field in a bathroom or a toilet — their walls are tiled already — and keeps it elsewhere', () => {
+    const field = { family: 'tile', referenceId: '', concept: 'Field', anchor: 'wall', wallIndex: 0, widthM: 0, heightFromM: -1, heightToM: -1, params: auto, materials: [], note: '' };
+    const niche = { ...field, family: 'niche' };
+    const answer = (roomId: string) => ({ rooms: [{ roomId, note: '', furniture: [], floor: 0, wall: 0, decor: [field, niche] }] }) as never;
+    for (const type of ['bathroom', 'toilet'] as const) {
+      const wet = { ...r, type };
+      const decor = validateProposal(answer(wet.id), { rooms: [wet] } as FloorPlan, offer, 'm').rooms[0].decor;
+      expect(decor.map((d) => d.family)).toEqual(['niche']);
+    }
+    expect(validateProposal(answer(r.id), plan, offer, 'm').rooms[0].decor.map((d) => d.family)).toEqual(['tile', 'niche']);
+  });
+
   it('refuses an answer with nothing usable', () => {
     expect(() => validateProposal({ rooms: [] }, plan, offer, 'm')).toThrow();
   });

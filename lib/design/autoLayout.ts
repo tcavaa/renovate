@@ -16,7 +16,7 @@
  * Pure: no THREE, no React, no randomness but the `rng` handed in.
  */
 
-import { studioParts } from './studio';
+import { partRoom, studioParts } from './studio';
 import type { RoomType } from '@/lib/calculator/types';
 import {
   ARCHETYPES,
@@ -39,6 +39,7 @@ import {
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
+import { blocksWindow } from './manipulate';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
 import {
@@ -112,6 +113,9 @@ const OPTIONAL_DECOR: Record<string, number> = {
   curtain: 0.9,
 };
 
+/** How high a TV over its unit reaches, metres: the band of the unit's wall that is kept clear of windows. */
+const TV_TOP_M = 1.5;
+
 /** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
 const SPOT_SPREAD = 10;
 /** A double bed's spread: another wall of the same merit, not another stretch of its wall. */
@@ -127,17 +131,17 @@ export function layoutPlan(rooms: PlanRoom[], options: LayoutOptions = {}): Plac
 
 export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedItem[] {
   // A studio is furnished part by part: the kitchen's program in the kitchen half, the living
-  // room's in the other, each half a room of its own for the engine. The doors belong to the
-  // whole room, so their clear approach is kept free in both halves; the line between them is
-  // not a wall, but furniture standing along it (a sofa's back to the kitchen) is what an open
-  // plan looks like anyway.
+  // room's in the other, each half a room of its own for the engine, with the windows and doors
+  // on its walls (`partRoom`). The doors belong to the whole room, so their clear approach is kept
+  // free in both halves; the line between them is open, not a wall — nothing stands against it,
+  // runs along it or hangs on it.
   const parts = studioParts(room);
   if (parts) {
     const keepouts = options.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
     const obstacles = [...(options.obstacles?.[room.id] ?? []), ...keepouts];
     return parts.flatMap((part) =>
       layoutArea(
-        { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings: [], split: undefined },
+        partRoom(room, part),
         { ...options, respectDoorSwing: false, obstacles: { ...options.obstacles, [room.id]: obstacles } },
         `p${part.index}-`,
         roomSightBands(room).map((b) => b.quad)
@@ -690,6 +694,9 @@ function placeRelative(
   const anchorBox = boxFor({ position: anchor.position, rotation: anchor.rotation, size: anchor.size, elevationM: 0 });
   const others = rule.gapM != null && rule.gapM < 0 ? occupied.filter((b) => !overlaps(b, anchorBox)) : occupied;
   const tries = relativeSpots(archetype, rule, anchor, room, preferredSide);
+  // The TV unit: the TV hangs over it, so a stretch of its wall with no window over it comes
+  // first — a low unit may stand under a sill, the TV over it may not (`placeAbove`).
+  let underWindow: Pose | null = null;
   for (const { forward: ahead, lateral } of tries) {
     const position = {
       x: anchor.position.x + forward.x * ahead + right.x * lateral,
@@ -698,10 +705,14 @@ function placeRelative(
     const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
     if (!fitsInRoom(pose, room.polygon)) continue;
     if (overlapsAny(boxFor(pose), others)) continue;
+    if (rule.toWall && blocksWindow({ ...pose, slot: archetype.slot, size: { ...pose.size, height: TV_TOP_M } }, room)) {
+      underWindow ??= pose;
+      continue;
+    }
     return pose;
   }
 
-  return null;
+  return underWindow;
 }
 
 /**

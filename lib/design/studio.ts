@@ -11,7 +11,7 @@
  */
 
 import type { RoomPart, RoomSplit, RoomType } from '@/lib/calculator/types';
-import { polygonAreaM2, polygonBounds } from './planGeometry';
+import { alongEdge, isOpenEdge, pointOnEdge, polygonAreaM2, polygonBounds, roomEdges, type PlanEdge } from './planGeometry';
 import { clipPolygon } from './zones';
 import type { PlanRoom, Vec2 } from './types';
 
@@ -185,6 +185,44 @@ export function studioParts(room: Outline): [StudioPart, StudioPart] | null {
     };
   };
   return [part(0), part(1)];
+}
+
+/** How far off a line a point may lie and still be on it, metres. */
+const ON_LINE_M = 1e-3;
+
+/** Whether `point` lies on the segment of `edge` (its ends included). */
+function onEdge(edge: PlanEdge, point: Vec2): boolean {
+  const along = alongEdge(edge, point);
+  const off = Math.abs((point.x - edge.a.x) * edge.dir.z - (point.z - edge.a.z) * edge.dir.x);
+  return off < ON_LINE_M && along > -ON_LINE_M && along < edge.length + ON_LINE_M;
+}
+
+/**
+ * One part of a studio as a room of its own, for the engines that furnish and fit a room
+ * (`autoLayout`, `autoTechnical`): the part's outline and type, the room's doors and windows
+ * moved onto the part's own edges (each to the part its middle is in), and as open edges
+ * (`PlanRoom.open`) the line between the parts and whatever lies on the room's own separators —
+ * no wall there, so nothing stands against it, runs along it or hangs on it.
+ */
+export function partRoom(room: PlanRoom, part: StudioPart): PlanRoom {
+  const roomSides = roomEdges(room.polygon);
+  const partSides = roomEdges(part.polygon);
+  const split = effectiveSplit(room);
+  const at = lineCoordinate(room, split);
+  const coord = (p: Vec2) => (split.axis === 'x' ? p.x : p.z);
+  const separators = roomSides.filter((e) => isOpenEdge(room, e.index));
+  const open = partSides
+    .filter((e) => (Math.abs(coord(e.a) - at) < ON_LINE_M && Math.abs(coord(e.b) - at) < ON_LINE_M) || separators.some((s) => onEdge(s, e.a) && onEdge(s, e.b)))
+    .map((e) => e.index);
+  const openings = room.openings.flatMap((o) => {
+    const side = roomSides.find((e) => e.index === o.wallIndex);
+    if (!side) return [];
+    const middle = pointOnEdge(side, o.t);
+    // A part's edge on the same line as the wall, the opening's middle on it.
+    const edge = partSides.find((e) => Math.abs(e.dir.x * side.dir.x + e.dir.z * side.dir.z) > 0.999 && onEdge(e, middle));
+    return edge ? [{ ...o, wallIndex: edge.index, t: alongEdge(edge, middle) / edge.length }] : [];
+  });
+  return { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings, open, split: undefined };
 }
 
 /** The parts as the estimate prices them: floor, walls at the room's height, perimeter. */
