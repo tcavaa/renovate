@@ -22,6 +22,8 @@ export function ruleText(t: Dictionary, locale: Locale, plan: FloorPlan, items: 
       return fill(t.build.sgRadiatorUnderSill, { room, n });
     case 'boiler_not_exterior':
       return fill(t.build.sgBoilerNotExterior, { room });
+    case 'boiler_by_bath':
+      return fill(t.build.sgBoilerByBath, { room });
     case 'door_too_narrow':
       return fill(t.build.sgDoorTooNarrow, { room, n, min });
     case 'door_swing_clash':

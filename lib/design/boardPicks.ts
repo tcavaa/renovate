@@ -79,10 +79,11 @@ export function dressBoard(board: FloorPlan, electrical: ElectricalPoint[], prod
       };
     } else if (target === 'radiator') {
       const points = plan.technical?.points ?? [];
-      const hung = points.filter((p) => p.kind === 'radiator').length;
+      // A bathroom's towel rail is not one of the flat's radiators: the pick leaves it alone.
+      const hung = points.filter((p) => p.kind === 'radiator' && !p.towelRail).length;
       if (hung > 0) {
         const staged = plan;
-        plan = { ...plan, technical: { ...plan.technical, points: points.map((p) => (p.kind === 'radiator' ? withRadiatorProduct(staged, p, product) : p)) } };
+        plan = { ...plan, technical: { ...plan.technical, points: points.map((p) => (p.kind === 'radiator' && !p.towelRail ? withRadiatorProduct(staged, p, product) : p)) } };
         n = hung;
       }
     } else if (target === 'skirting' || target === 'cornice') {

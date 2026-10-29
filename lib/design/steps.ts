@@ -1,5 +1,5 @@
 /**
- * The order of the eight steps, which is not always the same.
+ * The order of the steps, which is not always the same.
  *
  * A green frame is a home that is finished: the walls are painted, the tiles are laid and
  * the sockets are in. Its technical step *records* what is already there, so it belongs
@@ -8,12 +8,18 @@
  *
  * Every other condition is a renovation: the pipes, the radiators and the wiring are going
  * in from scratch, and where they go depends on where the furniture ends up. There the
- * technical step comes *after* the design, next to the budget it feeds.
+ * technical setup is done *in the studio*, its Technical section, against the furniture that
+ * is actually there — and the budget waits until it has been (the studio's "budget" button).
+ * The finishes (step 6) are the studio's Materials section in every project. Neither is a
+ * step of its own in the strip then: a renovation walks Plan · Existing home · Style · 3D
+ * design · Budget · Brigade, a finished home Plan · Existing home · Technical · Style · 3D
+ * design · Budget · Brigade (the owner's notes of 29 Oct 2026).
  *
- * The step numbers here are the steps themselves and never change; what changes is the
- * position each one is walked in. Pages say which step they are, the strip says where that
- * falls in the journey, and `nextStep`/`previousStep` keep every "back" and "continue"
- * agreeing with the strip.
+ * The step numbers here are the steps themselves and never change — a saved project and every
+ * URL name them; what changes is the position each one is walked in. A step the strip does not
+ * show stands where the studio does (`walkedStep`). Pages say which step they are, the strip
+ * says where that falls in the journey, and `nextStep`/`previousStep` keep every "back" and
+ * "continue" agreeing with the strip.
  */
 
 import type { HomeState } from '@/lib/calculator/types';
@@ -82,24 +88,40 @@ export function technicalComesFirst(homeState: HomeState | null | undefined, mod
   return mode === 'design_only' || homeState === 'green_frame' || homeState == null;
 }
 
-/** The eight steps in the order this project walks them. */
+/** The steps this project walks, in order — what the strip shows. */
 export function designStepOrder(homeState: HomeState | null | undefined, mode: DesignMode): StudioStep[] {
-  return technicalComesFirst(homeState, mode) ? [1, 2, 3, 4, 5, 6, 7, 8] : [1, 2, 4, 5, 6, 3, 7, 8];
+  return technicalComesFirst(homeState, mode) ? [1, 2, 3, 4, 5, 7, 8] : [1, 2, 4, 5, 7, 8];
+}
+
+/**
+ * Where a page stands in the walk: itself, or — for a step the strip does not show — the studio,
+ * whose section it is (the finishes always; the technical setup of a renovation).
+ */
+export function walkedStep(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): StudioStep {
+  if (step === 6) return 5;
+  if (step === 3 && !technicalComesFirst(homeState, mode)) return 5;
+  return step;
 }
 
 /** Which place in the journey a step falls in, counting from one. */
 export function designStepPosition(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): number {
-  return designStepOrder(homeState, mode).indexOf(step) + 1;
+  return designStepOrder(homeState, mode).indexOf(walkedStep(step, homeState, mode)) + 1;
+}
+
+/** How many steps this project walks. */
+export function designStepCount(homeState: HomeState | null | undefined, mode: DesignMode): number {
+  return designStepOrder(homeState, mode).length;
 }
 
 export function nextStep(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): StudioStep | null {
   const order = designStepOrder(homeState, mode);
-  return order[order.indexOf(step) + 1] ?? null;
+  return order[order.indexOf(walkedStep(step, homeState, mode)) + 1] ?? null;
 }
 
 export function previousStep(step: StudioStep, homeState: HomeState | null | undefined, mode: DesignMode): StudioStep | null {
-  const at = designStepOrder(homeState, mode).indexOf(step);
-  return at > 0 ? designStepOrder(homeState, mode)[at - 1] : null;
+  const order = designStepOrder(homeState, mode);
+  const at = order.indexOf(walkedStep(step, homeState, mode));
+  return at > 0 ? order[at - 1] : null;
 }
 
 /** The href of the step after this one, or the budget when there is none left. */

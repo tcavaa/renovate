@@ -18,10 +18,13 @@ import { localizedName, orderStatusLabel, workerSpecialtyLabel, workTypeLabel } 
 import { saveDesign } from '@/lib/design/saveDesign';
 import type { OrderStatus } from '@/lib/finance/money';
 import { priceScene } from '@/lib/design/pricing';
-import { designStepHref, designStepPosition } from '@/lib/design/steps';
+import { designStepHref, designStepCount, designStepPosition } from '@/lib/design/steps';
 import { tradesNeeded, TRADE_SLUGS, type TradeSlug } from '@/lib/design/trades';
 import { fill } from '@/lib/admin/list';
-import { cn, formatGEL } from '@/lib/utils';
+import { cn, formatGEL, formatM2 } from '@/lib/utils';
+import { ProjectViewer } from '@/components/projects/ProjectViewer';
+import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
+import type { DesignScene } from '@/lib/design/types';
 
 interface TeamRow {
   id: number;
@@ -67,7 +70,11 @@ interface SentBooking {
 export default function TeamsStepPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities, generated, setHandedOver } = useDesignStore();
+  // Gone on from the budget: from here on the studio shows the flat to look at (`HandedOverStudio`).
+  useEffect(() => {
+    if (generated) setHandedOver(true);
+  }, [generated, setHandedOver]);
   const projectId = useProjectId();
   const { book } = useRateBook();
   const { status } = useSession();
@@ -136,8 +143,16 @@ export default function TeamsStepPage() {
     <>
       <DesignSteps current={8} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={designStepPosition(8, homeState, mode)} total={8} title={t.teams.title} subtitle={t.teams.subtitle} />
+        <StepHeader step={designStepPosition(8, homeState, mode)} total={designStepCount(homeState, mode)} title={t.teams.title} subtitle={t.teams.subtitle} />
         <StageBrief step={8} className="mt-6" />
+
+        {/* What the brigade will see: the flat to look at, every point where it ended up. */}
+        {generated && (
+          <section className="mt-8">
+            <h2 className="mb-3 font-serif text-xl font-semibold text-ink">{t.design.brigadeViewTitle}</h2>
+            <ProjectViewer plan={plan} scene={{ styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile } as DesignScene} finishes={finishes} electrical={electrical} title={t.design.step5} subtitle={formatM2(totalFloorAreaM2(plan))} floorPlanUrl={plan.imageUrl ?? null} />
+          </section>
+        )}
 
         {/* The trades the estimate calls for: what the brigade is being asked to do. */}
         <section className="mt-8 rounded-2xl border border-line bg-bg-surface p-5">

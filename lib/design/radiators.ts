@@ -23,7 +23,7 @@
 import { pointOnEdge, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { planEdgeWalls, edgeWallKey } from './wallPieces';
-import { RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M } from './rules';
+import { RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M, TOWEL_RAIL_BOTTOM_M, TOWEL_RAIL_DEPTH_M, TOWEL_RAIL_HEIGHT_M, TOWEL_RAIL_ROOMS, TOWEL_RAIL_WIDTH_M } from './rules';
 import type { FloorPlan, Opening, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 
@@ -112,6 +112,8 @@ export function radiatorRoom(plan: FloorPlan, point: TechnicalPoint): PlanRoom |
  * needs — the room's sections split evenly between the radiators standing in it.
  */
 export function radiatorSections(plan: FloorPlan, point: TechnicalPoint): number {
+  // A towel rail is one piece.
+  if (point.towelRail) return 1;
   if (point.sections && point.sections > 0) return Math.round(point.sections);
   const room = radiatorRoom(plan, point);
   if (!room) return MIN_SECTIONS + 2;
@@ -184,7 +186,7 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
   let changed = false;
   // Products first, so the sections below are counted with every radiator's own watts.
   const withProducts = points.map((point) => {
-    if (point.kind !== 'radiator' || point.product || candidates.length === 0) return point;
+    if (point.kind !== 'radiator' || point.towelRail || point.product || candidates.length === 0) return point;
     changed = true;
     return withRadiatorProduct(plan, point, radiatorProductFor(plan, point, candidates));
   });
@@ -221,6 +223,24 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
     const wanted = radiatorsNeeded(plan, room);
     if (wanted === 0) continue;
     const edges = wallEdges(room);
+    if (TOWEL_RAIL_ROOMS.includes(room.type)) {
+      // A bathroom's heater is a towel rail, on the longest stretch of wall clear of its door and
+      // window (not under the window, where a radiator goes).
+      const spot = towelRailSpot(room, edges);
+      if (spot) {
+        out.push({
+          id: nextId(),
+          kind: 'radiator',
+          towelRail: true,
+          roomId: room.id,
+          position: { x: round2(spot.x), z: round2(spot.z) },
+          elevationM: TOWEL_RAIL_BOTTOM_M,
+          radiator: { wattsPerSection: TOWEL_RAIL_WATTS, sectionWidthM: TOWEL_RAIL_WIDTH_M, heightM: TOWEL_RAIL_HEIGHT_M, depthM: TOWEL_RAIL_DEPTH_M },
+          origin: 'user',
+        });
+      }
+      continue;
+    }
     const windows = room.openings.filter((o) => o.kind === 'window').sort((a, b) => b.widthM - a.widthM);
     const spots: Array<{ edge: PlanEdge; t: number }> = [];
     for (const window of windows.slice(0, Math.max(1, wanted))) {
@@ -253,6 +273,33 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
     }
   }
   return out;
+}
+
+/** What a towel rail gives, W: a bathroom's heat in one piece. */
+const TOWEL_RAIL_WATTS = 450;
+
+/** The middle of the longest stretch of wall clear of the doors and windows (10 cm round each) that holds a towel rail, a hand off the wall. */
+function towelRailSpot(room: PlanRoom, edges: PlanEdge[]): Vec2 | null {
+  let best: { at: Vec2; length: number } | null = null;
+  for (const edge of edges) {
+    const blocked = room.openings
+      .filter((o) => o.wallIndex === edge.index)
+      .map((o) => [o.t * edge.length - o.widthM / 2 - 0.1, o.t * edge.length + o.widthM / 2 + 0.1] as const)
+      .sort((a, b) => a[0] - b[0]);
+    let from = 0.1;
+    const spans: Array<[number, number]> = [];
+    for (const [lo, hi] of blocked) {
+      if (lo > from) spans.push([from, lo]);
+      from = Math.max(from, hi);
+    }
+    if (edge.length - 0.1 > from) spans.push([from, edge.length - 0.1]);
+    for (const [a, b] of spans) {
+      if (b - a < TOWEL_RAIL_WIDTH_M + 0.1 || (best && b - a <= best.length)) continue;
+      const p = pointOnEdge(edge, (a + b) / 2 / edge.length);
+      best = { at: { x: p.x + edge.inward.x * 0.08, z: p.z + edge.inward.z * 0.08 }, length: b - a };
+    }
+  }
+  return best?.at ?? null;
 }
 
 /** A radiator's length when it is placed before its sections are counted: a middling one. */

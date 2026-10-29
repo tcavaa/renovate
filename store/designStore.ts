@@ -144,6 +144,12 @@ interface DesignState {
    * furnishes it from the catalogue themselves. Priced as `design_only`.
    */
   emptyStart: boolean;
+  /**
+   * The person went on from the budget to the brigade: from then on the studio shows the flat to
+   * look at — where the radiators, sockets, switches and air conditioners ended up — and changes
+   * are made back on the budget step, which lets go of it.
+   */
+  handedOver: boolean;
   /** Set when the journey started in the calculator; the summary prices against it. */
   homeState: HomeState | null;
   /** The project this design belongs to — the row its autosave writes into, shared with the calculation. */
@@ -259,6 +265,7 @@ export interface DesignActions {
   setMode: (mode: DesignMode) => void;
   /** Chooses the empty start (see `emptyStart`): design only, and the studio opened on empty rooms. */
   chooseEmptyStart: () => void;
+  setHandedOver: (handedOver: boolean) => void;
   /**
    * Opens the studio on the flat as drawn with nothing in it: no furniture, no fittings, the
    * style's ordinary finishes, no versions and an empty history — the journey's hinge, like
@@ -569,6 +576,7 @@ const initial: DesignState = {
   mode: 'design_only',
   modeChosen: false,
   emptyStart: false,
+  handedOver: false,
   homeState: null,
   projectId: null,
   baseRev: null,
@@ -693,6 +701,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         // is picked for them.
         setMode: (mode) => set({ mode, modeChosen: true, emptyStart: false }),
         chooseEmptyStart: () => set({ mode: 'design_only', modeChosen: true, emptyStart: true }),
+        setHandedOver: (handedOver) => set((s) => (s.handedOver === handedOver ? s : { handedOver })),
         startEmpty: () =>
           set((s) => ({
             items: [],
@@ -817,6 +826,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             mode: scene.mode,
             modeChosen: scene.progress?.modeChosen ?? false,
             emptyStart: scene.progress?.emptyStart ?? false,
+            handedOver: scene.progress?.handedOver ?? false,
             styleId: scene.styleId,
             styleProfile: scene.styleProfile ?? null,
             excluded: scene.excluded ?? [],
@@ -1862,13 +1872,13 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         reset: () => set((s) => ({ ...initial, history: emptyHistory(), planSerial: s.planSerial + 1 })),
 
         scene: () => {
-          const { styleId, mode, budgetGel, finishes, electrical, decor, generation, styleProfile, excluded, quantities, step, generated, planFromCalculator, at, modeChosen, emptyStart } = get();
+          const { styleId, mode, budgetGel, finishes, electrical, decor, generation, styleProfile, excluded, quantities, step, generated, planFromCalculator, at, modeChosen, emptyStart, handedOver } = get();
           // What rides on the pointer has not been put anywhere yet: the scene that is saved
           // and priced is the one Escape would leave.
           const items = withoutCarry(get());
           // An edit outlives nothing: one left by a piece since deleted is not saved.
           const ids = items.map((i) => i.id);
-          return { styleId, mode, budgetGel, items, finishes, electrical, decor, generation, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator, at, modeChosen, emptyStart } };
+          return { styleId, mode, budgetGel, items, finishes, electrical, decor, generation, styleProfile, excluded: pruneTicks(excluded, ids), quantities: pruneQuantities(quantities, ids), progress: { step, generated, planFromCalculator, at, modeChosen, emptyStart, handedOver } };
         },
       };
     };

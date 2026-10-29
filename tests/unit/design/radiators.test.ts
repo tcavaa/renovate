@@ -138,3 +138,24 @@ describe('radiators on the plan', () => {
     expect(plain.radiator).toBeUndefined();
   });
 });
+
+describe('a bathroom\'s towel rail', () => {
+  it('heats a bathroom with a towel rail hung higher, one piece, never sold as a radiator section', () => {
+    const plan = fromRects({ x: 0, z: 0, width: 2.5, depth: 2.2 }, { x: 2.5 + T, z: 0, width: 4, depth: 3.5 });
+    plan.rooms[0].type = 'bathroom';
+    plan.rooms[1].type = 'bedroom';
+    let n = 0;
+    const points = suggestRadiators(plan, () => `p${++n}`);
+    const bathRoomId = plan.rooms[0].id;
+    const rail = points.find((p) => p.roomId === bathRoomId)!;
+    expect(rail.towelRail).toBe(true);
+    expect(rail.elevationM).toBeCloseTo(0.6, 3);
+    expect(points.filter((p) => p.roomId === plan.rooms[1].id).every((p) => !p.towelRail)).toBe(true);
+    const withPoints: FloorPlan = { ...plan, technical: { points } };
+    expect(radiatorSections(withPoints, rail)).toBe(1);
+    // The catalogue's radiators go to the bedroom's radiator, not to the towel rail.
+    const priced = withRadiatorProducts(withPoints, [radiator(1, 40, 170, ['modern'])], 'modern');
+    const pricedRail = priced.technical!.points.find((p) => p.id === rail.id)!;
+    expect(pricedRail.product ?? null).toBeNull();
+  });
+});

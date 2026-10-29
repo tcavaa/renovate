@@ -18,7 +18,7 @@ import { useProjectId } from '@/components/projects/ProjectGate';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { deriveOpenings, totalFloorAreaM2 } from '@/lib/design/planGeometry';
-import { designStepHref, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepCount, designStepPosition, nextStep, nextStepHref } from '@/lib/design/steps';
 import { effectivePhases } from '@/lib/design/technical';
 import { buildsPartitions } from '@/lib/design/partitions';
 import { formatM2 } from '@/lib/utils';
@@ -118,7 +118,7 @@ export default function ExistingHousePage() {
       <FlowWorkspace>
         <FlowBar
           step={designStepPosition(2, homeState, mode)}
-          total={8}
+          total={designStepCount(homeState, mode)}
           title={t.build.s2Title}
           subtitle={t.build.s2Subtitle}
           brief={2}
@@ -131,7 +131,7 @@ export default function ExistingHousePage() {
         <div className="container py-8 md:py-12 lg:hidden">
           <StepHeader
             step={designStepPosition(2, homeState, mode)}
-            total={8}
+            total={designStepCount(homeState, mode)}
             title={t.build.s2Title}
             subtitle={t.build.s2Subtitle}
             meta={

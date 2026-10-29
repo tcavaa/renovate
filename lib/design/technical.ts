@@ -39,7 +39,7 @@ export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
   radiator: { placement: 'wall', defaultElevationM: RADIATOR_FLOOR_GAP_M, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway', 'studio'], attracts: [] },
   ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office', 'studio'], attracts: [] },
   extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: [] },
-  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'], attracts: [] },
+  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['hallway', 'balcony', 'bathroom', 'storage', 'kitchen', 'studio'], attracts: [] },
   heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway', 'studio'], attracts: [] },
 };
 

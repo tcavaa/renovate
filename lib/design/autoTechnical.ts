@@ -7,8 +7,9 @@
  * is priced as though it needed no plumbing at all. So this places the ones that follow from
  * the plan: a bathroom needs water, a drain and an extractor, a kitchen needs water, waste
  * and gas, the panel goes by the front door, a living room and a bedroom get an air
- * conditioner, and one boiler serves the flat — on an outside wall, where its flue can leave, in
- * a utility room, else on the balcony, else in the kitchen or the bathroom (`BOILER_ROOMS`). A
+ * conditioner, and one boiler serves the flat — in the hall's technical cupboard by the entrance,
+ * else enclosed on the balcony, else in the bathroom clear of the shower and the bath
+ * (`BOILER_ROOMS`). A
  * kitchen's pipes come to the end of the run the sink is taken to be at, its gas and its hood to
  * the hob (`kitchenRunZones`).
  *
@@ -20,12 +21,13 @@
  * Pure geometry over the plan and the furniture; no React, no store.
  */
 
-import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
+import { pointInPolygon, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
+import { openingWorldPoint } from './openings';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
 import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
 import { freeSpans } from './decor/layout';
-import { BOILER_PIPES_BELOW_M, BOILER_ROOMS, DISHWASHER_WATER, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
+import { BOILER_CUPBOARD_M, BOILER_HALL_MIN_WIDTH_M, BOILER_PIPES_BELOW_M, BOILER_ROOMS, BOILER_WET_CLEAR_M, DISHWASHER_WATER, footprintQuad, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 /** The least stretch of wall, clear of openings, a point with no fixture to go by is put on: a boiler's width and some. */
@@ -157,8 +159,8 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   }
 
   if (!has('boiler')) {
-    const spot = boilerRoom(plan);
-    if (spot) place(spot.room, 'boiler', [], spot.outside);
+    const spot = boilerSpot(plan, items, [...existing, ...points]);
+    if (spot) add(spot.room, 'boiler', spot.position, technicalElevation('boiler', underCeiling(spot.room, plan)));
   }
   // The boiler's cold in and hot out, under it.
   for (const boiler of [...existing, ...points].filter((p) => p.kind === 'boiler')) {
@@ -171,22 +173,94 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
 }
 
 /**
- * The room the flat's boiler goes in, and its outside walls: the first type of `BOILER_ROOMS`
- * the flat has — a utility (storage) room only with an outside wall, the others preferring one
- * that has (the biggest when several do).
+ * Where the flat's boiler goes, in the order of `BOILER_ROOMS`: in a hall with the front door (any
+ * hall when none has it) wide enough for the cupboard, on a stretch of wall clear of its doors as
+ * near the entrance as the stretch allows; else on the balcony, on an outside wall where it can; else
+ * in the bathroom on a wall clear of the shower and the bath by `BOILER_WET_CLEAR_M`; else the old
+ * rooms. Null when the flat has nowhere.
  */
-function boilerRoom(plan: FloorPlan): { room: PlanRoom; outside: PlanEdge[] } | null {
+function boilerSpot(plan: FloorPlan, items: PlacedItem[], placed: TechnicalPoint[]): { room: PlanRoom; position: Vec2 } | null {
   for (const type of BOILER_ROOMS) {
-    const rooms = plan.rooms
-      .filter((r) => r.type === type && r.areaM2 >= MIN_ROOM_M2)
+    const rooms = plan.rooms.filter((r) => r.type === type && r.areaM2 >= MIN_ROOM_M2);
+    if (rooms.length === 0) continue;
+    if (type === 'hallway') {
+      const entrance = (r: PlanRoom) => r.openings.some((o) => o.kind === 'door' && o.exterior);
+      for (const room of [...rooms].sort((a, b) => Number(entrance(b)) - Number(entrance(a)) || b.areaM2 - a.areaM2)) {
+        if (narrowSide(room) < BOILER_HALL_MIN_WIDTH_M) continue;
+        const position = hallCupboardSpot(room);
+        if (position) return { room, position };
+      }
+      continue;
+    }
+    if (type === 'bathroom') {
+      for (const room of [...rooms].sort((a, b) => b.areaM2 - a.areaM2)) {
+        const position = clearOfWet(room, items);
+        if (position) return { room, position };
+      }
+      continue;
+    }
+    const best = rooms
       .map((room) => ({ room, outside: outsideEdges(plan, room) }))
-      .sort((a, b) => Number(b.outside.length > 0) - Number(a.outside.length > 0) || b.room.areaM2 - a.room.areaM2);
-    const best = rooms[0];
-    if (!best) continue;
+      .sort((a, b) => Number(b.outside.length > 0) - Number(a.outside.length > 0) || b.room.areaM2 - a.room.areaM2)[0];
     if (type === 'storage' && best.outside.length === 0) continue;
-    return best;
+    const position = spotFor(plan, best.room, 'boiler', items, [], placed, best.outside);
+    if (position) return { room: best.room, position };
   }
   return null;
+}
+
+/** The shorter side of a room's bounding box. */
+function narrowSide(room: PlanRoom): number {
+  const xs = room.polygon.map((p) => p.x);
+  const zs = room.polygon.map((p) => p.z);
+  return Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+}
+
+/**
+ * The boiler's place in the hall's technical cupboard: on a stretch of wall `BOILER_CUPBOARD_M`
+ * long or more, clear of the doors, the cupboard's middle as near the front door as the stretch
+ * allows (the middle of the longest stretch in a hall with no front door).
+ */
+function hallCupboardSpot(room: PlanRoom): Vec2 | null {
+  const door = room.openings.find((o) => o.kind === 'door' && o.exterior);
+  const doorAt = door ? openingWorldPoint(room, door) : null;
+  const half = BOILER_CUPBOARD_M / 2;
+  let best: { position: Vec2; score: number } | null = null;
+  for (const edge of wallEdges(room)) {
+    for (const [a, b] of freeSpans(edge, room.openings, 0, edge.length, 0.1)) {
+      if (b - a < BOILER_CUPBOARD_M) continue;
+      const s = doorAt ? Math.min(b - half, Math.max(a + half, alongWall(edge, doorAt))) : (a + b) / 2;
+      const position = offInto(edge, s / edge.length);
+      const score = doorAt ? Math.hypot(position.x - doorAt.x, position.z - doorAt.z) : -(b - a);
+      if (!best || score < best.score) best = { position, score };
+    }
+  }
+  return best?.position ?? null;
+}
+
+/**
+ * A boiler's place in a bathroom: on a stretch of wall clear of its door and window, and
+ * `BOILER_WET_CLEAR_M` from a shower or a bath — the spot farthest from them. Null when no wall
+ * has such a spot.
+ */
+function clearOfWet(room: PlanRoom, items: PlacedItem[]): Vec2 | null {
+  const wet = items.filter((i) => i.roomId === room.id && (i.slot === 'shower' || i.slot === 'bathtub'));
+  const near = (p: Vec2) =>
+    wet.some((item) => pointInPolygon(p, footprintQuad({ ...item, size: { ...item.size, width: item.size.width + 2 * BOILER_WET_CLEAR_M, depth: item.size.depth + 2 * BOILER_WET_CLEAR_M } })));
+  const distance = (p: Vec2) => Math.min(Infinity, ...wet.map((i) => Math.hypot(i.position.x - p.x, i.position.z - p.z)));
+  let best: { position: Vec2; distance: number } | null = null;
+  for (const edge of wallEdges(room)) {
+    for (const [a, b] of freeSpans(edge, room.openings, 0, edge.length, 0.1)) {
+      if (b - a < CLEAR_WALL_M) continue;
+      for (let s = a + CLEAR_WALL_M / 2; s <= b - CLEAR_WALL_M / 2 + 1e-6; s += 0.1) {
+        const position = offInto(edge, s / edge.length);
+        if (near(position)) continue;
+        const d = distance(position);
+        if (!best || d > best.distance) best = { position, distance: d };
+      }
+    }
+  }
+  return best?.position ?? null;
 }
 
 /**

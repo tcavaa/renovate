@@ -21,7 +21,7 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 |---|---|
 | `lib/design/technical.ts` | `TECHNICAL_KINDS`, `technicalElevation`, `WORK_ITEMS` / `WORK_STAGES` / `normalizeWorks`, `effectivePhases`, the step's checks (`TECHNICAL_CHECKS`, `technicalChecks`, `uncheckedTechnical`, `technicalCheckFrom`), `technicalAnchors`, `technicalSuggestions` |
 | `lib/design/rules.ts` | the design rules' numbers (heights, gaps, door widths, the boiler's rooms) and `kitchenRunZones` — [design-rules.md](design-rules.md) |
-| `lib/design/ruleChecks.ts` | `ruleViolations` (a blocked radiator, one up to its sill, a boiler on an inside wall, a narrow door) and `radiatorKeepouts` |
+| `lib/design/ruleChecks.ts` | `ruleViolations` (a blocked radiator, one up to its sill, a boiler off an outside wall or by a shower or a bath, a narrow door) and `radiatorKeepouts` |
 | `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's automatic-placement check and the studio's technical tray; `origin: 'user'`) |
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
@@ -38,7 +38,7 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design3d/fixtureManifest.ts`, `radiatorManifest.ts`, `equipmentManifest.ts` | the generated model lists (`FIXTURE_MODELS`, `RADIATOR_MODELS`, `EQUIPMENT_MODELS`) |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx` | the selected fitting's and opening's cards |
 | `components/plan/ElementInspector.tsx`, `components/plan/icons.ts` | editing a point or opening on the board; one icon per system |
-| `app/(main)/design/[id]/technical/page.tsx` | step 3: the board with the kinds as tiles, the selected point, the checks' card and the hints; going on opens the checks |
+| `app/(main)/design/[id]/technical/page.tsx` | step 3 of a finished home or a design only: the board with the kinds as tiles, the selected point, the checks' card and the hints; going on opens the checks. A renovation does the same in the studio's Technical section ([studio.md](studio.md)) |
 | `components/design/TechnicalChecks.tsx` | the step's checks: `TechnicalChecksDialog` (the modal over the plan), `TechnicalChecksCard` (the card on the step), `useTechnicalChecks` |
 
 ## Technical setup (`lib/design/technical.ts`), electrical (`lib/design/electrical.ts`)
@@ -57,17 +57,36 @@ the kitchen's sink end more than 2 m from the sewer, which stands for the plumbi
 bathroom with no floor drain or sewer; a radiator on an interior wall; no extractor in a bathroom
 or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
-panel and one boiler by a fitter's rules at a click, all `origin: 'user'`. **The boiler** goes on
-an outside wall (`outsideEdges`), where its flue can leave, in the first room of `BOILER_ROOMS`
-the flat has: a utility (storage) room with an outside wall, else the balcony, else the kitchen,
-else the bathroom. It, and any point with no fixture to go by, is put in the middle of the widest
-stretch of its wall clear of doors, windows and railings (10 cm round each, 50 cm at least —
-`CLEAR_WALL_M`); a wall with no such stretch only when no wall has one, and never a railing. A
-balcony whose outside walls are railings gets its boiler on the flat's wall beside its door — it
-used to be hung in the middle of the railing. **A kitchen run's** water and waste go to the end its sink is taken to be at,
+panel and one boiler by a fitter's rules at a click, all `origin: 'user'` — and **one button**
+("ავტომატური განლაგება") does it and hangs the radiators too (`suggestTechnical` then
+`suggestRadiators`, both checks counted), on the technical step, in the studio's Technical section
+and on the calculator's board; the radiators had a button of their own. **The boiler** goes where
+the owner put it on 29 Oct 2026 (`boilerSpot`, `BOILER_ROOMS`): in the hall by the entrance, in
+the cupboard with the technical things — a hall at least 1.4 m wide (`BOILER_HALL_MIN_WIDTH_M`)
+with 80 cm of wall clear of its doors (`BOILER_CUPBOARD_M`), the cupboard's middle as near the
+front door as that stretch allows; else on the balcony, enclosed in a cupboard, on an outside wall
+where it can; else in the bathroom, on a wall clear of its door and window and 60 cm from the
+shower and the bath (`BOILER_WET_CLEAR_M`), the spot farthest from them; a flat with none of these
+keeps the old order (a utility room with an outside wall, the kitchen, a studio). Off an outside
+wall the check reminds the person to confirm the flue (a shaft or a coaxial flue), the ventilation
+and the electrics (`boiler_not_exterior`), and a boiler within 60 cm of a shower or a bath is
+flagged (`boiler_by_bath`). On the balcony and after it, the boiler — and any point with no
+fixture to go by — is put in the middle of the widest stretch of its wall clear of doors, windows
+and railings (10 cm round each, 50 cm at least — `CLEAR_WALL_M`); a wall with no such stretch only
+when no wall has one, and never a railing. A balcony whose outside walls are railings gets its
+boiler on the flat's wall beside its door — it used to be hung in the middle of the railing.
+**A bathroom's heater is a heated towel rail** (`suggestRadiators`, `TOWEL_RAIL_*` in
+`lib/design/rules.ts`): a radiator point with `towelRail: true`, 48 × 120 cm, its bottom 60 cm off
+the floor, in the middle of the longest stretch of wall clear of the door and the window; one
+piece (`radiatorSections` is 1), drawn from its own model (`/models/radiators/towel-rail.glb`,
+`TOWEL_RAIL_MODEL`, written by `pnpm models:radiators` outside the sections so it is never sold as
+one), never given a radiator product (`withRadiatorProducts` skips it), priced as the radiator
+estimate. **Radiators on the board** are drawn as they hang — a bar along the wall as long as
+their sections and as deep as they stand, its fins marked (`drawRadiatorBody`), under the point's
+disc. **A kitchen run's** water and waste go to the end its sink is taken to be at,
 its gas and its hood to the hob (`kitchenRunZones`, [design-rules.md](design-rules.md#the-rules-module-libdesignrulests)).
 The step's hints also list what the design rules find (`ruleViolations`: furniture in front of
-a radiator, a radiator reaching within 10 cm of its sill, a boiler on an inside wall, a door
+a radiator, a radiator reaching within 10 cm of its sill, a boiler off an outside wall or by a shower or a bath, a door
 narrower than 80 cm — 70 cm into a bathroom or toilet).
 
 **Water is two kinds, a point per pipe** (the brief's sanitary plan, `WATER_NEEDS` in

@@ -112,9 +112,11 @@ describe('a calculation is priced as a design', () => {
     expect(openings.filter((o) => o.kind === 'window').every((o) => o.product?.productId === 12)).toBe(true);
     // One interior door is two halves and one door.
     expect(dressed.placed.doors_global).toBe(1);
-    const radiators = (dressed.plan.technical?.points ?? []).filter((p) => p.kind === 'radiator');
+    const radiators = (dressed.plan.technical?.points ?? []).filter((p) => p.kind === 'radiator' && !p.towelRail);
     expect(radiators.length).toBeGreaterThan(0);
     expect(radiators.every((p) => p.product?.productId === 14 && (p.product?.qty ?? 0) >= 4)).toBe(true);
+    // A bathroom's towel rail keeps no radiator product.
+    expect((dressed.plan.technical?.points ?? []).filter((p) => p.towelRail).every((p) => !p.product)).toBe(true);
     expect(dressed.electrical.filter((p) => p.kind === 'socket').every((p) => p.product?.productId === 13)).toBe(true);
     expect(dressed.trims).toHaveLength(plan.rooms.length);
     // Bought for what it goes on: a radiator by its sections, a moulding by the metre.

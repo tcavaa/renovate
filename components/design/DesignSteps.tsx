@@ -3,14 +3,14 @@
 import { StepStrip } from '@/components/flow/StepStrip';
 import { useT } from '@/lib/i18n/client';
 import { useDesignStore, type StudioStep } from '@/store/designStore';
-import { designStepHref, designStepOrder } from '@/lib/design/steps';
+import { designStepHref, designStepOrder, walkedStep } from '@/lib/design/steps';
 import { useProjectId } from '@/components/projects/ProjectGate';
 
 /**
- * The eight-step journey; done steps are links back. The order is the project's own — a
- * finished home records its technical setup early, a renovation plans it after the design
+ * The journey; done steps are links back. The order is the project's own — a finished home
+ * records its technical setup as a step of its own early, a renovation does it in the studio
  * (`lib/design/steps`) — so a page says which step it *is* and the strip works out where
- * that falls.
+ * that falls (the studio's sections, Materials and a renovation's Technical, light the studio).
  */
 export function DesignSteps({ current }: { current: StudioStep }) {
   const t = useT();
@@ -39,6 +39,6 @@ export function DesignSteps({ current }: { current: StudioStep }) {
   const lockedBefore = Math.max(generated ? order.indexOf(5) + 1 : 0, planFromCalculator ? order.indexOf(2) + 2 : 0);
   // Once the flat is laid out every step after the studio exists and is open; before that, as
   // far as the journey got.
-  const reached = generated ? order.length : order.indexOf(stored) + 1;
-  return <StepStrip current={order.indexOf(current) + 1} reached={reached} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: designStepHref(projectId, step) }))} lockedBefore={lockedBefore} lockedTitle={generated ? undefined : t.flow.lockedStepPlan} />;
+  const reached = generated ? order.length : order.indexOf(walkedStep(stored, homeState, mode)) + 1;
+  return <StepStrip current={order.indexOf(walkedStep(current, homeState, mode)) + 1} reached={reached} steps={order.map((step, i) => ({ num: i + 1, label: labels[step], href: designStepHref(projectId, step) }))} lockedBefore={lockedBefore} lockedTitle={generated ? undefined : t.flow.lockedStepPlan} />;
 }

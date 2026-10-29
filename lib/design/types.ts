@@ -182,6 +182,11 @@ export interface TechnicalPoint {
   radiator?: { wattsPerSection: number; sectionWidthM: number; heightM: number; depthM: number };
   sections?: number | null;
   /**
+   * A radiator that is a bathroom's heated towel rail: one piece, hung higher (`TOWEL_RAIL_*` in
+   * `lib/design/rules.ts`), drawn from its own model and never given a radiator product.
+   */
+  towelRail?: boolean;
+  /**
    * A boiler's ventilated cabinet, made to measure in one of the joiner's materials and bought by
    * its façade (`lib/design/boilerCabinet`): absent until the catalogue gives it one, null when the
    * person took it off.
@@ -702,6 +707,8 @@ export interface DesignProgress {
   modeChosen?: boolean;
   /** The third way in on step 1 (`designStore.emptyStart`). */
   emptyStart?: boolean;
+  /** Gone on from the budget to the brigade: the studio is a view, not an editor (`designStore.handedOver`). */
+  handedOver?: boolean;
 }
 
 /** The result of the style test: one answer per question, and how each style scored. */

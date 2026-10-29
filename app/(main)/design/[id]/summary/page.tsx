@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Check, FileDown, HardHat, Loader2, Printer, Save, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { BudgetSheet, type SheetActions } from '@/components/budget/BudgetSheet';
 import { getStyle } from '@/lib/design/styles';
 import { saveDesign } from '@/lib/design/saveDesign';
-import { designStepHref, designStepPosition, previousStep, previousStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepCount, designStepPosition, previousStep, previousStepHref } from '@/lib/design/steps';
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import type { FloorPlan } from '@/lib/design/types';
 import { ruleNotes } from '@/components/design/ruleText';
@@ -45,7 +45,9 @@ import { ruleNotes } from '@/components/design/ruleText';
 export default function BudgetPage() {
   const t = useT();
   const locale = useLocale();
-  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearBudgetEdits } = useDesignStore();
+  const { plan, styleId, mode, budgetGel, items, finishes, electrical, decor, styleProfile, homeState, excluded, quantities, toggleExcluded, setLinesExcluded, setQuantity, clearBudgetEdits, setHandedOver } = useDesignStore();
+  // The budget is where the design can still change: back here, the studio is an editor again.
+  useEffect(() => setHandedOver(false), [setHandedOver]);
   const project = useProjectMeta();
   const projectId = project.id;
   // The project's calculation, when it has one: the design journey opens it beside the design.
@@ -187,7 +189,7 @@ export default function BudgetPage() {
       <div className="container py-10 md:py-14">
         <StepHeader
           step={designStepPosition(7, homeState, mode)}
-          total={8}
+          total={designStepCount(homeState, mode)}
           title={t.build.budgetTitle}
           subtitle={t.build.budgetSubtitle}
           meta={

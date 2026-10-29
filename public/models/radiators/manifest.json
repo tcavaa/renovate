@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-20",
-  "note": "Written by scripts/radiator-models.ts. Each model is ONE section: centred on x with an x-extent of exactly sectionWidthCm (copies at that pitch touch and their collectors join), standing on y = 0, its back on z = 0 and its front along +z, in metres. Prices and watts are per section; the photos show eight.",
+  "generatedAt": "2026-10-29",
+  "note": "Written by scripts/radiator-models.ts. Each model is ONE section: centred on x with an x-extent of exactly sectionWidthCm (copies at that pitch touch and their collectors join), standing on y = 0, its back on z = 0 and its front along +z, in metres. Prices and watts are per section; the photos show eight. towelRail is one whole piece in the same frame, not a section.",
   "models": [
     {
       "slug": "radiator-panel",
@@ -111,5 +111,15 @@
         ]
       }
     }
-  ]
+  ],
+  "towelRail": {
+    "slug": "towel-rail",
+    "title": "Heated towel rail, chrome ladder",
+    "url": "/models/radiators/towel-rail.glb",
+    "widthCm": 48,
+    "heightCm": 120,
+    "depthCm": 7.5,
+    "triangles": 444,
+    "bytes": 14700
+  }
 }

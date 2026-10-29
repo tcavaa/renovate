@@ -119,6 +119,8 @@ export const technicalPointSchema = z.object({
   product: sceneProductSchema.nullable().optional(),
   radiator: z.object({ wattsPerSection: z.number().min(20).max(1000), sectionWidthM: z.number().min(0.02).max(0.5), heightM: z.number().min(0.1).max(2.5), depthM: z.number().min(0.02).max(0.5) }).optional(),
   sections: z.number().int().min(1).max(60).nullable().optional(),
+  // A bathroom's heated towel rail (a radiator point, one piece).
+  towelRail: z.boolean().optional(),
   // A boiler's ventilated cabinet: the joiner's material, bought by the façade.
   cabinet: sceneProductSchema.nullable().optional(),
   // A piece of equipment: its product's size, for the 3D view.
@@ -350,6 +352,7 @@ export const designSceneSchema = z.object({
       at: z.number().int().min(1).max(8).nullable().optional(),
       modeChosen: z.boolean().optional(),
       emptyStart: z.boolean().optional(),
+      handedOver: z.boolean().optional(),
     })
     .optional(),
 });

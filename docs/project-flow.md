@@ -501,8 +501,12 @@ it is further on; the design records on its "next" buttons. `at` is where the pe
   (padlocks in the strip — `StepStrip.lockedBefore`, tooltip `flow.lockedStepCalculator` — and
   `CalculatorFlowGuard` sends a typed URL onward). Redrawing the rooms or changing the home state
   would pull the ground out from under every quantity and pick made since.
-- **Design.** Once `generated` (and the flat has rooms), every step before the studio is shut; in
-  the renovation order the technical step comes after the studio and stays open. A flat drawn
+- **Design.** Once `generated` (and the flat has rooms), every step before the studio is shut; a
+  renovation does its technical setup in the studio (its Technical section) and the finishes are
+  every project's Materials section — neither is a step of the strip, and a page for either stands
+  where the studio does (`walkedStep`). A renovation walks six steps (Plan · Existing home · Style ·
+  3D design · Budget · Brigade), a finished home or a design only seven (Technical after Existing
+  home). Gone on to the brigade, the studio opens as a view (`handedOver`, [studio.md](design-studio/studio.md)). A flat drawn
   in the calculator (`planFromCalculator`) has its steps 1–2 shut (`flow.lockedStepPlan`).
   Nothing after step 1 opens before step 1 is answered, and once the flat has rooms and the
   journey is past step 1, `DesignFlowGuard` sends step 1 on to the recorded step

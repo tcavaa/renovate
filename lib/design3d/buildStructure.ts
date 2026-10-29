@@ -26,7 +26,7 @@ import { loadFixture, loadModel } from './modelLoader';
 import { alongX, instanced } from './instancing';
 import type { SceneUserData, WallCut } from './buildScene';
 import { WALL_STUB_M } from './wallMode';
-import { RADIATOR_MODELS } from './radiatorManifest';
+import { RADIATOR_MODELS, TOWEL_RAIL_MODEL } from './radiatorManifest';
 import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
@@ -343,11 +343,12 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
     const spot = radiatorWallSpot(plan, point);
     if (!spot || (rooms && !rooms.has(spot.room.id))) continue;
     const fallback = RADIATOR_MODELS.find((m) => m.styles[0] === style.id) ?? RADIATOR_MODELS.find((m) => m.styles.includes(style.id)) ?? RADIATOR_MODELS[0];
-    const url = point.product?.model3dUrl ?? fallback?.url;
+    // A bathroom's towel rail is its own model, one piece (`TOWEL_RAIL_MODEL`).
+    const url = point.towelRail ? TOWEL_RAIL_MODEL.url : (point.product?.model3dUrl ?? fallback?.url);
     if (!url) continue;
-    const sectional = url.startsWith('/models/radiators/');
+    const sectional = url.startsWith('/models/radiators/') && !point.towelRail;
     const known = RADIATOR_MODELS.find((m) => m.url === url);
-    const pitch = point.radiator?.sectionWidthM ?? (known ? known.sectionWidthCm / 100 : DEFAULT_SECTION_WIDTH_M);
+    const pitch = point.towelRail ? TOWEL_RAIL_MODEL.widthCm / 100 : (point.radiator?.sectionWidthM ?? (known ? known.sectionWidthCm / 100 : DEFAULT_SECTION_WIDTH_M));
     const sections = radiatorSections(plan, point);
     const run = sections * pitch;
 
@@ -379,7 +380,7 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
           if (!piece.parent) return;
           // Stands on y = 0, centred on x/z: stretched to the run, its back put on the wall.
           const size = (model.userData.authoredSize as THREE.Vector3 | undefined) ?? new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
-          const heightM = point.radiator?.heightM ?? 0.6;
+          const heightM = point.towelRail ? TOWEL_RAIL_MODEL.heightCm / 100 : (point.radiator?.heightM ?? 0.6);
           const k = heightM / Math.max(size.y, 1e-6);
           const wrapper = new THREE.Group();
           wrapper.scale.set(run / Math.max(size.x, 1e-6), k, k);

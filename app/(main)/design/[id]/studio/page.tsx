@@ -4,7 +4,7 @@ import { effectiveSplit } from '@/lib/design/studio';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, Eraser, LayoutGrid, PaintBucket, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -50,7 +50,10 @@ import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
 import { DAYLIGHT_HOURS, type DaylightPreset } from '@/lib/design3d/daylight';
-import { designStepHref, nextStep, nextStepHref, technicalCheckHref } from '@/lib/design/steps';
+import { designStepHref, nextStepHref, technicalCheckHref, technicalComesFirst } from '@/lib/design/steps';
+import { TechnicalChecksDialog, useTechnicalChecks } from '@/components/design/TechnicalChecks';
+import { HandedOverStudio } from '@/components/studio/HandedOverStudio';
+import type { TechnicalCheck } from '@/lib/design/technical';
 import { useProjectId } from '@/components/projects/ProjectGate';
 import { formatGEL, cn } from '@/lib/utils';
 import { ROTATE_STEP_RAD, isPlacementValid, isWallHung, rotateItem as rotatePlacement } from '@/lib/design/manipulate';
@@ -155,6 +158,7 @@ export default function StudioPage() {
     selectedRoomPart,
     versionCount,
     planSerial,
+    handedOver,
   } = useDesignStore(
     useShallow((s) => ({
       plan: s.plan,
@@ -173,6 +177,7 @@ export default function StudioPage() {
       carryingItemId: s.carryingItemId,
       carryRestore: s.carryRestore,
       structureLocked: s.structureLocked,
+      handedOver: s.handedOver,
       canUndo: s.history.past.length > 0,
       canRedo: s.history.future.length > 0,
       saveState: s.saveState,
@@ -310,6 +315,14 @@ export default function StudioPage() {
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const [workspaceEl, setWorkspaceEl] = useState<HTMLDivElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const router = useRouter();
+  /**
+   * A renovation's technical checks, in the studio (`TechnicalChecksDialog`): opened by the
+   * "budget" button while a check is still waiting (going on goes to the budget), or from the
+   * Technical section's works button (finishing comes back to the studio).
+   */
+  const [checksOpen, setChecksOpen] = useState<{ at: TechnicalCheck; goingOn: boolean } | null>(null);
+  const { unchecked: technicalUnchecked } = useTechnicalChecks();
   /** What is being dragged from a tray right now, so the view can show it under the pointer. */
   const [draggingKind, setDraggingKind] = useState<ElectricalKind | null>(null);
   /** The category, readable from the viewer's long-lived callbacks. */
@@ -654,6 +667,28 @@ export default function StudioPage() {
       </>
     );
   }
+
+  // Gone on to the brigade: the flat to look at, with the way back to the budget to change it.
+  if (handedOver) return <HandedOverStudio plan={plan} scene={scene} finishes={finishes} electrical={electrical} />;
+
+  // A renovation lays its technical points here, in the Technical section — and the budget
+  // waits until its checks have been gone through: the "budget" button opens them on the first
+  // still waiting, and going on from the last goes to the budget.
+  const technicalHere = !technicalComesFirst(homeState, mode);
+  const budgetHref = nextStepHref(projectId, 5, homeState, mode);
+  const goToBudget = (event: React.MouseEvent) => {
+    if (!technicalHere || technicalUnchecked.length === 0) return;
+    event.preventDefault();
+    setCategory('technical');
+    setTrayOpen(true);
+    setChecksOpen({ at: technicalUnchecked[0], goingOn: true });
+  };
+  // One press places the technical points and the radiators, and counts for both checks.
+  const generateTechnical = () => {
+    store.suggestTechnical();
+    store.suggestRadiators(products);
+    store.markTechnicalChecked(['auto', 'radiators']);
+  };
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;
   // The shelf opens on a studio as the half picked out on the board, the living half otherwise.
@@ -1110,8 +1145,9 @@ export default function StudioPage() {
           versionsOpen={versionsOpen}
           onVersions={() => setVersionsOpen((v) => !v)}
           onHelp={() => setTourOpen(true)}
-          nextHref={category === 'finishes' ? nextStepHref(projectId, 6, homeState, mode) : designStepHref(projectId, 6)}
-          nextLabel={category === 'finishes' ? (nextStep(6, homeState, mode) === 3 ? t.design.step3 : t.build.budgetTitle) : t.design.step6}
+          nextHref={budgetHref}
+          nextLabel={t.build.budgetTitle}
+          onNext={goToBudget}
         />
 
         {/* ---- the catalogue modal, folded to a chip while a piece from it is placed (the finishes' chip has the spot in its category) ---- */}
@@ -1337,9 +1373,9 @@ export default function StudioPage() {
                         if (armed && view !== '2d') setView('2d');
                       }}
                       counts={technicalCounts}
-                      onAuto={() => store.suggestTechnical()}
-                      onRadiators={() => store.suggestRadiators(products)}
-                      // The works are a check of the technical step now: open it on them.
+                      onAuto={generateTechnical}
+                      // The works are one of the technical checks: here for a renovation, on the technical step otherwise.
+                      onWorks={technicalHere ? () => setChecksOpen({ at: 'works', goingOn: false }) : undefined}
                       stepHref={technicalCheckHref(projectId, 'works')}
                     />
                   )}
@@ -1387,6 +1423,26 @@ export default function StudioPage() {
             disabled={view === '2d' ? !planApi : view !== '3d' || !viewerApi}
           />
         </div>
+
+        {checksOpen && (
+          <TechnicalChecksDialog
+            open
+            onOpenChange={(open) => !open && setChecksOpen(null)}
+            at={checksOpen.at}
+            onAt={(at) => setChecksOpen((c) => (c ? { ...c, at } : c))}
+            finish={
+              checksOpen.goingOn
+                ? {
+                    label: t.build.budgetTitle,
+                    onFinish: () => {
+                      setChecksOpen(null);
+                      router.push(budgetHref);
+                    },
+                  }
+                : { label: t.build.checksFinish, onFinish: () => setChecksOpen(null) }
+            }
+          />
+        )}
 
         <HoverCard ref={hoverCard} />
         <TutorialOverlay open={tourOpen} onClose={() => setTourOpen(false)} container={workspaceEl} onStep={onTourStep} />

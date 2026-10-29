@@ -329,7 +329,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
             ? fill(t.build.acHeightHint, { gap: Math.round(AC_CEILING_GAP_M * 100), n: Math.round(technicalElevation('ac_unit', room && underCeiling(room, plan)) * 100) })
             : fill(t.build.standardHeightHint, { n: Math.round(technicalElevation(point.kind, room && underCeiling(room, plan)) * 100) })}
         </p>
-        {point.kind === 'radiator' && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
+        {point.kind === 'radiator' && !point.towelRail && <RadiatorFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
+        {point.towelRail && <p className="text-[11px] leading-snug text-ink-muted">{t.build.towelRailNote}</p>}
         {isEquipmentKind(point.kind) && actions.setEquipmentProduct && <EquipmentFields plan={plan} point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
         <Field label={t.build.note}>
           <input value={point.note ?? ''} onChange={(e) => actions.updateTechnical(point.id, { note: e.target.value })} maxLength={300} className="h-9 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-sm" />

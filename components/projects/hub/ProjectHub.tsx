@@ -14,7 +14,7 @@ import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/Pr
 import { HubCachePrune } from '@/components/projects/hub/HubCachePrune';
 import { loadHubProjects, type HubProject } from '@/lib/projects/hub';
 import { CALCULATOR_STEPS, calculatorEntryHref } from '@/lib/calculator/steps';
-import { designEntryHref, designStepPosition } from '@/lib/design/steps';
+import { designEntryHref, designStepCount, designStepPosition } from '@/lib/design/steps';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { calculatorStepLabels, formatM2L } from '@/lib/i18n/labels';
 import { fill } from '@/lib/admin/list';
@@ -214,7 +214,7 @@ function whereItStands(t: Dictionary, p: HubProject, journey: HubJourney): { mai
   } else if (p.designPending) {
     const labels: Record<StudioStep, string> = { 1: t.design.step1, 2: t.design.step2, 3: t.design.step3, 4: t.design.step4, 5: t.design.step5, 6: t.design.step6, 7: t.design.step7, 8: t.design.step8 };
     const step = clampStep(p.designProgress.at ?? p.designProgress.step, 8) as StudioStep;
-    return { main: t.hub.notGeneratedYet, detail: fill(t.hub.stepOf, { n: designStepPosition(step, p.homeState, p.mode), total: 8, label: labels[step] }), pending: true };
+    return { main: t.hub.notGeneratedYet, detail: fill(t.hub.stepOf, { n: designStepPosition(step, p.homeState, p.mode), total: designStepCount(p.homeState, p.mode), label: labels[step] }), pending: true };
   }
   if (p.totalCost == null) return area ? { main: area, detail: null, pending: true } : null;
   return { main: formatGEL(p.totalCost), detail: area, pending: false };

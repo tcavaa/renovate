@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import { DEFAULT_WALL_THICKNESS_M } from '@/lib/design/planGeometry';
 import { DEFAULT_WALL_HEIGHT_M } from '@/lib/design/walls';
-import { designStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepCount } from '@/lib/design/steps';
 import type { FloorPlan } from '@/lib/design/types';
 import type { HomeState } from '@/lib/calculator/types';
 
@@ -115,7 +115,7 @@ export default function DesignStartPage() {
       <DesignFlowGuard step={1} />
       <DesignSteps current={1} />
       <div className="container py-10 md:py-14">
-        <StepHeader step={1} total={8} title={t.build.s1Title} subtitle={t.design.subtitle} />
+        <StepHeader step={1} total={designStepCount(homeState, mode)} title={t.build.s1Title} subtitle={t.design.subtitle} />
         <StageBrief step={1} className="mt-6" />
 
         <section id="plan-section" className="mt-10 space-y-5">

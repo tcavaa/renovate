@@ -38,6 +38,7 @@ export const DESIGN_SAVED = [
   'at',
   'modeChosen',
   'emptyStart',
+  'handedOver',
 ] as const;
 
 /** The named fields of a store's state, for `useShallow`. */

@@ -30,6 +30,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
+import { DEFAULT_SECTION_WIDTH_M, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, openingWorldPoint, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
@@ -42,7 +43,7 @@ import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, OpeningKind, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBaseFinishes, drawBeam, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
+import { drawBaseFinishes, drawBeam, drawRadiatorBody, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 /**
@@ -885,7 +886,19 @@ export function PlanEditor(props: PlanEditorProps) {
     if (layers.technical) {
       for (const point of technical) {
         const live = gesture?.kind === 'point-drag' && gesture.what === 'technical' && gesture.id === point.id ? { ...point, position: gesture.position } : point;
-        drawTechnical(ctx, tr, live, { selected: selection?.kind === 'technical' && selection.id === point.id, hovered: hover.kind === 'technical' && hover.id === point.id });
+        const selectedPoint = selection?.kind === 'technical' && selection.id === point.id;
+        // A radiator is drawn as it hangs, along its wall, under its disc.
+        if (live.kind === 'radiator') {
+          const spot = radiatorWallSpot(plan, live);
+          if (spot) {
+            const length = radiatorSections(plan, live) * (live.radiator?.sectionWidthM ?? DEFAULT_SECTION_WIDTH_M);
+            const from = Math.max(0, spot.s - length / 2);
+            const to = Math.min(spot.edge.length, spot.s + length / 2);
+            const at = (d: number) => ({ x: spot.edge.a.x + spot.edge.dir.x * d, z: spot.edge.a.z + spot.edge.dir.z * d });
+            drawRadiatorBody(ctx, tr, { a: at(from), b: at(to), inward: spot.edge.inward, depthM: live.radiator?.depthM ?? 0.1 }, { selected: selectedPoint });
+          }
+        }
+        drawTechnical(ctx, tr, live, { selected: selectedPoint, hovered: hover.kind === 'technical' && hover.id === point.id });
       }
     }
     if (layers.electrical) {

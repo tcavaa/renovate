@@ -26,7 +26,7 @@ import { dropCachedCopy } from '@/lib/flow/projectSync';
 import { formatM2 } from '@/lib/utils';
 import { totalFloorAreaM2 } from '@/lib/design/planGeometry';
 import { scoreQuiz } from '@/lib/design/styleQuiz';
-import { designStepHref, designStepPosition, previousStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepCount, designStepPosition, previousStepHref } from '@/lib/design/steps';
 import { saveDesign } from '@/lib/design/saveDesign';
 
 /** What the overlay is showing: the engine's flat being opened, or the server's job at its stage. */
@@ -206,7 +206,7 @@ export default function StylePage() {
       <div className="container py-10 md:py-14">
         <StepHeader
           step={designStepPosition(4, homeState, mode)}
-          total={8}
+          total={designStepCount(homeState, mode)}
           title={t.build.quizTitle}
           subtitle={t.build.quizSubtitle}
           meta={

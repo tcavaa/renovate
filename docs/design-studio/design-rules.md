@@ -34,7 +34,7 @@ in six stages:
 | Stage | What | State |
 |---|---|---|
 | 1 | plan reading and the 2D board: printed sizes read like the drawing, wall thicknesses, one wall's length when nothing is printed, uploads that are not plans refused, stray walls and a fit button, several walls selected with Shift, a manual thickness, door and opening bugs | **built** ([plan-reading.md](plan-reading.md), [plan-board.md](plan-board.md)) |
-| 2 | steps and technical: Materials and the post-design Technical step become studio sections, one Generate for the points and radiators, "ელექტრო და შუქი" → "განათება", the 3D view-only after the Budget, the boiler's place, radiators on the board, the heated towel rail | planned |
+| 2 | steps and technical: Materials and the post-design Technical step become studio sections, one Generate for the points and radiators, "ელექტრო და შუქი" → "განათება", the 3D view-only after the Budget, the boiler's place, radiators on the board, the heated towel rail | **built** ([overview.md](overview.md), [studio.md](studio.md), [technical-and-fittings.md](technical-and-fittings.md)) |
 | 3 | room layout rules: kitchen, living room, bedroom, bathroom, washing machine, windows, bookcases | planned |
 | 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, LED strips optional, more floor lamps, the lighting plan | planned |
 | 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable | planned |
@@ -159,7 +159,8 @@ in six stages:
   (a floor-length window) gets its radiator on the nearest stretch of the same outside wall beside
   it. The layout keeps furniture out of a strip in front of every radiator
   (`RADIATOR_KEEP_CLEAR_M`). Curtains stay floor-length, hung from just under the ceiling.
-- **Boiler**: on an outside wall, in a utility (storage) room with an outside wall, else the
+- **Boiler** (superseded on 29 Oct by the second round, above: the hall's cupboard, the balcony,
+  the bathroom): on an outside wall, in a utility (storage) room with an outside wall, else the
   balcony, else the kitchen, else the bathroom; a ventilated cabinet around it — a joinery line
   priced by material per m² of façade, the materials catalogue products the admin edits (like the
   made-to-measure kitchen), its size the boiler's plus 10 cm round; service access kept in front

@@ -13,7 +13,7 @@ import type { CalculatorStepNumber, HomeState } from '@/lib/calculator/types';
 import { CALCULATOR_STEPS } from '@/lib/calculator/steps';
 import type { DesignMode } from '@/lib/design/types';
 import type { StudioStep } from '@/store/designStore';
-import { designStepOrder } from '@/lib/design/steps';
+import { designStepOrder, walkedStep } from '@/lib/design/steps';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, Math.round(value)));
 
@@ -60,8 +60,10 @@ export function designResumeStep(p: DesignResumeInput): StudioStep {
   // A flat laid out and then emptied of every room has nothing for the studio to show: it is
   // back before the layout, where a plan can be drawn again.
   const generated = p.generated && p.roomCount > 0;
+  // A step the strip does not show stands where the studio does (`walkedStep`).
+  const place = (s: StudioStep) => order.indexOf(walkedStep(s, p.homeState, p.mode));
   const valid = (s: StudioStep): boolean => {
-    const pos = order.indexOf(s);
+    const pos = place(s);
     if (generated) return pos >= studio;
     // Nothing after step 1 before it has been answered (a flat drawn in the calculator answered it there).
     if (!p.modeChosen && !p.planFromCalculator && s !== 1) return false;
@@ -75,9 +77,11 @@ export function designResumeStep(p: DesignResumeInput): StudioStep {
   // `at` is only ever a page that was open, so it is trusted as far as the page can still be
   // shown — the design records `step` on its "next" buttons, and a flat left half drawn on the
   // board has `step` 1 and `at` 2.
-  const target = clamp(p.at ?? p.step, 1, 8) as StudioStep;
+  const asked = clamp(p.at ?? p.step, 1, 8) as StudioStep;
+  // A renovation's technical setup is the studio's section now: it reopens in the studio.
+  const target: StudioStep = walkedStep(asked, p.homeState, p.mode) === 5 && asked === 3 ? 5 : asked;
   if (valid(target)) return target;
-  const pos = order.indexOf(target);
+  const pos = place(target);
   for (let i = pos - 1; i >= 0; i--) if (valid(order[i])) return order[i];
   for (let i = pos + 1; i < order.length; i++) if (valid(order[i])) return order[i];
   return generated ? 5 : 1;

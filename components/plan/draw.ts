@@ -547,6 +547,40 @@ const TECHNICAL_GLYPH: Record<TechnicalPoint['kind'], string> = {
   heating_pipe: 'H',
 };
 
+/**
+ * A radiator as it hangs, seen from above: a bar along its wall as long as its sections and as
+ * deep as it stands off the wall, under the point's disc — the board showed a disc alone, and the
+ * owner asked to see the radiators on the plan as in 3D.
+ */
+export function drawRadiatorBody(ctx: CanvasRenderingContext2D, t: Transform, body: { a: Vec2; b: Vec2; inward: Vec2; depthM: number }, state: { selected?: boolean } = {}): void {
+  const off = (p: Vec2, d: number) => toScreen(t, { x: p.x + body.inward.x * d, z: p.z + body.inward.z * d });
+  const corners = [off(body.a, 0.02), off(body.b, 0.02), off(body.b, 0.02 + body.depthM), off(body.a, 0.02 + body.depthM)];
+  ctx.beginPath();
+  corners.forEach((c, i) => (i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y)));
+  ctx.closePath();
+  ctx.fillStyle = TECHNICAL_COLOR.radiator;
+  ctx.globalAlpha = 0.35;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = state.selected ? 2.5 : 1.5;
+  ctx.strokeStyle = state.selected ? EDITOR.selected : TECHNICAL_COLOR.radiator;
+  ctx.stroke();
+  // Its sections, as the fins of a column radiator read on a drawing.
+  const length = Math.hypot(body.b.x - body.a.x, body.b.z - body.a.z);
+  const fins = Math.min(30, Math.round(length / 0.08));
+  ctx.lineWidth = 1;
+  for (let i = 1; i < fins; i++) {
+    const f = i / fins;
+    const p = { x: body.a.x + (body.b.x - body.a.x) * f, z: body.a.z + (body.b.z - body.a.z) * f };
+    const u = off(p, 0.02);
+    const v = off(p, 0.02 + body.depthM);
+    ctx.beginPath();
+    ctx.moveTo(u.x, u.y);
+    ctx.lineTo(v.x, v.y);
+    ctx.stroke();
+  }
+}
+
 export function drawTechnical(ctx: CanvasRenderingContext2D, t: Transform, point: TechnicalPoint, state: { selected?: boolean; hovered?: boolean } = {}): void {
   const s = toScreen(t, point.position);
   const r = 11;

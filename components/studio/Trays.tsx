@@ -251,7 +251,7 @@ export function ElectricTray({ kind, onKind, armed, onArm, onSuggest, onClear, l
  * leaving the studio. The works checklist, which is a page of its own, is one link away
  * (`stepHref`; the calculator's plan step has none).
  */
-export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRadiators, stepHref }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC. */ onAuto: () => void; onRadiators: () => void; stepHref?: string }) {
+export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, stepHref, onWorks }: { kind: TechnicalKind; onKind: (kind: TechnicalKind) => void; armed: boolean; onArm: (armed: boolean) => void; counts: Partial<Record<TechnicalKind, number>>; /** Places what the plan implies — water, waste, drains, gas, the panel, extractors, AC — and the radiators, in one press. */ onAuto: () => void; stepHref?: string; /** Opens the works where the studio is (a renovation's checks are the studio's); `stepHref` links to the technical step instead. */ onWorks?: () => void }) {
   const t = useT();
   const placed = Object.values(counts).reduce((a, b) => a + (b ?? 0), 0);
   return (
@@ -289,14 +289,15 @@ export function TechnicalTray({ kind, onKind, armed, onArm, counts, onAuto, onRa
             })}
           </ScrollRow>
           <div className="flex shrink-0 items-center gap-1">
-            <button type="button" onClick={onAuto} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
+            <button type="button" onClick={onAuto} title={t.build.autoTechnicalHint} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white hover:bg-brand">
               <Sparkles className="h-3.5 w-3.5" />
               {t.build.autoTechnical}
             </button>
-            <button type="button" onClick={onRadiators} title={t.build.hangRadiators} aria-label={t.build.hangRadiators} className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink-soft hover:border-ink hover:text-ink">
-              <Flame className="h-3.5 w-3.5" />
-            </button>
-            {stepHref && (
+            {onWorks ? (
+              <button type="button" onClick={onWorks} className="flex h-8 items-center gap-1.5 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
+                {t.build.worksTitle}
+              </button>
+            ) : stepHref && (
               <Link href={stepHref} className="flex h-8 items-center gap-1.5 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink-soft hover:border-ink hover:text-ink">
                 {t.build.worksTitle}
                 <ArrowUpRight className="h-3 w-3" />

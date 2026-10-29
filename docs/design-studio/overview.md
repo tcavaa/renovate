@@ -18,18 +18,26 @@ the detailed documents. Read it first for any task under `app/(main)/design/`, `
 | [../budget.md](../budget.md) | the budget (step 7): `priceScene`, lines, ticks, baskets, kitchens, trades |
 | [../project-flow.md](../project-flow.md) | the project around it: hubs, gate, autosave, resume, locks, the calculator → 3D handoff |
 
-## The eight steps
+## The steps
+
+Eight step numbers, which never change (a saved project and every URL name them), walked in an
+order that depends on the home (`lib/design/steps.ts`): a renovation walks **Plan · Existing home ·
+Style · 3D design · Budget · Brigade** — its technical setup is the studio's Technical section, and
+the budget waits until its checks are done — and a finished home (green frame) or a design only
+walks **Plan · Existing home · Technical · Style · 3D design · Budget · Brigade**. The finishes are
+the studio's Materials section in every project. A step the strip does not show stands where the
+studio does (`walkedStep`).
 
 | # | Path (`app/(main)/design/[id]/…`) | What | Main code |
 |---|---|---|---|
 | 1 | `start/` | upload a plan or start on a blank sheet; wall defaults; *design only* or *renovation + design* (and the home state); or an empty start | `PlanUploadCard`, `HomeStateSelector`, [project-flow.md §14](../project-flow.md) |
 | 2 | `plan/` | the existing house on the 2D board: walls, rooms, doors, windows, columns, beams | `PlanWorkspace`, `ElementInspector`, `RoomsPanel` — [plan-board.md](plan-board.md) |
-| 3 | `technical/` | technical points on the board; the automatic placement, the radiators, the works, how it is done and what the flat already has as checks in a modal that going on opens | `lib/design/technical.ts`, `existing.ts`, `radiators.ts`, `TechnicalChecks` — [technical-and-fittings.md](technical-and-fittings.md) |
+| 3 | `technical/` | (a finished home or a design only; a renovation's is the studio's Technical section) technical points on the board; one button for the automatic placement and the radiators, the works, how it is done and what the flat already has as checks in a modal that going on opens | `lib/design/technical.ts`, `existing.ts`, `radiators.ts`, `TechnicalChecks` — [technical-and-fittings.md](technical-and-fittings.md) |
 | 4 | `style/` | the five-question style test (or a direct pick), budget, **generate** — after the warning | `StyleQuiz`, `StylePicker`, `HingeDialog`, `GenerationOverlay`, `designStore.generate` |
-| 5 | `studio/` | the 3D studio in build mode: furniture, fittings, lights | [studio.md](studio.md) |
-| 6 | `studio/?tool=finishes` | materials on rooms, single walls, strips, square metres, floor zones | [finishes.md](finishes.md) |
+| 5 | `studio/` | the 3D studio in build mode: furniture, lighting, technical, materials; a view once the design has gone to the brigade (`handedOver`) | [studio.md](studio.md) |
+| 6 | `studio/?tool=finishes` | (the studio's Materials section, not in the strip) materials on rooms, single walls, strips, square metres, floor zones | [finishes.md](finishes.md) |
 | 7 | `summary/` | the budget: materials + products + labour, a quantity on every line; checkout; plan PDF | [../budget.md](../budget.md), [../marketplace.md](../marketplace.md) |
-| 8 | `workers/` | the trades the budget needs and the brigades that cover them; booking | `lib/design/trades.ts`, `BookingDialog` — [../marketplace.md](../marketplace.md) |
+| 8 | `workers/` | the flat as the brigade sees it (`ProjectViewer`), the trades the budget needs and the brigades that cover them; booking | `lib/design/trades.ts`, `BookingDialog` — [../marketplace.md](../marketplace.md) |
 
 `app/(main)/design/page.tsx` is the hub (`ProjectHub`), `[id]/layout.tsx` the owner check →
 `ProjectGate` + `DesignAutosave`, `[id]/page.tsx` the entry that resumes (and carries a

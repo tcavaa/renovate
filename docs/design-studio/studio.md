@@ -65,12 +65,13 @@ slides the view when dragged from the empty sheet or from anything that cannot m
 a picture and a price — browsed by room and then by kind, narrowed by colour swatches; click
 to carry or drag into 3D; the project's own style is marked on the style chips, and a list of
 what is already standing in the room sits in the right-hand panel beside it — see "Adding
-furniture in the studio"), electric & light (four tiles — socket, switch, aerial,
+furniture in the studio"), lighting — განათება, once "ელექტრო და შუქი" (four tiles — socket, switch, aerial,
 data — and the lights; the double, high and kitchen sockets are still placed by the
 automatic wiring and still re-kindable from a fitting's card, but four extra tiles only made
-the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D board, the
-radiators at a click, the works checklist one link away — the technical step opened on its
-works check, `technicalCheckHref`), finishes (the same kind of shelf:
+the shelf harder to read), **technical** (the ten kinds as tiles that arm the 2D board, one
+button that places the points and hangs the radiators, and the works — for a renovation the
+checks open in the studio, `TechnicalChecksDialog`; for a finished home the technical step opened
+on its works check, `technicalCheckHref`), finishes (the same kind of shelf:
 floor · walls · skirting · cornice, then where it goes — a square metre, a 1 m strip, this
 wall, the whole room ([finishes.md](finishes.md#what-the-studio-offers)) — with the colour
 swatches, the style picker and the "catalogue" button on that line, then the swatches, the
@@ -552,3 +553,19 @@ carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-stu
   block); the i18n key for "tight passage — n cm" is unused (the warning is generic).
 - `NavHelp` lists Ctrl+C / V but not Ctrl+D, which the page handles.
 - `designStore.addItem` has no callers.
+
+## Going on to the budget, and the studio after it
+
+The studio's "budget" button (`StudioTopBar.onNext`) goes to the budget — the finishes are the
+studio's Materials section, not a step of their own. A renovation does its technical setup in the
+studio's Technical section ([overview.md](overview.md), `lib/design/steps.ts`), so while any of its
+checks has not been looked at (`useTechnicalChecks`: the automatic placement and the radiators, the
+works, how it is done, what the flat has) the button opens the Technical section and the checks
+dialog on the first one waiting, and going on from the last goes to the budget.
+
+Once the person goes on from the budget to the brigade (`designStore.handedOver`, set by the
+brigade step, cleared by the budget step, saved with the progress), the studio is a view, not an
+editor (`HandedOverStudio`): the plan with every point and the furnished flat in 3D — where the
+radiators, sockets, switches and air conditioners ended up — as the brigade sees it
+(`ProjectViewer`), with a line saying so and the way back to the budget, where changes are made.
+The brigade step shows the same view under its title.

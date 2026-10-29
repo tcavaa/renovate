@@ -65,3 +65,11 @@ export const RADIATOR_MODELS: RadiatorModel[] = [
     ]
   }
 ];
+
+/** The bathroom's heated towel rail: one whole piece in the same frame, hung higher than a radiator. */
+export const TOWEL_RAIL_MODEL = {
+  "url": "/models/radiators/towel-rail.glb",
+  "widthCm": 48,
+  "heightCm": 120,
+  "depthCm": 7.5
+} as const;

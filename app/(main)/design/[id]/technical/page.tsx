@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CheckCircle2, Flame, Lightbulb, Sparkles } from 'lucide-react';
+import { CheckCircle2, Lightbulb, Sparkles } from 'lucide-react';
 import { DesignSteps } from '@/components/design/DesignSteps';
 import { TechnicalChecksCard, TechnicalChecksDialog, useTechnicalChecks } from '@/components/design/TechnicalChecks';
 import { DesignFlowGuard } from '@/components/flow/FlowGuard';
@@ -22,7 +22,7 @@ import { effectivePhases, technicalCheckFrom, technicalSuggestions, TECHNICAL_KI
 import { ruleViolations, TECHNICAL_RULES, type RuleViolation } from '@/lib/design/ruleChecks';
 import { ruleText } from '@/components/design/ruleText';
 import { buildsPartitions } from '@/lib/design/partitions';
-import { designStepHref, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
+import { designStepHref, designStepCount, designStepPosition, nextStep, nextStepHref, previousStepHref } from '@/lib/design/steps';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { technicalLabel } from '@/components/plan/PlanToolbar';
 import { TECHNICAL_COLOR } from '@/components/plan/palette';
@@ -160,17 +160,12 @@ export default function TechnicalPage() {
     }
   };
 
-  // What the rules place at a click — the points, the radiators — with a line saying what it
-  // did; pressing either counts as having looked at its check.
-  const autoPlace = () => {
-    const n = actions.suggestTechnical();
-    actions.markTechnicalChecked(['auto']);
+  // One press places what the rules place — the points, then the radiators under the windows —
+  // with a line saying what it did, and counts as having looked at both checks.
+  const generate = () => {
+    const n = actions.suggestTechnical() + actions.suggestRadiators(products);
+    actions.markTechnicalChecked(['auto', 'radiators']);
     setPlaced(n > 0 ? fill(t.build.autoTechnicalDone, { n }) : t.build.autoTechnicalNone);
-  };
-  const hangRadiators = () => {
-    const n = actions.suggestRadiators(products);
-    actions.markTechnicalChecked(['radiators']);
-    setPlaced(n > 0 ? fill(t.build.radiatorsAdded, { n }) : t.build.radiatorsNone);
   };
 
   // The kinds, always in view: a tile arms the point tool with that kind. Along the bottom of
@@ -188,13 +183,9 @@ export default function TechnicalPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={autoPlace} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand">
+          <button type="button" onClick={generate} title={t.build.autoTechnicalHint} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand">
             <Sparkles className="h-3.5 w-3.5" />
             {t.build.autoTechnical}
-          </button>
-          <button type="button" onClick={hangRadiators} title={t.build.suggestRadiators} className="flex h-8 items-center gap-1.5 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink-soft transition-colors hover:border-ink hover:text-ink">
-            <Flame className="h-3.5 w-3.5" />
-            {t.build.hangRadiators}
           </button>
         </div>
       </div>
@@ -244,7 +235,7 @@ export default function TechnicalPage() {
       <FlowWorkspace>
         <FlowBar
           step={designStepPosition(3, homeState, mode)}
-          total={8}
+          total={designStepCount(homeState, mode)}
           title={t.build.technicalTitle}
           subtitle={t.build.technicalSubtitle}
           brief={3}
@@ -254,7 +245,7 @@ export default function TechnicalPage() {
 
         {/* Below `lg` the step reads as every other step does: its head, then the board. */}
         <div className="container py-8 md:py-12 lg:hidden">
-          <StepHeader step={designStepPosition(3, homeState, mode)} total={8} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
+          <StepHeader step={designStepPosition(3, homeState, mode)} total={designStepCount(homeState, mode)} title={t.build.technicalTitle} subtitle={t.build.technicalSubtitle} />
           <StageBrief step={3} className="mt-6" />
         </div>
 

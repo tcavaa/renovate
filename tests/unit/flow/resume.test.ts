@@ -37,7 +37,7 @@ describe('calculatorResumeStep', () => {
 });
 
 describe('designResumeStep', () => {
-  // A renovation walks [1, 2, 4, 5, 6, 3, 7, 8]; a design-only project [1..8].
+  // A renovation walks [1, 2, 4, 5, 7, 8] (its technical setup and the finishes are the studio's); a design-only project [1, 2, 3, 4, 5, 7, 8].
   const renovation: DesignResumeInput = { at: null, step: 1, generated: false, planFromCalculator: false, modeChosen: true, homeState: 'black_frame', mode: 'full', roomCount: 4 };
   const designOnly: DesignResumeInput = { ...renovation, homeState: null, mode: 'design_only' };
 
@@ -49,7 +49,8 @@ describe('designResumeStep', () => {
 
   it('once laid out, everything before the studio is shut — but the technical step after it in a renovation is open', () => {
     expect(designResumeStep({ ...renovation, generated: true, step: 5, at: 2 })).toBe(5);
-    expect(designResumeStep({ ...renovation, generated: true, step: 3, at: 3 })).toBe(3);
+    // A renovation's technical setup is the studio's Technical section: it reopens in the studio.
+    expect(designResumeStep({ ...renovation, generated: true, step: 3, at: 3 })).toBe(5);
     expect(designResumeStep({ ...designOnly, generated: true, step: 5, at: 3 })).toBe(5);
   });
 

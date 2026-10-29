@@ -25,6 +25,7 @@ import {
   WC_SIDE_M,
   WET_ROOM_TYPES,
   entranceSightBands,
+  BOILER_WET_CLEAR_M,
   footprintQuad,
   minDoorWidthM,
   quadsOverlap,
@@ -38,6 +39,7 @@ export type RuleCode =
   | 'radiator_blocked'
   | 'radiator_under_sill'
   | 'boiler_not_exterior'
+  | 'boiler_by_bath'
   | 'door_too_narrow'
   | 'door_swing_clash'
   | 'door_swing_blocked'
@@ -52,7 +54,7 @@ export type RuleCode =
   | 'socket_in_splash';
 
 /** The ones about the building rather than the furniture: the technical step lists these. */
-export const TECHNICAL_RULES: RuleCode[] = ['radiator_blocked', 'radiator_under_sill', 'boiler_not_exterior', 'door_too_narrow', 'door_swing_clash'];
+export const TECHNICAL_RULES: RuleCode[] = ['radiator_blocked', 'radiator_under_sill', 'boiler_not_exterior', 'boiler_by_bath', 'door_too_narrow', 'door_swing_clash'];
 
 export interface RuleViolation {
   code: RuleCode;
@@ -141,11 +143,16 @@ export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical:
     if (gap < RADIATOR_SILL_GAP_M - 0.005) out.push({ code: 'radiator_under_sill', roomId: radiatorWallSpot(plan, point)?.room.id ?? point.roomId ?? '', pointId: point.id, valueM: round2(gap), limitM: RADIATOR_SILL_GAP_M });
   }
 
-  // The boiler on an outside wall, where its flue can leave.
+  // The boiler: off an outside wall its flue has to be checked (a shaft or a coaxial flue) — the
+  // hall's cupboard, the owner's first place for it, is rarely on one; and never by a shower or a bath.
   for (const point of plan.technical?.points ?? []) {
     if (point.kind !== 'boiler') continue;
     const room = plan.rooms.find((r) => r.id === point.roomId);
     if (!room) continue;
+    const wet = items.some(
+      (i) => i.roomId === room.id && (i.slot === 'shower' || i.slot === 'bathtub') && pointInPolygon(point.position, footprintQuad({ ...i, size: { ...i.size, width: i.size.width + 2 * BOILER_WET_CLEAR_M, depth: i.size.depth + 2 * BOILER_WET_CLEAR_M } }))
+    );
+    if (wet) out.push({ code: 'boiler_by_bath', roomId: room.id, pointId: point.id });
     const wall = nearestWall(wallEdges(room), point.position);
     if (!wall || wall.distance > 0.5) continue;
     if (!outsideEdges(plan, room).some((e) => e.index === wall.edge.index)) out.push({ code: 'boiler_not_exterior', roomId: room.id, pointId: point.id });

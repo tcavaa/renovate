@@ -9,6 +9,10 @@
  *                           → then the product photos: eight sections of each (scripts/model-photos.ts)
  *   pnpm models:seed        → one product per section model, priced per section
  *
+ * And the bathroom's heated towel rail — not a radiator section but one whole piece, written to
+ * the same folder (`towel-rail.glb`, the manifest's `towelRail`), kept out of the sections so it is
+ * never sold or repeated as one.
+ *
  * No download and no Blender: every section is a handful of boxes, swept profiles and
  * surfaces of revolution put together below, with one glTF material per surface.
  *
@@ -748,6 +752,62 @@ export function linearColor(hex: string): [number, number, number, number] {
   return [channel(1), channel(3), channel(5), 1];
 }
 
+/** The bathroom's heated towel rail: a ladder in chrome, hung on four brackets, in cm. */
+const TOWEL_RAIL = { slug: 'towel-rail', title: 'Heated towel rail, chrome ladder', widthCm: 48, heightCm: 120, depthCm: 7.5 } as const;
+const CHROME: Surface = { name: 'towel-rail-chrome', color: '#d8dade', metallic: 0.9, roughness: 0.18 };
+
+function buildTowelRail(): Part[] {
+  const parts: Part[] = [];
+  const add = (shape: Shape) => parts.push({ surface: CHROME, shape });
+  const rail = 1.5;
+  const x = TOWEL_RAIL.widthCm / 2 - rail;
+  const z = TOWEL_RAIL.depthCm - rail;
+  // The two uprights, floor to top of the ladder.
+  for (const side of [-x, x]) add(cylinder(rail, 0, TOWEL_RAIL.heightCm, 12).move(side, 0, z));
+  // The rungs, closer at the top where the towels hang.
+  const rungs = [8, 20, 32, 44, 56, 68, 78, 88, 96, 104, 112];
+  for (const y of rungs) add(cylinder(1.1, -x, x, 10, 'none').turn('z', -90).move(0, y, z));
+  // Four brackets back to the wall.
+  for (const side of [-x, x]) for (const y of [14, TOWEL_RAIL.heightCm - 14]) add(cylinder(0.9, 0, z, 8).turn('x', 90).move(side, y, 0));
+  return parts;
+}
+
+/** The towel rail's file, in the frame the studio places a whole radiator by: centred on x, on y = 0, its back on z = 0. */
+async function writeTowelRail(): Promise<{ slug: string; title: string; url: string; widthCm: number; heightCm: number; depthCm: number; triangles: number; bytes: number }> {
+  const meshes = mergeBySurface(TOWEL_RAIL.slug, buildTowelRail());
+  const doc = new Document();
+  doc.getRoot().getAsset().generator = 'RenovationRoom scripts/radiator-models.ts';
+  const buffer = doc.createBuffer();
+  const mesh = doc.createMesh(TOWEL_RAIL.slug);
+  for (const part of meshes) {
+    const material = doc.createMaterial(part.surface.name).setBaseColorFactor(linearColor(part.surface.color)).setMetallicFactor(part.surface.metallic).setRoughnessFactor(part.surface.roughness);
+    mesh.addPrimitive(
+      doc
+        .createPrimitive()
+        .setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(part.positions).setBuffer(buffer))
+        .setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(part.normals).setBuffer(buffer))
+        .setIndices(doc.createAccessor().setType('SCALAR').setArray(part.indices).setBuffer(buffer))
+        .setMaterial(material)
+    );
+  }
+  const scene = doc.createScene(TOWEL_RAIL.slug).addChild(doc.createNode(TOWEL_RAIL.slug).setMesh(mesh));
+  doc.getRoot().setDefaultScene(scene);
+  const { min, max } = getBounds(scene);
+  const size = [0, 1, 2].map((k) => max[k] - min[k]);
+  const mm = (value: number) => `${(value * 1000).toFixed(2)} mm`;
+  if (Math.abs(min[0] + max[0]) > FRAME_TOLERANCE_M) throw new Error(`the towel rail is not centred on x (${mm(min[0])} … ${mm(max[0])})`);
+  if (Math.abs(min[1]) > FRAME_TOLERANCE_M) throw new Error(`the towel rail does not stand on y = 0 (${mm(min[1])})`);
+  if (Math.abs(min[2]) > FRAME_TOLERANCE_M) throw new Error(`the towel rail's back is not on z = 0 (${mm(min[2])})`);
+  for (const [k, cm] of [[0, TOWEL_RAIL.widthCm], [1, TOWEL_RAIL.heightCm], [2, TOWEL_RAIL.depthCm]] as const) {
+    if (Math.abs(size[k] - cm / 100) > 0.001) throw new Error(`the towel rail is ${mm(size[k])} on axis ${k}, not ${cm * 10} mm`);
+  }
+  const triangles = meshes.reduce((sum, part) => sum + part.triangles, 0);
+  const out = path.join(OUT_DIR, `${TOWEL_RAIL.slug}.glb`);
+  await new NodeIO().write(out, doc);
+  const { size: bytes } = await stat(out);
+  return { slug: TOWEL_RAIL.slug, title: TOWEL_RAIL.title, url: `/models/radiators/${TOWEL_RAIL.slug}.glb`, widthCm: TOWEL_RAIL.widthCm, heightCm: TOWEL_RAIL.heightCm, depthCm: TOWEL_RAIL.depthCm, triangles, bytes };
+}
+
 async function writeOne(design: RadiatorDesign): Promise<RadiatorManifestModel> {
   const meshes = mergeBySurface(design.slug, design.build());
   const doc = new Document();
@@ -823,6 +883,15 @@ async function main() {
       console.log(`✗ ${(error as Error).message}`);
     }
   }
+  let towelRail: Awaited<ReturnType<typeof writeTowelRail>> | null = null;
+  process.stdout.write(`• ${TOWEL_RAIL.slug} `);
+  try {
+    towelRail = await writeTowelRail();
+    console.log(`✓ ${towelRail.widthCm}×${towelRail.heightCm}×${towelRail.depthCm} cm · ${towelRail.triangles} tris · ${(towelRail.bytes / 1024).toFixed(1)} KB`);
+  } catch (error) {
+    failed.push(`${TOWEL_RAIL.slug} — ${(error as Error).message}`);
+    console.log(`✗ ${(error as Error).message}`);
+  }
   if (failed.length) {
     // A radiator out of its frame would be placed wrong by every room that has one: write nothing.
     console.log(`\n${failed.length} failed — manifest left as it was:\n${failed.map((f) => `  · ${f}`).join('\n')}`);
@@ -835,8 +904,9 @@ async function main() {
     JSON.stringify(
       {
         generatedAt: new Date().toISOString().slice(0, 10),
-        note: 'Written by scripts/radiator-models.ts. Each model is ONE section: centred on x with an x-extent of exactly sectionWidthCm (copies at that pitch touch and their collectors join), standing on y = 0, its back on z = 0 and its front along +z, in metres. Prices and watts are per section; the photos show eight.',
+        note: 'Written by scripts/radiator-models.ts. Each model is ONE section: centred on x with an x-extent of exactly sectionWidthCm (copies at that pitch touch and their collectors join), standing on y = 0, its back on z = 0 and its front along +z, in metres. Prices and watts are per section; the photos show eight. towelRail is one whole piece in the same frame, not a section.',
         models,
+        towelRail,
       },
       null,
       2
@@ -848,7 +918,7 @@ async function main() {
       models.map(({ slug, url, sectionWidthCm, heightCm, depthCm, wattsPerSection, product }) => ({ slug, url, sectionWidthCm, heightCm, depthCm, wattsPerSection, styles: product.styles })),
       null,
       2
-    )};\n`
+    )};\n\n/** The bathroom's heated towel rail: one whole piece in the same frame, hung higher than a radiator. */\nexport const TOWEL_RAIL_MODEL = ${JSON.stringify({ url: towelRail!.url, widthCm: towelRail!.widthCm, heightCm: towelRail!.heightCm, depthCm: towelRail!.depthCm }, null, 2)} as const;\n`
   );
   console.log(`\n${models.length} radiator sections in manifest · ${path.relative(ROOT, OUT_DIR)}`);
 }

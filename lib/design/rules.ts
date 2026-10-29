@@ -65,16 +65,36 @@ export const RADIATOR_SILL_GAP_M = 0.1;
 export const RADIATOR_WALL_GAP_M = 0.04;
 /** How far in front of a radiator furniture is kept away (beyond the radiator's own depth). */
 export const RADIATOR_KEEP_CLEAR_M = 0.3;
+/**
+ * A bathroom's heater is a wall-hung heated towel rail (the owner, 29 Oct 2026), not a radiator
+ * under the window: 48 × 120 cm, its bottom 60 cm off the floor so the towels hang clear of it.
+ */
+export const TOWEL_RAIL_WIDTH_M = 0.48;
+export const TOWEL_RAIL_HEIGHT_M = 1.2;
+export const TOWEL_RAIL_DEPTH_M = 0.075;
+export const TOWEL_RAIL_BOTTOM_M = 0.6;
+/** The rooms whose heater is a towel rail. */
+export const TOWEL_RAIL_ROOMS: Array<PlanRoom['type']> = ['bathroom'];
+
 /** Room left at each end of a radiator when it is hung beside a window rather than under it. */
 export const RADIATOR_BESIDE_WINDOW_M = 0.15;
 
 /**
- * Where automatic placement hangs the flat's one boiler, in this order — always on an outside
- * wall, where its flue can leave: a utility (storage) room, else the balcony, else the kitchen,
- * else the bathroom. A storage room counts only with an outside wall; the others are taken
- * even without one when nothing better exists (the person moves it).
+ * Where automatic placement hangs the flat's one boiler, in this order (the owner, 29 Oct 2026):
+ * in the hall by the entrance, in the cupboard with the technical things (`BOILER_HALL_*`); when
+ * the hall has no room for that cupboard, on the balcony, enclosed in one; with no balcony, in the
+ * bathroom — never in the shower or beside the bath (`BOILER_WET_CLEAR_M`). A flat with none of
+ * these keeps the old order: a utility room, the kitchen, a studio. On the balcony and after it an
+ * outside wall is preferred, where the flue can leave; elsewhere the flue is checked
+ * (`boiler_not_exterior` says so).
  */
-export const BOILER_ROOMS: Array<PlanRoom['type']> = ['storage', 'balcony', 'kitchen', 'bathroom', 'studio'];
+export const BOILER_ROOMS: Array<PlanRoom['type']> = ['hallway', 'balcony', 'bathroom', 'storage', 'kitchen', 'studio'];
+/** A hall takes the boiler's cupboard when it is this wide (60 cm of cupboard, 80 of passage)… */
+export const BOILER_HALL_MIN_WIDTH_M = 1.4;
+/** …and has a stretch of wall this long clear of doors and windows. */
+export const BOILER_CUPBOARD_M = 0.8;
+/** No boiler within this of a shower or a bath. */
+export const BOILER_WET_CLEAR_M = 0.6;
 /** Its ventilated cabinet: the boiler's size and 10 cm all round, no deeper than 60 cm. */
 export const BOILER_CABINET_CLEARANCE_M = 0.1;
 export const BOILER_CABINET_MAX_DEPTH_M = 0.6;
